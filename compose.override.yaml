@@ -3,16 +3,20 @@ services:
 ###> doctrine/doctrine-bundle ###
   database:
     ports:
-      - "5432"
+      - "3307:3306"  # Port 3307 pe host -> 3306 în container (evită conflictul cu MySQL local)
 ###< doctrine/doctrine-bundle ###
 
 ###> symfony/mailer ###
   mailer:
     image: axllent/mailpit
+    container_name: symfony-mvp-mailpit
+    restart: unless-stopped
     ports:
-      - "1025"
-      - "8025"
+      - "1025:1025"
+      - "8025:8025"
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: 1
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    networks:
+      - symfony-network
 ###< symfony/mailer ###
