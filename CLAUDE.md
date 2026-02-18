@@ -7,7 +7,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Symfony 7.3** (PHP >= 8.2, Docker uses 8.4)
 - **Database**: MySQL 8.0 (default in Docker), managed via Doctrine ORM
 - **Admin UI**: EasyAdmin 4.27 at `/admin` route
-- **Frontend**: Stimulus + Asset Mapper + Importmap (no heavy bundler)
+- **Frontend**: Stimulus + Turbo + Asset Mapper + Importmap (no Node.js)
+- **CSS**: Tailwind CSS v4 via `symfonycasts/tailwind-bundle` (standalone binary, zero Node.js)
 - **Email verification**: SymfonyCasts verify-email-bundle
 
 ## Essential Commands
@@ -34,6 +35,8 @@ make composer                  # Run composer install
 make migrate                   # Run database migrations
 make test                      # Run PHPUnit tests
 make cache-clear               # Clear Symfony cache
+make tailwind                  # Build Tailwind CSS once
+make tailwind-watch            # Watch and rebuild Tailwind CSS on file changes
 ```
 
 **Manual Docker commands:**
@@ -149,11 +152,19 @@ public/                  # Web root (index.php entry point)
 - **Email verification**: Handled via `src/Security/EmailVerifier.php` helper
 
 ### Frontend Architecture
+- **Tailwind CSS v4**: Compiled via `symfonycasts/tailwind-bundle` standalone binary (no Node.js)
+  - Source: `assets/styles/app.css` with `@import "tailwindcss";`
+  - Build: `make tailwind` (single build) or `make tailwind-watch` (auto-rebuild on changes)
+  - Config: `config/packages/symfonycasts_tailwind.yaml` (binary version)
+  - Tailwind v4 uses automatic content scanning (no `tailwind.config.js` needed)
+  - Compiled output cached in `var/tailwind/` (gitignored)
 - **Stimulus controllers**: Small JavaScript controllers in `assets/controllers/`
+- **Turbo**: SPA-like navigation via `@hotwired/turbo` (installed via importmap)
 - **Import mapping**: Configured in `importmap.php` and `assets/controllers.json`
-- **No bundler**: Uses Symfony Asset Mapper for modern JS without webpack/vite
-- **Entry point**: `assets/app.js` loads Stimulus bootstrap
+- **No bundler**: Uses Symfony Asset Mapper for modern JS/CSS without webpack/vite
+- **Entry point**: `assets/app.js` loads Stimulus bootstrap + CSS
 - After asset changes, run `php bin/console importmap:install` and `php bin/console assets:install`
+- After template/CSS changes with new Tailwind classes, run `make tailwind` to rebuild
 
 ### EasyAdmin Integration
 - Dashboard configured in `src/Controller/Admin/DashboardController.php`
@@ -215,6 +226,8 @@ class ExampleController extends AbstractController
 3. **Run tests locally**: `./bin/phpunit` to reproduce failures before changing behavior
 4. **Cache clear**: Run `php bin/console cache:clear` after config/service changes
 5. **Asset changes**: Ensure `importmap:install` and `assets:install` work after template/asset changes
+6. **Tailwind changes**: Run `make tailwind` after adding new Tailwind classes in templates
+7. **New composer packages in Docker**: Run `make restart` after `composer require` — PHP-FPM OPcache doesn't detect new vendor code without restart
 
 ## Docker Architecture
 
@@ -230,7 +243,7 @@ The application runs in a multi-container Docker setup:
 - `Dockerfile`: PHP container configuration with all required extensions
 - `compose.yaml`: Main Docker Compose configuration
 - `compose.override.yaml`: Development-specific overrides (port mappings)
-- `docker-entrypoint.sh`: Initialization script (waits for DB, runs migrations, clears cache)
+- `docker-entrypoint.sh`: Initialization script (waits for DB, runs migrations, builds Tailwind, clears cache)
 - `docker/nginx/default.conf`: Nginx configuration for Symfony
 - `Makefile`: Convenient commands for Docker operations
 

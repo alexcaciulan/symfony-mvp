@@ -1,4 +1,4 @@
-.PHONY: help build up down restart logs shell composer test migrate db-create
+.PHONY: help build up down restart logs shell composer test migrate db-create tailwind tailwind-watch
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -57,6 +57,12 @@ cache-clear: ## Clear Symfony cache
 setup: build up composer migrate ## Full setup: build, start, install dependencies, and run migrations
 	@echo "Setup complete! Application is running at http://localhost:8080"
 	@echo "Mailpit UI is available at http://localhost:8025"
+
+tailwind: ## Build Tailwind CSS once
+	docker compose exec php php bin/console tailwind:build
+
+tailwind-watch: ## Watch and rebuild Tailwind CSS on file changes
+	docker compose exec php php bin/console tailwind:build --watch
 
 clean: down ## Stop containers and remove volumes
 	docker compose down -v

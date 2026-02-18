@@ -66,6 +66,10 @@ echo "Installing assets..."
 php bin/console assets:install public
 php bin/console importmap:install
 
+# Build Tailwind CSS
+echo "Building Tailwind CSS..."
+php bin/console tailwind:build
+
 # Set correct permissions
 chown -R www-data:www-data /var/www/html/var
 
