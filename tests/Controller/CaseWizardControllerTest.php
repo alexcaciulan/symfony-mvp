@@ -5,10 +5,12 @@ namespace App\Tests\Controller;
 use App\Entity\AuditLog;
 use App\Entity\CaseStatusHistory;
 use App\Entity\Court;
+use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\Payment;
 use App\Entity\User;
 use App\Enum\CourtType;
+use App\Enum\DocumentType;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -393,6 +395,13 @@ class CaseWizardControllerTest extends WebTestCase
         ]);
         $this->assertCount(1, $auditLogs);
         $this->assertSame('case_status_change', $auditLogs[0]->getAction());
+
+        // Check PDF document was generated
+        $documents = $this->em->getRepository(Document::class)->findBy(['legalCase' => $id]);
+        $this->assertCount(1, $documents);
+        $this->assertSame(DocumentType::CERERE_PDF, $documents[0]->getDocumentType());
+        $this->assertSame('application/pdf', $documents[0]->getMimeType());
+        $this->assertGreaterThan(0, $documents[0]->getFileSize());
     }
 
     public function testStep6SubmitWithoutCheckboxesShowsErrors(): void
@@ -490,7 +499,8 @@ class CaseWizardControllerTest extends WebTestCase
         $userId = $this->user->getId();
         $courtId = $this->court->getId();
 
-        // Delete workflow-generated records before legal_case (FK constraints)
+        // Delete related records before legal_case (FK constraints)
+        $conn->executeStatement('DELETE d FROM document d JOIN legal_case lc ON d.legal_case_id = lc.id WHERE lc.user_id = ?', [$userId]);
         $conn->executeStatement('DELETE csh FROM case_status_history csh JOIN legal_case lc ON csh.legal_case_id = lc.id WHERE lc.user_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM audit_log WHERE user_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM payment WHERE user_id = ?', [$userId]);

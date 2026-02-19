@@ -208,6 +208,8 @@ case_view:
     submitted_at: 'Depus la: %date%'
     back_to_cases: 'Înapoi la dosare'
     status_history: 'Istoric status'
+    documents: 'Documente'
+    download: 'Descarcă'
 
 # =============================================================================
 # Case Statuses

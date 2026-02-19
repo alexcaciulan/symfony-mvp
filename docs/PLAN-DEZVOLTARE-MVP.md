@@ -22,8 +22,8 @@ Fiecare pas este un prompt pe care îl dai lui Claude Code. După fiecare pas, v
 | 8 | Core | Wizard cerere pașii 1-4 (formulare, fără upload) | 4-6 ore | Pas 5 | ✅ DONE |
 | 9 | Core | Wizard cerere pașii 5-6 (probe + confirmare + calculator taxă) | 3-4 ore | Pas 8 | ✅ DONE |
 | 10 | Core | Workflow dosar + Voters + Dashboard creditor + Audit log | 3-4 ore | Pas 9 | ✅ DONE (parțial) |
-| 11 | Core | Configurare Messenger worker + procesare async | 1-2 ore | Pas 10 | |
-| 12 | Docs | Generare PDF (DomPDF) via Messenger | 2-3 ore | Pas 11 | |
+| 11 | Core | Configurare Messenger worker + procesare async | 1-2 ore | Pas 10 | ⏭️ SKIP (absorbit în Pas 12/15) |
+| 12 | Docs | Generare PDF (DomPDF) via Messenger | 2-3 ore | Pas 11 | ✅ DONE (sync, fără Messenger) |
 | 13 | Docs | Upload documente (VichUploader + Flysystem) | 2-3 ore | Pas 10 | |
 | 14 | Plăți | Integrare Netopia Payments + simulator local | 3-4 ore | Pas 12 | |
 | 15 | Notif | Email tranzacțional + notificări in-app | 2-3 ore | Pas 10 | |
@@ -263,45 +263,33 @@ State machine, autorizare per dosar (voters), audit log. Implementare simplifica
 
 ---
 
-### PASUL 11 | Configurare Messenger worker + procesare async | ~1-2 ore
+### PASUL 11 | Configurare Messenger worker + procesare async | ⏭️ SKIP
 
-Configurarea completă a Symfony Messenger pentru procesare asincronă: routing, worker în Docker, retry, failed transport.
-
-**PROMPT:**
-> Configurează Symfony Messenger complet pentru procesare asincronă. În config/packages/messenger.yaml: definește transport 'async' cu Doctrine (doctrine://default), transport 'failed' (doctrine://default?queue_name=failed). Routing: trimite toate mesajele din App\Message\ la transportul 'async'. Creează structura de mesaje: src/Message/GeneratePdfMessage.php (legalCaseId), src/Message/SendEmailMessage.php (recipientEmail, templateName, context array), src/MessageHandler/ cu handlere goale (implementarea reală vine la pașii următori) care doar loghează mesajul primit. Adaugă un proces Messenger worker în Docker: în compose.yaml, un serviciu 'messenger-worker' (sau supervisor în containerul php) care rulează `php bin/console messenger:consume async --time-limit=3600 --memory-limit=256M` cu restart automat. Adaugă comenzi utile în Makefile: `make messenger` (consume), `make messenger-failed` (retry failed), `make messenger-stop` (stop workers). Verifică că un mesaj dispatched ajunge la handler.
-
-**VERIFICARE MANUALĂ:**
-- [ ] Worker-ul pornește și consumă mesaje
-- [ ] `make messenger` funcționează
-- [ ] Dispatch un mesaj de test → handler-ul îl primește (verifică logs)
-- [ ] Worker-ul se restartează automat după crash
-
-**TESTE MINIME:**
-- Test unitar: mesajele se serializează/deserializează corect
-- Test: dispatch mesaj → handler primit (integration test)
+> **SKIP** — Absorbit în Pas 12 (PDF sync) și Pas 15 (Notificări). Messenger este deja configurat (transport async Doctrine + failed). Worker Docker și routing se adaugă când apare nevoia reală de procesare async (email, PDF mare, etc.).
 
 ---
 
 ## Faza 5: Documente
 
-### PASUL 12 | Generare PDF (DomPDF) via Messenger | ~2-3 ore
+### PASUL 12 | Generare PDF (DomPDF) | ✅ DONE (sync, fără Messenger)
 
-Generarea automată a cererii în format PDF conform Anexa 1, procesată async prin Messenger.
+Generare PDF "Cerere cu Valoare Redusă" (Anexa 1) precompletat cu datele dosarului, sincron la depunere.
 
-**PROMPT:**
-> Instalează dompdf/dompdf. Creează PdfGeneratorService în src/Service/Document/ cu metoda generateCasePdf(LegalCase $case): string (returnează calea fișierului). Template-ul PDF este un template Twig (templates/pdf/cerere_valoare_redusa.html.twig) care reproduce Anexa 1 (OMJ 359/C/2013) cu: antetul "CERERE CU VALOARE REDUSĂ", secțiunile: instanța competentă, datele reclamantului, datele pârâtului/pârâților, obiectul cererii și valoarea, descrierea creanței, baza legală, probele propuse, data și semnătura. Toate datele precompletate din LegalCase. CSS inline pentru layout-ul PDF (margini, fonturi, borduri — compatibil DomPDF). Implementează GeneratePdfMessageHandler: primește GeneratePdfMessage, apelează PdfGeneratorService, salvează PDF-ul în var/uploads/{case_uuid}/cerere_{caseNumber}.pdf, creează Document entity cu tipul 'cerere_pdf', loghează în AuditLog. Trigger: după tranziția 'confirm_payment' (paid), dispatch GeneratePdfMessage. PDF-ul trebuie să fie descărcabil din pagina detalii dosar.
+**Ce s-a implementat:**
+- `dompdf/dompdf` instalat
+- `PdfGeneratorService` — generează PDF din template Twig, salvează pe disk, creează entitate `Document`
+- Template `templates/pdf/cerere_valoare_redusa.html.twig` — Anexa 1 cu 5 secțiuni (instanță, părți, cerere, detalii, semnătură), font DejaVu Sans (diacritice), CSS inline, format A4
+- `DocumentController` — rută download cu verificare `CASE_VIEW` (voter)
+- Generare automată la submit wizard (draft→pending_payment) — `submitCase()` apelează sync `generateCasePdf()`
+- Secțiune "Documente" pe pagina detalii dosar cu link download
+- Stocare: `var/uploads/cases/{id}/cerere_{id}.pdf`
+- 1 unit test PdfGeneratorService + 3 teste DocumentController + asertări Document în teste existente (total 57 teste)
 
-**VERIFICARE MANUALĂ:**
-- [ ] Simulează tranziția confirm_payment → PDF generat async
-- [ ] PDF-ul conține datele dosarului (deschide-l și verifică)
-- [ ] Document entity creat în DB cu tip 'cerere_pdf'
-- [ ] PDF descărcabil din pagina detalii dosar
-- [ ] AuditLog înregistrează generarea
-
-**TESTE MINIME:**
-- Unit test: PdfGeneratorService generează PDF valid (non-empty file)
-- Unit test: PDF conține datele dosarului (grep text în output)
-- Test: handler procesează mesajul și creează Document entity
+**Ce s-a amânat:**
+- Procesare async via Messenger — PDF se generează sync (~200ms), se migra trivial
+- Worker Docker Messenger — nu e necesar fără async
+- Regenerare PDF (buton "Regenerează")
+- AuditLog la generare PDF — se adaugă când e nevoie
 
 ---
 

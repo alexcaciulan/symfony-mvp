@@ -208,6 +208,8 @@ case_view:
     submitted_at: 'Submitted on: %date%'
     back_to_cases: 'Back to cases'
     status_history: 'Status history'
+    documents: 'Documents'
+    download: 'Download'
 
 # =============================================================================
 # Case Statuses

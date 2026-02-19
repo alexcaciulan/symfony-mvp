@@ -129,6 +129,30 @@
             </div>
         {% endif %}
 
+        {# Documents #}
+        {% if legalCase.documents is not empty %}
+            <div class="border border-gray-200 rounded-lg p-4 mb-8">
+                <h3 class="text-sm font-semibold text-gray-700 mb-3">{{ 'case_view.documents'|trans }}</h3>
+                <ul class="space-y-2">
+                    {% for doc in legalCase.documents %}
+                        <li class="flex items-center justify-between text-sm">
+                            <div class="flex items-center gap-2">
+                                <svg class="w-5 h-5 text-red-500 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M4 18h12a2 2 0 002-2V6l-4-4H4a2 2 0 00-2 2v12a2 2 0 002 2zm8-14l4 4h-4V4zM6 10h8v2H6v-2zm0 4h5v2H6v-2z"/>
+                                </svg>
+                                <span class="text-gray-800">{{ doc.originalFilename }}</span>
+                                <span class="text-gray-400 text-xs">({{ (doc.fileSize / 1024)|number_format(0) }} KB)</span>
+                            </div>
+                            <a href="{{ path('case_document_download', { caseId: legalCase.id, documentId: doc.id }) }}"
+                               class="text-primary-light hover:text-primary font-medium no-underline text-xs">
+                                {{ 'case_view.download'|trans }}
+                            </a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endif %}
+
         {# Status history timeline #}
         {% if legalCase.statusHistory is not empty %}
             <div class="border border-gray-200 rounded-lg p-4 mb-8">

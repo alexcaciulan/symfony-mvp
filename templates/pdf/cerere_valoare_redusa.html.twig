@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'DejaVu Sans', sans-serif;
+            font-size: 10pt;
+            line-height: 1.4;
+            color: #000;
+        }
+        .page { padding: 15mm 20mm; }
+        h1 {
+            text-align: center;
+            font-size: 13pt;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        .subtitle {
+            text-align: center;
+            font-size: 8pt;
+            color: #444;
+            margin-bottom: 20px;
+        }
+        .section {
+            border: 1px solid #000;
+            margin-bottom: 12px;
+            padding: 10px 12px;
+        }
+        .section-title {
+            font-weight: bold;
+            font-size: 10pt;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 4px;
+        }
+        .subsection-title {
+            font-weight: bold;
+            font-size: 9pt;
+            margin-top: 8px;
+            margin-bottom: 4px;
+        }
+        .field { margin-bottom: 4px; }
+        .field-label {
+            font-size: 8pt;
+            color: #444;
+        }
+        .field-value {
+            font-size: 10pt;
+        }
+        .field-value.empty {
+            color: #999;
+            font-style: italic;
+        }
+        table.info-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 6px;
+        }
+        table.info-table td {
+            padding: 2px 4px;
+            vertical-align: top;
+            font-size: 9pt;
+        }
+        table.info-table td.label {
+            width: 40%;
+            color: #444;
+            font-size: 8pt;
+        }
+        .defendant-separator {
+            border-top: 1px dashed #999;
+            margin: 8px 0;
+        }
+        .checkbox {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border: 1px solid #000;
+            text-align: center;
+            font-size: 8pt;
+            line-height: 10px;
+            margin-right: 4px;
+        }
+        .checkbox.checked::after { content: "✓"; }
+        .signature-section {
+            margin-top: 20px;
+            padding-top: 10px;
+        }
+        .text-block {
+            font-size: 9pt;
+            margin-bottom: 6px;
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+
+    <h1>CERERE CU VALOARE REDUSĂ</h1>
+    <div class="subtitle">[art. 1.028 alin. (2) din Legea nr. 134/2010 privind Codul de procedură civilă]</div>
+
+    {# ================================================================ #}
+    {# 1. INSTANȚA JUDECĂTOREASCĂ #}
+    {# ================================================================ #}
+    <div class="section">
+        <div class="section-title">1. Instanța judecătorească</div>
+        <table class="info-table">
+            <tr>
+                <td class="label">Denumirea judecătoriei:</td>
+                <td class="field-value">{{ case.court ? case.court.name : '—' }}</td>
+            </tr>
+            <tr>
+                <td class="label">Județul:</td>
+                <td class="field-value">{{ case.county ?? '—' }}</td>
+            </tr>
+        </table>
+    </div>
+
+    {# ================================================================ #}
+    {# 2. IDENTIFICAREA PĂRȚILOR #}
+    {# ================================================================ #}
+    <div class="section">
+        <div class="section-title">2. Identificarea părților</div>
+
+        {# 2.1 Reclamant #}
+        <div class="subsection-title">2.1. Informații privind reclamantul</div>
+        {% set cd = case.claimantData %}
+        <table class="info-table">
+            <tr>
+                <td class="label">2.1.1. Numele și prenumele / Denumirea:</td>
+                <td class="field-value">{{ cd.name ?? '—' }}</td>
+            </tr>
+            <tr>
+                <td class="label">2.1.2. Domiciliul / Sediul:</td>
+                <td class="field-value">
+                    {% if cd %}
+                        {{ cd.street ?? '' }} {{ cd.streetNumber ?? '' }}
+                        {%- if cd.block is defined and cd.block %}, bl. {{ cd.block }}{% endif %}
+                        {%- if cd.staircase is defined and cd.staircase %}, sc. {{ cd.staircase }}{% endif %}
+                        {%- if cd.apartment is defined and cd.apartment %}, ap. {{ cd.apartment }}{% endif %}
+                        {%- if cd.city is defined and cd.city %}, {{ cd.city }}{% endif %}
+                        {%- if cd.county is defined and cd.county %}, jud. {{ cd.county }}{% endif %}
+                        {%- if cd.postalCode is defined and cd.postalCode %}, cod {{ cd.postalCode }}{% endif %}
+                    {% else %}—{% endif %}
+                </td>
+            </tr>
+            <tr>
+                <td class="label">2.1.3. {{ case.claimantType == 'pf' ? 'CNP' : 'CUI / CIF' }}:</td>
+                <td class="field-value">{{ cd.cnp ?? cd.cui ?? '—' }}</td>
+            </tr>
+            <tr>
+                <td class="label">2.1.4. Telefon:</td>
+                <td class="field-value">{{ cd.phone ?? '—' }}</td>
+            </tr>
+            <tr>
+                <td class="label">2.1.5. Email:</td>
+                <td class="field-value">{{ cd.email ?? '—' }}</td>
+            </tr>
+            {% if case.hasLawyer and case.lawyerData %}
+                <tr>
+                    <td class="label">2.1.7. Reprezentant / Avocat:</td>
+                    <td class="field-value">
+                        {{ case.lawyerData.name ?? '' }}
+                        {%- if case.lawyerData.barNumber is defined and case.lawyerData.barNumber %}, legitimație nr. {{ case.lawyerData.barNumber }}{% endif %}
+                        {%- if case.lawyerData.phone is defined and case.lawyerData.phone %}, tel. {{ case.lawyerData.phone }}{% endif %}
+                        {%- if case.lawyerData.email is defined and case.lawyerData.email %}, {{ case.lawyerData.email }}{% endif %}
+                    </td>
+                </tr>
+            {% endif %}
+        </table>
+
+        {# 2.2 Pârât(i) #}
+        {% for defendant in case.defendants ?? [] %}
+            {% if not loop.first %}<div class="defendant-separator"></div>{% endif %}
+            <div class="subsection-title">2.2. Informații privind pârâtul{% if case.defendants|length > 1 %} ({{ loop.index }}){% endif %}</div>
+            <table class="info-table">
+                <tr>
+                    <td class="label">2.2.1. Numele și prenumele / Denumirea:</td>
+                    <td class="field-value">{{ defendant.name ?? '—' }}</td>
+                </tr>
+                <tr>
+                    <td class="label">2.2.2. Domiciliul / Sediul:</td>
+                    <td class="field-value">
+                        {{ defendant.street ?? '' }} {{ defendant.streetNumber ?? '' }}
+                        {%- if defendant.block is defined and defendant.block %}, bl. {{ defendant.block }}{% endif %}
+                        {%- if defendant.staircase is defined and defendant.staircase %}, sc. {{ defendant.staircase }}{% endif %}
+                        {%- if defendant.apartment is defined and defendant.apartment %}, ap. {{ defendant.apartment }}{% endif %}
+                        {%- if defendant.city is defined and defendant.city %}, {{ defendant.city }}{% endif %}
+                        {%- if defendant.county is defined and defendant.county %}, jud. {{ defendant.county }}{% endif %}
+                        {%- if defendant.postalCode is defined and defendant.postalCode %}, cod {{ defendant.postalCode }}{% endif %}
+                    </td>
+                </tr>
+                <tr>
+                    <td class="label">2.2.3. {{ (defendant.type is defined and defendant.type == 'pj') ? 'CUI / CIF' : 'CNP' }}:</td>
+                    <td class="field-value">{{ defendant.cnp ?? defendant.cui ?? '—' }}</td>
+                </tr>
+                {% if defendant.phone is defined and defendant.phone %}
+                    <tr>
+                        <td class="label">2.2.4. Telefon:</td>
+                        <td class="field-value">{{ defendant.phone }}</td>
+                    </tr>
+                {% endif %}
+                {% if defendant.email is defined and defendant.email %}
+                    <tr>
+                        <td class="label">2.2.5. Email:</td>
+                        <td class="field-value">{{ defendant.email }}</td>
+                    </tr>
+                {% endif %}
+            </table>
+        {% endfor %}
+    </div>
+
+    {# ================================================================ #}
+    {# 3. INFORMAȚII PRIVIND CEREREA #}
+    {# ================================================================ #}
+    <div class="section">
+        <div class="section-title">3. Informații privind cererea introductivă</div>
+
+        <div class="subsection-title">3.1. Cerere evaluabilă în bani</div>
+        <table class="info-table">
+            <tr>
+                <td class="label">3.1.1. Valoarea obligației principale:</td>
+                <td class="field-value">{{ case.claimAmount|number_format(2, ',', '.') }} RON</td>
+            </tr>
+        </table>
+
+        <div class="subsection-title">3.3. Dobânzi</div>
+        {% if case.interestType == 'none' %}
+            <div class="text-block">
+                <span class="checkbox checked"></span> Nu solicit dobânzi.
+            </div>
+        {% elseif case.interestType == 'contractual' %}
+            <div class="text-block">
+                <span class="checkbox checked"></span> Da, dobândă contractuală.
+            </div>
+            <table class="info-table">
+                <tr>
+                    <td class="label">Rata dobânzii:</td>
+                    <td class="field-value">{{ case.interestRate ?? '—' }}%</td>
+                </tr>
+                {% if case.interestStartDate %}
+                    <tr>
+                        <td class="label">Dobânda curge de la:</td>
+                        <td class="field-value">{{ case.interestStartDate|date('d.m.Y') }}</td>
+                    </tr>
+                {% endif %}
+            </table>
+        {% elseif case.interestType == 'legal' %}
+            <div class="text-block">
+                <span class="checkbox checked"></span> Da, dobândă legală.
+            </div>
+            {% if case.interestStartDate %}
+                <table class="info-table">
+                    <tr>
+                        <td class="label">Dobânda curge de la:</td>
+                        <td class="field-value">{{ case.interestStartDate|date('d.m.Y') }}</td>
+                    </tr>
+                </table>
+            {% endif %}
+        {% endif %}
+
+        <div class="subsection-title">3.4. Cheltuieli de judecată</div>
+        <div class="text-block">
+            {% if case.requestCourtCosts %}
+                <span class="checkbox checked"></span> Da, solicit restituirea cheltuielilor de judecată.
+            {% else %}
+                <span class="checkbox checked"></span> Nu solicit restituirea cheltuielilor de judecată.
+            {% endif %}
+        </div>
+    </div>
+
+    {# ================================================================ #}
+    {# 4. DETALII PRIVIND CEREREA #}
+    {# ================================================================ #}
+    <div class="section">
+        <div class="section-title">4. Detalii privind cererea</div>
+
+        <div class="subsection-title">4.1. Motivele de fapt și de drept</div>
+        <div class="text-block">{{ case.claimDescription ?? '—' }}</div>
+        {% if case.legalBasis %}
+            <table class="info-table">
+                <tr>
+                    <td class="label">Temei juridic:</td>
+                    <td class="field-value">{{ case.legalBasis }}</td>
+                </tr>
+            </table>
+        {% endif %}
+        {% if case.dueDate %}
+            <table class="info-table">
+                <tr>
+                    <td class="label">Data scadenței:</td>
+                    <td class="field-value">{{ case.dueDate|date('d.m.Y') }}</td>
+                </tr>
+            </table>
+        {% endif %}
+
+        <div class="subsection-title">4.2. Probe</div>
+        {% if case.evidenceDescription %}
+            <div class="text-block">{{ case.evidenceDescription }}</div>
+        {% endif %}
+
+        {% if case.hasWitnesses and case.witnesses %}
+            <div class="subsection-title" style="font-size: 8pt;">Martori:</div>
+            {% for witness in case.witnesses %}
+                <table class="info-table">
+                    <tr>
+                        <td class="label">Martor {{ loop.index }}:</td>
+                        <td class="field-value">
+                            {{ witness.name ?? '—' }}
+                            {%- if witness.address is defined and witness.address %}, {{ witness.address }}{% endif %}
+                            {%- if witness.details is defined and witness.details %} — {{ witness.details }}{% endif %}
+                        </td>
+                    </tr>
+                </table>
+            {% endfor %}
+        {% endif %}
+
+        <div class="subsection-title">4.3. Dezbatere orală</div>
+        <div class="text-block">
+            {% if case.requestOralDebate %}
+                <span class="checkbox checked"></span> Da, solicit dezbatere orală.
+            {% else %}
+                <span class="checkbox checked"></span> Nu solicit dezbatere orală.
+            {% endif %}
+        </div>
+    </div>
+
+    {# ================================================================ #}
+    {# 5. DATA ȘI SEMNĂTURA #}
+    {# ================================================================ #}
+    <div class="section">
+        <div class="section-title">5. Data și semnătura</div>
+        <div class="text-block">
+            Prin prezenta solicit instanței judecătorești să pronunțe o hotărâre împotriva pârâtului în temeiul cererii mele.
+            Declar că, după știința mea, informațiile furnizate mai sus sunt corecte și date cu bună-credință.
+        </div>
+        <table class="info-table" style="margin-top: 16px;">
+            <tr>
+                <td class="label">Data:</td>
+                <td class="field-value">{{ case.submittedAt ? case.submittedAt|date('d.m.Y') : '—' }}</td>
+            </tr>
+            <tr>
+                <td class="label">Numele și prenumele / Denumirea:</td>
+                <td class="field-value">{{ cd.name ?? '—' }}</td>
+            </tr>
+            <tr>
+                <td class="label">Semnătura:</td>
+                <td class="field-value">___________________________</td>
+            </tr>
+        </table>
+    </div>
+
+</div>
+</body>
+</html>

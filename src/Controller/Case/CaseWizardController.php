@@ -19,6 +19,7 @@ use App\Repository\CourtRepository;
 use App\Repository\LegalCaseRepository;
 use App\Service\Case\CaseWorkflowService;
 use App\Service\Case\TaxCalculatorService;
+use App\Service\Document\PdfGeneratorService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -37,6 +38,7 @@ class CaseWizardController extends AbstractController
         private CourtRepository $courtRepository,
         private TaxCalculatorService $taxCalculator,
         private CaseWorkflowService $workflowService,
+        private PdfGeneratorService $pdfGenerator,
     ) {}
 
     #[Route('/new', name: 'case_new', methods: ['GET', 'POST'])]
@@ -276,6 +278,10 @@ class CaseWizardController extends AbstractController
         // Transition via workflow (draft → pending_payment)
         $this->workflowService->apply($legalCase, 'submit');
         $legalCase->setSubmittedAt(new \DateTimeImmutable());
+
+        // Generate PDF (Cerere cu Valoare Redusă)
+        $this->pdfGenerator->generateCasePdf($legalCase);
+
         $this->em->flush();
     }
 }
