@@ -1,0 +1,80 @@
+# =============================================================================
+# Navigation & Layout (base.html.twig)
+# =============================================================================
+layout:
+    brand: 'RecuperăriCreanțe'
+    nav:
+        home: 'Acasă'
+        admin: 'Admin'
+        logout: 'Deconectare'
+        login: 'Autentificare'
+        register: 'Înregistrare'
+        menu_label: 'Meniu'
+    footer:
+        copyright: '© %year% RecuperăriCreanțe. Toate drepturile rezervate.'
+        terms: 'Termeni și condiții'
+        contact: 'Contact'
+
+# =============================================================================
+# Login (security/login.html.twig)
+# =============================================================================
+login:
+    title: 'Autentificare'
+    logged_in_as: 'Ești autentificat ca'
+    label_email: 'Email'
+    label_password: 'Parolă'
+    submit: 'Autentificare'
+    no_account: 'Nu ai cont?'
+    register_link: 'Înregistrează-te'
+    logout: 'Deconectare'
+
+# =============================================================================
+# Registration (registration/register.html.twig)
+# =============================================================================
+registration:
+    title: 'Înregistrare'
+    heading: 'Creează un cont'
+    submit: 'Înregistrare'
+    has_account: 'Ai deja cont?'
+    login_link: 'Autentifică-te'
+    check_email:
+        title: 'Verifică-ți email-ul'
+        heading: 'Verifică-ți email-ul'
+        sent_to: 'Un email de confirmare a fost trimis la adresa'
+        instructions: 'Te rugăm să accesezi link-ul din email pentru a-ți verifica contul. Nu ai primit email-ul? Verifică și folderul de spam.'
+        resend_button: 'Retrimite email-ul de verificare'
+    email:
+        subject: 'Confirmă adresa de email'
+        heading: 'Confirmă adresa de email'
+        body: 'Bine ai venit! Te rugăm să confirmi adresa de email apăsând butonul de mai jos:'
+        confirm_button: 'Confirmă adresa de email'
+        expiry_note: 'Acest link expiră în %expiry%.'
+        ignore_note: 'Dacă nu ai creat un cont pe platforma noastră, te rugăm să ignori acest email.'
+    sender_name: 'Recuperare Creanțe'
+
+# =============================================================================
+# Flash messages (RegistrationController)
+# =============================================================================
+flash:
+    email_already_verified: 'Adresa de email este deja verificată.'
+    verification_resent: 'Email-ul de verificare a fost retrimis.'
+    verification_throttle: 'Te rugăm să aștepți un minut înainte de a retrimite email-ul.'
+    email_verified_success: 'Adresa de email a fost verificată cu succes.'
+
+# =============================================================================
+# Form labels (RegistrationFormType)
+# =============================================================================
+form:
+    registration:
+        email: 'Email'
+        password: 'Parolă'
+        password_confirm: 'Confirmă parola'
+        agree_terms: 'Sunt de acord cu termenii și condițiile'
+
+# =============================================================================
+# Language switcher
+# =============================================================================
+language:
+    ro: 'Română'
+    en: 'English'
+    switch: 'Limbă'

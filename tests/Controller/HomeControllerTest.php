@@ -21,4 +21,20 @@ class HomeControllerTest extends WebTestCase
 
         $this->assertSelectorTextContains('h1', 'Recuperare creanțe');
     }
+
+    public function testSwitchLocaleRedirectsBack(): void
+    {
+        $client = static::createClient();
+        $client->request('GET', '/switch-locale/en', [], [], ['HTTP_REFERER' => '/']);
+
+        $this->assertResponseRedirects('/');
+    }
+
+    public function testSwitchLocaleWithoutRefererRedirectsToHome(): void
+    {
+        $client = static::createClient();
+        $client->request('GET', '/switch-locale/en');
+
+        $this->assertResponseRedirects('/');
+    }
 }

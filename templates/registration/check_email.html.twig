@@ -1,6 +1,6 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Verifică-ți email-ul{% endblock %}
+{% block title %}{{ 'registration.check_email.title'|trans }}{% endblock %}
 
 {% block body %}
     <div class="max-w-md mx-auto px-4 py-12 sm:py-20">
@@ -11,21 +11,20 @@
                 </svg>
             </div>
 
-            <h1 class="text-2xl font-bold text-gray-900 mb-4">Verifică-ți email-ul</h1>
+            <h1 class="text-2xl font-bold text-gray-900 mb-4">{{ 'registration.check_email.heading'|trans }}</h1>
 
             <p class="text-gray-500 mb-2">
-                Un email de confirmare a fost trimis la adresa
+                {{ 'registration.check_email.sent_to'|trans }}
             </p>
             <p class="font-semibold text-gray-900 mb-6">{{ app.user.email }}</p>
 
             <p class="text-sm text-gray-400 mb-8">
-                Te rugăm să accesezi link-ul din email pentru a-ți verifica contul.
-                Nu ai primit email-ul? Verifică și folderul de spam.
+                {{ 'registration.check_email.instructions'|trans }}
             </p>
 
             <a href="{{ path('app_resend_verification') }}"
                class="inline-block px-6 py-3 bg-primary-light text-white font-semibold rounded-lg hover:bg-primary no-underline transition">
-                Retrimite email-ul de verificare
+                {{ 'registration.check_email.resend_button'|trans }}
             </a>
         </div>
     </div>

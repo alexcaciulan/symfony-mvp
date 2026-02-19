@@ -228,6 +228,7 @@ class ExampleController extends AbstractController
 5. **Asset changes**: Ensure `importmap:install` and `assets:install` work after template/asset changes
 6. **Tailwind changes**: Run `make tailwind` after adding new Tailwind classes in templates
 7. **New composer packages in Docker**: Run `make restart` after `composer require` — PHP-FPM OPcache doesn't detect new vendor code without restart
+8. **Any code/config changes in Docker**: Run `make restart` after modifying PHP files, config, or translations — PHP-FPM OPcache caches aggressively and won't pick up changes without restart
 
 ## Docker Architecture
 

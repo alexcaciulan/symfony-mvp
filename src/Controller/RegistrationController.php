@@ -24,6 +24,7 @@ class RegistrationController extends AbstractController
         private EmailVerifier $emailVerifier,
         #[Autowire('%app.mailer_from%')]
         private string $mailerFrom,
+        private TranslatorInterface $translator,
     ) {
     }
 
@@ -75,26 +76,26 @@ class RegistrationController extends AbstractController
         }
 
         if ($user->isVerified()) {
-            $this->addFlash('success', 'Adresa de email este deja verificată.');
+            $this->addFlash('success', $this->translator->trans('flash.email_already_verified'));
             return $this->redirectToRoute('app_check_email');
         }
 
         $lastSent = $request->getSession()->get('last_verification_email', 0);
         if (time() - $lastSent < 60) {
-            $this->addFlash('warning', 'Te rugăm să aștepți un minut înainte de a retrimite email-ul.');
+            $this->addFlash('warning', $this->translator->trans('flash.verification_throttle'));
             return $this->redirectToRoute('app_check_email');
         }
 
         $this->sendVerificationEmail($user);
         $request->getSession()->set('last_verification_email', time());
 
-        $this->addFlash('success', 'Email-ul de verificare a fost retrimis.');
+        $this->addFlash('success', $this->translator->trans('flash.verification_resent'));
 
         return $this->redirectToRoute('app_check_email');
     }
 
     #[Route('/verify/email', name: 'app_verify_email')]
-    public function verifyUserEmail(Request $request, TranslatorInterface $translator): Response
+    public function verifyUserEmail(Request $request): Response
     {
         $this->denyAccessUnlessGranted('IS_AUTHENTICATED_FULLY');
 
@@ -103,12 +104,12 @@ class RegistrationController extends AbstractController
             $user = $this->getUser();
             $this->emailVerifier->handleEmailConfirmation($request, $user);
         } catch (VerifyEmailExceptionInterface $exception) {
-            $this->addFlash('verify_email_error', $translator->trans($exception->getReason(), [], 'VerifyEmailBundle'));
+            $this->addFlash('verify_email_error', $this->translator->trans($exception->getReason(), [], 'VerifyEmailBundle'));
 
             return $this->redirectToRoute('app_register');
         }
 
-        $this->addFlash('success', 'Adresa de email a fost verificată cu succes.');
+        $this->addFlash('success', $this->translator->trans('flash.email_verified_success'));
 
         return $this->redirectToRoute('app_login');
     }
@@ -119,9 +120,9 @@ class RegistrationController extends AbstractController
             'app_verify_email',
             $user,
             (new TemplatedEmail())
-                ->from(new Address($this->mailerFrom, 'Recuperare Creanțe'))
+                ->from(new Address($this->mailerFrom, $this->translator->trans('registration.sender_name')))
                 ->to((string) $user->getEmail())
-                ->subject('Confirmă adresa de email')
+                ->subject($this->translator->trans('registration.email.subject'))
                 ->htmlTemplate('registration/confirmation_email.html.twig')
         );
     }

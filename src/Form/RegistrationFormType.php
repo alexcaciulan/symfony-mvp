@@ -18,35 +18,38 @@ class RegistrationFormType extends AbstractType
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $builder
-            ->add('email')
+            ->add('email', null, [
+                'label' => 'form.registration.email',
+            ])
             ->add('agreeTerms', CheckboxType::class, [
                 'mapped' => false,
+                'label' => 'form.registration.agree_terms',
                 'constraints' => [
                     new IsTrue([
-                        'message' => 'You should agree to our terms.',
+                        'message' => 'form.registration.agree_terms_required',
                     ]),
                 ],
             ])
             ->add('plainPassword', RepeatedType::class, [
                 'type' => PasswordType::class,
                 'mapped' => false,
-                'invalid_message' => 'Parolele nu coincid.',
+                'invalid_message' => 'form.registration.passwords_mismatch',
                 'first_options' => [
-                    'label' => 'Parolă',
+                    'label' => 'form.registration.password',
                     'attr' => ['autocomplete' => 'new-password'],
                     'constraints' => [
                         new NotBlank([
-                            'message' => 'Introduceți o parolă.',
+                            'message' => 'form.registration.password_required',
                         ]),
                         new Length([
                             'min' => 6,
-                            'minMessage' => 'Parola trebuie să aibă cel puțin {{ limit }} caractere.',
+                            'minMessage' => 'form.registration.password_min_length',
                             'max' => 4096,
                         ]),
                     ],
                 ],
                 'second_options' => [
-                    'label' => 'Confirmă parola',
+                    'label' => 'form.registration.password_confirm',
                     'attr' => ['autocomplete' => 'new-password'],
                 ],
             ])

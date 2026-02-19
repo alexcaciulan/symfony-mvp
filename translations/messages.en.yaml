@@ -1,0 +1,80 @@
+# =============================================================================
+# Navigation & Layout (base.html.twig)
+# =============================================================================
+layout:
+    brand: 'RecuperăriCreanțe'
+    nav:
+        home: 'Home'
+        admin: 'Admin'
+        logout: 'Sign out'
+        login: 'Sign in'
+        register: 'Register'
+        menu_label: 'Menu'
+    footer:
+        copyright: '© %year% RecuperăriCreanțe. All rights reserved.'
+        terms: 'Terms and conditions'
+        contact: 'Contact'
+
+# =============================================================================
+# Login (security/login.html.twig)
+# =============================================================================
+login:
+    title: 'Sign in'
+    logged_in_as: 'You are signed in as'
+    label_email: 'Email'
+    label_password: 'Password'
+    submit: 'Sign in'
+    no_account: "Don't have an account?"
+    register_link: 'Register'
+    logout: 'Sign out'
+
+# =============================================================================
+# Registration (registration/register.html.twig)
+# =============================================================================
+registration:
+    title: 'Register'
+    heading: 'Create an account'
+    submit: 'Register'
+    has_account: 'Already have an account?'
+    login_link: 'Sign in'
+    check_email:
+        title: 'Check your email'
+        heading: 'Check your email'
+        sent_to: 'A confirmation email has been sent to'
+        instructions: 'Please click the link in the email to verify your account. Did not receive the email? Check your spam folder.'
+        resend_button: 'Resend verification email'
+    email:
+        subject: 'Confirm your email address'
+        heading: 'Confirm your email address'
+        body: 'Welcome! Please confirm your email address by clicking the button below:'
+        confirm_button: 'Confirm email address'
+        expiry_note: 'This link expires in %expiry%.'
+        ignore_note: 'If you did not create an account on our platform, please ignore this email.'
+    sender_name: 'Recuperare Creanțe'
+
+# =============================================================================
+# Flash messages (RegistrationController)
+# =============================================================================
+flash:
+    email_already_verified: 'Your email address is already verified.'
+    verification_resent: 'The verification email has been resent.'
+    verification_throttle: 'Please wait one minute before resending the email.'
+    email_verified_success: 'Your email address has been verified successfully.'
+
+# =============================================================================
+# Form labels (RegistrationFormType)
+# =============================================================================
+form:
+    registration:
+        email: 'Email'
+        password: 'Password'
+        password_confirm: 'Confirm password'
+        agree_terms: 'I agree to the terms and conditions'
+
+# =============================================================================
+# Language switcher
+# =============================================================================
+language:
+    ro: 'Română'
+    en: 'English'
+    switch: 'Language'

@@ -1,0 +1,12 @@
+form:
+    registration:
+        passwords_mismatch: 'The passwords do not match.'
+        password_required: 'Please enter a password.'
+        password_min_length: 'Your password must be at least {{ limit }} characters long.'
+        agree_terms_required: 'You must agree to the terms and conditions.'
+
+validators:
+    user:
+        email_already_exists: 'There is already an account with this email.'
+        email_required: 'Please enter your email address.'
+        email_invalid: 'The email address is not valid.'

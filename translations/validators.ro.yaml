@@ -1,0 +1,12 @@
+form:
+    registration:
+        passwords_mismatch: 'Parolele nu coincid.'
+        password_required: 'Introduceți o parolă.'
+        password_min_length: 'Parola trebuie să aibă cel puțin {{ limit }} caractere.'
+        agree_terms_required: 'Trebuie să fiți de acord cu termenii și condițiile.'
+
+validators:
+    user:
+        email_already_exists: 'Există deja un cont cu acest email.'
+        email_required: 'Introduceți adresa de email.'
+        email_invalid: 'Adresa de email nu este validă.'
