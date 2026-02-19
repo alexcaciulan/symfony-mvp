@@ -210,6 +210,33 @@ case_view:
     status_history: 'Istoric status'
     documents: 'Documente'
     download: 'Descarcă'
+    no_documents: 'Nu sunt documente.'
+
+# =============================================================================
+# Document Upload/Delete
+# =============================================================================
+document:
+    upload:
+        title: 'Încarcă document'
+        file_label: 'Fișier'
+        type_label: 'Tip document'
+        submit: 'Încarcă'
+        success: 'Documentul a fost încărcat cu succes.'
+        max_files_reached: 'Limita de 10 documente per dosar a fost atinsă.'
+        too_large: 'Fișierul depășește limita de 10MB.'
+        invalid_type: 'Tip de fișier invalid. Doar PDF, JPG și PNG sunt acceptate.'
+        file_required: 'Selectați un fișier.'
+    delete:
+        button: 'Șterge'
+        success: 'Documentul a fost șters.'
+        cerere_pdf_protected: 'Cererea PDF generată automat nu poate fi ștearsă.'
+        confirm: 'Sigur doriți să ștergeți acest document?'
+        invalid_csrf: 'Token invalid. Reîncercați.'
+    type:
+        dovada: 'Dovadă'
+        contract: 'Contract'
+        factura: 'Factură'
+        alt_document: 'Alt document'
 
 # =============================================================================
 # Case Statuses

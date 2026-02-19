@@ -11,6 +11,7 @@ use App\Enum\DocumentType;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 class DocumentControllerTest extends WebTestCase
@@ -66,8 +67,8 @@ class DocumentControllerTest extends WebTestCase
         $case->setCounty('Test');
         $case->setCourt($this->court);
         $case->setClaimantType('pf');
-        $case->setClaimantData(['name' => 'Test']);
-        $case->setDefendants([['name' => 'Defendant']]);
+        $case->setClaimantData(['name' => 'Test', 'email' => 'test@test.com', 'city' => 'Test', 'county' => 'Test']);
+        $case->setDefendants([['type' => 'pf', 'name' => 'Defendant', 'city' => 'Test', 'county' => 'Test']]);
         $case->setClaimAmount('1000.00');
         $case->setClaimDescription('Test');
         $case->setInterestType('none');
@@ -126,6 +127,183 @@ class DocumentControllerTest extends WebTestCase
         $this->assertResponseStatusCodeSame(404);
     }
 
+    // =========================================================================
+    // Upload tests
+    // =========================================================================
+
+    public function testUploadValidPdf(): void
+    {
+        [$case] = $this->createCaseWithPdf();
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'test_') . '.pdf';
+        file_put_contents($tempFile, '%PDF-1.4 upload test');
+
+        // Load the view page and find the upload form
+        $crawler = $this->client->request('GET', "/case/{$case->getId()}");
+        $form = $crawler->selectButton('Încarcă')->form();
+        $form['document_upload[documentType]']->select('factura');
+        $form['document_upload[file]']->upload($tempFile);
+        $this->client->submit($form);
+
+        $this->assertResponseRedirects("/case/{$case->getId()}");
+
+        // Verify document was created
+        $this->em->clear();
+        $documents = $this->em->getRepository(Document::class)->findBy(['legalCase' => $case->getId()]);
+        // Should have 2: the original CERERE_PDF + the uploaded FACTURA
+        $this->assertCount(2, $documents);
+
+        $uploaded = array_values(array_filter($documents, fn($d) => $d->getDocumentType() === DocumentType::FACTURA));
+        $this->assertCount(1, $uploaded);
+        $this->assertNotEmpty($uploaded[0]->getMimeType());
+
+        // Verify file on disk
+        $filePath = $this->uploadsDir . '/' . $uploaded[0]->getStoredFilename();
+        $this->assertFileExists($filePath);
+    }
+
+    public function testUploadAsOtherUserDenied(): void
+    {
+        [$case] = $this->createCaseWithPdf();
+
+        $this->client->loginUser($this->otherUser);
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'test_') . '.pdf';
+        file_put_contents($tempFile, '%PDF-1.4 test');
+        $uploadedFile = new UploadedFile($tempFile, 'test.pdf', 'application/pdf', null, true);
+
+        $this->client->request('POST', "/case/{$case->getId()}/document/upload", [
+            'document_upload' => ['documentType' => 'dovada'],
+        ], [
+            'document_upload' => ['file' => $uploadedFile],
+        ]);
+
+        $this->assertResponseStatusCodeSame(403);
+    }
+
+    public function testUploadWhenMaxFilesReached(): void
+    {
+        [$case] = $this->createCaseWithPdf();
+
+        // Create 9 more documents to reach limit of 10
+        for ($i = 0; $i < 9; $i++) {
+            $doc = new Document();
+            $doc->setLegalCase($case);
+            $doc->setDocumentType(DocumentType::DOVADA);
+            $doc->setOriginalFilename("dovada_{$i}.pdf");
+            $doc->setStoredFilename("cases/{$case->getId()}/dovada_{$i}.pdf");
+            $doc->setFileSize(100);
+            $doc->setMimeType('application/pdf');
+            $doc->setUploadedBy($this->user);
+            $this->em->persist($doc);
+        }
+        $this->em->flush();
+
+        $tempFile = tempnam(sys_get_temp_dir(), 'test_') . '.pdf';
+        file_put_contents($tempFile, '%PDF-1.4 test');
+        $uploadedFile = new UploadedFile($tempFile, 'extra.pdf', 'application/pdf', null, true);
+
+        $this->client->request('POST', "/case/{$case->getId()}/document/upload", [
+            'document_upload' => ['documentType' => 'dovada'],
+        ], [
+            'document_upload' => ['file' => $uploadedFile],
+        ]);
+
+        $this->assertResponseRedirects("/case/{$case->getId()}");
+    }
+
+    // =========================================================================
+    // Delete tests
+    // =========================================================================
+
+    public function testDeleteOwnDocument(): void
+    {
+        [$case] = $this->createCaseWithPdf();
+
+        // Create a user-uploaded document (not CERERE_PDF)
+        $storedFilename = 'cases/' . $case->getId() . '/user_doc.pdf';
+        file_put_contents($this->uploadsDir . '/' . $storedFilename, '%PDF-1.4 user doc');
+
+        $doc = new Document();
+        $doc->setLegalCase($case);
+        $doc->setDocumentType(DocumentType::DOVADA);
+        $doc->setOriginalFilename('dovada_mea.pdf');
+        $doc->setStoredFilename($storedFilename);
+        $doc->setFileSize(17);
+        $doc->setMimeType('application/pdf');
+        $doc->setUploadedBy($this->user);
+        $this->em->persist($doc);
+        $this->em->flush();
+
+        $docId = $doc->getId();
+        $caseId = $case->getId();
+
+        // Clear EM so controller gets fresh entities with updated documents collection
+        $this->em->clear();
+
+        // Load the view page (after document was created) — find the delete form
+        $crawler = $this->client->request('GET', "/case/{$caseId}");
+        $deleteForms = $crawler->filter("form[action\$=\"/document/{$docId}/delete\"]");
+        $this->assertGreaterThan(0, $deleteForms->count(), 'Delete form not found for document');
+        $this->client->submit($deleteForms->form());
+
+        $this->assertResponseRedirects("/case/{$caseId}");
+
+        // Verify document was removed
+        $this->em->clear();
+        $deleted = $this->em->getRepository(Document::class)->find($docId);
+        $this->assertNull($deleted);
+
+        // Verify file removed from disk
+        $this->assertFileDoesNotExist($this->uploadsDir . '/' . $storedFilename);
+    }
+
+    public function testDeleteCererePdfProtected(): void
+    {
+        [$case, $cerereDoc] = $this->createCaseWithPdf();
+
+        // CERERE_PDF shouldn't have a delete form on the page, so submit manually with CSRF
+        // Load the page to init session
+        $crawler = $this->client->request('GET', "/case/{$case->getId()}");
+
+        // Extract any CSRF token from the page (reuse from another form)
+        $token = $crawler->filter('input[name="document_upload[_token]"]')->attr('value');
+
+        $this->client->request('POST', "/case/{$case->getId()}/document/{$cerereDoc->getId()}/delete", [
+            '_token' => $token,
+        ]);
+
+        $this->assertResponseRedirects("/case/{$case->getId()}");
+
+        // CERERE_PDF should still exist
+        $this->em->clear();
+        $stillExists = $this->em->getRepository(Document::class)->find($cerereDoc->getId());
+        $this->assertNotNull($stillExists);
+    }
+
+    public function testDeleteAsOtherUserDenied(): void
+    {
+        [$case] = $this->createCaseWithPdf();
+
+        $doc = new Document();
+        $doc->setLegalCase($case);
+        $doc->setDocumentType(DocumentType::DOVADA);
+        $doc->setOriginalFilename('dovada.pdf');
+        $doc->setStoredFilename('cases/' . $case->getId() . '/dovada.pdf');
+        $doc->setFileSize(100);
+        $doc->setMimeType('application/pdf');
+        $doc->setUploadedBy($this->user);
+        $this->em->persist($doc);
+        $this->em->flush();
+
+        $this->client->loginUser($this->otherUser);
+        $this->client->request('POST', "/case/{$case->getId()}/document/{$doc->getId()}/delete", [
+            '_token' => 'fake-token',
+        ]);
+
+        $this->assertResponseStatusCodeSame(403);
+    }
+
     protected function tearDown(): void
     {
         $conn = $this->em->getConnection();
@@ -144,10 +322,10 @@ class DocumentControllerTest extends WebTestCase
         // Clean up test files
         $casesDir = $this->uploadsDir . '/cases';
         if (is_dir($casesDir)) {
-            foreach (glob($casesDir . '/*/cerere_*.pdf') as $file) {
-                @unlink($file);
-            }
             foreach (glob($casesDir . '/*', GLOB_ONLYDIR) as $dir) {
+                foreach (glob($dir . '/*') as $file) {
+                    @unlink($file);
+                }
                 @rmdir($dir);
             }
         }

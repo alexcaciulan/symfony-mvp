@@ -9,6 +9,7 @@ use App\Entity\LegalCase;
 use App\Entity\Payment;
 use App\Enum\PaymentStatus;
 use App\Enum\PaymentType;
+use App\Form\Case\DocumentUploadType;
 use App\Form\Case\Step1CourtType;
 use App\Form\Case\Step2ClaimantType;
 use App\Form\Case\Step3DefendantType;
@@ -120,8 +121,13 @@ class CaseWizardController extends AbstractController
             return $this->redirectToRoute('case_step', ['id' => $id, 'step' => $legalCase->getCurrentStep()]);
         }
 
+        $canUpload = $this->isGranted('CASE_UPLOAD', $legalCase);
+        $uploadForm = $canUpload ? $this->createForm(DocumentUploadType::class) : null;
+
         return $this->render('case/view.html.twig', [
             'legalCase' => $legalCase,
+            'canUpload' => $canUpload,
+            'uploadForm' => $uploadForm,
         ]);
     }
 

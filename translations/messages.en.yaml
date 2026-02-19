@@ -210,6 +210,33 @@ case_view:
     status_history: 'Status history'
     documents: 'Documents'
     download: 'Download'
+    no_documents: 'No documents.'
+
+# =============================================================================
+# Document Upload/Delete
+# =============================================================================
+document:
+    upload:
+        title: 'Upload document'
+        file_label: 'File'
+        type_label: 'Document type'
+        submit: 'Upload'
+        success: 'Document uploaded successfully.'
+        max_files_reached: 'Maximum of 10 documents per case reached.'
+        too_large: 'File exceeds the 10MB limit.'
+        invalid_type: 'Invalid file type. Only PDF, JPG and PNG are accepted.'
+        file_required: 'Please select a file.'
+    delete:
+        button: 'Delete'
+        success: 'Document deleted.'
+        cerere_pdf_protected: 'The auto-generated PDF application cannot be deleted.'
+        confirm: 'Are you sure you want to delete this document?'
+        invalid_csrf: 'Invalid token. Please try again.'
+    type:
+        dovada: 'Evidence'
+        contract: 'Contract'
+        factura: 'Invoice'
+        alt_document: 'Other document'
 
 # =============================================================================
 # Case Statuses

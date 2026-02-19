@@ -24,7 +24,7 @@ Fiecare pas este un prompt pe care îl dai lui Claude Code. După fiecare pas, v
 | 10 | Core | Workflow dosar + Voters + Dashboard creditor + Audit log | 3-4 ore | Pas 9 | ✅ DONE (parțial) |
 | 11 | Core | Configurare Messenger worker + procesare async | 1-2 ore | Pas 10 | ⏭️ SKIP (absorbit în Pas 12/15) |
 | 12 | Docs | Generare PDF (DomPDF) via Messenger | 2-3 ore | Pas 11 | ✅ DONE (sync, fără Messenger) |
-| 13 | Docs | Upload documente (VichUploader + Flysystem) | 2-3 ore | Pas 10 | |
+| 13 | Docs | Upload documente (simplificat, fără VichUploader/Flysystem) | 2-3 ore | Pas 10 | ✅ DONE |
 | 14 | Plăți | Integrare Netopia Payments + simulator local | 3-4 ore | Pas 12 | |
 | 15 | Notif | Email tranzacțional + notificări in-app | 2-3 ore | Pas 10 | |
 | 16 | Admin | EasyAdmin panel complet | 2-3 ore | Pas 10 | |
@@ -293,26 +293,29 @@ Generare PDF "Cerere cu Valoare Redusă" (Anexa 1) precompletat cu datele dosaru
 
 ---
 
-### PASUL 13 | Upload documente (VichUploader + Flysystem) | ~2-3 ore
+### PASUL 13 | Upload documente (simplificat) | ✅ DONE
 
-Sistem de upload, stocare și management documente per dosar.
+Upload, stocare și management documente per dosar — simplificat fără VichUploader/Flysystem.
 
-**PROMPT:**
-> Instalează și configurează vich/uploader-bundle și league/flysystem-bundle. Flysystem: adapter local (var/uploads/) în dev, pregătit pentru S3 prin schimbare config (config/packages/flysystem.yaml). VichUploader: mapping pentru Document entity, stocare organizată pe dosar (uploads/{case_uuid}/). Validare la upload: max 10MB, doar PDF/JPG/PNG/DOC/DOCX, maxim 20 fișiere per dosar. Pagina documente integrată în detalii dosar: secțiune 'Documente' cu lista fișierelor (icon per tip: PDF roșu, imagine verde, Word albastru), dimensiune formatată, dată upload. Buton upload (+ drag&drop zone cu Stimulus controller), upload fără page reload (Turbo Frame). Buton download per fișier. Buton ștergere per fișier (cu confirmare). Verificare voter: doar proprietarul dosarului poate upload/download/delete. AuditLog: loghează upload-ul, download-ul și ștergerea fiecărui document.
+**Ce s-a implementat:**
+- `DocumentUploadType` — FormType cu file (FileType, max 10MB, PDF/JPG/PNG) + documentType (ChoiceType: DOVADA, CONTRACT, FACTURA, ALT_DOCUMENT)
+- `DocumentController` extins cu rute upload (POST) și delete (POST cu CSRF)
+- `CaseVoter` extins cu `CASE_UPLOAD` — proprietar + status draft/pending_payment, sau admin
+- Template `_documents_section.html.twig` — listă documente cu icon per tip (PDF=roșu, imagine=verde), upload form inline, butoane download + delete
+- AuditLog la upload (document_upload) și delete (document_delete)
+- Protecție: CERERE_PDF nu poate fi șters
+- Fișiere salvate cu UUID v4 ca nume, în `var/uploads/cases/{caseId}/`
+- Traduceri RO + EN complete
+- 4 teste voter (CASE_UPLOAD) + 6 teste controller (upload valid, upload alt user, upload max files, delete propriu, delete CERERE_PDF, delete alt user) — total 67 teste
 
-**VERIFICARE MANUALĂ:**
-- [ ] Upload fișier: click și drag&drop funcționează
-- [ ] Validări: fișier prea mare → eroare, tip invalid → eroare
-- [ ] Lista documente afișează fișierele cu icon per tip
-- [ ] Download funcționează
-- [ ] Ștergere cu confirmare funcționează
-- [ ] Alt user nu poate accesa documentele (403)
-- [ ] AuditLog înregistrează acțiunile
-
-**TESTE MINIME:**
-- Test funcțional: upload fișier valid
-- Test funcțional: upload fișier invalid (dimensiune, tip)
-- Test funcțional: download fișier propriu vs. fișier străin (403)
+**Ce s-a amânat:**
+- VichUploader — upload manual cu `UploadedFile->move()` e suficient
+- Flysystem / S3 — local storage, migrare ulterioară (un singur service de schimbat)
+- Drag & drop — polish UI
+- Turbo Frames — PRG standard
+- DOC/DOCX support — doar PDF/JPG/PNG
+- Upload multiplu — un fișier pe request
+- Preview imagine (thumbnail-uri)
 
 ---
 

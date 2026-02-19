@@ -11,10 +11,11 @@ class CaseVoter extends Voter
 {
     public const VIEW = 'CASE_VIEW';
     public const EDIT = 'CASE_EDIT';
+    public const UPLOAD = 'CASE_UPLOAD';
 
     protected function supports(string $attribute, mixed $subject): bool
     {
-        return in_array($attribute, [self::VIEW, self::EDIT])
+        return in_array($attribute, [self::VIEW, self::EDIT, self::UPLOAD])
             && $subject instanceof LegalCase;
     }
 
@@ -37,6 +38,7 @@ class CaseVoter extends Voter
         return match ($attribute) {
             self::VIEW => $this->canView($legalCase, $user),
             self::EDIT => $this->canEdit($legalCase, $user),
+            self::UPLOAD => $this->canUpload($legalCase, $user),
             default => false,
         };
     }
@@ -50,5 +52,11 @@ class CaseVoter extends Voter
     {
         return $legalCase->getUser() === $user
             && $legalCase->getStatus() === 'draft';
+    }
+
+    private function canUpload(LegalCase $legalCase, User $user): bool
+    {
+        return $legalCase->getUser() === $user
+            && in_array($legalCase->getStatus(), ['draft', 'pending_payment'], true);
     }
 }

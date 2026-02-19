@@ -117,4 +117,66 @@ class CaseVoterTest extends TestCase
             $this->voter->vote($token, $case, [CaseVoter::EDIT])
         );
     }
+
+    public function testOwnerCanUploadDraft(): void
+    {
+        $user = new User();
+        $case = new LegalCase();
+        $case->setUser($user);
+        $case->setStatus('draft');
+
+        $token = $this->createToken($user);
+
+        $this->assertSame(
+            VoterInterface::ACCESS_GRANTED,
+            $this->voter->vote($token, $case, [CaseVoter::UPLOAD])
+        );
+    }
+
+    public function testOwnerCanUploadPendingPayment(): void
+    {
+        $user = new User();
+        $case = new LegalCase();
+        $case->setUser($user);
+        $case->setStatus('pending_payment');
+
+        $token = $this->createToken($user);
+
+        $this->assertSame(
+            VoterInterface::ACCESS_GRANTED,
+            $this->voter->vote($token, $case, [CaseVoter::UPLOAD])
+        );
+    }
+
+    public function testOwnerCannotUploadPaid(): void
+    {
+        $user = new User();
+        $case = new LegalCase();
+        $case->setUser($user);
+        $case->setStatus('paid');
+
+        $token = $this->createToken($user);
+
+        $this->assertSame(
+            VoterInterface::ACCESS_DENIED,
+            $this->voter->vote($token, $case, [CaseVoter::UPLOAD])
+        );
+    }
+
+    public function testAdminCanUploadAnyStatus(): void
+    {
+        $admin = new User();
+        $admin->setRoles(['ROLE_ADMIN']);
+        $owner = new User();
+        $case = new LegalCase();
+        $case->setUser($owner);
+        $case->setStatus('paid');
+
+        $token = $this->createToken($admin);
+
+        $this->assertSame(
+            VoterInterface::ACCESS_GRANTED,
+            $this->voter->vote($token, $case, [CaseVoter::UPLOAD])
+        );
+    }
 }
