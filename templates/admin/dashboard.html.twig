@@ -1,0 +1,27 @@
+{% extends '@EasyAdmin/page/content.html.twig' %}
+
+{% block content_title %}Dashboard{% endblock %}
+
+{% block main %}
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-top: 10px;">
+        <div style="background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 24px; text-align: center;">
+            <div style="font-size: 36px; font-weight: 700; color: #1e40af;">{{ totalUsers }}</div>
+            <div style="font-size: 14px; color: #6b7280; margin-top: 6px;">Total utilizatori</div>
+        </div>
+
+        <div style="background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 24px; text-align: center;">
+            <div style="font-size: 36px; font-weight: 700; color: #059669;">{{ verifiedUsers }}</div>
+            <div style="font-size: 14px; color: #6b7280; margin-top: 6px;">Verificați</div>
+        </div>
+
+        <div style="background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 24px; text-align: center;">
+            <div style="font-size: 36px; font-weight: 700; color: #d97706;">{{ unverifiedUsers }}</div>
+            <div style="font-size: 14px; color: #6b7280; margin-top: 6px;">Neverificați</div>
+        </div>
+
+        <div style="background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 24px; text-align: center;">
+            <div style="font-size: 36px; font-weight: 700; color: #7c3aed;">{{ adminUsers }}</div>
+            <div style="font-size: 14px; color: #6b7280; margin-top: 6px;">Administratori</div>
+        </div>
+    </div>
+{% endblock %}
