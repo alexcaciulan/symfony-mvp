@@ -19,8 +19,8 @@ Fiecare pas este un prompt pe care îl dai lui Claude Code. După fiecare pas, v
 | 5 | DB | Date de referință (instanțe) + useri de test | 1-2 ore | Pas 4 | ✅ DONE |
 | 6 | Auth | Înregistrare simplă + Login + Verificare email | 2-3 ore | Pas 3, 4 | ⏭️ AMÂNAT |
 | 7 | Auth | Înregistrare multi-step + Validatori + Profil + Forgot password | 2-3 ore | Pas 6 | ⏭️ AMÂNAT |
-| 8 | Core | Wizard cerere pașii 1-4 (formulare, fără upload) | 4-6 ore | Pas 5 | |
-| 9 | Core | Wizard cerere pașii 5-6 (upload dovezi + confirmare + calculator taxă) | 3-4 ore | Pas 8 | |
+| 8 | Core | Wizard cerere pașii 1-4 (formulare, fără upload) | 4-6 ore | Pas 5 | ✅ DONE |
+| 9 | Core | Wizard cerere pașii 5-6 (probe + confirmare + calculator taxă) | 3-4 ore | Pas 8 | ✅ DONE |
 | 10 | Core | Workflow dosar + Voters + Dashboard creditor + Audit log | 3-4 ore | Pas 9 | |
 | 11 | Core | Configurare Messenger worker + procesare async | 1-2 ore | Pas 10 | |
 | 12 | Docs | Generare PDF (DomPDF) via Messenger | 2-3 ore | Pas 11 | |
@@ -191,48 +191,42 @@ Upgrade înregistrare la multi-step cu câmpuri per tip utilizator, validări av
 
 ## Faza 4: Funcționalitate core
 
-### PASUL 8 | Wizard cerere pașii 1-4 (formulare text) | ~4-6 ore
+### PASUL 8 | Wizard cerere pașii 1-4 (formulare text) | ✅ DONE
 
-Prima parte a wizard-ului: selecție instanță, date reclamant, date pârât, descriere creanță. Fără upload, fără calculator taxă — doar formularele de bază cu salvare per pas.
+Prima parte a wizard-ului: selecție instanță, date reclamant, date pârât, descriere creanță. PRG (Post-Redirect-Get) cu Turbo Drive pentru navigare SPA-like.
 
-**PROMPT:**
-> Implementează wizard-ul de depunere cerere cu valoare redusă ca formular multi-step. Folosește un CaseCreateController cu sesiune sau salvare în DB la fiecare pas (LegalCase cu status 'draft'). Turbo Frames pentru navigare fără page reload. Sidebar cu progress indicator (pas curent evidențiat). Pașii: Pas 1 — Selecție instanță: dropdown județ, la schimbare județ se actualizează lista instanțelor (Stimulus controller cu fetch sau Turbo Frame). Dropdown instanțe din entitatea Court. Pas 2 — Date reclamant: precompletat din profilul utilizatorului logat, cu posibilitate de editare. Dacă PJ, apar câmpurile PJ. Pas 3 — Date pârât: formular pentru pârât (nume/denumire, CNP/CUI opțional, adresă completă, email, telefon). Buton 'Adaugă alt pârât' care afișează încă un set de câmpuri (max 3 pârâți, stocat ca JSON). Pas 4 — Creanța: sumă pretinsă (input numeric, max 10.000 lei conform OUG 80/2013), moneda RON, descrierea detaliată a obligației (textarea), baza legală (textarea), checkbox 'Solicit dobândă legală' cu câmp dată de la care se calculează. Validări pe fiecare pas (câmpuri obligatorii, sumă > 0 și <= 10000). Datele se salvează în LegalCase la fiecare pas — utilizatorul poate închide browserul și reveni. Pagina /dashboard/cases să listeze dosarele existente (draft-uri incluse) cu link de continuare.
+**Ce s-a implementat:**
+- `CaseWizardController` cu rute `/case/new`, `/case/{id}/step/{step}`, `/case/courts-by-county/{county}`
+- DTOs: `Step2ClaimantData`, `Step3DefendantsData`, `Step3DefendantEntry` cu validări Symfony
+- FormTypes: `Step1CourtType`, `Step2ClaimantType`, `Step3DefendantType`, `Step4ClaimType`
+- Stimulus controllers: `court_selector` (cascadare județ→instanță), `conditional_fields` (PF/PJ, avocat, dobândă), `collection` (add/remove pârâți)
+- Templates: `wizard.html.twig`, `_stepper.html.twig`, `_step1-4_content.html.twig`, `_defendant_fields.html.twig`
+- `DashboardController` cu `/dashboard/cases` — tabel dosare cu badge-uri status
+- Traduceri RO + EN complete + validări
+- Navigare `base.html.twig` actualizată cu "Depune cerere" + "Dosarele mele"
+- 15 teste funcționale (toate trec)
 
-**VERIFICARE MANUALĂ:**
-- [ ] Parcurgi pașii 1-4 fără erori
-- [ ] Schimbi județul → instanțele se actualizează
-- [ ] Date reclamant precompletate din profil
-- [ ] Adaugi 2-3 pârâți, datele se păstrează
-- [ ] Navighezi înapoi — datele sunt acolo
-- [ ] Închizi browser, revii — dosarul draft e în /dashboard/cases
-- [ ] Sumă > 10000 lei → eroare validare
-
-**TESTE MINIME:**
-- Test funcțional: creare dosar draft, parcurgere pași 1-4
-- Test funcțional: validare sumă invalidă (0, negativă, > 10000)
-- Test unitar: factory LegalCase produce entitate validă
+**Decizie**: PRG + Turbo Drive (nu Turbo Frames) — mai simplu, fiecare pas e un page load cu cache Turbo.
 
 ---
 
-### PASUL 9 | Wizard cerere pașii 5-6 (upload + confirmare + calculator taxă) | ~3-4 ore
+### PASUL 9 | Wizard cerere pașii 5-6 (probe + confirmare + calculator taxă) | ✅ DONE
 
-Completarea wizard-ului: upload dovezi, calculator taxă judiciară, pagina de confirmare, depunere finală.
+Completarea wizard-ului: probe/martori, calculator taxă judiciară, pagina de confirmare, depunere finală. **Upload fișiere amânat la Pasul 13 (Flysystem).**
 
-**PROMPT:**
-> Continuă wizard-ul cerere cu pașii 5 și 6. Pas 5 — Dovezi: secțiune cu checkbox-uri tip probă (înscrisuri, martori, expertiză judiciară, interogatoriu), pentru fiecare tip selectat apare un câmp descriere. Upload fișiere multiple: buton upload + drag&drop zone (Stimulus controller), max 10MB per fișier, doar PDF/JPG/PNG acceptate, preview thumbnail pentru imagini, listă fișiere uploadate cu buton de ștergere. Fișierele se salvează temporar (var/uploads/{case_uuid}/). Validare: cel puțin o dovadă selectată. Pas 6 — Confirmare și depunere: sumar complet pe o pagină (instanța, reclamant, pârât/pârâți, creanța, dovezile, fișierele uploadate). Calculator taxă judiciară OUG 80/2013: până la 2000 lei inclusiv = 50 lei taxă fixă, între 2001-10000 lei = 250 lei + 2% din suma care depășește 2000 lei. Afișare: taxă judiciară calculată + comision platformă 29.90 lei + total de plată. Checkbox 'Declar pe proprie răspundere că datele sunt corecte' + checkbox 'Accept termenii și condițiile' (obligatorii). Buton 'Depune cererea'. La depunere: LegalCase.status rămâne 'draft' → tranziția la 'pending_payment' se va face la Pasul 10 cu Workflow. Se creează entitatea Payment cu sumele calculate, status 'pending'. Creează TaxCalculatorService în src/Service/Case/ cu metoda calculate(float $amount): array care returnează taxa, comision și total.
+**Ce s-a implementat:**
+- `TaxCalculatorService` — calculator taxă OUG 80/2013 (≤2000 RON = 50; 2001-10000 = 250 + 2%(sumă-2000); platformFee = 29.90)
+- DTOs: `Step5EvidenceData`, `Step5WitnessEntry` cu validări (max 5 martori)
+- FormTypes: `WitnessEntryType`, `Step5EvidenceType` (CollectionType cu prototip), `Step6ConfirmationType` (2 checkboxuri IsTrue)
+- Controller actualizat: steps 5-6 în `createStepForm()` / `saveStepData()` + `calculateAndSaveFees()` + `submitCase()`
+- La depunere: creează 2 entități `Payment` (TAXA_JUDICIARA + COMISION_PLATFORMA), status→`pending_payment`, `submittedAt` setat
+- Templates: `_step5_content.html.twig` (probe + martori dinamici), `_step6_content.html.twig` (sumar complet + taxe + confirmare), `_witness_fields.html.twig`
+- Dashboard actualizat cu badge `pending_payment` (portocaliu)
+- Flash messages traduse corect (fix `|trans` în `base.html.twig`)
+- 8 unit tests TaxCalculator + 7 teste funcționale noi (total 38 teste, toate trec)
 
-**VERIFICARE MANUALĂ:**
-- [ ] Upload fișiere: drag&drop și click funcționează
-- [ ] Validare tip fișier (upload .exe → eroare)
-- [ ] Validare dimensiune (> 10MB → eroare)
-- [ ] Sumarul afișează toate datele corect
-- [ ] Calculator taxă: 1000 lei → 50 lei taxă; 5000 lei → 310 lei taxă (250 + 2% din 3000)
-- [ ] La depunere: LegalCase + Payment create în DB
-
-**TESTE MINIME:**
-- Unit test: TaxCalculatorService — toate intervalele (500 lei, 2000 lei, 2001 lei, 5000 lei, 10000 lei)
-- Unit test: TaxCalculatorService — sumă invalidă (0, negativă, > 10000) aruncă excepție
-- Test funcțional: upload fișier valid + invalid
+**Ce s-a amânat:**
+- Upload fișiere → Pasul 13 (VichUploader + Flysystem)
 
 ---
 
