@@ -49,13 +49,12 @@ class CaseWizardControllerTest extends WebTestCase
         $this->em->flush();
     }
 
-    public function testNewCaseCreatesAndRedirects(): void
+    public function testNewCaseDisplaysStep1Form(): void
     {
         $this->client->request('GET', '/case/new');
 
-        $this->assertResponseRedirects();
-        $location = $this->client->getResponse()->headers->get('Location');
-        $this->assertMatchesRegularExpression('#/case/\d+/step/1#', $location);
+        $this->assertResponseIsSuccessful();
+        $this->assertSelectorExists('form');
     }
 
     public function testNewCaseRequiresAuth(): void
@@ -67,26 +66,47 @@ class CaseWizardControllerTest extends WebTestCase
         $this->assertResponseRedirects('/login');
     }
 
-    public function testStep1DisplaysForm(): void
+    public function testNewCaseSubmitCreatesCaseAndRedirects(): void
     {
-        $legalCase = $this->createDraftCase();
+        // Get CSRF token from the new case form
+        $crawler = $this->client->request('GET', '/case/new');
+        $token = $crawler->filter('input[id=step1_court__token]')->attr('value');
 
-        $this->client->request('GET', "/case/{$legalCase->getId()}/step/1");
+        // Submit step 1 — this creates the case
+        $this->client->request('POST', '/case/new', [
+            'step1_court' => [
+                'county' => 'Test',
+                'court' => $this->court->getId(),
+                '_token' => $token,
+            ],
+        ]);
 
-        $this->assertResponseIsSuccessful();
-        $this->assertSelectorExists('form');
+        $this->assertResponseRedirects();
+        $location = $this->client->getResponse()->headers->get('Location');
+        $this->assertMatchesRegularExpression('#/case/\d+/step/2#', $location);
+
+        // Verify the case was created with step 1 data
+        preg_match('#/case/(\d+)/step/2#', $location, $matches);
+        $id = (int) $matches[1];
+        $this->em->clear();
+        $created = $this->em->find(LegalCase::class, $id);
+        $this->assertSame('Test', $created->getCounty());
+        $this->assertSame($this->court->getId(), $created->getCourt()->getId());
+        $this->assertSame(2, $created->getCurrentStep());
     }
 
-    public function testStep1SubmitSavesCourtAndRedirects(): void
+    public function testStep1EditSavesCourtAndRedirects(): void
     {
-        $legalCase = $this->createDraftCase();
+        $legalCase = $this->createDraftCase(2);
+        $legalCase->setCounty('Test');
+        $legalCase->setCourt($this->court);
+        $this->em->flush();
         $id = $legalCase->getId();
 
-        // Get CSRF token from rendered form
+        // Go back to step 1 to edit
         $crawler = $this->client->request('GET', "/case/{$id}/step/1");
         $token = $crawler->filter('input[id=step1_court__token]')->attr('value');
 
-        // Submit directly via POST (court dropdown is JS-populated, can't use crawler form)
         $this->client->request('POST', "/case/{$id}/step/1", [
             'step1_court' => [
                 'county' => 'Test',
@@ -96,12 +116,6 @@ class CaseWizardControllerTest extends WebTestCase
         ]);
 
         $this->assertResponseRedirects("/case/{$id}/step/2");
-
-        $this->em->clear();
-        $updated = $this->em->find(LegalCase::class, $id);
-        $this->assertSame('Test', $updated->getCounty());
-        $this->assertSame($this->court->getId(), $updated->getCourt()->getId());
-        $this->assertSame(2, $updated->getCurrentStep());
     }
 
     public function testStep2DisplaysPrefilled(): void
@@ -379,6 +393,30 @@ class CaseWizardControllerTest extends WebTestCase
 
         $this->assertResponseStatusCodeSame(422);
         $this->assertSelectorExists('form');
+    }
+
+    public function testViewSubmittedCase(): void
+    {
+        $legalCase = $this->createPopulatedCase(6);
+        $legalCase->setStatus('pending_payment');
+        $legalCase->setSubmittedAt(new \DateTimeImmutable());
+        $legalCase->setCourtFee('50.00');
+        $legalCase->setPlatformFee('29.90');
+        $legalCase->setTotalFee('79.90');
+        $this->em->flush();
+
+        $this->client->request('GET', "/case/{$legalCase->getId()}");
+
+        $this->assertResponseIsSuccessful();
+    }
+
+    public function testViewDraftCaseRedirectsToWizard(): void
+    {
+        $legalCase = $this->createDraftCase(3);
+
+        $this->client->request('GET', "/case/{$legalCase->getId()}");
+
+        $this->assertResponseRedirects("/case/{$legalCase->getId()}/step/3");
     }
 
     public function testNavigateBackPreservesData(): void

@@ -7,7 +7,7 @@
     {# Stepper #}
     {% include 'case/_stepper.html.twig' with {
         step: step,
-        currentStep: legalCase.currentStep,
+        currentStep: legalCase ? legalCase.currentStep : 1,
         legalCase: legalCase,
     } %}
 

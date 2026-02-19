@@ -60,7 +60,7 @@
                                         {{ 'dashboard.cases.continue'|trans }}
                                     </a>
                                 {% else %}
-                                    <a href="{{ path('case_step', { id: case.id, step: 1 }) }}" class="text-sm text-gray-500 hover:text-gray-700 font-medium no-underline">
+                                    <a href="{{ path('case_view', { id: case.id }) }}" class="text-sm text-gray-500 hover:text-gray-700 font-medium no-underline">
                                         {{ 'dashboard.cases.view'|trans }}
                                     </a>
                                 {% endif %}

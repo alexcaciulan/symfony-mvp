@@ -37,18 +37,31 @@ class CaseWizardController extends AbstractController
         private TaxCalculatorService $taxCalculator,
     ) {}
 
-    #[Route('/new', name: 'case_new', methods: ['GET'])]
-    public function new(): Response
+    #[Route('/new', name: 'case_new', methods: ['GET', 'POST'])]
+    public function new(Request $request): Response
     {
-        $legalCase = new LegalCase();
-        $legalCase->setUser($this->getUser());
-        $legalCase->setStatus('draft');
-        $legalCase->setCurrentStep(1);
+        $form = $this->createForm(Step1CourtType::class);
+        $form->handleRequest($request);
 
-        $this->em->persist($legalCase);
-        $this->em->flush();
+        if ($form->isSubmitted() && $form->isValid()) {
+            $legalCase = new LegalCase();
+            $legalCase->setUser($this->getUser());
+            $legalCase->setStatus('draft');
+            $legalCase->setCurrentStep(2);
 
-        return $this->redirectToRoute('case_step', ['id' => $legalCase->getId(), 'step' => 1]);
+            $this->saveStep1($legalCase, $form->getData());
+            $this->em->persist($legalCase);
+            $this->em->flush();
+
+            return $this->redirectToRoute('case_step', ['id' => $legalCase->getId(), 'step' => 2]);
+        }
+
+        return $this->render('case/wizard.html.twig', [
+            'form' => $form,
+            'legalCase' => null,
+            'step' => 1,
+            'totalSteps' => self::TOTAL_STEPS,
+        ]);
     }
 
     #[Route('/{id}/step/{step}', name: 'case_step', requirements: ['id' => '\d+', 'step' => '[1-6]'], methods: ['GET', 'POST'])]
@@ -84,6 +97,29 @@ class CaseWizardController extends AbstractController
             'legalCase' => $legalCase,
             'step' => $step,
             'totalSteps' => self::TOTAL_STEPS,
+        ]);
+    }
+
+    #[Route('/{id}', name: 'case_view', requirements: ['id' => '\d+'], methods: ['GET'])]
+    public function view(int $id): Response
+    {
+        $legalCase = $this->legalCaseRepository->find($id);
+
+        if (!$legalCase || $legalCase->isDeleted()) {
+            throw $this->createNotFoundException();
+        }
+
+        if ($legalCase->getUser() !== $this->getUser()) {
+            throw $this->createAccessDeniedException();
+        }
+
+        // Draft cases should use the wizard
+        if ($legalCase->getStatus() === 'draft') {
+            return $this->redirectToRoute('case_step', ['id' => $id, 'step' => $legalCase->getCurrentStep()]);
+        }
+
+        return $this->render('case/view.html.twig', [
+            'legalCase' => $legalCase,
         ]);
     }
 

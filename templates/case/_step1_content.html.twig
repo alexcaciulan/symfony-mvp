@@ -1,8 +1,9 @@
 {{ form_start(form, {
+    action: legalCase ? path('case_step', { id: legalCase.id, step: 1 }) : path('case_new'),
     attr: {
         'data-controller': 'court-selector',
         'data-court-selector-url-value': path('case_courts_by_county', { county: '__COUNTY__' })|replace({'__COUNTY__': ''}),
-        'data-court-selector-selected-value': legalCase.court ? legalCase.court.id : '0',
+        'data-court-selector-selected-value': (legalCase and legalCase.court) ? legalCase.court.id : '0',
     }
 }) }}
 
