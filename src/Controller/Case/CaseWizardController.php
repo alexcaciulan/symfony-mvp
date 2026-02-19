@@ -4,13 +4,20 @@ namespace App\Controller\Case;
 
 use App\DTO\Case\Step2ClaimantData;
 use App\DTO\Case\Step3DefendantsData;
+use App\DTO\Case\Step5EvidenceData;
 use App\Entity\LegalCase;
+use App\Entity\Payment;
+use App\Enum\PaymentStatus;
+use App\Enum\PaymentType;
 use App\Form\Case\Step1CourtType;
 use App\Form\Case\Step2ClaimantType;
 use App\Form\Case\Step3DefendantType;
 use App\Form\Case\Step4ClaimType;
+use App\Form\Case\Step5EvidenceType;
+use App\Form\Case\Step6ConfirmationType;
 use App\Repository\CourtRepository;
 use App\Repository\LegalCaseRepository;
+use App\Service\Case\TaxCalculatorService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -27,6 +34,7 @@ class CaseWizardController extends AbstractController
         private EntityManagerInterface $em,
         private LegalCaseRepository $legalCaseRepository,
         private CourtRepository $courtRepository,
+        private TaxCalculatorService $taxCalculator,
     ) {}
 
     #[Route('/new', name: 'case_new', methods: ['GET'])]
@@ -48,17 +56,27 @@ class CaseWizardController extends AbstractController
     {
         $legalCase = $this->loadAndAuthorize($id, $step);
 
+        // Calculate fees on step 6 display
+        if ($step === 6 && $request->isMethod('GET')) {
+            $this->calculateAndSaveFees($legalCase);
+        }
+
         $form = $this->createStepForm($step, $legalCase);
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
+            if ($step === 6) {
+                $this->submitCase($legalCase);
+                $this->addFlash('success', 'wizard.step6.submit_success');
+
+                return $this->redirectToRoute('dashboard_cases');
+            }
+
             $this->saveStepData($step, $legalCase, $form->getData());
             $legalCase->setCurrentStep(max($legalCase->getCurrentStep(), $step + 1));
             $this->em->flush();
 
-            if ($step < self::TOTAL_STEPS) {
-                return $this->redirectToRoute('case_step', ['id' => $id, 'step' => $step + 1]);
-            }
+            return $this->redirectToRoute('case_step', ['id' => $id, 'step' => $step + 1]);
         }
 
         return $this->render('case/wizard.html.twig', [
@@ -128,6 +146,10 @@ class CaseWizardController extends AbstractController
                 'interestStartDate' => $legalCase->getInterestStartDate(),
                 'requestCourtCosts' => $legalCase->isRequestCourtCosts(),
             ]),
+            5 => $this->createForm(Step5EvidenceType::class,
+                Step5EvidenceData::fromLegalCase($legalCase)
+            ),
+            6 => $this->createForm(Step6ConfirmationType::class),
             default => throw $this->createNotFoundException(),
         };
     }
@@ -139,6 +161,7 @@ class CaseWizardController extends AbstractController
             2 => $this->saveStep2($legalCase, $data),
             3 => $this->saveStep3($legalCase, $data),
             4 => $this->saveStep4($legalCase, $data),
+            5 => $this->saveStep5($legalCase, $data),
             default => null,
         };
     }
@@ -172,5 +195,57 @@ class CaseWizardController extends AbstractController
         $legalCase->setInterestRate($data['interestRate'] ?? null);
         $legalCase->setInterestStartDate($data['interestStartDate'] ?? null);
         $legalCase->setRequestCourtCosts($data['requestCourtCosts'] ?? false);
+    }
+
+    private function saveStep5(LegalCase $legalCase, Step5EvidenceData $data): void
+    {
+        $legalCase->setEvidenceDescription($data->evidenceDescription);
+        $legalCase->setHasWitnesses($data->hasWitnesses);
+        $legalCase->setWitnesses($data->toWitnessesArray());
+        $legalCase->setRequestOralDebate($data->requestOralDebate);
+    }
+
+    private function calculateAndSaveFees(LegalCase $legalCase): void
+    {
+        $claimAmount = (float) $legalCase->getClaimAmount();
+
+        if ($claimAmount <= 0) {
+            return;
+        }
+
+        $fees = $this->taxCalculator->calculate($claimAmount);
+        $legalCase->setCourtFee(number_format($fees['courtFee'], 2, '.', ''));
+        $legalCase->setPlatformFee(number_format($fees['platformFee'], 2, '.', ''));
+        $legalCase->setTotalFee(number_format($fees['totalFee'], 2, '.', ''));
+        $this->em->flush();
+    }
+
+    private function submitCase(LegalCase $legalCase): void
+    {
+        // Ensure fees are calculated
+        $this->calculateAndSaveFees($legalCase);
+
+        // Create payment for court fee
+        $courtPayment = new Payment();
+        $courtPayment->setLegalCase($legalCase);
+        $courtPayment->setUser($legalCase->getUser());
+        $courtPayment->setAmount($legalCase->getCourtFee());
+        $courtPayment->setPaymentType(PaymentType::TAXA_JUDICIARA);
+        $courtPayment->setStatus(PaymentStatus::PENDING);
+        $this->em->persist($courtPayment);
+
+        // Create payment for platform fee
+        $platformPayment = new Payment();
+        $platformPayment->setLegalCase($legalCase);
+        $platformPayment->setUser($legalCase->getUser());
+        $platformPayment->setAmount($legalCase->getPlatformFee());
+        $platformPayment->setPaymentType(PaymentType::COMISION_PLATFORMA);
+        $platformPayment->setStatus(PaymentStatus::PENDING);
+        $this->em->persist($platformPayment);
+
+        // Update case status
+        $legalCase->setStatus('pending_payment');
+        $legalCase->setSubmittedAt(new \DateTimeImmutable());
+        $this->em->flush();
     }
 }

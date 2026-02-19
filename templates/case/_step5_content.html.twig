@@ -1,0 +1,78 @@
+{{ form_start(form) }}
+
+<div class="space-y-6">
+    {# Evidence description #}
+    <div>
+        {{ form_label(form.evidenceDescription, null, { label_attr: { class: 'block text-sm font-medium text-gray-700 mb-1' }}) }}
+        {{ form_widget(form.evidenceDescription, { attr: { class: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-light' }}) }}
+        <p class="text-xs text-gray-400 mt-1">{{ 'wizard.step5.evidence_description_hint'|trans }}</p>
+    </div>
+
+    {# Witnesses section #}
+    <div data-controller="conditional-fields" data-conditional-fields-show-value="checked">
+        <div class="flex items-center gap-2 mb-4">
+            {{ form_widget(form.hasWitnesses, { attr: {
+                class: 'rounded text-primary-light focus:ring-primary-light',
+                'data-conditional-fields-target': 'source',
+                'data-action': 'change->conditional-fields#toggle',
+            }}) }}
+            {{ form_label(form.hasWitnesses, null, { label_attr: { class: 'text-sm font-medium text-gray-700' }}) }}
+        </div>
+
+        {% set witnessPrototypeHtml %}
+            {% include 'case/_witness_fields.html.twig' with { witness: form.witnesses.vars.prototype } only %}
+        {% endset %}
+
+        <div data-conditional-fields-target="conditional" class="pl-6 border-l-2 border-primary-light">
+            <div data-controller="collection"
+                 data-collection-prototype-value="{{ witnessPrototypeHtml|e('html_attr') }}"
+                 data-collection-max-value="5"
+                 data-collection-index-value="{{ form.witnesses|length }}">
+
+                <div data-collection-target="container">
+                    {% for witness in form.witnesses %}
+                        <div class="border border-gray-200 rounded-lg p-4 mb-4 relative" data-collection-target="item">
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="text-sm font-semibold text-gray-700">{{ 'wizard.step5.witness_number'|trans({ '%num%': loop.index }) }}</h3>
+                                {% if loop.index > 1 %}
+                                    <button type="button"
+                                            class="text-sm text-red-600 hover:text-red-800 font-medium"
+                                            data-action="click->collection#removeItem">
+                                        {{ 'wizard.step5.remove'|trans }}
+                                    </button>
+                                {% endif %}
+                            </div>
+
+                            {% include 'case/_witness_fields.html.twig' with { witness: witness } only %}
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <button type="button"
+                        class="flex items-center gap-2 text-sm text-primary-light hover:text-primary font-medium"
+                        data-action="click->collection#addItem">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    {{ 'wizard.step5.add_witness'|trans }}
+                </button>
+            </div>
+        </div>
+    </div>
+
+    {# Request oral debate #}
+    <div class="flex items-center gap-2">
+        {{ form_widget(form.requestOralDebate, { attr: { class: 'rounded text-primary-light focus:ring-primary-light' }}) }}
+        {{ form_label(form.requestOralDebate, null, { label_attr: { class: 'text-sm font-medium text-gray-700' }}) }}
+    </div>
+</div>
+
+{# Actions #}
+<div class="flex justify-between mt-8">
+    <a href="{{ path('case_step', { id: legalCase.id, step: step - 1 }) }}" class="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors no-underline">
+        {{ 'wizard.previous'|trans }}
+    </a>
+    <button type="submit" class="px-6 py-2.5 bg-primary-light text-white rounded-lg font-medium hover:bg-primary transition-colors">
+        {{ 'wizard.next'|trans }}
+    </button>
+</div>
+
+{{ form_end(form) }}

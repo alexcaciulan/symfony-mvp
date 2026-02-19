@@ -27,3 +27,10 @@ wizard:
     defendants:
         min_one_required: 'Adăugați cel puțin un pârât.'
         max_three: 'Puteți adăuga maxim 3 pârâți.'
+    witness:
+        name_required: 'Introduceți numele martorului.'
+    witnesses:
+        max_five: 'Puteți adăuga maxim 5 martori.'
+    step6:
+        agree_data_correct_required: 'Trebuie să confirmați corectitudinea datelor.'
+        agree_terms_required: 'Trebuie să fiți de acord cu termenii și condițiile.'

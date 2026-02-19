@@ -1,0 +1,148 @@
+{# Summary of all steps #}
+<div class="space-y-6 mb-8">
+    {# Step 1 — Court #}
+    <div class="border border-gray-200 rounded-lg p-4">
+        <div class="flex items-center justify-between mb-2">
+            <h3 class="text-sm font-semibold text-gray-700">{{ 'wizard.stepper.court'|trans }}</h3>
+            <a href="{{ path('case_step', { id: legalCase.id, step: 1 }) }}" class="text-xs text-primary-light hover:text-primary no-underline">{{ 'wizard.step6.edit'|trans }}</a>
+        </div>
+        <dl class="grid grid-cols-2 gap-2 text-sm">
+            <dt class="text-gray-500">{{ 'wizard.step1.county'|trans }}</dt>
+            <dd class="text-gray-800">{{ legalCase.county ?? '-' }}</dd>
+            <dt class="text-gray-500">{{ 'wizard.step1.court'|trans }}</dt>
+            <dd class="text-gray-800">{{ legalCase.court ? legalCase.court.name : '-' }}</dd>
+        </dl>
+    </div>
+
+    {# Step 2 — Claimant #}
+    <div class="border border-gray-200 rounded-lg p-4">
+        <div class="flex items-center justify-between mb-2">
+            <h3 class="text-sm font-semibold text-gray-700">{{ 'wizard.stepper.claimant'|trans }}</h3>
+            <a href="{{ path('case_step', { id: legalCase.id, step: 2 }) }}" class="text-xs text-primary-light hover:text-primary no-underline">{{ 'wizard.step6.edit'|trans }}</a>
+        </div>
+        {% set cd = legalCase.claimantData %}
+        <dl class="grid grid-cols-2 gap-2 text-sm">
+            <dt class="text-gray-500">{{ 'wizard.step2.type'|trans }}</dt>
+            <dd class="text-gray-800">{{ legalCase.claimantType == 'pf' ? 'wizard.step2.type_pf'|trans : 'wizard.step2.type_pj'|trans }}</dd>
+            <dt class="text-gray-500">{{ 'wizard.step2.name'|trans }}</dt>
+            <dd class="text-gray-800">{{ cd.name ?? '-' }}</dd>
+            <dt class="text-gray-500">{{ 'wizard.step2.email'|trans }}</dt>
+            <dd class="text-gray-800">{{ cd.email ?? '-' }}</dd>
+            {% if cd and cd.city %}
+                <dt class="text-gray-500">{{ 'wizard.step2.city'|trans }}</dt>
+                <dd class="text-gray-800">{{ cd.city }}, {{ cd.county ?? '' }}</dd>
+            {% endif %}
+        </dl>
+        {% if legalCase.hasLawyer and legalCase.lawyerData %}
+            <div class="mt-2 pt-2 border-t border-gray-100">
+                <span class="text-xs font-medium text-gray-500">{{ 'wizard.step2.has_lawyer'|trans }}</span>
+                <span class="text-sm text-gray-800 ml-2">{{ legalCase.lawyerData.name ?? '-' }}</span>
+            </div>
+        {% endif %}
+    </div>
+
+    {# Step 3 — Defendants #}
+    <div class="border border-gray-200 rounded-lg p-4">
+        <div class="flex items-center justify-between mb-2">
+            <h3 class="text-sm font-semibold text-gray-700">{{ 'wizard.stepper.defendant'|trans }}</h3>
+            <a href="{{ path('case_step', { id: legalCase.id, step: 3 }) }}" class="text-xs text-primary-light hover:text-primary no-underline">{{ 'wizard.step6.edit'|trans }}</a>
+        </div>
+        {% for defendant in legalCase.defendants ?? [] %}
+            <div class="{{ not loop.first ? 'mt-2 pt-2 border-t border-gray-100' : '' }}">
+                <dl class="grid grid-cols-2 gap-2 text-sm">
+                    <dt class="text-gray-500">{{ 'wizard.step3.name'|trans }}</dt>
+                    <dd class="text-gray-800">{{ defendant.name ?? '-' }}</dd>
+                    <dt class="text-gray-500">{{ 'wizard.step3.city'|trans }}</dt>
+                    <dd class="text-gray-800">{{ defendant.city ?? '-' }}, {{ defendant.county ?? '' }}</dd>
+                </dl>
+            </div>
+        {% endfor %}
+    </div>
+
+    {# Step 4 — Claim #}
+    <div class="border border-gray-200 rounded-lg p-4">
+        <div class="flex items-center justify-between mb-2">
+            <h3 class="text-sm font-semibold text-gray-700">{{ 'wizard.stepper.claim'|trans }}</h3>
+            <a href="{{ path('case_step', { id: legalCase.id, step: 4 }) }}" class="text-xs text-primary-light hover:text-primary no-underline">{{ 'wizard.step6.edit'|trans }}</a>
+        </div>
+        <dl class="grid grid-cols-2 gap-2 text-sm">
+            <dt class="text-gray-500">{{ 'wizard.step4.claim_amount'|trans }}</dt>
+            <dd class="text-gray-800 font-semibold">{{ legalCase.claimAmount|number_format(2, ',', '.') }} RON</dd>
+            <dt class="text-gray-500">{{ 'wizard.step4.claim_description'|trans }}</dt>
+            <dd class="text-gray-800 col-span-2">{{ legalCase.claimDescription ?? '-' }}</dd>
+            {% if legalCase.interestType != 'none' %}
+                <dt class="text-gray-500">{{ 'wizard.step4.interest_type'|trans }}</dt>
+                <dd class="text-gray-800">{{ ('wizard.step4.interest_' ~ legalCase.interestType)|trans }}</dd>
+            {% endif %}
+        </dl>
+    </div>
+
+    {# Step 5 — Evidence #}
+    <div class="border border-gray-200 rounded-lg p-4">
+        <div class="flex items-center justify-between mb-2">
+            <h3 class="text-sm font-semibold text-gray-700">{{ 'wizard.stepper.evidence'|trans }}</h3>
+            <a href="{{ path('case_step', { id: legalCase.id, step: 5 }) }}" class="text-xs text-primary-light hover:text-primary no-underline">{{ 'wizard.step6.edit'|trans }}</a>
+        </div>
+        <dl class="grid grid-cols-2 gap-2 text-sm">
+            {% if legalCase.evidenceDescription %}
+                <dt class="text-gray-500">{{ 'wizard.step5.evidence_description'|trans }}</dt>
+                <dd class="text-gray-800 col-span-2">{{ legalCase.evidenceDescription }}</dd>
+            {% endif %}
+            {% if legalCase.hasWitnesses and legalCase.witnesses %}
+                <dt class="text-gray-500">{{ 'wizard.step5.has_witnesses'|trans }}</dt>
+                <dd class="text-gray-800">{{ legalCase.witnesses|length }} {{ 'wizard.step6.witnesses_count'|trans }}</dd>
+            {% endif %}
+            {% if legalCase.requestOralDebate %}
+                <dt class="text-gray-500 col-span-2">{{ 'wizard.step5.request_oral_debate'|trans }}</dt>
+            {% endif %}
+        </dl>
+    </div>
+</div>
+
+{# Fee calculation #}
+<div class="bg-blue-50 rounded-lg p-5 border border-blue-200 mb-8">
+    <h3 class="text-sm font-semibold text-gray-700 mb-3">{{ 'wizard.step6.fee_summary'|trans }}</h3>
+    <dl class="space-y-2">
+        <div class="flex justify-between text-sm">
+            <dt class="text-gray-600">{{ 'wizard.step6.court_fee'|trans }}</dt>
+            <dd class="text-gray-800">{{ legalCase.courtFee|number_format(2, ',', '.') }} RON</dd>
+        </div>
+        <div class="flex justify-between text-sm">
+            <dt class="text-gray-600">{{ 'wizard.step6.platform_fee'|trans }}</dt>
+            <dd class="text-gray-800">{{ legalCase.platformFee|number_format(2, ',', '.') }} RON</dd>
+        </div>
+        <div class="flex justify-between text-sm font-bold border-t border-blue-200 pt-2 mt-2">
+            <dt class="text-gray-800">{{ 'wizard.step6.total_fee'|trans }}</dt>
+            <dd class="text-primary">{{ legalCase.totalFee|number_format(2, ',', '.') }} RON</dd>
+        </div>
+    </dl>
+</div>
+
+{# Confirmation form #}
+{{ form_start(form) }}
+
+<div class="space-y-4 mb-8">
+    <div class="flex items-start gap-2">
+        {{ form_widget(form.agreeDataCorrect, { attr: { class: 'rounded text-primary-light focus:ring-primary-light mt-0.5' }}) }}
+        {{ form_label(form.agreeDataCorrect, null, { label_attr: { class: 'text-sm text-gray-700' }}) }}
+    </div>
+    {{ form_errors(form.agreeDataCorrect) }}
+
+    <div class="flex items-start gap-2">
+        {{ form_widget(form.agreeTerms, { attr: { class: 'rounded text-primary-light focus:ring-primary-light mt-0.5' }}) }}
+        {{ form_label(form.agreeTerms, null, { label_attr: { class: 'text-sm text-gray-700' }}) }}
+    </div>
+    {{ form_errors(form.agreeTerms) }}
+</div>
+
+{# Actions #}
+<div class="flex justify-between">
+    <a href="{{ path('case_step', { id: legalCase.id, step: step - 1 }) }}" class="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors no-underline">
+        {{ 'wizard.previous'|trans }}
+    </a>
+    <button type="submit" class="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors">
+        {{ 'wizard.step6.submit'|trans }}
+    </button>
+</div>
+
+{{ form_end(form) }}

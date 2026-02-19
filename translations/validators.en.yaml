@@ -27,3 +27,10 @@ wizard:
     defendants:
         min_one_required: 'Please add at least one defendant.'
         max_three: 'You can add a maximum of 3 defendants.'
+    witness:
+        name_required: 'Please enter the witness name.'
+    witnesses:
+        max_five: 'You can add a maximum of 5 witnesses.'
+    step6:
+        agree_data_correct_required: 'You must confirm the data is correct.'
+        agree_terms_required: 'You must agree to the terms and conditions.'

@@ -103,7 +103,7 @@
                         {% elseif type == 'warning' %} bg-yellow-50 text-yellow-800 border border-yellow-200
                         {% else %} bg-blue-50 text-blue-800 border border-blue-200
                         {% endif %}">
-                        {{ message }}
+                        {{ message|trans }}
                     </div>
                 </div>
             {% endfor %}

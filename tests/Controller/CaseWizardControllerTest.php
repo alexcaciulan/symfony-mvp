@@ -4,6 +4,7 @@ namespace App\Tests\Controller;
 
 use App\Entity\Court;
 use App\Entity\LegalCase;
+use App\Entity\Payment;
 use App\Entity\User;
 use App\Enum\CourtType;
 use Doctrine\ORM\EntityManagerInterface;
@@ -254,6 +255,132 @@ class CaseWizardControllerTest extends WebTestCase
         $this->assertResponseIsSuccessful();
     }
 
+    public function testStep5DisplaysForm(): void
+    {
+        $legalCase = $this->createDraftCase(5);
+
+        $this->client->request('GET', "/case/{$legalCase->getId()}/step/5");
+
+        $this->assertResponseIsSuccessful();
+        $this->assertSelectorExists('form');
+    }
+
+    public function testStep5SubmitSavesEvidenceData(): void
+    {
+        $legalCase = $this->createDraftCase(5);
+        $id = $legalCase->getId();
+
+        // Get CSRF token from rendered form
+        $crawler = $this->client->request('GET', "/case/{$id}/step/5");
+        $token = $crawler->filter('input[id=step5_evidence__token]')->attr('value');
+
+        // Submit directly via POST (witnesses collection starts empty in the form)
+        $this->client->request('POST', "/case/{$id}/step/5", [
+            'step5_evidence' => [
+                'evidenceDescription' => 'Facturi și contract de prestări servicii',
+                'hasWitnesses' => '1',
+                'witnesses' => [
+                    ['name' => 'Ion Martor', 'address' => 'Str. Exemplu 1, București', 'details' => 'A fost prezent la semnarea contractului'],
+                ],
+                'requestOralDebate' => '1',
+                '_token' => $token,
+            ],
+        ]);
+
+        $this->assertResponseRedirects("/case/{$id}/step/6");
+
+        $this->em->clear();
+        $updated = $this->em->find(LegalCase::class, $id);
+        $this->assertStringContainsString('Facturi', $updated->getEvidenceDescription());
+        $this->assertTrue($updated->hasWitnesses());
+        $this->assertCount(1, $updated->getWitnesses());
+        $this->assertSame('Ion Martor', $updated->getWitnesses()[0]['name']);
+        $this->assertTrue($updated->isRequestOralDebate());
+        $this->assertSame(6, $updated->getCurrentStep());
+    }
+
+    public function testStep5SubmitWithoutWitnesses(): void
+    {
+        $legalCase = $this->createDraftCase(5);
+        $id = $legalCase->getId();
+
+        $crawler = $this->client->request('GET', "/case/{$id}/step/5");
+        $form = $crawler->filter('button[type=submit]')->form([
+            'step5_evidence[evidenceDescription]' => 'Contract și facturi atașate',
+        ]);
+        // Ensure hasWitnesses is unchecked
+        $form['step5_evidence[hasWitnesses]']->untick();
+        $this->client->submit($form);
+
+        $this->assertResponseRedirects("/case/{$id}/step/6");
+
+        $this->em->clear();
+        $updated = $this->em->find(LegalCase::class, $id);
+        $this->assertFalse($updated->hasWitnesses());
+        $this->assertNull($updated->getWitnesses());
+    }
+
+    public function testStep6DisplaysSummaryAndFees(): void
+    {
+        $legalCase = $this->createPopulatedCase(6);
+        $legalCase->setClaimAmount('5000.00');
+        $this->em->flush();
+
+        $this->client->request('GET', "/case/{$legalCase->getId()}/step/6");
+
+        $this->assertResponseIsSuccessful();
+        $this->assertSelectorExists('form');
+
+        // Fee should have been calculated
+        $this->em->clear();
+        $updated = $this->em->find(LegalCase::class, $legalCase->getId());
+        $this->assertSame('310.00', $updated->getCourtFee());
+        $this->assertSame('29.90', $updated->getPlatformFee());
+        $this->assertSame('339.90', $updated->getTotalFee());
+    }
+
+    public function testStep6SubmitCreatesPaymentsAndChangesStatus(): void
+    {
+        $legalCase = $this->createPopulatedCase(6);
+        $legalCase->setClaimAmount('2000.00');
+        $this->em->flush();
+        $id = $legalCase->getId();
+
+        $crawler = $this->client->request('GET', "/case/{$id}/step/6");
+        $form = $crawler->filter('button[type=submit]')->form([
+            'step6_confirmation[agreeDataCorrect]' => true,
+            'step6_confirmation[agreeTerms]' => true,
+        ]);
+        $this->client->submit($form);
+
+        $this->assertResponseRedirects('/dashboard/cases');
+
+        $this->em->clear();
+        $updated = $this->em->find(LegalCase::class, $id);
+        $this->assertSame('pending_payment', $updated->getStatus());
+        $this->assertNotNull($updated->getSubmittedAt());
+
+        // Check 2 payments were created
+        $payments = $this->em->getRepository(Payment::class)->findBy(['legalCase' => $id]);
+        $this->assertCount(2, $payments);
+    }
+
+    public function testStep6SubmitWithoutCheckboxesShowsErrors(): void
+    {
+        $legalCase = $this->createPopulatedCase(6);
+        $legalCase->setClaimAmount('1000.00');
+        $this->em->flush();
+        $id = $legalCase->getId();
+
+        $crawler = $this->client->request('GET', "/case/{$id}/step/6");
+        $form = $crawler->filter('button[type=submit]')->form();
+        // Don't check the checkboxes
+        $this->client->submit($form);
+
+        $this->assertResponseStatusCodeSame(422);
+        $this->assertSelectorExists('form');
+    }
+
     public function testNavigateBackPreservesData(): void
     {
         $legalCase = $this->createDraftCase(2);
@@ -279,9 +406,34 @@ class CaseWizardControllerTest extends WebTestCase
         return $legalCase;
     }
 
+    /**
+     * Creates a draft case populated with data from steps 1-5 (needed for step 6 summary rendering).
+     */
+    private function createPopulatedCase(int $currentStep = 6): LegalCase
+    {
+        $legalCase = new LegalCase();
+        $legalCase->setUser($this->user);
+        $legalCase->setStatus('draft');
+        $legalCase->setCurrentStep($currentStep);
+        $legalCase->setCounty('Test');
+        $legalCase->setCourt($this->court);
+        $legalCase->setClaimantType('pf');
+        $legalCase->setClaimantData(['name' => 'Ion Popescu', 'email' => 'ion@test.com', 'city' => 'București', 'county' => 'București']);
+        $legalCase->setDefendants([['type' => 'pf', 'name' => 'Maria Ionescu', 'city' => 'Cluj', 'county' => 'Cluj']]);
+        $legalCase->setClaimAmount('5000.00');
+        $legalCase->setClaimDescription('Datorie neplătită');
+        $legalCase->setInterestType('none');
+        $legalCase->setEvidenceDescription('Facturi atașate');
+        $this->em->persist($legalCase);
+        $this->em->flush();
+
+        return $legalCase;
+    }
+
     protected function tearDown(): void
     {
         $conn = $this->em->getConnection();
+        $conn->executeStatement('DELETE FROM payment WHERE user_id = ?', [$this->user->getId()]);
         $conn->executeStatement('DELETE FROM legal_case WHERE user_id = ?', [$this->user->getId()]);
         $conn->executeStatement('DELETE FROM user WHERE id = ?', [$this->user->getId()]);
         $conn->executeStatement('DELETE FROM court WHERE name = ?', ['Judecătoria Test']);
