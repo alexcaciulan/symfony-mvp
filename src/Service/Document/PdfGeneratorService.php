@@ -22,30 +22,10 @@ class PdfGeneratorService
 
     public function generateCasePdf(LegalCase $case): Document
     {
-        $html = $this->twig->render('pdf/cerere_valoare_redusa.html.twig', [
-            'case' => $case,
-        ]);
-
-        $options = new Options();
-        $options->setDefaultFont('DejaVu Sans');
-        $options->setIsRemoteEnabled(false);
-
-        $dompdf = new Dompdf($options);
-        $dompdf->loadHtml($html);
-        $dompdf->setPaper('A4', 'portrait');
-        $dompdf->render();
-
-        $pdfContent = $dompdf->output();
-
-        // Save to disk
-        $dir = $this->uploadsDir . '/cases/' . $case->getId();
-        if (!is_dir($dir)) {
-            mkdir($dir, 0755, true);
-        }
+        $pdfContent = $this->renderPdf($case);
 
         $storedFilename = 'cerere_' . $case->getId() . '.pdf';
-        $filePath = $dir . '/' . $storedFilename;
-        file_put_contents($filePath, $pdfContent);
+        $this->saveToDisk($case->getId(), $storedFilename, $pdfContent);
 
         // Create Document entity
         $document = new Document();
@@ -60,5 +40,40 @@ class PdfGeneratorService
         $this->em->persist($document);
 
         return $document;
+    }
+
+    public function regenerateCasePdf(LegalCase $case, Document $document): void
+    {
+        $pdfContent = $this->renderPdf($case);
+        $this->saveToDisk($case->getId(), basename($document->getStoredFilename()), $pdfContent);
+        $document->setFileSize(strlen($pdfContent));
+    }
+
+    private function renderPdf(LegalCase $case): string
+    {
+        $html = $this->twig->render('pdf/cerere_valoare_redusa.html.twig', [
+            'case' => $case,
+        ]);
+
+        $options = new Options();
+        $options->setDefaultFont('DejaVu Sans');
+        $options->setIsRemoteEnabled(false);
+
+        $dompdf = new Dompdf($options);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+
+        return $dompdf->output();
+    }
+
+    private function saveToDisk(int $caseId, string $filename, string $content): void
+    {
+        $dir = $this->uploadsDir . '/cases/' . $caseId;
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        file_put_contents($dir . '/' . $filename, $content);
     }
 }

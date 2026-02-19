@@ -226,6 +226,8 @@ document:
         too_large: 'File exceeds the 10MB limit.'
         invalid_type: 'Invalid file type. Only PDF, JPG and PNG are accepted.'
         file_required: 'Please select a file.'
+    download:
+        file_missing: 'The file no longer exists on the server. If the problem persists, contact support.'
     delete:
         button: 'Delete'
         success: 'Document deleted.'

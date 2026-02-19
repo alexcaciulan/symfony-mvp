@@ -226,6 +226,8 @@ document:
         too_large: 'Fișierul depășește limita de 10MB.'
         invalid_type: 'Tip de fișier invalid. Doar PDF, JPG și PNG sunt acceptate.'
         file_required: 'Selectați un fișier.'
+    download:
+        file_missing: 'Fișierul nu mai există pe server. Dacă problema persistă, contactați suportul.'
     delete:
         button: 'Șterge'
         success: 'Documentul a fost șters.'

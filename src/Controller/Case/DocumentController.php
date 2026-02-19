@@ -8,6 +8,7 @@ use App\Enum\DocumentType;
 use App\Form\Case\DocumentUploadType;
 use App\Repository\DocumentRepository;
 use App\Repository\LegalCaseRepository;
+use App\Service\Document\PdfGeneratorService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Bundle\SecurityBundle\Security;
@@ -26,11 +27,12 @@ class DocumentController extends AbstractController
         private DocumentRepository $documentRepository,
         private EntityManagerInterface $em,
         private Security $security,
+        private PdfGeneratorService $pdfGenerator,
         private string $uploadsDir,
     ) {}
 
     #[Route('/{caseId}/document/{documentId}/download', name: 'case_document_download', requirements: ['caseId' => '\d+', 'documentId' => '\d+'], methods: ['GET'])]
-    public function download(int $caseId, int $documentId): BinaryFileResponse
+    public function download(int $caseId, int $documentId): Response
     {
         $legalCase = $this->legalCaseRepository->find($caseId);
 
@@ -49,7 +51,18 @@ class DocumentController extends AbstractController
         $filePath = $this->uploadsDir . '/' . $document->getStoredFilename();
 
         if (!file_exists($filePath)) {
-            throw $this->createNotFoundException();
+            // Auto-regenerate CERERE_PDF if missing
+            if ($document->getDocumentType() === DocumentType::CERERE_PDF) {
+                $this->pdfGenerator->regenerateCasePdf($legalCase, $document);
+                $this->em->flush();
+                $filePath = $this->uploadsDir . '/' . $document->getStoredFilename();
+            }
+
+            if (!file_exists($filePath)) {
+                $this->addFlash('error', 'document.download.file_missing');
+
+                return $this->redirectToRoute('case_view', ['id' => $caseId]);
+            }
         }
 
         $response = new BinaryFileResponse($filePath);
