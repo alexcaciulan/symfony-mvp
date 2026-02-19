@@ -1,0 +1,50 @@
+framework:
+    workflows:
+        legal_case:
+            type: state_machine
+            audit_trail:
+                enabled: true
+            marking_store:
+                type: method
+                property: status
+            supports:
+                - App\Entity\LegalCase
+            initial_marking: draft
+            places:
+                - draft
+                - pending_payment
+                - paid
+                - submitted_to_court
+                - under_review
+                - additional_info_requested
+                - resolved_accepted
+                - resolved_rejected
+                - enforcement
+            transitions:
+                submit:
+                    from: draft
+                    to: pending_payment
+                confirm_payment:
+                    from: pending_payment
+                    to: paid
+                submit_to_court:
+                    from: paid
+                    to: submitted_to_court
+                mark_received:
+                    from: submitted_to_court
+                    to: under_review
+                request_info:
+                    from: under_review
+                    to: additional_info_requested
+                provide_info:
+                    from: additional_info_requested
+                    to: under_review
+                accept:
+                    from: under_review
+                    to: resolved_accepted
+                reject:
+                    from: under_review
+                    to: resolved_rejected
+                enforce:
+                    from: resolved_accepted
+                    to: enforcement

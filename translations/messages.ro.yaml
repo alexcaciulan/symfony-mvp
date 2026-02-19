@@ -207,6 +207,21 @@ case_view:
     heading: 'Dosar #%id%'
     submitted_at: 'Depus la: %date%'
     back_to_cases: 'Înapoi la dosare'
+    status_history: 'Istoric status'
+
+# =============================================================================
+# Case Statuses
+# =============================================================================
+case_status:
+    draft: 'Ciornă'
+    pending_payment: 'În așteptarea plății'
+    paid: 'Plătit'
+    submitted_to_court: 'Trimis la instanță'
+    under_review: 'În analiză'
+    additional_info_requested: 'Informații suplimentare solicitate'
+    resolved_accepted: 'Admis'
+    resolved_rejected: 'Respins'
+    enforcement: 'Executare silită'
 
 # =============================================================================
 # Dashboard

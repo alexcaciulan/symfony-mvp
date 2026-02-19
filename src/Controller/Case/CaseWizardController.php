@@ -17,6 +17,7 @@ use App\Form\Case\Step5EvidenceType;
 use App\Form\Case\Step6ConfirmationType;
 use App\Repository\CourtRepository;
 use App\Repository\LegalCaseRepository;
+use App\Service\Case\CaseWorkflowService;
 use App\Service\Case\TaxCalculatorService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -35,6 +36,7 @@ class CaseWizardController extends AbstractController
         private LegalCaseRepository $legalCaseRepository,
         private CourtRepository $courtRepository,
         private TaxCalculatorService $taxCalculator,
+        private CaseWorkflowService $workflowService,
     ) {}
 
     #[Route('/new', name: 'case_new', methods: ['GET', 'POST'])]
@@ -109,9 +111,7 @@ class CaseWizardController extends AbstractController
             throw $this->createNotFoundException();
         }
 
-        if ($legalCase->getUser() !== $this->getUser()) {
-            throw $this->createAccessDeniedException();
-        }
+        $this->denyAccessUnlessGranted('CASE_VIEW', $legalCase);
 
         // Draft cases should use the wizard
         if ($legalCase->getStatus() === 'draft') {
@@ -144,13 +144,7 @@ class CaseWizardController extends AbstractController
             throw $this->createNotFoundException();
         }
 
-        if ($legalCase->getUser() !== $this->getUser()) {
-            throw $this->createAccessDeniedException();
-        }
-
-        if ($legalCase->getStatus() !== 'draft') {
-            throw $this->createAccessDeniedException('wizard.error.not_draft');
-        }
+        $this->denyAccessUnlessGranted('CASE_EDIT', $legalCase);
 
         if ($step > $legalCase->getCurrentStep()) {
             throw $this->createNotFoundException('wizard.error.step_not_reached');
@@ -279,8 +273,8 @@ class CaseWizardController extends AbstractController
         $platformPayment->setStatus(PaymentStatus::PENDING);
         $this->em->persist($platformPayment);
 
-        // Update case status
-        $legalCase->setStatus('pending_payment');
+        // Transition via workflow (draft → pending_payment)
+        $this->workflowService->apply($legalCase, 'submit');
         $legalCase->setSubmittedAt(new \DateTimeImmutable());
         $this->em->flush();
     }

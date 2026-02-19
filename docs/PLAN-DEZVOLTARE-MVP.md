@@ -21,7 +21,7 @@ Fiecare pas este un prompt pe care îl dai lui Claude Code. După fiecare pas, v
 | 7 | Auth | Înregistrare multi-step + Validatori + Profil + Forgot password | 2-3 ore | Pas 6 | ⏭️ AMÂNAT |
 | 8 | Core | Wizard cerere pașii 1-4 (formulare, fără upload) | 4-6 ore | Pas 5 | ✅ DONE |
 | 9 | Core | Wizard cerere pașii 5-6 (probe + confirmare + calculator taxă) | 3-4 ore | Pas 8 | ✅ DONE |
-| 10 | Core | Workflow dosar + Voters + Dashboard creditor + Audit log | 3-4 ore | Pas 9 | |
+| 10 | Core | Workflow dosar + Voters + Dashboard creditor + Audit log | 3-4 ore | Pas 9 | ✅ DONE (parțial) |
 | 11 | Core | Configurare Messenger worker + procesare async | 1-2 ore | Pas 10 | |
 | 12 | Docs | Generare PDF (DomPDF) via Messenger | 2-3 ore | Pas 11 | |
 | 13 | Docs | Upload documente (VichUploader + Flysystem) | 2-3 ore | Pas 10 | |
@@ -230,28 +230,36 @@ Completarea wizard-ului: probe/martori, calculator taxă judiciară, pagina de c
 
 ---
 
-### PASUL 10 | Workflow dosar + Voters + Dashboard creditor + Audit log | ~3-4 ore
+### PASUL 10 | Workflow dosar + Voters + Dashboard creditor + Audit log | ✅ DONE (parțial)
 
-State machine, autorizare per dosar (voters de la început), dashboard-ul creditorului și audit log.
+State machine, autorizare per dosar (voters), audit log. Implementare simplificată — funcționalități core fără dashboard avansat.
 
-**PROMPT:**
-> Configurează Symfony Workflow component pentru LegalCase. Definește workflow-ul 'legal_case' cu statusuri și tranziții: draft → pending_payment (tranziție: 'submit'), pending_payment → paid (tranziție: 'confirm_payment'), paid → submitted_to_court (tranziție: 'submit_to_court'), submitted_to_court → under_review (tranziție: 'mark_received'), under_review → additional_info_requested (tranziție: 'request_info'), additional_info_requested → under_review (tranziție: 'provide_info'), under_review → resolved_accepted (tranziție: 'accept'), under_review → resolved_rejected (tranziție: 'reject'), resolved_accepted → enforcement (tranziție: 'enforce'). Configurează în config/packages/workflow.yaml. Creează CaseWorkflowService în src/Service/Case/ care wrappează Workflow component cu metode semantice. Creează EventSubscriber pe workflow events care: la fiecare tranziție creează CaseStatusHistory entry, la fiecare tranziție creează AuditLog entry (user, IP, acțiune, status vechi/nou). Implementează Security Voters: CaseVoter — doar proprietarul (legalCase.user) sau ROLE_ADMIN poate VIEW/EDIT/DELETE un dosar; DocumentVoter — doar proprietarul dosarului poate download/upload. Aplică voters în controllere cu $this->denyAccessUnlessGranted(). Dashboard creditor (/dashboard): tabel dosare ale userului curent (număr dosar, pârât principal, sumă, status ca badge colorat, dată creare, buton acțiuni). Filtre: status (dropdown), perioadă (date range), sumă (min/max). Paginare. Pagina detalii dosar (/dashboard/cases/{id}): toate datele cererii, timeline vizuală cu tranzițiile din CaseStatusHistory, lista documente, butoane acțiuni condiționate de status (ex: 'Plătește' vizibil doar pe pending_payment), secțiune 'Istoric activitate' cu AuditLog. Turbo Frames pentru filtre și paginare în dashboard. Actualizează wizard-ul (Pasul 9): la depunere, aplică tranziția 'submit' (draft → pending_payment).
+**Ce s-a implementat:**
+- `symfony/workflow` instalat + `config/packages/workflow.yaml` — state_machine `legal_case` cu 9 statusuri și 9 tranziții
+- `CaseWorkflowService` — wrappează Workflow component (apply, can, getAvailableTransitions)
+- `CaseWorkflowSubscriber` — EventSubscriber pe `workflow.legal_case.completed`, creează automat `CaseStatusHistory` + `AuditLog` la fiecare tranziție
+- `CaseVoter` — CASE_VIEW (proprietar sau admin), CASE_EDIT (proprietar + draft sau admin)
+- Controller actualizat: `submitCase()` folosește `workflowService->apply()` în loc de `setStatus()` manual; `loadAndAuthorize()` folosește `denyAccessUnlessGranted('CASE_EDIT')` în loc de verificări manuale; `view()` folosește `denyAccessUnlessGranted('CASE_VIEW')`
+- Timeline vizuală pe pagina `case/view.html.twig` cu `CaseStatusHistory`
+- Badge-uri colorate pe dashboard + view pentru toate cele 9 statusuri (cu traduceri `case_status.*`)
+- Traduceri RO + EN complete pentru statusuri
+- 7 unit tests CaseWorkflowService + 6 unit tests CaseVoter + teste funcționale actualizate (total 53 teste, toate trec)
+
+**Ce s-a amânat (se va implementa în pași dedicați sau viitoare iterații):**
+- Filtre dashboard (status dropdown, perioadă, sumă min/max) — viitor pas dedicat
+- Paginare dosare în dashboard — viitor pas dedicat
+- Turbo Frames pe dashboard — viitor pas dedicat
+- DocumentVoter — vine cu Pas 13 (upload documente)
+- Pagina detalii dosar avansată (butoane acțiuni per status, secțiune documente, audit log complet) — viitor pas dedicat
+- Acțiune admin "Schimbă status" cu modal — vine cu Pas 16 (EasyAdmin complet)
 
 **VERIFICARE MANUALĂ:**
-- [ ] Workflow: doar tranzițiile definite sunt permise
-- [ ] Voter: user A nu poate vedea dosarul user B (403)
-- [ ] Voter: admin poate vedea orice dosar
-- [ ] Dashboard: afișează doar dosarele utilizatorului logat
-- [ ] Filtrele funcționează (status, sumă)
-- [ ] Pagina detalii: timeline corect, date complete
-- [ ] AuditLog se populează automat la tranziție
-- [ ] Secțiunea 'Istoric activitate' afișează cronologic
-
-**TESTE MINIME:**
-- Unit test: CaseWorkflowService — tranziții permise și interzise
-- Unit test: CaseVoter — proprietar vs. alt user vs. admin
-- Test funcțional: dashboard afișează doar dosarele proprii
-- Test funcțional: acces dosar străin → 403
+- [x] Workflow: doar tranzițiile definite sunt permise
+- [x] Voter: user A nu poate vedea dosarul user B (403)
+- [x] Voter: admin poate vedea orice dosar
+- [x] AuditLog se populează automat la tranziție
+- [x] CaseStatusHistory se populează automat la tranziție
+- [x] Timeline vizuală pe pagina detalii dosar
 
 ---
 

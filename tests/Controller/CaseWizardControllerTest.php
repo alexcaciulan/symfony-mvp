@@ -2,6 +2,8 @@
 
 namespace App\Tests\Controller;
 
+use App\Entity\AuditLog;
+use App\Entity\CaseStatusHistory;
 use App\Entity\Court;
 use App\Entity\LegalCase;
 use App\Entity\Payment;
@@ -377,6 +379,20 @@ class CaseWizardControllerTest extends WebTestCase
         // Check 2 payments were created
         $payments = $this->em->getRepository(Payment::class)->findBy(['legalCase' => $id]);
         $this->assertCount(2, $payments);
+
+        // Check CaseStatusHistory was created by workflow subscriber
+        $history = $this->em->getRepository(CaseStatusHistory::class)->findBy(['legalCase' => $id]);
+        $this->assertCount(1, $history);
+        $this->assertSame('draft', $history[0]->getOldStatus());
+        $this->assertSame('pending_payment', $history[0]->getNewStatus());
+
+        // Check AuditLog was created by workflow subscriber
+        $auditLogs = $this->em->getRepository(AuditLog::class)->findBy([
+            'entityType' => 'LegalCase',
+            'entityId' => (string) $id,
+        ]);
+        $this->assertCount(1, $auditLogs);
+        $this->assertSame('case_status_change', $auditLogs[0]->getAction());
     }
 
     public function testStep6SubmitWithoutCheckboxesShowsErrors(): void
@@ -471,10 +487,16 @@ class CaseWizardControllerTest extends WebTestCase
     protected function tearDown(): void
     {
         $conn = $this->em->getConnection();
-        $conn->executeStatement('DELETE FROM payment WHERE user_id = ?', [$this->user->getId()]);
-        $conn->executeStatement('DELETE FROM legal_case WHERE user_id = ?', [$this->user->getId()]);
-        $conn->executeStatement('DELETE FROM user WHERE id = ?', [$this->user->getId()]);
-        $conn->executeStatement('DELETE FROM court WHERE name = ?', ['Judecătoria Test']);
+        $userId = $this->user->getId();
+        $courtId = $this->court->getId();
+
+        // Delete workflow-generated records before legal_case (FK constraints)
+        $conn->executeStatement('DELETE csh FROM case_status_history csh JOIN legal_case lc ON csh.legal_case_id = lc.id WHERE lc.user_id = ?', [$userId]);
+        $conn->executeStatement('DELETE FROM audit_log WHERE user_id = ?', [$userId]);
+        $conn->executeStatement('DELETE FROM payment WHERE user_id = ?', [$userId]);
+        $conn->executeStatement('DELETE FROM legal_case WHERE user_id = ?', [$userId]);
+        $conn->executeStatement('DELETE FROM user WHERE id = ?', [$userId]);
+        $conn->executeStatement('DELETE FROM court WHERE id = ?', [$courtId]);
 
         parent::tearDown();
     }

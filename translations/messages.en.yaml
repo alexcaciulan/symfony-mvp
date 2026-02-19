@@ -207,6 +207,21 @@ case_view:
     heading: 'Case #%id%'
     submitted_at: 'Submitted on: %date%'
     back_to_cases: 'Back to cases'
+    status_history: 'Status history'
+
+# =============================================================================
+# Case Statuses
+# =============================================================================
+case_status:
+    draft: 'Draft'
+    pending_payment: 'Pending payment'
+    paid: 'Paid'
+    submitted_to_court: 'Submitted to court'
+    under_review: 'Under review'
+    additional_info_requested: 'Additional info requested'
+    resolved_accepted: 'Accepted'
+    resolved_rejected: 'Rejected'
+    enforcement: 'Enforcement'
 
 # =============================================================================
 # Dashboard
