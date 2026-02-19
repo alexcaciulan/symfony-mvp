@@ -1,0 +1,29 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ ('wizard.step' ~ step ~ '.title')|trans }} - {{ parent() }}{% endblock %}
+
+{% block body %}
+<div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    {# Stepper #}
+    {% include 'case/_stepper.html.twig' with {
+        step: step,
+        currentStep: legalCase.currentStep,
+        legalCase: legalCase,
+    } %}
+
+    {# Step Content #}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-8">
+        <h2 class="text-xl font-bold text-primary mb-6">{{ ('wizard.step' ~ step ~ '.title')|trans }}</h2>
+
+        {% if step == 1 %}
+            {% include 'case/_step1_content.html.twig' %}
+        {% elseif step == 2 %}
+            {% include 'case/_step2_content.html.twig' %}
+        {% elseif step == 3 %}
+            {% include 'case/_step3_content.html.twig' %}
+        {% elseif step == 4 %}
+            {% include 'case/_step4_content.html.twig' %}
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -27,6 +27,8 @@
                     <nav class="hidden md:flex items-center gap-6">
                         <a href="{{ path('app_home') }}" class="text-gray-600 hover:text-primary font-medium no-underline">{{ 'layout.nav.home'|trans }}</a>
                         {% if app.user %}
+                            <a href="{{ path('case_new') }}" class="text-gray-600 hover:text-primary font-medium no-underline">{{ 'layout.nav.new_case'|trans }}</a>
+                            <a href="{{ path('dashboard_cases') }}" class="text-gray-600 hover:text-primary font-medium no-underline">{{ 'layout.nav.my_cases'|trans }}</a>
                             {% if is_granted('ROLE_ADMIN') %}
                                 <a href="{{ path('admin') }}" class="text-gray-600 hover:text-primary font-medium no-underline">{{ 'layout.nav.admin'|trans }}</a>
                             {% endif %}
@@ -63,6 +65,8 @@
                     <nav class="flex flex-col gap-3 pt-4">
                         <a href="{{ path('app_home') }}" class="text-gray-600 hover:text-primary font-medium no-underline">{{ 'layout.nav.home'|trans }}</a>
                         {% if app.user %}
+                            <a href="{{ path('case_new') }}" class="text-gray-600 hover:text-primary font-medium no-underline">{{ 'layout.nav.new_case'|trans }}</a>
+                            <a href="{{ path('dashboard_cases') }}" class="text-gray-600 hover:text-primary font-medium no-underline">{{ 'layout.nav.my_cases'|trans }}</a>
                             {% if is_granted('ROLE_ADMIN') %}
                                 <a href="{{ path('admin') }}" class="text-gray-600 hover:text-primary font-medium no-underline">{{ 'layout.nav.admin'|trans }}</a>
                             {% endif %}

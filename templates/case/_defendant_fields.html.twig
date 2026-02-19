@@ -1,0 +1,94 @@
+{# Individual defendant form fields #}
+<div data-controller="conditional-fields" data-conditional-fields-show-value="pj">
+    {# Type (PF/PJ) #}
+    <div class="mb-4">
+        <span class="block text-sm font-medium text-gray-700 mb-2">{{ 'wizard.step3.type'|trans }}</span>
+        <div class="flex gap-4">
+            {% for child in defendant.type %}
+                <label class="flex items-center gap-2 cursor-pointer">
+                    {{ form_widget(child, { attr: {
+                        class: 'text-primary-light focus:ring-primary-light',
+                        'data-conditional-fields-target': loop.first ? 'source' : '',
+                        'data-action': 'change->conditional-fields#toggle',
+                    }}) }}
+                    <span class="text-sm text-gray-700">{{ child.vars.label|trans }}</span>
+                </label>
+            {% endfor %}
+        </div>
+    </div>
+
+    {# Name #}
+    <div class="mb-4">
+        {{ form_label(defendant.name, null, { label_attr: { class: 'block text-sm font-medium text-gray-700 mb-1' }}) }}
+        {{ form_widget(defendant.name, { attr: { class: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-light' }}) }}
+        {{ form_errors(defendant.name) }}
+    </div>
+
+    {# PF: CNP #}
+    <div data-conditional-fields-target="inverse" class="mb-4">
+        {{ form_label(defendant.cnp, null, { label_attr: { class: 'block text-sm font-medium text-gray-700 mb-1' }}) }}
+        {{ form_widget(defendant.cnp, { attr: { class: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-light' }}) }}
+    </div>
+
+    {# PJ: CUI + Company name #}
+    <div data-conditional-fields-target="conditional" class="space-y-4 mb-4">
+        <div>
+            {{ form_label(defendant.cui, null, { label_attr: { class: 'block text-sm font-medium text-gray-700 mb-1' }}) }}
+            {{ form_widget(defendant.cui, { attr: { class: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-light' }}) }}
+        </div>
+        <div>
+            {{ form_label(defendant.companyName, null, { label_attr: { class: 'block text-sm font-medium text-gray-700 mb-1' }}) }}
+            {{ form_widget(defendant.companyName, { attr: { class: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-light' }}) }}
+        </div>
+    </div>
+</div>
+
+{# Address #}
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+    <div>
+        {{ form_label(defendant.street, null, { label_attr: { class: 'block text-sm font-medium text-gray-700 mb-1' }}) }}
+        {{ form_widget(defendant.street, { attr: { class: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-light' }}) }}
+    </div>
+    <div>
+        {{ form_label(defendant.streetNumber, null, { label_attr: { class: 'block text-sm font-medium text-gray-700 mb-1' }}) }}
+        {{ form_widget(defendant.streetNumber, { attr: { class: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-light' }}) }}
+    </div>
+    <div>
+        {{ form_label(defendant.block, null, { label_attr: { class: 'block text-sm font-medium text-gray-700 mb-1' }}) }}
+        {{ form_widget(defendant.block, { attr: { class: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-light' }}) }}
+    </div>
+    <div>
+        {{ form_label(defendant.staircase, null, { label_attr: { class: 'block text-sm font-medium text-gray-700 mb-1' }}) }}
+        {{ form_widget(defendant.staircase, { attr: { class: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-light' }}) }}
+    </div>
+    <div>
+        {{ form_label(defendant.apartment, null, { label_attr: { class: 'block text-sm font-medium text-gray-700 mb-1' }}) }}
+        {{ form_widget(defendant.apartment, { attr: { class: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-light' }}) }}
+    </div>
+    <div>
+        {{ form_label(defendant.city, null, { label_attr: { class: 'block text-sm font-medium text-gray-700 mb-1' }}) }}
+        {{ form_widget(defendant.city, { attr: { class: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-light' }}) }}
+        {{ form_errors(defendant.city) }}
+    </div>
+    <div>
+        {{ form_label(defendant.county, null, { label_attr: { class: 'block text-sm font-medium text-gray-700 mb-1' }}) }}
+        {{ form_widget(defendant.county, { attr: { class: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-light' }}) }}
+        {{ form_errors(defendant.county) }}
+    </div>
+    <div>
+        {{ form_label(defendant.postalCode, null, { label_attr: { class: 'block text-sm font-medium text-gray-700 mb-1' }}) }}
+        {{ form_widget(defendant.postalCode, { attr: { class: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-light' }}) }}
+    </div>
+</div>
+
+{# Contact #}
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div>
+        {{ form_label(defendant.email, null, { label_attr: { class: 'block text-sm font-medium text-gray-700 mb-1' }}) }}
+        {{ form_widget(defendant.email, { attr: { class: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-light' }}) }}
+    </div>
+    <div>
+        {{ form_label(defendant.phone, null, { label_attr: { class: 'block text-sm font-medium text-gray-700 mb-1' }}) }}
+        {{ form_widget(defendant.phone, { attr: { class: 'w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-light' }}) }}
+    </div>
+</div>

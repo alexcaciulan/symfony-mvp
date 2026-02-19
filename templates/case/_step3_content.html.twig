@@ -1,0 +1,52 @@
+{{ form_start(form) }}
+
+{% set prototypeHtml %}
+    {% include 'case/_defendant_fields.html.twig' with { defendant: form.defendants.vars.prototype } only %}
+{% endset %}
+<div class="space-y-6" data-controller="collection"
+     data-collection-prototype-value="{{ prototypeHtml|e('html_attr') }}"
+     data-collection-max-value="3"
+     data-collection-index-value="{{ form.defendants|length }}">
+
+    <p class="text-sm text-gray-500">{{ 'wizard.step3.description'|trans }}</p>
+
+    {# Defendants list #}
+    <div data-collection-target="container">
+        {% for defendant in form.defendants %}
+            <div class="border border-gray-200 rounded-lg p-4 mb-4 relative" data-collection-target="item">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-semibold text-gray-700">{{ 'wizard.step3.defendant_number'|trans({ '%num%': loop.index }) }}</h3>
+                    {% if loop.index > 1 %}
+                        <button type="button"
+                                class="text-sm text-red-600 hover:text-red-800 font-medium"
+                                data-action="click->collection#removeItem">
+                            {{ 'wizard.step3.remove'|trans }}
+                        </button>
+                    {% endif %}
+                </div>
+
+                {% include 'case/_defendant_fields.html.twig' with { defendant: defendant } only %}
+            </div>
+        {% endfor %}
+    </div>
+
+    {# Add button #}
+    <button type="button"
+            class="flex items-center gap-2 text-sm text-primary-light hover:text-primary font-medium"
+            data-action="click->collection#addItem">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+        {{ 'wizard.step3.add_defendant'|trans }}
+    </button>
+</div>
+
+{# Actions #}
+<div class="flex justify-between mt-8">
+    <a href="{{ path('case_step', { id: legalCase.id, step: step - 1 }) }}" class="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors no-underline">
+        {{ 'wizard.previous'|trans }}
+    </a>
+    <button type="submit" class="px-6 py-2.5 bg-primary-light text-white rounded-lg font-medium hover:bg-primary transition-colors">
+        {{ 'wizard.next'|trans }}
+    </button>
+</div>
+
+{{ form_end(form) }}

@@ -17,9 +17,9 @@ Fiecare pas este un prompt pe care îl dai lui Claude Code. După fiecare pas, v
 | 3 | Setup | Layout responsive + homepage | 1-2 ore | Pas 2 | ✅ DONE |
 | 4 | DB | Entități Doctrine + migrări | 2-3 ore | Pas 1 | ✅ DONE |
 | 5 | DB | Date de referință (instanțe) + useri de test | 1-2 ore | Pas 4 | ✅ DONE |
-| 6 | Auth | Înregistrare simplă + Login + Verificare email | 2-3 ore | Pas 3, 4 | |
-| 7 | Auth | Înregistrare multi-step + Validatori + Profil + Forgot password | 2-3 ore | Pas 6 | |
-| 8 | Core | Wizard cerere pașii 1-4 (formulare, fără upload) | 4-6 ore | Pas 7 | |
+| 6 | Auth | Înregistrare simplă + Login + Verificare email | 2-3 ore | Pas 3, 4 | ⏭️ AMÂNAT |
+| 7 | Auth | Înregistrare multi-step + Validatori + Profil + Forgot password | 2-3 ore | Pas 6 | ⏭️ AMÂNAT |
+| 8 | Core | Wizard cerere pașii 1-4 (formulare, fără upload) | 4-6 ore | Pas 5 | |
 | 9 | Core | Wizard cerere pașii 5-6 (upload dovezi + confirmare + calculator taxă) | 3-4 ore | Pas 8 | |
 | 10 | Core | Workflow dosar + Voters + Dashboard creditor + Audit log | 3-4 ore | Pas 9 | |
 | 11 | Core | Configurare Messenger worker + procesare async | 1-2 ore | Pas 10 | |
@@ -141,7 +141,9 @@ Instanțele din România ca import din JSON și useri de test simpli (fără Fou
 
 ## Faza 3: Autentificare
 
-### PASUL 6 | Înregistrare simplă + Login + Verificare email | ~2-3 ore
+### PASUL 6 | Înregistrare simplă + Login + Verificare email | ⏭️ AMÂNAT
+
+> **AMÂNAT** — Auth-ul de bază (login/register/email verification) funcționează deja. Upgrade-ul formularului de înregistrare și pagina de profil se vor face după wizard (Pașii 8-9). Wizard-ul nu depinde de aceste îmbunătățiri.
 
 Upgrade-ul sistemului de auth existent: formular de înregistrare cu selecție tip utilizator, login, verificare email. Încă fără multi-step sau validatori complecși.
 
@@ -162,7 +164,9 @@ Upgrade-ul sistemului de auth existent: formular de înregistrare cu selecție t
 
 ---
 
-### PASUL 7 | Înregistrare multi-step + Validatori custom + Profil + Forgot password | ~2-3 ore
+### PASUL 7 | Înregistrare multi-step + Validatori custom + Profil + Forgot password | ⏭️ AMÂNAT
+
+> **AMÂNAT** — Se va implementa după wizard. Validatorii CNP/CUI se pot reutiliza în wizard ulterior.
 
 Upgrade înregistrare la multi-step cu câmpuri per tip utilizator, validări avansate, pagina de profil și reset parolă.
 

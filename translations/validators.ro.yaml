@@ -10,3 +10,20 @@ validators:
         email_already_exists: 'Există deja un cont cu acest email.'
         email_required: 'Introduceți adresa de email.'
         email_invalid: 'Adresa de email nu este validă.'
+
+wizard:
+    claimant:
+        type_required: 'Selectați tipul reclamantului.'
+        type_invalid: 'Tipul selectat nu este valid.'
+        name_required: 'Introduceți numele reclamantului.'
+        email_required: 'Introduceți adresa de email.'
+        email_invalid: 'Adresa de email nu este validă.'
+        cnp_length: 'CNP-ul trebuie să aibă exact 13 caractere.'
+    defendant:
+        type_required: 'Selectați tipul pârâtului.'
+        name_required: 'Introduceți numele pârâtului.'
+        city_required: 'Introduceți localitatea.'
+        county_required: 'Introduceți județul.'
+    defendants:
+        min_one_required: 'Adăugați cel puțin un pârât.'
+        max_three: 'Puteți adăuga maxim 3 pârâți.'

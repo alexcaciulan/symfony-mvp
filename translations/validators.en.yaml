@@ -10,3 +10,20 @@ validators:
         email_already_exists: 'There is already an account with this email.'
         email_required: 'Please enter your email address.'
         email_invalid: 'The email address is not valid.'
+
+wizard:
+    claimant:
+        type_required: 'Please select the claimant type.'
+        type_invalid: 'The selected type is not valid.'
+        name_required: 'Please enter the claimant name.'
+        email_required: 'Please enter the email address.'
+        email_invalid: 'The email address is not valid.'
+        cnp_length: 'The CNP must be exactly 13 characters.'
+    defendant:
+        type_required: 'Please select the defendant type.'
+        name_required: 'Please enter the defendant name.'
+        city_required: 'Please enter the city.'
+        county_required: 'Please enter the county.'
+    defendants:
+        min_one_required: 'Please add at least one defendant.'
+        max_three: 'You can add a maximum of 3 defendants.'

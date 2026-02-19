@@ -1,0 +1,73 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ 'dashboard.cases.title'|trans }} - {{ parent() }}{% endblock %}
+
+{% block body %}
+<div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="flex items-center justify-between mb-6">
+        <h1 class="text-2xl font-bold text-primary">{{ 'dashboard.cases.heading'|trans }}</h1>
+        <a href="{{ path('case_new') }}" class="px-4 py-2 bg-primary-light text-white rounded-lg font-medium hover:bg-primary transition-colors no-underline text-sm">
+            {{ 'dashboard.cases.new_case'|trans }}
+        </a>
+    </div>
+
+    {% if cases is empty %}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+            <svg class="w-12 h-12 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            <p class="text-gray-500">{{ 'dashboard.cases.empty'|trans }}</p>
+            <a href="{{ path('case_new') }}" class="inline-block mt-4 px-4 py-2 bg-primary-light text-white rounded-lg font-medium hover:bg-primary transition-colors no-underline text-sm">
+                {{ 'dashboard.cases.create_first'|trans }}
+            </a>
+        </div>
+    {% else %}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <table class="w-full">
+                <thead class="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">{{ 'dashboard.cases.col_id'|trans }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">{{ 'dashboard.cases.col_court'|trans }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">{{ 'dashboard.cases.col_amount'|trans }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">{{ 'dashboard.cases.col_status'|trans }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">{{ 'dashboard.cases.col_date'|trans }}</th>
+                        <th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase">{{ 'dashboard.cases.col_actions'|trans }}</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for case in cases %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3 text-sm text-gray-700">#{{ case.id }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-700">{{ case.court ? case.court.name : '-' }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-700">{{ case.claimAmount ? (case.claimAmount|number_format(2, ',', '.') ~ ' RON') : '-' }}</td>
+                            <td class="px-4 py-3">
+                                {% if case.status == 'draft' %}
+                                    <span class="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800">{{ 'dashboard.cases.status_draft'|trans }}</span>
+                                {% elseif case.status == 'submitted' %}
+                                    <span class="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-800">{{ 'dashboard.cases.status_submitted'|trans }}</span>
+                                {% elseif case.status == 'paid' %}
+                                    <span class="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800">{{ 'dashboard.cases.status_paid'|trans }}</span>
+                                {% else %}
+                                    <span class="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-700">{{ case.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-500">{{ case.createdAt|date('d.m.Y') }}</td>
+                            <td class="px-4 py-3 text-right">
+                                {% if case.status == 'draft' %}
+                                    <a href="{{ path('case_step', { id: case.id, step: case.currentStep }) }}" class="text-sm text-primary-light hover:text-primary font-medium no-underline">
+                                        {{ 'dashboard.cases.continue'|trans }}
+                                    </a>
+                                {% else %}
+                                    <a href="{{ path('case_step', { id: case.id, step: 1 }) }}" class="text-sm text-gray-500 hover:text-gray-700 font-medium no-underline">
+                                        {{ 'dashboard.cases.view'|trans }}
+                                    </a>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
