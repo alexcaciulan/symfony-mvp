@@ -53,8 +53,7 @@ services:
       start_period: 60s
     volumes:
       - database_data:/var/lib/mysql:rw
-      # You may use a bind-mounted host directory instead, so that it is harder to accidentally remove the volume and lose all your data!
-      # - ./docker/db/data:/var/lib/mysql:rw
+      - ./docker/db/init:/docker-entrypoint-initdb.d:ro
     networks:
       - symfony-network
 ###< doctrine/doctrine-bundle ###

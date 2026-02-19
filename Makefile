@@ -54,7 +54,13 @@ migrate-diff: ## Generate migration from entity changes
 cache-clear: ## Clear Symfony cache
 	docker compose exec php php bin/console cache:clear
 
-setup: build up composer migrate ## Full setup: build, start, install dependencies, and run migrations
+import-courts: ## Import Romanian courts from data/courts.json
+	docker compose exec php php bin/console app:import-courts
+
+create-test-users: ## Create test users for development
+	docker compose exec php php bin/console app:create-test-users
+
+setup: build up composer migrate import-courts create-test-users ## Full setup: build, start, install deps, migrate, import courts, create test users
 	@echo "Setup complete! Application is running at http://localhost:8080"
 	@echo "Mailpit UI is available at http://localhost:8025"
 

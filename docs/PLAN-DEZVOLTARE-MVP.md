@@ -13,10 +13,10 @@ Fiecare pas este un prompt pe care îl dai lui Claude Code. După fiecare pas, v
 | Pas | Faza | Descriere | Durată est. | Depinde de | Status |
 |-----|------|-----------|-------------|------------|--------|
 | 1 | Setup | Proiect Symfony + Docker Compose | — | — | ✅ DONE |
-| 2 | Setup | Tailwind Bundle + verificare compilare | 1 oră | Pas 1 | |
-| 3 | Setup | Layout responsive + homepage | 1-2 ore | Pas 2 | |
-| 4 | DB | Entități Doctrine + migrări | 2-3 ore | Pas 1 | |
-| 5 | DB | Date de referință (instanțe) + fixtures dezvoltare | 1-2 ore | Pas 4 | |
+| 2 | Setup | Tailwind Bundle + verificare compilare | 1 oră | Pas 1 | ✅ DONE |
+| 3 | Setup | Layout responsive + homepage | 1-2 ore | Pas 2 | ✅ DONE |
+| 4 | DB | Entități Doctrine + migrări | 2-3 ore | Pas 1 | ✅ DONE |
+| 5 | DB | Date de referință (instanțe) + useri de test | 1-2 ore | Pas 4 | ✅ DONE |
 | 6 | Auth | Înregistrare simplă + Login + Verificare email | 2-3 ore | Pas 3, 4 | |
 | 7 | Auth | Înregistrare multi-step + Validatori + Profil + Forgot password | 2-3 ore | Pas 6 | |
 | 8 | Core | Wizard cerere pașii 1-4 (formulare, fără upload) | 4-6 ore | Pas 7 | |
@@ -66,7 +66,7 @@ Deja implementat. Docker Compose cu 4 containere (php, nginx, mysql, mailpit), S
 
 ---
 
-### PASUL 2 | Tailwind Bundle + verificare compilare | ~1 oră
+### PASUL 2 | Tailwind Bundle + verificare compilare | ✅ DONE
 
 Instalare Tailwind CSS fără Node.js. Doar configurare, fără layout — verificăm că totul compilează corect.
 
@@ -82,7 +82,7 @@ Instalare Tailwind CSS fără Node.js. Doar configurare, fără layout — verif
 
 ---
 
-### PASUL 3 | Layout responsive + homepage | ~1-2 ore
+### PASUL 3 | Layout responsive + homepage | ✅ DONE
 
 Layout-ul master Twig cu Tailwind și o homepage funcțională.
 
@@ -102,38 +102,40 @@ Layout-ul master Twig cu Tailwind și o homepage funcțională.
 
 ## Faza 2: Bază de date
 
-### PASUL 4 | Entități Doctrine + migrări | ~2-3 ore
+### PASUL 4 | Entități Doctrine + migrări | ✅ DONE
 
-Entitățile aplicației cu relații, UUID v7 și soft deletes. Fără fixtures — doar structura.
+Entitățile aplicației cu relații, auto-increment int IDs și soft deletes.
 
-**PROMPT:**
-> Creează entitățile Doctrine pentru aplicația de recuperare creanțe. Extinde entitatea User existentă cu câmpuri noi: tip utilizator (PHP enum: PF, PJ, AVOCAT, ADMIN), CNP (nullable, pentru PF), CUI (nullable, pentru PJ), denumireFirma (nullable, PJ), numarBarou (nullable, avocat), telefon, adresă (strada, număr, bloc, scara, apartament, localitate, județ, cod poștal — ca embedded sau câmpuri separate), deletedAt (nullable, soft delete). Creează entitățile noi: LegalCase (caseNumber generat automat, reclamant User, date pârât ca JSON, sumă, monedă RON, descriereCreanta, bazaLegala, solicităDobândă bool, dataDobândă nullable, status string default 'draft', instanță Court, createdAt, updatedAt, deletedAt), CaseStatusHistory (legalCase, statusVechi, statusNou, motiv nullable, createdBy User, createdAt), Document (legalCase, tipDocument enum: cerere_pdf/dovada/contract/factura/alt_document, numeFisier, caleFisier, dimensiune int, mimeType, uploadedBy User, createdAt), Payment (legalCase, user, sumă, tip enum: taxa_judiciara/comision_platforma, status enum: pending/completed/failed/refunded, metodaPlata, referintaExterna nullable, createdAt, updatedAt), Court (nume, adresă, județ, email nullable, telefon nullable, tip enum: judecatorie/tribunal, activ bool), Notification (user, legalCase nullable, tip, canal enum: email/in_app, titlu, mesaj, linkResursa nullable, citita bool default false, createdAt), AuditLog (user nullable, actiune, entitate, entityId, dateVechi JSON nullable, dateNoi JSON nullable, ipAddress nullable, createdAt). Folosește UUID v7 ca primary key pe toate entitățile. Creează repositories pentru fiecare entitate. Generează migrarea. Rulează migrarea și verifică că schema e validă.
-
-**VERIFICARE MANUALĂ:**
-- [ ] `doctrine:migrations:migrate` rulează fără erori
-- [ ] `doctrine:schema:validate` — schema e sincronizată
-- [ ] Verifici tabelele în MySQL (8 tabele + user existent + messenger_messages)
-- [ ] Relațiile sunt corecte (FK constraints vizibile)
-
-**TESTE MINIME:** `doctrine:schema:validate` e suficient la acest pas.
+**Ce s-a implementat:**
+- Extindere User cu: type (PHP enum PF/PJ/AVOCAT/ADMIN), CNP, CUI, companyName, barNumber, phone, adresă completă (street, streetNumber, block, staircase, apartment, city, county, postalCode), deletedAt
+- 6 PHP enums: UserType, CourtType, DocumentType, PaymentType, PaymentStatus, NotificationChannel
+- 7 entități noi: Court, LegalCase (cu toate câmpurile wizard 6 pași), CaseStatusHistory, Document, Payment, Notification, AuditLog
+- 7 repositories cu query methods utile
+- O singură migrare pentru toate schimbările
+- **Decizie**: INT auto-increment pe toate entitățile (nu UUID v7, pentru ușurința debugging-ului)
 
 ---
 
-### PASUL 5 | Date de referință (instanțe) + fixtures dezvoltare | ~1-2 ore
+### PASUL 5 | Date de referință (instanțe) + useri de test | ✅ DONE
 
-Instanțele din România ca data migration (date permanente) și fixtures pentru dezvoltare (date de test resetabile).
+Instanțele din România ca import din JSON și useri de test simpli (fără Foundry).
 
 **PROMPT:**
-> Creează două lucruri separate: (1) Un command Symfony `app:import-courts` care importă lista completă de judecătorii și tribunale din România dintr-un fișier JSON/CSV inclus în proiect (data/courts.json). Include toate judecătoriile (~180) și tribunalele (~42) cu: nume oficial, județ, adresă sediu, email (dacă e public). Command-ul e idempotent (rulat de mai multe ori nu duplică). Adaugă apelul în docker-entrypoint.sh după migrări. (2) Fixtures cu zenstruck/foundry pentru date de dezvoltare (resetabile): 5 useri de test (admin@test.com cu ROLE_ADMIN, creditor-pf@test.com PF, creditor-pj@test.com PJ, avocat@test.com AVOCAT, user@test.com doar ROLE_USER), parola "password" pentru toți, toți verificați. 3 dosare de test în statusuri diferite (draft, pending_payment, paid) cu documente și plăți asociate. Fixtures NU includ instanțele — acelea vin din command.
+> Creează două lucruri separate: (1) Un command Symfony `app:import-courts` care importă lista completă de judecătorii și tribunale din România dintr-un fișier JSON inclus în proiect (data/courts.json). Include toate judecătoriile (~180) și tribunalele (~42) cu: nume oficial, județ, tip (judecatorie/tribunal). Command-ul e idempotent (rulat de mai multe ori nu duplică). Adaugă apelul în docker-entrypoint.sh după migrări. (2) Un command Symfony `app:create-test-users` care creează 5 useri de test: admin@test.com cu ROLE_ADMIN, creditor-pf@test.com PF, creditor-pj@test.com PJ, avocat@test.com AVOCAT, user@test.com doar ROLE_USER. Parola "password" pentru toți, toți verificați. Command-ul e idempotent.
+
+**Ce s-a amânat pentru pași ulteriori:**
+- ~~Fixtures cu zenstruck/foundry~~ — nu e necesar încă, userii de test se creează cu command simplu
+- ~~Dosare de test (draft, pending_payment, paid)~~ — se vor crea manual sau automat după implementarea wizard-ului (Pașii 8-9)
+- ~~Documente și plăți asociate~~ — depind de funcționalități neimplementate încă
 
 **VERIFICARE MANUALĂ:**
 - [ ] `php bin/console app:import-courts` importă instanțele fără erori
 - [ ] Rulat a doua oară nu duplică
-- [ ] `doctrine:fixtures:load` încarcă userii și dosarele de test
-- [ ] Instanțele rămân după fixtures:load (nu se șterg)
+- [ ] `php bin/console app:create-test-users` creează userii de test
+- [ ] Rulat a doua oară nu duplică
 - [ ] Login cu admin@test.com / password funcționează
 
-**TESTE MINIME:** Test unitar că factory-urile Foundry creează entități valide.
+**TESTE MINIME:** Test funcțional că `app:import-courts` importă instanțe și că `app:create-test-users` creează useri.
 
 ---
 
