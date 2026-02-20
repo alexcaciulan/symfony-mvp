@@ -18,3 +18,12 @@
 /public/assets/
 /assets/vendor/
 ###< symfony/asset-mapper ###
+
+# IDE
+.idea/
+
+# macOS
+.DS_Store
+
+# PHPUnit
+bin/.phpunit.result.cache
