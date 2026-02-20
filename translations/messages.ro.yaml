@@ -241,6 +241,24 @@ document:
         alt_document: 'Alt document'
 
 # =============================================================================
+# Payment
+# =============================================================================
+payment:
+    title: 'Plată — Dosar #%id%'
+    heading: 'Plată dosar'
+    fee_summary: 'Rezumat taxe'
+    court_fee: 'Taxă judiciară'
+    platform_fee: 'Comision platformă'
+    total: 'Total de plată'
+    simulator_notice: 'Aceasta este o plată simulată pentru mediul de dezvoltare. În producție, veți fi redirecționat către procesatorul de plăți Netopia.'
+    pay_button: 'Plătește %amount% RON'
+    back_to_case: 'Înapoi la dosar'
+    success: 'Plata a fost procesată cu succes! Dosarul dvs. este acum în curs de procesare.'
+    already_paid: 'Acest dosar a fost deja plătit.'
+    not_pending: 'Acest dosar nu necesită plată în acest moment.'
+    invalid_csrf: 'Token de securitate invalid. Reîncercați.'
+
+# =============================================================================
 # Case Statuses
 # =============================================================================
 case_status:
@@ -276,3 +294,4 @@ dashboard:
         status_paid: 'Plătit'
         continue: 'Continuă'
         view: 'Vezi'
+        pay: 'Plătește'

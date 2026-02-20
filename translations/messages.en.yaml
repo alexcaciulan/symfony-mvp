@@ -241,6 +241,24 @@ document:
         alt_document: 'Other document'
 
 # =============================================================================
+# Payment
+# =============================================================================
+payment:
+    title: 'Payment — Case #%id%'
+    heading: 'Case payment'
+    fee_summary: 'Fee summary'
+    court_fee: 'Court fee'
+    platform_fee: 'Platform fee'
+    total: 'Total to pay'
+    simulator_notice: 'This is a simulated payment for the development environment. In production, you will be redirected to the Netopia payment processor.'
+    pay_button: 'Pay %amount% RON'
+    back_to_case: 'Back to case'
+    success: 'Payment processed successfully! Your case is now being processed.'
+    already_paid: 'This case has already been paid.'
+    not_pending: 'This case does not require payment at this time.'
+    invalid_csrf: 'Invalid security token. Please try again.'
+
+# =============================================================================
 # Case Statuses
 # =============================================================================
 case_status:
@@ -276,3 +294,4 @@ dashboard:
         status_paid: 'Paid'
         continue: 'Continue'
         view: 'View'
+        pay: 'Pay'

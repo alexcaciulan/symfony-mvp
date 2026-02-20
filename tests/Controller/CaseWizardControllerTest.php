@@ -371,7 +371,7 @@ class CaseWizardControllerTest extends WebTestCase
         ]);
         $this->client->submit($form);
 
-        $this->assertResponseRedirects('/dashboard/cases');
+        $this->assertResponseRedirects('/case/' . $id . '/payment');
 
         $this->em->clear();
         $updated = $this->em->find(LegalCase::class, $id);

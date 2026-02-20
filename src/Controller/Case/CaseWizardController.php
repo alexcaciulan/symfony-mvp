@@ -87,7 +87,7 @@ class CaseWizardController extends AbstractController
                 $this->submitCase($legalCase);
                 $this->addFlash('success', 'wizard.step6.submit_success');
 
-                return $this->redirectToRoute('dashboard_cases');
+                return $this->redirectToRoute('case_payment', ['id' => $id]);
             }
 
             $this->saveStepData($step, $legalCase, $form->getData());

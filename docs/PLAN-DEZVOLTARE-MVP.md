@@ -25,7 +25,7 @@ Fiecare pas este un prompt pe care îl dai lui Claude Code. După fiecare pas, v
 | 11 | Core | Configurare Messenger worker + procesare async | 1-2 ore | Pas 10 | ⏭️ SKIP (absorbit în Pas 12/15) |
 | 12 | Docs | Generare PDF (DomPDF) via Messenger | 2-3 ore | Pas 11 | ✅ DONE (sync, fără Messenger) |
 | 13 | Docs | Upload documente (simplificat, fără VichUploader/Flysystem) | 2-3 ore | Pas 10 | ✅ DONE |
-| 14 | Plăți | Integrare Netopia Payments + simulator local | 3-4 ore | Pas 12 | |
+| 14 | Plăți | Integrare Netopia Payments + simulator local | 3-4 ore | Pas 12 | ✅ DONE (simplificat) |
 | 15 | Notif | Email tranzacțional + notificări in-app | 2-3 ore | Pas 10 | |
 | 16 | Admin | EasyAdmin panel complet | 2-3 ore | Pas 10 | ✅ DONE (simplificat) |
 | 17 | Securitate | Hardening: CSP, rate limiting, GDPR | 2-3 ore | Pas 10 | |
@@ -321,25 +321,31 @@ Upload, stocare și management documente per dosar — simplificat fără VichUp
 
 ## Faza 6: Plăți
 
-### PASUL 14 | Integrare Netopia Payments + simulator local | ~3-4 ore
+### PASUL 14 | Plăți cu simulator (simplificat) | ✅ DONE
 
-Procesarea plăților cu Netopia (hosted payment page) și un simulator complet pentru development.
+Simulator de plată pentru MVP — fără integrare reală Netopia.
 
-**PROMPT:**
-> Creează src/Service/Payment/NetopiaService.php cu: metoda initiatePayment(Payment $payment): string (returnează URL redirect Netopia), metoda processIpn(Request $request): PaymentResult (procesare webhook IPN), metoda verifySignature(Request $request): bool. Flux utilizator: din pagina detalii dosar (status pending_payment), pagina de plată (/payment/{case_id}) afișează: rezumat (taxa judiciară + comision platformă + total), buton 'Plătește cu cardul'. Click → redirect Netopia hosted page. Webhook IPN: PaymentController procesează callback-ul async via Messenger (ProcessPaymentWebhookMessage + handler). La plată confirmată: Payment.status = completed, aplică tranziția Workflow 'confirm_payment' (pending_payment → paid), dispatch GeneratePdfMessage. La plată eșuată: Payment.status = failed, dosarul rămâne pending_payment. Pagini: succes (/payment/success/{case_id}) cu link către dosar, eroare (/payment/error/{case_id}) cu buton retry. ÎN DEVELOPMENT: creează PaymentSimulatorController (/dev/payment-simulator/{case_id}) care simulează: buton 'Simulează plată reușită' → trimite IPN success, buton 'Simulează plată eșuată' → trimite IPN fail. Acest controller e disponibil doar în env=dev. Credențiale Netopia în .env: NETOPIA_SIGNATURE=test, NETOPIA_API_KEY=test, NETOPIA_SANDBOX=true. AuditLog pe fiecare acțiune de plată.
+**Ce s-a implementat:**
+- `PaymentController` — pagină plată GET `/case/{id}/payment` (rezumat taxe, notă simulator, buton "Plătește") + POST `/case/{id}/payment/process` (marchează Payment entities COMPLETED, aplică workflow `confirm_payment`, creează AuditLog)
+- Template `payment.html.twig` — pagină Tailwind cu rezumat taxe, notă informativă simulator, formular CSRF + buton verde
+- Buton "Plătește acum" pe pagina detalii dosar (vizibil doar pentru `pending_payment`)
+- Link "Plătește" în tabel dosare dashboard (între "Continuă" și "Vezi")
+- Redirect wizard submit → pagina plată (în loc de dashboard)
+- Simulare: `paymentMethod = 'simulator'`, `externalReference = 'SIM-{timestamp}'`
+- Verificări: CSRF, CASE_VIEW voter, status pending_payment (altfel redirect cu flash)
+- AuditLog: action `payment_completed` cu detalii plăți
+- Traduceri RO + EN complete (payment.*)
+- 8 teste funcționale (afișare taxe, auth, non-owner 403, only pending_payment, payments COMPLETED, workflow transition, AuditLog, invalid CSRF)
 
-**VERIFICARE MANUALĂ:**
-- [ ] Depune cerere → pagina plată afișează sumele corecte
-- [ ] Simulator: plată reușită → dosar trece în 'paid', PDF se generează
-- [ ] Simulator: plată eșuată → dosar rămâne 'pending_payment'
-- [ ] Payment entity actualizat corect
-- [ ] Pagini succes/eroare afișează informația corectă
-- [ ] AuditLog înregistrează plata
-
-**TESTE MINIME:**
-- Unit test: NetopiaService.initiatePayment generează URL valid
-- Unit test: procesare IPN success + fail
-- Test funcțional: flux complet simulator (happy path)
+**Ce s-a amânat (post-MVP):**
+- Integrare Netopia reală (webhook IPN, redirect flow, certificat SSL merchant)
+- Pagină checkout cu formular card / 3D Secure
+- Facturi/chitanțe PDF automate
+- Refund flow (status REFUNDED)
+- Retry pe plăți eșuate
+- Email notificare plată
+- PaymentCrudController EasyAdmin
+- NetopiaService (initiatePayment, processIpn, verifySignature)
 
 ---
 
