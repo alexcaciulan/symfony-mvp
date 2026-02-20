@@ -1,0 +1,22 @@
+<div style="max-width:600px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;color:#333;">
+    <h2 style="color:#1e293b;margin-bottom:16px;">{{ 'reset_password.email.heading'|trans }}</h2>
+
+    <p style="font-size:15px;line-height:1.6;">
+        {{ 'reset_password.email.body'|trans }}
+    </p>
+
+    <p style="text-align:center;margin:32px 0;">
+        <a href="{{ url('app_reset_password', {token: resetToken.token}) }}"
+           style="display:inline-block;padding:14px 28px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:6px;font-size:16px;font-weight:bold;">
+            {{ 'reset_password.email.button'|trans }}
+        </a>
+    </p>
+
+    <p style="font-size:14px;color:#666;line-height:1.5;">
+        {{ 'reset_password.email.expires'|trans({ '%minutes%': (resetToken.expirationMessageData['%count%'] / 60)|round }) }}
+    </p>
+
+    <p style="font-size:13px;color:#999;margin-top:24px;">
+        {{ 'reset_password.email.ignore_note'|trans }}
+    </p>
+</div>
