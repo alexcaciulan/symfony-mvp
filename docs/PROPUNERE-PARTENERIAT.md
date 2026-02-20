@@ -214,7 +214,8 @@ Pentru a justifica 25-30%, partenerul ar trebui să se angajeze la:
 |----------|-----------|---------------|
 | Partener activ (10+ ore/lună, aduce clienți) | 70% / 30% | Implicare constantă verificabilă |
 | Partener semi-activ (2-5 ore/lună, consultanță) | 75% / 25% | Consultanță ocazională |
-| Partener pasiv (doar ideea, fără implicare) | 80-85% / 15-20% | Nicio implicare după lansare |
+
+**Notă:** Dacă partenerul nu se implică activ după lansare, parteneriatul nu se justifică — o idee fără execuție și fără implicare continuă nu constituie bază pentru deținerea de părți sociale.
 
 ---
 
