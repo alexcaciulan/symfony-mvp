@@ -54,10 +54,10 @@ class AuditLogCrudController extends AbstractCrudController
         // Detail-only: show JSON data
         yield CodeEditorField::new('oldDataJson', 'Date vechi')
             ->onlyOnDetail()
-            ->setLanguage('json');
+            ->setLanguage('js');
         yield CodeEditorField::new('newDataJson', 'Date noi')
             ->onlyOnDetail()
-            ->setLanguage('json');
+            ->setLanguage('js');
     }
 
     public function configureFilters(Filters $filters): Filters
