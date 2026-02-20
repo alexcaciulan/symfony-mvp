@@ -26,7 +26,7 @@ Fiecare pas este un prompt pe care îl dai lui Claude Code. După fiecare pas, v
 | 12 | Docs | Generare PDF (DomPDF) via Messenger | 2-3 ore | Pas 11 | ✅ DONE (sync, fără Messenger) |
 | 13 | Docs | Upload documente (simplificat, fără VichUploader/Flysystem) | 2-3 ore | Pas 10 | ✅ DONE |
 | 14 | Plăți | Integrare Netopia Payments + simulator local | 3-4 ore | Pas 12 | ✅ DONE (simplificat) |
-| 15 | Notif | Email tranzacțional + notificări in-app | 2-3 ore | Pas 10 | |
+| 15 | Notif | Email tranzacțional + notificări in-app | 2-3 ore | Pas 10 | ⏭️ AMÂNAT |
 | 16 | Admin | EasyAdmin panel complet | 2-3 ore | Pas 10 | ✅ DONE (simplificat) |
 | 17 | Securitate | Hardening: CSP, rate limiting, GDPR | 2-3 ore | Pas 10 | |
 | 18 | Deploy | CI/CD + Coolify + producție | 2-3 ore | Pas 17 | |
@@ -351,7 +351,13 @@ Simulator de plată pentru MVP — fără integrare reală Netopia.
 
 ## Faza 7: Notificări
 
-### PASUL 15 | Email tranzacțional + notificări in-app | ~2-3 ore
+### PASUL 15 | Email tranzacțional + notificări in-app | ⏭️ AMÂNAT
+
+> **AMÂNAT** — Pasul conține două funcționalități distincte care nu sunt necesare la MVP:
+> - **Email-uri tranzacționale** (confirmare plată, schimbare status) — se adaugă natural la integrarea Netopia reală (post-MVP). Email-ul de verificare cont funcționează deja.
+> - **Notificări in-app** (bell icon, dropdown, polling, pagina /notifications) — efort mare pentru valoare mică la MVP. Utilizatorul vede statusul dosarului direct în dashboard. Devin utile când platforma are mulți useri activi.
+>
+> **Când se implementează:** email-urile tranzacționale se adaugă ca subscriber simplu la integrarea Netopia. Notificările in-app se implementează post-lansare, pe baza feedback-ului utilizatorilor.
 
 Email-uri pe acțiuni cheie și sistem de notificări în dashboard.
 
