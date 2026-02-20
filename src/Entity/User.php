@@ -103,6 +103,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $this->notifications = new ArrayCollection();
     }
 
+
     public function getId(): ?int
     {
         return $this->id;
@@ -387,9 +388,11 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this->deletedAt !== null;
     }
 
-    public function getFullName(): string
+    public function getFullName(): ?string
     {
-        return trim(($this->firstName ?? '') . ' ' . ($this->lastName ?? ''));
+        $parts = array_filter([$this->firstName, $this->lastName]);
+
+        return $parts ? implode(' ', $parts) : null;
     }
 
     /** @return Collection<int, LegalCase> */

@@ -20,6 +20,9 @@ security:
                 login_path: app_login
                 check_path: app_login
                 enable_csrf: true
+            login_throttling:
+                max_attempts: 5
+                interval: '1 minute'
             logout:
                 path: app_logout
                 # where to redirect after logout
@@ -37,6 +40,7 @@ security:
         - { path: '^/admin', roles: ROLE_ADMIN }
         - { path: '^/case', roles: IS_AUTHENTICATED_FULLY }
         - { path: '^/dashboard', roles: IS_AUTHENTICATED_FULLY }
+        - { path: '^/profile', roles: IS_AUTHENTICATED_FULLY }
 
 when@test:
     security:

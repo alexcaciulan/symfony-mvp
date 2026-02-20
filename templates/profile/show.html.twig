@@ -1,0 +1,49 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ 'profile.title'|trans }}{% endblock %}
+
+{% block body %}
+    <div class="max-w-lg mx-auto px-4 py-8 sm:py-12">
+        <h1 class="text-2xl font-bold text-gray-900 mb-6">{{ 'profile.title'|trans }}</h1>
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-8">
+            <dl class="space-y-4">
+                <div class="flex justify-between text-sm">
+                    <dt class="text-gray-500">{{ 'profile.show.email'|trans }}</dt>
+                    <dd class="text-gray-800 font-medium">{{ user.email }}</dd>
+                </div>
+                <div class="flex justify-between text-sm border-t border-gray-100 pt-4">
+                    <dt class="text-gray-500">{{ 'profile.show.first_name'|trans }}</dt>
+                    <dd class="text-gray-800">{{ user.firstName ?? '—' }}</dd>
+                </div>
+                <div class="flex justify-between text-sm border-t border-gray-100 pt-4">
+                    <dt class="text-gray-500">{{ 'profile.show.last_name'|trans }}</dt>
+                    <dd class="text-gray-800">{{ user.lastName ?? '—' }}</dd>
+                </div>
+                <div class="flex justify-between text-sm border-t border-gray-100 pt-4">
+                    <dt class="text-gray-500">{{ 'profile.show.phone'|trans }}</dt>
+                    <dd class="text-gray-800">{{ user.phone ?? '—' }}</dd>
+                </div>
+                <div class="flex justify-between text-sm border-t border-gray-100 pt-4">
+                    <dt class="text-gray-500">{{ 'profile.show.verified'|trans }}</dt>
+                    <dd>
+                        {% if user.verified %}
+                            <span class="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800">{{ 'profile.show.yes'|trans }}</span>
+                        {% else %}
+                            <span class="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-800">{{ 'profile.show.no'|trans }}</span>
+                        {% endif %}
+                    </dd>
+                </div>
+            </dl>
+
+            <div class="flex flex-col sm:flex-row gap-3 mt-8 pt-6 border-t border-gray-200">
+                <a href="{{ path('app_profile_edit') }}" class="px-4 py-2 bg-primary-light text-white rounded-lg font-medium hover:bg-primary transition-colors no-underline text-sm text-center">
+                    {{ 'profile.show.edit_button'|trans }}
+                </a>
+                <a href="{{ path('app_profile_change_password') }}" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors no-underline text-sm text-center">
+                    {{ 'profile.show.change_password_button'|trans }}
+                </a>
+            </div>
+        </div>
+    </div>
+{% endblock %}

@@ -29,6 +29,7 @@ login:
     no_account: 'Nu ai cont?'
     register_link: 'Înregistrează-te'
     logout: 'Deconectare'
+    forgot_password: 'Am uitat parola'
 
 # =============================================================================
 # Registration (registration/register.html.twig)
@@ -295,3 +296,69 @@ dashboard:
         continue: 'Continuă'
         view: 'Vezi'
         pay: 'Plătește'
+
+# =============================================================================
+# Reset Password (reset_password/*.html.twig)
+# =============================================================================
+reset_password:
+    request:
+        title: 'Resetare parolă'
+        description: 'Introdu adresa de email și îți vom trimite un link de resetare.'
+        email_label: 'Email'
+        submit: 'Trimite linkul de resetare'
+        back_to_login: 'Înapoi la autentificare'
+    check_email:
+        title: 'Verifică-ți email-ul'
+        message: 'Dacă un cont există pentru această adresă de email, vei primi un link de resetare a parolei.'
+        expires: 'Linkul expiră în %minutes% minute.'
+    reset:
+        title: 'Setare parolă nouă'
+        password_label: 'Parolă nouă'
+        password_confirm_label: 'Confirmă parola'
+        submit: 'Salvează parola'
+    email:
+        subject: 'Resetare parolă'
+        heading: 'Resetare parolă'
+        body: 'Ai solicitat resetarea parolei. Apasă butonul de mai jos pentru a-ți seta o parolă nouă:'
+        button: 'Resetează parola'
+        expires: 'Acest link expiră în %minutes% minute.'
+        ignore_note: 'Dacă nu ai solicitat resetarea parolei, poți ignora acest email.'
+    flash:
+        token_invalid: 'Linkul de resetare este invalid sau a expirat. Încearcă din nou.'
+        password_too_short: 'Parola trebuie să aibă cel puțin 6 caractere.'
+        passwords_mismatch: 'Parolele nu se potrivesc.'
+        success: 'Parola a fost schimbată cu succes. Te poți autentifica acum.'
+
+# =============================================================================
+# Profile (profile/*.html.twig)
+# =============================================================================
+profile:
+    title: 'Profilul meu'
+    show:
+        email: 'Email'
+        first_name: 'Prenume'
+        last_name: 'Nume'
+        phone: 'Telefon'
+        verified: 'Email verificat'
+        yes: 'Da'
+        no: 'Nu'
+        edit_button: 'Editează profilul'
+        change_password_button: 'Schimbă parola'
+    edit:
+        title: 'Editare profil'
+        first_name: 'Prenume'
+        last_name: 'Nume'
+        phone: 'Telefon'
+        submit: 'Salvează modificările'
+        back: 'Înapoi la profil'
+    change_password:
+        title: 'Schimbare parolă'
+        current: 'Parola curentă'
+        new: 'Parolă nouă'
+        confirm: 'Confirmă parola nouă'
+        mismatch: 'Parolele nu se potrivesc.'
+        submit: 'Schimbă parola'
+    flash:
+        edit_success: 'Profilul a fost actualizat cu succes.'
+        current_password_wrong: 'Parola curentă este incorectă.'
+        password_changed: 'Parola a fost schimbată cu succes.'

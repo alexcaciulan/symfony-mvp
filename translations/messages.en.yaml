@@ -29,6 +29,7 @@ login:
     no_account: "Don't have an account?"
     register_link: 'Register'
     logout: 'Sign out'
+    forgot_password: 'Forgot password?'
 
 # =============================================================================
 # Registration (registration/register.html.twig)
@@ -295,3 +296,69 @@ dashboard:
         continue: 'Continue'
         view: 'View'
         pay: 'Pay'
+
+# =============================================================================
+# Reset Password (reset_password/*.html.twig)
+# =============================================================================
+reset_password:
+    request:
+        title: 'Reset password'
+        description: 'Enter your email address and we will send you a reset link.'
+        email_label: 'Email'
+        submit: 'Send reset link'
+        back_to_login: 'Back to sign in'
+    check_email:
+        title: 'Check your email'
+        message: 'If an account exists for this email address, you will receive a password reset link.'
+        expires: 'This link expires in %minutes% minutes.'
+    reset:
+        title: 'Set new password'
+        password_label: 'New password'
+        password_confirm_label: 'Confirm password'
+        submit: 'Save password'
+    email:
+        subject: 'Password reset'
+        heading: 'Password reset'
+        body: 'You requested a password reset. Click the button below to set a new password:'
+        button: 'Reset password'
+        expires: 'This link expires in %minutes% minutes.'
+        ignore_note: 'If you did not request a password reset, you can ignore this email.'
+    flash:
+        token_invalid: 'The reset link is invalid or has expired. Please try again.'
+        password_too_short: 'Password must be at least 6 characters.'
+        passwords_mismatch: 'Passwords do not match.'
+        success: 'Your password has been changed successfully. You can now sign in.'
+
+# =============================================================================
+# Profile (profile/*.html.twig)
+# =============================================================================
+profile:
+    title: 'My profile'
+    show:
+        email: 'Email'
+        first_name: 'First name'
+        last_name: 'Last name'
+        phone: 'Phone'
+        verified: 'Email verified'
+        yes: 'Yes'
+        no: 'No'
+        edit_button: 'Edit profile'
+        change_password_button: 'Change password'
+    edit:
+        title: 'Edit profile'
+        first_name: 'First name'
+        last_name: 'Last name'
+        phone: 'Phone'
+        submit: 'Save changes'
+        back: 'Back to profile'
+    change_password:
+        title: 'Change password'
+        current: 'Current password'
+        new: 'New password'
+        confirm: 'Confirm new password'
+        mismatch: 'Passwords do not match.'
+        submit: 'Change password'
+    flash:
+        edit_success: 'Profile updated successfully.'
+        current_password_wrong: 'Current password is incorrect.'
+        password_changed: 'Password changed successfully.'
