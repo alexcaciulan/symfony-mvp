@@ -137,4 +137,14 @@ class AuditLog
     {
         return $this->createdAt;
     }
+
+    public function getOldDataJson(): ?string
+    {
+        return $this->oldData ? json_encode($this->oldData, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_UNICODE) : null;
+    }
+
+    public function getNewDataJson(): ?string
+    {
+        return $this->newData ? json_encode($this->newData, \JSON_PRETTY_PRINT | \JSON_UNESCAPED_UNICODE) : null;
+    }
 }

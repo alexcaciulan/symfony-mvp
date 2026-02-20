@@ -27,7 +27,7 @@ Fiecare pas este un prompt pe care îl dai lui Claude Code. După fiecare pas, v
 | 13 | Docs | Upload documente (simplificat, fără VichUploader/Flysystem) | 2-3 ore | Pas 10 | ✅ DONE |
 | 14 | Plăți | Integrare Netopia Payments + simulator local | 3-4 ore | Pas 12 | |
 | 15 | Notif | Email tranzacțional + notificări in-app | 2-3 ore | Pas 10 | |
-| 16 | Admin | EasyAdmin panel complet | 2-3 ore | Pas 10 | |
+| 16 | Admin | EasyAdmin panel complet | 2-3 ore | Pas 10 | ✅ DONE (simplificat) |
 | 17 | Securitate | Hardening: CSP, rate limiting, GDPR | 2-3 ore | Pas 10 | |
 | 18 | Deploy | CI/CD + Coolify + producție | 2-3 ore | Pas 17 | |
 
@@ -369,25 +369,36 @@ Email-uri pe acțiuni cheie și sistem de notificări în dashboard.
 
 ## Faza 8: Administrare
 
-### PASUL 16 | EasyAdmin panel complet | ~2-3 ore
+### PASUL 16 | EasyAdmin panel complet (simplificat) | ✅ DONE
 
-Panoul de administrare cu CRUD-uri pe toate entitățile.
+Panoul de administrare cu CRUD-uri pe entitățile esențiale + schimbare status dosar via Workflow.
 
-**PROMPT:**
-> Extinde EasyAdmin 4 existent (dashboard + UserCrudController). Dashboard (/admin): statistici rapide ca widgets (total utilizatori activi, total dosare, dosare active, venituri luna curentă din plăți completed), mini-grafic sau tabel dosare pe lună (ultimele 6 luni). CRUD-uri noi: LegalCaseCrudController (listă cu coloane: caseNumber, reclamant, pârât, sumă, status badge, instanță, dată; filtre: status, dată, sumă min/max, instanță; pagina detail cu toate datele; acțiune custom 'Schimbă status' care deschide un form modal cu select status + motiv text — folosește Workflow valid transitions), PaymentCrudController (listă tranzacții cu filtre status/dată, detail, export CSV), CourtCrudController (listă, editare, adăugare instanță nouă), NotificationCrudController (listă, filtru citit/necitit, buton retrimitere email), AuditLogCrudController (readonly — doar list + detail, filtre: utilizator, acțiune, entitate, dată). Extinde UserCrudController: adaugă câmpurile noi (tip, CNP, CUI, telefon), acțiune blocare/deblocare (setează un câmp 'blocked' pe User), vizualizare dosarele userului. Acces restricționat: tot /admin necesită ROLE_ADMIN. Customizare: culorile aplicației pe dashboard.
+**Ce s-a implementat:**
+- `LegalCaseCrudController` — listă dosare (id, creditor, reclamant, pârât, instanță, sumă, status badge, dată), filtre (status, instanță, sumă, dată), detalii complet (toate câmpurile), readonly (fără new/edit/delete), acțiune custom "Schimbă status" cu Workflow valid transitions
+- `CaseStatusController` — pagină separată `/admin/case/{id}/change-status` cu formular (select tranziție, motiv opțional, CSRF), aplică Workflow, creează AuditLog (admin_status_change)
+- `CourtCrudController` — CRUD complet instanțe (nume, județ, tip, adresă, email, telefon, activ), filtre (județ, tip, activ), searchable (nume, județ)
+- `AuditLogCrudController` — readonly (fără new/edit/delete), coloane (user, acțiune, tip entitate, ID, data), filtre (user, acțiune, tip entitate, dată), detalii cu JSON date vechi/noi
+- Dashboard extins: secțiune Utilizatori (4 cards: total, verificați, neverificați, admini) + secțiune Dosare (8 cards: total, ciornă, așteptare plată, plătit, la instanță, în analiză, admise, respinse) + secțiune Financiar (venituri luna curentă)
+- Meniu extins: Dashboard, Dosare, Utilizatori, Instanțe, Jurnal audit
+- Entități: `__toString()` pe User și LegalCase, getters `claimantName` și `firstDefendantName` pe LegalCase, getters `oldDataJson`/`newDataJson` pe AuditLog
+- 10 teste funcționale (dashboard acces admin/user/anonim, stats, meniu, change status GET/POST valid/invalid tranziție/CSRF, forbidden non-admin)
+
+**Ce s-a amânat:**
+- PaymentCrudController + export CSV — depinde de Pas 14 (Netopia), fără plăți reale nu are sens
+- NotificationCrudController — depinde de Pas 15 (notificări)
+- Blocare/deblocare user — necesită câmp `blocked` + migrare + verificare login
+- Mini-grafic dosare pe lună — nice-to-have, nu MVP
+- Extindere UserCrudController cu câmpuri noi (CNP, CUI, telefon) — îmbunătățire ulterioară
+- Modal EasyAdmin pentru schimbare status — pagină separată e suficientă
 
 **VERIFICARE MANUALĂ:**
-- [ ] Dashboard afișează statisticile corecte
-- [ ] Toate CRUD-urile funcționează (list, detail, edit, delete)
-- [ ] Filtrele pe dosare funcționează
-- [ ] Schimbare status dosar din admin respectă Workflow (doar tranziții valide)
-- [ ] AuditLog readonly, cu filtre funcționale
-- [ ] Export CSV plăți funcționează
-- [ ] User fără ROLE_ADMIN → redirect login sau 403
-
-**TESTE MINIME:**
-- Test funcțional: acces /admin cu ROLE_ADMIN → 200
-- Test funcțional: acces /admin cu ROLE_USER → 403 sau redirect
+- [x] Dashboard afișează statisticile corecte (utilizatori + dosare + venituri)
+- [x] LegalCase CRUD: list + detail + filtre funcționează
+- [x] Schimbare status dosar din admin respectă Workflow (doar tranziții valide)
+- [x] AuditLog readonly, cu filtre funcționale
+- [x] CourtCrud: list + edit + add funcționează
+- [x] User fără ROLE_ADMIN → 403
+- [x] Anonim → redirect login
 
 ---
 

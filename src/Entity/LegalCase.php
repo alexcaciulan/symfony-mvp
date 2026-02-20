@@ -533,4 +533,21 @@ class LegalCase
     {
         return $this->statusHistory;
     }
+
+    public function getClaimantName(): ?string
+    {
+        return $this->claimantData['name'] ?? null;
+    }
+
+    public function getFirstDefendantName(): ?string
+    {
+        $defendants = $this->defendants ?? [];
+
+        return $defendants[0]['name'] ?? null;
+    }
+
+    public function __toString(): string
+    {
+        return 'Dosar #' . ($this->id ?? 'nou');
+    }
 }

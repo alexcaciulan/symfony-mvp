@@ -403,4 +403,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         return $this->notifications;
     }
+
+    public function __toString(): string
+    {
+        return $this->getFullName() ?: $this->email;
+    }
 }
