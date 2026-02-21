@@ -154,8 +154,9 @@ src/
 
 config/
 ├── packages/
-│   ├── security.yaml    # form_login, /admin requires IS_AUTHENTICATED_FULLY
-│   └── workflow.yaml    # legal_case state machine (9 places, 9 transitions)
+│   ├── security.yaml    # form_login, login_throttling (5/min), /admin requires IS_AUTHENTICATED_FULLY
+│   ├── workflow.yaml    # legal_case state machine (9 places, 9 transitions)
+│   └── rate_limiter.yaml # Rate limits: register (3/h), forgot_password (3/h), case_creation (10/h), document_upload (20/h)
 ├── routes/
 └── services.yaml        # Autowiring + $uploadsDir bind
 
