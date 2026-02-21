@@ -10,6 +10,7 @@ use App\Repository\LegalCaseRepository;
 use App\Repository\PaymentRepository;
 use App\Repository\UserRepository;
 use EasyCorp\Bundle\EasyAdminBundle\Attribute\AdminDashboard;
+use EasyCorp\Bundle\EasyAdminBundle\Config\Action;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Dashboard;
 use EasyCorp\Bundle\EasyAdminBundle\Config\MenuItem;
 use EasyCorp\Bundle\EasyAdminBundle\Controller\AbstractDashboardController;
@@ -55,10 +56,10 @@ class DashboardController extends AbstractDashboardController
     {
         yield MenuItem::linkToDashboard('Dashboard', 'fa fa-home');
         yield MenuItem::section('Dosare');
-        yield MenuItem::linkToCrud('Dosare', 'fas fa-folder-open', LegalCase::class);
+        yield MenuItem::linkTo(LegalCaseCrudController::class, 'Dosare', 'fas fa-folder-open')->setAction(Action::INDEX);
         yield MenuItem::section('Administrare');
-        yield MenuItem::linkToCrud('Utilizatori', 'fas fa-users', User::class);
-        yield MenuItem::linkToCrud('Instanțe', 'fas fa-landmark', Court::class);
-        yield MenuItem::linkToCrud('Jurnal audit', 'fas fa-clipboard-list', AuditLog::class);
+        yield MenuItem::linkTo(UserCrudController::class, 'Utilizatori', 'fas fa-users')->setAction(Action::INDEX);
+        yield MenuItem::linkTo(CourtCrudController::class, 'Instanțe', 'fas fa-landmark')->setAction(Action::INDEX);
+        yield MenuItem::linkTo(AuditLogCrudController::class, 'Jurnal audit', 'fas fa-clipboard-list')->setAction(Action::INDEX);
     }
 }
