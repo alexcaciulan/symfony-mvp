@@ -1,8 +1,8 @@
 # PLAN DE DEZVOLTARE MVP — Pași progresivi pentru Claude Code
 
 > Recuperare Creanțe — Cerere cu Valoare Redusă
-> Februarie 2026 | v3 — optimizat pentru dezvoltare progresivă și sigură
-> 18 pași | 9 faze | ~12-16 săptămâni
+> Februarie 2026 | v4 — actualizat cu statusul curent al implementării
+> 18 pași | 9 faze | 14 din 18 pași finalizați (complet sau parțial)
 
 ---
 
@@ -18,7 +18,7 @@ Fiecare pas este un prompt pe care îl dai lui Claude Code. După fiecare pas, v
 | 4 | DB | Entități Doctrine + migrări | 2-3 ore | Pas 1 | ✅ DONE |
 | 5 | DB | Date de referință (instanțe) + useri de test | 1-2 ore | Pas 4 | ✅ DONE |
 | 6 | Auth | Înregistrare simplă + Login + Verificare email | 2-3 ore | Pas 3, 4 | ⏭️ AMÂNAT |
-| 7 | Auth | Înregistrare multi-step + Validatori + Profil + Forgot password | 2-3 ore | Pas 6 | ⏭️ AMÂNAT |
+| 7 | Auth | Înregistrare multi-step + Validatori + Profil + Forgot password | 2-3 ore | Pas 6 | ✅ DONE (parțial) |
 | 8 | Core | Wizard cerere pașii 1-4 (formulare, fără upload) | 4-6 ore | Pas 5 | ✅ DONE |
 | 9 | Core | Wizard cerere pașii 5-6 (probe + confirmare + calculator taxă) | 3-4 ore | Pas 8 | ✅ DONE |
 | 10 | Core | Workflow dosar + Voters + Dashboard creditor + Audit log | 3-4 ore | Pas 9 | ✅ DONE (parțial) |
@@ -28,8 +28,8 @@ Fiecare pas este un prompt pe care îl dai lui Claude Code. După fiecare pas, v
 | 14 | Plăți | Integrare Netopia Payments + simulator local | 3-4 ore | Pas 12 | ✅ DONE (simplificat) |
 | 15 | Notif | Email tranzacțional + notificări in-app | 2-3 ore | Pas 10 | ⏭️ AMÂNAT |
 | 16 | Admin | EasyAdmin panel complet | 2-3 ore | Pas 10 | ✅ DONE (simplificat) |
-| 17 | Securitate | Hardening: CSP, rate limiting, GDPR | 2-3 ore | Pas 10 | |
-| 18 | Deploy | CI/CD + Coolify + producție | 2-3 ore | Pas 17 | |
+| 17 | Securitate | Rate limiting pe endpoint-uri critice | 2-3 ore | Pas 10 | ✅ DONE (parțial — rate limiting) |
+| 18 | Deploy | CI/CD + Coolify + producție + Security headers | 2-3 ore | Pas 17 | |
 
 > **Teste:** se scriu incremental la fiecare pas (nu un pas separat la final). Fiecare pas include o secțiune "Teste minime" cu ce trebuie acoperit.
 
@@ -164,28 +164,25 @@ Upgrade-ul sistemului de auth existent: formular de înregistrare cu selecție t
 
 ---
 
-### PASUL 7 | Înregistrare multi-step + Validatori custom + Profil + Forgot password | ⏭️ AMÂNAT
+### PASUL 7 | Înregistrare multi-step + Validatori custom + Profil + Forgot password | ✅ DONE (parțial)
 
-> **AMÂNAT** — Se va implementa după wizard. Validatorii CNP/CUI se pot reutiliza în wizard ulterior.
+Upgrade pagina de profil, forgot password și login rate limiting. Înregistrare multi-step și validatori CNP/CUI rămân amânate.
 
-Upgrade înregistrare la multi-step cu câmpuri per tip utilizator, validări avansate, pagina de profil și reset parolă.
+**Ce s-a implementat:**
+- `ResetPasswordController` — forgot password complet: request (email) → check email → reset (parolă nouă + confirmare)
+- `symfony/reset-password-bundle` instalat + `ResetPasswordRequest` entity + migrare
+- `ResetPasswordService` — serviciu extras (SOLID) pentru logica forgot password
+- Template-uri email forgot password (Twig, branded)
+- `ProfileController` — vizualizare profil + editare (prenume, nume, telefon) + schimbare parolă
+- Login rate limiting: `login_throttling: max_attempts: 5, interval: '1 minute'` în `security.yaml`
+- Traduceri RO + EN complete (reset_password.*, profile.*)
+- Teste funcționale: forgot password flow, profil editare, schimbare parolă
 
-**PROMPT:**
-> Upgrade la înregistrare multi-step cu Turbo Frames (fără page reload): Pas 1 — selecție tip utilizator (PF/PJ/Avocat) cu carduri vizuale. Pas 2 — câmpuri diferite per tip: PF cere nume, prenume, CNP, adresă completă (stradă, număr, localitate, județ, cod poștal); PJ cere denumire firmă, CUI, adresă sediu, nume reprezentant; Avocat cere nume, prenume, număr legitimație barou, barou aparținător. Pas 3 — email + parolă + confirmare parolă + telefon + accept termeni. Creează validatori custom Symfony: CNP validator (13 cifre + checksum conform algoritmului oficial), CUI validator (format valid). Parolă: min 8 caractere, cel puțin o literă mare, o cifră. Implementează forgot password cu symfony/reset-password-bundle: link pe email, token 1 oră validitate, pagina resetare. Pagina profil (/profile): vizualizare și editare date personale, secțiune schimbare parolă (parolă curentă + nouă + confirmare). Toate cu Tailwind.
-
-**VERIFICARE MANUALĂ:**
-- [ ] Înregistrare multi-step: PF, PJ, Avocat — toate funcționează
-- [ ] CNP invalid (checksum greșit) → eroare de validare
-- [ ] CUI invalid → eroare de validare
-- [ ] Forgot password: email în Mailpit, link funcționează, parola se schimbă
-- [ ] Profil: editare date + schimbare parolă funcționează
-- [ ] Navigare înapoi în wizard păstrează datele
-
-**TESTE MINIME:**
-- Unit test: CNP validator (valid, invalid, checksum greșit, lungime greșită)
-- Unit test: CUI validator (valid, invalid)
-- Test funcțional: wizard înregistrare complet (happy path per tip)
-- Test funcțional: forgot password flow
+**Ce s-a amânat (post-MVP):**
+- Înregistrare multi-step (PF/PJ/Avocat cu câmpuri diferite per tip)
+- Validatori custom CNP (checksum) și CUI (format)
+- Parolă complexă (literă mare + cifră) — momentan min 6 caractere
+- Selecție tip utilizator la înregistrare
 
 ---
 
@@ -416,35 +413,43 @@ Panoul de administrare cu CRUD-uri pe entitățile esențiale + schimbare status
 
 ## Faza 9: Securitate și Deploy
 
-### PASUL 17 | Security hardening + GDPR | ~2-3 ore
+### PASUL 17 | Rate limiting pe endpoint-uri critice | ✅ DONE (parțial — rate limiting)
 
-Headers de securitate, rate limiting și conformitate GDPR.
+Rate limiting pe endpoint-urile critice. Security headers și GDPR au fost separate (headers → Pas 18/Nginx, GDPR → post-MVP).
 
-**PROMPT:**
-> Instalează și configurează nelmio/security-bundle cu headers: Content-Security-Policy (self + inline styles pentru Tailwind + Google Fonts), Strict-Transport-Security (max-age=31536000), X-Frame-Options (DENY), X-Content-Type-Options (nosniff), Referrer-Policy (strict-origin-when-cross-origin). Instalează și configurează symfony/rate-limiter: login max 5 încercări/minut per IP (cu mesaj "Prea multe încercări. Reîncearcă în X secunde"), înregistrare max 3/oră per IP, depunere cerere max 10/oră per user. Afișează mesaje de eroare prietenoase la rate limit exceeded. GDPR — pagina 'Datele mele' (/profile/my-data): secțiune informativă (ce date colectăm, de ce, baza legală), buton 'Exportă datele mele' care generează JSON cu: datele personale, dosarele cu statusuri, plățile, notificările; download automat. Buton 'Șterge contul meu' cu confirmare (tastează "STERGE"): aplică soft delete pe User, anonimizează datele personale (email → deleted_{uuid}@anonimizat.ro, CNP/CUI → null, nume → "Utilizator șters"), păstrează dosarele 7 ani (cerință legală), logout automat. Logare în AuditLog: login reușit/eșuat, schimbare parolă, export date, ștergere cont.
+**Ce s-a implementat:**
+- `config/packages/rate_limiter.yaml` — 4 rate limiters cu sliding_window policy:
+  - `registration`: 3/oră per IP
+  - `forgot_password`: 3/oră per IP
+  - `case_creation`: 10/oră per user
+  - `document_upload`: 20/oră per user
+- `RegistrationController` — `RateLimiterFactory $registrationLimiter` pe POST, keyed on IP
+- `ResetPasswordController` — `RateLimiterFactory $forgotPasswordLimiter` pe POST, keyed on IP
+- `CaseWizardController` — `RateLimiterFactory $caseCreationLimiter` pe POST, keyed on user
+- `DocumentController` — `RateLimiterFactory $documentUploadLimiter` pe POST, keyed on user
+- Overrides test env: `no_limit` policy pe toate 4 limiters (evită interferențe cu teste)
+- Traduceri RO + EN: `rate_limit.*` (mesaje prietenoase)
+- 4 teste KernelTestCase: verificare configurare fabrici limiter
+- Total: 229 teste (toate trec)
+
+**Ce s-a amânat:**
+- **Security headers (CSP, HSTS, X-Frame-Options)** — se configurează la deploy în Nginx (Pas 18), nu nelmio/security-bundle
+- **GDPR (export date, ștergere cont, anonimizare)** — mutat la post-MVP (vezi secțiunea "După MVP")
 
 **VERIFICARE MANUALĂ:**
-- [ ] Security headers prezente (browser DevTools → Network → Response Headers)
-- [ ] Rate limiter: 6 login-uri rapide → blocat cu mesaj prietenos
-- [ ] Pagina 'Datele mele' afișează informația corect
-- [ ] Export JSON conține toate datele
-- [ ] Ștergere cont: anonimizare + soft delete + logout
-- [ ] Dosarele rămân în DB după ștergere cont
-
-**TESTE MINIME:**
-- Test funcțional: rate limiter blochează după limită
-- Test funcțional: export date returnează JSON valid
-- Test funcțional: ștergere cont anonimizează datele
-- Test: security headers prezente în response
+- [x] Rate limiter blochează după limita configurată (testat manual)
+- [x] Mesaje flash prietenoase la limită atinsă
+- [x] Teste trec cu `no_limit` policy în env test
+- [x] 229 teste trec
 
 ---
 
-### PASUL 18 | CI/CD + Deploy producție | ~2-3 ore
+### PASUL 18 | CI/CD + Deploy producție + Security headers | ~2-3 ore
 
-Pipeline GitHub Actions și deploy pe Hetzner via Coolify.
+Pipeline GitHub Actions, deploy pe Hetzner via Coolify, și security headers în Nginx.
 
 **PROMPT:**
-> Configurează CI/CD complet. GitHub Actions (.github/workflows/ci.yml): job 'test' (on push/PR): services MySQL 8.0, PHP 8.4 setup, composer install, php bin/console tailwind:build --minify, php bin/console asset-map:compile, php bin/console doctrine:migrations:migrate --no-interaction, ./bin/phpunit --testdox. Job 'quality' (on push/PR, paralel cu test): PHPStan nivel 6 (phpstan.neon cu paths src/ tests/), PHP-CS-Fixer --dry-run --diff. IMPORTANT: fără npm/Node.js în CI — totul e PHP. Job 'deploy' (on merge to main, după test+quality): build Docker image multi-stage, push GitHub Container Registry, trigger Coolify deploy webhook (URL din secret). Dockerfile producție: FROM php:8.4-fpm-alpine, instalare extensii (pdo_mysql, intl, gd, zip, opcache), COPY composer files + composer install --no-dev --optimize-autoloader, COPY source, RUN tailwind:build --minify + asset-map:compile, OPcache settings optimale. docker-compose.prod.yml referință: app + nginx + mysql cu variabile din .env.prod, volume persistente var/uploads/ + var/log/, restart always, healthchecks. Script deploy.sh: wait for db, doctrine:migrations:migrate --no-interaction, cache:clear, cache:warmup, app:import-courts.
+> Configurează CI/CD complet. GitHub Actions (.github/workflows/ci.yml): job 'test' (on push/PR): services MySQL 8.0, PHP 8.4 setup, composer install, php bin/console tailwind:build --minify, php bin/console asset-map:compile, php bin/console doctrine:migrations:migrate --no-interaction, ./bin/phpunit --testdox. Job 'quality' (on push/PR, paralel cu test): PHPStan nivel 6 (phpstan.neon cu paths src/ tests/), PHP-CS-Fixer --dry-run --diff. IMPORTANT: fără npm/Node.js în CI — totul e PHP. Job 'deploy' (on merge to main, după test+quality): build Docker image multi-stage, push GitHub Container Registry, trigger Coolify deploy webhook (URL din secret). Dockerfile producție: FROM php:8.4-fpm-alpine, instalare extensii (pdo_mysql, intl, gd, zip, opcache), COPY composer files + composer install --no-dev --optimize-autoloader, COPY source, RUN tailwind:build --minify + asset-map:compile, OPcache settings optimale. docker-compose.prod.yml referință: app + nginx + mysql cu variabile din .env.prod, volume persistente var/uploads/ + var/log/, restart always, healthchecks. Script deploy.sh: wait for db, doctrine:migrations:migrate --no-interaction, cache:clear, cache:warmup, app:import-courts. Security headers în nginx.conf producție: Content-Security-Policy (self + inline styles + Google Fonts), Strict-Transport-Security (max-age=31536000), X-Frame-Options (DENY), X-Content-Type-Options (nosniff), Referrer-Policy (strict-origin-when-cross-origin).
 
 **VERIFICARE MANUALĂ:**
 - [ ] Push pe branch → GitHub Actions rulează test + quality
@@ -458,22 +463,48 @@ Pipeline GitHub Actions și deploy pe Hetzner via Coolify.
 
 ---
 
+## Lucru suplimentar (neplanificat inițial)
+
+### Refactorizare SOLID
+
+Extragere logică de business din controllere în servicii dedicate, conform principiului Single Responsibility:
+
+- `RegistrationService` — logică înregistrare + verificare email (extras din `RegistrationController`)
+- `ResetPasswordService` — logică forgot password (extras din `ResetPasswordController`)
+- `CaseSubmissionService` — logică submit dosar + generare PDF + creare plăți (extras din `CaseWizardController`)
+- `DocumentUploadService` — logică upload + delete documente (extras din `DocumentController`)
+- `FlashType` enum — constante pentru tipuri flash messages (success, error, warning, info)
+- `AuditAction` enum — constante pentru acțiuni audit log
+- 24 teste noi pentru serviciile extrase
+
+### Test coverage extins
+
+De la ~67 teste la **229 teste** — 15 fișiere de test noi:
+- Teste unitare: servicii, enum-uri, entități
+- Teste funcționale: controllere, securitate, autorizare
+- Teste KernelTestCase: configurare rate limiters
+
+---
+
 ## După MVP — Ce urmează
 
 Feature-uri planificate post-lansare, în ordinea priorității:
 
-1. **Integrare Netopia reală:** Credențiale reale, cont business, PCI compliance, testare end-to-end
-2. **2FA (TOTP):** `composer require scheb/2fa-totp-bundle` — QR code pentru Google Authenticator
-3. **Redis:** Migrare Messenger + sesiuni + cache (schimbare .env, adăugare container)
-4. **SMS notificări:** symfony/notifier + Vonage bridge pentru acțiuni urgente
-5. **Portal instanțe:** Integrare registratura.rejust.ro pentru depunere electronică
-6. **Comunicare pârât:** Pârâtul primește cererea și răspunde online
-7. **Push notifications:** FCM + Service Worker PWA
-8. **Executare silită:** Flux post-hotărâre cu cerere executare
-9. **Meilisearch:** Căutare full-text avansată în dosare (înlocuiește MySQL FULLTEXT)
-10. **Semnătură electronică:** Integrare furnizori semnătură calificată
-11. **Encryption at rest:** AES-256 pe documente sensibile (custom Doctrine type)
-12. **API mobilă:** API Platform bundle + aplicație React Native/Flutter
+1. **GDPR — Conformitate date personale:** Pagina "Datele mele" (/profile/my-data) cu: export date personale (JSON), ștergere cont cu anonimizare (email→deleted_uuid@anonimizat.ro, CNP/CUI→null, nume→"Utilizator șters"), păstrare dosare 7 ani (cerință legală), logout automat, AuditLog la export/ștergere
+2. **Integrare Netopia reală:** Credențiale reale, cont business, PCI compliance, testare end-to-end
+3. **Email tranzacțional + notificări in-app:** Confirmare plată, schimbare status, bell icon cu polling (fostul Pas 15)
+4. **Înregistrare multi-step + validatori CNP/CUI:** Formular diferit per tip utilizator PF/PJ/Avocat (restul din Pas 6+7)
+5. **2FA (TOTP):** `composer require scheb/2fa-totp-bundle` — QR code pentru Google Authenticator
+6. **Redis:** Migrare Messenger + sesiuni + cache (schimbare .env, adăugare container)
+7. **SMS notificări:** symfony/notifier + Vonage bridge pentru acțiuni urgente
+8. **Portal instanțe:** Integrare registratura.rejust.ro pentru depunere electronică
+9. **Comunicare pârât:** Pârâtul primește cererea și răspunde online
+10. **Push notifications:** FCM + Service Worker PWA
+11. **Executare silită:** Flux post-hotărâre cu cerere executare
+12. **Meilisearch:** Căutare full-text avansată în dosare (înlocuiește MySQL FULLTEXT)
+13. **Semnătură electronică:** Integrare furnizori semnătură calificată
+14. **Encryption at rest:** AES-256 pe documente sensibile (custom Doctrine type)
+15. **API mobilă:** API Platform bundle + aplicație React Native/Flutter
 
 ---
 
