@@ -21,6 +21,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 
 #[Route('/case')]
@@ -36,8 +37,17 @@ class CaseWizardController extends AbstractController
     ) {}
 
     #[Route('/new', name: 'case_new', methods: ['GET', 'POST'])]
-    public function new(Request $request): Response
+    public function new(Request $request, RateLimiterFactory $caseCreationLimiter): Response
     {
+        if ($request->isMethod('POST')) {
+            $limiter = $caseCreationLimiter->create($this->getUser()->getUserIdentifier());
+            if (!$limiter->consume()->isAccepted()) {
+                $this->addFlash('warning', 'rate_limit.case_creation');
+
+                return $this->redirectToRoute('case_new');
+            }
+        }
+
         $form = $this->createForm(Step1CourtType::class);
         $form->handleRequest($request);
 

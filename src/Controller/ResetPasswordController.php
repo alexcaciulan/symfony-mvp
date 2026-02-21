@@ -11,6 +11,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use SymfonyCasts\Bundle\ResetPassword\Controller\ResetPasswordControllerTrait;
@@ -30,9 +31,16 @@ class ResetPasswordController extends AbstractController
     ) {}
 
     #[Route('/forgot-password', name: 'app_forgot_password')]
-    public function request(Request $request, \Symfony\Component\Mailer\MailerInterface $mailer): Response
+    public function request(Request $request, \Symfony\Component\Mailer\MailerInterface $mailer, RateLimiterFactory $forgotPasswordLimiter): Response
     {
         if ($request->isMethod('POST')) {
+            $limiter = $forgotPasswordLimiter->create($request->getClientIp());
+            if (!$limiter->consume()->isAccepted()) {
+                $this->addFlash('warning', $this->translator->trans('rate_limit.forgot_password'));
+
+                return $this->redirectToRoute('app_forgot_password');
+            }
+
             $email = $request->getPayload()->getString('email');
 
             $user = $this->userRepository->findOneBy(['email' => $email]);

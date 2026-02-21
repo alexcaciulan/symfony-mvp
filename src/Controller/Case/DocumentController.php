@@ -14,6 +14,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 
 #[Route('/case')]
@@ -72,7 +73,7 @@ class DocumentController extends AbstractController
     }
 
     #[Route('/{caseId}/document/upload', name: 'case_document_upload', requirements: ['caseId' => '\d+'], methods: ['POST'])]
-    public function upload(Request $request, int $caseId): Response
+    public function upload(Request $request, int $caseId, RateLimiterFactory $documentUploadLimiter): Response
     {
         $legalCase = $this->legalCaseRepository->find($caseId);
 
@@ -81,6 +82,14 @@ class DocumentController extends AbstractController
         }
 
         $this->denyAccessUnlessGranted('CASE_UPLOAD', $legalCase);
+
+        // Rate limit
+        $limiter = $documentUploadLimiter->create($this->getUser()->getUserIdentifier());
+        if (!$limiter->consume()->isAccepted()) {
+            $this->addFlash('warning', 'rate_limit.document_upload');
+
+            return $this->redirectToRoute('case_view', ['id' => $caseId]);
+        }
 
         // Check max file count
         $documentCount = $this->documentRepository->count(['legalCase' => $legalCase]);

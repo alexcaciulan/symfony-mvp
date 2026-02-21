@@ -1,0 +1,30 @@
+framework:
+    rate_limiter:
+        registration:
+            policy: sliding_window
+            limit: 3
+            interval: '1 hour'
+        forgot_password:
+            policy: sliding_window
+            limit: 3
+            interval: '1 hour'
+        case_creation:
+            policy: sliding_window
+            limit: 10
+            interval: '1 hour'
+        document_upload:
+            policy: sliding_window
+            limit: 20
+            interval: '1 hour'
+
+when@test:
+    framework:
+        rate_limiter:
+            registration:
+                policy: no_limit
+            forgot_password:
+                policy: no_limit
+            case_creation:
+                policy: no_limit
+            document_upload:
+                policy: no_limit

@@ -362,3 +362,12 @@ profile:
         edit_success: 'Profile updated successfully.'
         current_password_wrong: 'Current password is incorrect.'
         password_changed: 'Password changed successfully.'
+
+# =============================================================================
+# Rate Limiting
+# =============================================================================
+rate_limit:
+    registration: 'Too many registration attempts. Please try again later.'
+    forgot_password: 'Too many password reset requests. Please try again later.'
+    case_creation: 'You have reached the hourly limit for new cases. Please try again later.'
+    document_upload: 'You have reached the hourly upload limit. Please try again later.'

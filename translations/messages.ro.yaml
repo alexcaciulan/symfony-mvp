@@ -362,3 +362,12 @@ profile:
         edit_success: 'Profilul a fost actualizat cu succes.'
         current_password_wrong: 'Parola curentă este incorectă.'
         password_changed: 'Parola a fost schimbată cu succes.'
+
+# =============================================================================
+# Rate Limiting
+# =============================================================================
+rate_limit:
+    registration: 'Prea multe încercări de înregistrare. Reîncercați mai târziu.'
+    forgot_password: 'Prea multe cereri de resetare a parolei. Reîncercați mai târziu.'
+    case_creation: 'Ați atins limita de dosare noi pe oră. Reîncercați mai târziu.'
+    document_upload: 'Ați atins limita de upload-uri pe oră. Reîncercați mai târziu.'
