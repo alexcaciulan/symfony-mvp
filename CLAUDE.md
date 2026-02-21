@@ -123,46 +123,53 @@ php bin/console make:crud                     # Generate CRUD controller
 ### Directory Structure and Responsibilities
 ```
 src/
-├── Controller/           # HTTP request handlers, extend AbstractController
-│   ├── Admin/           # EasyAdmin CRUD controllers
-│   │   ├── DashboardController.php  # EasyAdmin dashboard at /admin
-│   │   └── UserCrudController.php   # User management CRUD
+├── Controller/           # Thin HTTP handlers — delegate to services, no business logic
+│   ├── Admin/           # EasyAdmin CRUD + admin status change controller
+│   ├── Case/            # Wizard, document, payment controllers
 │   ├── RegistrationController.php
 │   └── SecurityController.php
+├── Service/             # Business logic layer (SOLID — one responsibility per service)
+│   ├── AuditLogService.php           # Centralized audit logging (user, IP, persist)
+│   ├── Case/
+│   │   ├── CaseSubmissionService.php # Submit case: fees, payments, workflow, PDF
+│   │   ├── CaseWorkflowService.php   # Thin wrapper for Symfony Workflow
+│   │   └── TaxCalculatorService.php  # Pure fee calculation logic
+│   ├── Document/
+│   │   ├── DocumentUploadService.php # Upload/delete documents with audit trail
+│   │   └── PdfGeneratorService.php   # PDF rendering with DomPDF
+│   └── Payment/
+│       └── PaymentProcessingService.php # Process payments, workflow transition
 ├── Entity/              # Doctrine ORM entities (DB models)
-│   └── User.php         # Main user entity with email verification
+├── Enum/                # Backed string enums with label() methods
+│   ├── CaseStatus.php   # 9 case statuses matching workflow places
+│   ├── CaseTransition.php # 9 transitions matching workflow config
+│   ├── PaymentStatus.php, PaymentType.php, DocumentType.php, etc.
+├── DTO/                 # Data transfer objects with validation constraints
+│   └── Case/            # Step DTOs for wizard (Step2ClaimantData, etc.)
 ├── Form/                # Form types (implement buildForm())
-│   └── RegistrationFormType.php
 ├── Repository/          # Data access layer, extend ServiceEntityRepository
-│   └── UserRepository.php
-├── Security/            # Security helpers
-│   └── EmailVerifier.php  # Email verification using symfonycasts/verify-email-bundle
-└── Kernel.php           # Application kernel
+├── EventSubscriber/     # CaseWorkflowSubscriber: status history + audit on transitions
+├── Security/            # EmailVerifier + Voters (CaseVoter)
+└── Kernel.php
 
 config/
-├── packages/            # Bundle-specific configuration
-│   └── security.yaml    # Security: form_login, /admin requires IS_AUTHENTICATED_FULLY
-├── routes/              # Route definitions
-│   └── easyadmin.yaml   # EasyAdmin routes (auto-discovered)
-└── services.yaml        # Service container configuration
+├── packages/
+│   ├── security.yaml    # form_login, /admin requires IS_AUTHENTICATED_FULLY
+│   └── workflow.yaml    # legal_case state machine (9 places, 9 transitions)
+├── routes/
+└── services.yaml        # Autowiring + $uploadsDir bind
 
-migrations/              # Doctrine database migrations (versioned)
-templates/               # Twig templates
-tests/                   # PHPUnit tests (bootstrap: tests/bootstrap.php)
+tests/                   # 225+ tests (PHPUnit, bootstrap: tests/bootstrap.php)
 ├── Controller/          # Integration tests (WebTestCase) for HTTP controllers
-│   ├── Admin/           # Admin panel access and status change tests
-│   ├── CaseWizardControllerTest.php  # Full wizard flow (23 tests)
-│   ├── DocumentControllerTest.php    # Upload/download/delete + permissions
-│   ├── PaymentControllerTest.php     # Payment flow + workflow transitions
-│   ├── RegistrationControllerTest.php # Register, verify email, resend
-│   └── SecurityControllerTest.php    # Login/logout
-├── Repository/          # Integration tests (KernelTestCase) for custom queries
+├── Service/             # Service tests (KernelTestCase) for business logic
+├── Repository/          # Query tests (KernelTestCase) for custom queries
 ├── Entity/              # Unit tests (TestCase) for entity helper methods
+├── Enum/                # Unit tests for enum values and labels
 ├── DTO/                 # Validation tests (KernelTestCase) for DTO constraints
 ├── EventSubscriber/     # Integration tests for workflow event handling
-├── Service/             # Unit/integration tests for business logic services
 ├── Security/            # Unit tests for Voter authorization
 └── Command/             # Console command tests
+
 assets/                  # Frontend Stimulus controllers and styles
 public/                  # Web root (index.php entry point)
 ```
@@ -198,25 +205,41 @@ public/                  # Web root (index.php entry point)
 
 ## Code Patterns and Conventions
 
-### Controller Pattern
+### Controller Pattern (Thin Controllers)
+Controllers handle HTTP concerns only (form handling, flash messages, redirects). Business logic lives in services.
 ```php
-namespace App\Controller;
-
-use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\HttpFoundation\Response;
-
-class ExampleController extends AbstractController
+// Controller — thin, delegates to service
+class PaymentController extends AbstractController
 {
     public function __construct(
-        private ExampleRepository $repository, // Constructor injection
+        private LegalCaseRepository $legalCaseRepository,
+        private PaymentProcessingService $paymentProcessingService,
     ) {}
 
-    public function index(): Response
+    public function process(Request $request, int $id): Response
     {
-        return $this->render('example/index.html.twig', [
-            'data' => $this->repository->findAll(),
-        ]);
+        $case = $this->legalCaseRepository->find($id);
+        // ... CSRF check, authorization, status guard ...
+        $this->paymentProcessingService->processPayment($case);
+        $this->addFlash('success', 'payment.success');
+        return $this->redirectToRoute('case_view', ['id' => $id]);
     }
+}
+```
+
+### Service Pattern
+Services contain business logic — entity creation, workflow transitions, audit logging, file operations.
+```php
+// Service — owns business logic, injected via constructor
+class PaymentProcessingService
+{
+    public function __construct(
+        private EntityManagerInterface $em,
+        private CaseWorkflowService $workflowService,
+        private AuditLogService $auditLogService,
+    ) {}
+
+    public function processPayment(LegalCase $case): void { /* ... */ }
 }
 ```
 
@@ -228,10 +251,12 @@ class ExampleController extends AbstractController
 5. Commit both entity changes AND migration file
 
 ### Adding a New Service
-1. Create class under `src/` (any subdirectory)
-2. That's it - autowiring handles the rest
+1. Create class under `src/Service/` in the appropriate subdirectory (Case/, Document/, Payment/)
+2. Autowiring handles registration — no manual config needed
 3. Inject via constructor where needed
-4. Run `php bin/console cache:clear` if DI cache becomes stale
+4. Use `AuditLogService` for audit trail instead of creating AuditLog entities directly
+5. Keep controllers thin — extract business logic into services
+6. Run `php bin/console cache:clear` if DI cache becomes stale
 
 ### Repository Pattern
 - Extend `ServiceEntityRepository`
