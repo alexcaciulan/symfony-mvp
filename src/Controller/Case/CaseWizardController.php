@@ -6,9 +6,6 @@ use App\DTO\Case\Step2ClaimantData;
 use App\DTO\Case\Step3DefendantsData;
 use App\DTO\Case\Step5EvidenceData;
 use App\Entity\LegalCase;
-use App\Entity\Payment;
-use App\Enum\PaymentStatus;
-use App\Enum\PaymentType;
 use App\Form\Case\DocumentUploadType;
 use App\Form\Case\Step1CourtType;
 use App\Form\Case\Step2ClaimantType;
@@ -18,9 +15,7 @@ use App\Form\Case\Step5EvidenceType;
 use App\Form\Case\Step6ConfirmationType;
 use App\Repository\CourtRepository;
 use App\Repository\LegalCaseRepository;
-use App\Service\Case\CaseWorkflowService;
-use App\Service\Case\TaxCalculatorService;
-use App\Service\Document\PdfGeneratorService;
+use App\Service\Case\CaseSubmissionService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -37,9 +32,7 @@ class CaseWizardController extends AbstractController
         private EntityManagerInterface $em,
         private LegalCaseRepository $legalCaseRepository,
         private CourtRepository $courtRepository,
-        private TaxCalculatorService $taxCalculator,
-        private CaseWorkflowService $workflowService,
-        private PdfGeneratorService $pdfGenerator,
+        private CaseSubmissionService $caseSubmissionService,
     ) {}
 
     #[Route('/new', name: 'case_new', methods: ['GET', 'POST'])]
@@ -76,7 +69,7 @@ class CaseWizardController extends AbstractController
 
         // Calculate fees on step 6 display
         if ($step === 6 && $request->isMethod('GET')) {
-            $this->calculateAndSaveFees($legalCase);
+            $this->caseSubmissionService->calculateFees($legalCase);
         }
 
         $form = $this->createStepForm($step, $legalCase);
@@ -84,7 +77,7 @@ class CaseWizardController extends AbstractController
 
         if ($form->isSubmitted() && $form->isValid()) {
             if ($step === 6) {
-                $this->submitCase($legalCase);
+                $this->caseSubmissionService->submit($legalCase);
                 $this->addFlash('success', 'wizard.step6.submit_success');
 
                 return $this->redirectToRoute('case_payment', ['id' => $id]);
@@ -243,51 +236,4 @@ class CaseWizardController extends AbstractController
         $legalCase->setRequestOralDebate($data->requestOralDebate);
     }
 
-    private function calculateAndSaveFees(LegalCase $legalCase): void
-    {
-        $claimAmount = (float) $legalCase->getClaimAmount();
-
-        if ($claimAmount <= 0) {
-            return;
-        }
-
-        $fees = $this->taxCalculator->calculate($claimAmount);
-        $legalCase->setCourtFee(number_format($fees['courtFee'], 2, '.', ''));
-        $legalCase->setPlatformFee(number_format($fees['platformFee'], 2, '.', ''));
-        $legalCase->setTotalFee(number_format($fees['totalFee'], 2, '.', ''));
-        $this->em->flush();
-    }
-
-    private function submitCase(LegalCase $legalCase): void
-    {
-        // Ensure fees are calculated
-        $this->calculateAndSaveFees($legalCase);
-
-        // Create payment for court fee
-        $courtPayment = new Payment();
-        $courtPayment->setLegalCase($legalCase);
-        $courtPayment->setUser($legalCase->getUser());
-        $courtPayment->setAmount($legalCase->getCourtFee());
-        $courtPayment->setPaymentType(PaymentType::TAXA_JUDICIARA);
-        $courtPayment->setStatus(PaymentStatus::PENDING);
-        $this->em->persist($courtPayment);
-
-        // Create payment for platform fee
-        $platformPayment = new Payment();
-        $platformPayment->setLegalCase($legalCase);
-        $platformPayment->setUser($legalCase->getUser());
-        $platformPayment->setAmount($legalCase->getPlatformFee());
-        $platformPayment->setPaymentType(PaymentType::COMISION_PLATFORMA);
-        $platformPayment->setStatus(PaymentStatus::PENDING);
-        $this->em->persist($platformPayment);
-
-        // Transition via workflow (draft → pending_payment)
-        $this->workflowService->apply($legalCase, 'submit');
-        $legalCase->setSubmittedAt(new \DateTimeImmutable());
-
-        // Generate PDF (Cerere cu Valoare Redusă)
-        $this->pdfGenerator->generateCasePdf($legalCase);
-
-        $this->em->flush();
-    }
 }

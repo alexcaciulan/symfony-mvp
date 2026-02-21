@@ -2,22 +2,19 @@
 
 namespace App\Controller\Case;
 
-use App\Entity\AuditLog;
-use App\Entity\Document;
 use App\Enum\DocumentType;
 use App\Form\Case\DocumentUploadType;
 use App\Repository\DocumentRepository;
 use App\Repository\LegalCaseRepository;
+use App\Service\Document\DocumentUploadService;
 use App\Service\Document\PdfGeneratorService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\Routing\Attribute\Route;
-use Symfony\Component\Uid\Uuid;
 
 #[Route('/case')]
 class DocumentController extends AbstractController
@@ -26,8 +23,8 @@ class DocumentController extends AbstractController
         private LegalCaseRepository $legalCaseRepository,
         private DocumentRepository $documentRepository,
         private EntityManagerInterface $em,
-        private Security $security,
         private PdfGeneratorService $pdfGenerator,
+        private DocumentUploadService $documentUploadService,
         private string $uploadsDir,
     ) {}
 
@@ -98,50 +95,9 @@ class DocumentController extends AbstractController
 
         if ($form->isSubmitted() && $form->isValid()) {
             $data = $form->getData();
-            $file = $data['file'];
             $documentType = DocumentType::from($data['documentType']);
 
-            // Capture file metadata before move
-            $fileSize = $file->getSize();
-            $clientOriginalName = $file->getClientOriginalName();
-            $clientMimeType = $file->getClientMimeType();
-            $extension = $file->guessExtension() ?? 'bin';
-
-            // Generate unique stored filename
-            $storedBasename = Uuid::v4() . '.' . $extension;
-            $relativeDir = 'cases/' . $caseId;
-            $absoluteDir = $this->uploadsDir . '/' . $relativeDir;
-
-            $file->move($absoluteDir, $storedBasename);
-
-            // Create Document entity
-            $document = new Document();
-            $document->setLegalCase($legalCase);
-            $document->setDocumentType($documentType);
-            $document->setOriginalFilename($clientOriginalName);
-            $document->setStoredFilename($relativeDir . '/' . $storedBasename);
-            $document->setFileSize($fileSize);
-            $document->setMimeType($clientMimeType);
-            $document->setUploadedBy($this->security->getUser());
-            $this->em->persist($document);
-
-            $this->em->flush();
-
-            // AuditLog (after flush so document has ID)
-            $auditLog = new AuditLog();
-            $auditLog->setUser($this->security->getUser());
-            $auditLog->setAction('document_upload');
-            $auditLog->setEntityType('Document');
-            $auditLog->setEntityId((string) $document->getId());
-            $auditLog->setNewData([
-                'originalFilename' => $clientOriginalName,
-                'documentType' => $documentType->value,
-                'fileSize' => $fileSize,
-                'mimeType' => $clientMimeType,
-            ]);
-            $auditLog->setIpAddress($request->getClientIp());
-            $this->em->persist($auditLog);
-            $this->em->flush();
+            $this->documentUploadService->upload($legalCase, $data['file'], $documentType, $this->getUser());
 
             $this->addFlash('success', 'document.upload.success');
         } else {
@@ -184,28 +140,7 @@ class DocumentController extends AbstractController
             return $this->redirectToRoute('case_view', ['id' => $caseId]);
         }
 
-        // AuditLog (capture data before removing entity)
-        $auditLog = new AuditLog();
-        $auditLog->setUser($this->security->getUser());
-        $auditLog->setAction('document_delete');
-        $auditLog->setEntityType('Document');
-        $auditLog->setEntityId((string) $document->getId());
-        $auditLog->setOldData([
-            'originalFilename' => $document->getOriginalFilename(),
-            'documentType' => $document->getDocumentType()->value,
-            'fileSize' => $document->getFileSize(),
-        ]);
-        $auditLog->setIpAddress($request->getClientIp());
-        $this->em->persist($auditLog);
-
-        // Delete physical file
-        $filePath = $this->uploadsDir . '/' . $document->getStoredFilename();
-        if (file_exists($filePath)) {
-            unlink($filePath);
-        }
-
-        $this->em->remove($document);
-        $this->em->flush();
+        $this->documentUploadService->delete($document);
 
         $this->addFlash('success', 'document.delete.success');
 

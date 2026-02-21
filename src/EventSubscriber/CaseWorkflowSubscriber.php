@@ -2,13 +2,12 @@
 
 namespace App\EventSubscriber;
 
-use App\Entity\AuditLog;
 use App\Entity\CaseStatusHistory;
 use App\Entity\LegalCase;
+use App\Service\AuditLogService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
-use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Workflow\Event\CompletedEvent;
 
 class CaseWorkflowSubscriber implements EventSubscriberInterface
@@ -16,7 +15,7 @@ class CaseWorkflowSubscriber implements EventSubscriberInterface
     public function __construct(
         private EntityManagerInterface $em,
         private Security $security,
-        private RequestStack $requestStack,
+        private AuditLogService $auditLogService,
     ) {}
 
     public static function getSubscribedEvents(): array
@@ -48,19 +47,12 @@ class CaseWorkflowSubscriber implements EventSubscriberInterface
         $this->em->persist($history);
 
         // Create AuditLog entry
-        $auditLog = new AuditLog();
-        $auditLog->setUser($user);
-        $auditLog->setAction('case_status_change');
-        $auditLog->setEntityType('LegalCase');
-        $auditLog->setEntityId((string) $subject->getId());
-        $auditLog->setOldData(['status' => $oldStatus]);
-        $auditLog->setNewData(['status' => $newStatus]);
-
-        $request = $this->requestStack->getCurrentRequest();
-        if ($request) {
-            $auditLog->setIpAddress($request->getClientIp());
-        }
-
-        $this->em->persist($auditLog);
+        $this->auditLogService->log(
+            'case_status_change',
+            'LegalCase',
+            (string) $subject->getId(),
+            ['status' => $oldStatus],
+            ['status' => $newStatus],
+        );
     }
 }
