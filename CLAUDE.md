@@ -93,6 +93,16 @@ vendor/bin/phpunit             # Alternative
 - `failOnWarning="true"` - Tests fail on warnings
 - `APP_ENV=test` is automatically set for tests
 
+**Test conventions** (follow these when writing new tests):
+- **WebTestCase** for controllers (full HTTP request cycle)
+- **KernelTestCase** for services/repositories needing DI container
+- **TestCase** for pure unit tests (entities, calculators, voters)
+- Create test users with unique emails: `'prefix-' . uniqid() . '@test.com'`
+- Authenticate with `$client->loginUser($user)` (no real login POST)
+- Manual `tearDown()` with SQL DELETE respecting FK constraint order
+- Use Symfony validator constraints (named arguments, not array syntax) to avoid deprecations
+- Test method names: `testFeatureDoesExpectedAction()` (descriptive, imperative)
+
 ### Console and Code Generation
 ```bash
 php bin/console                               # List all available commands
@@ -139,6 +149,20 @@ config/
 migrations/              # Doctrine database migrations (versioned)
 templates/               # Twig templates
 tests/                   # PHPUnit tests (bootstrap: tests/bootstrap.php)
+├── Controller/          # Integration tests (WebTestCase) for HTTP controllers
+│   ├── Admin/           # Admin panel access and status change tests
+│   ├── CaseWizardControllerTest.php  # Full wizard flow (23 tests)
+│   ├── DocumentControllerTest.php    # Upload/download/delete + permissions
+│   ├── PaymentControllerTest.php     # Payment flow + workflow transitions
+│   ├── RegistrationControllerTest.php # Register, verify email, resend
+│   └── SecurityControllerTest.php    # Login/logout
+├── Repository/          # Integration tests (KernelTestCase) for custom queries
+├── Entity/              # Unit tests (TestCase) for entity helper methods
+├── DTO/                 # Validation tests (KernelTestCase) for DTO constraints
+├── EventSubscriber/     # Integration tests for workflow event handling
+├── Service/             # Unit/integration tests for business logic services
+├── Security/            # Unit tests for Voter authorization
+└── Command/             # Console command tests
 assets/                  # Frontend Stimulus controllers and styles
 public/                  # Web root (index.php entry point)
 ```
