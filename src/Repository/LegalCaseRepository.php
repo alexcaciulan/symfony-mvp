@@ -46,4 +46,26 @@ class LegalCaseRepository extends ServiceEntityRepository
             ->getQuery()
             ->getSingleScalarResult();
     }
+
+    /**
+     * Find cases eligible for portal.just.ro monitoring.
+     * Cases must have a caseNumber, be in an active status, and have a court with portalCode.
+     *
+     * @param string[] $statuses
+     *
+     * @return LegalCase[]
+     */
+    public function findMonitorableCases(array $statuses): array
+    {
+        return $this->createQueryBuilder('lc')
+            ->join('lc.court', 'c')
+            ->where('lc.status IN (:statuses)')
+            ->andWhere('lc.caseNumber IS NOT NULL')
+            ->andWhere('lc.deletedAt IS NULL')
+            ->andWhere('c.portalCode IS NOT NULL')
+            ->setParameter('statuses', $statuses)
+            ->orderBy('lc.lastPortalCheckAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
 }

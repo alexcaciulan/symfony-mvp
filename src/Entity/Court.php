@@ -37,6 +37,9 @@ class Court
     #[ORM\Column]
     private bool $active = true;
 
+    #[ORM\Column(length: 100, nullable: true, unique: true)]
+    private ?string $portalCode = null;
+
     /** @var Collection<int, LegalCase> */
     #[ORM\OneToMany(targetEntity: LegalCase::class, mappedBy: 'court')]
     private Collection $legalCases;
@@ -131,6 +134,18 @@ class Court
     public function setActive(bool $active): static
     {
         $this->active = $active;
+
+        return $this;
+    }
+
+    public function getPortalCode(): ?string
+    {
+        return $this->portalCode;
+    }
+
+    public function setPortalCode(?string $portalCode): static
+    {
+        $this->portalCode = $portalCode;
 
         return $this;
     }

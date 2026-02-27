@@ -119,6 +119,9 @@ class LegalCase
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $deletedAt = null;
 
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $lastPortalCheckAt = null;
+
     // Relations
     /** @var Collection<int, Document> */
     #[ORM\OneToMany(targetEntity: Document::class, mappedBy: 'legalCase')]
@@ -133,6 +136,11 @@ class LegalCase
     #[ORM\OrderBy(['createdAt' => 'DESC'])]
     private Collection $statusHistory;
 
+    /** @var Collection<int, CourtPortalEvent> */
+    #[ORM\OneToMany(targetEntity: CourtPortalEvent::class, mappedBy: 'legalCase')]
+    #[ORM\OrderBy(['eventDate' => 'DESC'])]
+    private Collection $portalEvents;
+
     public function __construct()
     {
         $this->createdAt = new \DateTimeImmutable();
@@ -140,6 +148,7 @@ class LegalCase
         $this->documents = new ArrayCollection();
         $this->payments = new ArrayCollection();
         $this->statusHistory = new ArrayCollection();
+        $this->portalEvents = new ArrayCollection();
     }
 
     #[ORM\PreUpdate]
@@ -532,6 +541,24 @@ class LegalCase
     public function getStatusHistory(): Collection
     {
         return $this->statusHistory;
+    }
+
+    /** @return Collection<int, CourtPortalEvent> */
+    public function getPortalEvents(): Collection
+    {
+        return $this->portalEvents;
+    }
+
+    public function getLastPortalCheckAt(): ?\DateTimeImmutable
+    {
+        return $this->lastPortalCheckAt;
+    }
+
+    public function setLastPortalCheckAt(?\DateTimeImmutable $lastPortalCheckAt): static
+    {
+        $this->lastPortalCheckAt = $lastPortalCheckAt;
+
+        return $this;
     }
 
     public function getClaimantName(): ?string

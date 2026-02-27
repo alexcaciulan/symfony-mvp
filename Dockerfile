@@ -8,6 +8,7 @@ RUN apk add --no-cache \
     netcat-openbsd \
     icu-dev \
     libzip-dev \
+    libxml2-dev \
     linux-headers \
     $PHPIZE_DEPS
 
@@ -18,7 +19,8 @@ RUN docker-php-ext-install \
     mysqli \
     intl \
     zip \
-    opcache
+    opcache \
+    soap
 
 # Install and configure APCu
 RUN pecl install apcu && \

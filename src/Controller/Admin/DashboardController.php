@@ -4,6 +4,7 @@ namespace App\Controller\Admin;
 
 use App\Entity\AuditLog;
 use App\Entity\Court;
+use App\Entity\CourtPortalEvent;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Repository\LegalCaseRepository;
@@ -60,6 +61,7 @@ class DashboardController extends AbstractDashboardController
         yield MenuItem::section('Administrare');
         yield MenuItem::linkTo(UserCrudController::class, 'Utilizatori', 'fas fa-users')->setAction(Action::INDEX);
         yield MenuItem::linkTo(CourtCrudController::class, 'Instanțe', 'fas fa-landmark')->setAction(Action::INDEX);
+        yield MenuItem::linkTo(CourtPortalEventCrudController::class, 'Evenimente portal', 'fas fa-satellite-dish')->setAction(Action::INDEX);
         yield MenuItem::linkTo(AuditLogCrudController::class, 'Jurnal audit', 'fas fa-clipboard-list')->setAction(Action::INDEX);
     }
 }

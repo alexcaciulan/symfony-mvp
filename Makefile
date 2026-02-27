@@ -70,5 +70,11 @@ tailwind: ## Build Tailwind CSS once
 tailwind-watch: ## Watch and rebuild Tailwind CSS on file changes
 	docker compose exec php php bin/console tailwind:build --watch
 
+monitor-cases: ## Monitor court cases via portal.just.ro
+	docker compose exec php php bin/console app:monitor-court-cases --no-interaction
+
+import-portal-codes: ## Import portal.just.ro institution codes for courts
+	docker compose exec php php bin/console app:import-court-portal-codes --no-interaction
+
 clean: down ## Stop containers and remove volumes
 	docker compose down -v
