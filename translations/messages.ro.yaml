@@ -152,6 +152,7 @@ wizard:
         defendant_number: 'Pârât #%num%'
         add_defendant: 'Adaugă pârât'
         remove: 'Elimină'
+        lookup_button: 'Caută după CUI'
     step4:
         title: 'Detalii creanță'
         claim_amount: 'Suma pretinsă'
@@ -371,3 +372,4 @@ rate_limit:
     forgot_password: 'Prea multe cereri de resetare a parolei. Reîncercați mai târziu.'
     case_creation: 'Ați atins limita de dosare noi pe oră. Reîncercați mai târziu.'
     document_upload: 'Ați atins limita de upload-uri pe oră. Reîncercați mai târziu.'
+    company_lookup: 'Prea multe căutări CUI pe oră. Reîncercați mai târziu.'

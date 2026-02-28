@@ -16,6 +16,8 @@ use App\Form\Case\Step6ConfirmationType;
 use App\Repository\CourtRepository;
 use App\Repository\LegalCaseRepository;
 use App\Service\Case\CaseSubmissionService;
+use App\Service\Company\AnafLookupException;
+use App\Service\Company\AnafLookupService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -23,6 +25,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 #[Route('/case')]
 class CaseWizardController extends AbstractController
@@ -145,6 +148,27 @@ class CaseWizardController extends AbstractController
         ], $courts);
 
         return $this->json($data);
+    }
+
+    #[Route('/company-lookup/{cui}', name: 'case_company_lookup', methods: ['GET'])]
+    #[IsGranted('ROLE_USER')]
+    public function companyLookup(
+        string $cui,
+        AnafLookupService $anafService,
+        RateLimiterFactory $companyLookupLimiter,
+    ): JsonResponse {
+        $limiter = $companyLookupLimiter->create($this->getUser()->getUserIdentifier());
+        if (!$limiter->consume()->isAccepted()) {
+            return $this->json(['success' => false, 'error' => 'Prea multe căutări. Reîncercați mai târziu.'], 429);
+        }
+
+        try {
+            $data = $anafService->lookupByCui($cui);
+
+            return $this->json(['success' => true, 'data' => $data]);
+        } catch (AnafLookupException $e) {
+            return $this->json(['success' => false, 'error' => $e->getMessage()], 400);
+        }
     }
 
     private function loadAndAuthorize(int $id, int $step): LegalCase

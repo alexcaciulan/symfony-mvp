@@ -16,6 +16,10 @@ framework:
             policy: sliding_window
             limit: 20
             interval: '1 hour'
+        company_lookup:
+            policy: sliding_window
+            limit: 10
+            interval: '1 hour'
 
 when@test:
     framework:
@@ -27,4 +31,6 @@ when@test:
             case_creation:
                 policy: no_limit
             document_upload:
+                policy: no_limit
+            company_lookup:
                 policy: no_limit
