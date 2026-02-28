@@ -1,7 +1,8 @@
 {# Individual defendant form fields #}
-<div data-controller="conditional-fields company-lookup"
-     data-conditional-fields-show-value="pj"
+<div data-controller="company-lookup"
      data-company-lookup-url-value="{{ path('case_company_lookup', {cui: '__CUI__'}) }}">
+
+<div data-controller="conditional-fields" data-conditional-fields-show-value="pj">
     {# Type (PF/PJ) #}
     <div class="mb-4">
         <span class="block text-sm font-medium text-gray-700 mb-2">{{ 'wizard.step3.type'|trans }}</span>
@@ -130,3 +131,5 @@
         }}) }}
     </div>
 </div>
+
+</div>{# /company-lookup #}
