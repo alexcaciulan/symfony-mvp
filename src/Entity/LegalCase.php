@@ -127,10 +127,6 @@ class LegalCase
     #[ORM\OneToMany(targetEntity: Document::class, mappedBy: 'legalCase')]
     private Collection $documents;
 
-    /** @var Collection<int, Payment> */
-    #[ORM\OneToMany(targetEntity: Payment::class, mappedBy: 'legalCase')]
-    private Collection $payments;
-
     /** @var Collection<int, CaseStatusHistory> */
     #[ORM\OneToMany(targetEntity: CaseStatusHistory::class, mappedBy: 'legalCase')]
     #[ORM\OrderBy(['createdAt' => 'DESC'])]
@@ -146,7 +142,6 @@ class LegalCase
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = new \DateTimeImmutable();
         $this->documents = new ArrayCollection();
-        $this->payments = new ArrayCollection();
         $this->statusHistory = new ArrayCollection();
         $this->portalEvents = new ArrayCollection();
     }
@@ -529,12 +524,6 @@ class LegalCase
     public function getDocuments(): Collection
     {
         return $this->documents;
-    }
-
-    /** @return Collection<int, Payment> */
-    public function getPayments(): Collection
-    {
-        return $this->payments;
     }
 
     /** @return Collection<int, CaseStatusHistory> */

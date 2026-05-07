@@ -8,7 +8,6 @@ use App\Entity\CourtPortalEvent;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Repository\LegalCaseRepository;
-use App\Repository\PaymentRepository;
 use App\Repository\UserRepository;
 use EasyCorp\Bundle\EasyAdminBundle\Attribute\AdminDashboard;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Action;
@@ -23,7 +22,6 @@ class DashboardController extends AbstractDashboardController
     public function __construct(
         private UserRepository $userRepository,
         private LegalCaseRepository $legalCaseRepository,
-        private PaymentRepository $paymentRepository,
     ) {
     }
 
@@ -35,14 +33,6 @@ class DashboardController extends AbstractDashboardController
             'unverifiedUsers' => $this->userRepository->countUnverified(),
             'adminUsers' => $this->userRepository->countAdmins(),
             'totalCases' => $this->legalCaseRepository->countAll(),
-            'draftCases' => $this->legalCaseRepository->countByStatus('draft'),
-            'pendingPaymentCases' => $this->legalCaseRepository->countByStatus('pending_payment'),
-            'paidCases' => $this->legalCaseRepository->countByStatus('paid'),
-            'submittedCases' => $this->legalCaseRepository->countByStatus('submitted_to_court'),
-            'underReviewCases' => $this->legalCaseRepository->countByStatus('under_review'),
-            'acceptedCases' => $this->legalCaseRepository->countByStatus('resolved_accepted'),
-            'rejectedCases' => $this->legalCaseRepository->countByStatus('resolved_rejected'),
-            'revenueThisMonth' => $this->paymentRepository->sumCompletedCurrentMonth(),
         ]);
     }
 
