@@ -4,9 +4,11 @@ namespace App\Entity;
 
 use App\Enum\DocumentType;
 use App\Repository\DocumentRepository;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: DocumentRepository::class)]
+#[ORM\Index(columns: ['extraction_status'], name: 'idx_document_extraction_status')]
 class Document
 {
     #[ORM\Id]
@@ -39,6 +41,15 @@ class Document
 
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
+
+    #[ORM\Column(type: Types::JSON, nullable: true)]
+    private ?array $extractedData = null;
+
+    #[ORM\Column(length: 20)]
+    private string $extractionStatus = 'PENDING';
+
+    #[ORM\Column(type: Types::DECIMAL, precision: 3, scale: 2, nullable: true)]
+    private ?string $extractionConfidence = null;
 
     public function __construct()
     {
@@ -137,5 +148,41 @@ class Document
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    public function getExtractedData(): ?array
+    {
+        return $this->extractedData;
+    }
+
+    public function setExtractedData(?array $extractedData): static
+    {
+        $this->extractedData = $extractedData;
+
+        return $this;
+    }
+
+    public function getExtractionStatus(): string
+    {
+        return $this->extractionStatus;
+    }
+
+    public function setExtractionStatus(string $extractionStatus): static
+    {
+        $this->extractionStatus = $extractionStatus;
+
+        return $this;
+    }
+
+    public function getExtractionConfidence(): ?string
+    {
+        return $this->extractionConfidence;
+    }
+
+    public function setExtractionConfidence(?string $extractionConfidence): static
+    {
+        $this->extractionConfidence = $extractionConfidence;
+
+        return $this;
     }
 }

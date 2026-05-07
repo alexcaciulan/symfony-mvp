@@ -17,8 +17,8 @@ class LegalCase
     #[ORM\Column]
     private ?int $id = null;
 
-    #[ORM\Column(length: 30, nullable: true, unique: true)]
-    private ?string $caseNumber = null;
+    #[ORM\Column(length: 30, unique: true)]
+    private string $caseNumber;
 
     #[ORM\ManyToOne(targetEntity: User::class, inversedBy: 'legalCases')]
     #[ORM\JoinColumn(nullable: false)]
@@ -28,85 +28,50 @@ class LegalCase
     #[ORM\JoinColumn(nullable: true)]
     private ?Court $court = null;
 
-    #[ORM\Column(type: Types::SMALLINT)]
-    private int $currentStep = 1;
+    #[ORM\ManyToOne(targetEntity: Creditor::class, inversedBy: 'legalCases')]
+    #[ORM\JoinColumn(nullable: true)]
+    private ?Creditor $creditor = null;
+
+    /** @var Collection<int, Debtor> */
+    #[ORM\OneToMany(targetEntity: Debtor::class, mappedBy: 'legalCase', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    private Collection $debtors;
 
     #[ORM\Column(length: 30)]
-    private string $status = 'draft';
+    private string $status = 'AMIABIL';
 
-    // Step 1 - Court selection
-    #[ORM\Column(length: 50, nullable: true)]
-    private ?string $county = null;
+    #[ORM\Column(length: 20, nullable: true)]
+    private ?string $relationshipType = null;
 
-    // Step 2 - Claimant
-    #[ORM\Column(length: 10, nullable: true)]
-    private ?string $claimantType = null;
-
-    #[ORM\Column(type: Types::JSON, nullable: true)]
-    private ?array $claimantData = null;
-
-    #[ORM\Column]
-    private bool $hasLawyer = false;
-
-    #[ORM\Column(type: Types::JSON, nullable: true)]
-    private ?array $lawyerData = null;
-
-    // Step 3 - Defendants
-    #[ORM\Column(type: Types::JSON, nullable: true)]
-    private ?array $defendants = null;
-
-    // Step 4 - Claim
-    #[ORM\Column(type: Types::DECIMAL, precision: 10, scale: 2, nullable: true)]
-    private ?string $claimAmount = null;
+    #[ORM\Column(type: Types::DECIMAL, precision: 12, scale: 2, nullable: true)]
+    private ?string $amount = null;
 
     #[ORM\Column(length: 3)]
     private string $currency = 'RON';
 
-    #[ORM\Column(type: Types::TEXT, nullable: true)]
-    private ?string $claimDescription = null;
+    #[ORM\Column(type: Types::DECIMAL, precision: 12, scale: 2, nullable: true)]
+    private ?string $calculatedInterest = null;
+
+    #[ORM\Column(type: Types::DECIMAL, precision: 8, scale: 2, nullable: true)]
+    private ?string $stampDuty = null;
 
     #[ORM\Column(type: Types::DATE_MUTABLE, nullable: true)]
     private ?\DateTimeInterface $dueDate = null;
 
-    #[ORM\Column(length: 30, nullable: true)]
-    private ?string $legalBasis = null;
+    #[ORM\Column(type: Types::DATE_MUTABLE, nullable: true)]
+    private ?\DateTimeInterface $paymentNoticeDate = null;
 
-    #[ORM\Column(length: 20)]
-    private string $interestType = 'none';
-
-    #[ORM\Column(type: Types::DECIMAL, precision: 5, scale: 2, nullable: true)]
-    private ?string $interestRate = null;
+    #[ORM\Column(length: 50, nullable: true)]
+    private ?string $courtCaseNumber = null;
 
     #[ORM\Column(type: Types::DATE_MUTABLE, nullable: true)]
-    private ?\DateTimeInterface $interestStartDate = null;
+    private ?\DateTimeInterface $hearingDate = null;
 
-    #[ORM\Column]
-    private bool $requestCourtCosts = false;
+    #[ORM\Column(type: Types::DATE_MUTABLE, nullable: true)]
+    private ?\DateTimeInterface $finalRulingDate = null;
 
-    // Step 5 - Evidence
     #[ORM\Column(type: Types::TEXT, nullable: true)]
-    private ?string $evidenceDescription = null;
+    private ?string $notes = null;
 
-    #[ORM\Column]
-    private bool $hasWitnesses = false;
-
-    #[ORM\Column(type: Types::JSON, nullable: true)]
-    private ?array $witnesses = null;
-
-    #[ORM\Column]
-    private bool $requestOralDebate = false;
-
-    // Step 6 - Fees (calculated)
-    #[ORM\Column(type: Types::DECIMAL, precision: 10, scale: 2, nullable: true)]
-    private ?string $courtFee = null;
-
-    #[ORM\Column(type: Types::DECIMAL, precision: 10, scale: 2, nullable: true)]
-    private ?string $platformFee = null;
-
-    #[ORM\Column(type: Types::DECIMAL, precision: 10, scale: 2, nullable: true)]
-    private ?string $totalFee = null;
-
-    // Timestamps
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
@@ -114,15 +79,11 @@ class LegalCase
     private \DateTimeImmutable $updatedAt;
 
     #[ORM\Column(nullable: true)]
-    private ?\DateTimeImmutable $submittedAt = null;
-
-    #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $deletedAt = null;
 
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $lastPortalCheckAt = null;
 
-    // Relations
     /** @var Collection<int, Document> */
     #[ORM\OneToMany(targetEntity: Document::class, mappedBy: 'legalCase')]
     private Collection $documents;
@@ -137,13 +98,21 @@ class LegalCase
     #[ORM\OrderBy(['eventDate' => 'DESC'])]
     private Collection $portalEvents;
 
+    /** @var Collection<int, LegalDeadline> */
+    #[ORM\OneToMany(targetEntity: LegalDeadline::class, mappedBy: 'legalCase', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    #[ORM\OrderBy(['deadlineDate' => 'ASC'])]
+    private Collection $deadlines;
+
     public function __construct()
     {
+        $this->caseNumber = sprintf('LR-%d-%04d', time(), random_int(0, 9999));
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = new \DateTimeImmutable();
         $this->documents = new ArrayCollection();
         $this->statusHistory = new ArrayCollection();
         $this->portalEvents = new ArrayCollection();
+        $this->debtors = new ArrayCollection();
+        $this->deadlines = new ArrayCollection();
     }
 
     #[ORM\PreUpdate]
@@ -157,12 +126,12 @@ class LegalCase
         return $this->id;
     }
 
-    public function getCaseNumber(): ?string
+    public function getCaseNumber(): string
     {
         return $this->caseNumber;
     }
 
-    public function setCaseNumber(?string $caseNumber): static
+    public function setCaseNumber(string $caseNumber): static
     {
         $this->caseNumber = $caseNumber;
 
@@ -193,14 +162,37 @@ class LegalCase
         return $this;
     }
 
-    public function getCurrentStep(): int
+    public function getCreditor(): ?Creditor
     {
-        return $this->currentStep;
+        return $this->creditor;
     }
 
-    public function setCurrentStep(int $currentStep): static
+    public function setCreditor(?Creditor $creditor): static
     {
-        $this->currentStep = $currentStep;
+        $this->creditor = $creditor;
+
+        return $this;
+    }
+
+    /** @return Collection<int, Debtor> */
+    public function getDebtors(): Collection
+    {
+        return $this->debtors;
+    }
+
+    public function addDebtor(Debtor $debtor): static
+    {
+        if (!$this->debtors->contains($debtor)) {
+            $this->debtors->add($debtor);
+            $debtor->setLegalCase($this);
+        }
+
+        return $this;
+    }
+
+    public function removeDebtor(Debtor $debtor): static
+    {
+        $this->debtors->removeElement($debtor);
 
         return $this;
     }
@@ -217,86 +209,26 @@ class LegalCase
         return $this;
     }
 
-    public function getCounty(): ?string
+    public function getRelationshipType(): ?string
     {
-        return $this->county;
+        return $this->relationshipType;
     }
 
-    public function setCounty(?string $county): static
+    public function setRelationshipType(?string $relationshipType): static
     {
-        $this->county = $county;
+        $this->relationshipType = $relationshipType;
 
         return $this;
     }
 
-    public function getClaimantType(): ?string
+    public function getAmount(): ?string
     {
-        return $this->claimantType;
+        return $this->amount;
     }
 
-    public function setClaimantType(?string $claimantType): static
+    public function setAmount(?string $amount): static
     {
-        $this->claimantType = $claimantType;
-
-        return $this;
-    }
-
-    public function getClaimantData(): ?array
-    {
-        return $this->claimantData;
-    }
-
-    public function setClaimantData(?array $claimantData): static
-    {
-        $this->claimantData = $claimantData;
-
-        return $this;
-    }
-
-    public function hasLawyer(): bool
-    {
-        return $this->hasLawyer;
-    }
-
-    public function setHasLawyer(bool $hasLawyer): static
-    {
-        $this->hasLawyer = $hasLawyer;
-
-        return $this;
-    }
-
-    public function getLawyerData(): ?array
-    {
-        return $this->lawyerData;
-    }
-
-    public function setLawyerData(?array $lawyerData): static
-    {
-        $this->lawyerData = $lawyerData;
-
-        return $this;
-    }
-
-    public function getDefendants(): ?array
-    {
-        return $this->defendants;
-    }
-
-    public function setDefendants(?array $defendants): static
-    {
-        $this->defendants = $defendants;
-
-        return $this;
-    }
-
-    public function getClaimAmount(): ?string
-    {
-        return $this->claimAmount;
-    }
-
-    public function setClaimAmount(?string $claimAmount): static
-    {
-        $this->claimAmount = $claimAmount;
+        $this->amount = $amount;
 
         return $this;
     }
@@ -313,14 +245,26 @@ class LegalCase
         return $this;
     }
 
-    public function getClaimDescription(): ?string
+    public function getCalculatedInterest(): ?string
     {
-        return $this->claimDescription;
+        return $this->calculatedInterest;
     }
 
-    public function setClaimDescription(?string $claimDescription): static
+    public function setCalculatedInterest(?string $calculatedInterest): static
     {
-        $this->claimDescription = $claimDescription;
+        $this->calculatedInterest = $calculatedInterest;
+
+        return $this;
+    }
+
+    public function getStampDuty(): ?string
+    {
+        return $this->stampDuty;
+    }
+
+    public function setStampDuty(?string $stampDuty): static
+    {
+        $this->stampDuty = $stampDuty;
 
         return $this;
     }
@@ -337,146 +281,62 @@ class LegalCase
         return $this;
     }
 
-    public function getLegalBasis(): ?string
+    public function getPaymentNoticeDate(): ?\DateTimeInterface
     {
-        return $this->legalBasis;
+        return $this->paymentNoticeDate;
     }
 
-    public function setLegalBasis(?string $legalBasis): static
+    public function setPaymentNoticeDate(?\DateTimeInterface $paymentNoticeDate): static
     {
-        $this->legalBasis = $legalBasis;
+        $this->paymentNoticeDate = $paymentNoticeDate;
 
         return $this;
     }
 
-    public function getInterestType(): string
+    public function getCourtCaseNumber(): ?string
     {
-        return $this->interestType;
+        return $this->courtCaseNumber;
     }
 
-    public function setInterestType(string $interestType): static
+    public function setCourtCaseNumber(?string $courtCaseNumber): static
     {
-        $this->interestType = $interestType;
+        $this->courtCaseNumber = $courtCaseNumber;
 
         return $this;
     }
 
-    public function getInterestRate(): ?string
+    public function getHearingDate(): ?\DateTimeInterface
     {
-        return $this->interestRate;
+        return $this->hearingDate;
     }
 
-    public function setInterestRate(?string $interestRate): static
+    public function setHearingDate(?\DateTimeInterface $hearingDate): static
     {
-        $this->interestRate = $interestRate;
+        $this->hearingDate = $hearingDate;
 
         return $this;
     }
 
-    public function getInterestStartDate(): ?\DateTimeInterface
+    public function getFinalRulingDate(): ?\DateTimeInterface
     {
-        return $this->interestStartDate;
+        return $this->finalRulingDate;
     }
 
-    public function setInterestStartDate(?\DateTimeInterface $interestStartDate): static
+    public function setFinalRulingDate(?\DateTimeInterface $finalRulingDate): static
     {
-        $this->interestStartDate = $interestStartDate;
+        $this->finalRulingDate = $finalRulingDate;
 
         return $this;
     }
 
-    public function isRequestCourtCosts(): bool
+    public function getNotes(): ?string
     {
-        return $this->requestCourtCosts;
+        return $this->notes;
     }
 
-    public function setRequestCourtCosts(bool $requestCourtCosts): static
+    public function setNotes(?string $notes): static
     {
-        $this->requestCourtCosts = $requestCourtCosts;
-
-        return $this;
-    }
-
-    public function getEvidenceDescription(): ?string
-    {
-        return $this->evidenceDescription;
-    }
-
-    public function setEvidenceDescription(?string $evidenceDescription): static
-    {
-        $this->evidenceDescription = $evidenceDescription;
-
-        return $this;
-    }
-
-    public function hasWitnesses(): bool
-    {
-        return $this->hasWitnesses;
-    }
-
-    public function setHasWitnesses(bool $hasWitnesses): static
-    {
-        $this->hasWitnesses = $hasWitnesses;
-
-        return $this;
-    }
-
-    public function getWitnesses(): ?array
-    {
-        return $this->witnesses;
-    }
-
-    public function setWitnesses(?array $witnesses): static
-    {
-        $this->witnesses = $witnesses;
-
-        return $this;
-    }
-
-    public function isRequestOralDebate(): bool
-    {
-        return $this->requestOralDebate;
-    }
-
-    public function setRequestOralDebate(bool $requestOralDebate): static
-    {
-        $this->requestOralDebate = $requestOralDebate;
-
-        return $this;
-    }
-
-    public function getCourtFee(): ?string
-    {
-        return $this->courtFee;
-    }
-
-    public function setCourtFee(?string $courtFee): static
-    {
-        $this->courtFee = $courtFee;
-
-        return $this;
-    }
-
-    public function getPlatformFee(): ?string
-    {
-        return $this->platformFee;
-    }
-
-    public function setPlatformFee(?string $platformFee): static
-    {
-        $this->platformFee = $platformFee;
-
-        return $this;
-    }
-
-    public function getTotalFee(): ?string
-    {
-        return $this->totalFee;
-    }
-
-    public function setTotalFee(?string $totalFee): static
-    {
-        $this->totalFee = $totalFee;
+        $this->notes = $notes;
 
         return $this;
     }
@@ -489,18 +349,6 @@ class LegalCase
     public function getUpdatedAt(): \DateTimeImmutable
     {
         return $this->updatedAt;
-    }
-
-    public function getSubmittedAt(): ?\DateTimeImmutable
-    {
-        return $this->submittedAt;
-    }
-
-    public function setSubmittedAt(?\DateTimeImmutable $submittedAt): static
-    {
-        $this->submittedAt = $submittedAt;
-
-        return $this;
     }
 
     public function getDeletedAt(): ?\DateTimeImmutable
@@ -518,6 +366,25 @@ class LegalCase
     public function isDeleted(): bool
     {
         return $this->deletedAt !== null;
+    }
+
+    public function markAsDeleted(): static
+    {
+        $this->deletedAt = new \DateTimeImmutable();
+
+        return $this;
+    }
+
+    public function getLastPortalCheckAt(): ?\DateTimeImmutable
+    {
+        return $this->lastPortalCheckAt;
+    }
+
+    public function setLastPortalCheckAt(?\DateTimeImmutable $lastPortalCheckAt): static
+    {
+        $this->lastPortalCheckAt = $lastPortalCheckAt;
+
+        return $this;
     }
 
     /** @return Collection<int, Document> */
@@ -538,32 +405,31 @@ class LegalCase
         return $this->portalEvents;
     }
 
-    public function getLastPortalCheckAt(): ?\DateTimeImmutable
+    /** @return Collection<int, LegalDeadline> */
+    public function getDeadlines(): Collection
     {
-        return $this->lastPortalCheckAt;
+        return $this->deadlines;
     }
 
-    public function setLastPortalCheckAt(?\DateTimeImmutable $lastPortalCheckAt): static
+    public function addDeadline(LegalDeadline $deadline): static
     {
-        $this->lastPortalCheckAt = $lastPortalCheckAt;
+        if (!$this->deadlines->contains($deadline)) {
+            $this->deadlines->add($deadline);
+            $deadline->setLegalCase($this);
+        }
 
         return $this;
     }
 
-    public function getClaimantName(): ?string
+    public function removeDeadline(LegalDeadline $deadline): static
     {
-        return $this->claimantData['name'] ?? null;
-    }
+        $this->deadlines->removeElement($deadline);
 
-    public function getFirstDefendantName(): ?string
-    {
-        $defendants = $this->defendants ?? [];
-
-        return $defendants[0]['name'] ?? null;
+        return $this;
     }
 
     public function __toString(): string
     {
-        return 'Dosar #' . ($this->id ?? 'nou');
+        return $this->caseNumber;
     }
 }
