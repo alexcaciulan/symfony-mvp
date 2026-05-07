@@ -1,0 +1,21 @@
+{# @var current_step int  1-indexed current step #}
+{# @var labels array  ordered list of step labels (length = total steps) #}
+<ol {{ attributes.defaults({ class: 'flex items-center w-full text-sm font-medium text-gray-500 dark:text-gray-400' }) }}>
+    {% for index, label in labels %}
+        {% set step = index + 1 %}
+        {% set is_done = step < current_step %}
+        {% set is_current = step == current_step %}
+        <li class="flex items-center {{ not loop.last ? 'flex-1' : '' }}">
+            <span class="flex items-center justify-center w-8 h-8 rounded-full shrink-0
+                {% if is_done %}bg-emerald-500 text-white
+                {% elseif is_current %}bg-primary text-white ring-4 ring-primary/20
+                {% else %}bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300{% endif %}">
+                {% if is_done %}✓{% else %}{{ step }}{% endif %}
+            </span>
+            <span class="ml-3 {{ is_current ? 'text-gray-900 dark:text-gray-100 font-semibold' : '' }}">{{ label }}</span>
+            {% if not loop.last %}
+                <span class="flex-1 h-px bg-gray-200 dark:bg-gray-700 mx-4"></span>
+            {% endif %}
+        </li>
+    {% endfor %}
+</ol>

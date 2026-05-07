@@ -58,10 +58,40 @@ services:
       - symfony-network
 ###< doctrine/doctrine-bundle ###
 
+###> symfony/mercure-bundle ###
+  mercure:
+    image: dunglas/mercure
+    container_name: symfony-mvp-mercure
+    restart: unless-stopped
+    environment:
+      SERVER_NAME: ':80'
+      MERCURE_PUBLISHER_JWT_KEY: '!ChangeThisInProd!aMinimum32CharsSecret!'
+      MERCURE_SUBSCRIBER_JWT_KEY: '!ChangeThisInProd!aMinimum32CharsSecret!'
+      MERCURE_EXTRA_DIRECTIVES: |
+        cors_origins http://localhost:8080 http://127.0.0.1:8080
+        anonymous
+    command: /usr/bin/caddy run --config /etc/caddy/dev.Caddyfile
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/healthz"]
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    volumes:
+      - mercure_data:/data
+      - mercure_config:/config
+    networks:
+      - symfony-network
+###< symfony/mercure-bundle ###
+
 volumes:
 ###> doctrine/doctrine-bundle ###
   database_data:
 ###< doctrine/doctrine-bundle ###
+
+###> symfony/mercure-bundle ###
+  mercure_data:
+  mercure_config:
+###< symfony/mercure-bundle ###
   vendor:
 
 networks:

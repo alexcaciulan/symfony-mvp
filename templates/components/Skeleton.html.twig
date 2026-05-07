@@ -1,0 +1,10 @@
+{# @var lines int  Number of pulse lines (default 3) #}
+{# @var width string  CSS width for last line (e.g., '60%'). Default '100%'. #}
+{% set count = lines ?? 3 %}
+{% set last_width = width ?? '100%' %}
+<div {{ attributes.defaults({ class: 'animate-pulse space-y-2' }) }} aria-busy="true" aria-live="polite">
+    {% for i in 1..count %}
+        <div class="h-3 rounded bg-gray-200 dark:bg-gray-700"
+             style="width: {{ loop.last ? last_width : '100%' }};"></div>
+    {% endfor %}
+</div>

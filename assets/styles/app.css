@@ -1,8 +1,27 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
     --color-primary: #1E3A5F;
     --color-primary-light: #2563EB;
     --color-accent: #2563EB;
     --color-surface: #F9FAFB;
+    --color-surface-dark: #0F172A;
+    --color-text-dark: #E2E8F0;
+}
+
+@view-transition {
+    navigation: auto;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation-duration: 200ms;
+    animation-timing-function: ease-out;
+}
+
+html.dark body {
+    background-color: var(--color-surface-dark);
+    color: var(--color-text-dark);
 }

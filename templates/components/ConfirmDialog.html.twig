@@ -1,0 +1,17 @@
+{# @var trigger_label string  Text/HTML for the trigger button #}
+{# @var message string  Confirmation prompt #}
+{# @var form_action string  URL to submit on confirm #}
+{# @var form_method string  HTTP method (default POST) #}
+{# @var csrf_token_id string|null  Symfony CSRF token id #}
+<form action="{{ form_action }}" method="{{ form_method ?? 'POST' }}"
+      data-controller="confirm"
+      data-confirm-message-value="{{ message }}"
+      data-action="submit->confirm#confirm"
+      class="inline">
+    {% if csrf_token_id ?? null %}
+        <input type="hidden" name="_token" value="{{ csrf_token(csrf_token_id) }}">
+    {% endif %}
+    <button type="submit" {{ attributes.defaults({
+        class: 'inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium border border-red-200 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-200 dark:hover:bg-red-900/20',
+    }) }}>{{ trigger_label|raw }}</button>
+</form>

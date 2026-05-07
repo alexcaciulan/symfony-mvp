@@ -52,6 +52,21 @@ done
 
 echo "Database is up!"
 
+# Wait for Mercure hub (best-effort — don't fail boot if unavailable, just warn)
+echo "Waiting for Mercure hub..."
+mercure_attempts=0
+until wget -q --spider "http://mercure/.well-known/mercure?topic=ping" 2>/dev/null; do
+    mercure_attempts=$((mercure_attempts + 1))
+    if [ $mercure_attempts -gt 30 ]; then
+        echo "WARNING: Mercure hub not reachable after 30 attempts — push notifications will not work."
+        break
+    fi
+    sleep 1
+done
+if [ $mercure_attempts -le 30 ]; then
+    echo "Mercure hub is up!"
+fi
+
 # Run migrations
 echo "Running migrations..."
 php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration

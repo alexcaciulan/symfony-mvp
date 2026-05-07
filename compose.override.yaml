@@ -20,3 +20,9 @@ services:
     networks:
       - symfony-network
 ###< symfony/mailer ###
+
+###> symfony/mercure-bundle ###
+  mercure:
+    ports:
+      - "3000:80"
+###< symfony/mercure-bundle ###
