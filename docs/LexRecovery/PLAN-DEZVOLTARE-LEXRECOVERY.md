@@ -52,7 +52,7 @@
 | 0.2 | Bootstrap | Frontend Foundations: **Preline UI (free, MIT)** + UX bundles (Live Components, Autocomplete, Icons), Mercure Hub container, Stimulus controllers comune (toast, autosave, shortcuts, dark-mode, optimistic, mercure, dialog, tabs, skeleton, **preline-init**), Twig components refolosibile (wrapper-e Preline), Tailwind dark mode, View Transitions API | 1.5z | 0.1 | 0% | ✅ |
 | 1.1 | Domain | Entități noi + extindere `LegalCase` | 1.5z | 0.1 | 50% | ✅ |
 | 1.2 | Domain | Enum-uri noi (CaseStatus, CaseTransition, PersonType, RelationshipType, DeadlineType, DeadlinePriority) | 0.5z | 0.1 | 0% | ✅ |
-| 1.3 | Domain | Workflow YAML refăcut + ajustare `CaseWorkflowService` | 0.5z | 1.1, 1.2 | 70% | ⏳ |
+| 1.3 | Domain | Workflow YAML refăcut + ajustare `CaseWorkflowService` | 0.5z | 1.1, 1.2 | 70% | ✅ |
 | 1.4 | Domain | Migrare baseline + fixtures + `app:seed-demo-cases` | 0.5z | 1.1, 1.2 | 80% | ⏳ |
 | 2.1 | Calcule | `InterestCalculatorService` (OG 13/2011) | 0.75z | 1.1 | 0% | ⏳ |
 | 2.2 | Calcule | `StampDutyCalculator` (OUG 80/2013) | 0.25z | — | 0% | ⏳ |
@@ -90,7 +90,11 @@
 - **Reanalizează fezabilitatea pasului înainte să-l execuți.** Verifică dacă pasul mai are sens în starea curentă a codului: dependențele s-au schimbat? specificația a evoluat? există o cale mai simplă acum (ex: un pachet nou, un cod existent care acoperă deja parte din scope)? Estimarea de durată și `% reutilizare` sunt încă realiste? Dacă răspunsul la oricare e da, ajustează abordarea sau ridică problema **înainte** să scrii cod — nu execuții oarbe pe baza planului inițial.
 - **Verifică după fiecare pas.** Rulează aplicația, testează manual, apoi treci mai departe.
 - **Commit după fiecare pas.** `git commit` după fiecare pas reușit. Poți reveni dacă ceva se strică.
-- **Marchează pasul DONE în acest fișier.** Imediat după ce commit-ul aterizează, adaugă pe heading-ul `### PASUL X.Y` sufixul `✅ DONE YYYY-MM-DD (\`<commit-sha>\`)` și completează linia `**Rezultat**:` (placeholder) cu 1–2 propoziții despre ce s-a livrat efectiv + decizii cheie + pointer la memoria de progres din `~/.claude/projects/.../memory/project_lexrecovery_pas_X_Y.md`. Plan-ul și memoria împreună sunt source-of-truth pentru starea proiectului între sesiuni.
+- **Marchează pasul DONE în acest fișier — în 3 locuri.** Imediat după ce commit-ul aterizează:
+  1. **Tabelul "Hartă de dezvoltare"** (sus): schimbă coloana Status de la `⏳` la `✅` pentru pasul respectiv.
+  2. **Heading-ul secțiunii pasului** (`### PASUL X.Y | ...`): adaugă sufixul `✅ DONE YYYY-MM-DD (\`<commit-sha>\`)`.
+  3. **Linia `**Rezultat**:`** sub heading: înlocuiește placeholder-ul `_(va fi completat la marcarea ca DONE)_` cu 1–2 propoziții despre ce s-a livrat + decizii cheie + pointer la `~/.claude/projects/.../memory/project_lexrecovery_pas_X_Y.md`.
+  Plan-ul și memoria împreună sunt source-of-truth pentru starea proiectului între sesiuni.
 - **Dă context.** Menționează ce s-a făcut deja și care e starea curentă a branch-ului.
 - **Teste incremental.** Scrie teste unitare pentru logica de business și teste funcționale pentru controller-e.
 - **Re-verifică reutilizarea.** Înainte să scrii cod nou, verifică fișierele marcate ca "refolosibile" în `ANALIZA-FLUXURI-LEXRECOVERY.md` secțiunea 15.
