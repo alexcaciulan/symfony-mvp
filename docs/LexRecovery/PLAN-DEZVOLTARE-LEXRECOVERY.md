@@ -56,7 +56,7 @@
 | 1.4 | Domain | Migrare baseline + fixtures + `app:seed-demo-cases` | 0.5z | 1.1, 1.2 | 80% | ✅ |
 | 1.5 | Domain | Foundație i18n + backfill (enum labels → trans keys, homepage, Stimulus messages, ANAF exceptions) | 1z | 1.4 | 30% | ✅ |
 | 2.1 | Calcule | `InterestCalculatorService` (OG 13/2011) | 0.75z | 1.1 | 0% | ✅ |
-| 2.2 | Calcule | `StampDutyCalculator` (OUG 80/2013) | 0.25z | — | 0% | ⏳ |
+| 2.2 | Calcule | `StampDutyCalculator` (OUG 80/2013) | 0.25z | — | 0% | ✅ |
 | 2.3 | Calcule | `CompetentCourtResolver` | 0.5z | 1.1 | 30% | ⏳ |
 | 2.4 | Calcule | `AnafLookupService` integration + `OpAdmissibilityValidator` (CPC art. 1014, L 85/2014) + Debitor ANAF/BPI fields | 0.5z | 1.1 | 80% | ⏳ |
 | 2.5 | Extracție | `DataExtractionService` + 4 strategii cascadă (PdfParser, OcrText cu Tesseract, AiVision, Stub) + `TesseractOcrService` + DTO `ExtractedDocumentData` + setup Dockerfile cu tesseract-ocr-ron + ImageMagick | 2z | 1.1 | 0% | ⏳ |
@@ -571,7 +571,7 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 
 ### PASUL 2.2 | `StampDutyCalculator` | 0.25 zi | 0% reutilizare
 
-**Rezultat**: _(va fi completat la marcarea ca DONE)_
+**Rezultat**: ✅ DONE 2026-05-08 (commit `8cffd87`). Implementare Variantă A (taxă fixă **200 RON** pentru orice cerere OP, conform OUG 80/2013 art. 6 alin. 2 — formă curentă). Livrate: `src/Service/Calculation/StampDutyCalculator.php` (signature `calculate(): StampDutyResult` — fără argument `$amount` întrucât Variantă A e constantă; YAGNI peste Variantă B) + DTO readonly `src/DTO/Calculation/StampDutyResult.php` (`amount`, `lawVersion`); parametri configurabili `app.taxa_timbru_op.fixed = 200.0` și `app.taxa_timbru_op.law_version` în `config/services.yaml`; 2 teste unit (`testReturnsConfiguredFixedFee` + `testResultCarriesConfiguredLawVersion`). DI verificat via `debug:container` (argumentele rezolvă la `200` și string-ul juridic). **Out-of-scope (amânat)**: coloana `stampDutyLawVersion` pe `LegalCase` — se va adăuga când wizard-ul scrie pe entitate. Dacă revizia juridică viitoare confirmă Variantă B (praguri), se reintroduce parametrul `float $amount` la momentul respectiv.
 
 > 🔴 **REVIZIE JURIDICĂ 2026-05-08** (din analiza Faza 2):
 > - **Pragul `500 RON` din spec inițial NU corespunde nici unei forme cunoscute a OUG 80/2013**. Cea mai probabilă realitate juridică actuală: **taxă fixă 200 RON** (forma actuală art. 6 alin. 2). Forma cu praguri (50/200 RON la 2.000 RON) a existat în versiuni anterioare, NU pe pragul 500 RON.
