@@ -450,6 +450,9 @@ enum:
     relationship_type:
         COMERCIAL: 'Comercial (între profesioniști)'
         CIVIL: 'Civil'
+    interest_kind:
+        REMUNERATORIE: 'Remuneratorie'
+        PENALIZATOARE: 'Penalizatoare'
     user_type:
         pf: 'Persoană fizică'
         pj: 'Persoană juridică'
@@ -522,3 +525,6 @@ exception:
         cui_invalid: 'CUI invalid: trebuie să conțină între 2 și 10 cifre.'
         unavailable: 'Serviciul ANAF nu este disponibil. Încercați mai târziu.'
         not_found: 'CUI-ul nu a fost găsit în baza de date ANAF.'
+    calculation:
+        interest_rate_missing: 'Nu există o rată BNR validă pentru data de scadență. Verifică InterestRateConfigFixtures.'
+        currency_unsupported: 'Calculul dobânzii este disponibil doar pentru creanțe în RON. Suportul pentru valută va fi adăugat ulterior.'

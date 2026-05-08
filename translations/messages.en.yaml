@@ -448,6 +448,9 @@ enum:
     relationship_type:
         COMERCIAL: 'Commercial (between professionals)'
         CIVIL: 'Civil'
+    interest_kind:
+        REMUNERATORIE: 'Remunerative'
+        PENALIZATOARE: 'Penalty'
     user_type:
         pf: 'Individual'
         pj: 'Legal entity'
@@ -520,3 +523,6 @@ exception:
         cui_invalid: 'Invalid tax ID: must contain between 2 and 10 digits.'
         unavailable: 'ANAF service unavailable. Please try again later.'
         not_found: 'Tax ID not found in the ANAF database.'
+    calculation:
+        interest_rate_missing: 'No BNR rate is configured for the due date. Check InterestRateConfigFixtures.'
+        currency_unsupported: 'Interest calculation is only available for RON-denominated claims. Foreign-currency support will be added later.'

@@ -9,6 +9,7 @@ use App\Enum\DeadlinePriority;
 use App\Enum\DeadlineType;
 use App\Enum\DocumentType;
 use App\Enum\ExtractionStatus;
+use App\Enum\InterestKind;
 use App\Enum\NotificationChannel;
 use App\Enum\PersonType;
 use App\Enum\PortalEventType;
@@ -78,6 +79,7 @@ class EnumLabelKeysExistTest extends KernelTestCase
             'DeadlineType'        => [DeadlineType::class],
             'DocumentType'        => [DocumentType::class],
             'ExtractionStatus'    => [ExtractionStatus::class],
+            'InterestKind'        => [InterestKind::class],
             'NotificationChannel' => [NotificationChannel::class],
             'PersonType'          => [PersonType::class],
             'PortalEventType'     => [PortalEventType::class],

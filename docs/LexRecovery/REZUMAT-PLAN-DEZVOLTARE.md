@@ -88,7 +88,7 @@ bin/console doctrine:migrations:migrate
 | 2.1 | `InterestCalculatorService` (OG 13/2011) | 0.75z | 0% |
 | 2.2 | `StampDutyCalculator` (OUG 80/2013) | 0.25z | 0% |
 | 2.3 | `CompetentCourtResolver` (Judecătorie/Tribunal) | 0.5z | 30% |
-| 2.4 | `OnrcLookupService` (V1 stub) | 0.25z | 0% |
+| 2.4 | `OpAdmissibilityValidator` (CPC art. 1014, L 85/2014) + integrare `AnafLookupService` existent + Debitor ANAF/BPI fields | 0.5z | 80% |
 | 2.5 | **`DataExtractionService` + 4 strategii cascadă** (PdfParser/OcrText/AiVision/Stub) + Tesseract + ImageMagick | **2z** | 0% |
 | 2.6 | `ExtractDataMessage` async (Messenger) | 0.5z | 30% |
 

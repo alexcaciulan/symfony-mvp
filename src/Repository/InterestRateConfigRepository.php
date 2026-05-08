@@ -24,4 +24,15 @@ class InterestRateConfigRepository extends ServiceEntityRepository
             ->getQuery()
             ->getOneOrNullResult();
     }
+
+    /** @return InterestRateConfig[] ordered ASC by validFrom */
+    public function findAllValidUpTo(\DateTimeInterface $date): array
+    {
+        return $this->createQueryBuilder('r')
+            ->where('r.validFrom <= :date')
+            ->setParameter('date', $date)
+            ->orderBy('r.validFrom', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
 }

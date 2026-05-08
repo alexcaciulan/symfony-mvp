@@ -106,7 +106,7 @@ flowchart TD
 
 0. **Documente sursă** (opțional dar puternic recomandat): avocatul încarcă contractul, factura, somația sau alte acte care conțin datele creanței. Sistem rulează **`DataExtractionService`** care extrage automat (vezi secțiunea 7.4): denumire/nume creditor și debitor + CNP/CUI + adresă + IBAN, sumă creanță + monedă + dată scadență, temei juridic + descriere. Avocatul vede preview cu valorile detectate și sursa fiecărei valori (ex: "Suma 5.000 RON detectată din contract.pdf, pagina 2"). Poate sări peste acest pas dacă vrea să introducă manual.
 1. **Creditor**: pre-populat cu valorile extrase (badge "auto-completat din [doc]"). Autocomplete dintre creditori existenți sau confirmare/editare formular (PF/PJ, denumire, CNP/CUI, adresă, IBAN, telefon, email).
-2. **Debitor(i)**: posibil multipli; ANAF lookup automat la blur CUI (refolosește serviciul existent `AnafLookupService`) — populează denumire + adresă + status TVA. Pre-populat din documente. Pentru PJ, opțional verificare ONRC (V1: stub manual; V2: API).
+2. **Debitor(i)**: posibil multipli; ANAF lookup automat la blur CUI (refolosește serviciul existent `AnafLookupService`) — populează denumire + adresă + nrRegCom + status fiscal (ACTIV/INACTIV/RADIAT) + status TVA. Pre-populat din documente. Pentru insolvență (L 85/2014) avocatul verifică manual BPI (bpi.just.ro — fără API) și marchează flag `inInsolvency` + atașează PDF publicare BPI ca probă.
 3. **Date creanță**: pre-populat din documente (sumă, scadență, temei). Avocatul completează `relationshipType` (`COMERCIAL` sau `CIVIL`), opțional dobândă contractuală + penalități. **Calculate live via Stimulus**: dobândă acumulată zi de zi, total creanță actualizată, taxa timbru, instanță competentă.
 4. **Confirmare**: rezumat complet cu indicare clară a câmpurilor extrase automat vs introduse manual; buton "Salvează dosar".
 
@@ -223,7 +223,7 @@ erDiagram
 | `Court` | Judecătorie/Tribunal | name, type, county, **portalCode** (cod portal.just.ro) |
 | `LegalCase` | Dosar de recuperare creanță | caseNumber, user, court, creditor, debtors, status, relationshipType, amount, calculatedInterest, stampDuty, dueDate, paymentNoticeDate, courtCaseNumber, hearingDate, finalRulingDate |
 | `Creditor` | Clientul avocatului | personType, name, taxId/personalId, address, iban, email — reutilizabil între dosare |
-| `Debtor` | Persoana datoare | personType, name, taxId/personalId, address, **onrcStatus** |
+| `Debtor` | Persoana datoare | personType, name, taxId/personalId, address, nrRegCom, **anafStatus** (ACTIV/INACTIV/RADIAT — pre-populat ANAF), anafCheckedAt, **inInsolvency** (manual din BPI), insolvencyCheckedAt, bpiProofDocument |
 | `LegalDeadline` | Deadline procedural | type, deadlineDate, priority, completed, alertSent7/3/1 |
 | `Document` | Document dosar | type (SOMATIE, CERERE_OP, OPIS, CONTRACT, FACTURA, ANEXA), filePath, **extractedData** (JSON nullable — date extrase automat), **extractionStatus** (PENDING/PROCESSING/COMPLETED/FAILED), **extractionConfidence** (decimal 0-1, nullable) |
 | `CourtPortalEvent` | Eveniment portal.just.ro | eventType, payload, detectedAt |
@@ -303,12 +303,28 @@ stateDiagram-v2
 
 ### 7.1 Dobânda legală (OG 13/2011)
 
-**Formulă**: pentru fiecare perioadă în care rata BNR a fost constantă:
+**Formulă** (revizie 2026-05-08): pentru fiecare perioadă în care rata BNR a fost constantă:
 ```
 dobanda_perioada = suma * (rata_aplicabila / 100) * zile_in_perioada / 365
 ```
-- **`COMERCIAL`** (raporturi între profesioniști): rata aplicabilă = `rata_BNR + 8 puncte procentuale`.
-- **`CIVIL`** (alte raporturi): rata aplicabilă = `rata_BNR + 4 puncte procentuale` (sau diminuată cu 20% pentru raporturi cu participare consumator, conform legii — verificare juridică).
+
+Distincție obligatorie pe tip de dobândă (enum `InterestKind`):
+
+**Dobânda penalizatoare** (cazul tipic OP, de la scadență la plată):
+- **`COMERCIAL`** (raporturi între profesioniști — OG 13/2011 art. 3 alin. 2¹): `rata_BNR + 8 puncte procentuale`.
+- **`CIVIL`** (raporturi care nu decurg din exploatarea unei întreprinderi — art. 3 alin. 3, diminuat cu 20% din rata penalizatoare comercială): `(rata_BNR + 8) × 0,80`.
+
+**Dobânda remuneratorie** (de la acordare până la scadență, doar pentru creanțe ce includ atare dobândă, ex. împrumut):
+- **`COMERCIAL` + REMUNERATORIE** (art. 3 alin. 2): `rata_BNR`.
+- **`CIVIL` + REMUNERATORIE** (art. 3 alin. 3 aplicat la remuneratoriu): `rata_BNR × 0,80`.
+
+> ⚠ Versiunea inițială a acestui document conținea formula greșită `rata_BNR + 4 puncte` pentru CIVIL. Aceasta nu corespunde literei OG 13/2011 — diminuarea de 20% este multiplicativă pe rata penalizatoare comercială (BNR + 8), NU înlocuire cu +4 pp. Corectat 2026-05-08.
+
+**Convenție de calcul**: zile elapsed (`act/365`), dobândă **simplă** (NU compusă — anatocismul cere convenție expresă conform NCC art. 1489).
+
+**Limitări MVP**:
+- Suport doar pentru creanțe **RON**. Pentru altă monedă (art. 4 OG 13/2011 — Libor/SOFR/Euribor + 8 pp sau formă curentă) → throw `\InvalidArgumentException`. Sprijin valută — post-MVP.
+- Prescripția extinctivă (NCC art. 2517 — 3 ani) NU se verifică în acest serviciu — se calculează separat (vezi `PrescriptionCalculator` propus).
 
 Serviciu: `InterestCalculatorService` consumă `InterestRateConfig` (istoric BNR) și calculează breakdown pe perioade.
 
@@ -316,19 +332,43 @@ Serviciu: `InterestCalculatorService` consumă `InterestRateConfig` (istoric BNR
 
 ### 7.2 Taxa de timbru pentru ordonanță de plată (OUG 80/2013)
 
-Conform OUG 80/2013 art. 6 alin. 2 (taxă fixă pentru ordonanță de plată):
-- **50 RON** dacă valoarea creanței ≤ 500 RON.
-- **200 RON** dacă valoarea creanței > 500 RON.
+Conform OUG 80/2013 art. 6 alin. 2 (taxă pentru cererea privind ordonanța de plată).
 
-⚠ *Înainte de implementare, validare juridică cu un avocat — există ipoteza că taxa s-ar putea aplica diferit pentru creanțe mari.*
+> ⚠ **Validare juridică indispensabilă înainte de implementare**: forma actuală a OUG 80/2013 art. 6 alin. 2 (cu toate modificările) trebuie verificată pe legislatie.just.ro. Cea mai probabilă realitate juridică actuală: **taxă fixă 200 RON**, fără prag.
+> 
+> Versiunea inițială a acestui document menționa pragul `≤ 500 RON / > 500 RON` (50 RON / 200 RON) — această formă nu corespunde nici unei versiuni cunoscute a ordonanței. Forma cu praguri (50/200 RON la **2.000 RON**) a existat în versiuni anterioare. Corectat 2026-05-08.
+
+**Recomandare MVP** (Variantă A — taxă fixă):
+- **200 RON** pentru orice cerere OP (independent de valoarea creanței).
+
+**Variantă B** (dacă verificarea juridică confirmă praguri în forma curentă a legii): ajustează valori pe text legal actualizat.
+
+**Audit**: persistă pe `LegalCase` câmpul `stampDutyLawVersion` (string, ex: `"OUG 80/2013 art. 6 alin. 2 — text aplicabil 2026-05-01"`) populat la calcul, pentru justificare retroactivă în caz de dispute.
 
 ### 7.3 Instanța competentă
 
-Conform CPC art. 1015:
-- Sumă ≤ **200.000 RON** → competența **Judecătorie** pe raza domiciliului/sediului debitorului.
-- Sumă > **200.000 RON** → competența **Tribunal**.
+Conform CPC art. 1015 + art. 94 pct. 1 lit. k + art. 95 pct. 1 + art. 107:
 
-Serviciu: `CompetentCourtResolver(suma, judet) → Court` lookup în `CourtRepository`.
+**Competență valorică** (corectă în spec inițial ✓):
+- Sumă ≤ **200.000 RON** → **Judecătorie**.
+- Sumă > **200.000 RON** → **Tribunal**.
+
+**Competență teritorială** (revizie 2026-05-08):
+- Default (CPC art. 107): **domiciliul/sediul debitorului**.
+- Match pe **localitate** (NU doar județ) folosind `Court.localitatiArondate`:
+  - București: 6 sectoare = 6 judecătorii distincte; parser de adresă identifică sectorul.
+  - Județe cu mai multe judecătorii (Cluj: Cluj-Napoca/Turda/Huedin/Gherla; Iași; Constanța; etc.): match pe localitate exactă pe raza teritorială.
+- Dacă match e ambiguu sau lipsă → resolver returnează `CourtResolveResult` cu lista de candidate + explicație, **NICIODATĂ "prima activă" silent** (risc declinare CPC art. 130-131).
+
+**Competență alternativă** (în afara scope-ului resolver, gestionată în wizard step 4 prin override manual):
+- CPC art. 113 alin. (1) pct. 3 — locul executării obligației (la alegerea reclamantului).
+- CPC art. 126 — clauză contractuală de alegere a forului.
+
+> ⚠ Spec-ul inițial reducea decizia la "match pe județ" cu fallback "prima activă" — garanta cerere depusă la instanță necompetentă teritorial în 70%+ din cazurile reale. Corectat 2026-05-08.
+
+Serviciu: `CompetentCourtResolver(suma, debtorCounty, debtorLocality?) → CourtResolveResult` lookup în `CourtRepository::findCandidatesByTypeAndLocality()`.
+
+**Tribunale specializate** (Cluj/Mureș/Argeș) — NU se aplică default; necesită opt-in explicit la wizard pentru raporturi între profesioniști. Post-MVP.
 
 ### 7.4 Extracție automată date din documente sursă
 
@@ -713,7 +753,7 @@ Aceste componente sunt **wrapper-e peste primitive Preline UI** (modal, badge, c
 | `InterestCalculatorService` | Logică complet nouă (OG 13/2011 cu istoric BNR) |
 | `StampDutyCalculator` | Tarife OUG 80/2013 art. 6 (diferite de small claims) |
 | `CompetentCourtResolver` | Praguri OP diferite (≤200k Judecătorie) |
-| `OnrcLookupService` (V1 stub) | Funcționalitate nouă |
+| `OpAdmissibilityValidator` (CPC art. 1014, L 85/2014) — verifică ANAF status (RADIAT) + flag manual `inInsolvency` (BPI) | Validare juridică nouă (înlocuiește planul inițial `OnrcLookupService` — eliminat 2026-05-08, ONRC nu are API; date companie reuse `AnafLookupService` deja existent) |
 | `DeadlineService` + `DeadlineAlertService` | Sistem complet nou |
 | `DataExtractionService` + strategii (PdfParser, OcrText, AiVision, Stub) + `TesseractOcrService` + `ExtractDataMessage` handler async | **Sistem complet nou** — auto-completare date din contracte/facturi cu cascadă OCR + AI (vezi 7.4) |
 | `PaymentNoticeGeneratorService`, `PaymentOrderRequestGeneratorService`, `CaseFilesPackager` | Generatoare noi |
@@ -740,7 +780,7 @@ Aceste componente sunt **wrapper-e peste primitive Preline UI** (modal, badge, c
 
 | # | Risc | Impact | Mitigare |
 |---|---|---|---|
-| **R1** | API ONRC public — accesibilitate și cost neclare | Mediu | V1: stub manual (avocatul setează status firmă manual). V2 post-MVP: API real dacă disponibil. |
+| **R1** | ~~API ONRC public — accesibilitate și cost neclare~~ ELIMINAT 2026-05-08: ONRC nu are API oficial; openapi.ro e scraper terț neoficial. Sursa oficială pentru date companie = ANAF API (gratuit, deja integrat ca `AnafLookupService`). Pentru insolvență (BPI) — verificare manuală + atașament PDF, fără API existent. | — | — |
 | **R2** | Coolify suport cron nativ pentru `app:check-deadlines` și `app:portal-check-all` | Mediu | Backup: `symfony/scheduler` bundle (in-process, fără cron extern). |
 | **R3** | DomPDF suficient pentru cerere OP (layout complex cu antet instanță) | Mic | DomPDF deja instalat și folosit. Dacă apar probleme cu layout-uri complexe → migrare la Gotenberg (Docker). |
 | **R4** | Taxa de timbru OP — confirmare valori exacte OUG 80/2013 art. 6 | Mic | Validare cu un avocat înainte de Pas 2.2. Hardcodare configurabilă în `parameters.yaml` ca fallback. |

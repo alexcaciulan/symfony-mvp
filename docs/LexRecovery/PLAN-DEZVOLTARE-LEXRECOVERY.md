@@ -58,7 +58,7 @@
 | 2.1 | Calcule | `InterestCalculatorService` (OG 13/2011) | 0.75z | 1.1 | 0% | ⏳ |
 | 2.2 | Calcule | `StampDutyCalculator` (OUG 80/2013) | 0.25z | — | 0% | ⏳ |
 | 2.3 | Calcule | `CompetentCourtResolver` | 0.5z | 1.1 | 30% | ⏳ |
-| 2.4 | Calcule | `OnrcLookupService` (V1 stub) | 0.25z | 1.1 | 0% | ⏳ |
+| 2.4 | Calcule | `AnafLookupService` integration + `OpAdmissibilityValidator` (CPC art. 1014, L 85/2014) + Debitor ANAF/BPI fields | 0.5z | 1.1 | 80% | ⏳ |
 | 2.5 | Extracție | `DataExtractionService` + 4 strategii cascadă (PdfParser, OcrText cu Tesseract, AiVision, Stub) + `TesseractOcrService` + DTO `ExtractedDocumentData` + setup Dockerfile cu tesseract-ocr-ron + ImageMagick | 2z | 1.1 | 0% | ⏳ |
 | 2.6 | Extracție | `ExtractDataMessage` async (Symfony Messenger) + handler + persist `Document.extractedData` + emit `DataExtractedEvent` | 0.5z | 2.5 | 30% | ⏳ |
 | 3.0 | Wizard | Step 0 wizard "Documente sursă": upload + procesare async + preview valori extrase + Turbo Stream polling status | 1z | 2.5, 2.6 | 0% | ⏳ |
@@ -317,6 +317,7 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 > 2. **Entități noi** (toate cu `id` int auto-increment + `createdAt`/`updatedAt`):
 >    - `Creditor`: user (FK, owner), personType (string mapped la `PersonType`), name, taxId (nullable, unique compus user+taxId — corespunde CUI), personalId (nullable — corespunde CNP), tradeRegistryNumber (nullable — corespunde nr. ONRC), address, email (nullable), phone (nullable), iban (nullable), legalRepresentative (nullable, doar PJ).
 >    - `Debtor`: legalCase (FK), personType, name, taxId (nullable), personalId (nullable), tradeRegistryNumber (nullable), address, email (nullable), phone (nullable), iban (nullable), administrator (nullable), onrcStatus (string nullable: ACTIVE/DISSOLVED/INSOLVENT/null).
+>      - 🔴 **REVIZIE 2026-05-08** (vezi Pas 2.4): `onrcStatus` se redenumește în `anafStatus` (sursa reală e ANAF API, nu ONRC); valori reale tipate cu enum `AnafStatus` = ACTIV / INACTIV / RADIAT (NU ACTIVE/DISSOLVED/INSOLVENT cum era spec-ul inițial). Câmpuri suplimentare: `anafCheckedAt`, `nrRegCom`, `inInsolvency` (manual din BPI), `insolvencyCheckedAt`, `bpiProofDocumentId`. Migrarea concretă a tipului + rename-ul se aplică la execuția Pas 2.4.
 >    - `LegalDeadline`: legalCase (FK), type (string mapped la `DeadlineType`), deadlineDate (date), description (string nullable), priority (string mapped la `DeadlinePriority`, default MEDIUM), completed (boolean default false), completedAt (datetime nullable), alertSent7 (boolean default false), alertSent3 (boolean default false), alertSent1 (boolean default false), alertSentExpired (boolean default false).
 >    - `InterestRateConfig`: validFrom (date, unique), referenceRate (decimal 5,2) — istoric BNR.
 >    - `Plan`: name (string unique), priceMonthly (decimal 8,2), includedCases (int), pricePerExtra (decimal 8,2), isActive (boolean default true).
@@ -507,6 +508,12 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 
 **Specificație**: secțiunea 7.1 din `ANALIZA-FLUXURI-LEXRECOVERY.md`.
 
+> 🔴 **REVIZIE JURIDICĂ 2026-05-08** (din analiza Faza 2):
+> - **Formula CIVIL era greșită**: era `BNR + 4 pp`. Corect conform OG 13/2011 art. 3 alin. (3): **`(BNR + 8) × 0,80`** (diminuat cu 20% din rata penalizatoare comercială). `RelationshipType::nbrPercentagePoints()` se elimină în favoarea `applicableRate(float $bnrRate, InterestKind $kind): float` care încapsulează formula completă.
+> - **Distincție remuneratoriu vs penalizator**: adaugă enum `InterestKind` (REMUNERATORIE | PENALIZATOARE) și parametrul corespunzător pe `calculate()`. Default = PENALIZATOARE (cazul tipic OP). Pentru REMUNERATORIE: `applicableRate = BNR × ($relType === CIVIL ? 0,80 : 1,0)` (fără +8 pp).
+> - **Limitare valută**: dobânda se calculează DOAR pentru creanțe RON. Pentru altă monedă → throw `\InvalidArgumentException`. Suport valută (art. 4 OG 13/2011) — post-MVP.
+> - **Convenție**: zile elapsed (`act/365`), dobândă **simplă** (NU compusă — anatocismul cere convenție expresă conform NCC art. 1489).
+
 **PROMPT**:
 > Implementează `src/Service/Calculation/InterestCalculatorService.php`.
 >
@@ -519,6 +526,8 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 >     \DateTimeImmutable $dueDate,
 >     \DateTimeImmutable $referenceDate,
 >     RelationshipType $relationshipType,
+>     InterestKind $kind = InterestKind::PENALIZATOARE,
+>     string $currency = 'RON',
 > ): DobandaResult
 > ```
 >
@@ -527,25 +536,36 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 > - `breakdown` (array of `DobandaPerioada` cu `dataStart, dataEnd, nbrRate, applicableRate, zile, periodInterest`)
 >
 > Algoritm:
-> 1. Obține toate `InterestRateConfig` cu `validFrom <= referenceDate`, sortat ascendent.
-> 2. Construiește perioade de la `dueDate` la `referenceDate`, segmentate pe schimbările de rată BNR.
-> 3. Pentru fiecare perioadă: applicableRate = nbrRate + relationshipType->nbrPercentagePoints().
-> 4. periodInterest = amount * (applicableRate / 100) * days / 365.
-> 5. total = sum(periodInterest).
+> 1. Validare: `$currency !== 'RON'` → throw `\InvalidArgumentException` (limitare MVP, art. 4 OG 13/2011 post-MVP).
+> 2. Obține toate `InterestRateConfig` cu `validFrom <= referenceDate`, sortat ascendent.
+> 3. Construiește perioade de la `dueDate` la `referenceDate`, segmentate pe schimbările de rată BNR.
+> 4. Pentru fiecare perioadă: `applicableRate = $relationshipType->applicableRate($nbrRate, $kind)`.
+>    - COMERCIAL + PENALIZATOARE: `BNR + 8 pp` (OG 13/2011 art. 3 alin. 2¹).
+>    - CIVIL + PENALIZATOARE: `(BNR + 8) × 0,80` (art. 3 alin. 3 — diminuat 20% din comercial).
+>    - COMERCIAL + REMUNERATORIE: `BNR` (art. 3 alin. 2).
+>    - CIVIL + REMUNERATORIE: `BNR × 0,80` (art. 3 alin. 3 aplicat la remuneratoriu).
+> 5. `periodInterest = amount * (applicableRate / 100) * days / 365` (simplă, NU compusă).
+> 6. `total = sum(periodInterest)`.
 >
 > Edge cases:
 > - dueDate > referenceDate → total = 0, breakdown = [].
 > - Niciun InterestRateConfig anterior dueDate → throw `\RuntimeException` cu mesaj clar.
+> - Creanță în altă monedă decât RON → throw `\InvalidArgumentException` (suport valută post-MVP).
 >
-> Teste: `tests/Service/Calculation/InterestCalculatorServiceTest.php` cu minim 6 scenarii:
-> 1. Raport COMERCIAL, perioadă o singură rată, 90 zile.
-> 2. Raport CIVIL, perioadă peste 2 schimbări de rată BNR.
-> 3. dueDate = referenceDate → 0.
-> 4. Sub o zi (≤ 0 zile) → 0.
-> 5. Peste prescripție (3+ ani) — calculul rulează, prescripția e tratată separat.
-> 6. InterestRateConfig lipsă → exception.
+> **Pre-requisit Pas 1.2**: adaugă enum `InterestKind` (REMUNERATORIE | PENALIZATOARE) cu `label()`.
 >
-> Commit: `feat(calc): InterestCalculatorService implementing OG 13/2011`.
+> Teste: `tests/Service/Calculation/InterestCalculatorServiceTest.php` cu minim 8 scenarii:
+> 1. Raport COMERCIAL + PENALIZATOARE, perioadă o singură rată, 90 zile.
+> 2. Raport CIVIL + PENALIZATOARE, perioadă peste 2 schimbări de rată BNR — verifică formula `(BNR + 8) × 0,80` (NU `BNR + 4`).
+> 3. Raport COMERCIAL + REMUNERATORIE — verifică = `BNR` (fără +8 pp).
+> 4. Raport CIVIL + REMUNERATORIE — verifică = `BNR × 0,80`.
+> 5. dueDate = referenceDate → 0.
+> 6. Sub o zi (≤ 0 zile) → 0.
+> 7. Peste prescripție (3+ ani) — calculul rulează, prescripția e tratată separat (vezi `PrescriptionCalculator` propus în analiza Faza 2).
+> 8. InterestRateConfig lipsă → exception.
+> 9. Currency != RON → `\InvalidArgumentException`.
+>
+> Commit: `feat(calc): InterestCalculatorService implementing OG 13/2011 (penalizator/remuneratoriu, formula CIVIL corectă)`.
 
 ---
 
@@ -553,26 +573,40 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 
 **Rezultat**: _(va fi completat la marcarea ca DONE)_
 
+> 🔴 **REVIZIE JURIDICĂ 2026-05-08** (din analiza Faza 2):
+> - **Pragul `500 RON` din spec inițial NU corespunde nici unei forme cunoscute a OUG 80/2013**. Cea mai probabilă realitate juridică actuală: **taxă fixă 200 RON** (forma actuală art. 6 alin. 2). Forma cu praguri (50/200 RON la 2.000 RON) a existat în versiuni anterioare, NU pe pragul 500 RON.
+> - **VALIDARE JURIDICĂ INDISPENSABILĂ**: înainte de implementare, avocatul/responsabilul juridic verifică pe legislatie.just.ro forma actuală OUG 80/2013 art. 6 (cu toate modificările) și confirmă valoarea/regula curentă.
+> - **Audit**: persistă pe `LegalCase` câmp `stampDutyLawVersion` (string, ex: `"OUG 80/2013 art. 6 alin. 2 — text aplicabil 2026-05-01"`) populat la calcul, pentru justificare retroactivă.
+
 **PROMPT**:
 > Implementează `src/Service/Calculation/StampDutyCalculator.php`:
 > ```php
-> public function calculate(float $amount): float
+> public function calculate(float $amount): StampDutyResult
+> // StampDutyResult = record { float amount; string lawVersion; }
 > ```
-> Reguli (OUG 80/2013 art. 6 — verifică valori înainte!):
-> - suma ≤ 500 RON → 50 RON
-> - suma > 500 RON → 200 RON
+> Reguli (OUG 80/2013 art. 6 — DUPĂ validare juridică):
+> - **Variantă A (recomandată — cel mai probabil corect)**: taxă fixă **200 RON** pentru orice cerere OP.
+> - **Variantă B (dacă verificarea confirmă praguri)**: ajustează valori pe text legal actualizat.
 >
-> Configurabil prin `config/services.yaml` parameters (`app.taxa_timbru_op.under_500` și `app.taxa_timbru_op.over_500`).
+> Configurabil prin `config/services.yaml` parameter `app.taxa_timbru_op.fixed = 200` (sau parametri suplimentari pentru praguri dacă Variantă B).
 >
-> Teste: 4 cazuri (sub prag, exact prag, peste prag, suma 0).
+> Teste: 4 cazuri (suma 0, suma mică, suma medie, suma foarte mare — toate returnează 200 RON pentru Variantă A).
 >
-> Commit: `feat(calc): StampDutyCalculator (OUG 80/2013)`.
+> Commit: `feat(calc): StampDutyCalculator (OUG 80/2013 — taxă fixă, audit version)`.
 
 ---
 
-### PASUL 2.3 | `CompetentCourtResolver` | 0.5 zi | 30% reutilizare
+### PASUL 2.3 | `CompetentCourtResolver` | 0.75 zi | 30% reutilizare
 
 **Rezultat**: _(va fi completat la marcarea ca DONE)_
+
+> 🔴 **REVIZIE JURIDICĂ 2026-05-08** (din analiza Faza 2):
+> - **Pragul valoric (200.000 RON) e CORECT** ✓ conform CPC art. 94 pct. 1 lit. k și art. 95 pct. 1.
+> - **BLOCKER fixat**: signature originală `resolve(amount, county)` cu fallback "prima judecătorie activă pe județ" garantează cerere depusă la instanță necompetentă teritorial în 70%+ din cazuri reale (multe județe au 2-4 judecătorii; București are 6 judecătorii pe sectoare). Risc real de declinare CPC art. 130-131.
+> - **Refactor obligatoriu**: signature primește **localitate** (nu doar județ), iar `Court` entity primește câmp `localitatiArondate` (raza teritorială). Resolver returnează DTO `CourtResolveResult` (court principal + alternative + explicație) — NICIODATĂ "prima activă" silent.
+> - **Pre-requisit Pas 1.1/1.4**: extinde `Court.localitatiArondate` (JSON) și fixtures cu raze pentru București (6 sectoare) + Cluj/Iași/Constanța (multiple judecătorii).
+> - **Domeniu service**: determină DOAR competența default (CPC art. 107 — domiciliu/sediu debitor). Competența alternativă (art. 113 — locul executării; art. 126 — clauză contractuală) se gestionează în wizard step 4 prin override manual cu câmp `motivareCompetenta`.
+> - Tribunale specializate (Cluj/Mureș/Argeș) — NU se aplică default; necesită opt-in explicit la wizard pentru raporturi între profesioniști. Post-MVP.
 
 **PROMPT**:
 > Implementează `src/Service/Court/CompetentCourtResolver.php`.
@@ -581,50 +615,87 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 >
 > Metoda:
 > ```php
-> public function resolve(float $amount, string $county): ?Court
+> public function resolve(
+>     float $amount,
+>     ?string $debtorCounty,
+>     ?string $debtorLocality = null,
+> ): CourtResolveResult
+> // CourtResolveResult = record { ?Court court; list<Court> alternatives; string explanation; }
 > ```
-> Reguli (CPC art. 1015):
-> - suma ≤ 200_000 → tip = JUDECATORIE, judet matchat.
-> - suma > 200_000 → tip = TRIBUNAL, judet matchat.
+> Reguli (CPC art. 1015 + art. 94/95 + art. 107):
+> - suma > 200_000 → tip = TRIBUNAL, județ debitor (un singur tribunal pe județ — caz simplu).
+> - suma ≤ 200_000 → tip = JUDECATORIE, **localitate** debitor matchată pe `Court.localitatiArondate`.
+>   - București: localitate = "Sector N" (parser pe adresă debitor — vezi `BucharestSectorParser` la wizard step debitor).
+>   - Județe cu mai multe judecătorii: match pe localitate exactă (Cluj-Napoca vs Turda vs Huedin).
+>
+> **Pre-requisit Pas 1.1**: pe entity `Court` adaugă câmp `localitatiArondate` (JSON, listă de localități/sectoare). Migrare suplimentară 2.3a.
 >
 > Adaugă în `CourtRepository`:
 > ```php
-> public function findOneByTypeAndCounty(CourtType $type, string $county): ?Court
+> public function findCandidatesByTypeAndLocality(CourtType $type, ?string $county, ?string $locality): array
 > ```
 >
 > Edge cases:
-> - județ neexistent → returnează null (avocatul alege manual).
-> - mai multe judecătorii pe județ → returnează prima activă (sau cea mai populară — TBD; pentru MVP: prima activă).
+> - localitate nematchată sau ambiguu → `CourtResolveResult` cu `court=null + alternatives=[lista]` + mesaj clar pentru avocat să aleagă manual (NICIODATĂ "prima activă" — risc juridic).
+> - județ neexistent → `CourtResolveResult(court=null, alternatives=[], explanation='court.resolver.county_unknown')`.
 >
-> Teste: 4 scenarii (sub prag, peste prag, județ inexistent, sumă 0).
+> Teste: 6 scenarii:
+> 1. Sub prag, județ cu match unic localitate → court ales.
+> 2. Sub prag, județ cu match multiplu (Cluj-Napoca / Turda / Huedin) → alternative.
+> 3. Sub prag, fără match → court=null + alternative=[].
+> 4. București + parsing sector ("str. X, sector 3") → Judecătoria Sectorului 3.
+> 5. Peste prag → tribunal pe județ.
+> 6. Sumă 0 → exception sau return cu explanation.
 >
-> Commit: `feat(court): CompetentCourtResolver with CPC art. 1015 thresholds`.
+> Commit: `feat(court): CompetentCourtResolver — CPC art. 1015, raza teritorială pe localitate, multi-candidate handling`.
 
 ---
 
-### PASUL 2.4 | `OnrcLookupService` (V1 stub) | 0.25 zi | 0% reutilizare
+### PASUL 2.4 | `AnafLookupService` integration + `OpAdmissibilityValidator` | 0.5 zi | 80% reutilizare
 
 **Rezultat**: _(va fi completat la marcarea ca DONE)_
 
+> 🔴 **REVIZIE JURIDICĂ 2026-05-08** (din analiza Faza 2 + clarificare user):
+> - **ELIMINAT**: `OnrcLookupService` + `OnrcLookupServiceInterface` + `ManualOnrcLookupService` + entitate `OnrcCheck`. **ONRC NU oferă API public oficial**. Propunerea inițială pe `openapi.ro` a fost o ipoteză greșită — openapi.ro e un scraper terț neoficial cu cost/risc juridic. Forma originală a Pasului 2.4 (V1 stub care returnează mereu null) era ceremonie inutilă.
+> - **PĂSTRAT din analiza inițială**:
+>   - **`OpAdmissibilityValidator`** (serviciu nou) — blochează generarea PDF / submit wizard pentru debitori PJ în stare incompatibilă cu OP.
+>   - Câmpuri pe `Debitor` pentru audit diligență profesională.
+> - **NOU**: integrare cu **`AnafLookupService` deja existent** (`src/Service/Company/AnafLookupService.php` — apelează API-ul oficial ANAF, gratuit, returnează companyName, CUI, nrRegCom, adresa, stare ACTIV/INACTIV/RADIAT, codCAEN, plătitor TVA). Acoperă automat **denumire + adresă + status fiscal + status RADIAT**.
+> - **Limitare ANAF**: NU returnează insolvența (L 85/2014). Pentru insolvență sursa este **BPI — Buletinul Procedurilor de Insolvență** (bpi.just.ro), care **nu are API**. Avocatul verifică manual și marchează în UI flag `inInsolvency = true` + atașează PDF publicare BPI ca `Document` (probă audit).
+> - **Persoană fizică debitor**: Buletinul Insolvenței Persoanelor Fizice (L 151/2015) — manual + PDF, post-MVP.
+
 **PROMPT**:
-> Implementează `src/Service/Company/OnrcLookupService.php`:
-> ```php
-> interface OnrcLookupServiceInterface {
->     public function lookup(string $cui): ?OnrcResult;
-> }
-> ```
+> 1. **Enum `AnafStatus`** la Pas 1.2 backfill: ACTIV, INACTIV, RADIAT + `label()` i18n. Folosit pentru tipare câmp pe `Debitor`.
 >
-> `OnrcResult` (record): `cui, status (ACTIV|DIZOLVAT|INSOLVENTA|null), checkedAt`.
+>    Notă: `Debitor.onrcStatus` (string nullable, deja existent din Pas 1.1) se redenumește semantic în `anafStatus` (sau lasă numele dacă e cost mare de migrare — important e tipul). Status-ul provine din ANAF, nu ONRC. Migrare Doctrine: rename column + tipare cu `enumType: AnafStatus::class`.
 >
-> Implementare V1 — `ManualOnrcLookupService`: returnează mereu `null` (avocatul setează manual `Debitor.onrcStatus` în UI). Loghează intenția.
+> 2. **Adaugă pe `Debitor`** (Pas 1.1 backfill sau migrare suplimentară 2.4a):
+>    - `anafCheckedAt` (\DateTimeImmutable nullable) — momentul ultimei interogări ANAF.
+>    - `inInsolvency` (bool default false) — manual entry, debitor în procedură insolvență (L 85/2014).
+>    - `insolvencyCheckedAt` (\DateTimeImmutable nullable) — momentul verificării manuale BPI.
+>    - `bpiProofDocumentId` (FK la `Document` nullable) — PDF publicare BPI atașat ca probă.
+>    - `nrRegCom` (string nullable, ex: "J40/12345/2020") — numărul Registrului Comerțului, populat din ANAF.
 >
-> Pregătire V2 (post-MVP): un al doilea implementor, `ApiOnrcLookupService`, care va face HTTP call. Lasă constructorul gol și un TODO clar.
+> 3. **Reuse existent**: `AnafLookupService::lookupByCui()` returnează `stare` (ACTIV / INACTIV / RADIAT). Wizard step "Debitor" apelează deja (sau urmează să apeleze) acest serviciu la introducerea CUI și pre-populează: `name`, `address` (street/city/county/postalCode), `nrRegCom`, `anafStatus = stare`, `anafCheckedAt = now()`. NU se construiește service nou.
 >
-> Adaugă entitate `OnrcCheck` (cache 24h) la Pas 1.1 — sări pentru moment, V1 stub nu are nevoie.
+> 4. **Validator** `src/Service/Validation/OpAdmissibilityValidator.php`:
+>    - Constructor: nimic (reguli pure).
+>    - `validate(LegalCase $case): list<AdmissibilityIssue>` — DTO `AdmissibilityIssue` cu `severity (ERROR|WARNING)`, `code`, `messageKey` (i18n).
+>    - Reguli per debitor PJ:
+>      1. `anafStatus = RADIAT` → ERROR `OP_BLOCKED_DEREGISTERED` (fără personalitate juridică).
+>      2. `inInsolvency = true` → ERROR `OP_BLOCKED_INSOLVENCY` (L 85/2014 — creanța la masa credală, nu OP).
+>      3. `anafStatus = INACTIV` → WARNING `OP_DEFENDANT_FISCALLY_INACTIVE` (recuperare improbabilă, dar OP nu e blocat juridic).
+>      4. `anafStatus IS NULL` (debitor PJ neverificat ANAF) → WARNING `OP_ANAF_NOT_VERIFIED`.
+>      5. `anafCheckedAt` mai vechi de 30 zile → WARNING `OP_ANAF_STALE` (datele ANAF se schimbă).
+>      6. PJ + `inInsolvency` flag NU a fost setat (`insolvencyCheckedAt IS NULL`) → WARNING `OP_INSOLVENCY_NOT_VERIFIED` (avocatul trebuie să fi verificat BPI).
+>      7. PF debitor — fără validări automate; mențiune în UI că BIPF (L 151/2015) trebuie verificat manual de avocat.
+>    - Apelat în Pas 5 (PDF generation — refuză generarea dacă există ERROR) și Pas 7 (submit wizard — afișează ERROR/WARNING block).
 >
-> Teste: contract test pe interface (mock + null result).
+> 5. **Teste**:
+>    - `OpAdmissibilityValidatorTest` — 8 scenarii: ACTIV+insolvency=false (no issue), RADIAT (ERROR), inInsolvency=true (ERROR), INACTIV (WARNING), anafStatus null (WARNING), anafCheckedAt > 30 zile (WARNING), insolvencyCheckedAt null (WARNING), PF debitor (no errors auto).
+>    - Tests pentru `AnafLookupService` deja există (`tests/Service/Company/AnafLookupServiceTest.php`).
 >
-> Commit: `feat(company): OnrcLookupService V1 stub (manual entry)`.
+> Commit: `feat(company): OpAdmissibilityValidator (CPC art. 1014, L 85/2014) + Debitor ANAF/BPI fields`.
 
 ---
 
@@ -635,6 +706,19 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 **Scop**: serviciu cu cascadă în 4 trepte care extrage automat date (creditor, debitor, sumă, scadență) din documente sursă uploadate. Treapta 2 (OCR + AI text) este "calul de povară" pentru documente scanate.
 
 **Specificație**: secțiunea 7.4 din `ANALIZA-FLUXURI-LEXRECOVERY.md`.
+
+> 🔴 **REVIZIE 2026-05-08** (din analiza Faza 2):
+> - **Subdimensionare timp**: "2 zile" e nerealist pentru tot pipeline-ul (Tesseract + 4 strategii + Claude text + vision + GDPR + tests). Realist: **5-7 zile**.
+> - **Recomandare scope MVP**: sparge în două sub-pași:
+>   - **Pas 2.5a (MVP, 1 zi)**: `DataExtractionService` orchestrator + `PdfParserExtractionStrategy` (treapta 1) + `StubExtractionStrategy` (treapta 4). Acoperă PDF-uri text-based (contracte digitale, facturi electronice). Suficient pentru beta.
+>   - **Pas 2.5b (POST-MVP, 4-5 zile)**: `OcrTextExtractionStrategy` (Tesseract + Claude text — treapta 2) + `AiVisionExtractionStrategy` (treapta 3). Necesită DPA Anthropic semnat înainte.
+> - **GDPR — corecții obligatorii pentru 2.5b**:
+>   - Default `extractionMode = LOCAL_ONLY` (NU `BALANCED` cum spune spec) — principiul minimizării GDPR. Avocatul activează explicit BALANCED.
+>   - Override per dosar pe `LegalCase.extractionModeOverride` (?ExtractionMode) pentru cazuri sensibile.
+>   - Audit log per apel AI: documentId, strategy, tokensIn, tokensOut, timestamp, responseHash (`AuditLog` category `AI_EXTRACTION`).
+>   - DPA Anthropic semnat și arhivat înainte de live.
+> - **Categorii temei juridic**: `legalGround` ca string liber e insuficient pentru validare CPC art. 1014. Adaugă enum `LegalGroundCategory` la Pas 1.2 backfill (CONTRACT_VANZARE, CONTRACT_PRESTARI_SERVICII, CONTRACT_LOCATIUNE, CONTRACT_IMPRUMUT, FACTURA_ACCEPTATA, BILET_LA_ORDIN, CEC, CAMBIE, ALTE_INSCRISURI). Folosit atât în extracție cât și în wizard step claim.
+> - **Reflex juridic**: extracția = pre-populare; avocatul re-verifică TOATE câmpurile. UI Pas 3.0 trebuie să marcheze pre-populările cu badge "auto" + cere confirmare per câmp critic (CUI, sumă, scadență).
 
 **PROMPT**:
 > Implementează sistem de extracție date documente cu cascadă în 4 trepte.
@@ -1416,7 +1500,7 @@ După Pas 9.1, rulează manual următorul flow complet:
 
 ## Pași 100% de la zero (efort maxim)
 
-- 0.1 (ștergeri), 1.2 (enum-uri noi), 2.1 (InterestCalculator), 2.2 (StampDuty), 2.4 (OnrcStub), **2.5 (DataExtractionService cu strategii AI/PdfParser/Stub)**, **3.0 (Step 0 wizard cu polling Turbo)**, 4.1 (DeadlineService), 4.3 (UI termene), 8.2 (gateway stub).
+- 0.1 (ștergeri), 1.2 (enum-uri noi), 2.1 (InterestCalculator), 2.2 (StampDuty), 2.4 (OpAdmissibilityValidator + integrare AnafLookupService existent — 80% reuse), **2.5 (DataExtractionService cu strategii AI/PdfParser/Stub)**, **3.0 (Step 0 wizard cu polling Turbo)**, 4.1 (DeadlineService), 4.3 (UI termene), 8.2 (gateway stub).
 
 ---
 
@@ -1424,7 +1508,7 @@ După Pas 9.1, rulează manual următorul flow complet:
 
 | # | Risc | Mitigare |
 |---|---|---|
-| R1 | API ONRC | V1 stub manual; V2 post-MVP |
+| R1 | ~~API ONRC~~ ELIMINAT — ONRC nu are API; date companie via ANAF API oficial (deja integrat); insolvență via BPI manual + PDF | — |
 | R2 | Coolify cron | Backup `symfony/scheduler` |
 | R3 | DomPDF layout complex | Migrare Gotenberg dacă apare nevoia |
 | R4 | Taxa timbru OP exactă | Validare juridică pre-Pas 2.2 |
