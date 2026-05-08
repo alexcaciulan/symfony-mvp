@@ -54,7 +54,7 @@
 | 1.2 | Domain | Enum-uri noi (CaseStatus, CaseTransition, PersonType, RelationshipType, DeadlineType, DeadlinePriority) | 0.5z | 0.1 | 0% | ✅ |
 | 1.3 | Domain | Workflow YAML refăcut + ajustare `CaseWorkflowService` | 0.5z | 1.1, 1.2 | 70% | ✅ |
 | 1.4 | Domain | Migrare baseline + fixtures + `app:seed-demo-cases` | 0.5z | 1.1, 1.2 | 80% | ✅ |
-| 1.5 | Domain | Foundație i18n + backfill (enum labels → trans keys, homepage, Stimulus messages, ANAF exceptions) | 1z | 1.4 | 30% | ⏳ |
+| 1.5 | Domain | Foundație i18n + backfill (enum labels → trans keys, homepage, Stimulus messages, ANAF exceptions) | 1z | 1.4 | 30% | ✅ |
 | 2.1 | Calcule | `InterestCalculatorService` (OG 13/2011) | 0.75z | 1.1 | 0% | ⏳ |
 | 2.2 | Calcule | `StampDutyCalculator` (OUG 80/2013) | 0.25z | — | 0% | ⏳ |
 | 2.3 | Calcule | `CompetentCourtResolver` | 0.5z | 1.1 | 30% | ⏳ |
@@ -455,9 +455,9 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 
 ---
 
-### PASUL 1.5 | Foundație i18n + retroactive backfill | 1 zi | 30% reutilizare
+### PASUL 1.5 | Foundație i18n + retroactive backfill | 1 zi | 30% reutilizare ✅ DONE 2026-05-08 (`8cc92a6`)
 
-**Rezultat**: _(va fi completat la marcarea ca DONE)_
+**Rezultat**: 12 enum-uri refactorizate (`label()` returnează cheie `enum.<bucket>.<value>`), ~80 chei noi în `messages.{ro,en}.yaml` (best-effort EN), homepage rescris pentru LexRecovery via `|trans`, 4 Stimulus controllers cu data attributes pattern, AnafLookupService aruncă chei. Admin call-sites consumă cheile prin `TranslatorInterface` injectat — admin UI labels rămân hardcoded RO (decizie scope, admin = audiență tech). 100/100 teste in scope verzi (incl. nou `EnumLabelKeysExistTest` cu 154 assertion-uri anti-drift). Detalii: `~/.claude/projects/-Users-alexc-Downloads-myprojects-symfony-mvp/memory/project_lexrecovery_pas_1_5.md`.
 
 **Scop**: toate stringurile user-facing **non-admin** trec prin Symfony Translator; deblochează scalarea pe en/de/etc. Backfill pentru pașii 1.1–1.4 deja livrați.
 
