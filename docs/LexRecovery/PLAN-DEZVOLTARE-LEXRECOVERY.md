@@ -55,7 +55,7 @@
 | 1.3 | Domain | Workflow YAML refăcut + ajustare `CaseWorkflowService` | 0.5z | 1.1, 1.2 | 70% | ✅ |
 | 1.4 | Domain | Migrare baseline + fixtures + `app:seed-demo-cases` | 0.5z | 1.1, 1.2 | 80% | ✅ |
 | 1.5 | Domain | Foundație i18n + backfill (enum labels → trans keys, homepage, Stimulus messages, ANAF exceptions) | 1z | 1.4 | 30% | ✅ |
-| 2.1 | Calcule | `InterestCalculatorService` (OG 13/2011) | 0.75z | 1.1 | 0% | ⏳ |
+| 2.1 | Calcule | `InterestCalculatorService` (OG 13/2011) | 0.75z | 1.1 | 0% | ✅ |
 | 2.2 | Calcule | `StampDutyCalculator` (OUG 80/2013) | 0.25z | — | 0% | ⏳ |
 | 2.3 | Calcule | `CompetentCourtResolver` | 0.5z | 1.1 | 30% | ⏳ |
 | 2.4 | Calcule | `AnafLookupService` integration + `OpAdmissibilityValidator` (CPC art. 1014, L 85/2014) + Debitor ANAF/BPI fields | 0.5z | 1.1 | 80% | ⏳ |
@@ -407,7 +407,7 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 > - Renamează tagging-ul din `legal_case` în `dosar`.
 > - Schimbă type hints din `LegalCase` în `LegalCase`.
 > - Update `getAvailableTransitions(LegalCase $legalCase): array` și `apply(LegalCase $legalCase, string $transition): void`.
-> - Mută în `src/Service/Dosar/DosarWorkflowService.php` (rename).
+> - Mută în `src/Service/Dosar/CaseWorkflowService.php` (rename).
 >
 > Update `src/Security/Voter/CaseVoter.php` → `CaseVoter.php`:
 > - Permisiuni: `CASE_VIEW`, `CASE_EDIT`, `CASE_TRANSITION`, `CASE_UPLOAD`.
@@ -500,9 +500,9 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 
 > Toate cele 4 servicii sunt **paralelizabile** — pot fi implementate în 4 sub-branch-uri sau 4 prompt-uri consecutive fără dependențe între ele (în afara Pas 1.1 care e prerequisit pentru toate).
 
-### PASUL 2.1 | `InterestCalculatorService` | 0.75 zi | 0% reutilizare
+### PASUL 2.1 | `InterestCalculatorService` | 0.75 zi | 0% reutilizare ✅ DONE 2026-05-08 (`f9e84dc`)
 
-**Rezultat**: _(va fi completat la marcarea ca DONE)_
+**Rezultat**: livrat `InterestCalculatorService` cu signature revizuit (penalizator/remuneratoriu + currency guard); enum nou `InterestKind`; `RelationshipType::nbrPercentagePoints()` înlocuit cu `applicableRate(BNR, kind)` care implementează cele 4 formule OG 13/2011 art. 3 (CIVIL+PENALIZATOARE = `(BNR+8)×0.80`, NU `BNR+4`); DTOs `InterestResult`/`InterestPeriod`; 9 scenarii de test verzi. Detalii: `~/.claude/projects/-Users-alexc-Downloads-myprojects-symfony-mvp/memory/project_lexrecovery_pas_2_1.md`.
 
 **Scop**: calcul dobândă legală conform OG 13/2011 cu istoric BNR.
 
@@ -1003,27 +1003,13 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 >
 > Update `assets/controllers.json` cu controller-ele noi (creditor-mode, debitor-anaf-lookup).
 >
-> Update `config/packages/rate_limiter.yaml`: NU mai e nevoie de `live_calc` (Live Components fac POST direct la endpoint server, nu API custom).
+> Notă: NU se mai adaugă rate limiter `live_calc` — Live Components fac POST direct la endpoint server intern, nu prin API custom expus.
 >
 > Teste: `tests/Twig/Components/Step3ClaimLiveComponentTest.php` cu schimbare props + assertion pe valori calculate.
 >
 > Rulează `bin/console importmap:install` și `make tailwind` la final.
 >
 > Commit: `feat(wizard): Step3ClaimLiveComponent + UX Autocomplete creditor + ANAF lookup Stimulus`.
->
-> Endpoint-uri:
-> - `src/Controller/Api/CalculationController.php`: ruta `/api/case/live-calc` (POST, rate-limited cu un nou rate limiter `live_calc` — 60/oră per user). Folosește serviciile de la Faza 2.
-> - `src/Controller/Api/LookupController.php`: rutele `/api/creditor/search` (GET, returnează creditori ai user-ului curent care match query) și `/api/anaf-lookup/{cui}` (GET, refolosește `AnafLookupService` cu rate limiter `company_lookup` existent).
->
-> Update `config/packages/rate_limiter.yaml`: adaugă `live_calc` (60/h per user, sliding window).
->
-> Update `assets/controllers.json` cu cei 3 controllers noi.
->
-> Teste funcționale: `tests/Controller/Api/CalculationControllerTest.php` și `LookupControllerTest.php` — verificare răspunsuri JSON + rate limiting + auth.
->
-> Rulează `bin/console importmap:install` și `make tailwind` la final.
->
-> Commit: `feat(wizard): live calculation + creditor/debtor autocomplete (Stimulus + API endpoints)`.
 
 ---
 
@@ -1068,9 +1054,9 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 **Rezultat**: _(va fi completat la marcarea ca DONE)_
 
 **PROMPT**:
-> 1. Refactorizează `src/EventSubscriber/CaseWorkflowSubscriber.php` → `src/EventSubscriber/CaseWorkflowSubscriber.php`. Schimbă tag-ul `workflow.legal_case.completed` în `workflow.dosar.completed`. Persistă `CaseStatusHistory` (rebrand intern: relația devine `LegalCase` în loc de `LegalCase` la nivel FK; nume tabel rămâne `case_status_history` pentru compatibilitate). Persistă `AuditLog`.
+> 1. Adaptează `src/EventSubscriber/CaseWorkflowSubscriber.php` (existent) la noul workflow: tag-ul evenimentelor rămâne `workflow.legal_case.*` (workflow-ul Symfony se numește `legal_case` per `config/packages/workflow.yaml` — NU rebrand la `dosar` în cod, conform regulii "no Romanian identifiers"). Persistă `CaseStatusHistory` + `AuditLog` la fiecare tranziție (logică deja existentă).
 >
-> 2. Creează `src/EventSubscriber/DeadlineCreationSubscriber.php`. Ascultă `workflow.dosar.entered` evenimente specifice:
+> 2. Creează `src/EventSubscriber/DeadlineCreationSubscriber.php`. Ascultă `workflow.legal_case.entered` evenimente specifice:
 >    - `entered.somatie_trimisa` → `DeadlineService::createPaymentNoticeDeadline(dosar, dosar.paymentNoticeDate)`. **paymentNoticeDate** trebuie setată de avocat la tranziție; vezi pas 7.2 (UI butoane tranziție).
 >    - `entered.ordonanta_emisa` → `DeadlineService::createAppealDeadline(dosar, rulingDate)`. **rulingDate** = data evenimentului portal sau setată manual.
 >    - `entered.dosar_inregistrat` → reminder DEPUNERE_CERERE (deja a fost depusă) — nu, sărim acest reminder.
@@ -1226,11 +1212,11 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 
 **PROMPT**:
 > 1. Creează `src/EventSubscriber/EmailNotificationSubscriber.php`. Ascultă:
->    - `workflow.dosar.entered.somatie_trimisa` → email "Somație generată".
->    - `workflow.dosar.entered.cerere_depusa` → email "Cerere OP gata, descarcă ZIP".
->    - `workflow.dosar.entered.ordonanta_emisa` → email "Ordonanță emisă! 10 zile termen contestație".
->    - `workflow.dosar.entered.definitiva` → email "Titlu executoriu obținut".
->    - `workflow.dosar.entered.respinsa` → email "Cerere/contestație respinsă".
+>    - `workflow.legal_case.entered.somatie_trimisa` → email "Somație generată".
+>    - `workflow.legal_case.entered.cerere_depusa` → email "Cerere OP gata, descarcă ZIP".
+>    - `workflow.legal_case.entered.ordonanta_emisa` → email "Ordonanță emisă! 10 zile termen contestație".
+>    - `workflow.legal_case.entered.definitiva` → email "Titlu executoriu obținut".
+>    - `workflow.legal_case.entered.respinsa` → email "Cerere/contestație respinsă".
 >    - Eveniment custom `App\Event\TermenAlertEvent` (dispatch din `DeadlineAlertService`) → email "Termen X — N zile rămase".
 >    - Eveniment custom `App\Event\PortalEventDetectedEvent` → email "Activitate nouă pe portal — Dosar X".
 >
@@ -1329,7 +1315,7 @@ Twig template-ul randat de `DashboardController` se inspiră din mock-up-uri (ce
 >
 > **Status badge live update**: container cu `data-mercure-topic-value="case/{id}/status-change"` — dacă alt avocat sau cron schimbă statusul, badge-ul se actualizează fără reload.
 >
-> În header view dosar: butoane tranziții valide (cu helper `DosarWorkflowService::getAvailableTransitions`). Click pe tranziție → modal cu confirmare + câmp opțional "Data X" (pentru tranziții care au nevoie: paymentNoticeDate pentru `trimite_somatie`, rulingDate pentru `emite_ordonanta`). POST CSRF la `/dosar/{id}/transition` (rută nouă în controller).
+> În header view dosar: butoane tranziții valide (cu helper `CaseWorkflowService::getAvailableTransitions`). Click pe tranziție → modal cu confirmare + câmp opțional "Data X" (pentru tranziții care au nevoie: paymentNoticeDate pentru `trimite_somatie`, rulingDate pentru `emite_ordonanta`). POST CSRF la `/dosar/{id}/transition` (rută nouă în controller).
 >
 > La tranziția `trimite_somatie`: setează `dosar.paymentNoticeDate` din formular + apel `PaymentNoticeGeneratorService::generate(dosar)` + apel workflow.
 > La tranziția `depune_cerere`: apel `PaymentOrderRequestGeneratorService::generate(dosar)` + `OpisGeneratorService::generate(dosar)` + apel workflow.
