@@ -5,6 +5,8 @@
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
     app.mailer_from: '%env(MAILER_FROM)%'
+    app.taxa_timbru_op.fixed: 200.0
+    app.taxa_timbru_op.law_version: 'OUG 80/2013 art. 6 alin. 2 — text aplicabil 2026-05-01'
 
 services:
     # default configuration for services in *this* file
@@ -26,3 +28,8 @@ services:
         arguments:
             $property: 'status'
             $enumClass: 'App\Enum\CaseStatus'
+
+    App\Service\Calculation\StampDutyCalculator:
+        arguments:
+            $fixedAmount: '%app.taxa_timbru_op.fixed%'
+            $lawVersion: '%app.taxa_timbru_op.law_version%'
