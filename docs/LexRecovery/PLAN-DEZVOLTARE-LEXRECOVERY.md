@@ -367,7 +367,9 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 
 ---
 
-### PASUL 1.3 | Workflow YAML refăcut | 0.5 zi | 70% reutilizare
+### PASUL 1.3 | Workflow YAML refăcut | 0.5 zi | 70% reutilizare ✅ DONE 2026-05-08 (`7a2fdf0`)
+
+**Rezultat**: 12 places + 12 tranziții cablate la `CaseStatus` enum prin `EnumMarkingStore` custom (BackedEnum support). Workflow rămâne `legal_case` (rename la `dosar` evitat per decizia user). Voter `CASE_TRANSITION` adăugat. 43/43 teste in scope verzi (37 ✅ + 6 ⏭️ pending Pas 1.4 baseline). Detalii: `~/.claude/projects/-Users-alexc-Downloads-myprojects-symfony-mvp/memory/project_lexrecovery_pas_1_3.md`.
 
 **Scop**: rescriem state machine pentru fluxul LexRecovery.
 
