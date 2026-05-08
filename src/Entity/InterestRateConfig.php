@@ -15,8 +15,8 @@ class InterestRateConfig
     #[ORM\Column]
     private ?int $id = null;
 
-    #[ORM\Column(type: Types::DATE_MUTABLE, unique: true)]
-    private \DateTimeInterface $validFrom;
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, unique: true)]
+    private \DateTimeImmutable $validFrom;
 
     #[ORM\Column(type: Types::DECIMAL, precision: 5, scale: 2)]
     private string $referenceRate;
@@ -44,12 +44,12 @@ class InterestRateConfig
         return $this->id;
     }
 
-    public function getValidFrom(): \DateTimeInterface
+    public function getValidFrom(): \DateTimeImmutable
     {
         return $this->validFrom;
     }
 
-    public function setValidFrom(\DateTimeInterface $validFrom): static
+    public function setValidFrom(\DateTimeImmutable $validFrom): static
     {
         $this->validFrom = $validFrom;
 

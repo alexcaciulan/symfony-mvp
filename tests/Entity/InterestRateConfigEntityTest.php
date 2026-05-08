@@ -10,7 +10,7 @@ class InterestRateConfigEntityTest extends TestCase
     public function testGettersAndSetters(): void
     {
         $config = new InterestRateConfig();
-        $date = new \DateTime('2026-01-01');
+        $date = new \DateTimeImmutable('2026-01-01');
 
         $config->setValidFrom($date);
         $config->setReferenceRate('6.50');

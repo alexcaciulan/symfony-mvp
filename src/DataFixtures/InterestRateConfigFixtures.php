@@ -30,7 +30,7 @@ class InterestRateConfigFixtures extends Fixture implements FixtureGroupInterfac
     public function load(ObjectManager $manager): void
     {
         foreach (self::RATES as $row) {
-            $validFrom = new \DateTime($row['validFrom']);
+            $validFrom = new \DateTimeImmutable($row['validFrom']);
 
             if ($this->repository->findOneBy(['validFrom' => $validFrom]) !== null) {
                 continue;

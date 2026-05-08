@@ -126,9 +126,9 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 
 ## Faza 0: Bootstrap
 
-### PASUL 0.1 | Branch `lexrecovery` + ștergere cod mort | 0.5 zi | 0% reutilizare
+### PASUL 0.1 | Branch `lexrecovery` + ștergere cod mort | 0.5 zi | 0% reutilizare ✅ DONE 2026-05-07 (`23c82e1`)
 
-**Rezultat**: _(va fi completat la marcarea ca DONE)_
+**Rezultat**: Branch `lexrecovery` creat; șters codul small-claims din spec (TaxCalculator, CaseWizardController, PaymentController, CaseSubmissionService, PaymentProcessingService, Payment entity+repo, PaymentType/PaymentStatus enums, toate Step* DTO/Form, templates `_step*.twig`/`cerere_valoare_redusa.twig`/`payment.twig`, toate `migrations/Version*.php`, 4 teste vizate). Păstrate intacte toate dependențele din lista "NU șterge". `LegalCase` a pierdut `OneToMany Payment`; `DashboardController` a scos widgeturile Payment. Aplicația bootează, parse errors zero. Detalii: `~/.claude/projects/-Users-alexc-Downloads-myprojects-symfony-mvp/memory/project_lexrecovery_pas_0_1.md`.
 
 **Scop**: pornim un branch curat și eliminăm codul care nu mai e relevant pentru LexRecovery.
 
@@ -169,9 +169,9 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 
 ---
 
-### PASUL 0.2 | Frontend Foundations | 1.5 zile | 0% reutilizare (de la zero)
+### PASUL 0.2 | Frontend Foundations | 1.5 zile | 0% reutilizare (de la zero) ✅ DONE 2026-05-08 (`4f0a562`)
 
-**Rezultat**: _(va fi completat la marcarea ca DONE)_
+**Rezultat**: UX foundation livrat: pachete `ux-live-component`/`ux-autocomplete`/`ux-icons`/`mercure-bundle` + Preline (importmap), 10 Stimulus controllers comuni (toast, autosave, dark-mode-toggle, optimistic-action, mercure, dialog, tabs, confirm, skeleton, preline-init), Tailwind v4 cu dark mode + view transitions, container Mercure în `compose.yaml` cu healthcheck în `docker-entrypoint.sh`, 7/7 Twig components (EmptyState, Toast, StatusBadge, Stepper, Skeleton, ConfirmDialog, DeadlineCard), `ToastService` + `MercureTokenService` + extensia Twig `MercureExtension`, base layout updatat, 3 teste (Toast, Mercure, smoke layout). **Out of scope (decizie user 2026-05-08)**: `keyboard-shortcuts_controller.js` + modal help — tăiate; verificarea manuală corespunzătoare nu se aplică. Detalii: `~/.claude/projects/-Users-alexc-Downloads-myprojects-symfony-mvp/memory/project_lexrecovery_pas_0_2.md`.
 
 **Scop**: livrăm o singură dată fundația UX folosită de toate fazele ulterioare — bibliotecă de componente Preline UI, bundle-uri Symfony UX, container Mercure, Stimulus controllers comune, Twig components refolosibile, Tailwind dark mode. Toate fără npm/Node.js.
 
@@ -301,9 +301,9 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 
 ## Faza 1: Domain Model + DB Baseline
 
-### PASUL 1.1 | Entități noi + extindere `LegalCase` | 1.5 zile | 50% reutilizare
+### PASUL 1.1 | Entități noi + extindere `LegalCase` | 1.5 zile | 50% reutilizare ✅ DONE 2026-05-08 (`349a440`)
 
-**Rezultat**: _(va fi completat la marcarea ca DONE)_
+**Rezultat**: `LegalCase` extinsă cu cele 17+ câmpuri din spec (caseNumber generat ca `LR-{timestamp}-{rand4}` în constructor, `markAsDeleted()` + `isDeleted()`, lifecycle `PreUpdate` pe `updatedAt`). 7 entități noi cu mapping Doctrine corect: `Creditor`, `Debtor`, `LegalDeadline`, `InterestRateConfig`, `Plan`, `Subscription`, `Invoice`. Repositories pentru fiecare; `LegalCaseRepository` are `findActiveByUser()` + `findByStatusGroupedByUrgency()`. `Notification` extinsă cu FK opțional spre LegalCase; `Document` extins cu `extractedData`/`extractionStatus`/`extractionConfidence` + index. 8 teste de entitate. Naming `legal_case`/`LegalCase` păstrat intenționat (decizie user) în loc de rename la `dosar`/`Dosar`. Patch ulterior: `InterestRateConfig.validFrom` aliniat la `DATE_IMMUTABLE` (2026-05-08). Detalii: `~/.claude/projects/-Users-alexc-Downloads-myprojects-symfony-mvp/memory/project_lexrecovery_pas_1_1.md`.
 
 **Scop**: definim modelul de domeniu LexRecovery — entități noi (Creditor, Debitor, Termen, InterestRateConfig, Plan, Subscription, Invoice) și restructurăm `LegalCase` în `LegalCase`.
 
@@ -354,9 +354,9 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 
 ---
 
-### PASUL 1.2 | Enum-uri noi | 0.5 zi | 0% reutilizare | **paralel cu 1.1**
+### PASUL 1.2 | Enum-uri noi | 0.5 zi | 0% reutilizare | **paralel cu 1.1** ✅ DONE 2026-05-08 (`70c92f9`)
 
-**Rezultat**: _(va fi completat la marcarea ca DONE)_
+**Rezultat**: 8 enum-uri create în `src/Enum/`: `CaseStatus` (12 valori cu `label`/`color`/`isTerminal`/`isActiveOnPortal`), `CaseTransition` (12 tranziții), `PersonType` (PF/PJ), `RelationshipType` (COMERCIAL/CIVIL cu `nbrPercentagePoints` 8/4), `DeadlineType` (6 valori cu `defaultPrioritate`), `DeadlinePriority` (LOW/MEDIUM/HIGH/CRITICAL cu `color`), `ExtractionStatus` (PENDING/PROCESSING/COMPLETED/FAILED — cerut implicit de Pas 1.1). `DocumentType` extins cu SOMATIE/CERERE_OP/OPIS/DOVADA_COMUNICARE/ACT_CONSTATATOR/ANEXA; CERERE_PDF șters; valorile vechi (DOVADA, CONTRACT, FACTURA, ALT_DOCUMENT) păstrate. Vechiul `CaseStatus`/`CaseTransition` small-claims șters. 8 teste de enum. Detalii: `~/.claude/projects/-Users-alexc-Downloads-myprojects-symfony-mvp/memory/project_lexrecovery_pas_1_2.md`.
 
 **Scop**: definim enum-urile specifice LexRecovery.
 
