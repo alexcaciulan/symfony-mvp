@@ -54,6 +54,7 @@
 | 1.2 | Domain | Enum-uri noi (CaseStatus, CaseTransition, PersonType, RelationshipType, DeadlineType, DeadlinePriority) | 0.5z | 0.1 | 0% | ✅ |
 | 1.3 | Domain | Workflow YAML refăcut + ajustare `CaseWorkflowService` | 0.5z | 1.1, 1.2 | 70% | ✅ |
 | 1.4 | Domain | Migrare baseline + fixtures + `app:seed-demo-cases` | 0.5z | 1.1, 1.2 | 80% | ✅ |
+| 1.5 | Domain | Foundație i18n + backfill (enum labels → trans keys, homepage, Stimulus messages, ANAF exceptions) | 1z | 1.4 | 30% | ⏳ |
 | 2.1 | Calcule | `InterestCalculatorService` (OG 13/2011) | 0.75z | 1.1 | 0% | ⏳ |
 | 2.2 | Calcule | `StampDutyCalculator` (OUG 80/2013) | 0.25z | — | 0% | ⏳ |
 | 2.3 | Calcule | `CompetentCourtResolver` | 0.5z | 1.1 | 30% | ⏳ |
@@ -99,6 +100,7 @@
 - **Teste incremental.** Scrie teste unitare pentru logica de business și teste funcționale pentru controller-e.
 - **Re-verifică reutilizarea.** Înainte să scrii cod nou, verifică fișierele marcate ca "refolosibile" în `ANALIZA-FLUXURI-LEXRECOVERY.md` secțiunea 15.
 - **Identificatori în engleză, cu termeni potriviți contextului proiectului.** Numele de clase, metode, variabile, constante și fișiere se scriu în engleză, alegând termeni cât mai aproape de domeniul juridic/de recuperare creanțe (`LegalCase`, `Creditor`, `Debtor`, `LegalDeadline`, `lawyer`, `caseNumber`, `EnumMarkingStore`). Excepție: dacă un termen românesc are sens legal/operațional clar și nu are echivalent englez bun, **se păstrează în română** — ex: valorile enum `App\Enum\CaseStatus::SOMATIE_TRIMISA`, `App\Enum\DeadlineType::RASPUNS_SOMATIE`, `App\Enum\CaseTransition::trimite_somatie`, `barNumber: 'B-12345'`. Stringurile UI (Twig templates, flash messages, EasyAdmin labels, command `description:`) rămân în română — audiența e română.
+- **Stringuri user-facing non-admin prin translator.** Orice text afișat utilizatorului final (avocat în dashboard/wizard/view dosar, vizitator pe homepage, conținut email, mesaje din Stimulus controllers, exception messages user-friendly) se adaugă ca **chei de traducere** în `translations/messages.ro.yaml` (+ best-effort în `messages.en.yaml`), nu literali în cod. Convenție chei: `dot.notation` ierarhic (`enum.case_status.SOMATIE_TRIMISA`, `home.hero.title`, `flash.case.transition_invalid`, `exception.anaf.cui_invalid`). **Excepție**: stringurile **admin-only** (EasyAdmin entity/field/action labels, template-uri sub `templates/admin/`, flash messages din admin controllers) pot rămâne hardcoded în română — adminul e audiență tech, nu va consuma EN. Chei tehnice (CSRF token errors, log messages, exception messages internal) rămân în engleză literal. Enum-urile expun `label()` care returnează **cheia** (`'enum.case_status.SOMATIE_TRIMISA'`), iar caller-ul aplică `|trans` (Twig) sau `$translator->trans()` (PHP) — nu inject translator în enum.
 
 ---
 
@@ -450,6 +452,46 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 - [ ] În DB: 5 dosare demo create în statusuri diverse.
 
 **TESTE MINIME**: smoke test command + assertion că `doctrine:schema:validate` returnează exit 0.
+
+---
+
+### PASUL 1.5 | Foundație i18n + retroactive backfill | 1 zi | 30% reutilizare
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
+
+**Scop**: toate stringurile user-facing **non-admin** trec prin Symfony Translator; deblochează scalarea pe en/de/etc. Backfill pentru pașii 1.1–1.4 deja livrați.
+
+**Specificație**: regula "Stringuri user-facing non-admin prin translator" din "Reguli pentru lucrul cu Claude Code".
+
+**PROMPT**:
+> 1. **Refactor enum `label()` (12 enum-uri în `src/Enum/`)**: schimbă fiecare metodă `label()` să returneze **cheia de traducere**, nu textul. Pattern: `return 'enum.case_status.' . $this->value;`. Aplicabil pentru `CaseStatus`, `CaseTransition`, `DeadlineType`, `DeadlinePriority`, `PersonType`, `RelationshipType`, `CourtType`, `NotificationChannel`, `PortalEventType`, `UserType`, `DocumentType`, `ExtractionStatus`. Metodele `color()` rămân neatinse.
+>
+> 2. **Adaugă cheile noi** în `translations/messages.ro.yaml` (+ best-effort EN în `messages.en.yaml`). ~56 chei `enum.<bucket>.<value>`, plus chei pentru homepage (`home.hero.*`, `home.steps.*`, `home.benefits.*`), Stimulus (`stimulus.collection.remove`, `stimulus.confirm.default`, `stimulus.company_lookup.*`, `stimulus.optimistic.action_failed`), AnafLookup (`exception.anaf.cui_invalid`, `exception.anaf.unavailable`, `exception.anaf.not_found`).
+>
+> 3. **Update admin call-sites care consumă `enum.label()`** — păstrăm vizibilul prin `trans()` la call-site, NU adăugăm chei admin-specifice:
+>    - `src/Controller/Admin/LegalCaseCrudController.php`: inject `TranslatorInterface`; în `statusChoices()` apelează `$this->translator->trans($status->label())` pentru cheia mapului.
+>    - `src/Controller/Admin/CaseStatusController.php`: inject `TranslatorInterface`; liniile 70-71 schimbă din `CaseStatus::tryFrom(...)?->label()` la `$this->translator->trans($status->label())`. Restul flash messages rămân hardcoded RO.
+>    - `templates/admin/case_change_status.html.twig`: dacă afișează `status.label`, adaugă `|trans`. Restul textului rămâne RO hardcoded.
+>
+> 4. **SKIP — EasyAdmin labels** (decizie scope): NU refactoriza `setEntityLabelInSingular/Plural`, field labels, action labels, filter labels în CRUD controllers. Rămân hardcoded RO.
+>
+> 5. **Extract `templates/home/index.html.twig`**: wrap toate stringurile RO cu `|trans` și adaugă cheile în yaml.
+>
+> 6. **Stimulus controllers** (4 fișiere): mută stringurile hardcoded la data attributes. Pattern: `this.data.get('messageName')` în controller; `data-{controller}-message-name-value="{{ 'key'|trans }}"` în twig. Aplicabil: `collection_controller.js`, `confirm_controller.js`, `company_lookup_controller.js`, `optimistic-action_controller.js`.
+>
+> 7. **`src/Service/Company/AnafLookupService.php`**: aruncă cu cheia ca message: `throw new \DomainException('exception.anaf.cui_invalid')`. La consumer (endpoint AJAX), catch + `$translator->trans()` la JSON response.
+>
+> 8. **Test defensiv**: `tests/I18n/EnumLabelKeysExistTest.php` — pentru fiecare enum case, verifică `getCatalogue('ro')->has($enum->label())`. Previne drift între enum + yaml.
+>
+> Commit: `refactor(i18n): route non-admin user-facing strings through translator (Pas 1.5)`.
+
+**VERIFICARE MANUALĂ**:
+- [ ] Login `admin@test.com` / `password` → admin UI afișează identic cu pre-refactor (badge-urile de status au textul tradus din chei).
+- [ ] Homepage `/` → texte din chei.
+- [ ] `/?_locale=en` pe homepage → texte EN best-effort.
+- [ ] `confirm_controller` cu `data-confirm-message-value` setat → mesaj tradus la apăsare.
+
+**TESTE MINIME**: 1 test (`EnumLabelKeysExistTest`) acoperă toate cele 12 enum-uri × N cazuri.
 
 ---
 
