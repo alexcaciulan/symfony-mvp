@@ -57,9 +57,9 @@ class CaseStatusController extends AbstractController
             $this->workflowService->apply($case, $transition);
 
             $this->auditLogService->log('admin_status_change', 'LegalCase', (string) $case->getId(),
-                ['status' => $oldStatus],
+                ['status' => $oldStatus->value],
                 [
-                    'status' => $case->getStatus(),
+                    'status' => $case->getStatus()->value,
                     'transition' => $transition,
                     'reason' => $reason ?: null,
                 ]
@@ -67,8 +67,8 @@ class CaseStatusController extends AbstractController
 
             $this->em->flush();
 
-            $oldLabel = CaseStatus::tryFrom($oldStatus)?->label() ?? $oldStatus;
-            $newLabel = CaseStatus::tryFrom($case->getStatus())?->label() ?? $case->getStatus();
+            $oldLabel = $oldStatus->label();
+            $newLabel = $case->getStatus()->label();
 
             $this->addFlash('success', sprintf(
                 'Statusul dosarului #%d a fost schimbat: %s → %s',

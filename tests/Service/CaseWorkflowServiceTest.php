@@ -3,8 +3,11 @@
 namespace App\Tests\Service;
 
 use App\Entity\LegalCase;
+use App\Enum\CaseStatus;
 use App\Service\Case\CaseWorkflowService;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use Symfony\Component\Workflow\Exception\NotEnabledTransitionException;
 use Symfony\Component\Workflow\WorkflowInterface;
 
 class CaseWorkflowServiceTest extends KernelTestCase
@@ -14,71 +17,101 @@ class CaseWorkflowServiceTest extends KernelTestCase
     protected function setUp(): void
     {
         self::bootKernel();
+        /** @var WorkflowInterface $workflow */
         $workflow = static::getContainer()->get('state_machine.legal_case');
         $this->service = new CaseWorkflowService($workflow);
     }
 
-    public function testSubmitTransitionFromDraft(): void
+    #[DataProvider('validTransitionsProvider')]
+    public function testValidTransition(CaseStatus $from, string $transition, CaseStatus $to): void
     {
         $case = new LegalCase();
-        $case->setStatus('draft');
+        $case->setStatus($from);
 
-        $this->assertTrue($this->service->can($case, 'submit'));
-        $this->service->apply($case, 'submit');
-        $this->assertSame('pending_payment', $case->getStatus());
+        $this->assertTrue(
+            $this->service->can($case, $transition),
+            sprintf('Expected to be able to apply "%s" from %s', $transition, $from->value)
+        );
+
+        $this->service->apply($case, $transition);
+        $this->assertSame($to, $case->getStatus());
     }
 
-    public function testConfirmPaymentTransition(): void
+    public static function validTransitionsProvider(): array
     {
-        $case = new LegalCase();
-        $case->setStatus('pending_payment');
-
-        $this->assertTrue($this->service->can($case, 'confirm_payment'));
-        $this->service->apply($case, 'confirm_payment');
-        $this->assertSame('paid', $case->getStatus());
+        return [
+            'trimite_somatie'      => [CaseStatus::AMIABIL,            'trimite_somatie',      CaseStatus::SOMATIE_TRIMISA],
+            'depune_cerere'        => [CaseStatus::SOMATIE_TRIMISA,    'depune_cerere',        CaseStatus::CERERE_DEPUSA],
+            'inregistreaza_dosar'  => [CaseStatus::CERERE_DEPUSA,      'inregistreaza_dosar',  CaseStatus::DOSAR_INREGISTRAT],
+            'fixeaza_termen'       => [CaseStatus::DOSAR_INREGISTRAT,  'fixeaza_termen',       CaseStatus::TERMEN_FIXAT],
+            'emite_ordonanta'      => [CaseStatus::TERMEN_FIXAT,       'emite_ordonanta',      CaseStatus::ORDONANTA_EMISA],
+            'respinge'             => [CaseStatus::TERMEN_FIXAT,       'respinge',             CaseStatus::RESPINSA],
+            'contesta'             => [CaseStatus::ORDONANTA_EMISA,    'contesta',             CaseStatus::CONTESTATA],
+            'marcheaza_definitiva' => [CaseStatus::ORDONANTA_EMISA,    'marcheaza_definitiva', CaseStatus::DEFINITIVA],
+            'respinge_contestatie' => [CaseStatus::CONTESTATA,         'respinge_contestatie', CaseStatus::DEFINITIVA],
+            'admite_contestatie'   => [CaseStatus::CONTESTATA,         'admite_contestatie',   CaseStatus::RESPINSA],
+            'inchide_succes'       => [CaseStatus::DEFINITIVA,         'inchide_succes',       CaseStatus::INCHIS_SUCCES],
+            'inchide_insolvabil'   => [CaseStatus::DEFINITIVA,         'inchide_insolvabil',   CaseStatus::INCHIS_PARTIAL_INSOLVABIL],
+        ];
     }
 
-    public function testCannotConfirmPaymentFromDraft(): void
+    public function testInitialMarkingIsAmiabil(): void
     {
         $case = new LegalCase();
-        $case->setStatus('draft');
-
-        $this->assertFalse($this->service->can($case, 'confirm_payment'));
+        $this->assertSame(CaseStatus::AMIABIL, $case->getStatus());
+        $this->assertSame(['trimite_somatie'], $this->service->getAvailableTransitions($case));
     }
 
-    public function testCannotSubmitFromPendingPayment(): void
+    public function testGetAvailableTransitionsFromContestata(): void
     {
         $case = new LegalCase();
-        $case->setStatus('pending_payment');
-
-        $this->assertFalse($this->service->can($case, 'submit'));
-    }
-
-    public function testAvailableTransitionsFromDraft(): void
-    {
-        $case = new LegalCase();
-        $case->setStatus('draft');
-
-        $transitions = $this->service->getAvailableTransitions($case);
-        $this->assertSame(['submit'], $transitions);
-    }
-
-    public function testAvailableTransitionsFromUnderReview(): void
-    {
-        $case = new LegalCase();
-        $case->setStatus('under_review');
+        $case->setStatus(CaseStatus::CONTESTATA);
 
         $transitions = $this->service->getAvailableTransitions($case);
         sort($transitions);
-        $this->assertSame(['accept', 'reject', 'request_info'], $transitions);
+        $this->assertSame(['admite_contestatie', 'respinge_contestatie'], $transitions);
     }
 
-    public function testInvalidTransitionThrowsException(): void
+    public function testGetAvailableTransitionsFromOrdonantaEmisa(): void
     {
         $case = new LegalCase();
-        $case->setStatus('draft');
+        $case->setStatus(CaseStatus::ORDONANTA_EMISA);
 
-        $this->expectException(\LogicException::class);
-        $this->service->apply($case, 'confirm_payment');
+        $transitions = $this->service->getAvailableTransitions($case);
+        sort($transitions);
+        $this->assertSame(['contesta', 'marcheaza_definitiva'], $transitions);
+    }
+
+    public function testCannotApplyTransitionFromWrongPlace(): void
+    {
+        $case = new LegalCase();
+        $case->setStatus(CaseStatus::AMIABIL);
+
+        $this->assertFalse($this->service->can($case, 'depune_cerere'));
+    }
+
+    public function testTerminalRespinsaHasNoOutgoingTransitions(): void
+    {
+        $case = new LegalCase();
+        $case->setStatus(CaseStatus::RESPINSA);
+
+        $this->assertSame([], $this->service->getAvailableTransitions($case));
+    }
+
+    public function testTerminalInchisSuccesHasNoOutgoingTransitions(): void
+    {
+        $case = new LegalCase();
+        $case->setStatus(CaseStatus::INCHIS_SUCCES);
+
+        $this->assertSame([], $this->service->getAvailableTransitions($case));
+    }
+
+    public function testApplyInvalidTransitionThrows(): void
+    {
+        $case = new LegalCase();
+        $case->setStatus(CaseStatus::AMIABIL);
+
+        $this->expectException(NotEnabledTransitionException::class);
+        $this->service->apply($case, 'inchide_succes');
     }
 }

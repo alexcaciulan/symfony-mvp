@@ -4,7 +4,9 @@ namespace App\Tests\Security\Voter;
 
 use App\Entity\LegalCase;
 use App\Entity\User;
+use App\Enum\CaseStatus;
 use App\Security\Voter\CaseVoter;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
 use Symfony\Component\Security\Core\Authorization\Voter\VoterInterface;
@@ -28,7 +30,7 @@ class CaseVoterTest extends TestCase
         $user = new User();
         $case = new LegalCase();
         $case->setUser($user);
-        $case->setStatus('pending_payment');
+        $case->setStatus(CaseStatus::TERMEN_FIXAT);
 
         $token = $this->createToken($user);
 
@@ -44,7 +46,7 @@ class CaseVoterTest extends TestCase
         $other = new User();
         $case = new LegalCase();
         $case->setUser($owner);
-        $case->setStatus('pending_payment');
+        $case->setStatus(CaseStatus::AMIABIL);
 
         $token = $this->createToken($other);
 
@@ -61,7 +63,7 @@ class CaseVoterTest extends TestCase
         $owner = new User();
         $case = new LegalCase();
         $case->setUser($owner);
-        $case->setStatus('pending_payment');
+        $case->setStatus(CaseStatus::DEFINITIVA);
 
         $token = $this->createToken($admin);
 
@@ -71,12 +73,13 @@ class CaseVoterTest extends TestCase
         );
     }
 
-    public function testOwnerCanEditDraft(): void
+    #[DataProvider('editableStatusProvider')]
+    public function testOwnerCanEditInEditableStatuses(CaseStatus $status): void
     {
         $user = new User();
         $case = new LegalCase();
         $case->setUser($user);
-        $case->setStatus('draft');
+        $case->setStatus($status);
 
         $token = $this->createToken($user);
 
@@ -86,12 +89,22 @@ class CaseVoterTest extends TestCase
         );
     }
 
-    public function testOwnerCannotEditNonDraft(): void
+    public static function editableStatusProvider(): array
+    {
+        return [
+            'AMIABIL'         => [CaseStatus::AMIABIL],
+            'SOMATIE_TRIMISA' => [CaseStatus::SOMATIE_TRIMISA],
+            'CERERE_DEPUSA'   => [CaseStatus::CERERE_DEPUSA],
+        ];
+    }
+
+    #[DataProvider('nonEditableStatusProvider')]
+    public function testOwnerCannotEditInNonEditableStatuses(CaseStatus $status): void
     {
         $user = new User();
         $case = new LegalCase();
         $case->setUser($user);
-        $case->setStatus('pending_payment');
+        $case->setStatus($status);
 
         $token = $this->createToken($user);
 
@@ -101,14 +114,25 @@ class CaseVoterTest extends TestCase
         );
     }
 
-    public function testAdminCanEditNonDraft(): void
+    public static function nonEditableStatusProvider(): array
+    {
+        return [
+            'DOSAR_INREGISTRAT' => [CaseStatus::DOSAR_INREGISTRAT],
+            'TERMEN_FIXAT'      => [CaseStatus::TERMEN_FIXAT],
+            'ORDONANTA_EMISA'   => [CaseStatus::ORDONANTA_EMISA],
+            'DEFINITIVA'        => [CaseStatus::DEFINITIVA],
+            'INCHIS_SUCCES'     => [CaseStatus::INCHIS_SUCCES],
+        ];
+    }
+
+    public function testAdminCanEditAnyStatus(): void
     {
         $admin = new User();
         $admin->setRoles(['ROLE_ADMIN']);
         $owner = new User();
         $case = new LegalCase();
         $case->setUser($owner);
-        $case->setStatus('pending_payment');
+        $case->setStatus(CaseStatus::ORDONANTA_EMISA);
 
         $token = $this->createToken($admin);
 
@@ -118,12 +142,12 @@ class CaseVoterTest extends TestCase
         );
     }
 
-    public function testOwnerCanUploadDraft(): void
+    public function testOwnerCanUploadInAmiabil(): void
     {
         $user = new User();
         $case = new LegalCase();
         $case->setUser($user);
-        $case->setStatus('draft');
+        $case->setStatus(CaseStatus::AMIABIL);
 
         $token = $this->createToken($user);
 
@@ -133,27 +157,12 @@ class CaseVoterTest extends TestCase
         );
     }
 
-    public function testOwnerCanUploadPendingPayment(): void
+    public function testOwnerCannotUploadInDosarInregistrat(): void
     {
         $user = new User();
         $case = new LegalCase();
         $case->setUser($user);
-        $case->setStatus('pending_payment');
-
-        $token = $this->createToken($user);
-
-        $this->assertSame(
-            VoterInterface::ACCESS_GRANTED,
-            $this->voter->vote($token, $case, [CaseVoter::UPLOAD])
-        );
-    }
-
-    public function testOwnerCannotUploadPaid(): void
-    {
-        $user = new User();
-        $case = new LegalCase();
-        $case->setUser($user);
-        $case->setStatus('paid');
+        $case->setStatus(CaseStatus::DOSAR_INREGISTRAT);
 
         $token = $this->createToken($user);
 
@@ -170,13 +179,61 @@ class CaseVoterTest extends TestCase
         $owner = new User();
         $case = new LegalCase();
         $case->setUser($owner);
-        $case->setStatus('paid');
+        $case->setStatus(CaseStatus::DEFINITIVA);
 
         $token = $this->createToken($admin);
 
         $this->assertSame(
             VoterInterface::ACCESS_GRANTED,
             $this->voter->vote($token, $case, [CaseVoter::UPLOAD])
+        );
+    }
+
+    public function testOwnerCanTransition(): void
+    {
+        $user = new User();
+        $case = new LegalCase();
+        $case->setUser($user);
+        $case->setStatus(CaseStatus::AMIABIL);
+
+        $token = $this->createToken($user);
+
+        $this->assertSame(
+            VoterInterface::ACCESS_GRANTED,
+            $this->voter->vote($token, $case, [CaseVoter::TRANSITION])
+        );
+    }
+
+    public function testOtherUserCannotTransition(): void
+    {
+        $owner = new User();
+        $other = new User();
+        $case = new LegalCase();
+        $case->setUser($owner);
+        $case->setStatus(CaseStatus::AMIABIL);
+
+        $token = $this->createToken($other);
+
+        $this->assertSame(
+            VoterInterface::ACCESS_DENIED,
+            $this->voter->vote($token, $case, [CaseVoter::TRANSITION])
+        );
+    }
+
+    public function testAdminCanTransition(): void
+    {
+        $admin = new User();
+        $admin->setRoles(['ROLE_ADMIN']);
+        $owner = new User();
+        $case = new LegalCase();
+        $case->setUser($owner);
+        $case->setStatus(CaseStatus::TERMEN_FIXAT);
+
+        $token = $this->createToken($admin);
+
+        $this->assertSame(
+            VoterInterface::ACCESS_GRANTED,
+            $this->voter->vote($token, $case, [CaseVoter::TRANSITION])
         );
     }
 }

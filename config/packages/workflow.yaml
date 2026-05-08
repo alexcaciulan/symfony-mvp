@@ -5,46 +5,57 @@ framework:
             audit_trail:
                 enabled: true
             marking_store:
-                type: method
-                property: status
+                service: App\Workflow\MarkingStore\EnumMarkingStore
             supports:
                 - App\Entity\LegalCase
-            initial_marking: draft
+            initial_marking: AMIABIL
             places:
-                - draft
-                - pending_payment
-                - paid
-                - submitted_to_court
-                - under_review
-                - additional_info_requested
-                - resolved_accepted
-                - resolved_rejected
-                - enforcement
+                - AMIABIL
+                - SOMATIE_TRIMISA
+                - CERERE_DEPUSA
+                - DOSAR_INREGISTRAT
+                - TERMEN_FIXAT
+                - ORDONANTA_EMISA
+                - CONTESTATA
+                - DEFINITIVA
+                - EXECUTARE
+                - RESPINSA
+                - INCHIS_SUCCES
+                - INCHIS_PARTIAL_INSOLVABIL
             transitions:
-                submit:
-                    from: draft
-                    to: pending_payment
-                confirm_payment:
-                    from: pending_payment
-                    to: paid
-                submit_to_court:
-                    from: paid
-                    to: submitted_to_court
-                mark_received:
-                    from: submitted_to_court
-                    to: under_review
-                request_info:
-                    from: under_review
-                    to: additional_info_requested
-                provide_info:
-                    from: additional_info_requested
-                    to: under_review
-                accept:
-                    from: under_review
-                    to: resolved_accepted
-                reject:
-                    from: under_review
-                    to: resolved_rejected
-                enforce:
-                    from: resolved_accepted
-                    to: enforcement
+                trimite_somatie:
+                    from: AMIABIL
+                    to: SOMATIE_TRIMISA
+                depune_cerere:
+                    from: SOMATIE_TRIMISA
+                    to: CERERE_DEPUSA
+                inregistreaza_dosar:
+                    from: CERERE_DEPUSA
+                    to: DOSAR_INREGISTRAT
+                fixeaza_termen:
+                    from: DOSAR_INREGISTRAT
+                    to: TERMEN_FIXAT
+                emite_ordonanta:
+                    from: TERMEN_FIXAT
+                    to: ORDONANTA_EMISA
+                respinge:
+                    from: TERMEN_FIXAT
+                    to: RESPINSA
+                contesta:
+                    from: ORDONANTA_EMISA
+                    to: CONTESTATA
+                marcheaza_definitiva:
+                    from: ORDONANTA_EMISA
+                    to: DEFINITIVA
+                respinge_contestatie:
+                    from: CONTESTATA
+                    to: DEFINITIVA
+                admite_contestatie:
+                    from: CONTESTATA
+                    to: RESPINSA
+                inchide_succes:
+                    from: DEFINITIVA
+                    to: INCHIS_SUCCES
+                inchide_insolvabil:
+                    from: DEFINITIVA
+                    to: INCHIS_PARTIAL_INSOLVABIL
