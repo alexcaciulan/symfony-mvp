@@ -98,6 +98,7 @@
 - **Dă context.** Menționează ce s-a făcut deja și care e starea curentă a branch-ului.
 - **Teste incremental.** Scrie teste unitare pentru logica de business și teste funcționale pentru controller-e.
 - **Re-verifică reutilizarea.** Înainte să scrii cod nou, verifică fișierele marcate ca "refolosibile" în `ANALIZA-FLUXURI-LEXRECOVERY.md` secțiunea 15.
+- **Identificatori în engleză, cu termeni potriviți contextului proiectului.** Numele de clase, metode, variabile, constante și fișiere se scriu în engleză, alegând termeni cât mai aproape de domeniul juridic/de recuperare creanțe (`LegalCase`, `Creditor`, `Debtor`, `LegalDeadline`, `lawyer`, `caseNumber`, `EnumMarkingStore`). Excepție: dacă un termen românesc are sens legal/operațional clar și nu are echivalent englez bun, **se păstrează în română** — ex: valorile enum `App\Enum\CaseStatus::SOMATIE_TRIMISA`, `App\Enum\DeadlineType::RASPUNS_SOMATIE`, `App\Enum\CaseTransition::trimite_somatie`, `barNumber: 'B-12345'`. Stringurile UI (Twig templates, flash messages, EasyAdmin labels, command `description:`) rămân în română — audiența e română.
 
 ---
 
