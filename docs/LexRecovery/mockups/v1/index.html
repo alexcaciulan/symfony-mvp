@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ro" class="">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Galerie mockup-uri — LexRecovery</title>
+  <script>
+    if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    }
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: {
+        colors: { 'lex-navy': '#1E3A5F', 'lex-navy-dark': '#162A45' },
+        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+      }}
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="font-sans antialiased min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+
+<header class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+  <div class="max-w-6xl mx-auto px-4 lg:px-8 py-6 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-lex-navy text-white">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16l-3-3m3 3l3-3"/></svg>
+      </div>
+      <div>
+        <div class="flex items-center gap-2 mb-0.5">
+          <h1 class="text-xl font-bold tracking-tight text-slate-900 dark:text-white">LexRecovery — v1</h1>
+          <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">Original</span>
+        </div>
+        <p class="text-xs text-slate-500 dark:text-slate-400"><a href="../index.html" class="hover:underline">← Selector versiune</a> · 8 ecrane P0 cu header navigation</p>
+      </div>
+    </div>
+    <button onclick="toggleTheme()" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Toggle dark mode">
+      <svg class="w-5 h-5 dark:hidden text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+      <svg class="w-5 h-5 hidden dark:block text-slate-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-4 lg:px-8 py-10 space-y-10">
+
+  <section class="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-xl p-5 flex flex-col md:flex-row gap-4 items-start">
+    <div class="text-blue-600 dark:text-blue-400 shrink-0">
+      <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    </div>
+    <div class="flex-1 text-sm text-blue-900 dark:text-blue-200">
+      <div class="font-semibold text-base">Cum citești mockup-urile</div>
+      <ul class="mt-2 space-y-1 list-disc list-inside text-blue-800 dark:text-blue-300/90">
+        <li>Sunt fișiere HTML statice — Tailwind v4 + Preline simulat prin clase utility, fără PHP, fără Docker.</li>
+        <li>Toate ecranele au <strong>dark mode toggle</strong> (icon soare/lună sus-dreapta) — încearcă-l, persistă între ecrane.</li>
+        <li>Datele sunt mock (Av. Mihai Ionescu, dosar LR-2026-0142, S.C. Tehno Construct vs Beta Solutions). Sunt consistente între ecrane.</li>
+        <li>Nu sunt formulare funcționale — submit nu face nimic. Linkurile între ecrane funcționează (wizard 0→1→3→4 → dosar).</li>
+        <li>După feedback-ul avocatului, ajustăm runda 1 și sau adăugăm runda 2 (P1: tab-uri dosar, notificări, abonament, facturi).</li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <div class="flex items-baseline gap-3 mb-4">
+      <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Auth</h2>
+      <span class="text-xs text-slate-500">1 ecran</span>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+      <a href="01-auth/login.html" class="group bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-600 transition p-5">
+        <div class="text-xs uppercase tracking-wide font-semibold text-blue-600 dark:text-blue-400 mb-2">P0 #1</div>
+        <h3 class="text-base font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">Login</h3>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Card centrat cu wordmark și tagline. Form email/parolă, "Ai uitat parola?", link cont nou.</p>
+        <div class="mt-3 inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium">Deschide <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></div>
+      </a>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="flex items-baseline gap-3 mb-4">
+      <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Dashboard</h2>
+      <span class="text-xs text-slate-500">2 ecrane (empty + populated)</span>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+      <a href="02-dashboard/empty.html" class="group bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-600 transition p-5">
+        <div class="text-xs uppercase tracking-wide font-semibold text-blue-600 dark:text-blue-400 mb-2">P0 #2</div>
+        <h3 class="text-base font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">Dashboard — empty</h3>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Primul login al unui avocat nou. CTA mare "Începe primul dosar" + 3 carduri "Cum funcționează LexRecovery".</p>
+        <div class="mt-3 inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium">Deschide <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></div>
+      </a>
+
+      <a href="02-dashboard/populated.html" class="group bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-600 transition p-5">
+        <div class="text-xs uppercase tracking-wide font-semibold text-blue-600 dark:text-blue-400 mb-2">P0 #3</div>
+        <h3 class="text-base font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">Dashboard — populat</h3>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">47 dosare active, 4 KPI cards, listă termene 7 zile (CRITICAL/HIGH/MEDIUM), activitate live portal, tabel dosare cu filtre + toast urgent.</p>
+        <div class="mt-3 inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium">Deschide <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></div>
+      </a>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="flex items-baseline gap-3 mb-4">
+      <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Wizard creare dosar</h2>
+      <span class="text-xs text-slate-500">4 ecrane din 5 pași</span>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+      <a href="03-wizard/step0-documente.html" class="group bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-600 transition p-5">
+        <div class="text-xs uppercase tracking-wide font-semibold text-blue-600 dark:text-blue-400 mb-2">P0 #4 · pas 0</div>
+        <h3 class="text-base font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">Documente sursă</h3>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Drop zone + listă fișiere uploadate (1× PROCESSING cu progress, 1× COMPLETED). Side panel "Date detectate" cu confidence per câmp.</p>
+        <div class="mt-3 inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium">Deschide <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></div>
+      </a>
+
+      <a href="03-wizard/step1-creditor.html" class="group bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-600 transition p-5">
+        <div class="text-xs uppercase tracking-wide font-semibold text-blue-600 dark:text-blue-400 mb-2">P0 #5 · pas 1</div>
+        <h3 class="text-base font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">Creditor</h3>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Formular PJ pre-populat din contract.pdf. Câmpurile auto-completate au badge cu confidence + tooltip pe hover.</p>
+        <div class="mt-3 inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium">Deschide <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></div>
+      </a>
+
+      <a href="03-wizard/step3-creanta.html" class="group bg-white dark:bg-slate-900 rounded-xl border-2 border-amber-300 dark:border-amber-700/50 hover:border-amber-500 transition p-5 relative">
+        <span class="absolute top-3 right-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">⭐ key</span>
+        <div class="text-xs uppercase tracking-wide font-semibold text-blue-600 dark:text-blue-400 mb-2">P0 #6 · pas 3</div>
+        <h3 class="text-base font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">Creanță (live calc)</h3>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Sticky panel dreapta cu calcul live: dobândă pe perioade BNR, total, taxă timbru, instanța competentă auto-detectată.</p>
+        <div class="mt-3 inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium">Deschide <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></div>
+      </a>
+
+      <a href="03-wizard/step4-confirmare.html" class="group bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-600 transition p-5">
+        <div class="text-xs uppercase tracking-wide font-semibold text-blue-600 dark:text-blue-400 mb-2">P0 #7 · pas 4</div>
+        <h3 class="text-base font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">Confirmare</h3>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">4 carduri rezumat (documente / creditor / debitor / creanță) + card calcule finale. Iconuri ⚡ pentru câmpuri AI vs ✋ pentru manual.</p>
+        <div class="mt-3 inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium">Deschide <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></div>
+      </a>
+
+    </div>
+    <p class="mt-3 text-xs text-slate-500 italic">Pas 2 (Debitor) lăsat pentru runda 2 — pattern similar cu pas 1 + ANAF auto-lookup pe blur CUI.</p>
+  </section>
+
+  <section>
+    <div class="flex items-baseline gap-3 mb-4">
+      <h2 class="text-lg font-semibold text-slate-900 dark:text-white">View dosar</h2>
+      <span class="text-xs text-slate-500">1 ecran (tab Detalii)</span>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+      <a href="04-dosar/overview.html" class="group bg-white dark:bg-slate-900 rounded-xl border-2 border-amber-300 dark:border-amber-700/50 hover:border-amber-500 transition p-5 relative">
+        <span class="absolute top-3 right-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">⭐ key</span>
+        <div class="text-xs uppercase tracking-wide font-semibold text-blue-600 dark:text-blue-400 mb-2">P0 #8</div>
+        <h3 class="text-base font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400">Dosar — Detalii</h3>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Pipeline 5 stadii (somație activ, pulsant), tabs (Detalii activ + 4 schițate), 3 carduri info + sticky panel acțiuni contextual + timeline activitate.</p>
+        <div class="mt-3 inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium">Deschide <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></div>
+      </a>
+
+    </div>
+    <p class="mt-3 text-xs text-slate-500 italic">Tab-urile Documente / Termene / Activitate Portal / Audit lăsate pentru runda 2.</p>
+  </section>
+
+  <section>
+    <div class="flex items-baseline gap-3 mb-4">
+      <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Referință design system</h2>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+      <a href="shared/tokens.html" class="group bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-slate-400 transition p-5">
+        <div class="text-xs uppercase tracking-wide font-semibold text-slate-500 dark:text-slate-400 mb-2">Internal</div>
+        <h3 class="text-base font-semibold text-slate-900 dark:text-white">Design tokens</h3>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Paleta culori, tipografie, status badges, butoane, spacing, radius. Referință pentru implementarea Pas 0.2.</p>
+        <div class="mt-3 inline-flex items-center gap-1 text-xs text-slate-600 dark:text-slate-400 font-medium">Deschide <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></div>
+      </a>
+
+    </div>
+  </section>
+
+  <section class="bg-slate-100 dark:bg-slate-900 rounded-xl p-6 text-sm text-slate-700 dark:text-slate-300">
+    <h3 class="font-semibold text-slate-900 dark:text-white mb-3">Ce nu e încă mockup-uit (runda 2 dacă feedback pozitiv)</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+      <ul class="space-y-1.5 list-disc list-inside">
+        <li>Register, onboarding wizard cabinet</li>
+        <li>Wizard pas 2 — Debitor cu ANAF auto-lookup</li>
+        <li>Tab-uri dosar: Documente, Termene, Activitate Portal, Audit</li>
+        <li>Notificări (dropdown bell + pagină completă)</li>
+      </ul>
+      <ul class="space-y-1.5 list-disc list-inside">
+        <li>Abonament + Facturi (/abonament, /facturile-mele)</li>
+        <li>Email templates (status change, termen alert, portal event)</li>
+        <li>PDF previews (somație, cerere OP, opis)</li>
+        <li>Landing + pricing (public)</li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+<footer class="border-t border-slate-200 dark:border-slate-800 mt-12">
+  <div class="max-w-6xl mx-auto px-4 lg:px-8 py-6 text-xs text-slate-400 flex flex-wrap items-center justify-between gap-2">
+    <span>LexRecovery mockup gallery · runda 1 · 8 ecrane P0</span>
+    <span>Validare cu avocat → ajustări → Pas 0.2 (Preline + Mercure + Twig components)</span>
+  </div>
+</footer>
+
+<script>
+  function toggleTheme() {
+    const html = document.documentElement;
+    const isDark = html.classList.toggle('dark');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  }
+</script>
+</body>
+</html>

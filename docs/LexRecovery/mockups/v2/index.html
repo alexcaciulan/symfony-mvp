@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ro" class="">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>v2 — Galerie LexRecovery</title>
+  <script>
+    if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    }
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: {
+        colors: { 'lex-navy': '#1E3A5F', 'lex-navy-dark': '#162A45' },
+        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+      }},
+      plugins: [
+        function({ addVariant }) {
+          addVariant('hs-tab-active', '&.active');
+          addVariant('hs-dropdown-open', ['&.open > *', '.open &']);
+          addVariant('hs-accordion-active', ['&.active', '.active &']);
+          addVariant('hs-overlay-open', '&.open');
+          addVariant('hs-overlay-backdrop-open', '&.open');
+        }
+      ]
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="font-sans antialiased min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+
+<header class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+  <div class="max-w-6xl mx-auto px-4 lg:px-8 py-6 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="inline-flex items-center justify-center size-10 rounded-xl bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white shadow-lg">
+        <svg xmlns="http://www.w3.org/2000/svg" class="size-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16l-3-3m3 3l3-3"/></svg>
+      </div>
+      <div>
+        <div class="flex items-center gap-2 mb-0.5">
+          <h1 class="text-xl font-bold tracking-tight">LexRecovery — v2</h1>
+          <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300">Sidebar + Preline</span>
+        </div>
+        <p class="text-xs text-slate-500"><a href="../index.html" class="hover:underline">← Selector versiune</a> · 9 ecrane + 4 tab-uri funcționale · sidebar CMS + Preline</p>
+      </div>
+    </div>
+    <button onclick="toggleTheme()" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Toggle dark mode">
+      <svg class="size-5 dark:hidden text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+      <svg class="size-5 hidden dark:block text-slate-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-4 lg:px-8 py-10 space-y-10">
+
+  <section class="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-xl p-5 flex gap-4 items-start">
+    <svg class="size-6 text-blue-600 dark:text-blue-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    <div class="text-sm text-blue-900 dark:text-blue-200">
+      <div class="font-bold text-base">Ecranele sunt navigabile între ele</div>
+      <p class="mt-1 text-blue-800 dark:text-blue-300/90">Pornește de la <strong>Login</strong> → <strong>Dashboard populat</strong> → click pe un dosar din tabel → <strong>Dosar overview</strong>. Sau click <strong>Dosar nou</strong> → wizard 4 pași → finalizare. Sidebar-ul e prezent peste tot și permite navigare directă.</p>
+      <div class="mt-3 flex gap-2 flex-wrap text-xs">
+        <span class="inline-flex items-center gap-1 px-2 py-1 rounded bg-white/60 dark:bg-slate-900/60 font-medium">⌥ Tabs Preline funcționale</span>
+        <span class="inline-flex items-center gap-1 px-2 py-1 rounded bg-white/60 dark:bg-slate-900/60 font-medium">⌥ Modale + dropdowns interactive</span>
+        <span class="inline-flex items-center gap-1 px-2 py-1 rounded bg-white/60 dark:bg-slate-900/60 font-medium">⌥ Accordion breakdown dobândă</span>
+        <span class="inline-flex items-center gap-1 px-2 py-1 rounded bg-white/60 dark:bg-slate-900/60 font-medium">⌥ Dark mode persistent</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="flex items-baseline gap-3 mb-4">
+      <h2 class="text-lg font-semibold">Auth</h2>
+      <span class="text-xs text-slate-500">1 ecran</span>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <a href="01-auth/login.html" class="group bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-400 hover:shadow-lg transition p-5">
+        <div class="text-xs uppercase tracking-wide font-semibold text-blue-600 mb-2">P0 #1</div>
+        <h3 class="text-base font-semibold group-hover:text-blue-600">Login (split)</h3>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Layout 2 coloane: branding pe stânga (gradient navy + features + testimonial), formular pe dreapta. Pre-auth, fără sidebar.</p>
+        <div class="mt-3 inline-flex items-center gap-1 text-xs text-blue-600 font-medium">Deschide →</div>
+      </a>
+    </div>
+  </section>
+
+  <section>
+    <div class="flex items-baseline gap-3 mb-4">
+      <h2 class="text-lg font-semibold">Dashboard</h2>
+      <span class="text-xs text-slate-500">2 ecrane (empty + populat)</span>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <a href="02-dashboard/empty.html" class="group bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-400 hover:shadow-lg transition p-5">
+        <div class="text-xs uppercase tracking-wide font-semibold text-blue-600 mb-2">P0 #2</div>
+        <h3 class="text-base font-semibold group-hover:text-blue-600">Dashboard — empty</h3>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Sidebar + topbar. Empty state cu CTA mare "Începe primul dosar" + 3 cards "Cum funcționează" + plan curent banner.</p>
+        <div class="mt-3 inline-flex items-center gap-1 text-xs text-blue-600 font-medium">Deschide →</div>
+      </a>
+
+      <a href="02-dashboard/populated.html" class="group bg-white dark:bg-slate-900 rounded-xl border-2 border-amber-300 dark:border-amber-700/50 hover:border-amber-500 hover:shadow-lg transition p-5 relative">
+        <span class="absolute top-3 right-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">⭐ key</span>
+        <div class="text-xs uppercase tracking-wide font-semibold text-blue-600 mb-2">P0 #3</div>
+        <h3 class="text-base font-semibold group-hover:text-blue-600">Dashboard — populat</h3>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">47 dosare active, 4 KPI cards, listă termene 7 zile, activitate live portal, tabel dosare cu Preline dropdowns pe filtre + acțiuni per rând.</p>
+        <div class="mt-3 inline-flex items-center gap-1 text-xs text-blue-600 font-medium">Deschide →</div>
+      </a>
+    </div>
+  </section>
+
+  <section>
+    <div class="flex items-baseline gap-3 mb-4">
+      <h2 class="text-lg font-semibold">Wizard creare dosar</h2>
+      <span class="text-xs text-slate-500">4 ecrane din 5 pași</span>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <a href="03-wizard/step0-documente.html" class="group bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-400 hover:shadow-lg transition p-5">
+        <div class="text-xs uppercase tracking-wide font-semibold text-blue-600 mb-2">P0 #4 · pas 0</div>
+        <h3 class="text-base font-semibold group-hover:text-blue-600">Documente sursă</h3>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Drop zone + listă fișiere uploaded (1× PROCESSING, 1× COMPLETED) + side panel "Date detectate" cu confidence per câmp.</p>
+        <div class="mt-3 inline-flex items-center gap-1 text-xs text-blue-600 font-medium">Deschide →</div>
+      </a>
+
+      <a href="03-wizard/step1-creditor.html" class="group bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-400 hover:shadow-lg transition p-5">
+        <div class="text-xs uppercase tracking-wide font-semibold text-blue-600 mb-2">P0 #5 · pas 1</div>
+        <h3 class="text-base font-semibold group-hover:text-blue-600">Creditor</h3>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Form PJ pre-populat din contract.pdf. Câmpurile auto-completate au badge cu confidence.</p>
+        <div class="mt-3 inline-flex items-center gap-1 text-xs text-blue-600 font-medium">Deschide →</div>
+      </a>
+
+      <a href="03-wizard/step2-debitor.html" class="group bg-white dark:bg-slate-900 rounded-xl border border-emerald-200 dark:border-emerald-900/50 hover:border-emerald-400 hover:shadow-lg transition p-5 relative">
+        <span class="absolute top-3 right-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">nou</span>
+        <div class="text-xs uppercase tracking-wide font-semibold text-blue-600 mb-2">P1 · pas 2</div>
+        <h3 class="text-base font-semibold group-hover:text-blue-600">Debitor (ANAF lookup)</h3>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Form debitor cu auto-lookup ANAF la blur CUI — completează denumire / sediu / status TVA + setare manuală ONRC.</p>
+        <div class="mt-3 inline-flex items-center gap-1 text-xs text-blue-600 font-medium">Deschide →</div>
+      </a>
+
+      <a href="03-wizard/step3-creanta.html" class="group bg-white dark:bg-slate-900 rounded-xl border-2 border-amber-300 dark:border-amber-700/50 hover:border-amber-500 hover:shadow-lg transition p-5 relative">
+        <span class="absolute top-3 right-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">⭐ key</span>
+        <div class="text-xs uppercase tracking-wide font-semibold text-blue-600 mb-2">P0 #6 · pas 3</div>
+        <h3 class="text-base font-semibold group-hover:text-blue-600">Creanță (live calc)</h3>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Sticky panel dreapta cu calcul live: dobândă pe perioade BNR (Preline accordion), total, taxă timbru, instanță auto-detectată.</p>
+        <div class="mt-3 inline-flex items-center gap-1 text-xs text-blue-600 font-medium">Deschide →</div>
+      </a>
+
+      <a href="03-wizard/step4-confirmare.html" class="group bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-400 hover:shadow-lg transition p-5">
+        <div class="text-xs uppercase tracking-wide font-semibold text-blue-600 mb-2">P0 #7 · pas 4</div>
+        <h3 class="text-base font-semibold group-hover:text-blue-600">Confirmare</h3>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">4 carduri rezumat (documente / creditor / debitor / creanță) + card calcule finale + GDPR notice. Buton "Salvează dosar" green gradient.</p>
+        <div class="mt-3 inline-flex items-center gap-1 text-xs text-blue-600 font-medium">Deschide →</div>
+      </a>
+    </div>
+  </section>
+
+  <section>
+    <div class="flex items-baseline gap-3 mb-4">
+      <h2 class="text-lg font-semibold">View dosar</h2>
+      <span class="text-xs text-slate-500">5 tab-uri funcționale · toate cu conținut real</span>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <a href="04-dosar/overview.html" class="group bg-white dark:bg-slate-900 rounded-xl border-2 border-amber-300 dark:border-amber-700/50 hover:border-amber-500 hover:shadow-lg transition p-5 relative">
+        <span class="absolute top-3 right-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">⭐ key</span>
+        <div class="text-xs uppercase tracking-wide font-semibold text-blue-600 mb-2">P0 #8 · 5 tab-uri</div>
+        <h3 class="text-base font-semibold group-hover:text-blue-600">Dosar — vedere completă</h3>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Hero card + pipeline 5 stadii + 5 tab-uri Preline funcționale: <strong>Detalii</strong> (părți, creanță, instanță, cronologie) · <strong>Documente</strong> (generate + uploadate + ZIP packager) · <strong>Termene</strong> (deadline cards prioritate) · <strong>Activitate Portal</strong> (configurare + timeline) · <strong>Audit</strong> (log filtrabil + export).</p>
+        <div class="mt-3 flex flex-wrap gap-1.5">
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-semibold">Detalii</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-semibold">Documente</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-semibold">Termene</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 font-semibold">Portal</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">Audit</span>
+        </div>
+      </a>
+    </div>
+  </section>
+
+  <section class="bg-slate-100 dark:bg-slate-900 rounded-xl p-6 text-sm">
+    <h3 class="font-semibold mb-3">Ce nu e încă mockup-uit (runde viitoare)</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-600 dark:text-slate-400">
+      <ul class="space-y-1.5 list-disc list-inside">
+        <li>Register, email verification, reset password</li>
+        <li>Onboarding wizard cabinet (4 pași)</li>
+        <li>Notificări (dropdown header + pagină)</li>
+      </ul>
+      <ul class="space-y-1.5 list-disc list-inside">
+        <li>Abonament + Facturi pages</li>
+        <li>Email templates (status / termen / portal)</li>
+        <li>PDF previews (somație, cerere OP, opis)</li>
+        <li>Landing + pricing public</li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+<footer class="border-t border-slate-200 dark:border-slate-800 mt-12">
+  <div class="max-w-6xl mx-auto px-4 lg:px-8 py-6 text-xs text-slate-400 flex flex-wrap items-center justify-between gap-2">
+    <span>v2 · sidebar CMS layout · Preline UI free · 8 ecrane navigabile</span>
+    <a href="../index.html" class="hover:text-slate-600 dark:hover:text-slate-300">← Selector versiune</a>
+  </div>
+</footer>
+
+<script>
+  function toggleTheme() {
+    const html = document.documentElement;
+    const isDark = html.classList.toggle('dark');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ro" class="">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dosar nou · Pas 2 — LexRecovery</title>
+  <script>
+    if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    }
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: {
+        colors: { 'lex-navy': '#1E3A5F', 'lex-navy-dark': '#162A45' },
+        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+        boxShadow: { 'soft': '0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px -2px rgba(15, 23, 42, 0.05)' },
+      }},
+      plugins: [
+        function({ addVariant }) {
+          addVariant('hs-tab-active', '&.active');
+          addVariant('hs-dropdown-open', ['&.open > *', '.open &']);
+          addVariant('hs-accordion-active', ['&.active', '.active &']);
+          addVariant('hs-overlay-open', '&.open');
+          addVariant('hs-overlay-backdrop-open', '&.open');
+        }
+      ]
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    .tnum { font-variant-numeric: tabular-nums; }
+    .nav-active { background: linear-gradient(90deg, rgba(30,58,95,0.08) 0%, rgba(30,58,95,0.02) 100%); }
+    .dark .nav-active { background: linear-gradient(90deg, rgba(96,165,250,0.12) 0%, rgba(96,165,250,0.02) 100%); }
+  </style>
+</head>
+<body class="font-sans antialiased min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+
+<aside class="hidden lg:flex flex-col fixed inset-y-0 left-0 w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 z-30">
+  <div class="h-16 flex items-center px-5 border-b border-slate-100 dark:border-slate-800">
+    <a href="../index.html" class="flex items-center gap-2 text-lex-navy dark:text-white font-bold text-lg tracking-tight"><span class="inline-flex items-center justify-center size-8 rounded-lg bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white shadow-sm"><svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16l-3-3m3 3l3-3"/></svg></span>LexRecovery</a>
+  </div>
+  <div class="px-3 py-3 border-b border-slate-100 dark:border-slate-800">
+    <div class="flex items-center gap-2 py-2 px-2.5"><span class="inline-flex items-center justify-center size-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-xs font-bold">CI</span><span class="flex-1 min-w-0"><span class="block text-sm font-semibold truncate">Cabinet Ionescu</span><span class="block text-[10px] text-slate-500 truncate">Plan Pro</span></span></div>
+  </div>
+  <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+    <div class="space-y-0.5">
+      <a href="../02-dashboard/populated.html" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"><svg class="size-[18px] text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>Dashboard</a>
+      <a href="#" class="nav-active flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-semibold text-lex-navy dark:text-blue-400 relative">
+        <span class="absolute left-0 top-2 bottom-2 w-0.5 bg-lex-navy dark:bg-blue-400 rounded-r"></span>
+        <svg class="size-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>Dosare
+      </a>
+      <div class="ml-4 mt-1 pl-4 border-l-2 border-blue-300 dark:border-blue-800 py-1.5">
+        <div class="text-xs font-semibold text-blue-700 dark:text-blue-400">Dosar nou — în curs</div>
+        <div class="text-[10px] text-slate-500 mt-0.5">Pas 2 din 4 · Debitor</div>
+      </div>
+    </div>
+  </nav>
+  <div class="border-t border-slate-100 dark:border-slate-800 p-3">
+    <div class="flex items-center gap-2.5 py-2 px-2"><span class="inline-flex items-center justify-center size-9 rounded-full bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white text-sm font-semibold ring-2 ring-white dark:ring-slate-900">MI</span><span class="flex-1 min-w-0"><span class="block text-sm font-semibold truncate">Av. Mihai Ionescu</span></span></div>
+  </div>
+</aside>
+
+<div class="lg:pl-64 min-h-screen flex flex-col">
+  <header class="sticky top-0 z-20 h-14 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+    <div class="h-full px-4 lg:px-8 flex items-center gap-4">
+      <ol class="flex items-center text-xs flex-1"><li class="hidden sm:inline-flex items-center"><a href="../02-dashboard/populated.html" class="text-slate-500 hover:text-slate-700">Dashboard</a><svg class="mx-1.5 size-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></li><li class="font-medium">Dosar nou · Debitor</li></ol>
+      <button type="button" onclick="toggleTheme()" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Toggle dark mode"><svg class="size-[18px] dark:hidden text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg><svg class="size-[18px] hidden dark:block text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg></button>
+      <a href="../02-dashboard/populated.html" class="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"><svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>Anulează</a>
+    </div>
+  </header>
+
+  <main class="flex-1 px-4 lg:px-8 py-6">
+    <div class="max-w-4xl mx-auto">
+
+      <div class="mb-6">
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight">Pas 2 din 4 · Debitor</h1>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Persoana datoare. Pentru PJ, ANAF lookup automat la blur CUI completează datele de identificare.</p>
+      </div>
+
+      <ol class="grid grid-cols-5 gap-2 md:gap-4 text-xs mb-8">
+        <li class="flex flex-col gap-1.5"><div class="flex items-center gap-2"><span class="inline-flex items-center justify-center size-7 rounded-full bg-gradient-to-br from-green-400 to-green-600 text-white shadow-md shadow-green-500/30"><svg class="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span><span class="hidden sm:inline font-medium">Documente</span></div><div class="h-1 rounded-full bg-green-500"></div></li>
+        <li class="flex flex-col gap-1.5"><div class="flex items-center gap-2"><span class="inline-flex items-center justify-center size-7 rounded-full bg-gradient-to-br from-green-400 to-green-600 text-white shadow-md shadow-green-500/30"><svg class="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg></span><span class="hidden sm:inline font-medium">Creditor</span></div><div class="h-1 rounded-full bg-green-500"></div></li>
+        <li class="flex flex-col gap-1.5"><div class="flex items-center gap-2"><span class="inline-flex items-center justify-center size-7 rounded-full bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white text-xs font-bold ring-4 ring-blue-100 dark:ring-blue-950/50">2</span><span class="hidden sm:inline font-semibold">Debitor</span></div><div class="h-1 rounded-full bg-gradient-to-r from-lex-navy to-blue-500"></div></li>
+        <li class="flex flex-col gap-1.5"><div class="flex items-center gap-2"><span class="inline-flex items-center justify-center size-7 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-500 text-xs font-bold">3</span><span class="hidden sm:inline text-slate-500">Creanță</span></div><div class="h-1 rounded-full bg-slate-200 dark:bg-slate-800"></div></li>
+        <li class="flex flex-col gap-1.5"><div class="flex items-center gap-2"><span class="inline-flex items-center justify-center size-7 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-500 text-xs font-bold">4</span><span class="hidden sm:inline text-slate-500">Confirmare</span></div><div class="h-1 rounded-full bg-slate-200 dark:bg-slate-800"></div></li>
+      </ol>
+
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 mb-6 shadow-soft">
+        <div class="grid grid-cols-2 gap-2">
+          <button class="flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-600 text-sm font-medium transition">
+            <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            Selectează debitor existent
+          </button>
+          <button class="flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-blue-500 bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-950/20 text-sm font-bold text-blue-700 dark:text-blue-300">
+            <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+            Debitor nou
+          </button>
+        </div>
+      </div>
+
+      <form class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-6 shadow-soft">
+
+        <div>
+          <label class="block text-sm font-medium mb-2">Tip persoană</label>
+          <div class="grid grid-cols-2 gap-3 max-w-md">
+            <label class="relative flex cursor-pointer rounded-lg border-2 border-blue-500 bg-gradient-to-br from-blue-50 to-blue-100/30 dark:from-blue-950/30 p-3">
+              <input type="radio" name="tipPersoana" checked class="sr-only">
+              <span class="text-sm font-bold text-blue-900 dark:text-blue-200">Persoană juridică</span>
+              <svg class="ml-auto size-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+            </label>
+            <label class="relative flex cursor-pointer rounded-lg border-2 border-slate-200 dark:border-slate-700 p-3 hover:border-slate-300">
+              <input type="radio" name="tipPersoana" class="sr-only">
+              <span class="text-sm font-semibold">Persoană fizică</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label class="block text-sm font-medium">CUI <span class="text-red-500">*</span></label>
+            <span class="inline-flex items-center gap-1 text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded-full">
+              <svg class="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+              ANAF verificat
+            </span>
+          </div>
+          <div class="relative">
+            <input type="text" value="RO87654321" class="w-full pl-3 pr-32 py-2.5 rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/30 dark:bg-emerald-950/10 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <span class="absolute right-3 top-1/2 -translate-y-1/2 inline-flex items-center gap-1 text-[11px] text-emerald-700 dark:text-emerald-400">
+              <span class="size-1.5 rounded-full bg-emerald-500"></span>
+              Lookup OK
+            </span>
+          </div>
+          <p class="mt-1.5 text-[11px] text-slate-500">Datele de mai jos au fost preluate automat de la ANAF la 15.05.2026, 16:42.</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+
+          <div class="col-span-2">
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="block text-sm font-medium">Denumire</label>
+              <span class="inline-flex items-center gap-1 text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded-full">ANAF</span>
+            </div>
+            <input type="text" value="S.C. Beta Solutions S.R.L." readonly class="w-full px-3 py-2.5 rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/30 dark:bg-emerald-950/10 font-medium focus:outline-none">
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="block text-sm font-medium">Reg. Comerțului</label>
+              <span class="inline-flex items-center gap-1 text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded-full">ANAF</span>
+            </div>
+            <input type="text" value="J40/8765/2019" readonly class="w-full px-3 py-2.5 rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/30 dark:bg-emerald-950/10 font-mono focus:outline-none">
+          </div>
+
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="block text-sm font-medium">Status TVA</label>
+              <span class="inline-flex items-center gap-1 text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded-full">ANAF</span>
+            </div>
+            <div class="px-3 py-2.5 rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/30 dark:bg-emerald-950/10 flex items-center gap-2">
+              <span class="size-2 rounded-full bg-emerald-500"></span>
+              <span class="text-sm font-medium">Plătitor TVA</span>
+            </div>
+          </div>
+
+          <div class="col-span-2">
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="block text-sm font-medium">Adresă sediu</label>
+              <span class="inline-flex items-center gap-1 text-[11px] text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded-full">ANAF</span>
+            </div>
+            <input type="text" value="Str. Iuliu Maniu nr. 152, Sector 6, București, 061129" readonly class="w-full px-3 py-2.5 rounded-lg border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/30 dark:bg-emerald-950/10 focus:outline-none">
+          </div>
+
+          <div class="col-span-2">
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="block text-sm font-medium">Status ONRC</label>
+              <button type="button" class="inline-flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400 hover:underline">
+                <svg class="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                Re-verifică
+              </button>
+            </div>
+            <div class="grid grid-cols-3 gap-2">
+              <label class="relative flex items-center gap-2 cursor-pointer rounded-lg border-2 border-green-500 bg-green-50 dark:bg-green-950/30 p-2.5">
+                <input type="radio" name="statusOnrc" checked class="sr-only">
+                <span class="size-2 rounded-full bg-green-500"></span>
+                <span class="text-xs font-bold text-green-800 dark:text-green-300">ACTIV</span>
+                <svg class="ml-auto size-4 text-green-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+              </label>
+              <label class="relative flex items-center gap-2 cursor-pointer rounded-lg border-2 border-slate-200 dark:border-slate-700 p-2.5 hover:border-slate-300">
+                <input type="radio" name="statusOnrc" class="sr-only">
+                <span class="size-2 rounded-full bg-amber-500"></span>
+                <span class="text-xs font-medium">Dizolvat</span>
+              </label>
+              <label class="relative flex items-center gap-2 cursor-pointer rounded-lg border-2 border-slate-200 dark:border-slate-700 p-2.5 hover:border-slate-300">
+                <input type="radio" name="statusOnrc" class="sr-only">
+                <span class="size-2 rounded-full bg-red-500"></span>
+                <span class="text-xs font-medium">Insolvență</span>
+              </label>
+            </div>
+            <p class="mt-1.5 text-[11px] text-slate-500">Setat manual (V1) — verificare ONRC API automată în V2.</p>
+          </div>
+
+          <div class="col-span-2">
+            <label class="block text-sm font-medium mb-1.5">Administrator <span class="text-slate-400 font-normal">(opțional)</span></label>
+            <input type="text" value="Constantin Marinescu" class="w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-1.5">Email <span class="text-slate-400 font-normal">(opțional)</span></label>
+            <input type="email" placeholder="contact@beta-solutions.ro" class="w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1.5">Telefon <span class="text-slate-400 font-normal">(opțional)</span></label>
+            <input type="tel" placeholder="+40 21 123 4567" class="w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+        </div>
+
+        <div class="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-lg p-3 flex gap-2.5 text-xs">
+          <svg class="size-4 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+          <button type="button" class="text-blue-700 dark:text-blue-300 font-medium hover:underline">+ Adaugă debitor secundar</button>
+          <span class="text-slate-500">— pentru obligații solidare</span>
+        </div>
+
+        <label class="flex items-center gap-2 text-sm pt-3 border-t border-slate-100 dark:border-slate-800">
+          <input type="checkbox" checked class="size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500">
+          Salvează în biblioteca de debitori pentru reutilizare
+        </label>
+      </form>
+
+      <div class="mt-6 flex items-center justify-between gap-3">
+        <a href="step1-creditor.html" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition"><svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>Înapoi</a>
+        <a href="step3-creanta.html" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white font-semibold hover:shadow-lg hover:shadow-lex-navy/20 transition shadow-sm">Continuă la creanță<svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg></a>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/preline@2.7.0/dist/preline.js"></script>
+<script>
+  function toggleTheme() {
+    const html = document.documentElement;
+    const isDark = html.classList.toggle('dark');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  }
+</script>
+</body>
+</html>

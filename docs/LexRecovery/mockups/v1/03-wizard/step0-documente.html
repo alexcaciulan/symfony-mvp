@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ro" class="">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wizard pas 0 — Documente sursă · LexRecovery Mockup</title>
+  <script>
+    if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    }
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: {
+        colors: { 'lex-navy': '#1E3A5F', 'lex-navy-dark': '#162A45' },
+        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+      }}
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="font-sans antialiased min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+
+<header class="sticky top-0 z-30 h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+  <div class="max-w-7xl mx-auto h-full px-4 lg:px-8 flex items-center justify-between">
+    <a href="../index.html" class="flex items-center gap-2 text-lex-navy dark:text-white font-semibold text-lg tracking-tight">
+      <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16l-3-3m3 3l3-3"/></svg>
+      LexRecovery
+    </a>
+    <div class="flex items-center gap-2">
+      <button onclick="toggleTheme()" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Toggle dark mode">
+        <svg class="w-5 h-5 dark:hidden text-slate-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+        <svg class="w-5 h-5 hidden dark:block text-slate-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+      </button>
+      <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-lex-navy text-white text-sm font-semibold">MI</span>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-4 lg:px-8 py-8">
+
+  <a href="../02-dashboard/populated.html" class="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 mb-4">
+    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+    Anulează și înapoi la dashboard
+  </a>
+
+  <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Dosar nou — pas 0 din 4</h1>
+  <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Încarcă contractul, factura sau somația. Aplicația extrage automat datele creditorului, debitorului și creanței.</p>
+
+  <ol class="mt-6 mb-8 grid grid-cols-5 gap-2 md:gap-4 text-xs">
+    <li class="flex flex-col gap-1.5">
+      <div class="flex items-center gap-2"><span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-lex-navy text-white text-xs font-bold ring-4 ring-blue-100 dark:ring-blue-950/50">0</span><span class="hidden sm:inline font-semibold text-slate-900 dark:text-white">Documente</span></div>
+      <div class="h-1 rounded-full bg-lex-navy"></div>
+    </li>
+    <li class="flex flex-col gap-1.5"><div class="flex items-center gap-2"><span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-500 text-xs font-bold">1</span><span class="hidden sm:inline text-slate-500">Creditor</span></div><div class="h-1 rounded-full bg-slate-200 dark:bg-slate-800"></div></li>
+    <li class="flex flex-col gap-1.5"><div class="flex items-center gap-2"><span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-500 text-xs font-bold">2</span><span class="hidden sm:inline text-slate-500">Debitor</span></div><div class="h-1 rounded-full bg-slate-200 dark:bg-slate-800"></div></li>
+    <li class="flex flex-col gap-1.5"><div class="flex items-center gap-2"><span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-500 text-xs font-bold">3</span><span class="hidden sm:inline text-slate-500">Creanță</span></div><div class="h-1 rounded-full bg-slate-200 dark:bg-slate-800"></div></li>
+    <li class="flex flex-col gap-1.5"><div class="flex items-center gap-2"><span class="inline-flex items-center justify-center w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-500 text-xs font-bold">4</span><span class="hidden sm:inline text-slate-500">Confirmare</span></div><div class="h-1 rounded-full bg-slate-200 dark:bg-slate-800"></div></li>
+  </ol>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <div class="lg:col-span-2 space-y-6">
+
+      <div class="relative bg-white dark:bg-slate-900 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-600 transition p-8 md:p-12 text-center">
+        <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 mb-4">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+        </div>
+        <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Trage fișierele aici sau apasă pentru a alege</h2>
+        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Acceptăm contracte, facturi, somații, anexe. PDF, JPG, PNG · până la 10 MB / fișier · maxim 20 fișiere.</p>
+        <button class="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-lex-navy text-white font-medium hover:bg-lex-navy-dark transition">
+          Alege fișiere
+        </button>
+      </div>
+
+      <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+        <div class="px-5 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Documente încărcate (2)</h3>
+          <span class="text-xs text-slate-500">extracție automată în curs</span>
+        </div>
+        <div class="divide-y divide-slate-200 dark:divide-slate-800">
+
+          <div class="px-5 py-4 flex items-start gap-3">
+            <div class="shrink-0 w-10 h-10 rounded-lg bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 flex items-center justify-center font-semibold text-xs">PDF</div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-2 flex-wrap">
+                <div class="min-w-0">
+                  <div class="font-medium text-sm text-slate-900 dark:text-white truncate">contract-tehnoconstruct.pdf</div>
+                  <div class="text-xs text-slate-500 dark:text-slate-400">2,1 MB · contract · uploadat acum 12 secunde</div>
+                </div>
+                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
+                  <svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                  PROCESSING
+                </span>
+              </div>
+              <div class="mt-2.5">
+                <div class="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div class="h-full bg-blue-500 rounded-full" style="width: 65%"></div>
+                </div>
+                <div class="mt-1 text-[11px] text-slate-500">Treapta 2/4 — OCR Tesseract + extracție AI text · 65% · ~8 sec rămase</div>
+              </div>
+            </div>
+            <button class="text-slate-400 hover:text-red-500 shrink-0" aria-label="Șterge"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+          </div>
+
+          <div class="px-5 py-4 flex items-start gap-3">
+            <div class="shrink-0 w-10 h-10 rounded-lg bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 flex items-center justify-center font-semibold text-xs">PDF</div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-2 flex-wrap">
+                <div class="min-w-0">
+                  <div class="font-medium text-sm text-slate-900 dark:text-white truncate">factura-2024-012.pdf</div>
+                  <div class="text-xs text-slate-500 dark:text-slate-400">340 KB · factură · uploadat acum 1 minut</div>
+                </div>
+                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300">
+                  <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                  COMPLETED
+                </span>
+              </div>
+              <div class="mt-2 flex items-center gap-3 text-xs">
+                <span class="text-slate-500">Treapta 1 (PDF text) · 12 câmpuri detectate · confidence medie 96%</span>
+                <button class="text-blue-600 dark:text-blue-400 font-medium hover:underline">Vezi extrase →</button>
+              </div>
+            </div>
+            <button class="text-slate-400 hover:text-red-500 shrink-0" aria-label="Șterge"><svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-lg p-4 flex gap-3">
+        <div class="text-amber-600 dark:text-amber-400 shrink-0">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+        </div>
+        <div class="text-sm text-amber-900 dark:text-amber-200">
+          <div class="font-medium">Date extrase via AI — confidențialitate</div>
+          <p class="mt-0.5 text-amber-800 dark:text-amber-300/80">Documentele rămân pe serverul nostru. Doar textul OCR (cu CNP-uri mascate) e trimis la Anthropic pentru extracție structurată. <a href="#" class="underline hover:no-underline">Politică detaliată</a> · <a href="#" class="underline hover:no-underline">Activează modul Local-Only</a></p>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between gap-3">
+        <a href="step1-creditor.html" class="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 underline-offset-2 hover:underline">
+          Sări peste — completez manual
+        </a>
+        <a href="step1-creditor.html" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-lex-navy text-white font-semibold hover:bg-lex-navy-dark transition shadow-sm">
+          Continuă cu datele extrase
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+        </a>
+      </div>
+    </div>
+
+    <aside class="lg:sticky lg:top-24 self-start">
+      <div class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center gap-2">
+          <span class="inline-flex items-center justify-center w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Date detectate până acum</h3>
+        </div>
+        <div class="px-5 py-4 space-y-4 text-sm">
+
+          <div>
+            <div class="text-[11px] uppercase tracking-wide font-semibold text-slate-500 dark:text-slate-400 mb-2">Creditor</div>
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between gap-2"><span class="text-slate-600 dark:text-slate-400">Denumire</span><span class="font-medium text-slate-900 dark:text-white text-right truncate ml-2">S.C. Tehno Construct S.R.L.</span></div>
+              <div class="flex items-center justify-between gap-2"><span class="text-slate-600 dark:text-slate-400">CUI</span><span class="font-mono text-slate-900 dark:text-white">RO12345678</span></div>
+              <div class="flex items-center justify-between gap-2"><span class="text-slate-600 dark:text-slate-400">IBAN</span><span class="font-mono text-xs text-slate-900 dark:text-white">RO49 RNCB 0082...</span></div>
+            </div>
+            <div class="mt-2 flex items-center gap-1 text-[11px]"><span class="inline-flex items-center justify-center w-12 h-1 rounded-full bg-green-500"></span><span class="text-green-600 dark:text-green-400 font-medium">95%</span><span class="text-slate-400">confidence</span></div>
+          </div>
+
+          <div class="pt-3 border-t border-slate-200 dark:border-slate-800">
+            <div class="text-[11px] uppercase tracking-wide font-semibold text-slate-500 dark:text-slate-400 mb-2">Debitor</div>
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between gap-2"><span class="text-slate-600 dark:text-slate-400">Denumire</span><span class="font-medium text-slate-900 dark:text-white text-right truncate ml-2">S.C. Beta Solutions S.R.L.</span></div>
+              <div class="flex items-center justify-between gap-2"><span class="text-slate-600 dark:text-slate-400">CUI</span><span class="font-mono text-slate-900 dark:text-white">RO87654321</span></div>
+            </div>
+            <div class="mt-2 flex items-center gap-1 text-[11px]"><span class="inline-flex items-center justify-center w-10 h-1 rounded-full bg-amber-500"></span><span class="text-amber-600 dark:text-amber-400 font-medium">82%</span><span class="text-slate-400">— se completează cu ANAF la pas 2</span></div>
+          </div>
+
+          <div class="pt-3 border-t border-slate-200 dark:border-slate-800">
+            <div class="text-[11px] uppercase tracking-wide font-semibold text-slate-500 dark:text-slate-400 mb-2">Creanță</div>
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between gap-2"><span class="text-slate-600 dark:text-slate-400">Sumă</span><span class="font-semibold text-slate-900 dark:text-white tabular-nums">47.500,00 RON</span></div>
+              <div class="flex items-center justify-between gap-2"><span class="text-slate-600 dark:text-slate-400">Scadență</span><span class="font-medium text-slate-900 dark:text-white">15.11.2025</span></div>
+              <div class="flex items-center justify-between gap-2"><span class="text-slate-600 dark:text-slate-400">Temei</span><span class="text-xs text-slate-500 truncate ml-2">Contract servicii nr. 145/2025</span></div>
+            </div>
+            <div class="mt-2 flex items-center gap-1 text-[11px]"><span class="inline-flex items-center justify-center w-12 h-1 rounded-full bg-green-500"></span><span class="text-green-600 dark:text-green-400 font-medium">98%</span><span class="text-slate-400">confidence</span></div>
+          </div>
+
+        </div>
+      </div>
+    </aside>
+  </div>
+
+</main>
+
+<footer class="border-t border-slate-200 dark:border-slate-800 mt-12">
+  <div class="max-w-7xl mx-auto px-4 lg:px-8 py-6 text-xs text-slate-400 flex flex-wrap items-center justify-between gap-2">
+    <span>© 2026 LexRecovery — MVP v1.0</span>
+    <a href="../index.html" class="hover:text-slate-600 dark:hover:text-slate-300">← Înapoi la galerie</a>
+  </div>
+</footer>
+
+<script>
+  function toggleTheme() {
+    const html = document.documentElement;
+    const isDark = html.classList.toggle('dark');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  }
+</script>
+</body>
+</html>
