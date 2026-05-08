@@ -53,7 +53,7 @@
 | 1.1 | Domain | Entități noi + extindere `LegalCase` | 1.5z | 0.1 | 50% | ✅ |
 | 1.2 | Domain | Enum-uri noi (CaseStatus, CaseTransition, PersonType, RelationshipType, DeadlineType, DeadlinePriority) | 0.5z | 0.1 | 0% | ✅ |
 | 1.3 | Domain | Workflow YAML refăcut + ajustare `CaseWorkflowService` | 0.5z | 1.1, 1.2 | 70% | ✅ |
-| 1.4 | Domain | Migrare baseline + fixtures + `app:seed-demo-cases` | 0.5z | 1.1, 1.2 | 80% | ⏳ |
+| 1.4 | Domain | Migrare baseline + fixtures + `app:seed-demo-cases` | 0.5z | 1.1, 1.2 | 80% | ✅ |
 | 2.1 | Calcule | `InterestCalculatorService` (OG 13/2011) | 0.75z | 1.1 | 0% | ⏳ |
 | 2.2 | Calcule | `StampDutyCalculator` (OUG 80/2013) | 0.25z | — | 0% | ⏳ |
 | 2.3 | Calcule | `CompetentCourtResolver` | 0.5z | 1.1 | 30% | ⏳ |
@@ -418,9 +418,9 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 
 ---
 
-### PASUL 1.4 | Migrare baseline + fixtures + seed | 0.5 zi | 80% reutilizare
+### PASUL 1.4 | Migrare baseline + fixtures + seed | 0.5 zi | 80% reutilizare ✅ DONE 2026-05-08 (`5084f1b`)
 
-**Rezultat**: _(va fi completat la marcarea ca DONE)_
+**Rezultat**: Single baseline migration (17 tables), `doctrine/doctrine-fixtures-bundle` instalat, `InterestRateConfigFixtures` (5 valori BNR) + `PlanFixtures` (Starter+Pro) cu `--group=baseline`, comandă `app:seed-demo-cases` (5 dosare `LR-DEMO-*` + creditor demo + debitori + 1-2 termene per dosar, idempotentă), `docker-entrypoint.sh` actualizat. Plus: `LegalCaseCrudController` aliniat la noul shape (in scope). 46/46 teste in scope (1.3+1.4) verzi — `CaseWorkflowSubscriberTest` deblocat după baseline. Detalii: `~/.claude/projects/-Users-alexc-Downloads-myprojects-symfony-mvp/memory/project_lexrecovery_pas_1_4.md`.
 
 **Scop**: o singură migrare baseline curată, plus seed-uri pentru BNR și planuri default.
 
