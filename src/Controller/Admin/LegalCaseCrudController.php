@@ -3,6 +3,7 @@
 namespace App\Controller\Admin;
 
 use App\Entity\LegalCase;
+use App\Enum\CaseStatus;
 use Doctrine\ORM\QueryBuilder;
 use EasyCorp\Bundle\EasyAdminBundle\Collection\FieldCollection;
 use EasyCorp\Bundle\EasyAdminBundle\Collection\FilterCollection;
@@ -15,6 +16,7 @@ use EasyCorp\Bundle\EasyAdminBundle\Dto\EntityDto;
 use EasyCorp\Bundle\EasyAdminBundle\Dto\SearchDto;
 use EasyCorp\Bundle\EasyAdminBundle\Field\AssociationField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\ChoiceField;
+use EasyCorp\Bundle\EasyAdminBundle\Field\DateField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\DateTimeField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\IdField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\MoneyField;
@@ -27,18 +29,6 @@ use EasyCorp\Bundle\EasyAdminBundle\Filter\NumericFilter;
 
 class LegalCaseCrudController extends AbstractCrudController
 {
-    private const STATUS_LABELS = [
-        'draft' => 'Ciornă',
-        'pending_payment' => 'În așteptarea plății',
-        'paid' => 'Plătit',
-        'submitted_to_court' => 'Trimis la instanță',
-        'under_review' => 'În analiză',
-        'additional_info_requested' => 'Info suplimentare',
-        'resolved_accepted' => 'Admis',
-        'resolved_rejected' => 'Respins',
-        'enforcement' => 'Executare silită',
-    ];
-
     public static function getEntityFqcn(): string
     {
         return LegalCase::class;
@@ -69,56 +59,42 @@ class LegalCaseCrudController extends AbstractCrudController
     public function configureFields(string $pageName): iterable
     {
         yield IdField::new('id', 'Nr.')->onlyOnIndex();
-        yield AssociationField::new('user', 'Creditor');
-        yield TextField::new('claimantName', 'Reclamant')->onlyOnIndex();
-        yield TextField::new('firstDefendantName', 'Pârât')->onlyOnIndex();
+        yield TextField::new('caseNumber', 'Număr dosar');
+        yield AssociationField::new('user', 'Avocat')->onlyOnDetail();
+        yield AssociationField::new('creditor', 'Creditor');
         yield AssociationField::new('court', 'Instanța');
-        yield MoneyField::new('claimAmount', 'Sumă')
+        yield MoneyField::new('amount', 'Sumă')
             ->setCurrency('RON')
             ->setStoredAsCents(false);
         yield ChoiceField::new('status', 'Status')
-            ->setChoices(array_flip(self::STATUS_LABELS))
-            ->renderAsBadges([
-                'draft' => 'secondary',
-                'pending_payment' => 'warning',
-                'paid' => 'info',
-                'submitted_to_court' => 'primary',
-                'under_review' => 'primary',
-                'additional_info_requested' => 'warning',
-                'resolved_accepted' => 'success',
-                'resolved_rejected' => 'danger',
-                'enforcement' => 'dark',
-            ]);
+            ->setChoices(self::statusChoices())
+            ->renderAsBadges(self::statusBadgeMap());
+        yield DateField::new('dueDate', 'Scadență')->onlyOnIndex();
         yield DateTimeField::new('createdAt', 'Creat la')->onlyOnIndex();
-        yield DateTimeField::new('submittedAt', 'Depus la')->onlyOnDetail();
 
-        // Detail-only fields
-        yield TextField::new('county', 'Județ')->onlyOnDetail();
-        yield TextField::new('claimantType', 'Tip reclamant')->onlyOnDetail();
-        yield TextareaField::new('claimDescription', 'Descriere creanță')->onlyOnDetail();
-        yield TextField::new('legalBasis', 'Temei juridic')->onlyOnDetail();
-        yield TextField::new('interestType', 'Tip dobândă')->onlyOnDetail();
-        yield TextareaField::new('evidenceDescription', 'Probe')->onlyOnDetail();
-        yield MoneyField::new('courtFee', 'Taxă judiciară')
+        yield TextField::new('currency', 'Monedă')->onlyOnDetail();
+        yield MoneyField::new('calculatedInterest', 'Dobândă calculată')
             ->setCurrency('RON')
             ->setStoredAsCents(false)
             ->onlyOnDetail();
-        yield MoneyField::new('platformFee', 'Comision platformă')
+        yield MoneyField::new('stampDuty', 'Taxă timbru')
             ->setCurrency('RON')
             ->setStoredAsCents(false)
             ->onlyOnDetail();
-        yield MoneyField::new('totalFee', 'Total taxe')
-            ->setCurrency('RON')
-            ->setStoredAsCents(false)
-            ->onlyOnDetail();
+        yield DateField::new('paymentNoticeDate', 'Data somație')->onlyOnDetail();
+        yield TextField::new('courtCaseNumber', 'Nr. dosar instanță')->onlyOnDetail();
+        yield DateField::new('hearingDate', 'Termen judecată')->onlyOnDetail();
+        yield DateField::new('finalRulingDate', 'Data definitivă')->onlyOnDetail();
+        yield TextareaField::new('notes', 'Note')->onlyOnDetail();
     }
 
     public function configureFilters(Filters $filters): Filters
     {
         return $filters
-            ->add(ChoiceFilter::new('status', 'Status')->setChoices(array_flip(self::STATUS_LABELS)))
+            ->add(ChoiceFilter::new('status', 'Status')->setChoices(self::statusChoices()))
             ->add(EntityFilter::new('court', 'Instanța'))
-            ->add(NumericFilter::new('claimAmount', 'Sumă'))
+            ->add(EntityFilter::new('creditor', 'Creditor'))
+            ->add(NumericFilter::new('amount', 'Sumă'))
             ->add(DateTimeFilter::new('createdAt', 'Data creării'));
     }
 
@@ -128,5 +104,44 @@ class LegalCaseCrudController extends AbstractCrudController
         $qb->andWhere('entity.deletedAt IS NULL');
 
         return $qb;
+    }
+
+    /**
+     * @return array<string, string> label => value (EasyAdmin format)
+     */
+    private static function statusChoices(): array
+    {
+        $choices = [];
+        foreach (CaseStatus::cases() as $status) {
+            $choices[$status->label()] = $status->value;
+        }
+        return $choices;
+    }
+
+    /**
+     * @return array<string, string> place value => Bootstrap badge color
+     */
+    private static function statusBadgeMap(): array
+    {
+        $colorMap = [
+            'slate' => 'secondary',
+            'amber' => 'warning',
+            'sky' => 'info',
+            'blue' => 'primary',
+            'indigo' => 'primary',
+            'violet' => 'primary',
+            'orange' => 'warning',
+            'emerald' => 'success',
+            'teal' => 'info',
+            'red' => 'danger',
+            'green' => 'success',
+            'gray' => 'secondary',
+        ];
+
+        $map = [];
+        foreach (CaseStatus::cases() as $status) {
+            $map[$status->value] = $colorMap[$status->color()] ?? 'secondary';
+        }
+        return $map;
     }
 }

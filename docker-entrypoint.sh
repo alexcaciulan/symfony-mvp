@@ -71,18 +71,28 @@ fi
 echo "Running migrations..."
 php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration
 
+# Load baseline fixtures (InterestRateConfig + Plan)
+echo "Loading baseline fixtures..."
+php bin/console doctrine:fixtures:load --no-interaction --append --group=baseline
+
 # Import courts data
 echo "Importing courts..."
 php bin/console app:import-courts --no-interaction
 
-# Create test users (only in dev)
+# Create test users + demo cases (only in dev)
 if [ "$APP_ENV" = "dev" ]; then
     echo "Creating test users..."
     php bin/console app:create-test-users --no-interaction
 
+    echo "Seeding demo cases..."
+    php bin/console app:seed-demo-cases --no-interaction
+
     # Run migrations on test database for PHPUnit
     echo "Running test database migrations..."
     APP_ENV=test php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration 2>/dev/null || true
+
+    echo "Loading baseline fixtures on test DB..."
+    APP_ENV=test php bin/console doctrine:fixtures:load --no-interaction --append --group=baseline 2>/dev/null || true
 fi
 
 # Clear cache
