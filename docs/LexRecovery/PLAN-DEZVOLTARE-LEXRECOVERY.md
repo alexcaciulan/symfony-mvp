@@ -90,6 +90,7 @@
 - **Reanalizează fezabilitatea pasului înainte să-l execuți.** Verifică dacă pasul mai are sens în starea curentă a codului: dependențele s-au schimbat? specificația a evoluat? există o cale mai simplă acum (ex: un pachet nou, un cod existent care acoperă deja parte din scope)? Estimarea de durată și `% reutilizare` sunt încă realiste? Dacă răspunsul la oricare e da, ajustează abordarea sau ridică problema **înainte** să scrii cod — nu execuții oarbe pe baza planului inițial.
 - **Verifică după fiecare pas.** Rulează aplicația, testează manual, apoi treci mai departe.
 - **Commit după fiecare pas.** `git commit` după fiecare pas reușit. Poți reveni dacă ceva se strică.
+- **Marchează pasul DONE în acest fișier.** Imediat după ce commit-ul aterizează, adaugă pe heading-ul `### PASUL X.Y` sufixul `✅ DONE YYYY-MM-DD (\`<commit-sha>\`)` și completează linia `**Rezultat**:` (placeholder) cu 1–2 propoziții despre ce s-a livrat efectiv + decizii cheie + pointer la memoria de progres din `~/.claude/projects/.../memory/project_lexrecovery_pas_X_Y.md`. Plan-ul și memoria împreună sunt source-of-truth pentru starea proiectului între sesiuni.
 - **Dă context.** Menționează ce s-a făcut deja și care e starea curentă a branch-ului.
 - **Teste incremental.** Scrie teste unitare pentru logica de business și teste funcționale pentru controller-e.
 - **Re-verifică reutilizarea.** Înainte să scrii cod nou, verifică fișierele marcate ca "refolosibile" în `ANALIZA-FLUXURI-LEXRECOVERY.md` secțiunea 15.
@@ -119,6 +120,8 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 ## Faza 0: Bootstrap
 
 ### PASUL 0.1 | Branch `lexrecovery` + ștergere cod mort | 0.5 zi | 0% reutilizare
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
 
 **Scop**: pornim un branch curat și eliminăm codul care nu mai e relevant pentru LexRecovery.
 
@@ -160,6 +163,8 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 ---
 
 ### PASUL 0.2 | Frontend Foundations | 1.5 zile | 0% reutilizare (de la zero)
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
 
 **Scop**: livrăm o singură dată fundația UX folosită de toate fazele ulterioare — bibliotecă de componente Preline UI, bundle-uri Symfony UX, container Mercure, Stimulus controllers comune, Twig components refolosibile, Tailwind dark mode. Toate fără npm/Node.js.
 
@@ -291,6 +296,8 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 
 ### PASUL 1.1 | Entități noi + extindere `LegalCase` | 1.5 zile | 50% reutilizare
 
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
+
 **Scop**: definim modelul de domeniu LexRecovery — entități noi (Creditor, Debitor, Termen, InterestRateConfig, Plan, Subscription, Invoice) și restructurăm `LegalCase` în `LegalCase`.
 
 **Specificație**: secțiunea 5 din `ANALIZA-FLUXURI-LEXRECOVERY.md`.
@@ -341,6 +348,8 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 ---
 
 ### PASUL 1.2 | Enum-uri noi | 0.5 zi | 0% reutilizare | **paralel cu 1.1**
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
 
 **Scop**: definim enum-urile specifice LexRecovery.
 
@@ -407,6 +416,8 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 
 ### PASUL 1.4 | Migrare baseline + fixtures + seed | 0.5 zi | 80% reutilizare
 
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
+
 **Scop**: o singură migrare baseline curată, plus seed-uri pentru BNR și planuri default.
 
 **PROMPT**:
@@ -442,6 +453,8 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 > Toate cele 4 servicii sunt **paralelizabile** — pot fi implementate în 4 sub-branch-uri sau 4 prompt-uri consecutive fără dependențe între ele (în afara Pas 1.1 care e prerequisit pentru toate).
 
 ### PASUL 2.1 | `InterestCalculatorService` | 0.75 zi | 0% reutilizare
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
 
 **Scop**: calcul dobândă legală conform OG 13/2011 cu istoric BNR.
 
@@ -491,6 +504,8 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 
 ### PASUL 2.2 | `StampDutyCalculator` | 0.25 zi | 0% reutilizare
 
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
+
 **PROMPT**:
 > Implementează `src/Service/Calculation/StampDutyCalculator.php`:
 > ```php
@@ -509,6 +524,8 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 ---
 
 ### PASUL 2.3 | `CompetentCourtResolver` | 0.5 zi | 30% reutilizare
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
 
 **PROMPT**:
 > Implementează `src/Service/Court/CompetentCourtResolver.php`.
@@ -540,6 +557,8 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 
 ### PASUL 2.4 | `OnrcLookupService` (V1 stub) | 0.25 zi | 0% reutilizare
 
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
+
 **PROMPT**:
 > Implementează `src/Service/Company/OnrcLookupService.php`:
 > ```php
@@ -563,6 +582,8 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 ---
 
 ### PASUL 2.5 | `DataExtractionService` + 4 strategii cu OCR | 2 zile | 0% reutilizare
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
 
 **Scop**: serviciu cu cascadă în 4 trepte care extrage automat date (creditor, debitor, sumă, scadență) din documente sursă uploadate. Treapta 2 (OCR + AI text) este "calul de povară" pentru documente scanate.
 
@@ -672,6 +693,8 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 
 ### PASUL 2.6 | Procesare async via Messenger | 0.5 zi | 30% reutilizare
 
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
+
 **Scop**: extracția AI poate dura 5-30 secunde — rulează async, UI face polling.
 
 **PROMPT**:
@@ -699,6 +722,8 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 ---
 
 ### PASUL 3.0 | Step 0 wizard "Documente sursă" | 1 zi | 0% reutilizare
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
 
 **Scop**: prim step wizard — upload documente, procesare async, preview valori extrase.
 
@@ -744,6 +769,8 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 
 ### PASUL 3.1 | DTOs + Forms 5 pași (cu pre-populare) | 1 zi | 50% reutilizare
 
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
+
 **Scop**: structură DTO + Form pentru wizard cu 5 pași (step 0 deja livrat la Pas 3.0; aici DTOs/Forms pentru 1-4) și logică de pre-populare din `Document.extractedData`.
 
 **Mock-up-uri de referință** (sugestive — toate în [`docs/LexRecovery/mockups/v2/03-wizard/`](./mockups/v2/03-wizard/)):
@@ -780,6 +807,8 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 
 ### PASUL 3.2 | `CaseWizardController` + session storage | 1 zi | 60% reutilizare
 
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
+
 **Mock-up-uri de referință** (sugestive): aceleași 5 fișiere din [`docs/LexRecovery/mockups/v2/03-wizard/`](./mockups/v2/03-wizard/) (step0-documente.html → step4-confirmare.html). Template-urile Twig se inspiră din ele pentru pattern-ul de wizard (header cu Stepper, container layout, butoane back/next pe footer), cu libertate de adaptare.
 
 **PROMPT**:
@@ -810,6 +839,8 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 ---
 
 ### PASUL 3.3 | Live Component pentru calc + UX Autocomplete + ANAF lookup | 1 zi | 20% reutilizare
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
 
 **Mock-up-uri de referință** (sugestive):
 - [`step3-creanta.html`](./mockups/v2/03-wizard/step3-creanta.html) — direcție pentru zona de calcul live (carduri cu dobândă/taxă/instanță); Live Component înlocuiește JS-ul mock-up-ului
@@ -869,6 +900,8 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 
 ### PASUL 4.1 | `DeadlineService` | 0.5 zi | 0% reutilizare
 
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
+
 **Specificație**: secțiunea 8 din `ANALIZA-FLUXURI-LEXRECOVERY.md`.
 
 **PROMPT**:
@@ -901,6 +934,8 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 
 ### PASUL 4.2 | `DeadlineCreationSubscriber` + `CaseWorkflowSubscriber` | 0.5 zi | 80% reutilizare
 
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
+
 **PROMPT**:
 > 1. Refactorizează `src/EventSubscriber/CaseWorkflowSubscriber.php` → `src/EventSubscriber/CaseWorkflowSubscriber.php`. Schimbă tag-ul `workflow.legal_case.completed` în `workflow.dosar.completed`. Persistă `CaseStatusHistory` (rebrand intern: relația devine `LegalCase` în loc de `LegalCase` la nivel FK; nume tabel rămâne `case_status_history` pentru compatibilitate). Persistă `AuditLog`.
 >
@@ -920,6 +955,8 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 ---
 
 ### PASUL 4.3 | UI tab "Termene" în view dosar (cu optimistic UI) | 0.5 zi | 0% reutilizare
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
 
 **PROMPT**:
 > Creează `src/Controller/Dosar/TermenController.php`:
@@ -945,6 +982,8 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 
 ### PASUL 5.1 | `PaymentNoticeGeneratorService` + template | 0.5 zi | 80% reutilizare
 
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
+
 **PROMPT**:
 > 1. Refactorizează `src/Service/Document/PdfGeneratorService.php` în clasă abstractă `AbstractPdfGenerator` (cu logica DomPDF + persist Document).
 > 2. Creează `src/Service/Document/PaymentNoticeGeneratorService.php` care extinde `AbstractPdfGenerator`. Metoda `generate(LegalCase $legalCase): Document`. Template: `templates/pdf/payment_notice.html.twig`.
@@ -958,6 +997,8 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 ---
 
 ### PASUL 5.2 | `PaymentOrderRequestGeneratorService` + opis + ZIP | 1 zi | 50% reutilizare
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
 
 **PROMPT**:
 > 1. Creează `src/Service/Document/PaymentOrderRequestGeneratorService.php` (extinde `AbstractPdfGenerator`). Template `templates/pdf/payment_order_request.html.twig` — cerere ordonanță de plată conform CPC art. 1016: instanța competentă, părți, expunere de fapt, sume cerute (principal + dobândă + cheltuieli judiciare), temei juridic, anexe (referință la opis), semnătură avocat (cu barNumber).
@@ -983,6 +1024,8 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 ## Faza 6: Monitorizare portal + Notificări *(paralelizabilă cu Faza 5)*
 
 ### PASUL 6.1 | `PortalMonitoringSubscriber` + adaptare CaseMonitoringService | 0.5 zi | 95% reutilizare
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
 
 **Specificație**: secțiunea 10 din `ANALIZA-FLUXURI-LEXRECOVERY.md`.
 
@@ -1010,6 +1053,8 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 ---
 
 ### PASUL 6.2 | `DeadlineAlertService` + comenzi cron | 0.75 zi | 70% reutilizare
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
 
 **PROMPT**:
 > 1. Creează `src/Service/Termen/DeadlineAlertService.php`:
@@ -1045,6 +1090,8 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 ---
 
 ### PASUL 6.3 | `EmailNotificationSubscriber` + Mercure push + templates email | 0.75 zi | 30% reutilizare
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
 
 **PROMPT**:
 > 1. Creează `src/EventSubscriber/EmailNotificationSubscriber.php`. Ascultă:
@@ -1083,6 +1130,8 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 ## Faza 7: Dashboard + View Dosar + Admin
 
 ### PASUL 7.1 | Dashboard avocat (cu Live Component filtre + empty state + skeleton) | 1 zi | 50% reutilizare
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
 
 **Mock-up-uri de referință** (sugestive):
 - [`docs/LexRecovery/mockups/v2/02-dashboard/empty.html`](./mockups/v2/02-dashboard/empty.html) — direcție pentru starea fără dosare (`EmptyState` cu CTA primar "Începe primul dosar")
@@ -1124,6 +1173,8 @@ Twig template-ul randat de `DashboardController` se inspiră din mock-up-uri (ce
 
 ### PASUL 7.2 | View dosar cu tab-uri (lazy load + view transitions + Mercure live) | 0.75 zi | 40% reutilizare
 
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
+
 **Mock-up de referință** (sugestiv): [`docs/LexRecovery/mockups/v2/04-dosar/overview.html`](./mockups/v2/04-dosar/overview.html) — direcție pentru header dosar (caseNumber, status badge, sume), zona acțiuni (butoane tranziții workflow), structura tab-urilor.
 
 **Notă**: tab-urile Documente / Termene / Activitate Portal / Audit nu au mock-up dedicat — derivă-le din direcția vizuală a `overview.html` (container, pattern carduri/liste). Pentru Termene poți te inspira și din [`step3-creanta.html`](./mockups/v2/03-wizard/step3-creanta.html) (carduri cu prioritate vizuală).
@@ -1162,6 +1213,8 @@ Twig template-ul randat de `DashboardController` se inspiră din mock-up-uri (ce
 
 ### PASUL 7.3 | EasyAdmin: rename + CRUDs noi | 0.25 zi | 100% reutilizare pattern
 
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
+
 **PROMPT**:
 > În `src/Controller/Admin/`:
 > - Rename `LegalCaseCrudController` → `CaseCrudController`. Update câmpuri (status enum, creditor, debitor lista, sumă, dueDate).
@@ -1178,6 +1231,8 @@ Twig template-ul randat de `DashboardController` se inspiră din mock-up-uri (ce
 ## Faza 8: Monetizare *(schelet — gateway real TBD)*
 
 ### PASUL 8.1 | `SubscriptionService` + `InvoicingService` | 1 zi | 30% reutilizare
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
 
 **PROMPT**:
 > 1. `src/Service/Billing/SubscriptionService.php`:
@@ -1202,6 +1257,8 @@ Twig template-ul randat de `DashboardController` se inspiră din mock-up-uri (ce
 ---
 
 ### PASUL 8.2 | Gateway stub + UI subscription/facturi | 0.5 zi | 0% reutilizare
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
 
 **PROMPT**:
 > 1. Creează `src/Service/Billing/PaymentGatewayInterface.php`:
@@ -1233,6 +1290,8 @@ Twig template-ul randat de `DashboardController` se inspiră din mock-up-uri (ce
 ## Faza 9: Deploy & QA
 
 ### PASUL 9.1 | Coolify staging + Mercure Hub + cron setup | 1 zi | 80% reutilizare
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
 
 **PROMPT**:
 > 1. Verifică `Dockerfile` (existent) — adaptări: tesseract-ocr + ron + imagemagick + poppler-utils (adăugate la Pas 2.5).
