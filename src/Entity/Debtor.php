@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Enum\PersonType;
 use App\Repository\DebtorRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
@@ -19,8 +20,8 @@ class Debtor
     #[ORM\JoinColumn(nullable: false)]
     private LegalCase $legalCase;
 
-    #[ORM\Column(length: 10)]
-    private string $personType;
+    #[ORM\Column(length: 10, enumType: PersonType::class)]
+    private PersonType $personType;
 
     #[ORM\Column(length: 255)]
     private string $name;
@@ -87,12 +88,12 @@ class Debtor
         return $this;
     }
 
-    public function getPersonType(): string
+    public function getPersonType(): PersonType
     {
         return $this->personType;
     }
 
-    public function setPersonType(string $personType): static
+    public function setPersonType(PersonType $personType): static
     {
         $this->personType = $personType;
 

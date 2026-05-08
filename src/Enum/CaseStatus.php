@@ -4,28 +4,68 @@ namespace App\Enum;
 
 enum CaseStatus: string
 {
-    case DRAFT = 'draft';
-    case PENDING_PAYMENT = 'pending_payment';
-    case PAID = 'paid';
-    case SUBMITTED_TO_COURT = 'submitted_to_court';
-    case UNDER_REVIEW = 'under_review';
-    case ADDITIONAL_INFO_REQUESTED = 'additional_info_requested';
-    case RESOLVED_ACCEPTED = 'resolved_accepted';
-    case RESOLVED_REJECTED = 'resolved_rejected';
-    case ENFORCEMENT = 'enforcement';
+    case AMIABIL = 'AMIABIL';
+    case SOMATIE_TRIMISA = 'SOMATIE_TRIMISA';
+    case CERERE_DEPUSA = 'CERERE_DEPUSA';
+    case DOSAR_INREGISTRAT = 'DOSAR_INREGISTRAT';
+    case TERMEN_FIXAT = 'TERMEN_FIXAT';
+    case ORDONANTA_EMISA = 'ORDONANTA_EMISA';
+    case CONTESTATA = 'CONTESTATA';
+    case DEFINITIVA = 'DEFINITIVA';
+    case EXECUTARE = 'EXECUTARE';
+    case RESPINSA = 'RESPINSA';
+    case INCHIS_SUCCES = 'INCHIS_SUCCES';
+    case INCHIS_PARTIAL_INSOLVABIL = 'INCHIS_PARTIAL_INSOLVABIL';
 
     public function label(): string
     {
         return match ($this) {
-            self::DRAFT => 'Ciornă',
-            self::PENDING_PAYMENT => 'În așteptarea plății',
-            self::PAID => 'Plătit',
-            self::SUBMITTED_TO_COURT => 'Trimis la instanță',
-            self::UNDER_REVIEW => 'În analiză',
-            self::ADDITIONAL_INFO_REQUESTED => 'Info suplimentare',
-            self::RESOLVED_ACCEPTED => 'Admis',
-            self::RESOLVED_REJECTED => 'Respins',
-            self::ENFORCEMENT => 'Executare silită',
+            self::AMIABIL => 'Amiabil',
+            self::SOMATIE_TRIMISA => 'Somație trimisă',
+            self::CERERE_DEPUSA => 'Cerere depusă',
+            self::DOSAR_INREGISTRAT => 'Dosar înregistrat',
+            self::TERMEN_FIXAT => 'Termen fixat',
+            self::ORDONANTA_EMISA => 'Ordonanță emisă',
+            self::CONTESTATA => 'Contestată',
+            self::DEFINITIVA => 'Definitivă',
+            self::EXECUTARE => 'Executare silită',
+            self::RESPINSA => 'Respinsă',
+            self::INCHIS_SUCCES => 'Închis cu succes',
+            self::INCHIS_PARTIAL_INSOLVABIL => 'Închis parțial / insolvabil',
+        };
+    }
+
+    public function color(): string
+    {
+        return match ($this) {
+            self::AMIABIL => 'slate',
+            self::SOMATIE_TRIMISA => 'amber',
+            self::CERERE_DEPUSA => 'sky',
+            self::DOSAR_INREGISTRAT => 'blue',
+            self::TERMEN_FIXAT => 'indigo',
+            self::ORDONANTA_EMISA => 'violet',
+            self::CONTESTATA => 'orange',
+            self::DEFINITIVA => 'emerald',
+            self::EXECUTARE => 'teal',
+            self::RESPINSA => 'red',
+            self::INCHIS_SUCCES => 'green',
+            self::INCHIS_PARTIAL_INSOLVABIL => 'gray',
+        };
+    }
+
+    public function isTerminal(): bool
+    {
+        return match ($this) {
+            self::RESPINSA, self::INCHIS_SUCCES, self::INCHIS_PARTIAL_INSOLVABIL => true,
+            default => false,
+        };
+    }
+
+    public function isActiveOnPortal(): bool
+    {
+        return match ($this) {
+            self::DOSAR_INREGISTRAT, self::TERMEN_FIXAT, self::ORDONANTA_EMISA, self::CONTESTATA => true,
+            default => false,
         };
     }
 }

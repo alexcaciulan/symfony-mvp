@@ -3,6 +3,7 @@
 namespace App\Tests\Entity;
 
 use App\Entity\Document;
+use App\Enum\ExtractionStatus;
 use PHPUnit\Framework\TestCase;
 
 class DocumentEntityTest extends TestCase
@@ -11,7 +12,7 @@ class DocumentEntityTest extends TestCase
     {
         $doc = new Document();
 
-        $this->assertSame('PENDING', $doc->getExtractionStatus());
+        $this->assertSame(ExtractionStatus::PENDING, $doc->getExtractionStatus());
         $this->assertNull($doc->getExtractedData());
         $this->assertNull($doc->getExtractionConfidence());
     }
@@ -21,11 +22,11 @@ class DocumentEntityTest extends TestCase
         $doc = new Document();
 
         $doc->setExtractedData(['creditor' => ['name' => 'Test'], 'confidence' => 0.85]);
-        $doc->setExtractionStatus('COMPLETED');
+        $doc->setExtractionStatus(ExtractionStatus::COMPLETED);
         $doc->setExtractionConfidence('0.85');
 
         $this->assertSame(['creditor' => ['name' => 'Test'], 'confidence' => 0.85], $doc->getExtractedData());
-        $this->assertSame('COMPLETED', $doc->getExtractionStatus());
+        $this->assertSame(ExtractionStatus::COMPLETED, $doc->getExtractionStatus());
         $this->assertSame('0.85', $doc->getExtractionConfidence());
     }
 }

@@ -4,6 +4,7 @@ namespace App\Tests\Entity;
 
 use App\Entity\Creditor;
 use App\Entity\User;
+use App\Enum\PersonType;
 use PHPUnit\Framework\TestCase;
 
 class CreditorEntityTest extends TestCase
@@ -14,7 +15,7 @@ class CreditorEntityTest extends TestCase
         $user = new User();
 
         $creditor->setUser($user);
-        $creditor->setPersonType('PJ');
+        $creditor->setPersonType(PersonType::PJ);
         $creditor->setName('SC Creditor SRL');
         $creditor->setTaxId('RO12345678');
         $creditor->setPersonalId('1900101123456');
@@ -26,7 +27,7 @@ class CreditorEntityTest extends TestCase
         $creditor->setLegalRepresentative('Ion Popescu');
 
         $this->assertSame($user, $creditor->getUser());
-        $this->assertSame('PJ', $creditor->getPersonType());
+        $this->assertSame(PersonType::PJ, $creditor->getPersonType());
         $this->assertSame('SC Creditor SRL', $creditor->getName());
         $this->assertSame('RO12345678', $creditor->getTaxId());
         $this->assertSame('1900101123456', $creditor->getPersonalId());

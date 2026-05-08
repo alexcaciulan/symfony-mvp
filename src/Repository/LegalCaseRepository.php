@@ -4,6 +4,7 @@ namespace App\Repository;
 
 use App\Entity\LegalCase;
 use App\Entity\User;
+use App\Enum\CaseStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -34,12 +35,17 @@ class LegalCaseRepository extends ServiceEntityRepository
      */
     public function findActiveByUser(User $user): array
     {
+        $terminal = array_filter(
+            CaseStatus::cases(),
+            static fn (CaseStatus $s): bool => $s->isTerminal()
+        );
+
         return $this->createQueryBuilder('lc')
             ->where('lc.user = :user')
             ->andWhere('lc.deletedAt IS NULL')
             ->andWhere('lc.status NOT IN (:terminal)')
             ->setParameter('user', $user)
-            ->setParameter('terminal', ['RESPINSA', 'INCHIS_SUCCES', 'INCHIS_PARTIAL_INSOLVABIL'])
+            ->setParameter('terminal', $terminal)
             ->orderBy('lc.updatedAt', 'DESC')
             ->getQuery()
             ->getResult();
@@ -49,7 +55,7 @@ class LegalCaseRepository extends ServiceEntityRepository
      * Group active cases for a user by status, with deterministic priority ordering
      * (urgent statuses first). Used by dashboard.
      *
-     * @return array<string, LegalCase[]> keyed by status
+     * @return array<string, LegalCase[]> keyed by status value
      */
     public function findByStatusGroupedByUrgency(User $user): array
     {
@@ -62,15 +68,23 @@ class LegalCaseRepository extends ServiceEntityRepository
             ->getResult();
 
         $priority = [
-            'TERMEN_FIXAT', 'CONTESTATA', 'ORDONANTA_EMISA',
-            'DOSAR_INREGISTRAT', 'CERERE_DEPUSA', 'SOMATIE_TRIMISA',
-            'AMIABIL', 'DEFINITIVA', 'EXECUTARE',
-            'INCHIS_SUCCES', 'INCHIS_PARTIAL_INSOLVABIL', 'RESPINSA',
+            CaseStatus::TERMEN_FIXAT->value,
+            CaseStatus::CONTESTATA->value,
+            CaseStatus::ORDONANTA_EMISA->value,
+            CaseStatus::DOSAR_INREGISTRAT->value,
+            CaseStatus::CERERE_DEPUSA->value,
+            CaseStatus::SOMATIE_TRIMISA->value,
+            CaseStatus::AMIABIL->value,
+            CaseStatus::DEFINITIVA->value,
+            CaseStatus::EXECUTARE->value,
+            CaseStatus::INCHIS_SUCCES->value,
+            CaseStatus::INCHIS_PARTIAL_INSOLVABIL->value,
+            CaseStatus::RESPINSA->value,
         ];
 
         $grouped = array_fill_keys($priority, []);
         foreach ($cases as $case) {
-            $grouped[$case->getStatus()][] = $case;
+            $grouped[$case->getStatus()->value][] = $case;
         }
 
         return array_filter($grouped, static fn (array $group): bool => $group !== []);

@@ -7,6 +7,10 @@ use App\Entity\Debtor;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Entity\User;
+use App\Enum\CaseStatus;
+use App\Enum\DeadlineType;
+use App\Enum\PersonType;
+use App\Enum\RelationshipType;
 use PHPUnit\Framework\TestCase;
 
 class LegalCaseEntityTest extends TestCase
@@ -31,7 +35,7 @@ class LegalCaseEntityTest extends TestCase
     {
         $case = new LegalCase();
 
-        $this->assertSame('AMIABIL', $case->getStatus());
+        $this->assertSame(CaseStatus::AMIABIL, $case->getStatus());
     }
 
     public function testDefaultCurrencyIsRon(): void
@@ -86,7 +90,7 @@ class LegalCaseEntityTest extends TestCase
     {
         $case = new LegalCase();
         $debtor = new Debtor();
-        $debtor->setPersonType('PJ');
+        $debtor->setPersonType(PersonType::PJ);
         $debtor->setName('Debitor SRL');
         $debtor->setAddress('str. X nr. 1');
 
@@ -100,7 +104,7 @@ class LegalCaseEntityTest extends TestCase
     {
         $case = new LegalCase();
         $deadline = new LegalDeadline();
-        $deadline->setType('JUDECATA');
+        $deadline->setType(DeadlineType::JUDECATA);
         $deadline->setDeadlineDate(new \DateTime('+30 days'));
 
         $case->addDeadline($deadline);
@@ -125,8 +129,8 @@ class LegalCaseEntityTest extends TestCase
         $case = new LegalCase();
         $user = new User();
         $case->setUser($user);
-        $case->setStatus('SOMATIE_TRIMISA');
-        $case->setRelationshipType('COMERCIAL');
+        $case->setStatus(CaseStatus::SOMATIE_TRIMISA);
+        $case->setRelationshipType(RelationshipType::COMERCIAL);
         $case->setAmount('5000.00');
         $case->setCalculatedInterest('120.50');
         $case->setStampDuty('200.00');
@@ -136,8 +140,8 @@ class LegalCaseEntityTest extends TestCase
         $case->setDueDate($due);
 
         $this->assertSame($user, $case->getUser());
-        $this->assertSame('SOMATIE_TRIMISA', $case->getStatus());
-        $this->assertSame('COMERCIAL', $case->getRelationshipType());
+        $this->assertSame(CaseStatus::SOMATIE_TRIMISA, $case->getStatus());
+        $this->assertSame(RelationshipType::COMERCIAL, $case->getRelationshipType());
         $this->assertSame('5000.00', $case->getAmount());
         $this->assertSame('120.50', $case->getCalculatedInterest());
         $this->assertSame('200.00', $case->getStampDuty());

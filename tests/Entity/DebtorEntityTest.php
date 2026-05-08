@@ -4,6 +4,7 @@ namespace App\Tests\Entity;
 
 use App\Entity\Debtor;
 use App\Entity\LegalCase;
+use App\Enum\PersonType;
 use PHPUnit\Framework\TestCase;
 
 class DebtorEntityTest extends TestCase
@@ -14,7 +15,7 @@ class DebtorEntityTest extends TestCase
         $case = new LegalCase();
 
         $debtor->setLegalCase($case);
-        $debtor->setPersonType('PJ');
+        $debtor->setPersonType(PersonType::PJ);
         $debtor->setName('Debitor SRL');
         $debtor->setTaxId('RO87654321');
         $debtor->setPersonalId('2900101654321');
@@ -27,7 +28,7 @@ class DebtorEntityTest extends TestCase
         $debtor->setOnrcStatus('ACTIVE');
 
         $this->assertSame($case, $debtor->getLegalCase());
-        $this->assertSame('PJ', $debtor->getPersonType());
+        $this->assertSame(PersonType::PJ, $debtor->getPersonType());
         $this->assertSame('Debitor SRL', $debtor->getName());
         $this->assertSame('RO87654321', $debtor->getTaxId());
         $this->assertSame('2900101654321', $debtor->getPersonalId());

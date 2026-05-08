@@ -3,6 +3,7 @@
 namespace App\Entity;
 
 use App\Enum\DocumentType;
+use App\Enum\ExtractionStatus;
 use App\Repository\DocumentRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
@@ -45,8 +46,8 @@ class Document
     #[ORM\Column(type: Types::JSON, nullable: true)]
     private ?array $extractedData = null;
 
-    #[ORM\Column(length: 20)]
-    private string $extractionStatus = 'PENDING';
+    #[ORM\Column(length: 20, enumType: ExtractionStatus::class)]
+    private ExtractionStatus $extractionStatus = ExtractionStatus::PENDING;
 
     #[ORM\Column(type: Types::DECIMAL, precision: 3, scale: 2, nullable: true)]
     private ?string $extractionConfidence = null;
@@ -162,12 +163,12 @@ class Document
         return $this;
     }
 
-    public function getExtractionStatus(): string
+    public function getExtractionStatus(): ExtractionStatus
     {
         return $this->extractionStatus;
     }
 
-    public function setExtractionStatus(string $extractionStatus): static
+    public function setExtractionStatus(ExtractionStatus $extractionStatus): static
     {
         $this->extractionStatus = $extractionStatus;
 

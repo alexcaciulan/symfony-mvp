@@ -4,6 +4,8 @@ namespace App\Tests\Entity;
 
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
+use App\Enum\DeadlinePriority;
+use App\Enum\DeadlineType;
 use PHPUnit\Framework\TestCase;
 
 class LegalDeadlineEntityTest extends TestCase
@@ -12,7 +14,7 @@ class LegalDeadlineEntityTest extends TestCase
     {
         $deadline = new LegalDeadline();
 
-        $this->assertSame('MEDIUM', $deadline->getPriority());
+        $this->assertSame(DeadlinePriority::MEDIUM, $deadline->getPriority());
         $this->assertFalse($deadline->isCompleted());
         $this->assertNull($deadline->getCompletedAt());
         $this->assertFalse($deadline->isAlertSent7());
@@ -28,16 +30,16 @@ class LegalDeadlineEntityTest extends TestCase
         $date = new \DateTime('2026-06-15');
 
         $deadline->setLegalCase($case);
-        $deadline->setType('CONTESTATIE');
+        $deadline->setType(DeadlineType::CONTESTATIE);
         $deadline->setDeadlineDate($date);
         $deadline->setDescription('Termen contestație');
-        $deadline->setPriority('HIGH');
+        $deadline->setPriority(DeadlinePriority::HIGH);
 
         $this->assertSame($case, $deadline->getLegalCase());
-        $this->assertSame('CONTESTATIE', $deadline->getType());
+        $this->assertSame(DeadlineType::CONTESTATIE, $deadline->getType());
         $this->assertSame($date, $deadline->getDeadlineDate());
         $this->assertSame('Termen contestație', $deadline->getDescription());
-        $this->assertSame('HIGH', $deadline->getPriority());
+        $this->assertSame(DeadlinePriority::HIGH, $deadline->getPriority());
     }
 
     public function testMarkCompletedSetsBothFields(): void

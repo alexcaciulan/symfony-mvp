@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Enum\PersonType;
 use App\Repository\CreditorRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
@@ -22,8 +23,8 @@ class Creditor
     #[ORM\JoinColumn(nullable: false)]
     private User $user;
 
-    #[ORM\Column(length: 10)]
-    private string $personType;
+    #[ORM\Column(length: 10, enumType: PersonType::class)]
+    private PersonType $personType;
 
     #[ORM\Column(length: 255)]
     private string $name;
@@ -92,12 +93,12 @@ class Creditor
         return $this;
     }
 
-    public function getPersonType(): string
+    public function getPersonType(): PersonType
     {
         return $this->personType;
     }
 
-    public function setPersonType(string $personType): static
+    public function setPersonType(PersonType $personType): static
     {
         $this->personType = $personType;
 

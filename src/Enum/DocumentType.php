@@ -4,7 +4,12 @@ namespace App\Enum;
 
 enum DocumentType: string
 {
-    case CERERE_PDF = 'cerere_pdf';
+    case SOMATIE = 'somatie';
+    case CERERE_OP = 'cerere_op';
+    case OPIS = 'opis';
+    case DOVADA_COMUNICARE = 'dovada_comunicare';
+    case ACT_CONSTATATOR = 'act_constatator';
+    case ANEXA = 'anexa';
     case DOVADA = 'dovada';
     case CONTRACT = 'contract';
     case FACTURA = 'factura';
@@ -13,7 +18,12 @@ enum DocumentType: string
     public function label(): string
     {
         return match ($this) {
-            self::CERERE_PDF => 'Cerere PDF',
+            self::SOMATIE => 'Somație',
+            self::CERERE_OP => 'Cerere ordonanță de plată',
+            self::OPIS => 'Opis documente',
+            self::DOVADA_COMUNICARE => 'Dovadă comunicare',
+            self::ACT_CONSTATATOR => 'Act constatator',
+            self::ANEXA => 'Anexă',
             self::DOVADA => 'Dovadă',
             self::CONTRACT => 'Contract',
             self::FACTURA => 'Factură',

@@ -7,24 +7,23 @@ use PHPUnit\Framework\TestCase;
 
 class CaseTransitionTest extends TestCase
 {
+    public function testHasTwelveTransitions(): void
+    {
+        $this->assertCount(12, CaseTransition::cases());
+    }
+
     public function testAllCasesHaveLabels(): void
     {
-        foreach (CaseTransition::cases() as $transition) {
-            $this->assertNotEmpty($transition->label(), "CaseTransition::{$transition->name} has no label");
+        foreach (CaseTransition::cases() as $case) {
+            $this->assertNotEmpty($case->label(), "Missing label for {$case->name}");
         }
     }
 
-    public function testValuesMatchWorkflowTransitions(): void
+    public function testCanCreateFromValue(): void
     {
-        $expectedTransitions = [
-            'submit', 'confirm_payment', 'submit_to_court', 'mark_received',
-            'request_info', 'provide_info', 'accept', 'reject', 'enforce',
-        ];
-
-        $enumValues = array_map(fn(CaseTransition $t) => $t->value, CaseTransition::cases());
-
-        foreach ($expectedTransitions as $transition) {
-            $this->assertContains($transition, $enumValues, "Workflow transition '$transition' missing from CaseTransition enum");
-        }
+        $this->assertSame(CaseTransition::TRIMITE_SOMATIE, CaseTransition::from('trimite_somatie'));
+        $this->assertSame(CaseTransition::INREGISTREAZA_DOSAR, CaseTransition::from('inregistreaza_dosar'));
+        $this->assertSame(CaseTransition::INCHIDE_INSOLVABIL, CaseTransition::from('inchide_insolvabil'));
+        $this->assertNull(CaseTransition::tryFrom('not_a_transition'));
     }
 }

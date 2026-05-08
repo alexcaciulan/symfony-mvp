@@ -7,25 +7,55 @@ use PHPUnit\Framework\TestCase;
 
 class CaseStatusTest extends TestCase
 {
+    public function testHasTwelveCases(): void
+    {
+        $this->assertCount(12, CaseStatus::cases());
+    }
+
     public function testAllCasesHaveLabels(): void
     {
-        foreach (CaseStatus::cases() as $status) {
-            $this->assertNotEmpty($status->label(), "CaseStatus::{$status->name} has no label");
+        foreach (CaseStatus::cases() as $case) {
+            $this->assertNotEmpty($case->label(), "Missing label for {$case->name}");
         }
     }
 
-    public function testValuesMatchWorkflowPlaces(): void
+    public function testAllCasesHaveColors(): void
     {
-        $expectedPlaces = [
-            'draft', 'pending_payment', 'paid', 'submitted_to_court',
-            'under_review', 'additional_info_requested',
-            'resolved_accepted', 'resolved_rejected', 'enforcement',
-        ];
-
-        $enumValues = array_map(fn(CaseStatus $s) => $s->value, CaseStatus::cases());
-
-        foreach ($expectedPlaces as $place) {
-            $this->assertContains($place, $enumValues, "Workflow place '$place' missing from CaseStatus enum");
+        foreach (CaseStatus::cases() as $case) {
+            $this->assertNotEmpty($case->color(), "Missing color for {$case->name}");
         }
+    }
+
+    public function testIsTerminal(): void
+    {
+        $this->assertTrue(CaseStatus::RESPINSA->isTerminal());
+        $this->assertTrue(CaseStatus::INCHIS_SUCCES->isTerminal());
+        $this->assertTrue(CaseStatus::INCHIS_PARTIAL_INSOLVABIL->isTerminal());
+
+        $this->assertFalse(CaseStatus::AMIABIL->isTerminal());
+        $this->assertFalse(CaseStatus::DOSAR_INREGISTRAT->isTerminal());
+        $this->assertFalse(CaseStatus::ORDONANTA_EMISA->isTerminal());
+        $this->assertFalse(CaseStatus::DEFINITIVA->isTerminal());
+    }
+
+    public function testIsActiveOnPortal(): void
+    {
+        $this->assertTrue(CaseStatus::DOSAR_INREGISTRAT->isActiveOnPortal());
+        $this->assertTrue(CaseStatus::TERMEN_FIXAT->isActiveOnPortal());
+        $this->assertTrue(CaseStatus::ORDONANTA_EMISA->isActiveOnPortal());
+        $this->assertTrue(CaseStatus::CONTESTATA->isActiveOnPortal());
+
+        $this->assertFalse(CaseStatus::AMIABIL->isActiveOnPortal());
+        $this->assertFalse(CaseStatus::SOMATIE_TRIMISA->isActiveOnPortal());
+        $this->assertFalse(CaseStatus::CERERE_DEPUSA->isActiveOnPortal());
+        $this->assertFalse(CaseStatus::DEFINITIVA->isActiveOnPortal());
+        $this->assertFalse(CaseStatus::EXECUTARE->isActiveOnPortal());
+    }
+
+    public function testCanCreateFromValue(): void
+    {
+        $this->assertSame(CaseStatus::AMIABIL, CaseStatus::from('AMIABIL'));
+        $this->assertSame(CaseStatus::SOMATIE_TRIMISA, CaseStatus::from('SOMATIE_TRIMISA'));
+        $this->assertNull(CaseStatus::tryFrom('not_a_status'));
     }
 }

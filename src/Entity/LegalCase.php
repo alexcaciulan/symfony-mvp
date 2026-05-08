@@ -2,6 +2,8 @@
 
 namespace App\Entity;
 
+use App\Enum\CaseStatus;
+use App\Enum\RelationshipType;
 use App\Repository\LegalCaseRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
@@ -36,11 +38,11 @@ class LegalCase
     #[ORM\OneToMany(targetEntity: Debtor::class, mappedBy: 'legalCase', cascade: ['persist', 'remove'], orphanRemoval: true)]
     private Collection $debtors;
 
-    #[ORM\Column(length: 30)]
-    private string $status = 'AMIABIL';
+    #[ORM\Column(length: 30, enumType: CaseStatus::class)]
+    private CaseStatus $status = CaseStatus::AMIABIL;
 
-    #[ORM\Column(length: 20, nullable: true)]
-    private ?string $relationshipType = null;
+    #[ORM\Column(length: 20, nullable: true, enumType: RelationshipType::class)]
+    private ?RelationshipType $relationshipType = null;
 
     #[ORM\Column(type: Types::DECIMAL, precision: 12, scale: 2, nullable: true)]
     private ?string $amount = null;
@@ -197,24 +199,24 @@ class LegalCase
         return $this;
     }
 
-    public function getStatus(): string
+    public function getStatus(): CaseStatus
     {
         return $this->status;
     }
 
-    public function setStatus(string $status): static
+    public function setStatus(CaseStatus $status): static
     {
         $this->status = $status;
 
         return $this;
     }
 
-    public function getRelationshipType(): ?string
+    public function getRelationshipType(): ?RelationshipType
     {
         return $this->relationshipType;
     }
 
-    public function setRelationshipType(?string $relationshipType): static
+    public function setRelationshipType(?RelationshipType $relationshipType): static
     {
         $this->relationshipType = $relationshipType;
 

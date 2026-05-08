@@ -2,6 +2,8 @@
 
 namespace App\Entity;
 
+use App\Enum\DeadlinePriority;
+use App\Enum\DeadlineType;
 use App\Repository\LegalDeadlineRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
@@ -19,8 +21,8 @@ class LegalDeadline
     #[ORM\JoinColumn(nullable: false)]
     private LegalCase $legalCase;
 
-    #[ORM\Column(length: 30)]
-    private string $type;
+    #[ORM\Column(length: 30, enumType: DeadlineType::class)]
+    private DeadlineType $type;
 
     #[ORM\Column(type: Types::DATE_MUTABLE)]
     private \DateTimeInterface $deadlineDate;
@@ -28,8 +30,8 @@ class LegalDeadline
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $description = null;
 
-    #[ORM\Column(length: 20)]
-    private string $priority = 'MEDIUM';
+    #[ORM\Column(length: 20, enumType: DeadlinePriority::class)]
+    private DeadlinePriority $priority = DeadlinePriority::MEDIUM;
 
     #[ORM\Column]
     private bool $completed = false;
@@ -84,12 +86,12 @@ class LegalDeadline
         return $this;
     }
 
-    public function getType(): string
+    public function getType(): DeadlineType
     {
         return $this->type;
     }
 
-    public function setType(string $type): static
+    public function setType(DeadlineType $type): static
     {
         $this->type = $type;
 
@@ -120,12 +122,12 @@ class LegalDeadline
         return $this;
     }
 
-    public function getPriority(): string
+    public function getPriority(): DeadlinePriority
     {
         return $this->priority;
     }
 
-    public function setPriority(string $priority): static
+    public function setPriority(DeadlinePriority $priority): static
     {
         $this->priority = $priority;
 
