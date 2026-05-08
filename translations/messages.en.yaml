@@ -371,3 +371,152 @@ rate_limit:
     forgot_password: 'Too many password reset requests. Please try again later.'
     case_creation: 'You have reached the hourly limit for new cases. Please try again later.'
     document_upload: 'You have reached the hourly upload limit. Please try again later.'
+
+# =============================================================================
+# Enums (label() returns these keys; consumers apply |trans)
+# =============================================================================
+enum:
+    case_status:
+        AMIABIL: 'Amicable'
+        SOMATIE_TRIMISA: 'Notice sent'
+        CERERE_DEPUSA: 'Petition filed'
+        DOSAR_INREGISTRAT: 'Registered with court'
+        TERMEN_FIXAT: 'Hearing scheduled'
+        ORDONANTA_EMISA: 'Order issued'
+        CONTESTATA: 'Contested'
+        DEFINITIVA: 'Final'
+        EXECUTARE: 'Enforcement'
+        RESPINSA: 'Rejected'
+        INCHIS_SUCCES: 'Closed — recovered'
+        INCHIS_PARTIAL_INSOLVABIL: 'Closed — partial / insolvent'
+    case_transition:
+        trimite_somatie: 'Send notice'
+        depune_cerere: 'File payment order petition'
+        inregistreaza_dosar: 'Register with court'
+        fixeaza_termen: 'Schedule hearing'
+        emite_ordonanta: 'Issue order'
+        contesta: 'Contest'
+        respinge_contestatie: 'Reject contestation'
+        admite_contestatie: 'Allow contestation'
+        marcheaza_definitiva: 'Mark as final'
+        respinge: 'Reject petition'
+        inchide_succes: 'Close — recovered'
+        inchide_insolvabil: 'Close — insolvent'
+    court_type:
+        judecatorie: 'Local court'
+        tribunal: 'Tribunal'
+    deadline_priority:
+        LOW: 'Low'
+        MEDIUM: 'Medium'
+        HIGH: 'High'
+        CRITICAL: 'Critical'
+    deadline_type:
+        RASPUNS_SOMATIE: 'Notice response'
+        DEPUNERE_CERERE: 'Petition filing'
+        JUDECATA: 'Court hearing'
+        CONTESTATIE: 'Contestation deadline'
+        PRESCRIPTIE: 'Statute of limitations'
+        OTHER: 'Other deadline'
+    document_type:
+        somatie: 'Payment notice'
+        cerere_op: 'Payment order petition'
+        opis: 'Document index'
+        dovada_comunicare: 'Proof of communication'
+        act_constatator: 'Findings document'
+        anexa: 'Annex'
+        dovada: 'Evidence'
+        contract: 'Contract'
+        factura: 'Invoice'
+        alt_document: 'Other document'
+    extraction_status:
+        PENDING: 'Pending'
+        PROCESSING: 'Processing'
+        COMPLETED: 'Completed'
+        FAILED: 'Failed'
+    notification_channel:
+        email: 'Email'
+        in_app: 'In-app'
+    person_type:
+        PF: 'Individual'
+        PJ: 'Legal entity'
+    portal_event_type:
+        hearing_scheduled: 'Hearing scheduled'
+        hearing_completed: 'Hearing completed'
+        ruling_issued: 'Ruling issued'
+        appeal_filed: 'Appeal filed'
+        case_info_update: 'Case info updated'
+    relationship_type:
+        COMERCIAL: 'Commercial (between professionals)'
+        CIVIL: 'Civil'
+    user_type:
+        pf: 'Individual'
+        pj: 'Legal entity'
+        avocat: 'Lawyer'
+        admin: 'Administrator'
+
+# =============================================================================
+# Homepage (public-facing)
+# =============================================================================
+home:
+    hero:
+        eyebrow: 'For lawyers and debt recovery firms'
+        title: 'Debt recovery made simple and fast'
+        subtitle: 'Complete platform for managing the payment order procedure under OUG 80/2013 — from notice to enforcement.'
+        cta_primary: 'Start free'
+        cta_secondary: 'See how it works'
+    steps:
+        title: 'How it works'
+        step_1:
+            label: 'Step 1'
+            title: 'Upload documents'
+            description: 'Upload contracts, invoices, proofs of communication. Auto-extraction populates the form.'
+        step_2:
+            label: 'Step 2'
+            title: 'We generate the notice'
+            description: 'One click and you have a payment notice ready to send — the 30-day clock starts automatically.'
+        step_3:
+            label: 'Step 3'
+            title: 'File the petition'
+            description: 'Payment order petition with document index, calculated court fee, competent court determined.'
+        step_4:
+            label: 'Step 4'
+            title: 'We monitor the case'
+            description: 'Sync with portal.just.ro — alerts on hearings, contestations, rulings.'
+    benefits:
+        title: 'Why LexRecovery'
+        rapid:
+            title: 'Fast'
+            description: 'Automatic generation of procedural documents — no copy-paste between templates.'
+        sigur:
+            title: 'Reliable'
+            description: 'OUG 80/2013 + CPC art. 1014-1024 compliant. Automatic interest (OG 13/2011) and stamp duty calculations.'
+        clar:
+            title: 'Clear'
+            description: 'All deadlines on one dashboard. Proactive notifications as deadlines approach.'
+
+# =============================================================================
+# Stimulus controllers (read via data-* attributes set in twig)
+# =============================================================================
+stimulus:
+    collection:
+        item_label_template: 'Defendant #%n%'
+        remove: 'Remove'
+    confirm:
+        default: 'Are you sure you want to continue?'
+    company_lookup:
+        button: 'Search'
+        empty_input: 'Please enter a tax ID.'
+        searching: 'Searching...'
+        error_generic: 'Search error.'
+        error_network: 'Network error. Please try again.'
+    optimistic:
+        action_failed: 'The action failed. Please retry.'
+
+# =============================================================================
+# Domain exceptions (services throw with these keys; controllers translate)
+# =============================================================================
+exception:
+    anaf:
+        cui_invalid: 'Invalid tax ID: must contain between 2 and 10 digits.'
+        unavailable: 'ANAF service unavailable. Please try again later.'
+        not_found: 'Tax ID not found in the ANAF database.'

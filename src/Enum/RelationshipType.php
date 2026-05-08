@@ -9,10 +9,7 @@ enum RelationshipType: string
 
     public function label(): string
     {
-        return match ($this) {
-            self::COMERCIAL => 'Comercial (între profesioniști)',
-            self::CIVIL => 'Civil',
-        };
+        return 'enum.relationship_type.' . $this->value;
     }
 
     public function nbrPercentagePoints(): int

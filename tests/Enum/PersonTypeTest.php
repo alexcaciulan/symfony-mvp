@@ -14,8 +14,8 @@ class PersonTypeTest extends TestCase
 
     public function testLabels(): void
     {
-        $this->assertSame('Persoană fizică', PersonType::PF->label());
-        $this->assertSame('Persoană juridică', PersonType::PJ->label());
+        $this->assertSame('enum.person_type.PF', PersonType::PF->label());
+        $this->assertSame('enum.person_type.PJ', PersonType::PJ->label());
     }
 
     public function testCanCreateFromValue(): void

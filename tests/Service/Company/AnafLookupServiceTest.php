@@ -102,7 +102,7 @@ class AnafLookupServiceTest extends TestCase
         $service = $this->createService(new MockResponse(''));
 
         $this->expectException(AnafLookupException::class);
-        $this->expectExceptionMessageMatches('/CUI invalid/');
+        $this->expectExceptionMessage('exception.anaf.cui_invalid');
 
         $service->lookupByCui('1');
     }
@@ -126,7 +126,7 @@ class AnafLookupServiceTest extends TestCase
         $service = $this->createService(new MockResponse(json_encode($anafResponse)));
 
         $this->expectException(AnafLookupException::class);
-        $this->expectExceptionMessageMatches('/nu a fost găsit/');
+        $this->expectExceptionMessage('exception.anaf.not_found');
 
         $service->lookupByCui('99999999');
     }
@@ -136,7 +136,7 @@ class AnafLookupServiceTest extends TestCase
         $service = $this->createService(new MockResponse('', ['http_code' => 500]));
 
         $this->expectException(AnafLookupException::class);
-        $this->expectExceptionMessageMatches('/nu este disponibil/');
+        $this->expectExceptionMessage('exception.anaf.unavailable');
 
         $service->lookupByCui('14399840');
     }

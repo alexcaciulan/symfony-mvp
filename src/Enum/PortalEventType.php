@@ -12,12 +12,6 @@ enum PortalEventType: string
 
     public function label(): string
     {
-        return match ($this) {
-            self::HEARING_SCHEDULED => 'Ședință programată',
-            self::HEARING_COMPLETED => 'Ședință finalizată',
-            self::RULING_ISSUED => 'Hotărâre pronunțată',
-            self::APPEAL_FILED => 'Cale de atac declarată',
-            self::CASE_INFO_UPDATE => 'Actualizare informații dosar',
-        };
+        return 'enum.portal_event_type.' . $this->value;
     }
 }

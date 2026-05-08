@@ -15,6 +15,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 #[IsGranted('ROLE_ADMIN')]
 class CaseStatusController extends AbstractController
@@ -24,6 +25,7 @@ class CaseStatusController extends AbstractController
         private EntityManagerInterface $em,
         private AdminUrlGenerator $adminUrlGenerator,
         private AuditLogService $auditLogService,
+        private TranslatorInterface $translator,
     ) {}
 
     #[Route('/admin/case/{id}/change-status', name: 'admin_case_change_status', requirements: ['id' => '\d+'], methods: ['GET', 'POST'])]
@@ -67,8 +69,8 @@ class CaseStatusController extends AbstractController
 
             $this->em->flush();
 
-            $oldLabel = $oldStatus->label();
-            $newLabel = $case->getStatus()->label();
+            $oldLabel = $this->translator->trans($oldStatus->label());
+            $newLabel = $this->translator->trans($case->getStatus()->label());
 
             $this->addFlash('success', sprintf(
                 'Statusul dosarului #%d a fost schimbat: %s → %s',
@@ -87,12 +89,15 @@ class CaseStatusController extends AbstractController
 
         $transitionChoices = [];
         foreach ($availableTransitions as $t) {
-            $transitionChoices[$t] = CaseTransition::tryFrom($t)?->label() ?? $t;
+            $transition = CaseTransition::tryFrom($t);
+            $transitionChoices[$t] = $transition !== null
+                ? $this->translator->trans($transition->label())
+                : $t;
         }
 
         $statusLabels = [];
         foreach (CaseStatus::cases() as $status) {
-            $statusLabels[$status->value] = $status->label();
+            $statusLabels[$status->value] = $this->translator->trans($status->label());
         }
 
         return $this->render('admin/case_change_status.html.twig', [

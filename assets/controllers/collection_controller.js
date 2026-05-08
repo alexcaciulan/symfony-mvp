@@ -20,6 +20,10 @@ export default class extends Controller {
         prototype: String,
         max: { type: Number, default: 10 },
         index: { type: Number, default: 0 },
+        // Translated via data-collection-item-label-template-value="{{ 'stimulus.collection.item_label_template'|trans }}".
+        // Use %n% as the placeholder for the item number.
+        itemLabelTemplate: { type: String, default: 'Item #%n%' },
+        removeLabel: { type: String, default: 'Remove' },
     };
 
     addItem() {
@@ -32,11 +36,12 @@ export default class extends Controller {
         wrapper.classList.add('border', 'border-gray-200', 'rounded-lg', 'p-4', 'mb-4', 'relative');
         wrapper.setAttribute('data-collection-target', 'item');
 
+        const itemLabel = this.itemLabelTemplateValue.replace('%n%', String(this.itemTargets.length + 1));
         const header = document.createElement('div');
         header.classList.add('flex', 'items-center', 'justify-between', 'mb-4');
         header.innerHTML = `
-            <h3 class="text-sm font-semibold text-gray-700">Pârât #${this.itemTargets.length + 1}</h3>
-            <button type="button" class="text-sm text-red-600 hover:text-red-800 font-medium" data-action="click->collection#removeItem">Elimină</button>
+            <h3 class="text-sm font-semibold text-gray-700">${this.escape(itemLabel)}</h3>
+            <button type="button" class="text-sm text-red-600 hover:text-red-800 font-medium" data-action="click->collection#removeItem">${this.escape(this.removeLabelValue)}</button>
         `;
 
         wrapper.appendChild(header);
@@ -57,5 +62,11 @@ export default class extends Controller {
         if (item && this.itemTargets.length > 1) {
             item.remove();
         }
+    }
+
+    escape(s) {
+        const div = document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
     }
 }

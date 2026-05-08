@@ -1,11 +1,11 @@
 {# @var trigger_label string  Text/HTML for the trigger button #}
-{# @var message string  Confirmation prompt #}
+{# @var message string  Confirmation prompt (already translated; use {{ 'key'|trans }} at call-site) #}
 {# @var form_action string  URL to submit on confirm #}
 {# @var form_method string  HTTP method (default POST) #}
 {# @var csrf_token_id string|null  Symfony CSRF token id #}
 <form action="{{ form_action }}" method="{{ form_method ?? 'POST' }}"
       data-controller="confirm"
-      data-confirm-message-value="{{ message }}"
+      data-confirm-message-value="{{ message ?? ('stimulus.confirm.default'|trans) }}"
       data-action="submit->confirm#confirm"
       class="inline">
     {% if csrf_token_id ?? null %}

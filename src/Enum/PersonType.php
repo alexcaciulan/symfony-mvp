@@ -9,9 +9,6 @@ enum PersonType: string
 
     public function label(): string
     {
-        return match ($this) {
-            self::PF => 'Persoană fizică',
-            self::PJ => 'Persoană juridică',
-        };
+        return 'enum.person_type.' . $this->value;
     }
 }

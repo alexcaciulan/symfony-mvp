@@ -41,7 +41,7 @@ class AnafLookupService
         $cui = preg_replace('/[^0-9]/', '', $cui);
 
         if ($cui === '' || strlen($cui) < 2 || strlen($cui) > 10) {
-            throw new AnafLookupException('CUI invalid: trebuie să conțină între 2 și 10 cifre.');
+            throw new AnafLookupException('exception.anaf.cui_invalid');
         }
 
         try {
@@ -59,11 +59,11 @@ class AnafLookupService
                 'cui' => $cui,
                 'error' => $e->getMessage(),
             ]);
-            throw new AnafLookupException('Serviciul ANAF nu este disponibil. Încercați mai târziu.', 0, $e);
+            throw new AnafLookupException('exception.anaf.unavailable', 0, $e);
         }
 
         if (empty($data['found'])) {
-            throw new AnafLookupException('CUI-ul nu a fost găsit în baza de date ANAF.');
+            throw new AnafLookupException('exception.anaf.not_found');
         }
 
         return $this->parseResponse($data['found'][0]);

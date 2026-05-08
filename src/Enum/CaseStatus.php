@@ -19,20 +19,7 @@ enum CaseStatus: string
 
     public function label(): string
     {
-        return match ($this) {
-            self::AMIABIL => 'Amiabil',
-            self::SOMATIE_TRIMISA => 'Somație trimisă',
-            self::CERERE_DEPUSA => 'Cerere depusă',
-            self::DOSAR_INREGISTRAT => 'Dosar înregistrat',
-            self::TERMEN_FIXAT => 'Termen fixat',
-            self::ORDONANTA_EMISA => 'Ordonanță emisă',
-            self::CONTESTATA => 'Contestată',
-            self::DEFINITIVA => 'Definitivă',
-            self::EXECUTARE => 'Executare silită',
-            self::RESPINSA => 'Respinsă',
-            self::INCHIS_SUCCES => 'Închis cu succes',
-            self::INCHIS_PARTIAL_INSOLVABIL => 'Închis parțial / insolvabil',
-        };
+        return 'enum.case_status.' . $this->value;
     }
 
     public function color(): string

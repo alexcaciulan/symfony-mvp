@@ -17,17 +17,6 @@ enum DocumentType: string
 
     public function label(): string
     {
-        return match ($this) {
-            self::SOMATIE => 'Somație',
-            self::CERERE_OP => 'Cerere ordonanță de plată',
-            self::OPIS => 'Opis documente',
-            self::DOVADA_COMUNICARE => 'Dovadă comunicare',
-            self::ACT_CONSTATATOR => 'Act constatator',
-            self::ANEXA => 'Anexă',
-            self::DOVADA => 'Dovadă',
-            self::CONTRACT => 'Contract',
-            self::FACTURA => 'Factură',
-            self::ALT_DOCUMENT => 'Alt document',
-        };
+        return 'enum.document_type.' . $this->value;
     }
 }

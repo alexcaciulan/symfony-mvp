@@ -19,19 +19,6 @@ enum CaseTransition: string
 
     public function label(): string
     {
-        return match ($this) {
-            self::TRIMITE_SOMATIE => 'Trimite somație',
-            self::DEPUNE_CERERE => 'Depune cerere ordonanță de plată',
-            self::INREGISTREAZA_DOSAR => 'Înregistrează dosar instanță',
-            self::FIXEAZA_TERMEN => 'Fixează termen de judecată',
-            self::EMITE_ORDONANTA => 'Emite ordonanță',
-            self::CONTESTA => 'Contestă',
-            self::RESPINGE_CONTESTATIE => 'Respinge contestația',
-            self::ADMITE_CONTESTATIE => 'Admite contestația',
-            self::MARCHEAZA_DEFINITIVA => 'Marchează definitivă',
-            self::RESPINGE => 'Respinge cererea',
-            self::INCHIDE_SUCCES => 'Închide cu succes',
-            self::INCHIDE_INSOLVABIL => 'Închide ca insolvabil',
-        };
+        return 'enum.case_transition.' . $this->value;
     }
 }

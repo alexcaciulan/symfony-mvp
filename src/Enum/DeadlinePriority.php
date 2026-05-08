@@ -11,12 +11,7 @@ enum DeadlinePriority: string
 
     public function label(): string
     {
-        return match ($this) {
-            self::LOW => 'Scăzută',
-            self::MEDIUM => 'Medie',
-            self::HIGH => 'Ridicată',
-            self::CRITICAL => 'Critică',
-        };
+        return 'enum.deadline_priority.' . $this->value;
     }
 
     public function color(): string

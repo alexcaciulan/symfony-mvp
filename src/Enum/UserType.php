@@ -11,11 +11,6 @@ enum UserType: string
 
     public function label(): string
     {
-        return match ($this) {
-            self::PF => 'Persoană fizică',
-            self::PJ => 'Persoană juridică',
-            self::AVOCAT => 'Avocat',
-            self::ADMIN => 'Administrator',
-        };
+        return 'enum.user_type.' . $this->value;
     }
 }

@@ -9,9 +9,6 @@ enum NotificationChannel: string
 
     public function label(): string
     {
-        return match ($this) {
-            self::EMAIL => 'Email',
-            self::IN_APP => 'În aplicație',
-        };
+        return 'enum.notification_channel.' . $this->value;
     }
 }

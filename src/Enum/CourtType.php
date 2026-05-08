@@ -9,9 +9,6 @@ enum CourtType: string
 
     public function label(): string
     {
-        return match ($this) {
-            self::JUDECATORIE => 'Judecătorie',
-            self::TRIBUNAL => 'Tribunal',
-        };
+        return 'enum.court_type.' . $this->value;
     }
 }

@@ -26,9 +26,14 @@ use EasyCorp\Bundle\EasyAdminBundle\Filter\ChoiceFilter;
 use EasyCorp\Bundle\EasyAdminBundle\Filter\DateTimeFilter;
 use EasyCorp\Bundle\EasyAdminBundle\Filter\EntityFilter;
 use EasyCorp\Bundle\EasyAdminBundle\Filter\NumericFilter;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 class LegalCaseCrudController extends AbstractCrudController
 {
+    public function __construct(
+        private TranslatorInterface $translator,
+    ) {}
+
     public static function getEntityFqcn(): string
     {
         return LegalCase::class;
@@ -67,7 +72,7 @@ class LegalCaseCrudController extends AbstractCrudController
             ->setCurrency('RON')
             ->setStoredAsCents(false);
         yield ChoiceField::new('status', 'Status')
-            ->setChoices(self::statusChoices())
+            ->setChoices($this->statusChoices())
             ->renderAsBadges(self::statusBadgeMap());
         yield DateField::new('dueDate', 'Scadență')->onlyOnIndex();
         yield DateTimeField::new('createdAt', 'Creat la')->onlyOnIndex();
@@ -91,7 +96,7 @@ class LegalCaseCrudController extends AbstractCrudController
     public function configureFilters(Filters $filters): Filters
     {
         return $filters
-            ->add(ChoiceFilter::new('status', 'Status')->setChoices(self::statusChoices()))
+            ->add(ChoiceFilter::new('status', 'Status')->setChoices($this->statusChoices()))
             ->add(EntityFilter::new('court', 'Instanța'))
             ->add(EntityFilter::new('creditor', 'Creditor'))
             ->add(NumericFilter::new('amount', 'Sumă'))
@@ -107,13 +112,13 @@ class LegalCaseCrudController extends AbstractCrudController
     }
 
     /**
-     * @return array<string, string> label => value (EasyAdmin format)
+     * @return array<string, string> translated label => value (EasyAdmin format)
      */
-    private static function statusChoices(): array
+    private function statusChoices(): array
     {
         $choices = [];
         foreach (CaseStatus::cases() as $status) {
-            $choices[$status->label()] = $status->value;
+            $choices[$this->translator->trans($status->label())] = $status->value;
         }
         return $choices;
     }

@@ -74,7 +74,7 @@ class CourtPortalEventTest extends TestCase
         $event->setEventType(PortalEventType::HEARING_SCHEDULED);
         $event->setDescription('Termen 15.03.2026');
 
-        $this->assertStringContainsString('Ședință programată', (string) $event);
+        $this->assertStringContainsString('enum.portal_event_type.hearing_scheduled', (string) $event);
         $this->assertStringContainsString('Termen 15.03.2026', (string) $event);
     }
 }

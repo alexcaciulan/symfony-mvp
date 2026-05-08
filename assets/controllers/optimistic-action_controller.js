@@ -5,6 +5,8 @@ export default class extends Controller {
         url: String,
         method: { type: String, default: 'POST' },
         toggleClass: { type: String, default: 'is-done' },
+        // Caller passes translated message via data-optimistic-action-error-message-value="{{ 'stimulus.optimistic.action_failed'|trans }}".
+        errorMessage: { type: String, default: 'The action failed. Please retry.' },
     };
 
     async trigger(event) {
@@ -23,7 +25,7 @@ export default class extends Controller {
         } catch (e) {
             this.element.classList.toggle(this.toggleClassValue, previous);
             window.dispatchEvent(new CustomEvent('toast:show', {
-                detail: { message: 'Acțiunea a eșuat. Reîncearcă.', variant: 'error' },
+                detail: { message: this.errorMessageValue, variant: 'error' },
             }));
         }
     }

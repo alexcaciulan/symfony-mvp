@@ -13,14 +13,7 @@ enum DeadlineType: string
 
     public function label(): string
     {
-        return match ($this) {
-            self::RASPUNS_SOMATIE => 'Răspuns somație',
-            self::DEPUNERE_CERERE => 'Depunere cerere',
-            self::JUDECATA => 'Termen de judecată',
-            self::CONTESTATIE => 'Termen contestație',
-            self::PRESCRIPTIE => 'Termen prescripție',
-            self::OTHER => 'Alt termen',
-        };
+        return 'enum.deadline_type.' . $this->value;
     }
 
     public function defaultPrioritate(): DeadlinePriority

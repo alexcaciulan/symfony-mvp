@@ -26,17 +26,24 @@ export default class extends Controller {
 
     static values = {
         url: String,
+        // All UI strings translated by the caller via data-* attributes.
+        buttonLabel: { type: String, default: 'Search' },
+        emptyInput: { type: String, default: 'Please enter a tax ID.' },
+        searching: { type: String, default: 'Searching...' },
+        successMessage: { type: String, default: 'Done.' },
+        errorGeneric: { type: String, default: 'Search error.' },
+        errorNetwork: { type: String, default: 'Network error. Please try again.' },
     };
 
     async lookup() {
         const cui = this.cuiInputTarget.value.trim();
         if (!cui) {
-            this.showStatus('Introduceți un CUI.', 'error');
+            this.showStatus(this.emptyInputValue, 'error');
             return;
         }
 
         this.setLoading(true);
-        this.showStatus('Se caută...', 'info');
+        this.showStatus(this.searchingValue, 'info');
 
         try {
             const url = this.urlValue.replace('__CUI__', encodeURIComponent(cui));
@@ -45,12 +52,12 @@ export default class extends Controller {
 
             if (result.success) {
                 this.fillFields(result.data);
-                this.showStatus('Date completate cu succes.', 'success');
+                this.showStatus(this.successMessageValue, 'success');
             } else {
-                this.showStatus(result.error || 'Eroare la căutare.', 'error');
+                this.showStatus(result.error || this.errorGenericValue, 'error');
             }
         } catch {
-            this.showStatus('Eroare de rețea. Încercați din nou.', 'error');
+            this.showStatus(this.errorNetworkValue, 'error');
         } finally {
             this.setLoading(false);
         }
@@ -81,7 +88,7 @@ export default class extends Controller {
     setLoading(loading) {
         if (this.hasLookupButtonTarget) {
             this.lookupButtonTarget.disabled = loading;
-            this.lookupButtonTarget.textContent = loading ? 'Se caută...' : 'Caută după CUI';
+            this.lookupButtonTarget.textContent = loading ? this.searchingValue : this.buttonLabelValue;
         }
         if (this.hasCuiInputTarget) {
             this.cuiInputTarget.disabled = loading;

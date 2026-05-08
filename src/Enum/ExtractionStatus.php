@@ -11,11 +11,6 @@ enum ExtractionStatus: string
 
     public function label(): string
     {
-        return match ($this) {
-            self::PENDING => 'În așteptare',
-            self::PROCESSING => 'În procesare',
-            self::COMPLETED => 'Finalizată',
-            self::FAILED => 'Eșuată',
-        };
+        return 'enum.extraction_status.' . $this->value;
     }
 }

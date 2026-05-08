@@ -2,7 +2,9 @@ import { Controller } from '@hotwired/stimulus';
 
 export default class extends Controller {
     static values = {
-        message: { type: String, default: 'Sigur vrei să continui?' },
+        // Caller must provide via data-confirm-message-value (use a translated string).
+        // Empty default is intentional — surfaces missing wiring instead of silently using a hardcoded language.
+        message: { type: String, default: '' },
     };
 
     confirm(event) {

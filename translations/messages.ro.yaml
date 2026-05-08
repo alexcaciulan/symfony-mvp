@@ -373,3 +373,152 @@ rate_limit:
     case_creation: 'Ați atins limita de dosare noi pe oră. Reîncercați mai târziu.'
     document_upload: 'Ați atins limita de upload-uri pe oră. Reîncercați mai târziu.'
     company_lookup: 'Prea multe căutări CUI pe oră. Reîncercați mai târziu.'
+
+# =============================================================================
+# Enums (label() returns these keys; consumers apply |trans)
+# =============================================================================
+enum:
+    case_status:
+        AMIABIL: 'Amiabil'
+        SOMATIE_TRIMISA: 'Somație trimisă'
+        CERERE_DEPUSA: 'Cerere depusă'
+        DOSAR_INREGISTRAT: 'Dosar înregistrat'
+        TERMEN_FIXAT: 'Termen fixat'
+        ORDONANTA_EMISA: 'Ordonanță emisă'
+        CONTESTATA: 'Contestată'
+        DEFINITIVA: 'Definitivă'
+        EXECUTARE: 'Executare silită'
+        RESPINSA: 'Respinsă'
+        INCHIS_SUCCES: 'Închis cu succes'
+        INCHIS_PARTIAL_INSOLVABIL: 'Închis parțial / insolvabil'
+    case_transition:
+        trimite_somatie: 'Trimite somație'
+        depune_cerere: 'Depune cerere ordonanță de plată'
+        inregistreaza_dosar: 'Înregistrează dosar instanță'
+        fixeaza_termen: 'Fixează termen de judecată'
+        emite_ordonanta: 'Emite ordonanță'
+        contesta: 'Contestă'
+        respinge_contestatie: 'Respinge contestația'
+        admite_contestatie: 'Admite contestația'
+        marcheaza_definitiva: 'Marchează definitivă'
+        respinge: 'Respinge cererea'
+        inchide_succes: 'Închide cu succes'
+        inchide_insolvabil: 'Închide ca insolvabil'
+    court_type:
+        judecatorie: 'Judecătorie'
+        tribunal: 'Tribunal'
+    deadline_priority:
+        LOW: 'Scăzută'
+        MEDIUM: 'Medie'
+        HIGH: 'Ridicată'
+        CRITICAL: 'Critică'
+    deadline_type:
+        RASPUNS_SOMATIE: 'Răspuns somație'
+        DEPUNERE_CERERE: 'Depunere cerere'
+        JUDECATA: 'Termen de judecată'
+        CONTESTATIE: 'Termen contestație'
+        PRESCRIPTIE: 'Termen prescripție'
+        OTHER: 'Alt termen'
+    document_type:
+        somatie: 'Somație'
+        cerere_op: 'Cerere ordonanță de plată'
+        opis: 'Opis documente'
+        dovada_comunicare: 'Dovadă comunicare'
+        act_constatator: 'Act constatator'
+        anexa: 'Anexă'
+        dovada: 'Dovadă'
+        contract: 'Contract'
+        factura: 'Factură'
+        alt_document: 'Alt document'
+    extraction_status:
+        PENDING: 'În așteptare'
+        PROCESSING: 'În procesare'
+        COMPLETED: 'Finalizată'
+        FAILED: 'Eșuată'
+    notification_channel:
+        email: 'Email'
+        in_app: 'În aplicație'
+    person_type:
+        PF: 'Persoană fizică'
+        PJ: 'Persoană juridică'
+    portal_event_type:
+        hearing_scheduled: 'Ședință programată'
+        hearing_completed: 'Ședință finalizată'
+        ruling_issued: 'Hotărâre pronunțată'
+        appeal_filed: 'Cale de atac declarată'
+        case_info_update: 'Actualizare informații dosar'
+    relationship_type:
+        COMERCIAL: 'Comercial (între profesioniști)'
+        CIVIL: 'Civil'
+    user_type:
+        pf: 'Persoană fizică'
+        pj: 'Persoană juridică'
+        avocat: 'Avocat'
+        admin: 'Administrator'
+
+# =============================================================================
+# Homepage (public-facing)
+# =============================================================================
+home:
+    hero:
+        eyebrow: 'Pentru avocați și firme de recuperare creanțe'
+        title: 'Recuperare creanțe simplu și rapid'
+        subtitle: 'Platformă completă pentru gestionarea procedurii ordonanței de plată conform OUG 80/2013 — de la somație la executare silită.'
+        cta_primary: 'Începe gratuit'
+        cta_secondary: 'Vezi cum funcționează'
+    steps:
+        title: 'Cum funcționează'
+        step_1:
+            label: 'Pasul 1'
+            title: 'Încarcă documentele'
+            description: 'Upload contracte, facturi, dovezi de comunicare. Extracția automată populează formularul.'
+        step_2:
+            label: 'Pasul 2'
+            title: 'Generăm somația'
+            description: 'Cu un click obții somația de plată gata de comunicat — 30 de zile de termen pornesc automat.'
+        step_3:
+            label: 'Pasul 3'
+            title: 'Depui cererea'
+            description: 'Cererea de ordonanță de plată cu opis documente, taxă timbru calculată, instanța competentă.'
+        step_4:
+            label: 'Pasul 4'
+            title: 'Monitorizăm dosarul'
+            description: 'Sincronizare cu portal.just.ro — alertă pe termene, contestații, soluții.'
+    benefits:
+        title: 'De ce LexRecovery'
+        rapid:
+            title: 'Rapid'
+            description: 'Generare automată a documentelor procedurale, fără cópy-paste între template-uri.'
+        sigur:
+            title: 'Sigur'
+            description: 'Conformitate OUG 80/2013 + CPC art. 1014-1024. Calcule automate dobândă (OG 13/2011) și taxă timbru.'
+        clar:
+            title: 'Clar'
+            description: 'Toate termenele într-un singur dashboard. Notificări proactive când se apropie deadline-uri.'
+
+# =============================================================================
+# Stimulus controllers (read via data-* attributes set in twig)
+# =============================================================================
+stimulus:
+    collection:
+        item_label_template: 'Pârât #%n%'
+        remove: 'Elimină'
+    confirm:
+        default: 'Sigur vrei să continui?'
+    company_lookup:
+        button: 'Caută'
+        empty_input: 'Introduceți un CUI.'
+        searching: 'Se caută...'
+        error_generic: 'Eroare la căutare.'
+        error_network: 'Eroare de rețea. Încercați din nou.'
+    optimistic:
+        action_failed: 'Acțiunea a eșuat. Reîncearcă.'
+
+# =============================================================================
+# Domain exceptions (services throw with these keys; controllers translate)
+# =============================================================================
+exception:
+    anaf:
+        cui_invalid: 'CUI invalid: trebuie să conțină între 2 și 10 cifre.'
+        unavailable: 'Serviciul ANAF nu este disponibil. Încercați mai târziu.'
+        not_found: 'CUI-ul nu a fost găsit în baza de date ANAF.'
