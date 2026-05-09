@@ -52,6 +52,9 @@ class Document
     #[ORM\Column(type: Types::DECIMAL, precision: 3, scale: 2, nullable: true)]
     private ?string $extractionConfidence = null;
 
+    #[ORM\Column(length: 50, nullable: true)]
+    private ?string $extractionStrategy = null;
+
     public function __construct()
     {
         $this->createdAt = new \DateTimeImmutable();
@@ -183,6 +186,18 @@ class Document
     public function setExtractionConfidence(?string $extractionConfidence): static
     {
         $this->extractionConfidence = $extractionConfidence;
+
+        return $this;
+    }
+
+    public function getExtractionStrategy(): ?string
+    {
+        return $this->extractionStrategy;
+    }
+
+    public function setExtractionStrategy(?string $extractionStrategy): static
+    {
+        $this->extractionStrategy = $extractionStrategy;
 
         return $this;
     }

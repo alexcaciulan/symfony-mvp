@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Enum\ExtractionMode;
 use App\Enum\UserType;
 use App\Repository\UserRepository;
 use Doctrine\Common\Collections\ArrayCollection;
@@ -88,6 +89,9 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $deletedAt = null;
+
+    #[ORM\Column(length: 20, enumType: ExtractionMode::class, options: ['default' => 'LOCAL_ONLY'])]
+    private ExtractionMode $extractionMode = ExtractionMode::LOCAL_ONLY;
 
     /** @var Collection<int, LegalCase> */
     #[ORM\OneToMany(targetEntity: LegalCase::class, mappedBy: 'user')]
@@ -405,6 +409,18 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function getNotifications(): Collection
     {
         return $this->notifications;
+    }
+
+    public function getExtractionMode(): ExtractionMode
+    {
+        return $this->extractionMode;
+    }
+
+    public function setExtractionMode(ExtractionMode $extractionMode): static
+    {
+        $this->extractionMode = $extractionMode;
+
+        return $this;
     }
 
     public function __toString(): string

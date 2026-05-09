@@ -3,6 +3,7 @@
 namespace App\Tests\Entity;
 
 use App\Entity\User;
+use App\Enum\ExtractionMode;
 use PHPUnit\Framework\TestCase;
 
 class UserEntityTest extends TestCase
@@ -98,5 +99,23 @@ class UserEntityTest extends TestCase
 
         $user->setLastName('Popescu');
         $this->assertSame('Ion Popescu', (string) $user);
+    }
+
+    public function testExtractionModeDefaultsToLocalOnly(): void
+    {
+        $user = new User();
+
+        $this->assertSame(ExtractionMode::LOCAL_ONLY, $user->getExtractionMode());
+    }
+
+    public function testExtractionModeSetterAndGetter(): void
+    {
+        $user = new User();
+
+        $user->setExtractionMode(ExtractionMode::BALANCED);
+        $this->assertSame(ExtractionMode::BALANCED, $user->getExtractionMode());
+
+        $user->setExtractionMode(ExtractionMode::MAX_ACCURACY);
+        $this->assertSame(ExtractionMode::MAX_ACCURACY, $user->getExtractionMode());
     }
 }

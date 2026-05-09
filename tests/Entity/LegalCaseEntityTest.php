@@ -9,6 +9,7 @@ use App\Entity\LegalDeadline;
 use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\DeadlineType;
+use App\Enum\ExtractionMode;
 use App\Enum\PersonType;
 use App\Enum\RelationshipType;
 use PHPUnit\Framework\TestCase;
@@ -155,5 +156,23 @@ class LegalCaseEntityTest extends TestCase
         $case = new LegalCase();
 
         $this->assertSame($case->getCaseNumber(), (string) $case);
+    }
+
+    public function testExtractionModeOverrideDefaultsToNull(): void
+    {
+        $case = new LegalCase();
+
+        $this->assertNull($case->getExtractionModeOverride());
+    }
+
+    public function testExtractionModeOverrideSetterAndGetter(): void
+    {
+        $case = new LegalCase();
+
+        $case->setExtractionModeOverride(ExtractionMode::LOCAL_ONLY);
+        $this->assertSame(ExtractionMode::LOCAL_ONLY, $case->getExtractionModeOverride());
+
+        $case->setExtractionModeOverride(null);
+        $this->assertNull($case->getExtractionModeOverride());
     }
 }

@@ -465,6 +465,20 @@ enum:
         pj: 'Legal entity'
         avocat: 'Lawyer'
         admin: 'Administrator'
+    extraction_mode:
+        LOCAL_ONLY: 'Local only (no AI)'
+        BALANCED: 'Balanced (full cascade)'
+        MAX_ACCURACY: 'Maximum accuracy (vision)'
+    legal_ground_category:
+        CONTRACT_VANZARE: 'Sale contract'
+        CONTRACT_PRESTARI_SERVICII: 'Services contract'
+        CONTRACT_LOCATIUNE: 'Lease contract'
+        CONTRACT_IMPRUMUT: 'Loan contract'
+        FACTURA_ACCEPTATA: 'Accepted invoice'
+        BILET_LA_ORDIN: 'Promissory note'
+        CEC: 'Cheque'
+        CAMBIE: 'Bill of exchange'
+        ALTE_INSCRISURI: 'Other instruments'
 
 # =============================================================================
 # Homepage (public-facing)

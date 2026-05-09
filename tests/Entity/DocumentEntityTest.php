@@ -29,4 +29,23 @@ class DocumentEntityTest extends TestCase
         $this->assertSame(ExtractionStatus::COMPLETED, $doc->getExtractionStatus());
         $this->assertSame('0.85', $doc->getExtractionConfidence());
     }
+
+    public function testExtractionStrategyDefaultsToNull(): void
+    {
+        $doc = new Document();
+
+        $this->assertNull($doc->getExtractionStrategy());
+    }
+
+    public function testExtractionStrategySetterAndGetter(): void
+    {
+        $doc = new Document();
+
+        $doc->setExtractionStrategy('pdf_parser');
+
+        $this->assertSame('pdf_parser', $doc->getExtractionStrategy());
+
+        $doc->setExtractionStrategy(null);
+        $this->assertNull($doc->getExtractionStrategy());
+    }
 }

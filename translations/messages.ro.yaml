@@ -467,6 +467,20 @@ enum:
         pj: 'Persoană juridică'
         avocat: 'Avocat'
         admin: 'Administrator'
+    extraction_mode:
+        LOCAL_ONLY: 'Doar local (fără AI)'
+        BALANCED: 'Echilibrat (cascadă completă)'
+        MAX_ACCURACY: 'Acuratețe maximă (vision)'
+    legal_ground_category:
+        CONTRACT_VANZARE: 'Contract de vânzare-cumpărare'
+        CONTRACT_PRESTARI_SERVICII: 'Contract de prestări servicii'
+        CONTRACT_LOCATIUNE: 'Contract de locațiune'
+        CONTRACT_IMPRUMUT: 'Contract de împrumut'
+        FACTURA_ACCEPTATA: 'Factură acceptată'
+        BILET_LA_ORDIN: 'Bilet la ordin'
+        CEC: 'CEC'
+        CAMBIE: 'Cambie'
+        ALTE_INSCRISURI: 'Alte înscrisuri'
 
 # =============================================================================
 # Homepage (public-facing)

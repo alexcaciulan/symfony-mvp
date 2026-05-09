@@ -3,6 +3,7 @@
 namespace App\Entity;
 
 use App\Enum\CaseStatus;
+use App\Enum\ExtractionMode;
 use App\Enum\RelationshipType;
 use App\Repository\LegalCaseRepository;
 use Doctrine\Common\Collections\ArrayCollection;
@@ -43,6 +44,9 @@ class LegalCase
 
     #[ORM\Column(length: 20, nullable: true, enumType: RelationshipType::class)]
     private ?RelationshipType $relationshipType = null;
+
+    #[ORM\Column(length: 20, nullable: true, enumType: ExtractionMode::class)]
+    private ?ExtractionMode $extractionModeOverride = null;
 
     #[ORM\Column(type: Types::DECIMAL, precision: 12, scale: 2, nullable: true)]
     private ?string $amount = null;
@@ -219,6 +223,18 @@ class LegalCase
     public function setRelationshipType(?RelationshipType $relationshipType): static
     {
         $this->relationshipType = $relationshipType;
+
+        return $this;
+    }
+
+    public function getExtractionModeOverride(): ?ExtractionMode
+    {
+        return $this->extractionModeOverride;
+    }
+
+    public function setExtractionModeOverride(?ExtractionMode $extractionModeOverride): static
+    {
+        $this->extractionModeOverride = $extractionModeOverride;
 
         return $this;
     }
