@@ -46,10 +46,10 @@ class CaseWorkflowServiceTest extends KernelTestCase
             'fixeaza_termen'       => [CaseStatus::DOSAR_INREGISTRAT,  'fixeaza_termen',       CaseStatus::TERMEN_FIXAT],
             'emite_ordonanta'      => [CaseStatus::TERMEN_FIXAT,       'emite_ordonanta',      CaseStatus::ORDONANTA_EMISA],
             'respinge'             => [CaseStatus::TERMEN_FIXAT,       'respinge',             CaseStatus::RESPINSA],
-            'contesta'             => [CaseStatus::ORDONANTA_EMISA,    'contesta',             CaseStatus::CONTESTATA],
-            'marcheaza_definitiva' => [CaseStatus::ORDONANTA_EMISA,    'marcheaza_definitiva', CaseStatus::DEFINITIVA],
-            'respinge_contestatie' => [CaseStatus::CONTESTATA,         'respinge_contestatie', CaseStatus::DEFINITIVA],
-            'admite_contestatie'   => [CaseStatus::CONTESTATA,         'admite_contestatie',   CaseStatus::RESPINSA],
+            'formuleaza_cerere_anulare' => [CaseStatus::ORDONANTA_EMISA, 'formuleaza_cerere_anulare', CaseStatus::IN_ANULARE],
+            'marcheaza_definitiva'      => [CaseStatus::ORDONANTA_EMISA, 'marcheaza_definitiva',      CaseStatus::DEFINITIVA],
+            'respinge_cerere_anulare'   => [CaseStatus::IN_ANULARE,      'respinge_cerere_anulare',   CaseStatus::DEFINITIVA],
+            'admite_cerere_anulare'     => [CaseStatus::IN_ANULARE,      'admite_cerere_anulare',     CaseStatus::RESPINSA],
             'inchide_succes'       => [CaseStatus::DEFINITIVA,         'inchide_succes',       CaseStatus::INCHIS_SUCCES],
             'inchide_insolvabil'   => [CaseStatus::DEFINITIVA,         'inchide_insolvabil',   CaseStatus::INCHIS_PARTIAL_INSOLVABIL],
         ];
@@ -62,14 +62,14 @@ class CaseWorkflowServiceTest extends KernelTestCase
         $this->assertSame(['trimite_somatie'], $this->service->getAvailableTransitions($case));
     }
 
-    public function testGetAvailableTransitionsFromContestata(): void
+    public function testGetAvailableTransitionsFromInAnulare(): void
     {
         $case = new LegalCase();
-        $case->setStatus(CaseStatus::CONTESTATA);
+        $case->setStatus(CaseStatus::IN_ANULARE);
 
         $transitions = $this->service->getAvailableTransitions($case);
         sort($transitions);
-        $this->assertSame(['admite_contestatie', 'respinge_contestatie'], $transitions);
+        $this->assertSame(['admite_cerere_anulare', 'respinge_cerere_anulare'], $transitions);
     }
 
     public function testGetAvailableTransitionsFromOrdonantaEmisa(): void
@@ -79,7 +79,7 @@ class CaseWorkflowServiceTest extends KernelTestCase
 
         $transitions = $this->service->getAvailableTransitions($case);
         sort($transitions);
-        $this->assertSame(['contesta', 'marcheaza_definitiva'], $transitions);
+        $this->assertSame(['formuleaza_cerere_anulare', 'marcheaza_definitiva'], $transitions);
     }
 
     public function testCannotApplyTransitionFromWrongPlace(): void

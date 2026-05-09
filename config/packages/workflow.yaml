@@ -16,7 +16,7 @@ framework:
                 - DOSAR_INREGISTRAT
                 - TERMEN_FIXAT
                 - ORDONANTA_EMISA
-                - CONTESTATA
+                - IN_ANULARE
                 - DEFINITIVA
                 - EXECUTARE
                 - RESPINSA
@@ -41,17 +41,17 @@ framework:
                 respinge:
                     from: TERMEN_FIXAT
                     to: RESPINSA
-                contesta:
+                formuleaza_cerere_anulare:
                     from: ORDONANTA_EMISA
-                    to: CONTESTATA
+                    to: IN_ANULARE
                 marcheaza_definitiva:
                     from: ORDONANTA_EMISA
                     to: DEFINITIVA
-                respinge_contestatie:
-                    from: CONTESTATA
+                respinge_cerere_anulare:
+                    from: IN_ANULARE
                     to: DEFINITIVA
-                admite_contestatie:
-                    from: CONTESTATA
+                admite_cerere_anulare:
+                    from: IN_ANULARE
                     to: RESPINSA
                 inchide_succes:
                     from: DEFINITIVA
