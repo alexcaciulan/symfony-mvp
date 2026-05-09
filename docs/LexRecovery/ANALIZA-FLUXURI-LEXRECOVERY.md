@@ -398,6 +398,8 @@ Serviciu: `CompetentCourtResolver(suma, debtorCounty, debtorLocality?) → Court
 
 ### 7.4 Extracție automată date din documente sursă
 
+> 🟢 **REVIZIE 2026-05-09 — split implementare**: Pas 2.5 din `PLAN-DEZVOLTARE-LEXRECOVERY.md` a fost spart în 8 sub-pași implementabili granular (2.5.1 → 2.5.8, total ~30h). Detalii în plan + memory `project_lexrecovery_pas_2_5_split.md`. Naming **EN** (`src/Service/Extraction/`, `DataExtractionService`, tag DI `app.extraction_strategy`). Default `extractionMode = LOCAL_ONLY` (per principiul minimizării GDPR — avocatul activează AI explicit din setting cont).
+
 **Scop**: la step 0 wizard, avocatul încarcă contracte/facturi/somații existente. Sistem extrage automat datele pentru pre-populare formulare.
 
 **Date extrase**:
@@ -421,17 +423,19 @@ Serviciu: `CompetentCourtResolver(suma, debtorCounty, debtorLocality?) → Court
 4. **Fallback manual** (V1 dev): `StubExtractionStrategy` returnează `null` (avocatul completează manual). Activ când nici API key nu e setat și OCR nu reușește (sau dezactivat din setting cont).
 
 **Setting per cont** (extensie pentru avocații sensibili la GDPR):
-- `extractionMode`: `LOCAL_ONLY` (doar treapta 1 + OCR + regex; nimic prin AI), `BALANCED` (default — toate cele 4 trepte), `MAX_ACCURACY` (sare direct la treapta 3 — vision pentru toate scan-urile).
+- `extractionMode`: `LOCAL_ONLY` (default — doar treapta 1 + OCR + regex, nimic prin AI; principiul minimizării GDPR), `BALANCED` (opt-in — toate cele 4 trepte), `MAX_ACCURACY` (sare direct la treapta 3, vision pentru toate scan-urile). Override per dosar pe `LegalCase.extractionModeOverride` pentru cazuri sensibile.
 
-**Arhitectură serviciu**:
-- `DataExtractionService` — orchestrator (decide treapta în funcție de `Document` și setting cont, persistă rezultatul în `Document.extractedData`, emit event `DataExtractedEvent` la finalizare).
-- `ExtractionStrategyInterface` — contract (`supports(Document) bool`, `extract(Document) ExtractedDocumentData`).
-- `PdfParserExtractionStrategy` — treapta 1, parser PDF text + regex.
-- `OcrTextExtractionStrategy` — treapta 2, Tesseract + Claude text.
-- `AiVisionExtractionStrategy` — treapta 3, Claude vision multimodal.
-- `StubExtractionStrategy` — fallback dev.
-- `OcrServiceInterface` cu implementare default `TesseractOcrService` (PHP wrapper sau shell exec către `tesseract` CLI). Posibilă alternativă plug-in: `GoogleVisionOcrService` (dacă avocatul preferă acuratețe mai bună la cost mai mic decât AI vision direct).
-- DTO `ExtractedDocumentData` — structură rezultat (creditor, debitor, creanta, confidencePerField, sourceLocation, **rawOcrText** — text complet OCR păstrat pentru audit/re-procesare).
+**Arhitectură serviciu** (folder `src/Service/Extraction/` — naming EN consistent):
+- `DataExtractionService` — orchestrator (`src/Service/Extraction/DataExtractionService.php`): iterează strategii tagged `app.extraction_strategy` în ordinea priority descrescător; decide treapta în funcție de `Document` + `User.extractionMode` + `LegalCase.extractionModeOverride`; persistă rezultatul în `Document.extractedData/extractionStatus/extractionConfidence/extractionStrategy`. **NU** dispatch event aici (event = Pas 2.6 separat).
+- `ExtractionStrategyInterface` — contract (`supports(Document) bool`, `extract(Document) ExtractedDocumentData`, `priority() int`).
+- `PdfParserExtractionStrategy` — priority 100, treapta 1, parser PDF text + regex (smalot/pdfparser).
+- `OcrTextExtractionStrategy` — priority 70, treapta 2, Tesseract + Claude text (cu mascare CNP via `PiiMasker`).
+- `AiVisionExtractionStrategy` — priority 50, treapta 3, Claude vision multimodal (skip pe LOCAL_ONLY).
+- `StubExtractionStrategy` — priority 10, fallback dev.
+- `OcrServiceInterface` cu implementare default `TesseractOcrService` (shell exec către `tesseract` CLI prin `Symfony\Component\Process\Process`). Plug-in alternativ posibil: `GoogleVisionOcrService` (post-MVP).
+- `AnthropicApiClient` (`src/Service/Anthropic/`) — wrapper HTTP mock-able, pattern identic cu `AnafLookupService`.
+- `PiiMasker` (`src/Util/PiiMasker.php`) — mascare/restore CNP + mascare CUI.
+- DTO `ExtractedDocumentData` (`src/DTO/Extraction/`) — readonly class (creditor, debtor, claim, confidencePerField per sub-DTO, sourceDocumentId, extractedAt, strategy, globalConfidence, **rawOcrText** — text complet OCR păstrat pentru audit/re-procesare).
 
 **Procesare async**: extracția poate dura 5-30 secunde (OCR Tesseract pe documente lungi + AI). Wizard step 0 dispatch `ExtractDataMessage` via Symfony Messenger, UI afișează spinner cu polling Turbo Stream → când `Document.extractionStatus = COMPLETED`, formularele step 1-3 se pre-populează la prima încărcare.
 

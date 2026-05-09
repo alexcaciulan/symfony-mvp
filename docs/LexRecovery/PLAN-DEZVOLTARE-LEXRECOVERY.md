@@ -59,9 +59,16 @@
 | 2.2 | Calcule | `StampDutyCalculator` (OUG 80/2013) | 0.25z | — | 0% | ✅ |
 | 2.3 | Calcule | `CompetentCourtResolver` | 0.5z | 1.1 | 30% | ✅ DONE 2026-05-09 (`8f44e05`) — N1 aplicat (prag 200k pe valoare totală) |
 | 2.4 | Calcule | `AnafLookupService` integration + `OpAdmissibilityValidator` (CPC art. 1014, L 85/2014) + Debitor ANAF/BPI fields + rename `taxId`→`cui` & `tradeRegistryNumber`→`onrcNumber` pe Creditor/Debtor | 0.5z | 1.1 | 80% | ✅ DONE 2026-05-09 (`6b9a815`) — N4 enforcement (BPI = ERROR), 27 teste noi |
-| 2.5 | Extracție | `DataExtractionService` + 4 strategii cascadă (PdfParser, OcrText cu Tesseract, AiVision, Stub) + `TesseractOcrService` + DTO `ExtractedDocumentData` + setup Dockerfile cu tesseract-ocr-ron + ImageMagick | 2z | 1.1 | 0% | ⏳ |
-| 2.6 | Extracție | `ExtractDataMessage` async (Symfony Messenger) + handler + persist `Document.extractedData` + emit `DataExtractedEvent` | 0.5z | 2.5 | 30% | ⏳ |
-| 3.0 | Wizard | Step 0 wizard "Documente sursă": upload + procesare async + preview valori extrase + Turbo Stream polling status | 1z | 2.5, 2.6 | 0% | ⏳ |
+| 2.5.1 | Extracție | Pre-condiții: enum-uri (`ExtractionMode`, `LegalGroundCategory`) + entity fields (`Document.extractionStrategy`, `User.extractionMode`, `LegalCase.extractionModeOverride`) + migrare | 3h | 1.1 | 0% | ⏳ |
+| 2.5.2 | Extracție | DTO `ExtractedDocumentData` (+ Creditor/Debtor/Claim) + `ExtractionStrategyInterface` + `StubExtractionStrategy` + `DataExtractionService` orchestrator (cu tagged iterator) | 4h | 2.5.1 | 0% | ⏳ |
+| 2.5.3 | Extracție | `PdfParserExtractionStrategy` (priority 100) — smalot/pdfparser + regex CUI/CNP/sume/date/IBAN cu validare checksum + heuristici contextuale RO | 5h | 2.5.2 | 0% | ⏳ |
+| 2.5.4 | Extracție | GDPR foundation: `AuditLogService::log()` cu `?string $category` + entity `AuditLog.category` + `PiiMasker` utility (mask/restore CNP + mask CUI) | 3h | 2.5.1 | 30% | ⏳ |
+| 2.5.5 | Extracție | Docker OCR setup (Alpine: tesseract-ocr + tesseract-ocr-data-ron + poppler-utils + imagemagick + ghostscript) + `OcrServiceInterface` + `TesseractOcrService` + `OcrResult` DTO | 4h | — | 0% | ⏳ |
+| 2.5.6 | Extracție | `AnthropicApiClient` (HttpClient + retry + DTO `AnthropicResponse`) + rate limiters `extraction_ai_text` (200/zi) + `extraction_ai_vision` (50/zi) + env vars (`ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, etc.) | 3h | — | 60% (pattern AnafLookup) | ⏳ |
+| 2.5.7 | Extracție | `OcrTextExtractionStrategy` (priority 70) — OCR + mask CNP + Claude API text + restore CNP + audit `AI_EXTRACTION` + fallback regex pe LOCAL_ONLY | 5h | 2.5.4, 2.5.5, 2.5.6 | 30% (pattern PdfParser) | ⏳ |
+| 2.5.8 | Extracție | `AiVisionExtractionStrategy` (priority 50) — Claude vision direct pe document + skip pe LOCAL_ONLY + audit + cascadă completă funcțională end-to-end | 4h | 2.5.4, 2.5.6 | 50% (pattern OcrText) | ⏳ |
+| 2.6 | Extracție | `ExtractDataMessage` async (Symfony Messenger) + handler + persist `Document.extractedData` + emit `DataExtractedEvent` | 0.5z | 2.5.8 | 30% | ⏳ |
+| 3.0 | Wizard | Step 0 wizard "Documente sursă": upload + procesare async + preview valori extrase + Turbo Stream polling status | 1z | 2.5.8, 2.6 | 0% | ⏳ |
 | 3.1 | Wizard | DTOs + Forms 5 pași (Documente, Creditor, Debitor, Creanță, Confirmare) cu pre-populare din `Document.extractedData` + indicator vizual câmp auto-completat | 1z | 1.1, 2.1-2.3, 3.0 | 50% | ⏳ |
 | 3.2 | Wizard | `CaseWizardController` + session storage + templates | 1z | 3.1 | 60% | ⏳ |
 | 3.3 | Wizard | Stimulus controllers (`live-calc`, `creditor-search`, `debtor-search`) + endpoint-uri AJAX | 1z | 3.2, 2.1-2.4 | 20% | ⏳ |
@@ -80,7 +87,7 @@
 | 8.2 | Monetizare | `PaymentGatewayInterface` + stub + UI `/abonament`, `/facturile-mele` | 0.5z | 8.1 | 0% | ⏳ |
 | 9.1 | Deploy | Coolify staging + cron setup | 1z | 8.x | 80% | ⏳ |
 
-> **Pași marcați ca paralelizabili**: 1.1 ‖ 1.2; 2.1 ‖ 2.2 ‖ 2.3 ‖ 2.4 ‖ 2.5; **Faza 5 ‖ Faza 6 după Faza 4**; 7.3 ‖ Faza 8.
+> **Pași marcați ca paralelizabili**: 1.1 ‖ 1.2; 2.1 ‖ 2.2 ‖ 2.3 ‖ 2.4; 2.5.5 ‖ 2.5.6 (după 2.5.4); **Faza 5 ‖ Faza 6 după Faza 4**; 7.3 ‖ Faza 8.
 
 ---
 
@@ -970,126 +977,367 @@ Refactor enum la 3 valori distincte (ex: `B2B_PROFESIONAL`, `B2C_CONSUMER`, `NON
 
 ---
 
-### PASUL 2.5 | `DataExtractionService` + 4 strategii cu OCR | 2 zile | 0% reutilizare
+### PASUL 2.5 — Pipeline extracție date din documente (8 sub-pași) | total ~30h | 0% reutilizare
+
+> 🟢 **REVIZIE 2026-05-09 — split granular**: Pas 2.5 a fost spart în 8 sub-pași implementabili 1-by-1, conform planului `/Users/alexc/.claude/plans/analizeaza-pasul-2-5-din-nifty-crab.md`. Decizia utilizator: **full pipeline** (toate 4 strategiile), DPA Anthropic NU e blocker, naming **EN** (`Extraction/`), default `extractionMode = LOCAL_ONLY` (per principiul minimizării GDPR — REVIZIE 2026-05-08 confirmată).
+
+**Scop global**: serviciu cu cascadă în 4 trepte (PdfParser priority 100 → OcrText priority 70 → AiVision priority 50 → Stub priority 10) care extrage automat date din documente sursă (contracte, facturi, somații) pentru pre-popularea wizard step 1-3. Spec referință: secțiunea 7.4 din `ANALIZA-FLUXURI-LEXRECOVERY.md`.
+
+**Decizii arhitecturale (validate la kickoff 2.5.1)**:
+- **Naming EN consistent**: `src/Service/Extraction/`, `DataExtractionService`, `ExtractionStrategyInterface`, tag DI `app.extraction_strategy`, audit category `AI_EXTRACTION`. Termenii juridici în enum păstrează RO ca convenție (ex. `LegalGroundCategory::CONTRACT_VANZARE`).
+- **Default `extractionMode = LOCAL_ONLY`** (NU `BALANCED`) per GDPR art. 25 (privacy by default). Avocatul activează explicit BALANCED/MAX_ACCURACY din setting cont.
+- **Audit AI**: `AuditLogService::log()` extins cu `?string $category` (compatibil înapoi); coloana `AuditLog.category` indexată; pentru fiecare apel AI logăm `documentId, strategy, tokensIn, tokensOut, responseHash`.
+- **GDPR PII**: `PiiMasker` mascarează CNP-uri înainte de prompt AI (`***-***-XXXX`) + restore după răspuns; CUI mascat în logs ca convenție.
+- **Reflex juridic**: extracția = pre-populare; avocatul re-verifică TOATE câmpurile. UI Pas 3.0 marcheaza pre-populările cu badge "auto" + cere confirmare per câmp critic (CUI, sumă, scadență).
+
+**DAG dependențe**:
+```
+2.5.1 → 2.5.2 → 2.5.3 (MVP livrabil până aici + 2.5.4)
+              ↘ 2.5.4 ──┐
+                        ├─→ 2.5.7 → 2.5.8 (cascadă completă)
+              2.5.5 ‖ 2.5.6 (paralelizabili)
+```
+
+**Pre-condiții la kickoff 2.5.1** (verificate 2026-05-09):
+- ✅ `Document.extractedData` (JSON), `extractionStatus` (enum), `extractionConfidence` (DECIMAL 3,2) — există deja în entity.
+- ✅ `ExtractionStatus` enum (PENDING/PROCESSING/COMPLETED/FAILED) — există.
+- ✅ `Creditor`/`Debtor`/`LegalCase` câmpuri pentru DTO mapping — există.
+- ✅ `AnafLookupService` pattern integrare HTTP externă — refolosit pentru `AnthropicApiClient`.
+- ✅ Messenger transport `async` (Doctrine) — folosit la Pas 2.6 (post-2.5).
+- ✅ Mercure hub în `compose.yaml` — folosit la Pas 3.0 (post-2.5).
+- ❌ Lipsesc: `extractionStrategy` field, enum-uri `ExtractionMode`/`LegalGroundCategory`, composer dep `smalot/pdfparser`, Docker OCR (Alpine `apk add`), env vars Anthropic, rate limiters AI, `PiiMasker`, `AuditLog.category`.
+
+**Boundary cu sub-pașii adiacenți**:
+- **Pas 2.5 livrează**: `DataExtractionService::extract(Document)` apelabil sincron + 4 strategii + DTO + persistare pe `Document`.
+- **Pas 2.6 adaugă**: `ExtractDataMessage` async + handler + `DataExtractedEvent` (NU în 2.5).
+- **Pas 3.0 adaugă**: UI wizard step 0 + Mercure push + pre-populare formular (NU în 2.5).
+
+---
+
+#### PASUL 2.5.1 — Pre-condiții: enum-uri + entity fields + migrare | ~3h | 0% reutilizare
 
 **Rezultat**: _(va fi completat la marcarea ca DONE)_
 
-**Scop**: serviciu cu cascadă în 4 trepte care extrage automat date (creditor, debitor, sumă, scadență) din documente sursă uploadate. Treapta 2 (OCR + AI text) este "calul de povară" pentru documente scanate.
+**Scop**: pune în baza de date toate câmpurile noi necesare strategiilor și introduce modurile de extracție. Sub-pas pur infrastructure, fără logică de business.
 
-**Specificație**: secțiunea 7.4 din `ANALIZA-FLUXURI-LEXRECOVERY.md`.
+**Files create**:
+- `src/Enum/ExtractionMode.php` — cases `LOCAL_ONLY`, `BALANCED`, `MAX_ACCURACY` + `label()` (RO) + `isAiAllowed(): bool`.
+- `src/Enum/LegalGroundCategory.php` — cases `CONTRACT_VANZARE`, `CONTRACT_PRESTARI_SERVICII`, `CONTRACT_LOCATIUNE`, `CONTRACT_IMPRUMUT`, `FACTURA_ACCEPTATA`, `BILET_LA_ORDIN`, `CEC`, `CAMBIE`, `ALTE_INSCRISURI` + `label()` (RO) + `isOpEligible(): bool` (per CPC art. 1014).
+- `migrations/Version20260509XXXXXX.php` — generată cu `make:migration`.
 
-> 🔴 **REVIZIE 2026-05-08** (din analiza Faza 2):
-> - **Subdimensionare timp**: "2 zile" e nerealist pentru tot pipeline-ul (Tesseract + 4 strategii + Claude text + vision + GDPR + tests). Realist: **5-7 zile**.
-> - **Recomandare scope MVP**: sparge în două sub-pași:
->   - **Pas 2.5a (MVP, 1 zi)**: `DataExtractionService` orchestrator + `PdfParserExtractionStrategy` (treapta 1) + `StubExtractionStrategy` (treapta 4). Acoperă PDF-uri text-based (contracte digitale, facturi electronice). Suficient pentru beta.
->   - **Pas 2.5b (POST-MVP, 4-5 zile)**: `OcrTextExtractionStrategy` (Tesseract + Claude text — treapta 2) + `AiVisionExtractionStrategy` (treapta 3). Necesită DPA Anthropic semnat înainte.
-> - **GDPR — corecții obligatorii pentru 2.5b**:
->   - Default `extractionMode = LOCAL_ONLY` (NU `BALANCED` cum spune spec) — principiul minimizării GDPR. Avocatul activează explicit BALANCED.
->   - Override per dosar pe `LegalCase.extractionModeOverride` (?ExtractionMode) pentru cazuri sensibile.
->   - Audit log per apel AI: documentId, strategy, tokensIn, tokensOut, timestamp, responseHash (`AuditLog` category `AI_EXTRACTION`).
->   - DPA Anthropic semnat și arhivat înainte de live.
-> - **Categorii temei juridic**: `legalGround` ca string liber e insuficient pentru validare CPC art. 1014. Adaugă enum `LegalGroundCategory` la Pas 1.2 backfill (CONTRACT_VANZARE, CONTRACT_PRESTARI_SERVICII, CONTRACT_LOCATIUNE, CONTRACT_IMPRUMUT, FACTURA_ACCEPTATA, BILET_LA_ORDIN, CEC, CAMBIE, ALTE_INSCRISURI). Folosit atât în extracție cât și în wizard step claim.
-> - **Reflex juridic**: extracția = pre-populare; avocatul re-verifică TOATE câmpurile. UI Pas 3.0 trebuie să marcheze pre-populările cu badge "auto" + cere confirmare per câmp critic (CUI, sumă, scadență).
+**Files modificate**:
+- `src/Entity/Document.php` — adaugă `private ?string $extractionStrategy` (nullable string, max 50).
+- `src/Entity/User.php` — adaugă `private string $extractionMode = 'LOCAL_ONLY'` (default GDPR-friendly).
+- `src/Entity/LegalCase.php` — adaugă `private ?ExtractionMode $extractionModeOverride` (override per dosar).
 
-**PROMPT**:
-> Implementează sistem de extracție date documente cu cascadă în 4 trepte.
->
-> 1. **Setup Docker** (`Dockerfile`): adaugă pachete OCR în RUN apt-get install:
->    ```dockerfile
->    RUN apt-get update && apt-get install -y \
->        tesseract-ocr \
->        tesseract-ocr-ron \
->        imagemagick \
->        poppler-utils \
->        && rm -rf /var/lib/apt/lists/*
->    ```
->    `poppler-utils` pentru `pdftoppm` (PDF → PNG). Update `compose.yaml` dacă e nevoie.
->
-> 2. **Composer require**: `smalot/pdfparser` (parser PDF text-based), `thiagoalessio/tesseract_ocr` (PHP wrapper Tesseract — opțional, alternativa e shell exec direct).
->
-> 3. **DTO** `src/DTO/Extraction/ExtractedDocumentData.php` (readonly class) cu:
->    - `creditor` (?CreditorExtraction): personType, name, taxId, personalId, address, iban, legalRepresentative — toate cu `?string` și `?float $confidence` per câmp.
->    - `debtor` (?DebtorExtraction): aceleași câmpuri.
->    - `claim` (?ClaimExtraction): amount, currency, dueDate, legalGround, description — cu confidence.
->    - `sourceDocumentId` (int), `extractedAt`, `strategy` (string: "pdf_parser"|"ocr_text"|"ai_vision"|"stub"), `globalConfidence` (0-1), `rawOcrText` (?string — text complet OCR pentru audit).
->
-> 4. **OCR Service** `src/Service/Ocr/OcrServiceInterface.php`:
->    ```php
->    public function extractText(string $filePath): OcrResult;  // text, confidence (avg per word), pageCount
->    ```
->    Implementare default `TesseractOcrService`:
->    - Pentru imagini (JPG/PNG): direct `tesseract input.jpg - -l ron+eng` via shell exec.
->    - Pentru PDF: convert pagină cu pagină via `pdftoppm -r 300 input.pdf output -png` → loop pe paginile generate, concatenează text.
->    - Pre-procesare opțională: `convert -density 300 -depth 8 -strip -background white -alpha off input.png output.png` (deskew + denoise).
->    - Confidence: media confidence per cuvânt din output Tesseract (`-c tessedit_create_tsv=1`).
->    - Fișiere temp curate cu `register_shutdown_function`.
->
-> 5. **Interface strategii** `src/Service/Extraction/ExtractionStrategyInterface.php`:
->    ```php
->    public function supports(Document $document): bool;
->    public function extract(Document $document): ExtractedDocumentData;
->    public function priority(): int;  // pentru ordonare cascadă
->    ```
->
-> 6. **Implementări (4 strategii)**:
->
->    a. **`PdfParserExtractionStrategy`** (priority 100). Folosește `smalot/pdfparser`. `supports()`: doar dacă `mime = application/pdf` și parser-ul găsește >= 100 caractere text. Logică: parse text → regex pentru CUI (`/(?:RO\s?)?(\d{2,10})/i` + validare checksum), CNP (13 cifre + checksum), sume (`/([\d.,]+)\s*(?:RON|lei)/i`), date (`/(\d{1,2})[./](\d{1,2})[./](\d{2,4})/`). Heuristici contextuale: cuvinte cheie ("creditor"/"împrumutător"/"furnizor"/"locator" → secțiune creditor; "debitor"/"împrumutat"/"client"/"locatar" → debitor; "scadență"/"data plății"/"termen plată" → data scadenței). Confidence per câmp: 0.95 dacă pattern + context match, 0.7 dacă doar pattern.
->
->    b. **`OcrTextExtractionStrategy`** (priority 70). `supports()`: imagine (JPG/PNG) sau PDF fără strat text suficient. Logică:
->       - Apel `OcrServiceInterface::extractText()` → text brut.
->       - Mascare CNP-uri în text (`***-***-XXXX`) înainte de prompt AI (security).
->       - Apel Claude API text-only (HTTP `https://api.anthropic.com/v1/messages`) cu prompt structurat:
->         ```
->         Extrage din acest text juridic românesc (extras prin OCR, posibil cu erori):
->         - creditor: { personType (INDIVIDUAL|LEGAL_ENTITY), name, taxId, personalId, address, iban, legalRepresentative }
->         - debtor: { personType, name, taxId, personalId, address }
->         - claim: { amount (number), currency (RON), dueDate (YYYY-MM-DD), legalGround, description }
->         Răspunde DOAR cu JSON valid. Pentru câmpuri incerte: null. Pentru fiecare valoare, indică confidence (0-1).
->         Text:
->         ---
->         {ocrText}
->         ---
->         ```
->       - Model: `claude-sonnet-4-6` (env var `ANTHROPIC_MODEL`). Max tokens 2048. Cost estimat: ~$0.002/doc.
->       - Re-mapare CNP-uri în răspuns (înlocuiește placeholder cu valori originale).
->       - Dacă `OCR confidence < 0.5` sau `text.length < 200` → forțează fallback la treapta 3 (returnează `globalConfidence = 0` ca semnal).
->       - Fallback fără API key: aplică heuristici regex pe textul OCR (similar PdfParser) — `globalConfidence` mediu.
->
->    c. **`AiVisionExtractionStrategy`** (priority 50). `supports()`: orice document. Logică: Claude API cu vision (input file PDF/imagine direct) — același prompt ca treapta 2. Cost: ~$0.01-0.05/doc. Folosit ca fallback când treapta 2 returnează `globalConfidence < 0.5`.
->
->    d. **`StubExtractionStrategy`** (priority 10). Returnează `ExtractedDocumentData` cu toate câmpurile null. Activ când nu e setat `ANTHROPIC_API_KEY` și OCR nu produce text utilizabil.
->
-> 7. **Orchestrator** `src/Service/Extragere/DataExtractionService.php`:
->    - Constructor: `iterable $strategii` (tagged via `app.extragere_strategie`), `EntityManagerInterface`.
->    - `extract(Document $document, ?float $confidenceThreshold = 0.6): ExtractedDocumentData`.
->    - Citește setting cont `extractionMode` (LOCAL_ONLY / BALANCED / MAX_ACCURACY) — adăugare câmp pe `User`.
->    - Iterează strategiile descrescător după priority. Pentru fiecare: `supports()` → `extract()` → dacă `globalConfidence >= threshold` → return. Pentru `LOCAL_ONLY`: skip strategiile AI (OcrText fără AI fallback regex; AiVision niciodată).
->    - Persist rezultatul: `Document.extractedData` (JSON), `Document.extractionConfidence`, `Document.extractionStatus = COMPLETED`, `Document.extractionStrategy` (string).
->
-> 8. **User entity**: adaugă câmp `extractionMode` (string default 'BALANCED', enum `ExtractionMode`).
->
-> 9. **Configurare** `config/services.yaml`: tag-uri pe strategii. `DataExtractionService` primește `!tagged_iterator app.extragere_strategie`.
->
-> 10. **Env vars** `.env`: `ANTHROPIC_API_KEY=` (gol în dev), `ANTHROPIC_MODEL=claude-sonnet-4-6`, `EXTRAGERE_CONFIDENCE_THRESHOLD=0.6`, `OCR_LANGUAGES=ron+eng`.
->
-> 11. **Update Document entity**: adaugă `extractedData` (json nullable), `extractionStatus` (enum `ExtractionStatus`: PENDING/PROCESSING/COMPLETED/FAILED), `extractionConfidence` (decimal 3,2 nullable), `extractionStrategy` (string nullable). Index pe `extractionStatus`.
->
-> 12. **Rate limiters noi** `config/packages/rate_limiter.yaml`:
->     - `extragere_ai_text` — 200/zi per user (treapta 2, mai ieftin).
->     - `extragere_ai_vision` — 50/zi per user (treapta 3, mai scump).
->
-> 13. **Logging**: maschează CNP-uri în toate log-urile (replace cu `***-***-XXXX`).
->
-> Teste:
-> - `tests/Service/Ocr/TesseractOcrServiceTest.php` cu 2 fișiere fixture (imagine clară + scan de calitate medie).
-> - `tests/Service/Extragere/PdfParserExtractionStrategyTest.php` — 3 PDF-uri (contract digital, factură, PDF fără text).
-> - `tests/Service/Extragere/OcrTextExtractionStrategyTest.php` — 2 imagini + Claude HTTP client mocked.
-> - `tests/Service/Extragere/AiVisionExtractionStrategyTest.php` — fixture imagine + Claude vision mocked.
-> - `tests/Service/Extragere/DataExtractionServiceTest.php` — verifică cascada: PdfParser low confidence → OcrText → AiVision → Stub. Plus scenariu `LOCAL_ONLY` skip AI.
->
-> Commit: `feat(extragere): 4-tier extraction cascade with Tesseract OCR + Claude AI`.
+**Teste**:
+- `tests/Enum/ExtractionModeTest.php` — `isAiAllowed()` corect (LOCAL_ONLY=false, restul=true) + `label()` non-null.
+- `tests/Enum/LegalGroundCategoryTest.php` — toate 9 cases au `label()` + `isOpEligible()` corect.
+- `tests/Entity/DocumentTest.php` — getter/setter `extractionStrategy`.
+- `tests/Entity/UserTest.php` — default `extractionMode === 'LOCAL_ONLY'`.
 
-**TESTE MINIME**: minim 8 teste integrate (2 OCR + 3 PdfParser + 2 OcrText + 1 cascada).
+**Dependențe**: niciuna.
+
+**Boundary**:
+- ✅ Schema DB ready, enum-uri folosibile.
+- ❌ Nu implementează DTO/interface/strategii/orchestrator (vine la 2.5.2).
+
+**Commit**: `feat(extraction): pre-conditions — ExtractionMode + LegalGroundCategory enums + entity fields`
+
+---
+
+#### PASUL 2.5.2 — DTO + Interface + Stub + Orchestrator skeleton | ~4h | 0% reutilizare
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
+
+**Scop**: scaffolding-ul cascadei. Orchestrator-ul iterează strategiile; o singură strategie reală (Stub) — PdfParser/OcrText/AiVision vin la sub-pașii următori. Dă infrastructura DI tagged complet, testabil end-to-end fără dependențe externe.
+
+**Files create**:
+- `src/DTO/Extraction/ExtractedDocumentData.php` (readonly): `?CreditorExtraction $creditor`, `?DebtorExtraction $debtor`, `?ClaimExtraction $claim`, `int $sourceDocumentId`, `\DateTimeImmutable $extractedAt`, `string $strategy`, `float $globalConfidence`, `?string $rawOcrText = null`.
+- `src/DTO/Extraction/CreditorExtraction.php` (readonly): `?PersonType $personType`, `?string $name`, `?string $cui`, `?string $personalId`, `?string $address`, `?string $iban`, `?string $legalRepresentative`, `array $confidencePerField`.
+- `src/DTO/Extraction/DebtorExtraction.php` (readonly): similar, fără `iban`/`legalRepresentative`.
+- `src/DTO/Extraction/ClaimExtraction.php` (readonly): `?float $amount`, `?string $currency`, `?\DateTimeImmutable $dueDate`, `?LegalGroundCategory $legalGround`, `?string $description`, `array $confidencePerField`.
+- `src/Service/Extraction/ExtractionStrategyInterface.php` — `supports(Document): bool`, `extract(Document): ExtractedDocumentData`, `priority(): int`.
+- `src/Service/Extraction/StubExtractionStrategy.php` — priority 10, `supports() = true` mereu, returnează DTO cu null + `globalConfidence = 0.0` + `strategy = 'stub'`.
+- `src/Service/Extraction/DataExtractionService.php`:
+  - Constructor: `iterable $strategies` (tagged `app.extraction_strategy`), `EntityManagerInterface`, `LoggerInterface`.
+  - `extract(Document $document, ?float $confidenceThreshold = null): ExtractedDocumentData`.
+  - Citește `User.extractionMode` + `LegalCase.extractionModeOverride` (override prioritate).
+  - Threshold default din env `EXTRACTION_CONFIDENCE_THRESHOLD` (fallback 0.6).
+  - Sortare strategii descrescător după `priority()`. Pentru fiecare: `supports()` → dacă LOCAL_ONLY și strategia e AI → skip; altfel `extract()`; dacă `globalConfidence >= threshold` → return; altfel continue.
+  - Persist: `extractedData` (array serializabil din DTO), `extractionStatus = COMPLETED`, `extractionConfidence`, `extractionStrategy`.
+  - **NU** dispatch event aici (event = Pas 2.6).
+
+**Files modificate**:
+- `config/services.yaml` — `instanceof: ExtractionStrategyInterface: tags: ['app.extraction_strategy']`; `DataExtractionService` cu `arguments: [!tagged_iterator app.extraction_strategy]`.
+
+**Teste**:
+- `tests/DTO/Extraction/ExtractedDocumentDataTest.php` — sanity check readonly.
+- `tests/Service/Extraction/StubExtractionStrategyTest.php` — `supports()=true`, returnează DTO cu null și confidence 0.
+- `tests/Service/Extraction/DataExtractionServiceTest.php` — cu doar Stub în iterator: returnează DTO + persistă; verifică LOCAL_ONLY skip pe strategii AI (mock placeholder).
+
+**Dependențe**: 2.5.1.
+
+**Boundary**:
+- ✅ Tagged iterator + cascadă funcționale end-to-end.
+- ❌ Nicio strategie reală — toate documentele primesc DTO gol din Stub.
+
+**Commit**: `feat(extraction): DTO + ExtractionStrategyInterface + Stub strategy + DataExtractionService orchestrator`
+
+---
+
+#### PASUL 2.5.3 — `PdfParserExtractionStrategy` | ~5h | 0% reutilizare
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
+
+**Scop**: prima strategie reală — extracție din PDF text-based (contracte digitale, facturi electronice). Acoperă 60-80% din volumul real de documente avocat.
+
+**Files create**:
+- `src/Service/Extraction/PdfParserExtractionStrategy.php` — priority 100:
+  - `supports(Document)`: doar `mime === 'application/pdf'` ȘI parser găsește >= 100 caractere text.
+  - `extract(Document)`: parse cu `Smalot\PdfParser\Parser::parseFile()`; helper-uri pentru câmpuri:
+    - `extractCui(string)`: regex `/(?:RO\s?)?(\d{2,10})/i` + validare checksum CUI ANAF.
+    - `extractCnp(string)`: regex 13 cifre + validare checksum CNP (algoritm 2.7.5.7.9.1.3.5.7.2.4.6.8).
+    - `extractAmount(string)`: regex `/([\d.,]+)\s*(?:RON|lei)/i` + normalizare separatori.
+    - `extractDate(string)`: regex `/(\d{1,2})[./](\d{1,2})[./](\d{2,4})/`.
+    - `extractIban(string)`: regex `/RO\d{2}[A-Z]{4}\d{16}/` + checksum mod 97.
+  - Heuristici contextuale: ferestre de text (50 chars) după keywords RO (`creditor|împrumutător|furnizor|locator|cedent|emitent` → creditor; `debitor|împrumutat|client|locatar|cesionar|trasă` → debitor; `scadență|data plății|termen plată|exigibilitate` → dueDate; `temei|cauză|obiect contract` → `LegalGroundCategory`).
+  - Confidence per câmp: 0.95 (pattern + context), 0.70 (doar pattern), 0.0 (absent).
+  - `globalConfidence` = media confidence-urilor non-zero.
+  - `strategy = 'pdf_parser'`, `rawOcrText = null`.
+
+**Files modificate**:
+- `composer.json` — `composer require smalot/pdfparser`.
+
+**Fixtures** (`tests/fixtures/extraction/`):
+- `contract-prestari-servicii.pdf` (PJ-PJ, sumă clară, scadență).
+- `factura-emitent.pdf` (SC X SRL → SC Y SRL, 5000 RON).
+- `pdf-fara-text.pdf` (PDF scanat — `supports()` returnează false).
+
+**Teste** (`tests/Service/Extraction/PdfParserExtractionStrategyTest.php`):
+- `testSupportsReturnsTrueForTextPdf()`
+- `testSupportsReturnsFalseForScannedPdf()`
+- `testExtractsCuiCnpAmountDateFromContract()`
+- `testExtractsCreditorVsDebtorByContextualKeywords()`
+- `testGlobalConfidenceReflectsFieldsFound()`
+- `testInvalidCuiChecksumIsRejected()`
+
+**Dependențe**: 2.5.1, 2.5.2.
+
+**Boundary**:
+- ✅ PDF text-based extras corect.
+- ❌ NU acoperă scan/imagine (cade pe Stub până la 2.5.7), NU folosește AI.
+
+**Commit**: `feat(extraction): PdfParserExtractionStrategy with Romanian patterns + context heuristics`
+
+---
+
+#### PASUL 2.5.4 — AuditLog category + `PiiMasker` (GDPR foundation) | ~3h | 30% reutilizare
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
+
+**Scop**: pune fundația GDPR înainte ca strategiile AI să trimită date externe. PiiMasker mascarează CNP-uri în log-uri și în texte trimise la AI; AuditLogService câștigă parametru `category`.
+
+**Files create**:
+- `src/Util/PiiMasker.php` (clasă utilitară pură):
+  - `static maskCnp(string $text): string` — regex 13 cifre cu checksum CNP valid → `***-***-XXXX` (păstrează ultimele 4 cifre pentru disambiguare).
+  - `static maskCui(string $text): string` — regex CUI cu checksum valid → `RO******`.
+  - `static buildCnpMap(string $text): array<string, string>` — original → placeholder (pentru re-mapare la 2.5.7).
+  - `static restoreCnp(string $maskedText, array $map): string` — re-mapare placeholder → original.
+
+**Files modificate**:
+- `src/Service/AuditLogService.php` — adaugă `?string $category = null` ca ultim parametru la `log()`.
+- `src/Entity/AuditLog.php` — adaugă coloana `?string $category` (string nullable, max 50, indexat).
+- `migrations/Version20260509YYYYYY.php` — `ALTER TABLE audit_log ADD category VARCHAR(50) NULL, ADD INDEX idx_audit_category (category)`.
+
+**Teste**:
+- `tests/Util/PiiMaskerTest.php`: `testMaskCnpReplacesValidCnpsAndKeepsLast4()`, `testMaskCnpIgnoresInvalidChecksum()`, `testBuildCnpMapAndRestoreRoundTrip()`, `testMaskCuiReplacesValidCui()`.
+- `tests/Service/AuditLogServiceTest.php` — extindere: `testLogPersistsCategory()`.
+
+**Dependențe**: 2.5.1, 2.5.2.
+
+**Boundary**:
+- ✅ AuditLog acceptă category fără să spargă cod existent.
+- ✅ PiiMasker = utilitar pur, fără side-effects.
+- ❌ NU se apelează încă din strategii — pregătește terenul pentru 2.5.7.
+
+**Commit**: `feat(audit): category param + PiiMasker (GDPR foundation for AI extraction)`
+
+---
+
+#### PASUL 2.5.5 — Docker OCR + `TesseractOcrService` | ~4h | 0% reutilizare
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
+
+**Scop**: pune Tesseract + dependențele OCR în Docker (Alpine) și implementează wrapperul PHP. Sub-pas izolat — testabil fără strategii AI.
+
+**Files modificate**:
+- `Dockerfile` — Alpine `apk add` (NU `apt-get`):
+  ```dockerfile
+  RUN apk add --no-cache \
+      tesseract-ocr \
+      tesseract-ocr-data-ron \
+      tesseract-ocr-data-eng \
+      poppler-utils \
+      imagemagick \
+      ghostscript
+  ```
+- `compose.yaml` — verificare mount `/tmp` (default OK).
+
+**Files create**:
+- `src/DTO/Ocr/OcrResult.php` (readonly): `string $text`, `float $confidence`, `int $pageCount`.
+- `src/Service/Ocr/OcrServiceInterface.php` — `extractText(string $filePath): OcrResult`.
+- `src/Service/Ocr/TesseractOcrService.php`:
+  - Constructor: `LoggerInterface`, `string $tesseractLanguages` (din env, default `'ron+eng'`).
+  - `extractText()`: detect MIME (`finfo`); imagine → `tesseract input.jpg - -l ron+eng -c tessedit_create_tsv=1` via `Symfony\Component\Process\Process`; PDF → `pdftoppm -r 300 input.pdf prefix -png` în temp dir → loop pagini → tesseract → concat. Confidence = media `conf` per cuvânt din TSV. Cleanup cu `register_shutdown_function`.
+- `src/Exception/OcrException.php` — exception custom.
+
+**Teste** (`tests/Service/Ocr/TesseractOcrServiceTest.php`):
+- `testExtractsTextFromCleanImage()` — fixture PNG simplu cu "Test 1234".
+- `testExtractsTextFromMediumQualityScan()`.
+- `testThrowsOcrExceptionWhenTesseractMissing()`.
+- **NOTE**: marcăm cu `markTestSkipped()` la `setUp()` dacă `which tesseract` returnează nimic (CI fără Docker).
+
+**Fixtures** (`tests/fixtures/ocr/`): 2 imagini PNG.
+
+**Dependențe**: niciuna.
+
+**Boundary**:
+- ✅ TesseractOcrService injectabil oriunde.
+- ❌ NU e folosit încă de vreo strategie (la 2.5.7).
+- ❌ Docker rebuild necesar (`make up --build`) după pull.
+
+**Commit**: `feat(ocr): Docker setup (tesseract+poppler+imagemagick) + TesseractOcrService`
+
+---
+
+#### PASUL 2.5.6 — `AnthropicApiClient` + rate limiters + env vars | ~3h | 60% reutilizare (pattern AnafLookupService)
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
+
+**Scop**: client HTTP Anthropic mock-able + rate limiters specifici extracției AI + env vars. Sub-pas izolat — independent testabil.
+
+**Files create**:
+- `src/Service/Anthropic/AnthropicApiClient.php` — pattern identic cu `AnafLookupService`:
+  - Constructor: `HttpClientInterface`, `LoggerInterface`, `string $apiKey` (bind), `string $model` (bind).
+  - `messages(array $messages, int $maxTokens = 2048, ?array $documentParts = null): AnthropicResponse` — POST `https://api.anthropic.com/v1/messages` cu auth header + JSON body. `documentParts` pentru vision (input file base64).
+  - Retry: 3x exponential backoff pe HTTP 5xx + 429.
+- `src/DTO/Anthropic/AnthropicResponse.php` (readonly): `string $content`, `int $tokensIn`, `int $tokensOut`, `string $stopReason`.
+- `src/Exception/AnthropicApiException.php`.
+
+**Files modificate**:
+- `.env`:
+  ```
+  ANTHROPIC_API_KEY=
+  ANTHROPIC_MODEL=claude-sonnet-4-6
+  EXTRACTION_CONFIDENCE_THRESHOLD=0.6
+  OCR_LANGUAGES=ron+eng
+  ```
+- `.env.test` — `ANTHROPIC_API_KEY=test-key` (mocked).
+- `config/services.yaml` — bind `$anthropicApiKey: '%env(ANTHROPIC_API_KEY)%'`, `$anthropicModel: '%env(ANTHROPIC_MODEL)%'`.
+- `config/packages/rate_limiter.yaml`:
+  ```yaml
+  extraction_ai_text: { policy: sliding_window, limit: 200, interval: '1 day' }
+  extraction_ai_vision: { policy: sliding_window, limit: 50, interval: '1 day' }
+  ```
+
+**Teste** (`tests/Service/Anthropic/AnthropicApiClientTest.php`):
+- `testMessagesCallReturnsParsedResponse()` — `MockHttpClient` cu fixture JSON.
+- `testMessagesCallRetriesOn5xx()` — 2x 503 + 1x 200.
+- `testThrowsOnAuthError()` — 401.
+- `testThrowsOnRateLimit()` — 429.
+
+**Dependențe**: niciuna.
+
+**Boundary**:
+- ✅ Client HTTP funcțional + testat cu mocks.
+- ❌ Nicio strategie nu îl folosește încă.
+
+**Commit**: `feat(extraction): AnthropicApiClient + AI rate limiters + env config`
+
+---
+
+#### PASUL 2.5.7 — `OcrTextExtractionStrategy` | ~5h | 30% reutilizare (pattern PdfParser)
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
+
+**Scop**: a doua strategie reală — pentru documente scanate (imagine sau PDF fără strat text). Combinație Tesseract OCR (local) + Claude API text (după mascare CNP). Treapta cea mai eficientă cost/acuratețe (~$0.002/doc).
+
+**Files create**:
+- `src/Service/Extraction/OcrTextExtractionStrategy.php` — priority 70:
+  - Constructor: `OcrServiceInterface`, `AnthropicApiClient`, `AuditLogService`, `LoggerInterface`, `RateLimiterFactory $extractionAiTextLimiter`, `string $apiKey` (bind).
+  - `supports(Document)`: imagine (jpg/png) SAU PDF cu strat text < 100 caractere SAU forțat de MAX_ACCURACY.
+  - `extract(Document)`:
+    1. `OcrServiceInterface::extractText()` → `OcrResult`.
+    2. Dacă `OCR confidence < 0.5` SAU `text.length < 200` → DTO cu `globalConfidence = 0` (signal pentru fallback).
+    3. `PiiMasker::buildCnpMap()` → păstrează map.
+    4. Dacă `apiKey` absent: fallback regex pe textul OCR → `globalConfidence` 0.5-0.7.
+    5. Altfel: `RateLimiter::create($userId)->consume()`.
+    6. `AnthropicApiClient::messages()` cu prompt structurat (vezi prompt original RO; max_tokens 2048, model `claude-sonnet-4-6`).
+    7. Parse JSON → DTO. `PiiMasker::restoreCnp()` pe valori sensibile.
+    8. `AuditLogService::log(category: 'AI_EXTRACTION', ...)` cu `documentId, strategy, tokensIn, tokensOut, responseHash`.
+    9. `strategy = 'ocr_text'`, `rawOcrText = $ocrResult->text`.
+
+**Teste** (`tests/Service/Extraction/OcrTextExtractionStrategyTest.php`):
+- `testSupportsImageDocuments()`, `testSupportsScannedPdfWithoutTextLayer()`.
+- `testFallbackToRegexWhenApiKeyAbsent()`.
+- `testCallsAnthropicAndReturnsExtractedData()` — `MockHttpClient` + fixture JSON.
+- `testMasksCnpInPromptToAi()` — spy verifică textul trimis NU conține CNP-uri originale.
+- `testRestoresCnpInExtractedDataAfterAiResponse()`.
+- `testAuditsCallWithAiExtractionCategory()`.
+- `testReturnsZeroConfidenceWhenOcrTooLow()` — signal cascade.
+
+**Dependențe**: 2.5.1, 2.5.2, 2.5.4 (PiiMasker), 2.5.5 (TesseractOcrService), 2.5.6 (AnthropicApiClient).
+
+**Boundary**:
+- ✅ Documentele scanate extrase prin OCR + Claude text.
+- ✅ GDPR: CNP mascate înainte de AI.
+- ✅ LOCAL_ONLY: regex fallback (fără AI).
+- ❌ Documente unde OCR e prea slab → cad pe AiVision (next).
+
+**Commit**: `feat(extraction): OcrTextExtractionStrategy with CNP masking + Anthropic text + audit`
+
+---
+
+#### PASUL 2.5.8 — `AiVisionExtractionStrategy` | ~4h | 50% reutilizare (pattern OcrText)
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
+
+**Scop**: ultima strategie — Claude vision direct pe document (PDF/imagine). Fallback când OcrText returnează `globalConfidence < 0.5` (scan prost, layout multi-coloană, text scris de mână). Cost ~$0.01-0.05/doc.
+
+**Files create**:
+- `src/Service/Extraction/AiVisionExtractionStrategy.php` — priority 50:
+  - Constructor: `AnthropicApiClient`, `AuditLogService`, `LoggerInterface`, `RateLimiterFactory $extractionAiVisionLimiter`, `string $apiKey`.
+  - `supports(Document)`: orice document, **doar dacă** `extractionMode != LOCAL_ONLY` ȘI apiKey prezent.
+  - `extract(Document)`:
+    1. Citește fișier (PDF/imagine) → base64.
+    2. `RateLimiter::consume()` (50/zi).
+    3. `AnthropicApiClient::messages()` cu `documentParts` (file input) + prompt identic OcrText.
+    4. Parse JSON → DTO.
+    5. `AuditLogService::log(category: 'AI_EXTRACTION', strategy: 'ai_vision', ...)`.
+    6. `strategy = 'ai_vision'`, `rawOcrText = null`.
+
+**Teste** (`tests/Service/Extraction/AiVisionExtractionStrategyTest.php`):
+- `testSupportsAnyDocumentWhenAiAllowed()`.
+- `testSkipsWhenLocalOnlyMode()`.
+- `testCallsAnthropicWithDocumentInput()` — `MockHttpClient` + verify request body conține file part.
+- `testRespectsVisionRateLimit()`.
+- `testAuditsWithAiExtractionCategoryAndVisionStrategy()`.
+
+**Fixture**: 1 imagine scan complexă la `tests/fixtures/extraction/`.
+
+**Dependențe**: 2.5.1, 2.5.2, 2.5.4, 2.5.6.
+
+**Boundary**:
+- ✅ Cascada COMPLETĂ funcțională end-to-end (PdfParser → OcrText → AiVision → Stub).
+- ✅ Cost-control prin rate limiters.
+- ✅ Audit complet pentru toate apelurile AI.
+
+**Commit**: `feat(extraction): AiVisionExtractionStrategy + completes 4-tier cascade`
+
+---
+
+**TESTE MINIME TOTAL Pas 2.5** (la final 2.5.8): ~30 teste (4 enum + 4 DTO + 6 PdfParser + 4 PiiMasker + 4 Tesseract + 4 Anthropic + 8 OcrText + 5 AiVision + cascadă orchestrator).
 
 ---
 
