@@ -61,7 +61,7 @@
 | 2.4 | Calcule | `AnafLookupService` integration + `OpAdmissibilityValidator` (CPC art. 1014, L 85/2014) + Debitor ANAF/BPI fields + rename `taxId`→`cui` & `tradeRegistryNumber`→`onrcNumber` pe Creditor/Debtor | 0.5z | 1.1 | 80% | ✅ DONE 2026-05-09 (`6b9a815`) — N4 enforcement (BPI = ERROR), 27 teste noi |
 | 2.5.1 | Extracție | Pre-condiții: enum-uri (`ExtractionMode`, `LegalGroundCategory`) + entity fields (`Document.extractionStrategy`, `User.extractionMode`, `LegalCase.extractionModeOverride`) + migrare | 3h | 1.1 | 0% | ✅ DONE 2026-05-09 (`c9c455d`) |
 | 2.5.2 | Extracție | DTO `ExtractedDocumentData` (+ Creditor/Debtor/Claim) + `ExtractionStrategyInterface` + `StubExtractionStrategy` + `DataExtractionService` orchestrator (cu tagged iterator) | 4h | 2.5.1 | 0% | ✅ DONE 2026-05-09 (`a0fe48a`) |
-| 2.5.3 | Extracție | `PdfParserExtractionStrategy` (priority 100) — smalot/pdfparser + regex CUI/CNP/sume/date/IBAN cu validare checksum + heuristici contextuale RO | 5h | 2.5.2 | 0% | ✅ DONE 2026-05-10 |
+| 2.5.3 | Extracție | `PdfParserExtractionStrategy` (priority 100) — smalot/pdfparser + regex CUI/CNP/sume/date/IBAN cu validare checksum + heuristici contextuale RO | 5h | 2.5.2 | 0% | ✅ DONE 2026-05-10 (`8fc31c3`) |
 | 2.5.4 | Extracție | GDPR foundation: `AuditLogService::log()` cu `?string $category` + entity `AuditLog.category` + `PiiMasker` utility (mask/restore CNP + mask CUI) | 3h | 2.5.1 | 30% | ⏳ |
 | 2.5.5 | Extracție | Docker OCR setup (Alpine: tesseract-ocr + tesseract-ocr-data-ron + poppler-utils + imagemagick + ghostscript) + `OcrServiceInterface` + `TesseractOcrService` + `OcrResult` DTO | 4h | — | 0% | ⏳ |
 | 2.5.6 | Extracție | `AnthropicApiClient` (HttpClient + retry + DTO `AnthropicResponse`) + rate limiters `extraction_ai_text` (200/zi) + `extraction_ai_vision` (50/zi) + env vars (`ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, etc.) | 3h | — | 60% (pattern AnafLookup) | ⏳ |
@@ -1086,7 +1086,7 @@ Refactor enum la 3 valori distincte (ex: `B2B_PROFESIONAL`, `B2C_CONSUMER`, `NON
 
 ---
 
-#### PASUL 2.5.3 — `PdfParserExtractionStrategy` | ~5h | 0% reutilizare ✅ DONE 2026-05-10
+#### PASUL 2.5.3 — `PdfParserExtractionStrategy` | ~5h | 0% reutilizare ✅ DONE 2026-05-10 (`8fc31c3`)
 
 **Rezultat**: prima strategie reală (priority 100, NU AI-backed); composer require smalot/pdfparser:^2.0 (v2.12.5 LGPL-3.0); 5 helpers private extracție (CUI/CNP/IBAN/Amount/Date) + 3 validators checksum (CUI ANAF, CNP per OUG 97/2005 ponderi `[2,7,9,1,4,6,3,5,8,2,7,9]`, IBAN mod 97 chunked manual fără bcmath); section-based attribution heuristic (cel mai recent keyword anterior, window 500 chars); cache `spl_object_id($document)` text parsat; refolosit `LocalityNormalizer` pentru normalizare diacritice. **REVIZIE LEGAL CRITICĂ**: ponderile CNP corectate de la `[2,7,5,7,9,1,3,5,7,2,4,6,8]` (greșite, copiate din PLAN spec) la cele oficiale; fixture CNP `1980715221232` ca regression test diferential (valid cu pond corecte, invalid cu pond greșite). 13 tests verzi pe scope. Reviews: legal-clean + code commit-ready (1 W minor pe `(int) getId()` la `sourceDocumentId` — pre-existent în Stub/orchestrator, scope post-2.5.3).
 
