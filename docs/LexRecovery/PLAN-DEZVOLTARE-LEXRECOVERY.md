@@ -59,7 +59,7 @@
 | 2.2 | Calcule | `StampDutyCalculator` (OUG 80/2013) | 0.25z | — | 0% | ✅ |
 | 2.3 | Calcule | `CompetentCourtResolver` | 0.5z | 1.1 | 30% | ✅ DONE 2026-05-09 (`8f44e05`) — N1 aplicat (prag 200k pe valoare totală) |
 | 2.4 | Calcule | `AnafLookupService` integration + `OpAdmissibilityValidator` (CPC art. 1014, L 85/2014) + Debitor ANAF/BPI fields + rename `taxId`→`cui` & `tradeRegistryNumber`→`onrcNumber` pe Creditor/Debtor | 0.5z | 1.1 | 80% | ✅ DONE 2026-05-09 (`6b9a815`) — N4 enforcement (BPI = ERROR), 27 teste noi |
-| 2.5.1 | Extracție | Pre-condiții: enum-uri (`ExtractionMode`, `LegalGroundCategory`) + entity fields (`Document.extractionStrategy`, `User.extractionMode`, `LegalCase.extractionModeOverride`) + migrare | 3h | 1.1 | 0% | ✅ DONE 2026-05-09 |
+| 2.5.1 | Extracție | Pre-condiții: enum-uri (`ExtractionMode`, `LegalGroundCategory`) + entity fields (`Document.extractionStrategy`, `User.extractionMode`, `LegalCase.extractionModeOverride`) + migrare | 3h | 1.1 | 0% | ✅ DONE 2026-05-09 (`c9c455d`) |
 | 2.5.2 | Extracție | DTO `ExtractedDocumentData` (+ Creditor/Debtor/Claim) + `ExtractionStrategyInterface` + `StubExtractionStrategy` + `DataExtractionService` orchestrator (cu tagged iterator) | 4h | 2.5.1 | 0% | ⏳ |
 | 2.5.3 | Extracție | `PdfParserExtractionStrategy` (priority 100) — smalot/pdfparser + regex CUI/CNP/sume/date/IBAN cu validare checksum + heuristici contextuale RO | 5h | 2.5.2 | 0% | ⏳ |
 | 2.5.4 | Extracție | GDPR foundation: `AuditLogService::log()` cu `?string $category` + entity `AuditLog.category` + `PiiMasker` utility (mask/restore CNP + mask CUI) | 3h | 2.5.1 | 30% | ⏳ |
@@ -1014,7 +1014,7 @@ Refactor enum la 3 valori distincte (ex: `B2B_PROFESIONAL`, `B2C_CONSUMER`, `NON
 
 ---
 
-#### PASUL 2.5.1 — Pre-condiții: enum-uri + entity fields + migrare | ~3h | 0% reutilizare ✅ DONE 2026-05-09
+#### PASUL 2.5.1 — Pre-condiții: enum-uri + entity fields + migrare | ~3h | 0% reutilizare ✅ DONE 2026-05-09 (`c9c455d`)
 
 **Rezultat**: 2 enum-uri noi (`ExtractionMode` cu `isAiAllowed()`, `LegalGroundCategory` cu `isOpEligible()` + `isDirectlyEnforceable()` post-review legal pentru CEC/CAMBIE/BILET_LA_ORDIN per Legea 58/1934 + 59/1934); 3 entity fields adăugate; migrare `Version20260509193449.php` aplicată curat; translations RO+EN; 13 tests noi (43/43 verzi pe scope). Schema in sync. Reviews: legal-clean + code commit-ready.
 
