@@ -9,9 +9,9 @@ enum CaseTransition: string
     case INREGISTREAZA_DOSAR = 'inregistreaza_dosar';
     case FIXEAZA_TERMEN = 'fixeaza_termen';
     case EMITE_ORDONANTA = 'emite_ordonanta';
-    case CONTESTA = 'contesta';
-    case RESPINGE_CONTESTATIE = 'respinge_contestatie';
-    case ADMITE_CONTESTATIE = 'admite_contestatie';
+    case FORMULEAZA_CERERE_ANULARE = 'formuleaza_cerere_anulare';
+    case RESPINGE_CERERE_ANULARE = 'respinge_cerere_anulare';
+    case ADMITE_CERERE_ANULARE = 'admite_cerere_anulare';
     case MARCHEAZA_DEFINITIVA = 'marcheaza_definitiva';
     case RESPINGE = 'respinge';
     case INCHIDE_SUCCES = 'inchide_succes';

@@ -223,7 +223,7 @@ class SeedDemoCasesCommand extends Command
                 ['type' => DeadlineType::RASPUNS_SOMATIE, 'offset' => 5, 'priority' => DeadlinePriority::HIGH, 'desc' => 'Răspuns somație (urgent)'],
             ],
             CaseStatus::ORDONANTA_EMISA => [
-                ['type' => DeadlineType::CONTESTATIE, 'offset' => 10, 'priority' => DeadlinePriority::HIGH, 'desc' => 'Termen contestație ordonanță'],
+                ['type' => DeadlineType::CERERE_IN_ANULARE, 'offset' => 10, 'priority' => DeadlinePriority::HIGH, 'desc' => 'Termen cerere în anulare ordonanță'],
             ],
             default => [],
         };
@@ -249,7 +249,7 @@ class SeedDemoCasesCommand extends Command
             CaseStatus::DOSAR_INREGISTRAT->value => 3,
             CaseStatus::TERMEN_FIXAT->value => 4,
             CaseStatus::ORDONANTA_EMISA->value => 5,
-            CaseStatus::CONTESTATA->value => 6,
+            CaseStatus::IN_ANULARE->value => 6,
             CaseStatus::DEFINITIVA->value => 7,
             CaseStatus::EXECUTARE->value => 8,
             CaseStatus::INCHIS_SUCCES->value => 9,

@@ -30,15 +30,15 @@ class LegalDeadlineEntityTest extends TestCase
         $date = new \DateTime('2026-06-15');
 
         $deadline->setLegalCase($case);
-        $deadline->setType(DeadlineType::CONTESTATIE);
+        $deadline->setType(DeadlineType::CERERE_IN_ANULARE);
         $deadline->setDeadlineDate($date);
-        $deadline->setDescription('Termen contestație');
+        $deadline->setDescription('Termen cerere în anulare');
         $deadline->setPriority(DeadlinePriority::HIGH);
 
         $this->assertSame($case, $deadline->getLegalCase());
-        $this->assertSame(DeadlineType::CONTESTATIE, $deadline->getType());
+        $this->assertSame(DeadlineType::CERERE_IN_ANULARE, $deadline->getType());
         $this->assertSame($date, $deadline->getDeadlineDate());
-        $this->assertSame('Termen contestație', $deadline->getDescription());
+        $this->assertSame('Termen cerere în anulare', $deadline->getDescription());
         $this->assertSame(DeadlinePriority::HIGH, $deadline->getPriority());
     }
 

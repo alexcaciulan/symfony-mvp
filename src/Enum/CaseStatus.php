@@ -10,7 +10,7 @@ enum CaseStatus: string
     case DOSAR_INREGISTRAT = 'DOSAR_INREGISTRAT';
     case TERMEN_FIXAT = 'TERMEN_FIXAT';
     case ORDONANTA_EMISA = 'ORDONANTA_EMISA';
-    case CONTESTATA = 'CONTESTATA';
+    case IN_ANULARE = 'IN_ANULARE';
     case DEFINITIVA = 'DEFINITIVA';
     case EXECUTARE = 'EXECUTARE';
     case RESPINSA = 'RESPINSA';
@@ -31,7 +31,7 @@ enum CaseStatus: string
             self::DOSAR_INREGISTRAT => 'blue',
             self::TERMEN_FIXAT => 'indigo',
             self::ORDONANTA_EMISA => 'violet',
-            self::CONTESTATA => 'orange',
+            self::IN_ANULARE => 'orange',
             self::DEFINITIVA => 'emerald',
             self::EXECUTARE => 'teal',
             self::RESPINSA => 'red',
@@ -51,7 +51,7 @@ enum CaseStatus: string
     public function isActiveOnPortal(): bool
     {
         return match ($this) {
-            self::DOSAR_INREGISTRAT, self::TERMEN_FIXAT, self::ORDONANTA_EMISA, self::CONTESTATA => true,
+            self::DOSAR_INREGISTRAT, self::TERMEN_FIXAT, self::ORDONANTA_EMISA, self::IN_ANULARE => true,
             default => false,
         };
     }

@@ -43,7 +43,7 @@ class CaseStatusTest extends TestCase
         $this->assertTrue(CaseStatus::DOSAR_INREGISTRAT->isActiveOnPortal());
         $this->assertTrue(CaseStatus::TERMEN_FIXAT->isActiveOnPortal());
         $this->assertTrue(CaseStatus::ORDONANTA_EMISA->isActiveOnPortal());
-        $this->assertTrue(CaseStatus::CONTESTATA->isActiveOnPortal());
+        $this->assertTrue(CaseStatus::IN_ANULARE->isActiveOnPortal());
 
         $this->assertFalse(CaseStatus::AMIABIL->isActiveOnPortal());
         $this->assertFalse(CaseStatus::SOMATIE_TRIMISA->isActiveOnPortal());

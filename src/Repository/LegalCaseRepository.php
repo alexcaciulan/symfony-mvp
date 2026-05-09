@@ -69,7 +69,7 @@ class LegalCaseRepository extends ServiceEntityRepository
 
         $priority = [
             CaseStatus::TERMEN_FIXAT->value,
-            CaseStatus::CONTESTATA->value,
+            CaseStatus::IN_ANULARE->value,
             CaseStatus::ORDONANTA_EMISA->value,
             CaseStatus::DOSAR_INREGISTRAT->value,
             CaseStatus::CERERE_DEPUSA->value,

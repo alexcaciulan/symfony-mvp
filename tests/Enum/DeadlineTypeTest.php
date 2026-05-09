@@ -22,7 +22,7 @@ class DeadlineTypeTest extends TestCase
 
     public function testDefaultPrioritate(): void
     {
-        $this->assertSame(DeadlinePriority::CRITICAL, DeadlineType::CONTESTATIE->defaultPrioritate());
+        $this->assertSame(DeadlinePriority::CRITICAL, DeadlineType::CERERE_IN_ANULARE->defaultPrioritate());
         $this->assertSame(DeadlinePriority::CRITICAL, DeadlineType::PRESCRIPTIE->defaultPrioritate());
         $this->assertSame(DeadlinePriority::HIGH, DeadlineType::DEPUNERE_CERERE->defaultPrioritate());
         $this->assertSame(DeadlinePriority::HIGH, DeadlineType::JUDECATA->defaultPrioritate());
