@@ -27,3 +27,10 @@
 
 # PHPUnit
 bin/.phpunit.result.cache
+
+# Claude Code local stamps
+/.claude/.last-review-hash
+/.claude/settings.local.json
+
+# Microsoft Office lock files (created when .docx/.xlsx is open)
+~$*
