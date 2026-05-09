@@ -58,7 +58,7 @@
 | 2.1 | Calcule | `InterestCalculatorService` (OG 13/2011) | 0.75z | 1.1 | 0% | ✅ DONE + REVIZIE C3 (Opțiunea a — B2B-only) |
 | 2.2 | Calcule | `StampDutyCalculator` (OUG 80/2013) | 0.25z | — | 0% | ✅ |
 | 2.3 | Calcule | `CompetentCourtResolver` | 0.5z | 1.1 | 30% | ✅ DONE 2026-05-09 (`8f44e05`) — N1 aplicat (prag 200k pe valoare totală) |
-| 2.4 | Calcule | `AnafLookupService` integration + `OpAdmissibilityValidator` (CPC art. 1014, L 85/2014) + Debitor ANAF/BPI fields | 0.5z | 1.1 | 80% | ⏳ |
+| 2.4 | Calcule | `AnafLookupService` integration + `OpAdmissibilityValidator` (CPC art. 1014, L 85/2014) + Debitor ANAF/BPI fields + rename `taxId`→`cui` & `tradeRegistryNumber`→`onrcNumber` pe Creditor/Debtor | 0.5z | 1.1 | 80% | ✅ DONE 2026-05-09 (commit pending) — N4 enforcement (BPI = ERROR), 27 teste noi |
 | 2.5 | Extracție | `DataExtractionService` + 4 strategii cascadă (PdfParser, OcrText cu Tesseract, AiVision, Stub) + `TesseractOcrService` + DTO `ExtractedDocumentData` + setup Dockerfile cu tesseract-ocr-ron + ImageMagick | 2z | 1.1 | 0% | ⏳ |
 | 2.6 | Extracție | `ExtractDataMessage` async (Symfony Messenger) + handler + persist `Document.extractedData` + emit `DataExtractedEvent` | 0.5z | 2.5 | 30% | ⏳ |
 | 3.0 | Wizard | Step 0 wizard "Documente sursă": upload + procesare async + preview valori extrase + Turbo Stream polling status | 1z | 2.5, 2.6 | 0% | ⏳ |
@@ -892,9 +892,9 @@ Refactor enum la 3 valori distincte (ex: `B2B_PROFESIONAL`, `B2C_CONSUMER`, `NON
 
 ---
 
-### PASUL 2.4 | `AnafLookupService` integration + `OpAdmissibilityValidator` | 0.5 zi | 80% reutilizare
+### PASUL 2.4 | `AnafLookupService` integration + `OpAdmissibilityValidator` | 0.5 zi | 80% reutilizare ✅ DONE 2026-05-09 (commit pending)
 
-**Rezultat**: _(va fi completat la marcarea ca DONE)_
+**Rezultat**: `OpAdmissibilityValidator` (`src/Service/Validation/`) cu 8 reguli (7 post-N4 pentru PJ + 1 WARNING static pentru PF) — pure service, fără deps. DTO `AdmissibilityIssue` + enum `IssueSeverity` (ERROR/WARNING). Enum nou `AnafStatus` (ACTIV/INACTIV/RADIAT) tipează `Debtor.anafStatus` (rename de la `onrcStatus`). Adăugate pe `Debtor`: `anafCheckedAt`, `inInsolvency`, `insolvencyCheckedAt`, `bpiVerifiedNote` (varchar 500), `bpiProofDocument` (FK ManyToOne nullable la `Document`). `DocumentType::BPI_PROOF` adăugat. **Scope extins (cerere user):** rename `taxId`→`cui` și `tradeRegistryNumber`→`onrcNumber` pe `Creditor` + `Debtor`. Migrarea folosește `CHANGE COLUMN` ca să păstreze datele. 25 teste verzi noi. **Validare juridică avocat-senior 2026-05-09: CONFORM CU OBSERVATII.** Aplicat în 2.4: O2 (WARNING `OP_PF_BIPF_MANUAL_CHECK` pentru PF) + O3 (DocBlock pe pragurile 7d/30d clarifică natura lor — decizie produs, nu termen legal). Deferred la Pas 3.x: M1 (wizard trebuie să prevadă `confirmInsolvencyCheck()` care setează `insolvencyCheckedAt`; altfel ERROR Rule 6 devine blocaj permanent). `AnafLookupService` neatins. Audit log `BPI_VERIFICATION` și UI bifare BPI — Pas 3.x. Detalii: `~/.claude/projects/-Users-alexc-Downloads-myprojects-symfony-mvp/memory/project_lexrecovery_pas_2_4.md`.
 
 > 🔴 **REVIZIE JURIDICĂ 2026-05-08** (din analiza Faza 2 + clarificare user):
 > - **ELIMINAT**: `OnrcLookupService` + `OnrcLookupServiceInterface` + `ManualOnrcLookupService` + entitate `OnrcCheck`. **ONRC NU oferă API public oficial**. Propunerea inițială pe `openapi.ro` a fost o ipoteză greșită — openapi.ro e un scraper terț neoficial cu cost/risc juridic. Forma originală a Pasului 2.4 (V1 stub care returnează mereu null) era ceremonie inutilă.

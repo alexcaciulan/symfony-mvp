@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Enum\AnafStatus;
 use App\Enum\PersonType;
 use App\Repository\DebtorRepository;
 use Doctrine\DBAL\Types\Types;
@@ -27,13 +28,13 @@ class Debtor
     private string $name;
 
     #[ORM\Column(length: 20, nullable: true)]
-    private ?string $taxId = null;
+    private ?string $cui = null;
 
     #[ORM\Column(length: 13, nullable: true)]
     private ?string $personalId = null;
 
     #[ORM\Column(length: 50, nullable: true)]
-    private ?string $tradeRegistryNumber = null;
+    private ?string $onrcNumber = null;
 
     #[ORM\Column(type: Types::TEXT)]
     private string $address;
@@ -50,8 +51,24 @@ class Debtor
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $administrator = null;
 
-    #[ORM\Column(length: 20, nullable: true)]
-    private ?string $onrcStatus = null;
+    #[ORM\Column(length: 20, nullable: true, enumType: AnafStatus::class)]
+    private ?AnafStatus $anafStatus = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $anafCheckedAt = null;
+
+    #[ORM\Column(options: ['default' => false])]
+    private bool $inInsolvency = false;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $insolvencyCheckedAt = null;
+
+    #[ORM\ManyToOne(targetEntity: Document::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?Document $bpiProofDocument = null;
+
+    #[ORM\Column(length: 500, nullable: true)]
+    private ?string $bpiVerifiedNote = null;
 
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
@@ -112,14 +129,14 @@ class Debtor
         return $this;
     }
 
-    public function getTaxId(): ?string
+    public function getCui(): ?string
     {
-        return $this->taxId;
+        return $this->cui;
     }
 
-    public function setTaxId(?string $taxId): static
+    public function setCui(?string $cui): static
     {
-        $this->taxId = $taxId;
+        $this->cui = $cui;
 
         return $this;
     }
@@ -136,14 +153,14 @@ class Debtor
         return $this;
     }
 
-    public function getTradeRegistryNumber(): ?string
+    public function getOnrcNumber(): ?string
     {
-        return $this->tradeRegistryNumber;
+        return $this->onrcNumber;
     }
 
-    public function setTradeRegistryNumber(?string $tradeRegistryNumber): static
+    public function setOnrcNumber(?string $onrcNumber): static
     {
-        $this->tradeRegistryNumber = $tradeRegistryNumber;
+        $this->onrcNumber = $onrcNumber;
 
         return $this;
     }
@@ -208,14 +225,74 @@ class Debtor
         return $this;
     }
 
-    public function getOnrcStatus(): ?string
+    public function getAnafStatus(): ?AnafStatus
     {
-        return $this->onrcStatus;
+        return $this->anafStatus;
     }
 
-    public function setOnrcStatus(?string $onrcStatus): static
+    public function setAnafStatus(?AnafStatus $anafStatus): static
     {
-        $this->onrcStatus = $onrcStatus;
+        $this->anafStatus = $anafStatus;
+
+        return $this;
+    }
+
+    public function getAnafCheckedAt(): ?\DateTimeImmutable
+    {
+        return $this->anafCheckedAt;
+    }
+
+    public function setAnafCheckedAt(?\DateTimeImmutable $anafCheckedAt): static
+    {
+        $this->anafCheckedAt = $anafCheckedAt;
+
+        return $this;
+    }
+
+    public function isInInsolvency(): bool
+    {
+        return $this->inInsolvency;
+    }
+
+    public function setInInsolvency(bool $inInsolvency): static
+    {
+        $this->inInsolvency = $inInsolvency;
+
+        return $this;
+    }
+
+    public function getInsolvencyCheckedAt(): ?\DateTimeImmutable
+    {
+        return $this->insolvencyCheckedAt;
+    }
+
+    public function setInsolvencyCheckedAt(?\DateTimeImmutable $insolvencyCheckedAt): static
+    {
+        $this->insolvencyCheckedAt = $insolvencyCheckedAt;
+
+        return $this;
+    }
+
+    public function getBpiProofDocument(): ?Document
+    {
+        return $this->bpiProofDocument;
+    }
+
+    public function setBpiProofDocument(?Document $bpiProofDocument): static
+    {
+        $this->bpiProofDocument = $bpiProofDocument;
+
+        return $this;
+    }
+
+    public function getBpiVerifiedNote(): ?string
+    {
+        return $this->bpiVerifiedNote;
+    }
+
+    public function setBpiVerifiedNote(?string $bpiVerifiedNote): static
+    {
+        $this->bpiVerifiedNote = $bpiVerifiedNote;
 
         return $this;
     }

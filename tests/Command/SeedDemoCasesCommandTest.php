@@ -78,7 +78,7 @@ class SeedDemoCasesCommandTest extends KernelTestCase
         $conn->executeStatement("DELETE ld FROM legal_deadline ld JOIN legal_case lc ON ld.legal_case_id = lc.id WHERE lc.case_number LIKE 'LR-DEMO-%'");
         $conn->executeStatement("DELETE d FROM debtor d JOIN legal_case lc ON d.legal_case_id = lc.id WHERE lc.case_number LIKE 'LR-DEMO-%'");
         $conn->executeStatement("DELETE FROM legal_case WHERE case_number LIKE 'LR-DEMO-%'");
-        $conn->executeStatement("DELETE c FROM creditor c JOIN user u ON c.user_id = u.id WHERE u.email = 'avocat@test.com' AND c.tax_id = 'RO12345678'");
+        $conn->executeStatement("DELETE c FROM creditor c JOIN user u ON c.user_id = u.id WHERE u.email = 'avocat@test.com' AND c.cui = 'RO12345678'");
         parent::tearDown();
     }
 }

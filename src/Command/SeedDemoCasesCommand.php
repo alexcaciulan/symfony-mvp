@@ -32,14 +32,14 @@ class SeedDemoCasesCommand extends Command
 {
     private const LAWYER_EMAIL = 'avocat@test.com';
 
-    /** @var array<int, array{status: CaseStatus, amount: string, debtorPersonType: PersonType, debtorName: string, debtorTaxId: ?string, debtorPersonalId: ?string, courtCaseNumber: ?string, hearingOffsetDays: ?int, dueOffsetDays: int}> */
+    /** @var array<int, array{status: CaseStatus, amount: string, debtorPersonType: PersonType, debtorName: string, debtorCui: ?string, debtorPersonalId: ?string, courtCaseNumber: ?string, hearingOffsetDays: ?int, dueOffsetDays: int}> */
     private const CASES = [
         [
             'status' => CaseStatus::AMIABIL,
             'amount' => '2500.00',
             'debtorPersonType' => PersonType::PF,
             'debtorName' => 'Popescu Ion',
-            'debtorTaxId' => null,
+            'debtorCui' => null,
             'debtorPersonalId' => '1850101123456',
             'courtCaseNumber' => null,
             'hearingOffsetDays' => null,
@@ -50,7 +50,7 @@ class SeedDemoCasesCommand extends Command
             'amount' => '7800.00',
             'debtorPersonType' => PersonType::PJ,
             'debtorName' => 'Restanțier SRL',
-            'debtorTaxId' => 'RO87654321',
+            'debtorCui' => 'RO87654321',
             'debtorPersonalId' => null,
             'courtCaseNumber' => null,
             'hearingOffsetDays' => null,
@@ -61,7 +61,7 @@ class SeedDemoCasesCommand extends Command
             'amount' => '12500.00',
             'debtorPersonType' => PersonType::PJ,
             'debtorName' => 'Datornic Trans SA',
-            'debtorTaxId' => 'RO11223344',
+            'debtorCui' => 'RO11223344',
             'debtorPersonalId' => null,
             'courtCaseNumber' => 'DEMO-3/2026',
             'hearingOffsetDays' => -30,
@@ -72,7 +72,7 @@ class SeedDemoCasesCommand extends Command
             'amount' => '4200.00',
             'debtorPersonType' => PersonType::PF,
             'debtorName' => 'Ionescu Maria',
-            'debtorTaxId' => null,
+            'debtorCui' => null,
             'debtorPersonalId' => '2900520123456',
             'courtCaseNumber' => 'DEMO-4/2026',
             'hearingOffsetDays' => -60,
@@ -83,7 +83,7 @@ class SeedDemoCasesCommand extends Command
             'amount' => '1800.00',
             'debtorPersonType' => PersonType::PF,
             'debtorName' => 'Georgescu Vasile',
-            'debtorTaxId' => null,
+            'debtorCui' => null,
             'debtorPersonalId' => '1750815123456',
             'courtCaseNumber' => 'DEMO-5/2026',
             'hearingOffsetDays' => -45,
@@ -159,7 +159,7 @@ class SeedDemoCasesCommand extends Command
             $debtor->setLegalCase($case);
             $debtor->setPersonType($row['debtorPersonType']);
             $debtor->setName($row['debtorName']);
-            $debtor->setTaxId($row['debtorTaxId']);
+            $debtor->setCui($row['debtorCui']);
             $debtor->setPersonalId($row['debtorPersonalId']);
             $debtor->setAddress('Str. Demo nr. ' . ($idx + 1) . ', București');
             $case->addDebtor($debtor);
@@ -188,7 +188,7 @@ class SeedDemoCasesCommand extends Command
 
     private function getOrCreateDemoCreditor(User $lawyer): Creditor
     {
-        $existing = $this->creditorRepo->findOneBy(['user' => $lawyer, 'taxId' => 'RO12345678']);
+        $existing = $this->creditorRepo->findOneBy(['user' => $lawyer, 'cui' => 'RO12345678']);
         if ($existing !== null) {
             return $existing;
         }
@@ -197,8 +197,8 @@ class SeedDemoCasesCommand extends Command
         $creditor->setUser($lawyer);
         $creditor->setPersonType(PersonType::PJ);
         $creditor->setName('Demo Recovery SRL');
-        $creditor->setTaxId('RO12345678');
-        $creditor->setTradeRegistryNumber('J40/1234/2020');
+        $creditor->setCui('RO12345678');
+        $creditor->setOnrcNumber('J40/1234/2020');
         $creditor->setAddress('Bd. Demo 100, București, Sector 1');
         $creditor->setEmail('contact@demo-recovery.ro');
         $creditor->setPhone('0721234567');

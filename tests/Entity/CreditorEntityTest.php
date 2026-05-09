@@ -17,9 +17,9 @@ class CreditorEntityTest extends TestCase
         $creditor->setUser($user);
         $creditor->setPersonType(PersonType::PJ);
         $creditor->setName('SC Creditor SRL');
-        $creditor->setTaxId('RO12345678');
+        $creditor->setCui('RO12345678');
         $creditor->setPersonalId('1900101123456');
-        $creditor->setTradeRegistryNumber('J40/123/2020');
+        $creditor->setOnrcNumber('J40/123/2020');
         $creditor->setAddress('Str. Test nr. 1, București');
         $creditor->setEmail('contact@creditor.ro');
         $creditor->setPhone('+40712345678');
@@ -29,9 +29,9 @@ class CreditorEntityTest extends TestCase
         $this->assertSame($user, $creditor->getUser());
         $this->assertSame(PersonType::PJ, $creditor->getPersonType());
         $this->assertSame('SC Creditor SRL', $creditor->getName());
-        $this->assertSame('RO12345678', $creditor->getTaxId());
+        $this->assertSame('RO12345678', $creditor->getCui());
         $this->assertSame('1900101123456', $creditor->getPersonalId());
-        $this->assertSame('J40/123/2020', $creditor->getTradeRegistryNumber());
+        $this->assertSame('J40/123/2020', $creditor->getOnrcNumber());
         $this->assertSame('Str. Test nr. 1, București', $creditor->getAddress());
         $this->assertSame('contact@creditor.ro', $creditor->getEmail());
         $this->assertSame('+40712345678', $creditor->getPhone());

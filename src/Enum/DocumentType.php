@@ -13,6 +13,7 @@ enum DocumentType: string
     case DOVADA = 'dovada';
     case CONTRACT = 'contract';
     case FACTURA = 'factura';
+    case BPI_PROOF = 'bpi_proof';
     case ALT_DOCUMENT = 'alt_document';
 
     public function label(): string

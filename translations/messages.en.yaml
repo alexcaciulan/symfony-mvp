@@ -239,6 +239,7 @@ document:
         dovada: 'Evidence'
         contract: 'Contract'
         factura: 'Invoice'
+        bpi_proof: 'BPI proof (Insolvency Proceedings Bulletin)'
         alt_document: 'Other document'
 
 # =============================================================================
@@ -376,6 +377,13 @@ rate_limit:
 # Enums (label() returns these keys; consumers apply |trans)
 # =============================================================================
 enum:
+    anaf_status:
+        ACTIV: 'Active'
+        INACTIV: 'Fiscally inactive'
+        RADIAT: 'Deregistered'
+    issue_severity:
+        ERROR: 'Error'
+        WARNING: 'Warning'
     case_status:
         AMIABIL: 'Amicable'
         SOMATIE_TRIMISA: 'Notice sent'
@@ -427,6 +435,7 @@ enum:
         dovada: 'Evidence'
         contract: 'Contract'
         factura: 'Invoice'
+        bpi_proof: 'BPI proof (Insolvency Proceedings Bulletin)'
         alt_document: 'Other document'
     extraction_status:
         PENDING: 'Pending'
@@ -542,3 +551,18 @@ court:
         matched_tribunal: 'Tribunal competent per CPC art. 95 (above 200,000 RON threshold on the total claim value with accessories — CPC art. 98).'
         tribunal_missing: 'No active tribunal in %county%. Please contact the administrator.'
         tribunal_ambiguous: 'Multiple active tribunals in %county%. Please verify the configuration data.'
+
+# =============================================================================
+# Payment order admissibility (CPC art. 1014 + Law 85/2014)
+# Messages for OpAdmissibilityValidator — shown in wizard / PDF block.
+# =============================================================================
+validation:
+    op_admissibility:
+        OP_BLOCKED_DEREGISTERED: 'The debtor is deregistered with ANAF — no longer has legal personality. The payment order petition is inadmissible. Verify with the Trade Registry.'
+        OP_BLOCKED_INSOLVENCY: 'The debtor is in insolvency proceedings (Law 85/2014). The claim must be filed with the bankruptcy estate, not via a payment order.'
+        OP_DEFENDANT_FISCALLY_INACTIVE: 'The debtor is declared fiscally inactive by ANAF. The payment order remains legally admissible, but the chances of recovery are low.'
+        OP_ANAF_NOT_VERIFIED: 'The debtor''s ANAF status has not been verified. Look up the company by CUI before filing.'
+        OP_ANAF_STALE: 'The ANAF check is older than 30 days. Re-verify the fiscal status before filing.'
+        OP_INSOLVENCY_NOT_VERIFIED: 'Verify the debtor''s insolvency status on bpi.just.ro and confirm in the UI before filing (attach the BPI proof PDF).'
+        OP_INSOLVENCY_STALE: 'The BPI (insolvency) check is older than 7 days. Re-verify on bpi.just.ro and update the proof — insolvency status changes rapidly.'
+        OP_PF_BIPF_MANUAL_CHECK: 'Individual debtor: manually verify BIPF (Personal Insolvency Bulletin — Law 151/2015) on bpi.just.ro before filing.'

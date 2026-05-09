@@ -240,6 +240,7 @@ document:
         dovada: 'Dovadă'
         contract: 'Contract'
         factura: 'Factură'
+        bpi_proof: 'Dovadă BPI (Buletinul Procedurilor de Insolvență)'
         alt_document: 'Alt document'
 
 # =============================================================================
@@ -378,6 +379,13 @@ rate_limit:
 # Enums (label() returns these keys; consumers apply |trans)
 # =============================================================================
 enum:
+    anaf_status:
+        ACTIV: 'Activ'
+        INACTIV: 'Inactiv fiscal'
+        RADIAT: 'Radiat'
+    issue_severity:
+        ERROR: 'Eroare'
+        WARNING: 'Avertisment'
     case_status:
         AMIABIL: 'Amiabil'
         SOMATIE_TRIMISA: 'Somație trimisă'
@@ -429,6 +437,7 @@ enum:
         dovada: 'Dovadă'
         contract: 'Contract'
         factura: 'Factură'
+        bpi_proof: 'Dovadă BPI (Buletinul Procedurilor de Insolvență)'
         alt_document: 'Alt document'
     extraction_status:
         PENDING: 'În așteptare'
@@ -544,3 +553,18 @@ court:
         matched_tribunal: 'Tribunal competent conform CPC art. 95 (peste pragul 200.000 RON, valoare totală cu accesorii — CPC art. 98).'
         tribunal_missing: 'Niciun tribunal activ în județul %county%. Contactează administratorul.'
         tribunal_ambiguous: 'Mai multe tribunale active în județul %county%. Verifică datele de configurare.'
+
+# =============================================================================
+# Admisibilitate cerere ordonanță de plată (CPC art. 1014 + Legea 85/2014)
+# Mesaje pentru OpAdmissibilityValidator — afișate în wizard / blocaj PDF.
+# =============================================================================
+validation:
+    op_admissibility:
+        OP_BLOCKED_DEREGISTERED: 'Debitorul este radiat din ANAF — nu mai are personalitate juridică, cererea OP este inadmisibilă. Verifică actele în Registrul Comerțului.'
+        OP_BLOCKED_INSOLVENCY: 'Debitorul este în procedura insolvenței (Legea 85/2014). Creanța se înscrie la masa credală, nu se recuperează prin ordonanță de plată.'
+        OP_DEFENDANT_FISCALLY_INACTIVE: 'Debitorul este declarat inactiv fiscal de ANAF. Cererea OP rămâne admisibilă, dar șansele de recuperare sunt reduse.'
+        OP_ANAF_NOT_VERIFIED: 'Statusul ANAF al debitorului nu a fost verificat. Apelează ANAF pe baza CUI înainte de depunere.'
+        OP_ANAF_STALE: 'Verificarea ANAF e mai veche de 30 de zile. Reverifică statusul fiscal înainte de depunere.'
+        OP_INSOLVENCY_NOT_VERIFIED: 'Verifică statusul de insolvență al debitorului pe bpi.just.ro și confirmă în UI înainte de depunere (atașează PDF dovadă BPI).'
+        OP_INSOLVENCY_STALE: 'Verificarea BPI (insolvență) este mai veche de 7 zile. Reverifică pe bpi.just.ro și actualizează dovada — insolvența se schimbă rapid.'
+        OP_PF_BIPF_MANUAL_CHECK: 'Debitor persoană fizică: verifică manual BIPF (Buletinul Insolvenței Persoanelor Fizice — Legea 151/2015) pe bpi.just.ro înainte de depunere.'

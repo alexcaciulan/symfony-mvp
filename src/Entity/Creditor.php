@@ -11,7 +11,7 @@ use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: CreditorRepository::class)]
 #[ORM\HasLifecycleCallbacks]
-#[ORM\UniqueConstraint(name: 'uniq_creditor_user_tax_id', columns: ['user_id', 'tax_id'])]
+#[ORM\UniqueConstraint(name: 'uniq_creditor_user_cui', columns: ['user_id', 'cui'])]
 class Creditor
 {
     #[ORM\Id]
@@ -30,13 +30,13 @@ class Creditor
     private string $name;
 
     #[ORM\Column(length: 20, nullable: true)]
-    private ?string $taxId = null;
+    private ?string $cui = null;
 
     #[ORM\Column(length: 13, nullable: true)]
     private ?string $personalId = null;
 
     #[ORM\Column(length: 50, nullable: true)]
-    private ?string $tradeRegistryNumber = null;
+    private ?string $onrcNumber = null;
 
     #[ORM\Column(type: Types::TEXT)]
     private string $address;
@@ -117,14 +117,14 @@ class Creditor
         return $this;
     }
 
-    public function getTaxId(): ?string
+    public function getCui(): ?string
     {
-        return $this->taxId;
+        return $this->cui;
     }
 
-    public function setTaxId(?string $taxId): static
+    public function setCui(?string $cui): static
     {
-        $this->taxId = $taxId;
+        $this->cui = $cui;
 
         return $this;
     }
@@ -141,14 +141,14 @@ class Creditor
         return $this;
     }
 
-    public function getTradeRegistryNumber(): ?string
+    public function getOnrcNumber(): ?string
     {
-        return $this->tradeRegistryNumber;
+        return $this->onrcNumber;
     }
 
-    public function setTradeRegistryNumber(?string $tradeRegistryNumber): static
+    public function setOnrcNumber(?string $onrcNumber): static
     {
-        $this->tradeRegistryNumber = $tradeRegistryNumber;
+        $this->onrcNumber = $onrcNumber;
 
         return $this;
     }
