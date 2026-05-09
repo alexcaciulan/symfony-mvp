@@ -98,4 +98,41 @@ class AuditLogServiceTest extends KernelTestCase
         $this->em->remove($found);
         $this->em->flush();
     }
+
+    public function testLogPersistsCategoryWhenProvided(): void
+    {
+        $auditLog = $this->auditLogService->log(
+            action: 'extraction_attempt',
+            entityType: 'Document',
+            entityId: '42',
+            oldData: null,
+            newData: ['strategy' => 'ocr_text', 'tokens' => 1024],
+            category: AuditLogService::CATEGORY_AI_EXTRACTION,
+        );
+        $this->em->flush();
+
+        $id = $auditLog->getId();
+        $this->em->clear();
+
+        $found = $this->em->getRepository(AuditLog::class)->find($id);
+        $this->assertNotNull($found);
+        $this->assertSame(AuditLogService::CATEGORY_AI_EXTRACTION, $found->getCategory());
+
+        $this->em->remove($found);
+        $this->em->flush();
+    }
+
+    public function testLogDefaultsCategoryToNullForBackwardCompatibility(): void
+    {
+        // Pre-existing 4 callers (CaseStatusController, DocumentUploadService x2,
+        // CaseWorkflowSubscriber) invoke log() without `category` — those calls
+        // must keep working with a null category.
+        $auditLog = $this->auditLogService->log('legacy_action', 'LegalCase', '1', null, ['k' => 'v']);
+        $this->em->flush();
+
+        $this->assertNull($auditLog->getCategory());
+
+        $this->em->remove($auditLog);
+        $this->em->flush();
+    }
 }

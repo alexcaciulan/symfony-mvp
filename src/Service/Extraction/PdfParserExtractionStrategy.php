@@ -8,6 +8,7 @@ use App\DTO\Extraction\DebtorExtraction;
 use App\DTO\Extraction\ExtractedDocumentData;
 use App\Entity\Document;
 use App\Service\Court\LocalityNormalizer;
+use App\Util\PiiMasker;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Smalot\PdfParser\Parser as PdfParser;
@@ -55,15 +56,6 @@ final class PdfParserExtractionStrategy implements ExtractionStrategyInterface
     private const AMOUNT_KEYWORDS = [
         'total', 'valoare', 'datorat', 'de plata', 'suma',
     ];
-
-    private const CUI_WEIGHTS = [7, 5, 3, 2, 1, 7, 5, 3, 2];
-
-    /**
-     * Official CNP weights per OUG 97/2005 (Annex on the personal numeric code algorithm).
-     * 12 weights are applied to the first 12 digits; the result mod 11 is the
-     * check digit (or 1 if mod 11 == 10), compared against the 13th digit.
-     */
-    private const CNP_WEIGHTS = [2, 7, 9, 1, 4, 6, 3, 5, 8, 2, 7, 9];
 
     /** @var array<int, string> Cached normalized text by document id */
     private array $textCache = [];
@@ -315,7 +307,7 @@ final class PdfParserExtractionStrategy implements ExtractionStrategyInterface
             }
             $offset = $matches[0][$i][1];
 
-            if (!$this->validateCuiChecksum($digits)) {
+            if (!PiiMasker::isValidCui($digits)) {
                 continue;
             }
 
@@ -346,7 +338,7 @@ final class PdfParserExtractionStrategy implements ExtractionStrategyInterface
         $best = null;
         foreach ($matches[1] as $match) {
             [$digits, $offset] = $match;
-            if (!$this->validateCnpChecksum($digits)) {
+            if (!PiiMasker::isValidCnp($digits)) {
                 continue;
             }
 
@@ -473,68 +465,8 @@ final class PdfParserExtractionStrategy implements ExtractionStrategyInterface
     }
 
     // ---------- checksum validators ----------
-
-    private function validateCuiChecksum(string $digits): bool
-    {
-        $length = mb_strlen($digits);
-        // Real ANAF-issued CUIs have at least 4 digits in practice. The 2-digit
-        // lower bound from the algorithm spec is too permissive: any pure-zero
-        // body (e.g. "000", "0000") trivially satisfies the checksum (sum = 0,
-        // mod 11 = 0 = check digit) and would otherwise pollute extraction
-        // when digit slices appear inside IBAN/document numbers.
-        if ($length < 4 || $length > 10) {
-            return false;
-        }
-
-        $checkDigit = (int) $digits[$length - 1];
-        $body = substr($digits, 0, $length - 1);
-
-        // Reject all-zero bodies. A real CUI cannot start with 0 either, but
-        // we keep that rule loose here because regex-extracted candidates may
-        // legitimately have leading zeros once padded to 9.
-        if ((int) $body === 0) {
-            return false;
-        }
-
-        $padded = str_pad($body, 9, '0', STR_PAD_LEFT);
-
-        $sum = 0;
-        for ($i = 0; $i < 9; $i++) {
-            $sum += ((int) $padded[$i]) * self::CUI_WEIGHTS[$i];
-        }
-
-        $computed = ($sum * 10) % 11;
-        if ($computed === 10) {
-            $computed = 0;
-        }
-
-        return $computed === $checkDigit;
-    }
-
-    private function validateCnpChecksum(string $digits): bool
-    {
-        if (mb_strlen($digits) !== 13) {
-            return false;
-        }
-
-        // First digit (S) must be 1..9 (gender + century).
-        $firstDigit = (int) $digits[0];
-        if ($firstDigit < 1 || $firstDigit > 9) {
-            return false;
-        }
-
-        $sum = 0;
-        for ($i = 0; $i < 12; $i++) {
-            $sum += ((int) $digits[$i]) * self::CNP_WEIGHTS[$i];
-        }
-
-        $computed = $sum % 11;
-        if ($computed === 10) {
-            $computed = 1;
-        }
-
-        return $computed === (int) $digits[12];
-    }
+    // CUI + CNP checksums delegated to App\Util\PiiMasker (single source of
+    // truth, also used by 2.5.7 OcrTextExtractionStrategy for prompt masking).
 
     private function validateIbanChecksum(string $iban): bool
     {

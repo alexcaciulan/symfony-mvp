@@ -64,4 +64,22 @@ class AuditLogEntityTest extends TestCase
         $this->assertGreaterThanOrEqual($before->getTimestamp(), $log->getCreatedAt()->getTimestamp());
         $this->assertLessThanOrEqual($after->getTimestamp(), $log->getCreatedAt()->getTimestamp());
     }
+
+    public function testCategoryDefaultsToNull(): void
+    {
+        $log = new AuditLog();
+
+        $this->assertNull($log->getCategory());
+    }
+
+    public function testCategorySetterAndGetter(): void
+    {
+        $log = new AuditLog();
+
+        $log->setCategory('AI_EXTRACTION');
+        $this->assertSame('AI_EXTRACTION', $log->getCategory());
+
+        $log->setCategory(null);
+        $this->assertNull($log->getCategory());
+    }
 }

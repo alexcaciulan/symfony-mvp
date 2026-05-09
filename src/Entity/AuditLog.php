@@ -7,6 +7,7 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: AuditLogRepository::class)]
+#[ORM\Index(columns: ['category'], name: 'idx_audit_log_category')]
 class AuditLog
 {
     #[ORM\Id]
@@ -35,6 +36,9 @@ class AuditLog
 
     #[ORM\Column(length: 45, nullable: true)]
     private ?string $ipAddress = null;
+
+    #[ORM\Column(length: 50, nullable: true)]
+    private ?string $category = null;
 
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
@@ -136,6 +140,18 @@ class AuditLog
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    public function getCategory(): ?string
+    {
+        return $this->category;
+    }
+
+    public function setCategory(?string $category): static
+    {
+        $this->category = $category;
+
+        return $this;
     }
 
     public function getOldDataJson(): ?string
