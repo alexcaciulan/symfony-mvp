@@ -286,14 +286,35 @@ final class PdfParserExtractionStrategy implements ExtractionStrategyInterface
      */
     private function extractCuiForRole(string $rawText, string $normalized, string $expectedRole): ?array
     {
+        // Two-alternative match:
+        //   (1) RO prefix → any 2-10 digits (real CUIs as low as 2 digits exist
+        //       but are practically tagged with RO in formal documents).
+        //   (2) Standalone digits → require ≥ 6 digits to avoid catching
+        //       legal-article numbers like "1014", "1015" from "art. 1014 CPC".
+        // Lookbehind `(?<![A-Z0-9])` prevents catching digit slices inside an
+        // IBAN/account number: `7593840000` from `...AAAA1B31007593840000` would
+        // otherwise checksum-validate (sum = 0, mod 11 = 0 = check digit).
         $matches = [];
-        if (preg_match_all('/(?:RO\s?)?(\d{2,10})(?!\d)/i', $rawText, $matches, PREG_OFFSET_CAPTURE) === false) {
+        if (preg_match_all(
+            '/(?<![A-Z0-9])(?:RO\s?(\d{2,10})|(\d{6,10}))(?!\d)/i',
+            $rawText,
+            $matches,
+            PREG_OFFSET_CAPTURE,
+        ) === false) {
             return null;
         }
 
         $best = null;
-        foreach ($matches[1] as $match) {
-            [$digits, $offset] = $match;
+        $count = count($matches[0]);
+        for ($i = 0; $i < $count; $i++) {
+            $withRo = $matches[1][$i][0] ?? '';
+            $standalone = $matches[2][$i][0] ?? '';
+            $digits = $withRo !== '' ? $withRo : $standalone;
+            if ($digits === '') {
+                continue;
+            }
+            $offset = $matches[0][$i][1];
+
             if (!$this->validateCuiChecksum($digits)) {
                 continue;
             }
@@ -428,15 +449,24 @@ final class PdfParserExtractionStrategy implements ExtractionStrategyInterface
                 continue;
             }
 
-            $contextDistance = $this->distanceToKeywords($normalized, $offset, self::DUE_DATE_KEYWORDS);
+            // Directional distance: only accept dates that appear AFTER a
+            // due-date keyword (e.g. "Scadenta: 31.05.2026"). Dates that
+            // precede the keyword (e.g. "01.05.2026 ... Scadenta:") are
+            // invoice-emission or other context, not the due date.
+            $contextDistance = $this->distanceAfterKeyword($normalized, $offset, self::DUE_DATE_KEYWORDS);
             if ($contextDistance === null || $contextDistance > self::CONTEXT_WINDOW) {
                 continue;
             }
 
-            $confidence = 0.95;
-            if ($best === null || $confidence > $best['confidence']) {
-                $best = ['value' => $date, 'confidence' => $confidence];
+            // Closer keyword = stronger signal. Pick the date with the smallest
+            // (positive) distance to its due-date keyword, not the first one seen.
+            if ($best === null || $contextDistance < ($best['distance'] ?? PHP_INT_MAX)) {
+                $best = ['value' => $date, 'confidence' => 0.95, 'distance' => $contextDistance];
             }
+        }
+
+        if ($best !== null) {
+            unset($best['distance']);
         }
 
         return $best;
@@ -447,12 +477,25 @@ final class PdfParserExtractionStrategy implements ExtractionStrategyInterface
     private function validateCuiChecksum(string $digits): bool
     {
         $length = mb_strlen($digits);
-        if ($length < 2 || $length > 10) {
+        // Real ANAF-issued CUIs have at least 4 digits in practice. The 2-digit
+        // lower bound from the algorithm spec is too permissive: any pure-zero
+        // body (e.g. "000", "0000") trivially satisfies the checksum (sum = 0,
+        // mod 11 = 0 = check digit) and would otherwise pollute extraction
+        // when digit slices appear inside IBAN/document numbers.
+        if ($length < 4 || $length > 10) {
             return false;
         }
 
         $checkDigit = (int) $digits[$length - 1];
         $body = substr($digits, 0, $length - 1);
+
+        // Reject all-zero bodies. A real CUI cannot start with 0 either, but
+        // we keep that rule loose here because regex-extracted candidates may
+        // legitimately have leading zeros once padded to 9.
+        if ((int) $body === 0) {
+            return false;
+        }
+
         $padded = str_pad($body, 9, '0', STR_PAD_LEFT);
 
         $sum = 0;
@@ -542,6 +585,33 @@ final class PdfParserExtractionStrategy implements ExtractionStrategyInterface
                 $distance = abs($found - $offset);
                 if ($best === null || $distance < $best) {
                     $best = $distance;
+                }
+                $position = $found + 1;
+            }
+        }
+
+        return $best;
+    }
+
+    /**
+     * Like {@see self::distanceToKeywords()} but only returns the (positive) distance
+     * when the keyword appears *before* the offset. Used for fields whose meaning
+     * is direction-sensitive (e.g. a due date is the date that follows "Scadenta:",
+     * not the one that precedes it).
+     *
+     * @param array<int, string> $keywords
+     */
+    private function distanceAfterKeyword(string $normalizedText, int $offset, array $keywords): ?int
+    {
+        $best = null;
+        foreach ($keywords as $keyword) {
+            $position = 0;
+            while (($found = mb_stripos($normalizedText, $keyword, $position)) !== false) {
+                if ($found <= $offset) {
+                    $distance = $offset - $found;
+                    if ($best === null || $distance < $best) {
+                        $best = $distance;
+                    }
                 }
                 $position = $found + 1;
             }
