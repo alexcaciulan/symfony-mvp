@@ -20,30 +20,36 @@ class RelationshipTypeTest extends TestCase
         }
     }
 
-    public function testApplicableRatePenalizatoare(): void
+    public function testCommercialPenalizatoareRateIsBnrPlusEight(): void
     {
         $this->assertSame(
             14.0,
             RelationshipType::COMERCIAL->applicableRate(6.0, InterestKind::PENALIZATOARE),
         );
-        $this->assertEqualsWithDelta(
-            (6.0 + 8.0) * 0.80,
-            RelationshipType::CIVIL->applicableRate(6.0, InterestKind::PENALIZATOARE),
-            0.0001,
-        );
     }
 
-    public function testApplicableRateRemuneratorie(): void
+    public function testCommercialRemuneratorieRateIsBnr(): void
     {
         $this->assertSame(
             6.0,
             RelationshipType::COMERCIAL->applicableRate(6.0, InterestKind::REMUNERATORIE),
         );
-        $this->assertEqualsWithDelta(
-            6.0 * 0.80,
-            RelationshipType::CIVIL->applicableRate(6.0, InterestKind::REMUNERATORIE),
-            0.0001,
-        );
+    }
+
+    public function testCivilPenalizatoareThrowsDomainException(): void
+    {
+        $this->expectException(\DomainException::class);
+        $this->expectExceptionMessageMatches('/B2B exclusiv/');
+
+        RelationshipType::CIVIL->applicableRate(6.0, InterestKind::PENALIZATOARE);
+    }
+
+    public function testCivilRemuneratorieThrowsDomainException(): void
+    {
+        $this->expectException(\DomainException::class);
+        $this->expectExceptionMessageMatches('/B2B exclusiv/');
+
+        RelationshipType::CIVIL->applicableRate(6.0, InterestKind::REMUNERATORIE);
     }
 
     public function testCanCreateFromValue(): void

@@ -36,7 +36,7 @@ class InterestCalculatorServiceTest extends TestCase
         $this->assertEqualsWithDelta($expected, $period->periodInterest, 0.01);
     }
 
-    public function testCivilPenaltySpansMultipleRateChanges(): void
+    public function testCommercialPenaltySpansMultipleRateChanges(): void
     {
         $service = new InterestCalculatorService($this->makeRepo([
             $this->makeConfig('2024-01-01', '7.00'),
@@ -48,7 +48,7 @@ class InterestCalculatorServiceTest extends TestCase
             amount: 50_000.0,
             dueDate: new \DateTimeImmutable('2024-06-01'),
             referenceDate: new \DateTimeImmutable('2025-12-01'),
-            relationshipType: RelationshipType::CIVIL,
+            relationshipType: RelationshipType::COMERCIAL,
             kind: InterestKind::PENALIZATOARE,
         );
 
@@ -56,25 +56,25 @@ class InterestCalculatorServiceTest extends TestCase
 
         [$p1, $p2, $p3] = $result->breakdown;
 
-        // CIVIL + PENALIZATOARE: (BNR + 8) × 0.80 — confirm formula is the revised one, NOT the deprecated `BNR + 4`.
+        // COMERCIAL + PENALIZATOARE: BNR + 8 (OG 13/2011 art. 3 alin. 2¹).
         $this->assertSame(7.0, $p1->nbrRate);
-        $this->assertEqualsWithDelta((7.0 + 8.0) * 0.80, $p1->applicableRate, 0.0001);
+        $this->assertSame(15.0, $p1->applicableRate);
         $this->assertSame(61, $p1->days);
 
         $this->assertSame(6.5, $p2->nbrRate);
-        $this->assertEqualsWithDelta((6.5 + 8.0) * 0.80, $p2->applicableRate, 0.0001);
+        $this->assertSame(14.5, $p2->applicableRate);
         $this->assertSame(365, $p2->days);
 
         $this->assertSame(6.0, $p3->nbrRate);
-        $this->assertEqualsWithDelta((6.0 + 8.0) * 0.80, $p3->applicableRate, 0.0001);
+        $this->assertSame(14.0, $p3->applicableRate);
         $this->assertSame(122, $p3->days);
 
         $this->assertSame(548, $p1->days + $p2->days + $p3->days);
 
         $expected = 50_000.0 * (
-            ((7.0 + 8.0) * 0.80) / 100.0 * 61.0 / 365.0
-            + ((6.5 + 8.0) * 0.80) / 100.0 * 365.0 / 365.0
-            + ((6.0 + 8.0) * 0.80) / 100.0 * 122.0 / 365.0
+            15.0 / 100.0 * 61.0 / 365.0
+            + 14.5 / 100.0 * 365.0 / 365.0
+            + 14.0 / 100.0 * 122.0 / 365.0
         );
         $this->assertEqualsWithDelta($expected, $result->total, 0.01);
     }
@@ -101,26 +101,22 @@ class InterestCalculatorServiceTest extends TestCase
         $this->assertEqualsWithDelta($expected, $result->total, 0.01);
     }
 
-    public function testCivilRemunerativeUsesBnrTimesEightyPercent(): void
+    public function testCivilRelationshipBubblesDomainException(): void
     {
         $service = new InterestCalculatorService($this->makeRepo([
             $this->makeConfig('2024-01-01', '6.00'),
         ]));
 
-        $result = $service->calculate(
+        $this->expectException(\DomainException::class);
+        $this->expectExceptionMessageMatches('/B2B exclusiv/');
+
+        $service->calculate(
             amount: 10_000.0,
             dueDate: new \DateTimeImmutable('2024-06-01'),
             referenceDate: new \DateTimeImmutable('2024-08-30'),
             relationshipType: RelationshipType::CIVIL,
-            kind: InterestKind::REMUNERATORIE,
+            kind: InterestKind::PENALIZATOARE,
         );
-
-        $this->assertCount(1, $result->breakdown);
-        $period = $result->breakdown[0];
-        $this->assertEqualsWithDelta(6.0 * 0.80, $period->applicableRate, 0.0001);
-
-        $expected = 10_000.0 * (6.0 * 0.80) / 100.0 * 90.0 / 365.0;
-        $this->assertEqualsWithDelta($expected, $result->total, 0.01);
     }
 
     public function testDueDateEqualsReferenceDateReturnsZero(): void

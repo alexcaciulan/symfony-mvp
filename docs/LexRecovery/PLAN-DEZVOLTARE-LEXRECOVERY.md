@@ -55,7 +55,7 @@
 | 1.3 | Domain | Workflow YAML refăcut + ajustare `CaseWorkflowService` | 0.5z | 1.1, 1.2 | 70% | ✅ DONE + REVIZIE C2 |
 | 1.4 | Domain | Migrare baseline + fixtures + `app:seed-demo-cases` | 0.5z | 1.1, 1.2 | 80% | ✅ DONE + REVIZIE C2 |
 | 1.5 | Domain | Foundație i18n + backfill (enum labels → trans keys, homepage, Stimulus messages, ANAF exceptions) | 1z | 1.4 | 30% | ✅ DONE + REVIZIE C2 |
-| 2.1 | Calcule | `InterestCalculatorService` (OG 13/2011) | 0.75z | 1.1 | 0% | ⚠️ DONE — REVIZIE C3 |
+| 2.1 | Calcule | `InterestCalculatorService` (OG 13/2011) | 0.75z | 1.1 | 0% | ✅ DONE + REVIZIE C3 (Opțiunea a — B2B-only) |
 | 2.2 | Calcule | `StampDutyCalculator` (OUG 80/2013) | 0.25z | — | 0% | ✅ |
 | 2.3 | Calcule | `CompetentCourtResolver` | 0.5z | 1.1 | 30% | ⏳ |
 | 2.4 | Calcule | `AnafLookupService` integration + `OpAdmissibilityValidator` (CPC art. 1014, L 85/2014) + Debitor ANAF/BPI fields | 0.5z | 1.1 | 80% | ⏳ |
@@ -656,7 +656,7 @@ Dacă există referințe directe la chei (în loc să folosească `$enum->label(
 
 > Toate cele 4 servicii sunt **paralelizabile** — pot fi implementate în 4 sub-branch-uri sau 4 prompt-uri consecutive fără dependențe între ele (în afara Pas 1.1 care e prerequisit pentru toate).
 
-### PASUL 2.1 | `InterestCalculatorService` | 0.75 zi | 0% reutilizare ⚠️ DONE 2026-05-08 (`f9e84dc`) — **NECESITĂ REVIZIE 2026-05-09 (C3)**
+### PASUL 2.1 | `InterestCalculatorService` | 0.75 zi | 0% reutilizare ✅ DONE 2026-05-08 (`f9e84dc`) + REVIZIE C3 aplicată 2026-05-09 (Opțiunea a — restrângere MVP la B2B; CIVIL aruncă `\DomainException`)
 
 **Rezultat**: livrat `InterestCalculatorService` cu signature revizuit (penalizator/remuneratoriu + currency guard); enum nou `InterestKind`; `RelationshipType::nbrPercentagePoints()` înlocuit cu `applicableRate(BNR, kind)` care implementează cele 4 formule OG 13/2011 art. 3 (CIVIL+PENALIZATOARE = `(BNR+8)×0.80`, NU `BNR+4`); DTOs `InterestResult`/`InterestPeriod`; 9 scenarii de test verzi. Detalii: `~/.claude/projects/-Users-alexc-Downloads-myprojects-symfony-mvp/memory/project_lexrecovery_pas_2_1.md`.
 
