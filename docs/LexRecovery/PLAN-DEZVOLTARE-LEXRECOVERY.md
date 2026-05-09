@@ -62,7 +62,7 @@
 | 2.5.1 | Extracție | Pre-condiții: enum-uri (`ExtractionMode`, `LegalGroundCategory`) + entity fields (`Document.extractionStrategy`, `User.extractionMode`, `LegalCase.extractionModeOverride`) + migrare | 3h | 1.1 | 0% | ✅ DONE 2026-05-09 (`c9c455d`) |
 | 2.5.2 | Extracție | DTO `ExtractedDocumentData` (+ Creditor/Debtor/Claim) + `ExtractionStrategyInterface` + `StubExtractionStrategy` + `DataExtractionService` orchestrator (cu tagged iterator) | 4h | 2.5.1 | 0% | ✅ DONE 2026-05-09 (`a0fe48a`) |
 | 2.5.3 | Extracție | `PdfParserExtractionStrategy` (priority 100) — smalot/pdfparser + regex CUI/CNP/sume/date/IBAN cu validare checksum + heuristici contextuale RO | 5h | 2.5.2 | 0% | ✅ DONE 2026-05-10 (`8fc31c3`) |
-| 2.5.4 | Extracție | GDPR foundation: `AuditLogService::log()` cu `?string $category` + entity `AuditLog.category` + `PiiMasker` utility (mask/restore CNP + mask CUI) | 3h | 2.5.1 | 30% | ✅ DONE 2026-05-10 |
+| 2.5.4 | Extracție | GDPR foundation: `AuditLogService::log()` cu `?string $category` + entity `AuditLog.category` + `PiiMasker` utility (mask/restore CNP + mask CUI) | 3h | 2.5.1 | 30% | ✅ DONE 2026-05-10 (`2300b0a`) |
 | 2.5.5 | Extracție | Docker OCR setup (Alpine: tesseract-ocr + tesseract-ocr-data-ron + poppler-utils + imagemagick + ghostscript) + `OcrServiceInterface` + `TesseractOcrService` + `OcrResult` DTO | 4h | — | 0% | ⏳ |
 | 2.5.6 | Extracție | `AnthropicApiClient` (HttpClient + retry + DTO `AnthropicResponse`) + rate limiters `extraction_ai_text` (200/zi) + `extraction_ai_vision` (50/zi) + env vars (`ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, etc.) | 3h | — | 60% (pattern AnafLookup) | ⏳ |
 | 2.5.7 | Extracție | `OcrTextExtractionStrategy` (priority 70) — OCR + mask CNP + Claude API text + restore CNP + audit `AI_EXTRACTION` + fallback regex pe LOCAL_ONLY | 5h | 2.5.4, 2.5.5, 2.5.6 | 30% (pattern PdfParser) | ⏳ |
@@ -1140,7 +1140,7 @@ Refactor enum la 3 valori distincte (ex: `B2B_PROFESIONAL`, `B2C_CONSUMER`, `NON
 
 ---
 
-#### PASUL 2.5.4 — AuditLog category + `PiiMasker` (GDPR foundation) | ~3h | 30% reutilizare ✅ DONE 2026-05-10
+#### PASUL 2.5.4 — AuditLog category + `PiiMasker` (GDPR foundation) | ~3h | 30% reutilizare ✅ DONE 2026-05-10 (`2300b0a`)
 
 **Rezultat**: `App\Util\PiiMasker` (final class, all-static; pattern LocalityNormalizer) cu validators `isValidCnp` (OUG 97/2005) + `isValidCui` (ANAF) + maskers `maskCnp` (last-4 preserved) + `maskCui` (full mask) + round-trip `buildCnpMap`/`restoreCnp` (cu sort DESC pe placeholders pentru a preveni corupție prin prefix match la coliziune last-4) + helper defense-in-depth `maskCnpInArray` (recursiv pe payload-uri); refactor DRY `PdfParserExtractionStrategy` → apelează direct `PiiMasker::isValidCui/isValidCnp`. `AuditLog` câmp `?string $category` indexed + `AuditLogService::log()` cu `?string $category = null` ca ultim param + constantă `CATEGORY_AI_EXTRACTION = 'AI_EXTRACTION'` + docblock care direcționează caller-ii Pas 2.5.7+ să apeleze `PiiMasker::maskCnpInArray()` ÎNAINTE de log. Migrare `Version20260509223127` aplicată dev + test. **20 tests verzi pe scope** (PiiMasker) + 7 AuditLogService + 13 AuditLogEntity = 40 noi. Reviews: legal-clean (W1 GDPR rezolvat prin helper opt-in + docblock); code: 1 BLOCKER critic prins (`restoreCnp` collision corruption) → fix-uit + regression test cu CNP-uri valide same-last-4 (`1980715221232` + `2800101031232`).
 
