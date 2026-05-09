@@ -57,7 +57,7 @@
 | 1.5 | Domain | Foundație i18n + backfill (enum labels → trans keys, homepage, Stimulus messages, ANAF exceptions) | 1z | 1.4 | 30% | ✅ DONE + REVIZIE C2 |
 | 2.1 | Calcule | `InterestCalculatorService` (OG 13/2011) | 0.75z | 1.1 | 0% | ✅ DONE + REVIZIE C3 (Opțiunea a — B2B-only) |
 | 2.2 | Calcule | `StampDutyCalculator` (OUG 80/2013) | 0.25z | — | 0% | ✅ |
-| 2.3 | Calcule | `CompetentCourtResolver` | 0.5z | 1.1 | 30% | ⏳ |
+| 2.3 | Calcule | `CompetentCourtResolver` | 0.5z | 1.1 | 30% | ✅ DONE 2026-05-09 (`8f44e05`) — N1 aplicat (prag 200k pe valoare totală) |
 | 2.4 | Calcule | `AnafLookupService` integration + `OpAdmissibilityValidator` (CPC art. 1014, L 85/2014) + Debitor ANAF/BPI fields | 0.5z | 1.1 | 80% | ⏳ |
 | 2.5 | Extracție | `DataExtractionService` + 4 strategii cascadă (PdfParser, OcrText cu Tesseract, AiVision, Stub) + `TesseractOcrService` + DTO `ExtractedDocumentData` + setup Dockerfile cu tesseract-ocr-ron + ImageMagick | 2z | 1.1 | 0% | ⏳ |
 | 2.6 | Extracție | `ExtractDataMessage` async (Symfony Messenger) + handler + persist `Document.extractedData` + emit `DataExtractedEvent` | 0.5z | 2.5 | 30% | ⏳ |
@@ -783,7 +783,7 @@ Refactor enum la 3 valori distincte (ex: `B2B_PROFESIONAL`, `B2C_CONSUMER`, `NON
 
 ---
 
-### PASUL 2.2 | `StampDutyCalculator` | 0.25 zi | 0% reutilizare
+### PASUL 2.2 | `StampDutyCalculator` | 0.25 zi | 0% reutilizare ✅ DONE 2026-05-08 (`8cffd87`) + doc mark done (`b79034c`) — REVIZIE JURIDICĂ 2026-05-09 a confirmat CORECT (taxă fixă 200 RON per OUG 80/2013 art. 6 alin. 2; fără modificări de cod)
 
 **Rezultat**: ✅ DONE 2026-05-08 (commit `8cffd87`). Implementare Variantă A (taxă fixă **200 RON** pentru orice cerere OP, conform OUG 80/2013 art. 6 alin. 2 — formă curentă). Livrate: `src/Service/Calculation/StampDutyCalculator.php` (signature `calculate(): StampDutyResult` — fără argument `$amount` întrucât Variantă A e constantă; YAGNI peste Variantă B) + DTO readonly `src/DTO/Calculation/StampDutyResult.php` (`amount`, `lawVersion`); parametri configurabili `app.taxa_timbru_op.fixed = 200.0` și `app.taxa_timbru_op.law_version` în `config/services.yaml`; 2 teste unit (`testReturnsConfiguredFixedFee` + `testResultCarriesConfiguredLawVersion`). DI verificat via `debug:container` (argumentele rezolvă la `200` și string-ul juridic). **Out-of-scope (amânat)**: coloana `stampDutyLawVersion` pe `LegalCase` — se va adăuga când wizard-ul scrie pe entitate. Dacă revizia juridică viitoare confirmă Variantă B (praguri), se reintroduce parametrul `float $amount` la momentul respectiv.
 
@@ -810,9 +810,9 @@ Refactor enum la 3 valori distincte (ex: `B2B_PROFESIONAL`, `B2C_CONSUMER`, `NON
 
 ---
 
-### PASUL 2.3 | `CompetentCourtResolver` | 0.75 zi | 30% reutilizare
+### PASUL 2.3 | `CompetentCourtResolver` | 0.75 zi | 30% reutilizare ✅ DONE 2026-05-09 (`8f44e05`) — REVIZIE N1 (2026-05-09) aplicată: pragul 200k pe valoare totală (principal + dobândă acumulată + penalități scadente) per CPC art. 98, NU pe principal singular
 
-**Rezultat**: _(va fi completat la marcarea ca DONE)_
+**Rezultat**: ✅ DONE 2026-05-09 (commit `8f44e05`). Livrate: `src/Service/Court/CompetentCourtResolver.php` (signature extinsă per N1 — injectează `InterestCalculatorService`; calculează `total = principal + accruedInterest + scadentPenalties` ÎNAINTE de a aplica pragul 200k; locality matching cu alternatives + explanationKey i18n, niciodată "prima activă" silent), `src/Service/Court/LocalityNormalizer.php` (Normalizer::FORM_D + strip Mn + lowercase pentru matching diacritic-insensitive), DTOs readonly `src/DTO/Court/{ClaimValueBreakdown,CourtResolveResult}.php`, `Court::$coveredLocalities` JSON nullable + getter/setter, `CourtRepository::findActiveByTypeAndCounty(CourtType, county)`, migrare aditivă `Version20260509130308` (ADD covered_localities JSON), `ImportCourtsCommand --update` flag, `data/courts.json` extins cu `coveredLocalities` (HQ city per judecătorie + 6 sectoare București — 219 instanțe), 10 chei i18n RO/EN `court.resolver.*` cu placeholder `%county%`, `ext-intl` declarat în composer.json. **Tests**: 11 scenarii — 6 PROMPT + 2 N1 critice (`testThresholdAppliesOnTotalClaimValueIncludingAccessories`, `testThresholdAppliesOnPrincipalPlusScadentPenaltiesEvenWithoutInterest`) + 3 review gap-fixes (negative principal, county null, CIVIL → DomainException propagation). **Convenție identificatori**: redenumit `localitatiArondate`→`coveredLocalities` și `resolveJudecatorie()`→`resolveLocalCourt()` per regula "no Romanian identifiers"; enum cases `CourtType::JUDECATORIE/TRIBUNAL` rămân (exempte). **Out-of-scope (post-MVP)**: BucharestSectorParser (wizard step 3), tribunale specializate Cluj/Mureș/Argeș (opt-in L 304/2022), date arondate complete (suburbii/comune — admin task), `CourtCrudController` admin field. Review iterații: 4 (2 fix rounds + 2 rename rounds), verdict final LEGAL-CLEAN + COMMIT-READY.
 
 > 🔴 **REVIZIE JURIDICĂ 2026-05-08** (din analiza Faza 2):
 > - **Pragul valoric (200.000 RON) e CORECT** ✓ conform CPC art. 94 pct. 1 lit. k și art. 95 pct. 1.
