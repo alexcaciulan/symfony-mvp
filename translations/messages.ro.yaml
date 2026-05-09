@@ -528,3 +528,19 @@ exception:
     calculation:
         interest_rate_missing: 'Nu există o rată BNR validă pentru data de scadență. Verifică InterestRateConfigFixtures.'
         currency_unsupported: 'Calculul dobânzii este disponibil doar pentru creanțe în RON. Suportul pentru valută va fi adăugat ulterior.'
+
+# =============================================================================
+# Court resolver explanation keys (CompetentCourtResolver — CPC art. 94 + 95 + 98 + 107)
+# =============================================================================
+court:
+    resolver:
+        invalid_amount_zero: 'Suma cererii nu poate fi zero. Completează valoarea principalului.'
+        invalid_amount_negative: 'Suma cererii nu poate fi negativă. Verifică datele introduse.'
+        county_unknown: 'Județul debitorului nu este specificat sau nu este recunoscut.'
+        no_judecatorie_in_county: 'Nicio judecătorie activă în județul %county%. Contactează administratorul.'
+        locality_unmatched_pick_manually: 'Localitatea debitorului nu se potrivește unic cu o judecătorie. Alege manual instanța din listă.'
+        locality_ambiguous: 'Localitatea se potrivește cu mai multe judecătorii. Alege manual instanța corectă.'
+        matched_judecatorie: 'Judecătorie competentă conform CPC art. 94 + 107 (raza teritorială).'
+        matched_tribunal: 'Tribunal competent conform CPC art. 95 (peste pragul 200.000 RON, valoare totală cu accesorii — CPC art. 98).'
+        tribunal_missing: 'Niciun tribunal activ în județul %county%. Contactează administratorul.'
+        tribunal_ambiguous: 'Mai multe tribunale active în județul %county%. Verifică datele de configurare.'

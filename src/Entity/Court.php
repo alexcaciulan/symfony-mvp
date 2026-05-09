@@ -40,6 +40,10 @@ class Court
     #[ORM\Column(length: 100, nullable: true, unique: true)]
     private ?string $portalCode = null;
 
+    /** @var list<string>|null */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $coveredLocalities = null;
+
     /** @var Collection<int, LegalCase> */
     #[ORM\OneToMany(targetEntity: LegalCase::class, mappedBy: 'court')]
     private Collection $legalCases;
@@ -146,6 +150,20 @@ class Court
     public function setPortalCode(?string $portalCode): static
     {
         $this->portalCode = $portalCode;
+
+        return $this;
+    }
+
+    /** @return list<string>|null */
+    public function getCoveredLocalities(): ?array
+    {
+        return $this->coveredLocalities;
+    }
+
+    /** @param list<string>|null $coveredLocalities */
+    public function setCoveredLocalities(?array $coveredLocalities): static
+    {
+        $this->coveredLocalities = $coveredLocalities;
 
         return $this;
     }

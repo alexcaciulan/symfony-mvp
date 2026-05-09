@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Entity\Court;
+use App\Enum\CourtType;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -20,6 +21,20 @@ class CourtRepository extends ServiceEntityRepository
         return $this->createQueryBuilder('c')
             ->where('c.county = :county')
             ->andWhere('c.active = true')
+            ->setParameter('county', $county)
+            ->orderBy('c.name', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /** @return Court[] */
+    public function findActiveByTypeAndCounty(CourtType $type, string $county): array
+    {
+        return $this->createQueryBuilder('c')
+            ->where('c.type = :type')
+            ->andWhere('c.county = :county')
+            ->andWhere('c.active = true')
+            ->setParameter('type', $type)
             ->setParameter('county', $county)
             ->orderBy('c.name', 'ASC')
             ->getQuery()

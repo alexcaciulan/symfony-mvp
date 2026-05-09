@@ -526,3 +526,19 @@ exception:
     calculation:
         interest_rate_missing: 'No BNR rate is configured for the due date. Check InterestRateConfigFixtures.'
         currency_unsupported: 'Interest calculation is only available for RON-denominated claims. Foreign-currency support will be added later.'
+
+# =============================================================================
+# Court resolver explanation keys (CompetentCourtResolver — CPC art. 94 + 95 + 98 + 107)
+# =============================================================================
+court:
+    resolver:
+        invalid_amount_zero: 'Claim amount cannot be zero. Please enter the principal amount.'
+        invalid_amount_negative: 'Claim amount cannot be negative. Please verify the data entered.'
+        county_unknown: 'Debtor county is not specified or unrecognized.'
+        no_judecatorie_in_county: 'No active local court (judecătorie) in %county%. Please contact the administrator.'
+        locality_unmatched_pick_manually: 'Debtor locality does not match a single local court. Please pick the competent court manually from the list.'
+        locality_ambiguous: 'The locality matches multiple local courts. Please pick the correct one manually.'
+        matched_judecatorie: 'Local court (judecătorie) competent per CPC art. 94 + 107 (territorial jurisdiction).'
+        matched_tribunal: 'Tribunal competent per CPC art. 95 (above 200,000 RON threshold on the total claim value with accessories — CPC art. 98).'
+        tribunal_missing: 'No active tribunal in %county%. Please contact the administrator.'
+        tribunal_ambiguous: 'Multiple active tribunals in %county%. Please verify the configuration data.'
