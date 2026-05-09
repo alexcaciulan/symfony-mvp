@@ -3,7 +3,14 @@
 > **Document de specificație funcțională**
 > Stack: Symfony 7.3 + PHP 8.4 + MySQL 8 + Doctrine ORM + Twig/Stimulus/Turbo + Tailwind v4
 > Status: pivot de la "Cerere cu Valoare Redusă" către LexRecovery
-> Versiune: 1.0 — referință stabilă pentru direcție și cerințe
+> Versiune: **1.1 — 2026-05-09** corecții juridice in-line C1/C2/C4/C5 + N4 (vezi `ANALIZA-JURIDICA-PROCEDURA-OP-2026-05-08.md`)
+> Modificări față de v1.0:
+> - **C1**: termen somație 30 → **15 zile** (CPC art. 1015 alin. 1).
+> - **C2**: "contestație"/"CONTESTATA"/`contesta` → "cerere în anulare"/"IN_ANULARE"/`formuleaza_cerere_anulare` (CPC art. 1024).
+> - **C4**: comunicare somație — exclusiv executor judecătoresc sau Poșta Română cu conținut declarat (curier privat NU).
+> - **C5**: prorogare termene la prima zi lucrătoare (CPC art. 181 alin. 2).
+> - **N4**: verificare insolvență BPI = blocant (ERROR), nu warning.
+> - **Citare CPC corectată**: termenul cererii în anulare = art. **1024**, nu art. 1023 (care reglementează executarea).
 
 ---
 
@@ -49,7 +56,7 @@
 
 Jobs-to-be-done:
 - **Reducere muncă administrativă repetitivă**: redactare somații, cereri OP, calcule dobânzi, urmărire portal.just.ro — toate făcute manual astăzi (timp mediu 30-45 min somație, 2-3 ore cerere OP cu opis).
-- **Eliminare risc pierdere termene**: termenele procedurale (30 zile somație, 10 zile contestație, 3 ani prescripție) să fie monitorizate automat cu alerte multiple.
+- **Eliminare risc pierdere termene**: termenele procedurale (15 zile somație CPC art. 1015, 10 zile cerere în anulare CPC art. 1024, 3 ani prescripție NCC art. 2517, prorogate la prima zi lucrătoare CPC art. 181) să fie monitorizate automat cu alerte multiple.
 - **Vizibilitate portofoliu**: dashboard cu toate dosarele active, filtrare după status, sortare după urgență termene, sume în recuperare.
 - **Documente standardizate**: PDF-uri pre-completate cu datele dosarului, format consistent, gata de descărcat și depus.
 
@@ -71,15 +78,15 @@ Jobs-to-be-done:
 flowchart TD
     START([📁 Dosar nou — creanță neîncasată]) --> F1
     F1[Faza 1<br/>Înregistrare dosar] --> F2
-    F2[Faza 2<br/>Somația de plată] --> AUTO1{30 zile<br/>termen somație}
+    F2[Faza 2<br/>Somația de plată] --> AUTO1{15 zile<br/>termen somație<br/>CPC art. 1015}
     AUTO1 -->|Plătit| SUCCES1([✅ Recuperare amiabilă])
     AUTO1 -->|Nu plătit| F3
     F3[Faza 3<br/>Cerere OP la instanță] --> F4
     F4[Faza 4<br/>Monitorizare instanță] --> DEC{Hotărâre<br/>instanță}
     DEC -->|Ordonanță emisă| F5
     DEC -->|Cerere respinsă| TERM_RESP([❌ Respinsă])
-    F5[Faza 5<br/>10 zile contestație] -->|Fără contestație| DEFINITIV
-    F5 -->|Contestată| CONT{Soluție<br/>contestație}
+    F5[Faza 5<br/>10 zile cerere în anulare<br/>CPC art. 1024] -->|Fără cerere în anulare| DEFINITIV
+    F5 -->|Cerere în anulare formulată| CONT{Soluție<br/>cerere în anulare}
     CONT -->|Respinsă| DEFINITIV
     CONT -->|Admisă| TERM_RESP
     DEFINITIV([🏛️ Ordonanță definitivă<br/>= TITLU EXECUTORIU])
@@ -124,13 +131,19 @@ flowchart TD
 
 **Trigger**: avocatul apasă "Generează somație" în view dosar.
 
-**Acțiuni utilizator**: descarcă PDF somație pre-completat, semnează, trimite debitorului prin executor judecătoresc/poștă/curier. Marchează în aplicație "Am trimis somația la data X".
+**Acțiuni utilizator**: descarcă PDF somație pre-completat, semnează, trimite debitorului. Marchează în aplicație "Am trimis somația la data X".
+
+**Modalități legale de comunicare somație** (CPC art. 1015 alin. 1 — strict limitate):
+1. **Prin executor judecătoresc** (recomandat pentru creanțe sensibile).
+2. **Prin scrisoare recomandată cu conținut declarat (R+CD) + AR la Poșta Română** — exclusiv Poșta R oferă serviciul "conținut declarat" (oficiul poștal certifică pe duplicat conținutul exact al scrisorii — dovadă irefutabilă în instanță).
+
+> ⚠ **Curierul privat (Cargus, FAN, DPD, etc.) NU este admisibil** ca dovadă a comunicării somației — nu oferă serviciu de conținut declarat. UI afișează memento avocat după generare PDF.
 
 **Automatizări sistem**:
 - Aplicare tranziție `trimite_somatie` → status devine `SOMATIE_TRIMISA`.
-- Creare `LegalDeadline` `RASPUNS_SOMATIE` (data trimitere + 30 zile, prioritate `HIGH`).
-- Generare PDF `payment_notice.html.twig` cu DomPDF, salvare ca `Document` (tip `PAYMENT_NOTICE`).
-- Programare alerte automate 7/3/1 zile înainte de expirarea termenului de 30 zile.
+- Creare `LegalDeadline` `RASPUNS_SOMATIE` (data trimitere + **15 zile**, prorogat la prima zi lucrătoare, prioritate `HIGH`; CPC art. 1015 alin. 1 + art. 181 alin. 2).
+- Generare PDF `payment_notice.html.twig` cu DomPDF, salvare ca `Document` (tip `PAYMENT_NOTICE`). Textul somației specifică verbatim "termen 15 zile de la primirea acesteia" (CPC art. 1015).
+- Programare alerte automate 7/3/1 zile înainte de expirarea termenului de 15 zile.
 
 **Output**: PDF somație, termen monitorizat, alerte email la 7/3/1 zile + alertă "expirat" dacă debitorul nu a plătit.
 
@@ -138,7 +151,13 @@ flowchart TD
 
 ### Faza 3 — Cerere Ordonanță de Plată (statusuri `CERERE_DEPUSA` → `DOSAR_INREGISTRAT`)
 
-**Trigger** (după 30 zile fără plată): avocatul apasă "Generează cerere OP".
+**Trigger** (după 15 zile fără plată — termenul minim CPC art. 1015): avocatul apasă "Generează cerere OP".
+
+**Pre-condiție obligatorie — verificare insolvență (Legea 85/2014)**: înainte de tranziția `depune_cerere`, `OpAdmissibilityValidator` blochează cu ERROR dacă pentru oricare debitor PJ:
+- `inInsolvency = true` (cod `OP_BLOCKED_INSOLVENCY` — creanța se înscrie la masa credală, NU recuperare prin OP).
+- `insolvencyCheckedAt IS NULL` sau mai vechi de 7 zile (cod `OP_INSOLVENCY_NOT_VERIFIED` / `OP_INSOLVENCY_STALE`).
+
+UI cere checklist explicit: avocat verifică manual `bpi.just.ro`, atașează PDF extras BPI ca probă (`Document` cu type `BPI_PROOF`), bifează confirmare → set `Debitor.insolvencyCheckedAt = now()` + audit log obligatoriu category `BPI_VERIFICATION`. BPI nu are API public — verificarea rămâne manuală, dar enforcement-ul în aplicație devine blocant (NU warning).
 
 **Acțiuni utilizator**: descarcă ZIP-ul cu pachetul complet (cerere OP + opis documente + somația trimisă + contract/facturi + calcul dobânzi). Depune dosarul fizic/electronic la instanța competentă. Primește numărul de dosar de la registratura instanței și îl introduce în aplicație.
 
@@ -157,14 +176,14 @@ flowchart TD
 **Trigger**: cron zilnic 08:00 rulează `app:portal-check-all`.
 
 **Automatizări sistem**:
-- Pentru fiecare dosar cu status în setul activ (`DOSAR_INREGISTRAT`, `TERMEN_FIXAT`, `ORDONANTA_EMISA`, `CONTESTATA`) și cu `courtCaseNumber` completat: query SOAP la portal.just.ro (refolosire `PortalJustClient` existent).
+- Pentru fiecare dosar cu status în setul activ (`DOSAR_INREGISTRAT`, `TERMEN_FIXAT`, `ORDONANTA_EMISA`, `IN_ANULARE`) și cu `courtCaseNumber` completat: query SOAP la portal.just.ro (refolosire `PortalJustClient` existent).
 - `PortalEventDetector` compară starea curentă cu evenimentele anterioare → identifică schimbări noi.
 - Persist în `CourtPortalEvent` cu deduplicare (index `case_id, event_type, eventDate`).
 - Tranziții propuse automat (logate ca propuneri pentru aprobare avocat sau aplicate direct, în funcție de tipul evenimentului):
   - termen de judecată detectat → `fixeaza_termen` → status `TERMEN_FIXAT`, creare `LegalDeadline` `JUDECATA` cu data extrasă din portal.
-  - hotărâre admisă → `emite_ordonanta` → status `ORDONANTA_EMISA`, creare `LegalDeadline` `CONTESTATIE` (10 zile).
+  - hotărâre admisă → `emite_ordonanta` → status `ORDONANTA_EMISA`, creare `LegalDeadline` `CERERE_IN_ANULARE` (10 zile de la `rulingCommunicationDate`, prorogat CPC art. 181 — vezi secțiunea 8).
   - hotărâre respinsă → `respinge` → status `RESPINSA` (terminal).
-  - contestație depusă (detectată în portal) → `contesta` → status `CONTESTATA`.
+  - cerere în anulare formulată (detectată în portal) → `formuleaza_cerere_anulare` → status `IN_ANULARE`.
 - Email avocat: "Activitate nouă în Dosar X — [tip eveniment]".
 
 **Acțiuni utilizator**: doar verifică email-urile și confirmă tranzițiile sensibile.
@@ -176,8 +195,8 @@ flowchart TD
 ### Faza 5 — Ordonanță definitivă (status `DEFINITIVA`)
 
 **Trigger**:
-- Manual: avocatul confirmă comunicarea ordonanței (data oficială) → declanșează termenul de 10 zile.
-- Auto: după expirarea celor 10 zile fără contestație, `app:check-deadlines` aplică `marcheaza_definitiva`.
+- Manual: avocatul completează `rulingCommunicationDate` (data oficială a comunicării ordonanței către debitor) → declanșează termenul de 10 zile pentru cerere în anulare (CPC art. 1024 — "de la data înmânării sau comunicării").
+- Auto: după expirarea celor 10 zile (prorogate la prima zi lucrătoare CPC art. 181 + buffer 1z) fără cerere în anulare, `app:check-deadlines` aplică `marcheaza_definitiva`. Dacă `rulingCommunicationDate IS NULL` → tranziția automată e blocată; alert avocat.
 
 **Automatizări sistem**:
 - Tranziție `marcheaza_definitiva` → status `DEFINITIVA`.
@@ -189,7 +208,7 @@ flowchart TD
 **Cazuri terminale**:
 - `INCHIS_SUCCES`: debitor plătește în baza ordonanței definitive (avocat marchează manual).
 - `INCHIS_PARTIAL_INSOLVABIL`: debitor insolvabil (status manual).
-- `RESPINSA`: cerere/contestație admisă (terminal).
+- `RESPINSA`: cerere OP respinsă sau cerere în anulare admisă (terminal).
 
 ### Faza 6 — Executare silită (POST-MVP)
 
@@ -246,15 +265,15 @@ erDiagram
 | Status | Descriere | Terminal? |
 |---|---|---|
 | `AMIABIL` | Dosar creat, somație neemisă | Nu |
-| `SOMATIE_TRIMISA` | Somație generată și trimisă, 30 zile termen | Nu |
+| `SOMATIE_TRIMISA` | Somație generată și trimisă, **15 zile** termen (CPC art. 1015) | Nu |
 | `CERERE_DEPUSA` | Cerere OP generată; depusă fizic la instanță | Nu |
 | `DOSAR_INREGISTRAT` | Număr dosar instanță introdus, monitorizare activă | Nu |
 | `TERMEN_FIXAT` | Termen de judecată detectat în portal | Nu |
-| `ORDONANTA_EMISA` | Hotărâre favorabilă, 10 zile contestație | Nu |
-| `CONTESTATA` | Debitor a depus contestație | Nu |
+| `ORDONANTA_EMISA` | Hotărâre favorabilă, 10 zile cerere în anulare (CPC art. 1024) | Nu |
+| `IN_ANULARE` | Debitor a formulat cerere în anulare (CPC art. 1024) | Nu |
 | `DEFINITIVA` | Titlu executoriu obținut | Nu |
 | `EXECUTARE` | (Placeholder MVP, folosit în Faza 6 post-MVP) | Nu |
-| `RESPINSA` | Cerere sau contestație respinsă | **Da** |
+| `RESPINSA` | Cerere OP respinsă sau cerere în anulare admisă | **Da** |
 | `INCHIS_SUCCES` | Recuperare integrală | **Da** |
 | `INCHIS_PARTIAL_INSOLVABIL` | Recuperare parțială sau debitor insolvabil | **Da** |
 
@@ -269,10 +288,10 @@ stateDiagram-v2
     DOSAR_INREGISTRAT --> TERMEN_FIXAT: fixeaza_termen
     TERMEN_FIXAT --> ORDONANTA_EMISA: emite_ordonanta
     TERMEN_FIXAT --> RESPINSA: respinge
-    ORDONANTA_EMISA --> CONTESTATA: contesta
+    ORDONANTA_EMISA --> IN_ANULARE: formuleaza_cerere_anulare
     ORDONANTA_EMISA --> DEFINITIVA: marcheaza_definitiva
-    CONTESTATA --> DEFINITIVA: respinge_contestatie
-    CONTESTATA --> RESPINSA: admite_contestatie
+    IN_ANULARE --> DEFINITIVA: respinge_cerere_anulare
+    IN_ANULARE --> RESPINSA: admite_cerere_anulare
     DEFINITIVA --> INCHIS_SUCCES: inchide_succes
     DEFINITIVA --> INCHIS_PARTIAL_INSOLVABIL: inchide_insolvabil
     RESPINSA --> [*]
@@ -290,10 +309,10 @@ stateDiagram-v2
 | `fixeaza_termen` | **Automat** | Detectat de `PortalEventDetector` |
 | `emite_ordonanta` | **Automat** | Detectat de `PortalEventDetector` |
 | `respinge` | **Automat** | Detectat de `PortalEventDetector` |
-| `contesta` | **Automat** sau Manual | Detectat din portal sau confirmat manual |
-| `marcheaza_definitiva` | **Automat (timer)** | După 10 zile de la `ORDONANTA_EMISA` fără contestație, `app:check-deadlines` aplică tranziția |
-| `respinge_contestatie` | Manual | Avocat marchează după soluție instanță |
-| `admite_contestatie` | Manual | Avocat marchează |
+| `formuleaza_cerere_anulare` | **Automat** sau Manual | Detectat din portal sau confirmat manual |
+| `marcheaza_definitiva` | **Automat (timer)** | După 10 zile de la `rulingCommunicationDate` (NU `rulingDate`) fără cerere în anulare, prorogate la prima zi lucrătoare CPC art. 181 + buffer 1z, `app:check-deadlines` aplică tranziția. Blocat dacă `rulingCommunicationDate IS NULL`. |
+| `respinge_cerere_anulare` | Manual | Avocat marchează după soluție instanță |
+| `admite_cerere_anulare` | Manual | Avocat marchează |
 | `inchide_succes` | Manual | Avocat confirmă plata |
 | `inchide_insolvabil` | Manual | Avocat marchează |
 
@@ -311,14 +330,21 @@ dobanda_perioada = suma * (rata_aplicabila / 100) * zile_in_perioada / 365
 Distincție obligatorie pe tip de dobândă (enum `InterestKind`):
 
 **Dobânda penalizatoare** (cazul tipic OP, de la scadență la plată):
-- **`COMERCIAL`** (raporturi între profesioniști — OG 13/2011 art. 3 alin. 2¹): `rata_BNR + 8 puncte procentuale`.
-- **`CIVIL`** (raporturi care nu decurg din exploatarea unei întreprinderi — art. 3 alin. 3, diminuat cu 20% din rata penalizatoare comercială): `(rata_BNR + 8) × 0,80`.
+- **`COMERCIAL`** (raporturi între profesioniști — OG 13/2011 art. 3 alin. (2¹) introdus prin Legea 72/2013 art. 20): `rata_BNR + 8 puncte procentuale`.
+- **`CIVIL`** (raporturi non-profesionale): formula curentă `(rata_BNR + 8) × 0,80` este **fără temei legal** — vezi nota de mai jos.
 
 **Dobânda remuneratorie** (de la acordare până la scadență, doar pentru creanțe ce includ atare dobândă, ex. împrumut):
-- **`COMERCIAL` + REMUNERATORIE** (art. 3 alin. 2): `rata_BNR`.
-- **`CIVIL` + REMUNERATORIE** (art. 3 alin. 3 aplicat la remuneratoriu): `rata_BNR × 0,80`.
+- **`COMERCIAL` + REMUNERATORIE** (OG 13/2011 art. 3 alin. 1): `rata_BNR`.
+- **`CIVIL` + REMUNERATORIE**: la fel, fără temei pentru `× 0,80` în combinație cu factorul +8 — vezi nota.
 
-> ⚠ Versiunea inițială a acestui document conținea formula greșită `rata_BNR + 4 puncte` pentru CIVIL. Aceasta nu corespunde literei OG 13/2011 — diminuarea de 20% este multiplicativă pe rata penalizatoare comercială (BNR + 8), NU înlocuire cu +4 pp. Corectat 2026-05-08.
+> ⚠ **Notă revizie 2026-05-08**: Versiunea inițială conținea formula greșită `rata_BNR + 4 puncte` pentru CIVIL. Corectat la `(BNR+8)×0.80` la momentul respectiv.
+>
+> 🔴 **Notă revizie 2026-05-09 (C3)**: După verificare verbatim OG 13/2011 + Legea 72/2013 art. 20 (`legislatie.just.ro` doc 146555), combinația `(BNR+8) × 0.80` rămâne **fără temei legal**:
+> - Factorul **+8 pp** este exclusiv pentru raporturi profesionale (B2B), per OG 13/2011 art. 3 alin. (2¹).
+> - Diminuarea **× 0.80** este exclusiv pentru raporturi non-profesionale (P2P), per OG 13/2011 art. 3 alin. (3).
+> - Cele 3 cazuri legale distincte: **B2B** (PEN: BNR+8 / REM: BNR) | **B2C** (PEN: BNR+4 / REM: BNR) | **P2P** (PEN: (BNR+4)×0.80 / REM: BNR×0.80).
+>
+> **Decizie produs (de luat la executare Pas 2.1 revizie din PLAN)**: (a) restrânge scope MVP la B2B + DomainException pentru CIVIL (recomandat); (b) implementare 3 ramuri B2B/B2C/P2P (post-MVP). Detaliu complet în `ANALIZA-JURIDICA-PROCEDURA-OP-2026-05-08.md` C3.
 
 **Convenție de calcul**: zile elapsed (`act/365`), dobândă **simplă** (NU compusă — anatocismul cere convenție expresă conform NCC art. 1489).
 
@@ -434,10 +460,10 @@ Inclus în `casesConsumed` din planul de abonament — nu facturare separată pe
 | Tip | Calcul automat | Prioritate default | Sursă |
 |---|---|---|---|
 | `PRESCRIPTIE` | dueDate + 3 ani | `CRITICAL` | Cod civil, art. 2517 |
-| `RASPUNS_SOMATIE` | paymentNoticeDate + 30 zile | `HIGH` | Cerință procedurală |
-| `DEPUNERE_CERERE` | paymentNoticeDate + 30 zile (reminder) | `MEDIUM` | Reminder operațional |
+| `RASPUNS_SOMATIE` | paymentNoticeDate + **15 zile** (prorogat CPC art. 181) | `HIGH` | CPC art. 1015 alin. 1 |
+| `DEPUNERE_CERERE` | paymentNoticeDate + 15 zile (reminder) | `MEDIUM` | Reminder operațional |
 | `JUDECATA` | extras din portal.just.ro | `MEDIUM` | Detectat de `PortalEventDetector` |
-| `CONTESTATIE` | rulingDate + 10 zile | `CRITICAL` | CPC art. 1023 |
+| `CERERE_IN_ANULARE` | **rulingCommunicationDate** (NU rulingDate) + 10 zile, prorogat CPC art. 181 | `CRITICAL` | CPC art. **1024** alin. 1 |
 | `OTHER` | manual | configurabil | Avocatul adaugă manual |
 
 ### Alerte automate
@@ -449,6 +475,17 @@ Cron `app:check-deadlines` rulează zilnic 07:00:
   - Dacă `deadlineDate < azi` → email "Termen expirat" cu prioritate vizuală în dashboard.
 
 Email subject: `[LexRecovery] Termen [tip] — [N zile] — Dosar [caseNumber]`. Conține: dosar, creditor, debitor, sumă, dată limită, link către dosar.
+
+### Prorogare la zile nelucrătoare (CPC art. 181 alin. 2)
+
+> Citat verbatim CPC art. 181 alin. (2): *"Termenul care se sfârșește într-o zi de sărbătoare legală sau când serviciul este suspendat se va prelungi până la sfârșitul primei zile de lucru următoare."*
+
+Toate termenele calculate (`RASPUNS_SOMATIE`, `CERERE_IN_ANULARE`, `PRESCRIPTIE`, `JUDECATA`) trec prin metoda `DeadlineService::nextWorkingDay()` care prorogă la prima zi lucrătoare următoare dacă deadline-ul cade în:
+- Sâmbătă/duminică.
+- Sărbători legale conform Codului Muncii art. 139: 1-2 ian, 24 ian, Vinerea Mare + Paște (calendar ortodox), 1 mai, 1 iun, Rusalii (ortodox), 15 aug, 30 nov, 1 dec, 25-26 dec.
+- Zile suplimentare introduse prin OG (ex: vacanță judecătorească iulie-august) — override prin config YAML.
+
+**Implicație critică pe `marcheaza_definitiva` (auto)**: cron-ul aplică tranziția DOAR dacă `now() >= nextWorkingDay(rulingCommunicationDate + 10 zile) + 1 zi buffer`. Mai bine întârziere 1z decât tranziție prematură care blochează o cerere în anulare validă.
 
 ---
 
@@ -476,13 +513,13 @@ ZIP-ul conține: cerere OP + opis + somație + toate documentele uploadate de av
 
 **Frecvență**: cron zilnic 08:00 — `app:portal-check-all` (refactor din `MonitorCourtCasesCommand`).
 
-**Eligibilitate**: doar dosare cu `courtCaseNumber` completat și status în set activ (`DOSAR_INREGISTRAT`, `TERMEN_FIXAT`, `ORDONANTA_EMISA`, `CONTESTATA`).
+**Eligibilitate**: doar dosare cu `courtCaseNumber` completat și status în set activ (`DOSAR_INREGISTRAT`, `TERMEN_FIXAT`, `ORDONANTA_EMISA`, `IN_ANULARE`).
 
 **Detectare evenimente** (`PortalEventDetector`):
 - `HEARING_SCHEDULED` — termen nou de judecată → propune `fixeaza_termen` + creează `LegalDeadline` `JUDECATA`.
 - `HEARING_COMPLETED` — ședință încheiată cu soluție → analiză soluție.
 - `RULING_ISSUED` (admis/respins) — propune `emite_ordonanta` sau `respinge`.
-- `APPEAL_FILED` — propune `contesta`.
+- `APPEAL_FILED` — propune `formuleaza_cerere_anulare`.
 - `CASE_INFO_UPDATE` — schimbare de detalii dosar (informativ).
 
 **Deduplicare**: index DB `idx_portal_event_dedup (case_id, event_type, eventDate)` — același eveniment nu este înregistrat de două ori.

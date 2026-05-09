@@ -51,11 +51,11 @@
 | 0.1 | Bootstrap | Branch `lexrecovery` + ștergere cod mort | 0.5z | — | 0% | ✅ |
 | 0.2 | Bootstrap | Frontend Foundations: **Preline UI (free, MIT)** + UX bundles (Live Components, Autocomplete, Icons), Mercure Hub container, Stimulus controllers comune (toast, autosave, shortcuts, dark-mode, optimistic, mercure, dialog, tabs, skeleton, **preline-init**), Twig components refolosibile (wrapper-e Preline), Tailwind dark mode, View Transitions API | 1.5z | 0.1 | 0% | ✅ |
 | 1.1 | Domain | Entități noi + extindere `LegalCase` | 1.5z | 0.1 | 50% | ✅ |
-| 1.2 | Domain | Enum-uri noi (CaseStatus, CaseTransition, PersonType, RelationshipType, DeadlineType, DeadlinePriority) | 0.5z | 0.1 | 0% | ✅ |
-| 1.3 | Domain | Workflow YAML refăcut + ajustare `CaseWorkflowService` | 0.5z | 1.1, 1.2 | 70% | ✅ |
-| 1.4 | Domain | Migrare baseline + fixtures + `app:seed-demo-cases` | 0.5z | 1.1, 1.2 | 80% | ✅ |
-| 1.5 | Domain | Foundație i18n + backfill (enum labels → trans keys, homepage, Stimulus messages, ANAF exceptions) | 1z | 1.4 | 30% | ✅ |
-| 2.1 | Calcule | `InterestCalculatorService` (OG 13/2011) | 0.75z | 1.1 | 0% | ✅ |
+| 1.2 | Domain | Enum-uri noi (CaseStatus, CaseTransition, PersonType, RelationshipType, DeadlineType, DeadlinePriority) | 0.5z | 0.1 | 0% | ✅ DONE + REVIZIE C2 |
+| 1.3 | Domain | Workflow YAML refăcut + ajustare `CaseWorkflowService` | 0.5z | 1.1, 1.2 | 70% | ✅ DONE + REVIZIE C2 |
+| 1.4 | Domain | Migrare baseline + fixtures + `app:seed-demo-cases` | 0.5z | 1.1, 1.2 | 80% | ✅ DONE + REVIZIE C2 |
+| 1.5 | Domain | Foundație i18n + backfill (enum labels → trans keys, homepage, Stimulus messages, ANAF exceptions) | 1z | 1.4 | 30% | ✅ DONE + REVIZIE C2 |
+| 2.1 | Calcule | `InterestCalculatorService` (OG 13/2011) | 0.75z | 1.1 | 0% | ⚠️ DONE — REVIZIE C3 |
 | 2.2 | Calcule | `StampDutyCalculator` (OUG 80/2013) | 0.25z | — | 0% | ✅ |
 | 2.3 | Calcule | `CompetentCourtResolver` | 0.5z | 1.1 | 30% | ⏳ |
 | 2.4 | Calcule | `AnafLookupService` integration + `OpAdmissibilityValidator` (CPC art. 1014, L 85/2014) + Debitor ANAF/BPI fields | 0.5z | 1.1 | 80% | ⏳ |
@@ -65,7 +65,7 @@
 | 3.1 | Wizard | DTOs + Forms 5 pași (Documente, Creditor, Debitor, Creanță, Confirmare) cu pre-populare din `Document.extractedData` + indicator vizual câmp auto-completat | 1z | 1.1, 2.1-2.3, 3.0 | 50% | ⏳ |
 | 3.2 | Wizard | `CaseWizardController` + session storage + templates | 1z | 3.1 | 60% | ⏳ |
 | 3.3 | Wizard | Stimulus controllers (`live-calc`, `creditor-search`, `debtor-search`) + endpoint-uri AJAX | 1z | 3.2, 2.1-2.4 | 20% | ⏳ |
-| 4.1 | Termene | `DeadlineService` (creare automată somație/contestație/prescripție) | 0.5z | 1.1 | 0% | ⏳ |
+| 4.1 | Termene | `DeadlineService` (creare automată somație/cerere în anulare/prescripție) | 0.5z | 1.1 | 0% | ⏳ |
 | 4.2 | Termene | `DeadlineCreationSubscriber` + refactor `CaseWorkflowSubscriber`→`CaseWorkflowSubscriber` | 0.5z | 4.1, 1.3 | 80% | ⏳ |
 | 4.3 | Termene | UI tab "Termene" în view dosar + mark complete | 0.5z | 4.1 | 0% | ⏳ |
 | 5.1 | PDF | `PaymentNoticeGeneratorService` + template `payment_notice.html.twig` | 0.5z | 1.1 | 80% | ⏳ |
@@ -355,7 +355,7 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 
 ---
 
-### PASUL 1.2 | Enum-uri noi | 0.5 zi | 0% reutilizare | **paralel cu 1.1** ✅ DONE 2026-05-08 (`70c92f9`)
+### PASUL 1.2 | Enum-uri noi | 0.5 zi | 0% reutilizare | **paralel cu 1.1** ✅ DONE 2026-05-08 (`70c92f9`) + REVIZIE C2 aplicată 2026-05-09 (`f5a9214`)
 
 **Rezultat**: 8 enum-uri create în `src/Enum/`: `CaseStatus` (12 valori cu `label`/`color`/`isTerminal`/`isActiveOnPortal`), `CaseTransition` (12 tranziții), `PersonType` (PF/PJ), `RelationshipType` (COMERCIAL/CIVIL cu `nbrPercentagePoints` 8/4), `DeadlineType` (6 valori cu `defaultPrioritate`), `DeadlinePriority` (LOW/MEDIUM/HIGH/CRITICAL cu `color`), `ExtractionStatus` (PENDING/PROCESSING/COMPLETED/FAILED — cerut implicit de Pas 1.1). `DocumentType` extins cu SOMATIE/CERERE_OP/OPIS/DOVADA_COMUNICARE/ACT_CONSTATATOR/ANEXA; CERERE_PDF șters; valorile vechi (DOVADA, CONTRACT, FACTURA, ALT_DOCUMENT) păstrate. Vechiul `CaseStatus`/`CaseTransition` small-claims șters. 8 teste de enum. Detalii: `~/.claude/projects/-Users-alexc-Downloads-myprojects-symfony-mvp/memory/project_lexrecovery_pas_1_2.md`.
 
@@ -382,9 +382,35 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 
 **TESTE MINIME**: 1 test per enum.
 
+**🔴 REVIZIE JURIDICĂ 2026-05-09 — Modificări necesare** (ref: `ANALIZA-JURIDICA-PROCEDURA-OP-2026-05-08.md` C2)
+
+**Problemă**: enum-urile folosesc terminologia "contestație/contestată" pentru calea de atac împotriva ordonanței de plată. **CPC art. 1024** numește această cale **"cerere în anulare"** — distinctă de "contestația la executare" (art. 712+) și "contestația în anulare" (art. 503+, cale extraordinară). Termenii afectați apar în UI, audit log, PDF-uri și emails.
+
+**Decizie**: RENAME enum (în consistență cu memoria proiectului `feedback_no_romanian_in_code` — enum cases sunt excepția pentru termeni legali, deci termenii legali români trebuie corecți). Alternativa "i18n peste cheia veche" lasă în cod, audit log și fixtures un termen juridic eronat.
+
+**Fișiere afectate**:
+
+1. `src/Enum/CaseStatus.php:13` — `case CONTESTATA = 'CONTESTATA';` → `case IN_ANULARE = 'IN_ANULARE';`
+2. `src/Enum/CaseStatus.php:34` — color map: cheia `CONTESTATA` → `IN_ANULARE` (păstrează aceeași culoare orange).
+3. `src/Enum/CaseStatus.php:54` — `isActiveOnPortal()` array include `IN_ANULARE` în loc de `CONTESTATA`.
+4. `src/Enum/CaseTransition.php:12-14`:
+   - `CONTESTA = 'contesta'` → `FORMULEAZA_CERERE_ANULARE = 'formuleaza_cerere_anulare'`
+   - `RESPINGE_CONTESTATIE = 'respinge_contestatie'` → `RESPINGE_CERERE_ANULARE = 'respinge_cerere_anulare'`
+   - `ADMITE_CONTESTATIE = 'admite_contestatie'` → `ADMITE_CERERE_ANULARE = 'admite_cerere_anulare'`
+5. `src/Enum/DeadlineType.php:10` — `CONTESTATIE = 'CONTESTATIE'` → `CERERE_IN_ANULARE = 'CERERE_IN_ANULARE'`
+6. `src/Enum/DeadlineType.php:25` — actualizare `priority()` mapping pentru noul case (păstrează `CRITICAL`).
+
+**Plan testing**:
+- Update `tests/Enum/CaseStatusTest.php`, `tests/Enum/CaseTransitionTest.php`, `tests/Enum/DeadlineTypeTest.php` — assertions cu noile constante.
+- Add 1 test per enum care verifică prezența noului case + absența celui vechi.
+- `vendor/bin/phpunit tests/Enum/` trebuie să treacă verde.
+- Search global: `rg "CONTESTATA|CONTESTATIE" src/` și `rg "transition.contesta\b|respinge_contestatie|admite_contestatie" src/` returnează zero linii (în afară de comentarii istorice opționale).
+
+**Cascade obligatoriu**: după acest pas trebuie executate **Pas 1.3** (workflow YAML), **Pas 1.4** (migrare DB) și **Pas 1.5** (i18n) — vezi subsecțiunile lor de revizie. Fără cascade, sistemul e inconsistent (cod vs DB vs YAML vs traduceri).
+
 ---
 
-### PASUL 1.3 | Workflow YAML refăcut | 0.5 zi | 70% reutilizare ✅ DONE 2026-05-08 (`7a2fdf0`)
+### PASUL 1.3 | Workflow YAML refăcut | 0.5 zi | 70% reutilizare ✅ DONE 2026-05-08 (`7a2fdf0`) + REVIZIE C2 aplicată 2026-05-09 (`67abc5c`)
 
 **Rezultat**: 12 places + 12 tranziții cablate la `CaseStatus` enum prin `EnumMarkingStore` custom (BackedEnum support). Workflow rămâne `legal_case` (rename la `dosar` evitat per decizia user). Voter `CASE_TRANSITION` adăugat. 43/43 teste in scope verzi (37 ✅ + 6 ⏭️ pending Pas 1.4 baseline). Detalii: `~/.claude/projects/-Users-alexc-Downloads-myprojects-symfony-mvp/memory/project_lexrecovery_pas_1_3.md`.
 
@@ -420,9 +446,32 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 
 **TESTE MINIME**: 12 teste pentru tranziții valide + 4 negative + 4 voter cases.
 
+**🔴 REVIZIE JURIDICĂ 2026-05-09 — Modificări necesare** (ref: `ANALIZA-JURIDICA-PROCEDURA-OP-2026-05-08.md` C2)
+
+**Problemă**: workflow YAML conține state `CONTESTATA` și tranzițiile `contesta` / `respinge_contestatie` / `admite_contestatie` — terminologie juridic eronată (vezi Pas 1.2 revizie). Trebuie aliniat cu rename-ul enum-ului `CaseStatus` și `CaseTransition`.
+
+**Fișier afectat**: `config/packages/workflow.yaml`
+
+**Modificări**:
+
+| Linia | Înainte | După |
+|---|---|---|
+| 19 | `- CONTESTATA` | `- IN_ANULARE` |
+| 44-46 | `contesta:`<br>`  from: ORDONANTA_EMISA`<br>`  to: CONTESTATA` | `formuleaza_cerere_anulare:`<br>`  from: ORDONANTA_EMISA`<br>`  to: IN_ANULARE` |
+| 50-52 | `respinge_contestatie:`<br>`  from: CONTESTATA`<br>`  to: DEFINITIVA` | `respinge_cerere_anulare:`<br>`  from: IN_ANULARE`<br>`  to: DEFINITIVA` |
+| 53-55 | `admite_contestatie:`<br>`  from: CONTESTATA`<br>`  to: RESPINSA` | `admite_cerere_anulare:`<br>`  from: IN_ANULARE`<br>`  to: RESPINSA` |
+
+**Plan testing**:
+- `php bin/console workflow:dump legal_case` (sau `make shell` + comandă) — diagrama trebuie să afișeze state `IN_ANULARE` + cele 3 tranziții cu nume nou.
+- `php bin/console cache:clear` — fără erori de validare config.
+- `vendor/bin/phpunit tests/EventSubscriber/CaseWorkflowSubscriberTest.php` — actualizat la noile nume tranziții.
+- Voter `CASE_TRANSITION` (Pas 1.3) — verifică că accept noile nume (deja generic prin `CaseTransition` enum, dar revalidare).
+
+**Atenție migrare cascade**: după modificarea YAML, **Pas 1.4** (migrare DB) trebuie executat înainte de orice deploy — altfel dosarele cu status `CONTESTATA` în DB vor crăpa la încărcare (workflow-ul nu mai recunoaște state-ul).
+
 ---
 
-### PASUL 1.4 | Migrare baseline + fixtures + seed | 0.5 zi | 80% reutilizare ✅ DONE 2026-05-08 (`5084f1b`)
+### PASUL 1.4 | Migrare baseline + fixtures + seed | 0.5 zi | 80% reutilizare ✅ DONE 2026-05-08 (`5084f1b`) + REVIZIE C2 aplicată 2026-05-09 (`d299411` — migrare `Version20260509112007` UPDATE legacy values)
 
 **Rezultat**: Single baseline migration (17 tables), `doctrine/doctrine-fixtures-bundle` instalat, `InterestRateConfigFixtures` (5 valori BNR) + `PlanFixtures` (Starter+Pro) cu `--group=baseline`, comandă `app:seed-demo-cases` (5 dosare `LR-DEMO-*` + creditor demo + debitori + 1-2 termene per dosar, idempotentă), `docker-entrypoint.sh` actualizat. Plus: `LegalCaseCrudController` aliniat la noul shape (in scope). 46/46 teste in scope (1.3+1.4) verzi — `CaseWorkflowSubscriberTest` deblocat după baseline. Detalii: `~/.claude/projects/-Users-alexc-Downloads-myprojects-symfony-mvp/memory/project_lexrecovery_pas_1_4.md`.
 
@@ -454,9 +503,64 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 
 **TESTE MINIME**: smoke test command + assertion că `doctrine:schema:validate` returnează exit 0.
 
+**🔴 REVIZIE JURIDICĂ 2026-05-09 — Modificări necesare** (ref: `ANALIZA-JURIDICA-PROCEDURA-OP-2026-05-08.md` C2)
+
+**Problemă**: enum-urile sunt stocate ca string-uri în DB (Doctrine BackedEnum). Rename-ul PHP-ului (Pas 1.2 revizie) **nu** schimbă automat valorile din coloanele:
+- `legal_case.status` (poate avea `'CONTESTATA'`)
+- `legal_deadline.type` (poate avea `'CONTESTATIE'`)
+- `case_status_history.transition` (poate avea `'contesta'` / `'respinge_contestatie'` / `'admite_contestatie'`)
+
+Migrare nouă obligatorie pentru a UPDATE-a aceste valori în-place; altfel ORM aruncă `\ValueError` la load.
+
+**Plan migrare DB nouă** (după rename enum la Pas 1.2):
+
+```bash
+make migrate-diff
+```
+
+Fișier așteptat: `migrations/VersionXXXXXXXXX_rename_contestatie_to_cerere_anulare.php`
+
+```php
+public function up(Schema $schema): void
+{
+    // C2 — CPC art. 1024: "cerere în anulare" e termenul corect (NU "contestație").
+    $this->addSql("UPDATE legal_case SET status = 'IN_ANULARE' WHERE status = 'CONTESTATA'");
+    $this->addSql("UPDATE legal_deadline SET type = 'CERERE_IN_ANULARE' WHERE type = 'CONTESTATIE'");
+    $this->addSql("UPDATE case_status_history SET transition = 'formuleaza_cerere_anulare' WHERE transition = 'contesta'");
+    $this->addSql("UPDATE case_status_history SET transition = 'respinge_cerere_anulare' WHERE transition = 'respinge_contestatie'");
+    $this->addSql("UPDATE case_status_history SET transition = 'admite_cerere_anulare' WHERE transition = 'admite_contestatie'");
+}
+
+public function down(Schema $schema): void
+{
+    // Reverse SQL identic invers (UPDATE 'IN_ANULARE' → 'CONTESTATA' etc.).
+    $this->addSql("UPDATE legal_case SET status = 'CONTESTATA' WHERE status = 'IN_ANULARE'");
+    $this->addSql("UPDATE legal_deadline SET type = 'CONTESTATIE' WHERE type = 'CERERE_IN_ANULARE'");
+    $this->addSql("UPDATE case_status_history SET transition = 'contesta' WHERE transition = 'formuleaza_cerere_anulare'");
+    $this->addSql("UPDATE case_status_history SET transition = 'respinge_contestatie' WHERE transition = 'respinge_cerere_anulare'");
+    $this->addSql("UPDATE case_status_history SET transition = 'admite_contestatie' WHERE transition = 'admite_cerere_anulare'");
+}
+```
+
+**Decizie audit log** (`audit_log` entity): valorile vechi RĂMÂN ca-i (păstrate exact cum erau la momentul tranziției istorice) — audit log-ul reflectă ce s-a întâmplat la acel moment, nu valorile curente. Doar `case_status_history.transition` se UPDATE-ează (e parte din state machine activ, NU istoric audit).
+
+**Fixtures afectate**: `src/DataFixtures/*.php` și `src/Command/SeedDemoDosareCommand.php` — căutare:
+```bash
+rg "CONTESTATA|CONTESTATIE|'contesta'|respinge_contestatie|admite_contestatie" src/DataFixtures/ src/Command/
+```
+Înlocuire la noile constante enum (`CaseStatus::IN_ANULARE`, `CaseTransition::FORMULEAZA_CERERE_ANULARE`, etc.).
+
+**Plan testing**:
+- Re-rulare `make migrate` (aplică migrarea nouă).
+- Verificare DB: `mysql> SELECT DISTINCT status FROM legal_case` — niciun `CONTESTATA` rămas.
+- Verificare DB: `mysql> SELECT DISTINCT type FROM legal_deadline` — niciun `CONTESTATIE` rămas.
+- Re-rulare `make shell` + `bin/console doctrine:fixtures:load --no-interaction --append --group=baseline` + `bin/console app:seed-demo-cases` — fixtures se încarcă curat.
+- `vendor/bin/phpunit tests/Repository/LegalCaseRepositoryTest.php` — verde.
+- `vendor/bin/phpunit tests/Controller/Case/` — integration tests cu workflow trec cu nume tranziții noi.
+
 ---
 
-### PASUL 1.5 | Foundație i18n + retroactive backfill | 1 zi | 30% reutilizare ✅ DONE 2026-05-08 (`8cc92a6`)
+### PASUL 1.5 | Foundație i18n + retroactive backfill | 1 zi | 30% reutilizare ✅ DONE 2026-05-08 (`8cc92a6`) + REVIZIE C2 aplicată 2026-05-09 (`9e7fb49`)
 
 **Rezultat**: 12 enum-uri refactorizate (`label()` returnează cheie `enum.<bucket>.<value>`), ~80 chei noi în `messages.{ro,en}.yaml` (best-effort EN), homepage rescris pentru LexRecovery via `|trans`, 4 Stimulus controllers cu data attributes pattern, AnafLookupService aruncă chei. Admin call-sites consumă cheile prin `TranslatorInterface` injectat — admin UI labels rămân hardcoded RO (decizie scope, admin = audiență tech). 100/100 teste in scope verzi (incl. nou `EnumLabelKeysExistTest` cu 154 assertion-uri anti-drift). Detalii: `~/.claude/projects/-Users-alexc-Downloads-myprojects-symfony-mvp/memory/project_lexrecovery_pas_1_5.md`.
 
@@ -494,13 +598,65 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 
 **TESTE MINIME**: 1 test (`EnumLabelKeysExistTest`) acoperă toate cele 12 enum-uri × N cazuri.
 
+**🔴 REVIZIE JURIDICĂ 2026-05-09 — Modificări necesare** (ref: `ANALIZA-JURIDICA-PROCEDURA-OP-2026-05-08.md` C2)
+
+**Problemă**: cheile i18n folosesc terminologia "contestație/contestată" pentru calea de atac. Trebuie aliniate cu rename-ul enum-urilor (Pas 1.2 + 1.3 + 1.4 revizii) — altfel `EnumLabelKeysExistTest` se sparge (cheia nouă nu există în catalogul YAML).
+
+**Fișiere afectate**: `translations/messages.ro.yaml`, `translations/messages.en.yaml`
+
+**Modificări `messages.ro.yaml`** (citate aproximative — verifică liniile exacte la executare):
+
+```yaml
+# Înlocuire (cheile vechi se șterg, cele noi se adaugă):
+enum.case_status.CONTESTATA: 'Contestată'
+  → enum.case_status.IN_ANULARE: 'În anulare (cerere depusă)'
+
+enum.case_transition.contesta: 'Contestă'
+  → enum.case_transition.formuleaza_cerere_anulare: 'Formulează cerere în anulare'
+
+enum.case_transition.respinge_contestatie: 'Respinge contestația'
+  → enum.case_transition.respinge_cerere_anulare: 'Respinge cererea în anulare'
+
+enum.case_transition.admite_contestatie: 'Admite contestația'
+  → enum.case_transition.admite_cerere_anulare: 'Admite cererea în anulare'
+
+enum.deadline_type.CONTESTATIE: 'Termen contestație'
+  → enum.deadline_type.CERERE_IN_ANULARE: 'Termen cerere în anulare'
+```
+
+**Modificări `messages.en.yaml`** (best-effort EN, pattern identic):
+
+```yaml
+enum.case_status.IN_ANULARE: 'Annulment requested'
+enum.case_transition.formuleaza_cerere_anulare: 'File annulment request'
+enum.case_transition.respinge_cerere_anulare: 'Reject annulment request'
+enum.case_transition.admite_cerere_anulare: 'Grant annulment request'
+enum.deadline_type.CERERE_IN_ANULARE: 'Annulment request deadline'
+```
+
+**Verificare templates Twig + admin call-sites**:
+
+```bash
+# Nu trebuie să mai existe referințe directe la cheile vechi:
+rg "case_status\.CONTESTATA" templates/ src/
+rg "case_transition\.contesta\b|case_transition\.respinge_contestatie|case_transition\.admite_contestatie" templates/ src/
+rg "deadline_type\.CONTESTATIE" templates/ src/
+```
+
+Dacă există referințe directe la chei (în loc să folosească `$enum->label()`), trebuie actualizate.
+
+**Plan testing**:
+- `vendor/bin/phpunit tests/I18n/EnumLabelKeysExistTest.php` — verde (testul iterează enum cases și verifică `getCatalogue('ro')->has($enum->label())`).
+- Verificare manuală homepage `/` și view dosar — texte afișate corect.
+- `php bin/console translation:debug ro` — fără chei "missing" sau "unused" pe enum-urile afectate.
+
 ---
 
 ## Faza 2: Servicii calcul & lookup
 
 > Toate cele 4 servicii sunt **paralelizabile** — pot fi implementate în 4 sub-branch-uri sau 4 prompt-uri consecutive fără dependențe între ele (în afara Pas 1.1 care e prerequisit pentru toate).
 
-### PASUL 2.1 | `InterestCalculatorService` | 0.75 zi | 0% reutilizare ✅ DONE 2026-05-08 (`f9e84dc`)
+### PASUL 2.1 | `InterestCalculatorService` | 0.75 zi | 0% reutilizare ⚠️ DONE 2026-05-08 (`f9e84dc`) — **NECESITĂ REVIZIE 2026-05-09 (C3)**
 
 **Rezultat**: livrat `InterestCalculatorService` cu signature revizuit (penalizator/remuneratoriu + currency guard); enum nou `InterestKind`; `RelationshipType::nbrPercentagePoints()` înlocuit cu `applicableRate(BNR, kind)` care implementează cele 4 formule OG 13/2011 art. 3 (CIVIL+PENALIZATOARE = `(BNR+8)×0.80`, NU `BNR+4`); DTOs `InterestResult`/`InterestPeriod`; 9 scenarii de test verzi. Detalii: `~/.claude/projects/-Users-alexc-Downloads-myprojects-symfony-mvp/memory/project_lexrecovery_pas_2_1.md`.
 
@@ -567,6 +723,64 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 >
 > Commit: `feat(calc): InterestCalculatorService implementing OG 13/2011 (penalizator/remuneratoriu, formula CIVIL corectă)`.
 
+**🔴 REVIZIE JURIDICĂ 2026-05-09 — Modificări necesare** (ref: `ANALIZA-JURIDICA-PROCEDURA-OP-2026-05-08.md` C3)
+
+**Problemă (verificare verbatim OG 13/2011 + Legea 72/2013 art. 20 — `legislatie.just.ro` doc 146555 fetched 2026-05-09)**: ramura `CIVIL+PENALIZATOARE` aplică formula `(BNR+8) × 0.80` — **combinație fără temei legal**:
+- Factorul **+8 pp** este exclusiv pentru raporturi profesionale (B2B), per **OG 13/2011 art. 3 alin. (2¹)** introdus prin Legea 72/2013 art. 20.
+- Diminuarea **× 0.80** este exclusiv pentru raporturi non-profesionale (P2P), per **OG 13/2011 art. 3 alin. (3)**.
+
+În OG 13/2011 nu există nicio combinație care să atribuie simultan ambele. Cele 3 cazuri legale distincte:
+1. **B2B** (profesionist↔profesionist): PEN = `BNR + 8 pp` (alin 2¹) | REM = `BNR` (alin 1).
+2. **B2C** (profesionist↔consumator): PEN = `BNR + 4 pp` (alin 2 standard) | REM = `BNR` (alin 1).
+3. **P2P** (particular↔particular): PEN = `(BNR + 4) × 0.80` (alin 2 + alin 3) | REM = `BNR × 0.80` (alin 1 + alin 3).
+
+**Decizie (de luat la executare)** — 2 opțiuni:
+
+#### Opțiunea (a) — Restrângere strictă la B2B *(recomandat)*
+
+Formula inventată e eliminată (NU ascunsă). Scope MVP devine explicit "B2B exclusiv".
+
+`src/Enum/RelationshipType.php` — refactor `applicableRate()`:
+
+```php
+public function applicableRate(float $nbrRate, InterestKind $kind): float
+{
+    return match (true) {
+        // OG 13/2011 art. 3 alin. (2¹) introdus prin Legea 72/2013 art. 20:
+        // "În raporturile dintre profesioniști [...] dobânda legală penalizatoare se stabilește la
+        // nivelul ratei dobânzii de referință plus 8 puncte procentuale."
+        $this === self::COMERCIAL && $kind === InterestKind::PENALIZATOARE => $nbrRate + 8.0,
+        // OG 13/2011 art. 3 alin. (1):
+        $this === self::COMERCIAL && $kind === InterestKind::REMUNERATORIE => $nbrRate,
+        $this === self::CIVIL => throw new \DomainException(
+            'Raporturile non-profesionale (CIVIL) nu sunt suportate în MVP. Scope curent: B2B exclusiv.'
+            . ' Pentru B2C/P2P, vezi backlog post-MVP (Opțiunea b din PLAN Pas 2.1 revizie 2026-05-09).'
+        ),
+    };
+}
+```
+
+**Fișiere afectate**:
+- `src/Enum/RelationshipType.php` — refactor `applicableRate()` (linia 23-32 aprox).
+- `src/Service/Calculation/InterestCalculatorService.php` — propagare `\DomainException` (let it bubble; UI-ul wizard-ului catch + mesaj clar avocat).
+- `tests/Enum/RelationshipTypeTest.php` — drop teste `CIVIL+PENALIZATOARE` și `CIVIL+REMUNERATORIE`; add `testCivilRelationshipThrowsUnsupportedException`.
+- `tests/Service/Calculation/InterestCalculatorServiceTest.php` — drop scenariile 2 și 4 (CIVIL); add scenariu nou: `testCivilRelationshipThrowsDomainException`.
+- UI Pas 3.1+ (wizard step 2/3) — opțional, ascunde sau desactivează opțiunea "CIVIL" în dropdown `RelationshipType`. La afișare, scoateți eticheta "Civil" sau marcați-o "(post-MVP)".
+
+#### Opțiunea (b) — Implementare completă 3 ramuri B2B/B2C/P2P *(post-MVP)*
+
+Refactor enum la 3 valori distincte (ex: `B2B_PROFESIONAL`, `B2C_CONSUMER`, `NON_PROFESIONAL`), sau menținere binar `COMERCIAL/CIVIL` cu adăugare a unui flag `BusinessRelationshipKind` separat (B2B/B2C). Plan migrare DB necesar (legal_case.relationship_type values). Mai mult de muncă; aliniat cu acoperirea legală completă.
+
+**Recomandare plan**: **Opțiunea (a)** acum (restrânge MVP la B2B); Opțiunea (b) = backlog post-MVP după validare cu avocat-utilizator pe scope produs.
+
+**Plan testing (Opțiunea a)**:
+- `vendor/bin/phpunit tests/Service/Calculation/InterestCalculatorServiceTest.php` — toate testele B2B trebuie să treacă neschimbate.
+- Test nou: `testCivilRelationshipThrowsDomainException` — confirmă `\DomainException` cu mesaj clar pentru CIVIL.
+- Test fixture `app:seed-demo-cases` (Pas 1.4) — verifică că dosare demo nu folosesc CIVIL (sau sunt actualizate la COMERCIAL).
+- Search global: `rg "RelationshipType::CIVIL" src/` — apariții doar în testul exception + documentație.
+
+⚖️ **Validare avocat-utilizator înainte de execuție**: confirmă scope MVP — strict B2B, sau e necesar B2C/P2P de la lansare? Dacă scope strict B2B, execută Opțiunea (a). Altfel, escaladeaz la Opțiunea (b) (sprint suplimentar).
+
 ---
 
 ### PASUL 2.2 | `StampDutyCalculator` | 0.25 zi | 0% reutilizare
@@ -607,6 +821,33 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 > - **Pre-requisit Pas 1.1/1.4**: extinde `Court.localitatiArondate` (JSON) și fixtures cu raze pentru București (6 sectoare) + Cluj/Iași/Constanța (multiple judecătorii).
 > - **Domeniu service**: determină DOAR competența default (CPC art. 107 — domiciliu/sediu debitor). Competența alternativă (art. 113 — locul executării; art. 126 — clauză contractuală) se gestionează în wizard step 4 prin override manual cu câmp `motivareCompetenta`.
 > - Tribunale specializate (Cluj/Mureș/Argeș) — NU se aplică default; necesită opt-in explicit la wizard pentru raporturi între profesioniști. Post-MVP.
+
+> 🔴 **REVIZIE JURIDICĂ 2026-05-09 — N1: Calcul valoare cerere (CPC art. 98)** (ref: `ANALIZA-JURIDICA-PROCEDURA-OP-2026-05-08.md` N1)
+>
+> **Problemă**: pragul 200.000 RON între judecătorie și tribunal NU se aplică pe principal singular, ci pe **valoarea totală a cererii la data sesizării instanței** = principal + dobânzi acumulate la data sesizării + penalități contractuale scadente (CPC art. 98).
+>
+> **Exemplu critic**: principal 190.000 RON + dobânzi acumulate 15.000 RON la data sesizării = 205.000 RON → competent **tribunalul**, nu judecătoria. Dacă routing-ul se face doar pe principal, dosarul se depune la instanță greșită → necompetență materială ridicabilă din oficiu, dosar declinat, întârziere semnificativă.
+>
+> **Implementare obligatorie**:
+> - Service injectează `InterestCalculatorService` în plus față de `CourtRepository`.
+> - Calculează `totalClaimValue = principal + interest(referenceDate=now()) + penaltiesScadente` ÎNAINTE de a aplica pragul 200.000 RON.
+> - Aplică pragul pe `totalClaimValue`, nu pe `principal`.
+> - Returnează în `CourtResolveResult.explanation` defalcarea numerică, astfel încât UI să afișeze transparent.
+>
+> **UI step 3 wizard** (cuplaj cu Pas 3.1): afișează tabelul transparent înainte de a alege instanța:
+> ```
+> Principal:                  190.000 RON
+> Dobândă acumulată:           15.000 RON  (scadență → azi)
+> Penalități contractuale:        500 RON
+> ─────────────────────────────────────
+> TOTAL valoare cerere:       205.500 RON
+>
+> Competentă: Tribunal (peste pragul 200.000 RON, CPC art. 95 pct. 1)
+> ```
+>
+> **Test critic adăugat** (în plus de cele 6 existente):
+> - `testThresholdAppliesOnTotalClaimValueIncludingAccessories`: principal 190k + dobândă 15k → tribunal (NU judecătorie).
+> - `testThresholdAppliesOnPrincipalAloneRejected`: confirmă că routing-ul nu mai se bazează pe principal singular.
 
 **PROMPT**:
 > Implementează `src/Service/Court/CompetentCourtResolver.php`.
@@ -663,6 +904,36 @@ Motivație: schimbările sunt prea profunde (rename `LegalCase`→`LegalCase`, J
 > - **NOU**: integrare cu **`AnafLookupService` deja existent** (`src/Service/Company/AnafLookupService.php` — apelează API-ul oficial ANAF, gratuit, returnează companyName, CUI, nrRegCom, adresa, stare ACTIV/INACTIV/RADIAT, codCAEN, plătitor TVA). Acoperă automat **denumire + adresă + status fiscal + status RADIAT**.
 > - **Limitare ANAF**: NU returnează insolvența (L 85/2014). Pentru insolvență sursa este **BPI — Buletinul Procedurilor de Insolvență** (bpi.just.ro), care **nu are API**. Avocatul verifică manual și marchează în UI flag `inInsolvency = true` + atașează PDF publicare BPI ca `Document` (probă audit).
 > - **Persoană fizică debitor**: Buletinul Insolvenței Persoanelor Fizice (L 151/2015) — manual + PDF, post-MVP.
+
+> 🔴 **REVIZIE JURIDICĂ 2026-05-09 — N4: Enforcement insolvență obligatoriu (Legea 85/2014)** (ref: `ANALIZA-JURIDICA-PROCEDURA-OP-2026-05-08.md` N4)
+>
+> **Problemă**: regula 6 din `OpAdmissibilityValidator` actual (PJ + `insolvencyCheckedAt IS NULL` → WARNING) e **prea permisivă**. Dacă debitorul e în insolvență la data depunerii cererii OP, **cererea e inadmisibilă** (Legea 85/2014 — creanțele se înscriu la masa credală, nu se recuperează prin OP). Risc: aplicația permite depunerea unei cereri inadmisibile, urmând să fie respinsă de instanță cu pierdere de timp și taxă timbru.
+>
+> **Întărire obligatorie**: verificarea insolvenței devine **ERROR (blocant)**, nu WARNING.
+>
+> **Modificări regulă 6** (linia ~690 din PROMPT existent):
+> - `inInsolvency = true` → ERROR `OP_BLOCKED_INSOLVENCY` *(deja exista în regula 2)*.
+> - **NOU regulă 6 (înlocuiește regula 6 actuală)**: PJ + `insolvencyCheckedAt IS NULL` → ERROR `OP_INSOLVENCY_NOT_VERIFIED` (NU WARNING). Mesaj: "Verifică status insolvență debitor pe bpi.just.ro și confirmă în UI înainte de depunere."
+> - **NOU regulă 6 bis**: PJ + `insolvencyCheckedAt` mai vechi de **7 zile** → ERROR `OP_INSOLVENCY_STALE`. (Insolvența se schimbă rapid; verificare > 7z e neacceptabilă pentru depunere.)
+>
+> **UI workflow obligatoriu** (cuplaj cu Pas 3.0+ wizard):
+> 1. Înainte de tranziția `depune_cerere`, modal sau alert blochează submit dacă regulile 1, 2, 6, 6bis returnează ERROR.
+> 2. UI afișează checklist explicit pentru avocat:
+>    - [ ] Am verificat manual status pe `bpi.just.ro` (la {data} {ora}).
+>    - [ ] Am atașat PDF extras BPI ca probă (`Document` cu `type = BPI_PROOF`).
+>    - [ ] Confirm că debitorul NU e în insolvență.
+> 3. La bifare → setează `Debitor.insolvencyCheckedAt = now()`, link FK `bpiProofDocumentId`.
+> 4. Audit log obligatoriu: `AuditLog` cu category `BPI_VERIFICATION`, payload `{debtorId, checkedAt, proofDocumentId, hash}`.
+>
+> **Câmp nou pe `Debitor`** (Pas 1.1 backfill sau migrare 2.4b suplimentară):
+> - `bpiVerifiedNote` (string nullable, max 500) — observații avocat la verificare (ex: "verificat 2026-05-09, nu apare în lista insolvenței").
+>
+> **Test critic adăugat** (în plus de cele 8 existente):
+> - `testInsolvencyNotVerifiedBlocksWithError`: PJ + `insolvencyCheckedAt = null` → ERROR (NU WARNING). Confirmă cod `OP_INSOLVENCY_NOT_VERIFIED`.
+> - `testInsolvencyStaleVerificationBlocksWithError`: PJ + `insolvencyCheckedAt = now() - 8 days` → ERROR `OP_INSOLVENCY_STALE`.
+> - `testInsolvencyVerifiedRecentlyPasses`: PJ + `insolvencyCheckedAt = now() - 3 days` + `inInsolvency = false` → no issue.
+>
+> **Decizie produs**: dacă avocatul vrea să trimită cerere fără verificare BPI (caz extrem, ex: debitor doar PF unde BPI nu se aplică), cu wizard step "Acoperire risc" cere confirmare explicită cu disclaimer juridic și audit log dedicat. Implementare: post-MVP. MVP: blocaj strict.
 
 **PROMPT**:
 > 1. **Enum `AnafStatus`** la Pas 1.2 backfill: ACTIV, INACTIV, RADIAT + `label()` i18n. Folosit pentru tipare câmp pe `Debitor`.
@@ -1036,9 +1307,9 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 > ```
 >
 > Reguli:
-> - Somație: paymentNoticeDate + 30 zile, prioritate HIGH, tip RASPUNS_SOMATIE.
-> - Contestație: rulingDate + 10 zile, prioritate CRITICAL, tip CONTESTATIE.
-> - Prescripție: legalCase.dueDate + 3 ani, prioritate CRITICAL, tip PRESCRIPTIE.
+> - Somație: paymentNoticeDate + **15 zile** (CPC art. 1015 alin. 1 — termen minim legal), prorogat la prima zi lucrătoare (CPC art. 181 alin. 2), prioritate HIGH, tip RASPUNS_SOMATIE.
+> - Cerere în anulare: **rulingCommunicationDate** (NU rulingDate) + 10 zile (CPC art. 1024 alin. 1 — "de la data înmânării sau comunicării"), prorogat la prima zi lucrătoare, prioritate CRITICAL, tip CERERE_IN_ANULARE.
+> - Prescripție: legalCase.dueDate + 3 ani (NCC art. 2517), prioritate CRITICAL, tip PRESCRIPTIE.
 > - Judecată: data dată + descriere opțională, prioritate MEDIUM, tip JUDECATA.
 >
 > AuditLog la fiecare creare + completare.
@@ -1046,6 +1317,58 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 > Teste: `tests/Service/Termen/DeadlineServiceTest.php` cu cazuri pentru fiecare metodă + verificare calculate corect ale datelor.
 >
 > Commit: `feat(termene): DeadlineService for automated deadline creation`.
+
+> 🔴 **REVIZIE JURIDICĂ 2026-05-09 — C1 + C5** (ref: `ANALIZA-JURIDICA-PROCEDURA-OP-2026-05-08.md` C1, C5)
+>
+> **C1 — Termen somație: 15 zile (NU 30)** (CPC art. 1015 alin. 1):
+> - Citat verbatim CPC art. 1015 alin. (1): *"Creditorul îi va comunica debitorului [...] o somație, prin care îi va pune în vedere să plătească suma datorată în termen de **15 zile** de la primirea acesteia."*
+> - Cele 30 zile din **Legea 72/2013 art. 3 alin. (1)** sunt termen supletiv contractual între profesioniști pentru declanșarea dobânzii penalizatoare — **distinct** de termenul somației CPC. Confuzia inițială venea din această suprapunere.
+> - Pentru termen extins (uzanță avocațială poate fi 20-30 zile), oferă opțiune wizard: avocatul setează manual termenul, dar minim e 15 zile. Codul: `min(15, $userInput)` cu validare.
+>
+> **C5 — Implementare obligatorie metodă `nextWorkingDay()` (prorogare termene)**:
+>
+> ```php
+> public function nextWorkingDay(\DateTimeImmutable $candidate): \DateTimeImmutable
+> ```
+>
+> Aplicat pe **TOATE** deadline-urile create (RASPUNS_SOMATIE, CERERE_IN_ANULARE, PRESCRIPTIE, JUDECATA).
+>
+> **Lista sărbătorilor legale RO** (Codul Muncii art. 139, hard-coded ca constant + override prin config YAML pentru zile speciale):
+> - 1-2 ianuarie (Anul Nou)
+> - 24 ianuarie (Unirea Principatelor)
+> - Vinerea Mare + Paștele (calendar ortodox — calculat algoritmic)
+> - 1 mai (Ziua Muncii)
+> - 1 iunie (Ziua Copilului)
+> - Rusalii (calendar ortodox — Paște + 50 zile)
+> - 15 august (Adormirea Maicii Domnului)
+> - 30 noiembrie (Sf. Andrei)
+> - 1 decembrie (Ziua Națională)
+> - 25-26 decembrie (Crăciunul)
+>
+> Plus zile suplimentare prin OG (ex: vacanță judecătorească iulie-august) — override prin config:
+> ```yaml
+> # config/packages/lexrecovery.yaml
+> lexrecovery:
+>   working_days:
+>     additional_holidays:
+>       - '2026-07-15'  # exemplu OG vacanță
+> ```
+>
+> **CPC art. 181 alin. (2)** — citat verbatim: *"Termenul care se sfârșește într-o zi de sărbătoare legală sau când serviciul este suspendat se va prelungi până la sfârșitul primei zile de lucru următoare."*
+>
+> **Algoritm `nextWorkingDay()`**:
+> 1. Dacă `$candidate` e zi lucrătoare (luni-vineri) și NU e sărbătoare → return `$candidate`.
+> 2. Altfel: increment cu 1 zi și recursiv check.
+> 3. Edge case: dacă cad 3+ sărbători consecutive → continue increment (nu e cap maxim).
+>
+> **Test critic adăugat** (în plus de cele existente):
+> - `testNextWorkingDaySkipsSaturdaySunday`: candidate sâmbătă → returnează luni.
+> - `testNextWorkingDaySkipsHolidays`: candidate 25 dec (joi) → returnează 27 dec sau prima zi lucrătoare.
+> - `testNextWorkingDaySkipsLongHolidayChain`: candidate 24 dec (joi) → 25-26 dec sărbători + 27-28 weekend → returnează 29 dec luni.
+> - `testPaymentNoticeDeadlineUses15DaysProrogated`: paymentNoticeDate luni 1 dec → 1+15=16 dec (marți) zi lucrătoare → return 16 dec.
+> - `testAppealDeadlineUsesRulingCommunicationDateNotRulingDate`: rulingDate setat, rulingCommunicationDate null → throws sau skip; ambele setate → folosește communicationDate.
+>
+> **Cuplaj cu M9** (din analiza juridică, nepriorizat în CRITIC dar conex cu C5): metoda `createAppealDeadline()` primește `rulingCommunicationDate` (NU `rulingDate`). Câmp `LegalCase::rulingCommunicationDate` (DateTimeImmutable nullable) — adaugă la backfill Pas 1.1 sau migrare 4.1a suplimentară. Vezi cuplaj cu Pas 6.2 revizie (blocaj `marcheaza_definitiva` dacă communicationDate IS NULL).
 
 ---
 
@@ -1104,12 +1427,55 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 **PROMPT**:
 > 1. Refactorizează `src/Service/Document/PdfGeneratorService.php` în clasă abstractă `AbstractPdfGenerator` (cu logica DomPDF + persist Document).
 > 2. Creează `src/Service/Document/PaymentNoticeGeneratorService.php` care extinde `AbstractPdfGenerator`. Metoda `generate(LegalCase $legalCase): Document`. Template: `templates/pdf/payment_notice.html.twig`.
-> 3. Template `payment_notice.html.twig` — somație de plată cu: antet (creditor: denumire/CUI/adresă/telefon), data emiterii, destinatar (debitor), corp text formal cerând plata în 30 zile, sumă principală + dobândă calculată + total, semnătură. Font DejaVu Sans, format A4.
+> 3. Template `payment_notice.html.twig` — somație de plată cu: antet (creditor: denumire/CUI/adresă/telefon), data emiterii, destinatar (debitor), corp text formal cerând plata în **15 zile** (CPC art. 1015 alin. 1 — citare verbatim "în termen de 15 zile de la primirea acesteia"), sumă principală + dobândă calculată + total, semnătură. Font DejaVu Sans, format A4.
 > 4. Generare se apelează la tranziția `trimite_somatie` (vezi Pas 7.2 buton). Salvare ca `Document` cu type `PAYMENT_NOTICE`.
 >
-> Teste: `tests/Service/Document/PaymentNoticeGeneratorServiceTest.php` — verificare PDF generat (dimensiune > 0, conține "SOMAȚIE DE PLATĂ", Document persistat).
+> Teste: `tests/Service/Document/PaymentNoticeGeneratorServiceTest.php` — verificare PDF generat (dimensiune > 0, conține "SOMAȚIE DE PLATĂ", conține string "15 zile", NU conține "30 zile" în textul somației, Document persistat).
 >
 > Commit: `feat(pdf): PaymentNoticeGeneratorService with payment_notice.html.twig template`.
+
+> 🔴 **REVIZIE JURIDICĂ 2026-05-09 — C1 + C4** (ref: `ANALIZA-JURIDICA-PROCEDURA-OP-2026-05-08.md` C1, C4)
+>
+> **C1 — Text somație: "15 zile" (verbatim CPC art. 1015 alin. 1)**:
+> - Template `payment_notice.html.twig` trebuie să spună EXACT *"prin prezenta somație vă punem în vedere să plătiți suma datorată în termen de **15 zile** de la primirea acesteia"*.
+> - NU 30 zile. Cele 30 zile din Legea 72/2013 art. 3 alin. (1) sunt termen supletiv contractual, distinct de somația CPC.
+> - Snapshot test obligatoriu: `tests/snapshot/payment_notice_15days.pdf` — content trebuie să conțină exact "15 zile" în paragraful relevant.
+>
+> **C4 — Modul de comunicare somație: "conținut declarat" obligatoriu (CPC art. 1015 alin. 1)**:
+>
+> CPC art. 1015 alin. (1) precizează cele 2 modalități legale de comunicare:
+> 1. Prin **executor judecătoresc**.
+> 2. Prin **scrisoare recomandată cu conținut declarat și confirmare de primire** (R+CD+AR).
+>
+> **"Conținut declarat" e serviciu specific al Poștei Române** — oficiul poștal certifică pe duplicat conținutul exact al scrisorii. **Curierul privat (Cargus, FAN, DPD, etc.) NU oferă acest serviciu** și NU e admisibil ca dovadă în fața instanței.
+>
+> **UI după generare PDF — modal sau alert obligatoriu** (cuplaj cu Pas 7.2 view dosar):
+>
+> ```html
+> <!-- Memento avocat post-descărcare PDF somație -->
+> <div class="alert alert-warning" data-controller="modal">
+>   <h3>Comunicare somație — modalități legale (CPC art. 1015 alin. 1)</h3>
+>   <ol>
+>     <li><strong>Prin executor judecătoresc</strong> (recomandat pentru creanțe sensibile).</li>
+>     <li><strong>Prin scrisoare recomandată cu conținut declarat (R+CD+AR) la Poșta Română</strong> — exclusiv Poșta R oferă serviciul "conținut declarat".</li>
+>   </ol>
+>   <p class="text-red-600"><strong>ATENȚIE</strong>: curierul privat (Cargus, FAN, DPD, etc.) <strong>NU</strong> e admisibil ca dovadă. Conținutul declarat presupune că oficiul poștal certifică pe duplicat conținutul exact al scrisorii — dovadă irefutabilă în fața instanței.</p>
+> </div>
+> ```
+>
+> **DocumentType nuanțat (opțional, decizie executare)**: la Pas 1.2 backfill, separare:
+> - `DOVADA_COMUNICARE_EXECUTOR` (proces verbal executor)
+> - `DOVADA_COMUNICARE_AR_CD` (recipisă Poșta Română cu conținut declarat + AR)
+> - `DOVADA_COMUNICARE` (legacy, fallback) — marcat deprecated; UI cere avocatului să atașeze tipul specific.
+>
+> Validare upload în Pas 1.2 (DocumentUploadService): refuză upload cu type `DOVADA_COMUNICARE` dacă există tip specific disponibil — forțează precizia.
+>
+> **Audit log**: la upload `DOVADA_COMUNICARE_AR_CD` → câmpuri suplimentare în `Document.metadata`:
+> - `postageDate`: data depunerii la oficiu.
+> - `postOfficeId`: identificator oficiu (din recipisă).
+> - `arNumber`: numărul AR.
+>
+> Test critic adăugat: `testRefusesUploadOfPrivateCourierProof`: încearcă upload cu metadata `courier=Cargus` → refuz cu mesaj clar.
 
 ---
 
@@ -1148,7 +1514,7 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 
 **PROMPT**:
 > 1. Refactorizează `src/Service/Portal/CaseMonitoringService.php`:
->    - Update `findActiveForMonitoring()` să selecteze dosare cu status în `CaseStatus::isActiveOnPortal()` (DOSAR_INREGISTRAT, TERMEN_FIXAT, ORDONANTA_EMISA, CONTESTATA) + `courtCaseNumber != null`.
+>    - Update `findActiveForMonitoring()` să selecteze dosare cu status în `CaseStatus::isActiveOnPortal()` (DOSAR_INREGISTRAT, TERMEN_FIXAT, ORDONANTA_EMISA, IN_ANULARE — rename C2 per Pas 1.2 revizie) + `courtCaseNumber != null`.
 >
 > 2. Refactorizează `src/Service/Portal/PortalEventDetector.php` pentru noul model — folosește `CaseStatus`/`CaseTransition` enum-uri în loc de string-uri hardcoded.
 >
@@ -1159,9 +1525,9 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 >    - HEARING_SCHEDULED → `fixeaza_termen` (dacă status permite) + `DeadlineService::createHearingDeadline`.
 >    - RULING_ISSUED admis → `emite_ordonanta` + `DeadlineService::createAppealDeadline`.
 >    - RULING_ISSUED respins → `respinge`.
->    - APPEAL_FILED → `contesta`.
+>    - APPEAL_FILED → `formuleaza_cerere_anulare` (rename C2 per Pas 1.2 revizie).
 >
-> 5. Tranzițiile sensibile (respinge, admite_contestatie) NU se aplică automat — doar logate ca "propuneri" și avocatul decide manual din UI (Pas 7.2). Tranzițiile sigure (`fixeaza_termen`, `emite_ordonanta`) se pot aplica automat dacă starea curentă permite.
+> 5. Tranzițiile sensibile (respinge, admite_cerere_anulare — rename C2) NU se aplică automat — doar logate ca "propuneri" și avocatul decide manual din UI (Pas 7.2). Tranzițiile sigure (`fixeaza_termen`, `emite_ordonanta`) se pot aplica automat dacă starea curentă permite.
 >
 > Teste: refolosește `tests/Service/Portal/*Test.php` cu refactor de tipuri.
 >
@@ -1188,7 +1554,7 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 > 2. Creează `src/Command/CheckTermeneCommand.php` (`app:check-deadlines`):
 >    - Cron 07:00 zilnic.
 >    - Apelează `DeadlineAlertService::processAlerts(now)`.
->    - Apelează `app:auto-marcheaza-definitiva` (sub-logică integrată): pentru dosare în `ORDONANTA_EMISA` cu termen CONTESTATIE expirat și fără tranziție `contesta` aplicată → aplică `marcheaza_definitiva` automat.
+>    - Apelează `app:auto-marcheaza-definitiva` (sub-logică integrată): pentru dosare în `ORDONANTA_EMISA` cu termen `CERERE_IN_ANULARE` (rename per Pas 1.2 revizie) expirat și fără tranziție `formuleaza_cerere_anulare` aplicată → aplică `marcheaza_definitiva` automat. **VEZI REVIZIA C5 DE MAI JOS — termenul se calculează cu prorogare și buffer**.
 >    - Output structured (cu `--format=json` pentru CI).
 >
 > 3. Refactorizează `src/Command/MonitorCourtCasesCommand.php` → `src/Command/PortalCheckAllCommand.php` (`app:portal-check-all`):
@@ -1203,6 +1569,39 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 > Teste: `tests/Command/CheckTermeneCommandTest.php` cu MockClock (Symfony 7+), `tests/Command/PortalCheckAllCommandTest.php` cu mocked PortalJustClient.
 >
 > Commit: `feat(cron): DeadlineAlertService + check-termene + portal-check-all commands`.
+
+> 🔴 **REVIZIE JURIDICĂ 2026-05-09 — C5: Prorogare în `marcheaza_definitiva`** (ref: `ANALIZA-JURIDICA-PROCEDURA-OP-2026-05-08.md` C5)
+>
+> **Problemă**: tranziția automată `marcheaza_definitiva` (sub-logică `app:auto-marcheaza-definitiva` în CheckTermeneCommand) NU trebuie să ruleze pe baza `rulingDate + 10z` brut — e prematur dacă a 10-a zi cade sâmbătă/duminică/sărbătoare legală (cererea în anulare poate fi încă depusă luni). Aceasta marchează dosarul ca DEFINITIVA prematur, blocând o cerere în anulare validă.
+>
+> **CPC art. 181 alin. (2)** — citat verbatim: *"Termenul care se sfârșește într-o zi de sărbătoare legală sau când serviciul este suspendat se va prelungi până la sfârșitul primei zile de lucru următoare."*
+>
+> **Algoritm corectat** pentru sub-logica `app:auto-marcheaza-definitiva`:
+>
+> 1. Pentru fiecare dosar în `ORDONANTA_EMISA`:
+>    - Dacă `rulingCommunicationDate IS NULL` → **NU marca definitiv**; în schimb, creează alert avocat: "Completează data comunicării ordonanței pentru a începe termenul cererii în anulare." (eveniment `App\Event\MissingCommunicationDateEvent` → email + bell notification).
+>    - Dacă `rulingCommunicationDate` setat: calculează `deadline = DeadlineService::nextWorkingDay(rulingCommunicationDate + 10 zile)` (vezi C5 din Pas 4.1).
+> 2. Adaugă **buffer de 1 zi suplimentară** înainte de marcaj automat: `marcheaza_definitiva` se rulează DOAR dacă `now() >= deadline + 1 day`. Mai bine întârziere 1z decât tranziție prematură.
+> 3. Dacă a fost aplicată tranziția `formuleaza_cerere_anulare` (rename per Pas 1.2) între timp → SKIP (cazul tipic — debitorul a contestat la timp).
+>
+> **Constanta buffer** în service:
+> ```php
+> private const AUTO_FINAL_BUFFER_DAYS = 1; // C5 — prorogare CPC art. 181 + safety
+> ```
+>
+> Configurabil prin `services.yaml` (override pentru testing/preprod):
+> ```yaml
+> parameters:
+>   app.legal_deadlines.auto_final_buffer_days: 1
+> ```
+>
+> **Test critic adăugat** (în plus de cele existente):
+> - `testAutoMarkFinalSkipsWhenCommunicationDateMissing`: dosar fără `rulingCommunicationDate` → NU marca; trigger eveniment alert.
+> - `testAutoMarkFinalRespectsWeekendProrogation`: rulingCommunicationDate vineri 1 → 1+10=11 (luni); 11 + buffer 1z = 12 (marți). Cron rulează duminică 11 dimineața → SKIP. Cron rulează miercuri 13 → mark definitiv.
+> - `testAutoMarkFinalRespectsHolidayProrogation`: rulingCommunicationDate astfel încât 10z cade pe 25 dec → prorogat la 27 dec (sau prima zi lucrătoare) + buffer 1z = 28 dec.
+> - `testAutoMarkFinalSkipsIfAppealAlreadyFiled`: dosar deja în `IN_ANULARE` → SKIP (deja a fost contestat).
+>
+> **Cuplaj cu Pas 7.2** (view dosar): UI tab "Activitate Portal" sau "Detalii" trebuie să aibă input `rulingCommunicationDate` (DateTime, opțional cu sursă "manual" sau "portal"). Avocatul completează manual din portal.just.ro sau din comunicarea poștală.
 
 ---
 
@@ -1452,17 +1851,18 @@ După Pas 9.1, rulează manual următorul flow complet:
    - **Test alternativ — fără extracție**: creează un al doilea dosar sărind step 0 → wizard funcționează identic ca pre-extracție (manual fill).
 3. **Tranziție trimite_somatie**: din view dosar → buton "Trimite somația" → modal cu data → submit. Verifică:
    - Status `SOMATIE_TRIMISA`.
-   - Document SOMATIE generat → download → PDF se deschide cu datele corecte.
-   - Termen RASPUNS_SOMATIE creat (data + 30 zile).
+   - Document SOMATIE generat → download → PDF se deschide cu datele corecte și conține string "15 zile" (NU "30 zile"; CPC art. 1015 — vezi Pas 5.1 revizie 2026-05-09).
+   - Termen RASPUNS_SOMATIE creat (data + **15 zile**, prorogat la prima zi lucrătoare CPC art. 181).
    - Email primit în Mailpit "Somație generată".
-4. **Tranziție depune_cerere**: după 30+ zile (sau forțat din admin) → buton "Generează cerere OP" → submit. Verifică:
+4. **Tranziție depune_cerere**: după 15+ zile (sau forțat din admin) → buton "Generează cerere OP" → submit. Verifică:
    - Documents CERERE_OP + OPIS create.
    - Buton "Descarcă ZIP instanță" disponibil → ZIP conține cerere + opis + somație + anexele uploadate.
+   - Pre-condiție: avocatul a confirmat verificare BPI (insolvență) pe `bpi.just.ro` și a atașat probă (vezi Pas 2.4 revizie 2026-05-09 N4).
 5. **Tranziție inregistreaza_dosar**: introdu `courtCaseNumber` (ex: "1234/302/2026"). Verifică status `DOSAR_INREGISTRAT`.
 6. **Cron manual**:
    - `bin/console app:portal-check-all` → query SOAP la portal.just.ro pentru nr dosar real → events detectate (sau zero pentru dosar fictiv).
    - `bin/console app:check-deadlines` → email-uri pentru termene la 7/3/1 zile.
-7. **Detective workflow**: marchează manual `emite_ordonanta` cu data → status `ORDONANTA_EMISA`, termen CONTESTATIE 10 zile creat. După 10 zile (sau forțează cu MockClock în test) → `app:check-deadlines` aplică `marcheaza_definitiva` automat → status `DEFINITIVA`, email "Titlu executoriu obținut".
+7. **Detective workflow**: marchează manual `emite_ordonanta` cu data + introdu `rulingCommunicationDate` (M9/Pas 4.1 revizie) → status `ORDONANTA_EMISA`, termen `CERERE_IN_ANULARE` 10 zile creat (de la `rulingCommunicationDate`, prorogat CPC art. 181). După 10 zile + buffer 1z (sau forțează cu MockClock) → `app:check-deadlines` aplică `marcheaza_definitiva` automat → status `DEFINITIVA`, email "Titlu executoriu obținut".
 8. **Tests**: `make test` — toate testele PHPUnit trec (>225 din MVP-ul anterior + minim 50 noi).
 9. **Admin**: `/admin` → CRUD-uri Dosar/Plan/Subscription/Invoice/InterestRateConfig funcționale.
 10. **Monetizare**: creează al 6-lea dosar pentru un user cu plan Starter (5 incluse) → verifică Invoice `case_extra` create cu status pending → mark paid din UI checkout stub → status devine `paid`.
