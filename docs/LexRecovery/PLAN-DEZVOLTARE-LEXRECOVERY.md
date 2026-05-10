@@ -65,7 +65,7 @@
 | 2.5.4 | Extracție | GDPR foundation: `AuditLogService::log()` cu `?string $category` + entity `AuditLog.category` + `PiiMasker` utility (mask/restore CNP + mask CUI) | 3h | 2.5.1 | 30% | ✅ DONE 2026-05-10 (`2300b0a`) |
 | 2.5.5 | Extracție | Docker OCR setup (Alpine: tesseract-ocr + tesseract-ocr-data-ron + poppler-utils + imagemagick + ghostscript) + `OcrServiceInterface` + `TesseractOcrService` + `OcrResult` DTO | 4h | — | 0% | ✅ DONE 2026-05-10 (`32262e3`) |
 | 2.5.6 | Extracție | `LlmClientInterface` + `AnthropicApiClient implements LlmClientInterface` (HttpClient + DTO `LlmResponse` neutral provider) + rate limiters `extraction_ai_text` (200/zi) + `extraction_ai_vision` (50/zi) + env vars (`ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `EXTRACTION_CONFIDENCE_THRESHOLD`) | 3.5h | — | 60% (pattern AnafLookup + OcrServiceInterface) | ✅ DONE 2026-05-10 (`5d1095e`) — Opțiunea 2 (Interface + Impl); 17 teste verzi (15 unit + 2 integration) |
-| 2.5.7 | Extracție | `OcrTextExtractionStrategy` (priority 70) — OCR + mask CNP + Claude API text + restore CNP + audit `AI_EXTRACTION` + fallback regex pe LOCAL_ONLY | 5h | 2.5.4, 2.5.5, 2.5.6 | 30% (pattern PdfParser) | ⏳ |
+| 2.5.7 | Extracție | `OcrTextExtractionStrategy` (priority 70) — OCR + mask CNP + IBAN round-trip + Claude API text + restore + audit `AI_EXTRACTION` + skip-on-empty-apiKey + extindere `PiiMasker::maskIban/buildIbanMap/restoreIban` | 5h | 2.5.4, 2.5.5, 2.5.6 | 40% (pattern PdfParser + reuse LlmClientInterface) | ✅ DONE 2026-05-10 (`0636006`) — D1 skip + D2 IBAN; 24 teste verzi (14 unit + 3 integration + 2 cascade Nivel 3 + 5 PiiMasker IBAN) |
 | 2.5.8 | Extracție | `AiVisionExtractionStrategy` (priority 50) — Claude vision direct pe document + skip pe LOCAL_ONLY + audit + cascadă completă funcțională end-to-end | 4h | 2.5.4, 2.5.6 | 50% (pattern OcrText) | ⏳ |
 | 2.6 | Extracție | `ExtractDataMessage` async (Symfony Messenger) + handler + persist `Document.extractedData` + emit `DataExtractedEvent` | 0.5z | 2.5.8 | 30% | ⏳ |
 | 3.0 | Wizard | Step 0 wizard "Documente sursă": upload + procesare async + preview valori extrase + Turbo Stream polling status | 1z | 2.5.8, 2.6 | 0% | ⏳ |
@@ -1286,9 +1286,14 @@ Refactor enum la 3 valori distincte (ex: `B2B_PROFESIONAL`, `B2C_CONSUMER`, `NON
 
 ---
 
-#### PASUL 2.5.7 — `OcrTextExtractionStrategy` | ~5h | 30% reutilizare (pattern PdfParser)
+#### PASUL 2.5.7 — `OcrTextExtractionStrategy` + `PiiMasker` IBAN round-trip | ~5h | 40% reutilizare ✅ DONE 2026-05-10 (`0636006`)
 
-**Rezultat**: _(va fi completat la marcarea ca DONE)_
+> 🟢 **REVIZIE 2026-05-10 — Două decizii înainte de cod**:
+> - **D1 (apiKey absent operațional)**: când `ANTHROPIC_API_KEY === ''` (NU LOCAL_ONLY mode), strategia returnează zero-confidence DTO + log WARNING. Cascade preia automat (AiVision skip → Stub). NU duplicăm regex helpers din PdfParser. Justificare: regex fallback la nivel de strategy = duplicare logică ~200 linii (helpers private în PdfParser nu pot fi reutilizați direct). LOCAL_ONLY mode oferă deja regex-only path prin orchestrator skip + PdfParser priority 100.
+> - **D2 (`PiiMasker` IBAN extension)**: adăugat `buildIbanMap` / `maskIban` / `restoreIban` (round-trip identic CNP). Închide legal W1 din review Pas 2.5.6 (`LlmClientInterface @note GDPR` menționa IBAN dar `PiiMasker` nu avea masker). 5 tests noi în `PiiMaskerTest`. IBAN placeholder format `IBAN_PLACEHOLDER_001` fixed-width (3 digits zero-padded).
+> - Plus W1 legal corectat la implementare: `rawOcrText` persistat în `Document.extractedData` JSON e mascat (`PiiMasker::maskCnp` + `maskIban`) ÎNAINTE de DTO — GDPR art. 5(1)(c) data minimisation. Coloana DB nu mai stochează CNP/IBAN raw.
+
+**Rezultat**: 24 teste verzi (14 unit + 3 integration + 2 cascade Nivel 3 + 5 PiiMasker IBAN). Baseline full-suite 41/4 NESCHIMBAT (477 vs 453 tests). Nivel 3 cascade end-to-end OBLIGATORIU exersat aici (transferat de la 2.5.5 + 2.5.6 per memory `feedback_test_coverage_3_layers.md`): 2 tests în `CascadeIntegrationTest` — `testScannedImageCascadesToOcrTextStrategy` (PdfParser supports=false → OcrText preia → MockHttpClient cu fixtură realistă → globalConfidence ≥ 0.6 → short-circuit) și `testLocalOnlyModeSkipsOcrTextStrategyAndFallsToStub` (LOCAL_ONLY → orchestrator filtrează AI-backed → Stub; MockHttpClient EXPLODES dacă AI call ar fi făcut). Drop workaround `config/packages/test/services.yaml` din 2.5.6 — `OcrTextExtractionStrategy` consumă `LlmClientInterface` direct → alias supraviețuiește compilation. Reviews: legal LEGAL-CLEAN (3 W transferabile), code NEEDS-FIX → fix-uit (rawOcrText masking, 8 imports neutilizate, setAccessible no-op, setOriginalFilename lipsă cascade).
 
 **Scop**: a doua strategie reală — pentru documente scanate (imagine sau PDF fără strat text). Combinație Tesseract OCR (local) + Claude API text (după mascare CNP). Treapta cea mai eficientă cost/acuratețe (~$0.002/doc).
 
