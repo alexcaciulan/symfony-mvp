@@ -1,0 +1,545 @@
+<?php
+
+namespace App\Service\Extraction;
+
+use App\DTO\Extraction\ClaimExtraction;
+use App\DTO\Extraction\CreditorExtraction;
+use App\DTO\Extraction\DebtorExtraction;
+use App\DTO\Extraction\ExtractedDocumentData;
+use App\Entity\Document;
+use App\Enum\LegalGroundCategory;
+use App\Enum\PersonType;
+use App\Service\AuditLogService;
+use App\Service\Llm\LlmClientInterface;
+use App\Service\Llm\LlmException;
+use App\Util\PiiMasker;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
+
+/**
+ * Treapta 3 din cascada de extracție (priority 50). Ultimul fallback înainte
+ * de Stub: trimite documentul (imagine sau PDF) DIRECT la Claude vision,
+ * fără OCR intermediar. Acoperă cazurile unde OcrText (priority 70) eșuează —
+ * scan prost, layout multi-coloană, scris de mână, formulare cu bifări.
+ *
+ * Cost ~$0.01-0.05/doc — cea mai scumpă treaptă, dar singura care procesează
+ * documente unde Tesseract nu poate recupera text. Skip pe `LOCAL_ONLY` mode
+ * e gestionat de orchestrator via {@see self::isAiBacked()} === true.
+ *
+ * GDPR — diferit fundamental față de OcrText:
+ *   - OcrText: textul OCR e mascat (CNP+IBAN→placeholder) ÎNAINTE de prompt;
+ *     CNP/IBAN nu trec niciodată boundary-ul către Anthropic.
+ *   - AiVision: imaginea/PDF-ul **pleacă NEMASCAT** la Anthropic — mascarea
+ *     binar-ului cere computer vision intermediar (redactare vizuală cu
+ *     bounding box pe CNP/IBAN), nefezabil pentru MVP. Strategy logează
+ *     explicit `extraction.ai_vision.binary_sent_unmasked` ca event de
+ *     transparență. Utilizatorul a acceptat acest risc prin alegerea modului
+ *     `BALANCED` sau `MAX_ACCURACY`; `LOCAL_ONLY` skipuie strategia complet.
+ *
+ * Pattern majoritar reutilizat din {@see OcrTextExtractionStrategy} — JSON
+ * parsing, AI→DTO mapping, confidence resolution sunt copy-paste 1:1 fără
+ * trait shared (acceptăm duplicarea pentru independență dacă AiVision
+ * evoluează diferit, ex. confidence calibration vision-specific).
+ */
+final class AiVisionExtractionStrategy implements ExtractionStrategyInterface
+{
+    public const STRATEGY_KEY = 'ai_vision';
+
+    public const PRIORITY = 50;
+
+    private const SUPPORTED_IMAGE_MIME = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+
+    private const PDF_MIME = 'application/pdf';
+
+    /**
+     * Hard limit on file size sent to vision. 5 MB is the Anthropic-recommended
+     * sweet spot for vision input — larger files inflate latency dramatically
+     * (each extra MB ≈ 2-4s of round-trip) and cost without proportional
+     * accuracy gains. Files exceeding this fall through to Stub.
+     */
+    private const MAX_FILE_BYTES = 5 * 1024 * 1024;
+
+    private const MAX_TOKENS = 2048;
+
+    public function __construct(
+        private readonly LlmClientInterface $llmClient,
+        private readonly AuditLogService $auditLogService,
+        private readonly RateLimiterFactory $extractionAiVisionLimiter,
+        private readonly string $uploadsDir,
+        private readonly string $anthropicApiKey,
+        private readonly LoggerInterface $logger = new NullLogger(),
+    ) {}
+
+    public function priority(): int
+    {
+        return self::PRIORITY;
+    }
+
+    public function isAiBacked(): bool
+    {
+        return true;
+    }
+
+    public function supports(Document $document): bool
+    {
+        // D1 reuse from OcrText (Pas 2.5.7) — apiKey empty operationally → skip
+        // strategy. Cascade picks up via Stub. Operator notices the warning at
+        // first invocation and corrects the env. Avoids duplicating fallback
+        // regex logic for an edge case that's better fixed at the config layer.
+        if ($this->anthropicApiKey === '') {
+            return false;
+        }
+        $mime = strtolower($document->getMimeType() ?? '');
+
+        // Vision is the LAST AI-backed strategy in the cascade. Unlike OcrText,
+        // which is selective on "PDF without text layer", AiVision accepts ANY
+        // PDF — PdfParser (priority 100) already had a chance and gave up; if
+        // the cascade is now at priority 50, the PDF needs vision regardless of
+        // whether it has a text layer. Same for images.
+        return in_array($mime, self::SUPPORTED_IMAGE_MIME, true) || $mime === self::PDF_MIME;
+    }
+
+    public function extract(Document $document): ExtractedDocumentData
+    {
+        $absolutePath = $this->absolutePath($document);
+
+        // 1. File guards — exists + size limit (cost control + Anthropic recommended <5MB).
+        if (!is_file($absolutePath) || !is_readable($absolutePath)) {
+            $this->logger->warning('extraction.ai_vision.file_unreadable', [
+                'documentId' => $document->getId(),
+                'path' => $absolutePath,
+            ]);
+
+            return $this->zeroConfidence($document);
+        }
+        $fileSize = filesize($absolutePath);
+        if ($fileSize === false || $fileSize > self::MAX_FILE_BYTES) {
+            $this->logger->warning('extraction.ai_vision.file_too_large', [
+                'documentId' => $document->getId(),
+                // Disambiguate "filesize() failed (rare race)" from "0 bytes" or any
+                // legitimate size — handlers that stringify booleans turn `false`
+                // into '' and the log entry becomes meaningless at triage time.
+                'fileSize' => $fileSize === false ? 'unknown' : $fileSize,
+                'limit' => self::MAX_FILE_BYTES,
+            ]);
+
+            return $this->zeroConfidence($document);
+        }
+
+        // 2. Build the appropriate Anthropic content block based on MIME type.
+        $documentPart = $this->buildVisionContentBlock($absolutePath, $document->getMimeType());
+        if ($documentPart === null) {
+            // Defensive — supports() should have filtered this, but if MIME
+            // changed between supports() and extract() somehow, fail closed.
+            return $this->zeroConfidence($document);
+        }
+
+        // 3. Per-user rate limit (extraction_ai_vision: 50/day, sliding_window).
+        $userId = (string) $document->getLegalCase()->getUser()->getId();
+        if (!$this->extractionAiVisionLimiter->create($userId)->consume(1)->isAccepted()) {
+            $this->logger->warning('extraction.ai_vision.rate_limit_exhausted', ['userId' => $userId]);
+
+            return $this->zeroConfidence($document);
+        }
+
+        // 4. AI call. GDPR transparency: log explicitly that the binary leaves
+        // the boundary unmasked. There's no caller-side masking option for raw
+        // image / PDF bytes; the user accepted the risk by picking BALANCED or
+        // MAX_ACCURACY mode (LOCAL_ONLY would have filtered this strategy out
+        // upstream via isAiBacked()). The audit log carries the same context.
+        // GDPR Reg. UE 2016/679 art. 30 — registru activități de prelucrare. The
+        // operator-of-record (the lawyer-user) MUST be identifiable in the
+        // transparency event so an ANSPDCP audit can reconstruct who triggered
+        // each transfer of personal data to Anthropic.
+        $this->logger->info('extraction.ai_vision.binary_sent_unmasked', [
+            'documentId' => $document->getId(),
+            'userId' => $userId,
+            'mimeType' => $document->getMimeType(),
+            'fileSize' => $fileSize,
+        ]);
+        try {
+            $response = $this->llmClient->complete(
+                messages: $this->buildMessages(),
+                maxTokens: self::MAX_TOKENS,
+                documentParts: [$documentPart],
+            );
+        } catch (LlmException $e) {
+            $this->logger->error('extraction.ai_vision.llm_failed', [
+                'documentId' => $document->getId(),
+                'exceptionClass' => $e::class,
+                'code' => $e->getCode(),
+            ]);
+
+            return $this->zeroConfidence($document);
+        }
+
+        // 5. Parse JSON. NO PII restore step — vision returns plain values
+        // because it never received masked input.
+        $parsed = $this->parseAiResponse($response->content);
+        if ($parsed === null) {
+            $this->logger->warning('extraction.ai_vision.malformed_ai_response', [
+                'documentId' => $document->getId(),
+            ]);
+
+            return $this->zeroConfidence($document);
+        }
+
+        $sourceDocumentId = (int) $document->getId();
+        $creditor = $this->buildCreditorFromAi($parsed['creditor'] ?? null);
+        $debtor = $this->buildDebtorFromAi($parsed['debtor'] ?? null);
+        $claim = $this->buildClaimFromAi($parsed['claim'] ?? null);
+        $globalConfidence = $this->resolveGlobalConfidence($parsed, $creditor, $debtor, $claim);
+
+        // 6. Audit — metadata only. PiiMasker::maskCnpInArray defense-in-depth
+        // on the persisted payload; even though we log mimeType + fileSize
+        // (non-PII metadata), the AI's structured response (fed downstream)
+        // may contain CNPs and must be sanitised before audit persistence.
+        $this->auditLogService->log(
+            action: 'AI_EXTRACTION_COMPLETED',
+            entityType: 'Document',
+            entityId: (string) $sourceDocumentId,
+            newData: PiiMasker::maskCnpInArray([
+                'strategy' => self::STRATEGY_KEY,
+                'tokensIn' => $response->tokensIn,
+                'tokensOut' => $response->tokensOut,
+                'finishReason' => $response->finishReason->value,
+                // 32 hex chars (128 bits) — birthday-bound collision after ~2^64
+                // operations, comfortable for evidentiary use should an extraction
+                // dispute reach the audit trail. 16-hex was sufficient for cost
+                // telemetry but would risk collision in long-lived multi-tenant logs.
+                'responseHash' => substr(hash('sha256', $response->content), 0, 32),
+                'globalConfidence' => $globalConfidence,
+                'fileSize' => $fileSize,
+                'mimeType' => $document->getMimeType(),
+            ]),
+            category: AuditLogService::CATEGORY_AI_EXTRACTION,
+        );
+
+        return new ExtractedDocumentData(
+            sourceDocumentId: $sourceDocumentId,
+            strategy: self::STRATEGY_KEY,
+            globalConfidence: $globalConfidence,
+            extractedAt: new \DateTimeImmutable(),
+            creditor: $creditor,
+            debtor: $debtor,
+            claim: $claim,
+            // Vision doesn't OCR — there's no rawOcrText to persist. PdfParser
+            // and OcrText already attempted earlier in the cascade and either
+            // succeeded (we're not here) or failed without producing usable text.
+            rawOcrText: null,
+        );
+    }
+
+    // ---------- helpers ----------
+
+    private function absolutePath(Document $document): string
+    {
+        return rtrim($this->uploadsDir, '/') . '/' . ltrim($document->getStoredFilename(), '/');
+    }
+
+    /**
+     * Builds the Anthropic content block matching the document's MIME type.
+     * Image MIMEs → `image` block. `application/pdf` → `document` block
+     * (Claude 3.5+ native PDF support — accepts up to ~32MB but we cap at 5MB
+     * to keep latency + cost predictable). Returns null only as a defensive
+     * guard; supports() should have filtered any unsupported MIME upstream.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function buildVisionContentBlock(string $absolutePath, ?string $mimeType): ?array
+    {
+        $mime = strtolower($mimeType ?? '');
+        $bytes = file_get_contents($absolutePath);
+        if ($bytes === false) {
+            return null;
+        }
+        $base64 = base64_encode($bytes);
+
+        if (in_array($mime, self::SUPPORTED_IMAGE_MIME, true)) {
+            // Anthropic accepts only the IANA-registered `image/jpeg`. Some upload
+            // pipelines emit `image/jpg` (a common but non-standard alias) — normalize
+            // here so the request body uses the variant the API recognises.
+            $apiMime = $mime === 'image/jpg' ? 'image/jpeg' : $mime;
+
+            return [
+                'type' => 'image',
+                'source' => ['type' => 'base64', 'media_type' => $apiMime, 'data' => $base64],
+            ];
+        }
+
+        if ($mime === self::PDF_MIME) {
+            return [
+                'type' => 'document',
+                'source' => ['type' => 'base64', 'media_type' => self::PDF_MIME, 'data' => $base64],
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array<int, array{role: 'system'|'user', content: string}>
+     */
+    private function buildMessages(): array
+    {
+        $system = 'Ești un expert în extracție de date din documente juridice și comerciale '
+            . 'românești (facturi, contracte, recunoașteri de datorie). Returnează DOAR JSON pur, '
+            . 'fără text liber sau markdown. Schema strictă. Câmpuri opționale dacă lipsesc din document.';
+
+        $legalGrounds = implode('|', array_map(static fn (LegalGroundCategory $c) => $c->value, LegalGroundCategory::cases()));
+
+        $user = <<<PROMPT
+Analizează DOCUMENTUL ATAȘAT (imagine sau PDF) și extrage datele structurate.
+
+CONTEXT JURIDIC: documentul stă la baza unei cereri de ordonanță de plată
+(CPC art. 1013-1024). Ai grijă la rolurile părților (creditor = cel ce
+pretinde plata; debitor = cel ce datorează).
+
+Returnează JSON cu această schemă (toate câmpurile opționale dacă nu apar):
+{
+  "creditor": {
+    "personType": "PJ"|"PF",
+    "name": "...",
+    "cui": "doar cifre, fără prefix RO",
+    "isVatPayer": true|false,
+    "personalId": "13 cifre CNP dacă e persoană fizică",
+    "address": "...",
+    "iban": "RO + 22 caractere",
+    "legalRepresentative": "...",
+    "confidencePerField": {"name": 0.95, "cui": 0.99}
+  },
+  "debtor": {
+    "personType": "PJ"|"PF",
+    "name": "...",
+    "cui": "...",
+    "isVatPayer": true|false,
+    "personalId": "...",
+    "address": "...",
+    "confidencePerField": {}
+  },
+  "claim": {
+    "amount": 5000.50,
+    "currency": "RON"|"EUR"|"USD",
+    "dueDate": "YYYY-MM-DD",
+    "legalGround": "{$legalGrounds}",
+    "description": "...",
+    "confidencePerField": {}
+  },
+  "globalConfidence": 0.85
+}
+
+Confidence per câmp: 0..1, reflectă cât de sigur ești pe baza vizuală
+(text + sigil clare = 0.95+; text obscurat parțial sau ambiguu = 0.5-0.7;
+ghicit din context = 0.3-0.5).
+PROMPT;
+
+        return [
+            ['role' => 'system', 'content' => $system],
+            ['role' => 'user', 'content' => $user],
+        ];
+    }
+
+    /**
+     * Tolerant JSON decoder — strips Markdown code fences and any prose
+     * surrounding the JSON body. Returns null when nothing JSON-shaped can
+     * be recovered. Identical contract to OcrText's parseAiResponse;
+     * deliberate copy rather than shared trait so the two strategies can
+     * evolve independently.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function parseAiResponse(string $content): ?array
+    {
+        $trimmed = trim($content);
+
+        if (preg_match('/^```(?:json)?\s*(.+?)\s*```$/s', $trimmed, $m)) {
+            $trimmed = trim($m[1]);
+        }
+
+        if (!str_starts_with($trimmed, '{') || !str_ends_with($trimmed, '}')) {
+            $start = strpos($trimmed, '{');
+            $end = strrpos($trimmed, '}');
+            if ($start === false || $end === false || $end <= $start) {
+                return null;
+            }
+            $trimmed = substr($trimmed, $start, $end - $start + 1);
+        }
+
+        $decoded = json_decode($trimmed, true);
+        if (!is_array($decoded)) {
+            return null;
+        }
+
+        if (!isset($decoded['creditor']) && !isset($decoded['debtor']) && !isset($decoded['claim'])) {
+            return null;
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * @param array<string, mixed>|null $raw
+     */
+    private function buildCreditorFromAi(?array $raw): ?CreditorExtraction
+    {
+        if (!is_array($raw) || $raw === []) {
+            return null;
+        }
+
+        return new CreditorExtraction(
+            personType: $this->coercePersonType($raw['personType'] ?? null),
+            name: $this->coerceString($raw['name'] ?? null),
+            cui: $this->coerceString($raw['cui'] ?? null),
+            isVatPayer: $this->coerceNullableBool($raw['isVatPayer'] ?? null),
+            personalId: $this->coerceString($raw['personalId'] ?? null),
+            address: $this->coerceString($raw['address'] ?? null),
+            iban: $this->coerceString($raw['iban'] ?? null),
+            legalRepresentative: $this->coerceString($raw['legalRepresentative'] ?? null),
+            confidencePerField: $this->coerceConfidenceMap($raw['confidencePerField'] ?? null),
+        );
+    }
+
+    /**
+     * @param array<string, mixed>|null $raw
+     */
+    private function buildDebtorFromAi(?array $raw): ?DebtorExtraction
+    {
+        if (!is_array($raw) || $raw === []) {
+            return null;
+        }
+
+        return new DebtorExtraction(
+            personType: $this->coercePersonType($raw['personType'] ?? null),
+            name: $this->coerceString($raw['name'] ?? null),
+            cui: $this->coerceString($raw['cui'] ?? null),
+            isVatPayer: $this->coerceNullableBool($raw['isVatPayer'] ?? null),
+            personalId: $this->coerceString($raw['personalId'] ?? null),
+            address: $this->coerceString($raw['address'] ?? null),
+            confidencePerField: $this->coerceConfidenceMap($raw['confidencePerField'] ?? null),
+        );
+    }
+
+    /**
+     * @param array<string, mixed>|null $raw
+     */
+    private function buildClaimFromAi(?array $raw): ?ClaimExtraction
+    {
+        if (!is_array($raw) || $raw === []) {
+            return null;
+        }
+
+        $amountRaw = $raw['amount'] ?? null;
+        $amount = is_numeric($amountRaw) ? (float) $amountRaw : null;
+
+        $dueDate = null;
+        if (is_string($raw['dueDate'] ?? null) && $raw['dueDate'] !== '') {
+            // `!Y-m-d` resets time-of-day to 00:00:00 — dueDate is a calendar
+            // date, not a moment, so we don't want createFromFormat seeding it
+            // with the wall-clock current time.
+            $dt = \DateTimeImmutable::createFromFormat('!Y-m-d', $raw['dueDate']);
+            $dueDate = $dt instanceof \DateTimeImmutable ? $dt : null;
+        }
+
+        $legalGround = null;
+        if (is_string($raw['legalGround'] ?? null) && $raw['legalGround'] !== '') {
+            $legalGround = LegalGroundCategory::tryFrom($raw['legalGround']);
+        }
+
+        return new ClaimExtraction(
+            amount: $amount,
+            currency: $this->coerceString($raw['currency'] ?? null),
+            dueDate: $dueDate,
+            legalGround: $legalGround,
+            description: $this->coerceString($raw['description'] ?? null),
+            confidencePerField: $this->coerceConfidenceMap($raw['confidencePerField'] ?? null),
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $parsed
+     */
+    private function resolveGlobalConfidence(
+        array $parsed,
+        ?CreditorExtraction $creditor,
+        ?DebtorExtraction $debtor,
+        ?ClaimExtraction $claim,
+    ): float {
+        $explicit = $parsed['globalConfidence'] ?? null;
+        if (is_numeric($explicit)) {
+            return max(0.0, min(1.0, (float) $explicit));
+        }
+
+        $values = [];
+        foreach ([$creditor?->confidencePerField, $debtor?->confidencePerField, $claim?->confidencePerField] as $map) {
+            if (!is_array($map)) {
+                continue;
+            }
+            foreach ($map as $score) {
+                if (is_numeric($score)) {
+                    $values[] = max(0.0, min(1.0, (float) $score));
+                }
+            }
+        }
+
+        if ($values === []) {
+            return DataExtractionService::DEFAULT_CONFIDENCE_THRESHOLD;
+        }
+
+        return array_sum($values) / count($values);
+    }
+
+    private function coerceString(mixed $value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+        $trimmed = trim($value);
+
+        return $trimmed === '' ? null : $trimmed;
+    }
+
+    private function coerceNullableBool(mixed $value): ?bool
+    {
+        return is_bool($value) ? $value : null;
+    }
+
+    private function coercePersonType(mixed $value): ?PersonType
+    {
+        if (!is_string($value) || $value === '') {
+            return null;
+        }
+
+        return PersonType::tryFrom($value);
+    }
+
+    /**
+     * @return array<string, float>
+     */
+    private function coerceConfidenceMap(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+        $result = [];
+        foreach ($value as $key => $score) {
+            if (is_string($key) && is_numeric($score)) {
+                $result[$key] = max(0.0, min(1.0, (float) $score));
+            }
+        }
+
+        return $result;
+    }
+
+    private function zeroConfidence(Document $document): ExtractedDocumentData
+    {
+        return new ExtractedDocumentData(
+            sourceDocumentId: (int) $document->getId(),
+            strategy: self::STRATEGY_KEY,
+            globalConfidence: 0.0,
+            extractedAt: new \DateTimeImmutable(),
+            // No rawOcrText — vision doesn't OCR.
+            rawOcrText: null,
+        );
+    }
+}

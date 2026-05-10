@@ -1,0 +1,18 @@
+{
+  "id": "msg_01VIS9k4Lv7TmEpKQwXrTb22",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-sonnet-4-6",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"creditor\":{\"personType\":\"PJ\",\"name\":\"Alpha Servicii Comerciale SRL\",\"cui\":\"15193236\",\"isVatPayer\":true,\"address\":\"Str. Gării nr. 14, București\",\"iban\":\"RO49AAAA1B31007593840000\",\"legalRepresentative\":\"Ionescu Andrei\",\"confidencePerField\":{\"name\":0.94,\"cui\":0.97,\"iban\":0.91}},\"debtor\":{\"personType\":\"PJ\",\"name\":\"Beta Distribution SRL\",\"cui\":\"14186770\",\"isVatPayer\":true,\"address\":\"Str. Industriilor nr. 22, Cluj-Napoca\",\"confidencePerField\":{\"name\":0.92,\"cui\":0.95}},\"claim\":{\"amount\":7532.70,\"currency\":\"RON\",\"dueDate\":\"2026-05-31\",\"legalGround\":\"FACTURA_ACCEPTATA\",\"description\":\"Factura 2026/142 servicii consultanță IT\",\"confidencePerField\":{\"amount\":0.98,\"dueDate\":0.93,\"legalGround\":0.82}},\"globalConfidence\":0.91}"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 1842,
+    "output_tokens": 187
+  }
+}

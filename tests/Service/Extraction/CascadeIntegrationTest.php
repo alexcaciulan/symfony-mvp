@@ -9,6 +9,7 @@ use App\Entity\User;
 use App\Enum\ExtractionMode;
 use App\Enum\ExtractionStatus;
 use App\Service\AuditLogService;
+use App\Service\Extraction\AiVisionExtractionStrategy;
 use App\Service\Extraction\DataExtractionService;
 use App\Service\Extraction\OcrTextExtractionStrategy;
 use App\Service\Extraction\PdfParserExtractionStrategy;
@@ -208,6 +209,168 @@ class CascadeIntegrationTest extends TestCase
         $this->assertSame(ExtractionStatus::FAILED, $document->getExtractionStatus());
         // No audit log was written (OcrText never reached its audit step).
         $this->assertSame([], $audit->loggedCalls);
+    }
+
+    // ---------- Pas 2.5.8 — cascade complet 4 trepte cu AiVisionExtractionStrategy ----------
+
+    public function testCompleteCascadeFlowsThroughAllFourTiersToAiVision(): void
+    {
+        // The full 4-tier cascade in priority order:
+        //   PdfParser(100) → OcrText(70) → AiVision(50) → Stub(10)
+        // We force the cascade to reach AiVision by:
+        //   1. Using a PNG (so PdfParser.supports() = false)
+        //   2. Stubbing OcrText's OCR layer to return text too short to clear
+        //      the MIN_OCR_TEXT_LENGTH gate → OcrText returns 0.0 confidence,
+        //      orchestrator continues
+        //   3. AiVision's Anthropic mock replays the rich vision fixture →
+        //      globalConfidence 0.91 → short-circuits before Stub
+        $audit = $this->captureAuditLogService();
+        $orchestrator = new DataExtractionService([
+            new PdfParserExtractionStrategy(self::FIXTURES_DIR),
+            $this->makeOcrTextStrategyWithLowQualityOcr($audit),
+            $this->makeAiVisionStrategyReplaying('anthropic-success-vision-rich.json', $audit),
+            new StubExtractionStrategy(),
+        ]);
+
+        $document = $this->makeDocument('clean-text.png', mime: 'image/png', userMode: ExtractionMode::BALANCED);
+
+        $result = $orchestrator->extract($document);
+
+        // AiVision wins — it's the first strategy whose globalConfidence
+        // crosses the cascade short-circuit threshold (0.6).
+        $this->assertSame(AiVisionExtractionStrategy::STRATEGY_KEY, $result->strategy);
+        $this->assertSame(0.91, $result->globalConfidence);
+        $this->assertSame(ExtractionStatus::COMPLETED, $document->getExtractionStatus());
+        $this->assertSame('ai_vision', $document->getExtractionStrategy());
+        // Persisted JSON keeps the rich extraction payload — wizard pre-fills from this.
+        $persisted = $document->getExtractedData();
+        $this->assertSame('Alpha Servicii Comerciale SRL', $persisted['creditor']['name']);
+        $this->assertSame(7532.70, $persisted['claim']['amount']);
+        // Two audit calls: one from OcrText's quality-gate skip path (which
+        // doesn't audit because we never reached the post-AI section) and
+        // one from AiVision's success path. OcrText returning 0-confidence
+        // BEFORE the AI call means it does NOT audit — so we expect exactly
+        // one entry, all from AiVision.
+        $this->assertCount(1, $audit->loggedCalls);
+        $this->assertSame('ai_vision', $audit->loggedCalls[0]['newData']['strategy']);
+    }
+
+    public function testLocalOnlyModeSkipsBothAiStrategiesAndFallsToStub(): void
+    {
+        // With LOCAL_ONLY, the orchestrator's filter on isAiBacked() === true
+        // must drop BOTH OcrText and AiVision. Vision in particular sends raw
+        // binary to Anthropic, which is exactly what LOCAL_ONLY users opt out
+        // of. We wire MockHttpClients that explode if hit — getting through
+        // the test green means the filter held for both strategies.
+        $audit = $this->captureAuditLogService();
+        $orchestrator = new DataExtractionService([
+            new PdfParserExtractionStrategy(self::FIXTURES_DIR),
+            $this->makeOcrTextStrategyWithExplodingClient($audit),
+            $this->makeAiVisionStrategyWithExplodingClient($audit),
+            new StubExtractionStrategy(),
+        ]);
+
+        $document = $this->makeDocument('clean-text.png', mime: 'image/png', userMode: ExtractionMode::LOCAL_ONLY);
+
+        $result = $orchestrator->extract($document);
+
+        // PdfParser drops on PNG mime, OcrText + AiVision filtered out by
+        // LOCAL_ONLY → Stub. Status FAILED (confidence 0).
+        $this->assertSame(StubExtractionStrategy::STRATEGY_KEY, $result->strategy);
+        $this->assertSame(0.0, $result->globalConfidence);
+        $this->assertSame(ExtractionStatus::FAILED, $document->getExtractionStatus());
+        $this->assertSame([], $audit->loggedCalls, 'No AI audit must be written under LOCAL_ONLY');
+    }
+
+    private function makeAiVisionStrategyReplaying(
+        string $fixtureFilename,
+        AuditLogService $audit,
+    ): AiVisionExtractionStrategy {
+        $body = file_get_contents(__DIR__ . '/../../fixtures/llm/' . $fixtureFilename);
+        if ($body === false) {
+            self::fail("Fixture {$fixtureFilename} unreadable in cascade test");
+        }
+        $http = new MockHttpClient(static fn (): MockResponse => new MockResponse($body, ['http_code' => 200]));
+
+        return new AiVisionExtractionStrategy(
+            llmClient: new AnthropicApiClient(
+                httpClient: $http,
+                anthropicApiKey: 'sk-ant-cascade-vision',
+                anthropicModel: 'claude-sonnet-4-6',
+                logger: new NullLogger(),
+            ),
+            auditLogService: $audit,
+            extractionAiVisionLimiter: $this->noLimitFactory(),
+            // The fixture binary lives in tests/fixtures/ocr/clean-text.png —
+            // FIXTURES_DIR is tests/fixtures/extraction, so we point uploadsDir
+            // there and use a sibling-dir-relative name. Cleaner alternative
+            // would be a per-test tmp dir, but reusing the existing real PNG
+            // keeps the test self-contained and avoids generating binaries
+            // at runtime.
+            uploadsDir: self::FIXTURES_DIR . '/../ocr',
+            anthropicApiKey: 'sk-ant-cascade-vision',
+            logger: new NullLogger(),
+        );
+    }
+
+    private function makeAiVisionStrategyWithExplodingClient(AuditLogService $audit): AiVisionExtractionStrategy
+    {
+        $http = new MockHttpClient(static function (): MockResponse {
+            throw new \LogicException(
+                'AnthropicApiClient (vision) must NOT be invoked under LOCAL_ONLY mode — '
+                . 'orchestrator should have filtered the AI-backed strategy upstream',
+            );
+        });
+
+        return new AiVisionExtractionStrategy(
+            llmClient: new AnthropicApiClient(
+                httpClient: $http,
+                anthropicApiKey: 'sk-ant-cascade-vision',
+                anthropicModel: 'claude-sonnet-4-6',
+                logger: new NullLogger(),
+            ),
+            auditLogService: $audit,
+            extractionAiVisionLimiter: $this->noLimitFactory(),
+            uploadsDir: self::FIXTURES_DIR . '/../ocr',
+            anthropicApiKey: 'sk-ant-cascade-vision',
+            logger: new NullLogger(),
+        );
+    }
+
+    private function makeOcrTextStrategyWithLowQualityOcr(AuditLogService $audit): OcrTextExtractionStrategy
+    {
+        // Fake OCR returns text too short for the strategy's MIN_OCR_TEXT_LENGTH
+        // gate (200 chars). The strategy bails out at the quality gate WITHOUT
+        // calling the AI, so we wire an exploding HTTP client to prove the
+        // gate triggered (any AI call would crash the test). Returns
+        // zero-confidence DTO — orchestrator continues to AiVision.
+        $http = new MockHttpClient(static function (): MockResponse {
+            throw new \LogicException(
+                'OcrText AI must NOT be called when OCR quality gate triggers — '
+                . 'cascade test relies on the gate to flow through to AiVision',
+            );
+        });
+        $shortTextOcr = new class implements OcrServiceInterface {
+            public function extractText(string $absolutePath): OcrResult
+            {
+                return new OcrResult('abc', 0.1, 1); // 3 chars, conf 0.1 → quality gate trips
+            }
+        };
+
+        return new OcrTextExtractionStrategy(
+            ocrService: $shortTextOcr,
+            llmClient: new AnthropicApiClient(
+                httpClient: $http,
+                anthropicApiKey: 'sk-ant-cascade-ocr',
+                anthropicModel: 'claude-sonnet-4-6',
+                logger: new NullLogger(),
+            ),
+            auditLogService: $audit,
+            extractionAiTextLimiter: $this->noLimitFactory(),
+            uploadsDir: self::FIXTURES_DIR . '/../ocr',
+            anthropicApiKey: 'sk-ant-cascade-ocr',
+            logger: new NullLogger(),
+        );
     }
 
     private function makeOcrTextStrategyReplaying(
