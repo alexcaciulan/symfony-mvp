@@ -138,7 +138,11 @@ class ExtractedDocumentDataTest extends TestCase
 
         $caught = null;
         try {
-            // @phpstan-ignore-next-line — intentional readonly violation
+            // Intentional readonly violation — the whole point of this test is to
+            // prove PHP throws when the property is mutated post-construction.
+            // Suppress static-analysis noise from both PHPStan and PhpStorm.
+            // @phpstan-ignore-next-line
+            /** @noinspection PhpReadonlyPropertyWrittenOutsideOfScopeInspection */
             $dto->strategy = 'mutated';
         } catch (\Error $e) {
             $caught = $e;
