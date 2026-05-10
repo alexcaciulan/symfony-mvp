@@ -1,0 +1,18 @@
+{
+  "id": "msg_01TRUNC123abc456DEF",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-sonnet-4-6",
+  "content": [
+    {
+      "type": "text",
+      "text": "Lorem ipsum dolor sit amet consectetur adipiscing elit, output truncated mid-sentence because"
+    }
+  ],
+  "stop_reason": "max_tokens",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 50,
+    "output_tokens": 16
+  }
+}

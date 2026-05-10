@@ -16,6 +16,12 @@ services:
         bind:
             $uploadsDir: '%kernel.project_dir%/var/uploads'
             $tesseractLanguages: '%env(OCR_LANGUAGES)%'
+            $anthropicApiKey: '%env(ANTHROPIC_API_KEY)%'
+            $anthropicModel: '%env(ANTHROPIC_MODEL)%'
+            # Bind ready for Pas 2.5.7 — DataExtractionService will pick this up
+            # via constructor `?float $confidenceThreshold = null` to override the
+            # internal DEFAULT_CONFIDENCE_THRESHOLD constant without redeploy.
+            $confidenceThreshold: '%env(float:EXTRACTION_CONFIDENCE_THRESHOLD)%'
 
     # interface-based auto-tagging (Strategy + Tagged Iterator pattern)
     _instanceof:

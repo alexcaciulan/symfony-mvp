@@ -64,7 +64,7 @@
 | 2.5.3 | Extracție | `PdfParserExtractionStrategy` (priority 100) — smalot/pdfparser + regex CUI/CNP/sume/date/IBAN cu validare checksum + heuristici contextuale RO | 5h | 2.5.2 | 0% | ✅ DONE 2026-05-10 (`8fc31c3`) |
 | 2.5.4 | Extracție | GDPR foundation: `AuditLogService::log()` cu `?string $category` + entity `AuditLog.category` + `PiiMasker` utility (mask/restore CNP + mask CUI) | 3h | 2.5.1 | 30% | ✅ DONE 2026-05-10 (`2300b0a`) |
 | 2.5.5 | Extracție | Docker OCR setup (Alpine: tesseract-ocr + tesseract-ocr-data-ron + poppler-utils + imagemagick + ghostscript) + `OcrServiceInterface` + `TesseractOcrService` + `OcrResult` DTO | 4h | — | 0% | ✅ DONE 2026-05-10 (`32262e3`) |
-| 2.5.6 | Extracție | `AnthropicApiClient` (HttpClient + retry + DTO `AnthropicResponse`) + rate limiters `extraction_ai_text` (200/zi) + `extraction_ai_vision` (50/zi) + env vars (`ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, etc.) | 3h | — | 60% (pattern AnafLookup) | ⏳ |
+| 2.5.6 | Extracție | `LlmClientInterface` + `AnthropicApiClient implements LlmClientInterface` (HttpClient + DTO `LlmResponse` neutral provider) + rate limiters `extraction_ai_text` (200/zi) + `extraction_ai_vision` (50/zi) + env vars (`ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `EXTRACTION_CONFIDENCE_THRESHOLD`) | 3.5h | — | 60% (pattern AnafLookup + OcrServiceInterface) | ✅ DONE 2026-05-10 (TBD) — Opțiunea 2 (Interface + Impl); 17 teste verzi (15 unit + 2 integration) |
 | 2.5.7 | Extracție | `OcrTextExtractionStrategy` (priority 70) — OCR + mask CNP + Claude API text + restore CNP + audit `AI_EXTRACTION` + fallback regex pe LOCAL_ONLY | 5h | 2.5.4, 2.5.5, 2.5.6 | 30% (pattern PdfParser) | ⏳ |
 | 2.5.8 | Extracție | `AiVisionExtractionStrategy` (priority 50) — Claude vision direct pe document + skip pe LOCAL_ONLY + audit + cascadă completă funcțională end-to-end | 4h | 2.5.4, 2.5.6 | 50% (pattern OcrText) | ⏳ |
 | 2.6 | Extracție | `ExtractDataMessage` async (Symfony Messenger) + handler + persist `Document.extractedData` + emit `DataExtractedEvent` | 0.5z | 2.5.8 | 30% | ⏳ |
@@ -1219,19 +1219,42 @@ Refactor enum la 3 valori distincte (ex: `B2B_PROFESIONAL`, `B2C_CONSUMER`, `NON
 
 ---
 
-#### PASUL 2.5.6 — `AnthropicApiClient` + rate limiters + env vars | ~3h | 60% reutilizare (pattern AnafLookupService)
+#### PASUL 2.5.6 — `LlmClientInterface` + `AnthropicApiClient` + rate limiters + env vars | ~3.5h | 60% reutilizare (pattern AnafLookupService + OcrServiceInterface)
 
-**Rezultat**: _(va fi completat la marcarea ca DONE)_
+> 🟢 **REVIZIE 2026-05-10 — Opțiunea 2 (Interface + Implementation)**: Pe baza pattern-ului consacrat la Pas 2.5.5 (`OcrServiceInterface` + `TesseractOcrService`), abstracția AI a fost introdusă prin `App\Service\Llm\LlmClientInterface` + `AnthropicApiClient implements LlmClientInterface`. Caller-ii Pas 2.5.7-2.5.8 vor primi `LlmClientInterface` (NU clasa concretă). Justificare: `ANALIZA-FLUXURI-LEXRECOVERY.md:448` documentează "Ollama + Qwen2-VL ... V2 post-MVP" → swap probabil. Cost extra ~30min acum, ~2h savings la pivot. Namespace `App\Service\Llm\` (NU `App\Service\Anthropic\` din spec original) — neutral provider naming. Plus: retry logic deferred la Pas 2.6 async messenger handler (NOT implementat în client la nivel HTTP; un singur request fără retry intern).
 
-**Scop**: client HTTP Anthropic mock-able + rate limiters specifici extracției AI + env vars. Sub-pas izolat — independent testabil.
+**Rezultat**: 17 teste verzi (15 unit + 2 integration), baseline full-suite 41/4 neschimbat. Layer-uri livrate: Nivel 1 unit (`MockHttpClient`) + Nivel 2 integration (`KernelTestCase` DI bind + sentinel guard). Nivel 3 cascade end-to-end **deferred la 2.5.7** (precedent identic cu 2.5.5: service utility consumat indirect prin strategie viitoare; pseudo-strategy wrap = false coverage). Documentat explicit în memory `feedback_test_coverage_3_layers.md`.
+
+**Scop**: client HTTP Anthropic abstractizat + rate limiters specifici extracției AI + env vars. Sub-pas izolat — independent testabil. Pre-condiție pentru Pas 2.5.7 (`OcrTextExtractionStrategy`) și 2.5.8 (`AiVisionExtractionStrategy`).
 
 **Files create**:
-- `src/Service/Anthropic/AnthropicApiClient.php` — pattern identic cu `AnafLookupService`:
-  - Constructor: `HttpClientInterface`, `LoggerInterface`, `string $apiKey` (bind), `string $model` (bind).
-  - `messages(array $messages, int $maxTokens = 2048, ?array $documentParts = null): AnthropicResponse` — POST `https://api.anthropic.com/v1/messages` cu auth header + JSON body. `documentParts` pentru vision (input file base64).
-  - Retry: 3x exponential backoff pe HTTP 5xx + 429.
-- `src/DTO/Anthropic/AnthropicResponse.php` (readonly): `string $content`, `int $tokensIn`, `int $tokensOut`, `string $stopReason`.
-- `src/Exception/AnthropicApiException.php`.
+- `src/Service/Llm/LlmClientInterface.php` — contract neutral provider:
+  - `complete(array $messages, int $maxTokens = 2048, ?array $documentParts = null): LlmResponse`
+  - `@note GDPR` în docblock — caller-ul MUST mascara CNP/IBAN cu `PiiMasker::maskCnp()` ÎNAINTE de a apela.
+- `src/Service/Llm/AnthropicApiClient.php` — `final class implements LlmClientInterface`:
+  - Constructor: `HttpClientInterface`, `string $anthropicApiKey` (bind), `string $anthropicModel` (bind), `LoggerInterface = NullLogger` — toate `private readonly`.
+  - POST `https://api.anthropic.com/v1/messages` cu headers `x-api-key`, `anthropic-version: 2023-06-01` (pinned), `content-type: application/json`. Timeout 60s.
+  - Mapping răspuns: `content[*].type === 'text'` concatenat → `LlmResponse.content`; `usage.input_tokens / output_tokens`; `stop_reason` → `LlmFinishReason` enum.
+  - Vision: `documentParts` injectate pe ultimul mesaj `user` ca structured content blocks.
+  - Throw `LlmException` pe: `apiKey === ''`, HTTP ≥ 400 (cu `errorType` din envelope), `TransportException` (DNS/TCP/TLS), JSON malformat, `content` array lipsă, `content` fără text blocks (tool_use-only).
+  - Logger error: clasa exception + cod, NICIODATĂ `getMessage()` raw sau prompt content (GDPR).
+  - **NU consumă rate limiter** (separation of concerns — caller-ul Pas 2.5.7+ aplică limiter-ul ÎNAINTE de a apela).
+- `src/Service/Llm/LlmException.php` — `final class extends \RuntimeException`.
+- `src/DTO/Llm/LlmResponse.php` — `final readonly class { string $content, int $tokensIn, int $tokensOut, LlmFinishReason $finishReason }`.
+- `src/Enum/LlmFinishReason.php` — backed string enum: `COMPLETED, MAX_TOKENS, STOP_SEQUENCE, OTHER` + `label(): string` (chei i18n `enum.llm_finish_reason.*`).
+- `tests/Service/Llm/AnthropicApiClientTest.php` (15 tests, `TestCase` + `MockHttpClient`):
+  - Happy path: `testCompleteReturnsParsedLlmResponseOnSuccess`, `testCompleteMapsMaxTokensFinishReason`, `testCompleteSendsExpectedRequestShape`, `testCompleteAppendsDocumentPartsToLastUserMessage`.
+  - Error paths: `testCompleteThrowsOnMissingApiKey`, `testCompleteThrowsLlmExceptionOn401AuthError`, `testCompleteThrowsLlmExceptionOn429RateLimit`, `testCompleteThrowsLlmExceptionOnMalformedJsonResponse`, `testCompleteThrowsLlmExceptionOnMissingContentBlock`, `testCompleteThrowsWhenDocumentPartsHaveNoUserMessage`, `testCompleteThrowsLlmExceptionOnTransportError`, `testCompleteThrowsLlmExceptionOn503ServerError`, `testCompleteThrowsWhenContentHasNoTextBlocks`.
+  - Sanity: `testFinishReasonEnumLabelsAreI18nKeys`, `testFixturesAreCommittedAndReadable`.
+- `tests/Service/Llm/AnthropicApiClientIntegrationTest.php` (2 tests, `KernelTestCase`):
+  - `testContainerWiresLlmClientInterfaceAliasToAnthropicApiClient` — DI alias pe interfață → implementare concretă.
+  - `testTestEnvUsesMockSentinelApiKey` — defense-in-depth: `.env.test` API key = `__MOCK_DO_NOT_USE__` (sentinel non-valid).
+- `tests/fixtures/llm/anthropic-success-text.json` — fixture extragere text (CUI 15193236 + 14186770).
+- `tests/fixtures/llm/anthropic-success-vision.json` — fixture vision response.
+- `tests/fixtures/llm/anthropic-error-401.json` — `authentication_error`.
+- `tests/fixtures/llm/anthropic-error-429.json` — `rate_limit_error`.
+- `tests/fixtures/llm/anthropic-max-tokens.json` — `stop_reason: max_tokens`.
+- `config/packages/test/services.yaml` — alias `LlmClientInterface` + `AnthropicApiClient` declarate `public: true` ONLY în test (test container fetch). TODO drop la 2.5.7 când caller-ul real va keep alive aliasul.
 
 **Files modificate**:
 - `.env`:
@@ -1239,29 +1262,27 @@ Refactor enum la 3 valori distincte (ex: `B2B_PROFESIONAL`, `B2C_CONSUMER`, `NON
   ANTHROPIC_API_KEY=
   ANTHROPIC_MODEL=claude-sonnet-4-6
   EXTRACTION_CONFIDENCE_THRESHOLD=0.6
-  OCR_LANGUAGES=ron+eng
   ```
-- `.env.test` — `ANTHROPIC_API_KEY=test-key` (mocked).
-- `config/services.yaml` — bind `$anthropicApiKey: '%env(ANTHROPIC_API_KEY)%'`, `$anthropicModel: '%env(ANTHROPIC_MODEL)%'`.
+- `.env.test` — `ANTHROPIC_API_KEY=__MOCK_DO_NOT_USE__` (sentinel defense-in-depth), `ANTHROPIC_MODEL=claude-sonnet-4-6`, `EXTRACTION_CONFIDENCE_THRESHOLD=0.6`.
+- `config/services.yaml` — bind `$anthropicApiKey: '%env(ANTHROPIC_API_KEY)%'`, `$anthropicModel: '%env(ANTHROPIC_MODEL)%'`, `$confidenceThreshold: '%env(float:EXTRACTION_CONFIDENCE_THRESHOLD)%'` (ready pentru 2.5.7).
 - `config/packages/rate_limiter.yaml`:
   ```yaml
   extraction_ai_text: { policy: sliding_window, limit: 200, interval: '1 day' }
   extraction_ai_vision: { policy: sliding_window, limit: 50, interval: '1 day' }
   ```
+  Plus override `when@test: policy: no_limit` pentru ambele (consistent cu pattern existent).
 
-**Teste** (`tests/Service/Anthropic/AnthropicApiClientTest.php`):
-- `testMessagesCallReturnsParsedResponse()` — `MockHttpClient` cu fixture JSON.
-- `testMessagesCallRetriesOn5xx()` — 2x 503 + 1x 200.
-- `testThrowsOnAuthError()` — 401.
-- `testThrowsOnRateLimit()` — 429.
-
-**Dependențe**: niciuna.
+**Dependențe**: niciuna (paralel cu 2.5.5).
 
 **Boundary**:
-- ✅ Client HTTP funcțional + testat cu mocks.
-- ❌ Nicio strategie nu îl folosește încă.
+- ✅ Client HTTP funcțional + testat cu mocks (15 unit) + DI verified (2 integration).
+- ✅ `LlmClientInterface` neutral — caller-ii viitori NU cunosc Anthropic.
+- ✅ Rate limiters declarate, gata de consumat.
+- ❌ Nicio strategie nu îl folosește încă (la 2.5.7 `OcrTextStrategy` e primul caller real).
+- ❌ NU mascare PII în client (caller responsibility — Pas 2.5.7 mascară ÎNAINTE).
+- ❌ NU retry intern (deferred Pas 2.6 messenger).
 
-**Commit**: `feat(extraction): AnthropicApiClient + AI rate limiters + env config`
+**Commit**: `feat(llm): LlmClientInterface + AnthropicApiClient + AI rate limiters`
 
 ---
 
