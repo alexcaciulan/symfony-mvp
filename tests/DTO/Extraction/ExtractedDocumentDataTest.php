@@ -136,8 +136,25 @@ class ExtractedDocumentDataTest extends TestCase
             extractedAt: new \DateTimeImmutable(),
         );
 
-        $this->expectException(\Error::class);
-        // @phpstan-ignore-next-line — intentional readonly violation
-        $dto->strategy = 'mutated';
+        $caught = null;
+        try {
+            // @phpstan-ignore-next-line — intentional readonly violation
+            $dto->strategy = 'mutated';
+        } catch (\Error $e) {
+            $caught = $e;
+        }
+
+        // Strict checks instead of expectException — `expectException(\Error)`
+        // would also pass if `strategy` were renamed/removed (PHP throws on
+        // dynamic-property creation against a readonly class). We need to
+        // prove that the property exists AND is locked AND the original value
+        // survived the failed assignment.
+        $this->assertNotNull($caught, 'Assignment to readonly property must throw');
+        $this->assertStringContainsString(
+            'readonly',
+            $caught->getMessage(),
+            'Error must be about readonly enforcement, not about an unrelated dynamic-property failure',
+        );
+        $this->assertSame('stub', $dto->strategy, 'Original value must survive the failed assignment');
     }
 }
