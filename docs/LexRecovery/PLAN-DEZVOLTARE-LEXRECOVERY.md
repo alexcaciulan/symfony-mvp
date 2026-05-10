@@ -66,7 +66,7 @@
 | 2.5.5 | Extracție | Docker OCR setup (Alpine: tesseract-ocr + tesseract-ocr-data-ron + poppler-utils + imagemagick + ghostscript) + `OcrServiceInterface` + `TesseractOcrService` + `OcrResult` DTO | 4h | — | 0% | ✅ DONE 2026-05-10 (`32262e3`) |
 | 2.5.6 | Extracție | `LlmClientInterface` + `AnthropicApiClient implements LlmClientInterface` (HttpClient + DTO `LlmResponse` neutral provider) + rate limiters `extraction_ai_text` (200/zi) + `extraction_ai_vision` (50/zi) + env vars (`ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `EXTRACTION_CONFIDENCE_THRESHOLD`) | 3.5h | — | 60% (pattern AnafLookup + OcrServiceInterface) | ✅ DONE 2026-05-10 (`5d1095e`) — Opțiunea 2 (Interface + Impl); 17 teste verzi (15 unit + 2 integration) |
 | 2.5.7 | Extracție | `OcrTextExtractionStrategy` (priority 70) — OCR + mask CNP + IBAN round-trip + Claude API text + restore + audit `AI_EXTRACTION` + skip-on-empty-apiKey + extindere `PiiMasker::maskIban/buildIbanMap/restoreIban` | 5h | 2.5.4, 2.5.5, 2.5.6 | 40% (pattern PdfParser + reuse LlmClientInterface) | ✅ DONE 2026-05-10 (`0636006`) — D1 skip + D2 IBAN; 24 teste verzi (14 unit + 3 integration + 2 cascade Nivel 3 + 5 PiiMasker IBAN) |
-| 2.5.8 | Extracție | `AiVisionExtractionStrategy` (priority 50) — Claude vision direct pe document + skip pe LOCAL_ONLY + audit + cascadă completă funcțională end-to-end | 4h | 2.5.4, 2.5.6 | 50% (pattern OcrText) | ⏳ |
+| 2.5.8 | Extracție | `AiVisionExtractionStrategy` (priority 50) — Claude vision direct pe document (image + PDF native) + GDPR transparency log + audit cu mimeType/fileSize + cascadă completă 4 trepte funcțională end-to-end | 4h | 2.5.4, 2.5.6 | 50% (pattern OcrText) | ✅ DONE 2026-05-10 (`6206bf6`) — 19 teste verzi (14 unit + 3 integration + 2 cascade Nivel 3) |
 | 2.6 | Extracție | `ExtractDataMessage` async (Symfony Messenger) + handler + persist `Document.extractedData` + emit `DataExtractedEvent` | 0.5z | 2.5.8 | 30% | ⏳ |
 | 3.0 | Wizard | Step 0 wizard "Documente sursă": upload + procesare async + preview valori extrase + Turbo Stream polling status | 1z | 2.5.8, 2.6 | 0% | ⏳ |
 | 3.1 | Wizard | DTOs + Forms 5 pași (Documente, Creditor, Debitor, Creanță, Confirmare) cu pre-populare din `Document.extractedData` + indicator vizual câmp auto-completat | 1z | 1.1, 2.1-2.3, 3.0 | 50% | ⏳ |
@@ -1333,9 +1333,15 @@ Refactor enum la 3 valori distincte (ex: `B2B_PROFESIONAL`, `B2C_CONSUMER`, `NON
 
 ---
 
-#### PASUL 2.5.8 — `AiVisionExtractionStrategy` | ~4h | 50% reutilizare (pattern OcrText)
+#### PASUL 2.5.8 — `AiVisionExtractionStrategy` | ~4h | 50% reutilizare (pattern OcrText) ✅ DONE 2026-05-10 (`6206bf6`)
 
-**Rezultat**: _(va fi completat la marcarea ca DONE)_
+> 🟢 **REVIZIE 2026-05-10 — Două decizii înainte de cod**:
+> - **D1 (image + PDF native)**: strategy acceptă atât `image/*` (jpeg/jpg/png/gif/webp) cât și `application/pdf` prin `document` content block Anthropic Claude 3.5+. Alternativa "doar imagini" pierdea acoperirea PDF-urilor scanate eșuate la OcrText. Alternativa "rasterizez PDF local cu poppler" complica fără beneficiu (Anthropic acceptă nativ). `AnthropicApiClient` NU necesită modificări — `?array $documentParts` se transmite opaque la API.
+> - **D2 (NU mascuim binary)**: imposibil pe imagine raw fără computer vision intermediar; LOCAL_ONLY mode = privacy by default deja (orchestrator filtrează `isAiBacked() === true` strategies). Strategy logează explicit `extraction.ai_vision.binary_sent_unmasked` cu documentId + userId + mimeType + fileSize ca event de transparență GDPR art. 30 (registru activități prelucrare).
+> - Plus W1 legal corectat la implementare: `responseHash` extins de la 16 hex la 32 hex (128 biți, birthday-bound collision după ~2^64 operațiuni — confortabil pentru utilizare evidențiară pe long-term audit).
+> - Hard cap 5 MB pe fișier (Anthropic-recommended sweet spot; peste, latency + cost cresc fără proportional accuracy).
+
+**Rezultat**: 19 teste verzi (14 unit + 3 integration + 2 cascade Nivel 3 cascade complet 4 trepte). Baseline full-suite 41/4 NESCHIMBAT (502 vs 483 tests). Cascada 4 trepte FUNCȚIONALĂ end-to-end: PdfParser(100) → OcrText(70) → AiVision(50) → Stub(10). Tests cascade explicit: `testCompleteCascadeFlowsThroughAllFourTiersToAiVision` (PNG + OcrText quality gate triggers cu fake OCR text='abc' conf=0.1 → AiVision short-circuit cu rich fixture, globalConfidence 0.91); `testLocalOnlyModeSkipsBothAiStrategiesAndFallsToStub` (LOCAL_ONLY → orchestrator filtrează AMBELE AI-backed → Stub; ambele MockHttpClient EXPLODES dacă call). Reviews: legal LEGAL-CLEAN cu 3 W (W1+W2 corectate la implementare; W3 minor optional), code COMMIT-READY cu 1 W fix-uit (`fileSize === false` → 'unknown' în log) + 3 N inherited tech debt (strict_types module-wide, TOCTOU, scan.png absent).
 
 **Scop**: ultima strategie — Claude vision direct pe document (PDF/imagine). Fallback când OcrText returnează `globalConfidence < 0.5` (scan prost, layout multi-coloană, text scris de mână). Cost ~$0.01-0.05/doc.
 
