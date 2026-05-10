@@ -97,18 +97,32 @@ class PiiMaskerTest extends TestCase
 
     // ---------- maskCui ----------
 
-    public function testMaskCuiReplacesValidCuiWithFullMask(): void
+    public function testMaskCuiPreservesRoPrefixForVatPayer(): void
     {
+        // CUI cu prefix `RO` = entitate înregistrată în scopuri TVA
+        // (Codul Fiscal art. 316). Mascarea trebuie să păstreze "RO" ca să
+        // semnaleze plătitor TVA în logs și AI prompts.
         $masked = PiiMasker::maskCui('Furnizor CUI RO15193236 SC Foo SRL');
 
         $this->assertSame('Furnizor CUI RO****** SC Foo SRL', $masked);
     }
 
-    public function testMaskCuiHandlesStandaloneCuiWithoutPrefix(): void
+    public function testMaskCuiOmitsRoPrefixForNonVatPayer(): void
     {
-        $masked = PiiMasker::maskCui('CUI 14186770 Banca Transilvania');
+        // CUI fără `RO` = CIF (Cod de Identificare Fiscală), entitate NEÎNREGISTRATĂ
+        // ca plătitor TVA. Mascarea NU trebuie să adauge "RO" — ar falsifica statutul.
+        $masked = PiiMasker::maskCui('CIF 14186770 Cabinet Avocatura SRL');
 
-        $this->assertSame('CUI RO****** Banca Transilvania', $masked);
+        $this->assertSame('CIF ****** Cabinet Avocatura SRL', $masked);
+    }
+
+    public function testMaskCuiPreservesDistinctionInSameText(): void
+    {
+        // Document cu un plătitor TVA + un non-plătitor — mascarea trebuie să
+        // diferențieze pentru a păstra informația în audit.
+        $masked = PiiMasker::maskCui('Furnizor RO15193236 si Client 14186770.');
+
+        $this->assertSame('Furnizor RO****** si Client ******.', $masked);
     }
 
     public function testMaskCuiIgnoresInvalidChecksum(): void

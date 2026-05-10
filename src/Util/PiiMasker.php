@@ -35,9 +35,20 @@ final class PiiMasker
     /** Placeholder for masked CNPs — preserves the last 4 digits as `XXXX`. */
     private const CNP_MASK_PREFIX = '***-***-';
 
-    /** Placeholder for fully-masked CUIs (CUI is public ANAF data, but we
-     * mask it in logs/AI prompts for consistency and to discourage scraping). */
-    private const CUI_MASK = 'RO******';
+    /**
+     * Placeholders for masked CUIs. Two variants because the `RO` prefix
+     * carries semantic information in Romanian fiscal law:
+     *   - With `RO` (e.g. `RO15193236`): the entity is a VAT payer (registered
+     *     in scopuri TVA per Codul Fiscal art. 316-317).
+     *   - Without `RO` (e.g. `15193236`, often called CIF instead of CUI): the
+     *     entity has a fiscal code but is NOT registered for VAT.
+     * Masking that flattened both to `RO******` would falsely imply that all
+     * entities are VAT payers in audit logs and AI prompts. We preserve the
+     * prefix-presence distinction by using two different placeholders.
+     */
+    private const CUI_MASK_VAT_PAYER = 'RO******';
+
+    private const CUI_MASK_NON_VAT = '******';
 
     // ---------- validators ----------
 
@@ -133,20 +144,24 @@ final class PiiMasker
     }
 
     /**
-     * Replaces every checksum-valid CUI (with optional `RO` prefix) in `$text`
-     * with the placeholder `RO******`. Does not preserve any digits — CUI
-     * carries no privacy-relevant structure to disambiguate.
+     * Replaces every checksum-valid CUI in `$text` with a placeholder that
+     * preserves whether the original carried the `RO` prefix:
+     *   - `RO15193236` → `RO******` (VAT payer)
+     *   - `15193236`   → `******`   (CIF, non-VAT-payer)
+     * The prefix distinction is meaningful in Romanian fiscal law (TVA vs CIF
+     * per Codul Fiscal art. 316) and must survive masking so audit logs and
+     * AI-extraction prompts don't falsify VAT status.
      */
     public static function maskCui(string $text): string
     {
         return preg_replace_callback(
-            '/(?<![A-Z0-9])(?:RO\s?)?(\d{4,10})(?!\d)/i',
+            '/(?<![A-Z0-9])(RO\s?)?(\d{4,10})(?!\d)/i',
             static function (array $match): string {
-                if (!self::isValidCui($match[1])) {
+                if (!self::isValidCui($match[2])) {
                     return $match[0];
                 }
 
-                return self::CUI_MASK;
+                return $match[1] !== '' ? self::CUI_MASK_VAT_PAYER : self::CUI_MASK_NON_VAT;
             },
             $text,
         ) ?? $text;

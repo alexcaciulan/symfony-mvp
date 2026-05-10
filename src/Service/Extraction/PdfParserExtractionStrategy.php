@@ -173,6 +173,7 @@ final class PdfParserExtractionStrategy implements ExtractionStrategyInterface
 
         return new CreditorExtraction(
             cui: $cui['value'] ?? null,
+            isVatPayer: $cui['isVatPayer'] ?? null,
             personalId: $personalId['value'] ?? null,
             iban: $iban['value'] ?? null,
             confidencePerField: $confidence,
@@ -198,6 +199,7 @@ final class PdfParserExtractionStrategy implements ExtractionStrategyInterface
 
         return new DebtorExtraction(
             cui: $cui['value'] ?? null,
+            isVatPayer: $cui['isVatPayer'] ?? null,
             personalId: $personalId['value'] ?? null,
             confidencePerField: $confidence,
         );
@@ -274,15 +276,19 @@ final class PdfParserExtractionStrategy implements ExtractionStrategyInterface
     }
 
     /**
-     * @return array{value: string, confidence: float}|null
+     * @return array{value: string, confidence: float, isVatPayer: bool}|null
      */
     private function extractCuiForRole(string $rawText, string $normalized, string $expectedRole): ?array
     {
         // Two-alternative match:
-        //   (1) RO prefix → any 2-10 digits (real CUIs as low as 2 digits exist
-        //       but are practically tagged with RO in formal documents).
+        //   (1) RO prefix → any 2-10 digits (VAT payer per Codul Fiscal art. 316
+        //       — registered in scopuri TVA; documents tag this with `RO`).
         //   (2) Standalone digits → require ≥ 6 digits to avoid catching
         //       legal-article numbers like "1014", "1015" from "art. 1014 CPC".
+        //       This is the CIF (Cod de Identificare Fiscală) for entities NOT
+        //       registered as VAT payers.
+        // The `isVatPayer` flag in the returned array preserves this distinction
+        // for downstream consumers (audit logs must not falsify VAT status).
         // Lookbehind `(?<![A-Z0-9])` prevents catching digit slices inside an
         // IBAN/account number: `7593840000` from `...AAAA1B31007593840000` would
         // otherwise checksum-validate (sum = 0, mod 11 = 0 = check digit).
@@ -301,7 +307,8 @@ final class PdfParserExtractionStrategy implements ExtractionStrategyInterface
         for ($i = 0; $i < $count; $i++) {
             $withRo = $matches[1][$i][0] ?? '';
             $standalone = $matches[2][$i][0] ?? '';
-            $digits = $withRo !== '' ? $withRo : $standalone;
+            $isVatPayer = $withRo !== '';
+            $digits = $isVatPayer ? $withRo : $standalone;
             if ($digits === '') {
                 continue;
             }
@@ -318,7 +325,7 @@ final class PdfParserExtractionStrategy implements ExtractionStrategyInterface
 
             $confidence = 0.95;
             if ($best === null || $confidence > $best['confidence']) {
-                $best = ['value' => $digits, 'confidence' => $confidence];
+                $best = ['value' => $digits, 'confidence' => $confidence, 'isVatPayer' => $isVatPayer];
             }
         }
 

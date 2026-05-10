@@ -127,6 +127,23 @@ class PdfParserExtractionStrategyIntegrationTest extends TestCase
         }
     }
 
+    public function testVatPayerFlagIsSetWhenRoPrefixIsPresent(): void
+    {
+        // Fixturile (invoice-realistic, contract-multipage, loan-individual) tipăresc
+        // explicit "CUI RO15193236" și "CUI RO14186770" — ambele entități sunt
+        // plătitori TVA per Codul Fiscal art. 316. Strategy trebuie să marcheze asta
+        // pe DTO ca isVatPayer = true (informația distinctă față de CIF non-VAT).
+        $document = $this->makeDocument('invoice-realistic.pdf');
+
+        $result = $this->strategy->extract($document);
+
+        $this->assertNotNull($result->creditor);
+        $this->assertTrue($result->creditor->isVatPayer, 'Creditor cu prefix RO trebuie marcat plătitor TVA');
+
+        $this->assertNotNull($result->debtor);
+        $this->assertTrue($result->debtor->isVatPayer, 'Debtor cu prefix RO trebuie marcat plătitor TVA');
+    }
+
     public function testFixturesAreCommittedAndReadable(): void
     {
         // Sanity: prevent accidental fixture deletion / git ignore. Each fixture
