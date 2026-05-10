@@ -486,12 +486,16 @@ TEXT;
         string $filename,
         string $mime = 'application/pdf',
         ExtractionMode $userMode = ExtractionMode::LOCAL_ONLY,
+        ?ExtractionMode $caseOverride = null,
     ): Document {
         $user = new User();
         $user->setExtractionMode($userMode);
 
         $case = new LegalCase();
         $case->setUser($user);
+        if ($caseOverride !== null) {
+            $case->setExtractionModeOverride($caseOverride);
+        }
 
         $document = new Document();
         $document->setLegalCase($case);
@@ -501,5 +505,244 @@ TEXT;
         $document->setMimeType($mime);
 
         return $document;
+    }
+
+    // ---------- cascade gap-coverage ----------
+
+    public function testCascadeAttemptsAllStrategiesAndPersistsAsFailedWhenAllReturnZero(): void
+    {
+        // Hardest negative path: every real strategy gets a chance and every
+        // one returns zero-confidence. Image PNG → PdfParser drops. OcrText
+        // quality gate trips on text='abc'. AiVision throws an LlmException
+        // on the AI call. Stub always runs and returns 0. The orchestrator's
+        // bestSoFar tracking must persist a status=FAILED result rather than
+        // crash.
+        $audit = $this->captureAuditLogService();
+
+        $explodingFromStubReplacement = new MockHttpClient(static function (): MockResponse {
+            // For OcrText: this MockHttpClient should never be hit because the
+            // quality gate triggers BEFORE the AI call. If it ever is, we fail
+            // loudly so the test exposes a regression.
+            throw new \LogicException('OcrText AI must not run when quality gate triggered');
+        });
+        $shortTextOcr = new class implements OcrServiceInterface {
+            public function extractText(string $absolutePath): OcrResult
+            {
+                return new OcrResult('abc', 0.1, 1);
+            }
+        };
+        $ocrText = new OcrTextExtractionStrategy(
+            ocrService: $shortTextOcr,
+            llmClient: new AnthropicApiClient(
+                httpClient: $explodingFromStubReplacement,
+                anthropicApiKey: 'sk-fail-test',
+                anthropicModel: 'claude-sonnet-4-6',
+                logger: new NullLogger(),
+            ),
+            auditLogService: $audit,
+            extractionAiTextLimiter: $this->noLimitFactory(),
+            uploadsDir: self::FIXTURES_DIR . '/../ocr',
+            anthropicApiKey: 'sk-fail-test',
+            logger: new NullLogger(),
+        );
+        // AiVision throws via 503-shaped MockResponse → AnthropicApiClient
+        // raises LlmException → strategy catches and returns zero-confidence.
+        $aiVision = new AiVisionExtractionStrategy(
+            llmClient: new AnthropicApiClient(
+                httpClient: new MockHttpClient(static fn (): MockResponse => new MockResponse(
+                    '{"type":"error","error":{"type":"overloaded_error","message":"AI down"}}',
+                    ['http_code' => 503],
+                )),
+                anthropicApiKey: 'sk-fail-test',
+                anthropicModel: 'claude-sonnet-4-6',
+                logger: new NullLogger(),
+            ),
+            auditLogService: $audit,
+            extractionAiVisionLimiter: $this->noLimitFactory(),
+            uploadsDir: self::FIXTURES_DIR . '/../ocr',
+            anthropicApiKey: 'sk-fail-test',
+            logger: new NullLogger(),
+        );
+
+        $orchestrator = new DataExtractionService([
+            new PdfParserExtractionStrategy(self::FIXTURES_DIR),
+            $ocrText,
+            $aiVision,
+            new StubExtractionStrategy(),
+        ]);
+        $document = $this->makeDocument('clean-text.png', mime: 'image/png', userMode: ExtractionMode::BALANCED);
+
+        $result = $orchestrator->extract($document);
+
+        // Conf 0 across the board → status FAILED. The persisted strategy is
+        // whichever non-Stub strategy produced the first zero-confidence DTO
+        // (OcrText here, by priority order). The exact strategy key is
+        // implementation-detail; what matters legally and to the wizard is
+        // the FAILED status + zero confidence — manual entry required.
+        $this->assertSame(0.0, $result->globalConfidence);
+        $this->assertSame(ExtractionStatus::FAILED, $document->getExtractionStatus());
+        // No AI extraction was successfully completed → no AI_EXTRACTION audit.
+        // (OcrText skipped at quality gate before audit; AiVision threw before audit.)
+        $this->assertSame([], $audit->loggedCalls, 'No AI audit must be written when every AI step fails');
+    }
+
+    public function testCascadePersistsPdfParserResultBelowRaisedThresholdInsteadOfStub(): void
+    {
+        // best-so-far tracking with REAL strategies. Threshold raised to 0.999
+        // so PdfParser's normal ~0.7-0.95 confidence falls below it; cascade
+        // continues. The next strategies (OcrText, AiVision) won't help on a
+        // text PDF — OcrText.supports() returns false because the PDF has a
+        // text layer — so PdfParser remains the bestSoFar and is persisted
+        // even though it didn't clear the threshold. Status COMPLETED
+        // because confidence > 0.
+        $audit = $this->captureAuditLogService();
+        $orchestrator = new DataExtractionService([
+            new PdfParserExtractionStrategy(self::FIXTURES_DIR),
+            $this->makeOcrTextStrategyReplaying('anthropic-success-with-pii.json', $audit),
+            new StubExtractionStrategy(),
+        ]);
+
+        $document = $this->makeDocument('invoice-realistic.pdf');
+
+        $result = $orchestrator->extract($document, confidenceThreshold: 0.999);
+
+        // PdfParser ran, returned a real (sub-0.999) confidence, and orchestrator
+        // persisted it as bestSoFar — NOT the Stub fallback, NOT a 0.0 default.
+        $this->assertSame('pdf_parser', $result->strategy);
+        $this->assertGreaterThan(0.0, $result->globalConfidence);
+        $this->assertLessThan(0.999, $result->globalConfidence);
+        $this->assertSame(ExtractionStatus::COMPLETED, $document->getExtractionStatus(), 'Partial result still counts as COMPLETED');
+        // Document.extractedData carries the PdfParser-extracted CUI — the wizard
+        // can pre-fill from this even though confidence is below threshold.
+        $this->assertSame('15193236', $document->getExtractedData()['creditor']['cui']);
+    }
+
+    public function testLegalCaseOverrideForcesAiInRealCascadeEvenIfUserModeIsLocalOnly(): void
+    {
+        // GDPR opt-in escape hatch — a lawyer who set their account-default to
+        // LOCAL_ONLY can still flip a SINGLE case to BALANCED via the case
+        // override. The orchestrator must respect that override and route the
+        // document through AI strategies.
+        $audit = $this->captureAuditLogService();
+        $orchestrator = new DataExtractionService([
+            new PdfParserExtractionStrategy(self::FIXTURES_DIR),
+            $this->makeOcrTextStrategyReplaying('anthropic-success-with-pii.json', $audit),
+            new StubExtractionStrategy(),
+        ]);
+
+        $document = $this->makeDocument(
+            'scan.png',
+            mime: 'image/png',
+            userMode: ExtractionMode::LOCAL_ONLY,
+            caseOverride: ExtractionMode::BALANCED,
+        );
+
+        $result = $orchestrator->extract($document);
+
+        // OcrText took over (image mime + BALANCED override) and short-circuited.
+        $this->assertSame(OcrTextExtractionStrategy::STRATEGY_KEY, $result->strategy);
+        $this->assertGreaterThanOrEqual(0.6, $result->globalConfidence);
+        $this->assertSame(ExtractionStatus::COMPLETED, $document->getExtractionStatus());
+        // Audit shows the AI was invoked under the case-level override.
+        $this->assertCount(1, $audit->loggedCalls);
+        $this->assertSame(AuditLogService::CATEGORY_AI_EXTRACTION, $audit->loggedCalls[0]['category']);
+    }
+
+    public function testAiVisionNeverInvokedWhenOcrTextSucceedsInFullFourStrategyCascade(): void
+    {
+        // Cost-control regression guard. With all four strategies wired in the
+        // cascade, OcrText succeeding (priority 70) MUST short-circuit BEFORE
+        // AiVision (priority 50) gets a turn. AiVision is wired with an
+        // exploding HTTP client so any accidental invocation crashes the test
+        // and prevents a "double-billing" regression where the orchestrator
+        // continues past a successful strategy.
+        $audit = $this->captureAuditLogService();
+        $aiVisionExploding = $this->makeAiVisionStrategyWithExplodingClient($audit);
+        $orchestrator = new DataExtractionService([
+            new PdfParserExtractionStrategy(self::FIXTURES_DIR),
+            $this->makeOcrTextStrategyReplaying('anthropic-success-with-pii.json', $audit),
+            $aiVisionExploding,
+            new StubExtractionStrategy(),
+        ]);
+
+        $document = $this->makeDocument('scan.png', mime: 'image/png', userMode: ExtractionMode::BALANCED);
+
+        $result = $orchestrator->extract($document);
+
+        $this->assertSame(OcrTextExtractionStrategy::STRATEGY_KEY, $result->strategy);
+        $this->assertCount(1, $audit->loggedCalls, 'Exactly one AI strategy must audit — no double-bill');
+        $this->assertSame('ocr_text', $audit->loggedCalls[0]['newData']['strategy']);
+    }
+
+    public function testAiVisionRateLimitDeniedInFourStrategyCascadeFallsThroughToFailed(): void
+    {
+        // Per-tenant cost protection: when a user has exhausted their
+        // 50/day vision quota, AiVision must return zero-confidence rather
+        // than block the cascade or raise. The orchestrator continues to
+        // Stub. End state: status FAILED, no audit (rate-limit denial
+        // happens BEFORE the AI call, so AiVision doesn't audit either).
+        $audit = $this->captureAuditLogService();
+
+        // OcrText with quality-gate fail (forces cascade past it).
+        $shortTextOcr = new class implements OcrServiceInterface {
+            public function extractText(string $absolutePath): OcrResult
+            {
+                return new OcrResult('abc', 0.1, 1);
+            }
+        };
+        $ocrText = new OcrTextExtractionStrategy(
+            ocrService: $shortTextOcr,
+            llmClient: new AnthropicApiClient(
+                httpClient: new MockHttpClient(static function (): MockResponse {
+                    throw new \LogicException('OcrText AI must not run when quality gate trips');
+                }),
+                anthropicApiKey: 'sk-cascade-rate',
+                anthropicModel: 'claude-sonnet-4-6',
+                logger: new NullLogger(),
+            ),
+            auditLogService: $audit,
+            extractionAiTextLimiter: $this->noLimitFactory(),
+            uploadsDir: self::FIXTURES_DIR . '/../ocr',
+            anthropicApiKey: 'sk-cascade-rate',
+            logger: new NullLogger(),
+        );
+
+        // AiVision with pre-exhausted limiter for the cascade-test default
+        // user (no setId() in makeDocument → User::getId() returns null →
+        // bucket key is '').
+        $exhaustedFactory = new RateLimiterFactory(
+            ['id' => 'cascade_vision_exhausted', 'policy' => 'fixed_window', 'limit' => 1, 'interval' => '1 day'],
+            new InMemoryStorage(),
+        );
+        $exhaustedFactory->create('')->consume(1); // pre-drain bucket for null-id user
+        $aiVision = new AiVisionExtractionStrategy(
+            llmClient: new AnthropicApiClient(
+                httpClient: new MockHttpClient(static function (): MockResponse {
+                    throw new \LogicException('AiVision LLM must not run when rate limit denied');
+                }),
+                anthropicApiKey: 'sk-cascade-rate',
+                anthropicModel: 'claude-sonnet-4-6',
+                logger: new NullLogger(),
+            ),
+            auditLogService: $audit,
+            extractionAiVisionLimiter: $exhaustedFactory,
+            uploadsDir: self::FIXTURES_DIR . '/../ocr',
+            anthropicApiKey: 'sk-cascade-rate',
+            logger: new NullLogger(),
+        );
+
+        $orchestrator = new DataExtractionService([
+            new PdfParserExtractionStrategy(self::FIXTURES_DIR),
+            $ocrText,
+            $aiVision,
+            new StubExtractionStrategy(),
+        ]);
+        $document = $this->makeDocument('clean-text.png', mime: 'image/png', userMode: ExtractionMode::BALANCED);
+
+        $result = $orchestrator->extract($document);
+
+        $this->assertSame(0.0, $result->globalConfidence);
+        $this->assertSame(ExtractionStatus::FAILED, $document->getExtractionStatus());
+        $this->assertSame([], $audit->loggedCalls, 'Rate-limit denial must NOT trigger an audit entry');
     }
 }
