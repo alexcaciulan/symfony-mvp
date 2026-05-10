@@ -32,6 +32,16 @@ services:
   worker:
     <<: *php_base
     container_name: symfony-mvp-worker
+    # Explicit ordering — the polling probe below already absorbs the race,
+    # but declaring the dependency makes the start sequence determinist for
+    # `docker compose up` and silences spurious "waiting for migrations"
+    # log lines on first boot. `database: service_healthy` is inherited
+    # from the &php_base anchor; `php: service_started` is added here.
+    depends_on:
+      database:
+        condition: service_healthy
+      php:
+        condition: service_started
     # Override the FPM entrypoint — we don't serve HTTP, we drain the async
     # messenger queue. `--time-limit=3600` forces a graceful restart hourly
     # to shed any PHP memory leaks accumulated during long Anthropic-heavy

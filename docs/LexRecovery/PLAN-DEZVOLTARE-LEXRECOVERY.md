@@ -67,7 +67,7 @@
 | 2.5.6 | Extracție | `LlmClientInterface` + `AnthropicApiClient implements LlmClientInterface` (HttpClient + DTO `LlmResponse` neutral provider) + rate limiters `extraction_ai_text` (200/zi) + `extraction_ai_vision` (50/zi) + env vars (`ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `EXTRACTION_CONFIDENCE_THRESHOLD`) | 3.5h | — | 60% (pattern AnafLookup + OcrServiceInterface) | ✅ DONE 2026-05-10 (`5d1095e`) — Opțiunea 2 (Interface + Impl); 17 teste verzi (15 unit + 2 integration) |
 | 2.5.7 | Extracție | `OcrTextExtractionStrategy` (priority 70) — OCR + mask CNP + IBAN round-trip + Claude API text + restore + audit `AI_EXTRACTION` + skip-on-empty-apiKey + extindere `PiiMasker::maskIban/buildIbanMap/restoreIban` | 5h | 2.5.4, 2.5.5, 2.5.6 | 40% (pattern PdfParser + reuse LlmClientInterface) | ✅ DONE 2026-05-10 (`0636006`) — D1 skip + D2 IBAN; 24 teste verzi (14 unit + 3 integration + 2 cascade Nivel 3 + 5 PiiMasker IBAN) |
 | 2.5.8 | Extracție | `AiVisionExtractionStrategy` (priority 50) — Claude vision direct pe document (image + PDF native) + GDPR transparency log + audit cu mimeType/fileSize + cascadă completă 4 trepte funcțională end-to-end | 4h | 2.5.4, 2.5.6 | 50% (pattern OcrText) | ✅ DONE 2026-05-10 (`6206bf6`) — 19 teste verzi (14 unit + 3 integration + 2 cascade Nivel 3) |
-| 2.6 | Extracție | `ExtractDataMessage` async (Symfony Messenger) + handler + persist `Document.extractedData` + emit `DataExtractedEvent` | 0.5z | 2.5.8 | 30% | ⏳ |
+| 2.6 | Extracție | `ExtractDataMessage` async (Symfony Messenger Doctrine transport) + `ExtractDataMessageHandler` + `DataExtractedEvent` + container `worker` separat în `compose.yaml` | 0.5z | 2.5.8 | 30% | ✅ DONE 2026-05-10 (`301fde1`) — 8 teste verzi (5 unit + 3 integration cu InMemoryTransport) |
 | 3.0 | Wizard | Step 0 wizard "Documente sursă": upload + procesare async + preview valori extrase + Turbo Stream polling status | 1z | 2.5.8, 2.6 | 0% | ⏳ |
 | 3.1 | Wizard | DTOs + Forms 5 pași (Documente, Creditor, Debitor, Creanță, Confirmare) cu pre-populare din `Document.extractedData` + indicator vizual câmp auto-completat | 1z | 1.1, 2.1-2.3, 3.0 | 50% | ⏳ |
 | 3.2 | Wizard | `CaseWizardController` + session storage + templates | 1z | 3.1 | 60% | ⏳ |
@@ -1381,9 +1381,17 @@ Refactor enum la 3 valori distincte (ex: `B2B_PROFESIONAL`, `B2C_CONSUMER`, `NON
 
 ---
 
-### PASUL 2.6 | Procesare async via Messenger | 0.5 zi | 30% reutilizare
+### PASUL 2.6 | Procesare async via Messenger | 0.5 zi | 30% reutilizare ✅ DONE 2026-05-10 (`301fde1`)
 
-**Rezultat**: _(va fi completat la marcarea ca DONE)_
+> 🟢 **REVIZIE 2026-05-10 — Două decizii**:
+> - **D1 (worker container separat)**: NU rulăm `messenger:consume` ca background process în PHP-FPM container (cum sugera spec original linia 1406). Service Docker dedicat în `compose.yaml` cu YAML anchor `&php_base` (zero drift între `php` și `worker`), `entrypoint: []` override + `command` cu polling probe `doctrine:migrations:up-to-date` + `exec messenger:consume async --time-limit=3600 --memory-limit=128M -vv`. Avantaj: log-uri izolate, scaling controlat (`docker compose up --scale worker=N`), restart independent prin `restart: unless-stopped`.
+> - **D2 (Doctrine transport, NU Redis/AMQP)**: zero infrastructură suplimentară (MySQL deja în compose), tranzacționalitate cu DB-ul aplicației, `dispatch_after_current_bus` middleware Symfony 7 garantează că mesajele intră în coadă DUPĂ commit-ul tranzacției caller-ului. Volum estimat ~25k msg/zi la 5 ani — mult sub limita Doctrine. Migrare ulterioară Redis/AMQP = schimbare DSN în `.env`, ZERO modificări la cod aplicație.
+> - **D3 (`final` removed din `DataExtractionService`)**: pentru ca PHPUnit să poată mock-ui orchestrator-ul în handler tests. Documentat explicit în docblock; extracția unei interface ar fi over-engineering pentru o singură implementare.
+> - **D4 (test config — doar `async` overridden la in-memory)**: `failed` transport rămâne pe Doctrine ca `messenger_messages` table să rămână în schema așteptată — `SchemaValidateTest` continue să fie verde.
+
+**Rezultat**: 8 teste verzi (5 unit + 3 integration cu `InMemoryTransport`). Baseline full-suite 41/4 NESCHIMBAT (537 vs 529 tests). Worker container `symfony-mvp-worker` rulează `Consuming messages from transport "async"` confirmat manual. DI verify: `bin/console debug:messenger` listează `App\Message\ExtractDataMessage` rutat la `async`, handler `ExtractDataMessageHandler` rezolvat via `#[AsMessageHandler]`. Boundary explicit Pas 2.6 — NU livrează: UI wizard, listener Mercure pentru `DataExtractedEvent`, retry strategy custom, dead-letter queue UI (toate la Pas 3.0).
+
+Reviews: legal LEGAL-CLEAN cu 3 W non-blocking (W1 future GDPR la Pas 3.0 listener Mercure publish doar metadata NU extractedData; W2 `auto_setup=0` polling probe absoarbe; W3 reconciliere stuck-PROCESSING la Pas 5.x backlog) + code COMMIT-READY cu 1 W fix-uit (worker `depends_on: php: service_started` adăugat pentru determinism startup).
 
 **Scop**: extracția AI poate dura 5-30 secunde — rulează async, UI face polling.
 
