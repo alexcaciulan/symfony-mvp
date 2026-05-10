@@ -445,4 +445,135 @@ class OcrTextExtractionStrategyTest extends TestCase
         $this->assertSame(0.88, $result->globalConfidence);
         $this->assertSame('SC X', $result->creditor?->name);
     }
+
+    // ---------- AI response edge cases ----------
+
+    public function testInvalidLegalGroundCategoryFromAiBecomesNull(): void
+    {
+        // The AI may hallucinate a category outside our enum (e.g. translates
+        // freely or invents a value). LegalGroundCategory::tryFrom returns null
+        // on miss; the rest of the claim must still survive.
+        $aiContent = json_encode([
+            'claim' => [
+                'amount' => 5000.0,
+                'currency' => 'RON',
+                'legalGround' => 'IMPRUMUT_CAMATARESC', // not in the enum
+                'confidencePerField' => ['amount' => 0.95],
+            ],
+            'globalConfidence' => 0.7,
+        ]);
+        $strategy = $this->makeStrategy(
+            ocrService: $this->fakeOcrService(text: str_repeat('payload ', 50), confidence: 0.92),
+            llmClient: $this->fakeLlmClient(content: $aiContent),
+        );
+
+        $result = $strategy->extract($this->makeDocument(60, 'image/png'));
+
+        $this->assertNotNull($result->claim);
+        $this->assertNull($result->claim->legalGround, 'Unknown enum value must NOT raise; degrades to null');
+        $this->assertSame(5000.0, $result->claim->amount, 'Other claim fields must survive an invalid legalGround');
+    }
+
+    public function testConfidenceValuesOutsideZeroOneRangeAreClamped(): void
+    {
+        // Defensive coercion: globalConfidence and per-field confidence are floats
+        // 0..1 by contract — but the AI sometimes returns 1.2 or -0.1 (sloppy
+        // calibration). Strategy must clamp instead of producing out-of-range
+        // floats that would corrupt cascade short-circuit logic.
+        $aiContent = json_encode([
+            'creditor' => [
+                'name' => 'SC Foo',
+                'confidencePerField' => ['name' => 1.5, 'cui' => -0.3],
+            ],
+            'globalConfidence' => 1.5,
+        ]);
+        $strategy = $this->makeStrategy(
+            ocrService: $this->fakeOcrService(text: str_repeat('payload ', 50), confidence: 0.92),
+            llmClient: $this->fakeLlmClient(content: $aiContent),
+        );
+
+        $result = $strategy->extract($this->makeDocument(61, 'image/png'));
+
+        $this->assertSame(1.0, $result->globalConfidence, 'globalConfidence > 1 must clamp to 1.0');
+        $this->assertSame(1.0, $result->creditor?->confidencePerField['name']);
+        $this->assertSame(0.0, $result->creditor?->confidencePerField['cui'], 'Negative confidence must clamp to 0.0');
+    }
+
+    public function testMalformedDueDateBecomesNullClaim(): void
+    {
+        // Common AI output deviations from the schema: ISO date with a slash
+        // separator, timestamp, or Romanian-format date. createFromFormat('!Y-m-d')
+        // returns false on miss; coercion produces null without leaking a
+        // garbage DateTimeImmutable into the wizard.
+        $aiContent = json_encode([
+            'claim' => [
+                'amount' => 5000.0,
+                'currency' => 'RON',
+                'dueDate' => '15/06/2026', // wrong separator
+            ],
+            'globalConfidence' => 0.7,
+        ]);
+        $strategy = $this->makeStrategy(
+            ocrService: $this->fakeOcrService(text: str_repeat('payload ', 50), confidence: 0.92),
+            llmClient: $this->fakeLlmClient(content: $aiContent),
+        );
+
+        $result = $strategy->extract($this->makeDocument(62, 'image/png'));
+
+        $this->assertNotNull($result->claim);
+        $this->assertNull($result->claim->dueDate);
+        $this->assertSame(5000.0, $result->claim->amount);
+    }
+
+    public function testAmountAsNumericStringIsCoercedToFloat(): void
+    {
+        // Some Claude calibrations return numbers as JSON strings ("5000.50")
+        // when the prompt is long; the coercion uses is_numeric + (float) cast
+        // so this path must still produce a valid amount instead of dropping it.
+        $aiContent = json_encode([
+            'claim' => [
+                'amount' => '6009.50', // numeric string
+                'currency' => 'RON',
+            ],
+            'globalConfidence' => 0.7,
+        ]);
+        $strategy = $this->makeStrategy(
+            ocrService: $this->fakeOcrService(text: str_repeat('payload ', 50), confidence: 0.92),
+            llmClient: $this->fakeLlmClient(content: $aiContent),
+        );
+
+        $result = $strategy->extract($this->makeDocument(63, 'image/png'));
+
+        $this->assertNotNull($result->claim);
+        $this->assertSame(6009.5, $result->claim->amount);
+    }
+
+    public function testZeroConfidencePathMasksRawOcrTextBeforePersistence(): void
+    {
+        // When OCR text is recovered but the AI is skipped (e.g. apiKey empty,
+        // rate-limit denied, malformed AI response), the strategy still returns
+        // rawOcrText — and that field is persisted to the JSON column. GDPR
+        // requires masking on the persistence boundary; verify the zero-confidence
+        // path applies the same mask as the success path.
+        $cnp = '1980715221232';
+        $iban = 'RO49AAAA1B31007593840000';
+        $ocrText = "Date OCR cu PII raw.\nCNP {$cnp}\nCont {$iban}\n"
+            . str_repeat('Lipsă conținut suplimentar pentru atingerea pragului. ', 5);
+
+        $strategy = $this->makeStrategy(
+            ocrService: $this->fakeOcrService(text: $ocrText, confidence: 0.92),
+            apiKey: '', // forces the D1 skip path while OCR text is still good.
+        );
+
+        $result = $strategy->extract($this->makeDocument(70, 'image/png'));
+
+        $this->assertSame(0.0, $result->globalConfidence);
+        $this->assertNotNull($result->rawOcrText);
+        // Same masking guarantee as the success path — neither CNP nor IBAN may
+        // leak into Document.extractedData JSON.
+        $this->assertStringNotContainsString($cnp, $result->rawOcrText);
+        $this->assertStringNotContainsString($iban, $result->rawOcrText);
+        $this->assertStringContainsString('***-***-1232', $result->rawOcrText);
+        $this->assertStringContainsString('RO**REDACTED**', $result->rawOcrText);
+    }
 }

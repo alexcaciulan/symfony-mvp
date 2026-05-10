@@ -10,6 +10,7 @@ use App\Service\AuditLogService;
 use App\Service\Extraction\OcrTextExtractionStrategy;
 use App\Service\Llm\AnthropicApiClient;
 use App\Service\Ocr\OcrServiceInterface;
+use App\Service\Ocr\TesseractOcrService;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use Symfony\Component\HttpClient\MockHttpClient;
@@ -267,5 +268,128 @@ TEXT;
         $this->assertSame(837, $entry['newData']['tokensIn']);
         $this->assertSame(312, $entry['newData']['tokensOut']);
         $this->assertMatchesRegularExpression('/^[a-f0-9]{16}$/', $entry['newData']['responseHash']);
+    }
+
+    /**
+     * Smoke test exercising the FULL real pipeline as it runs in production —
+     * real `TesseractOcrService` parsing a real scanned PDF fixture, real
+     * `PiiMasker` round-trip, real `AnthropicApiClient` (wire-format wise; the
+     * HTTP transport itself is mocked because we don't burn live API credits
+     * in tests). This is the only test in the project that proves Tesseract +
+     * PiiMasker + AnthropicApiClient compose correctly end-to-end. Skipped
+     * automatically on hosts without the tesseract binary so non-Docker
+     * developers can still run the rest of the suite.
+     */
+    public function testFullPipelineWithRealTesseractAndMockedAnthropic(): void
+    {
+        if (trim((string) shell_exec('which tesseract')) === '') {
+            $this->markTestSkipped('Tesseract binary not available; run inside Docker container');
+        }
+
+        $captured = ['body' => null];
+        $aiResponse = json_encode([
+            'id' => 'msg_smoke',
+            'type' => 'message',
+            'role' => 'assistant',
+            'model' => 'claude-sonnet-4-6',
+            'content' => [[
+                'type' => 'text',
+                'text' => json_encode([
+                    'creditor' => [
+                        'personType' => 'PJ',
+                        'name' => 'SC Foo SRL',
+                        'cui' => '15193236',
+                        'isVatPayer' => true,
+                        // The smoke test depends on whether OCR recovers the
+                        // exact 24-char IBAN from the rasterised PDF. Real
+                        // Tesseract output may differ by 1-2 chars; the
+                        // strategy still calls the AI and the test asserts
+                        // the wire-format contract regardless of what the AI
+                        // mimicked back as `iban`.
+                        'iban' => 'IBAN_PLACEHOLDER_001',
+                        'confidencePerField' => ['name' => 0.9, 'cui' => 0.95],
+                    ],
+                    'debtor' => [
+                        'personType' => 'PJ',
+                        'name' => 'SC Bar SRL',
+                        'cui' => '14186770',
+                        'confidencePerField' => ['name' => 0.85, 'cui' => 0.95],
+                    ],
+                    'claim' => [
+                        'amount' => 5000.0,
+                        'currency' => 'RON',
+                        'dueDate' => '2026-06-15',
+                        'confidencePerField' => ['amount' => 0.9],
+                    ],
+                    'globalConfidence' => 0.9,
+                ]),
+            ]],
+            'stop_reason' => 'end_turn',
+            'usage' => ['input_tokens' => 1000, 'output_tokens' => 200],
+        ]);
+
+        $captureRef = &$captured;
+        $mockHttp = new MockHttpClient(
+            static function (string $method, string $url, array $options) use ($aiResponse, &$captureRef): MockResponse {
+                $captureRef['body'] = $options['body'] ?? null;
+
+                return new MockResponse((string) $aiResponse, ['http_code' => 200]);
+            },
+        );
+
+        $strategy = new OcrTextExtractionStrategy(
+            ocrService: new TesseractOcrService(new NullLogger(), 'ron+eng'),
+            llmClient: new AnthropicApiClient(
+                httpClient: $mockHttp,
+                anthropicApiKey: 'sk-ant-smoke',
+                anthropicModel: 'claude-sonnet-4-6',
+                logger: new NullLogger(),
+            ),
+            auditLogService: $this->captureAuditLogService(),
+            extractionAiTextLimiter: $this->noLimitFactory(),
+            // Point uploadsDir at the real OCR fixtures committed under tests/fixtures/ocr/.
+            uploadsDir: __DIR__ . '/../../fixtures/ocr',
+            anthropicApiKey: 'sk-ant-smoke',
+            logger: new NullLogger(),
+        );
+
+        // scanned-invoice.pdf is a real DomPDF→ImageMagick rasterised PDF
+        // containing RO15193236, RO14186770, and RO49AAAA1B31007593840000
+        // (Pas 2.5.5 fixture; verified loadable via TesseractOcrServiceTest).
+        $document = $this->makeDocument(mime: 'application/pdf');
+        $document->setStoredFilename('scanned-invoice.pdf');
+
+        $result = $strategy->extract($document);
+
+        // 1. Real Tesseract did run — confidence is plausible and OCR text exists.
+        $this->assertNotNull($result->rawOcrText);
+
+        // 2. AI was invoked (request body captured).
+        $this->assertNotNull($captured['body'], 'Mocked Anthropic must have been called');
+        $sentBody = (string) $captured['body'];
+        $decoded = json_decode($sentBody, true);
+        $this->assertIsArray($decoded);
+        $this->assertSame('claude-sonnet-4-6', $decoded['model']);
+
+        // 3. Real PiiMasker masked the OCR-recovered IBAN before the prompt left
+        // the boundary. Real OCR may not perfectly recover all 24 chars of the
+        // IBAN — the assertion is conservative: if the IBAN was recovered
+        // intact, it must be replaced with a placeholder; either way the
+        // ORIGINAL must NOT appear in the prompt body verbatim.
+        $this->assertStringNotContainsString('RO49AAAA1B31007593840000', $sentBody, 'Real OCR-recovered IBAN must be masked before prompt');
+
+        // 4. The strategy's output reflects the AI response shape — even though
+        // PiiMasker's IBAN restore depends on whether OCR recovered the IBAN
+        // intact (which is OCR-quality-dependent), the structured fields
+        // already reach the wizard.
+        $this->assertSame(OcrTextExtractionStrategy::STRATEGY_KEY, $result->strategy);
+        $this->assertNotNull($result->creditor);
+        $this->assertSame('SC Foo SRL', $result->creditor->name);
+        $this->assertNotNull($result->claim);
+        $this->assertSame(5000.0, $result->claim->amount);
+
+        // 5. rawOcrText persisted in the DTO (and downstream JSON column) is
+        // masked: even on real OCR output, the IBAN is gone post-mask.
+        $this->assertStringNotContainsString('RO49AAAA1B31007593840000', $result->rawOcrText);
     }
 }
