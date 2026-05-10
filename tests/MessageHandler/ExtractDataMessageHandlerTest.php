@@ -192,6 +192,45 @@ class ExtractDataMessageHandlerTest extends TestCase
         );
     }
 
+    public function testProcessingFlushFailureIsRethrownToTriggerMessengerRetry(): void
+    {
+        // Distinct from `testFlushFailureInTheFailurePathStillAcks`: there the
+        // SECOND flush (FAILED) explodes after the cascade has already failed,
+        // and we want to ACK regardless. Here the FIRST flush (PROCESSING)
+        // explodes — typically a DB-down-at-the-very-start scenario. That's
+        // a transient infrastructure failure where Messenger's retry is the
+        // RIGHT behaviour: the next attempt may succeed against a recovered
+        // DB. So the handler MUST let this throw escape, NOT swallow.
+        //
+        // Important contrast with the catch-block in extract(): the current
+        // implementation only catches \Throwable from `extract()` and from
+        // the second flush. The first flush sits OUTSIDE the try/catch — its
+        // exception propagates to Messenger, which re-queues with backoff.
+        $document = $this->makeDocument(11);
+
+        $documents = $this->createMock(DocumentRepository::class);
+        $documents->method('find')->willReturn($document);
+
+        $extractor = $this->createMock(DataExtractionService::class);
+        $extractor->expects(self::never())->method('extract');
+
+        $events = $this->createMock(EventDispatcherInterface::class);
+        $events->expects(self::never())->method('dispatch');
+
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->expects(self::once())
+            ->method('flush')
+            ->willThrowException(new \RuntimeException('DB unreachable on initial PROCESSING flush'));
+
+        $handler = new ExtractDataMessageHandler($documents, $extractor, $events, $em, new NullLogger());
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessageMatches('/DB unreachable on initial PROCESSING flush/');
+
+        // Exception propagates → Messenger sees a thrown handler → retry path.
+        $handler(new ExtractDataMessage(11));
+    }
+
     private function makeDocument(int $id): Document
     {
         $document = new Document();
