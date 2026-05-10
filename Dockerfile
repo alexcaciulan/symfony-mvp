@@ -1,6 +1,10 @@
 FROM php:8.4-fpm-alpine
 
-# Install system dependencies
+# Install system dependencies (including OCR stack for Pas 2.5.5+):
+#   - tesseract-ocr + data-ron + data-eng = OCR engine + Romanian/English language data
+#     (Tesseract uses ISO 639-3 codes — `ron` for Romanian, NOT `ro` or `rum` or `rom`).
+#   - poppler-utils = `pdftoppm` for converting scanned PDFs page-by-page to PNG.
+#   - imagemagick + ghostscript = image preprocessing + ImageMagick PDF dependency.
 RUN apk add --no-cache \
     git \
     unzip \
@@ -10,6 +14,13 @@ RUN apk add --no-cache \
     libzip-dev \
     libxml2-dev \
     linux-headers \
+    tesseract-ocr \
+    tesseract-ocr-data-ron \
+    tesseract-ocr-data-eng \
+    poppler-utils \
+    imagemagick \
+    ghostscript \
+    font-dejavu \
     $PHPIZE_DEPS
 
 # Install PHP extensions

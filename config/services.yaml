@@ -15,6 +15,7 @@ services:
         autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
         bind:
             $uploadsDir: '%kernel.project_dir%/var/uploads'
+            $tesseractLanguages: '%env(OCR_LANGUAGES)%'
 
     # interface-based auto-tagging (Strategy + Tagged Iterator pattern)
     _instanceof:

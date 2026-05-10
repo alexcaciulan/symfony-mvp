@@ -63,7 +63,7 @@
 | 2.5.2 | Extracție | DTO `ExtractedDocumentData` (+ Creditor/Debtor/Claim) + `ExtractionStrategyInterface` + `StubExtractionStrategy` + `DataExtractionService` orchestrator (cu tagged iterator) | 4h | 2.5.1 | 0% | ✅ DONE 2026-05-09 (`a0fe48a`) |
 | 2.5.3 | Extracție | `PdfParserExtractionStrategy` (priority 100) — smalot/pdfparser + regex CUI/CNP/sume/date/IBAN cu validare checksum + heuristici contextuale RO | 5h | 2.5.2 | 0% | ✅ DONE 2026-05-10 (`8fc31c3`) |
 | 2.5.4 | Extracție | GDPR foundation: `AuditLogService::log()` cu `?string $category` + entity `AuditLog.category` + `PiiMasker` utility (mask/restore CNP + mask CUI) | 3h | 2.5.1 | 30% | ✅ DONE 2026-05-10 (`2300b0a`) |
-| 2.5.5 | Extracție | Docker OCR setup (Alpine: tesseract-ocr + tesseract-ocr-data-ron + poppler-utils + imagemagick + ghostscript) + `OcrServiceInterface` + `TesseractOcrService` + `OcrResult` DTO | 4h | — | 0% | ⏳ |
+| 2.5.5 | Extracție | Docker OCR setup (Alpine: tesseract-ocr + tesseract-ocr-data-ron + poppler-utils + imagemagick + ghostscript) + `OcrServiceInterface` + `TesseractOcrService` + `OcrResult` DTO | 4h | — | 0% | ✅ DONE 2026-05-10 |
 | 2.5.6 | Extracție | `AnthropicApiClient` (HttpClient + retry + DTO `AnthropicResponse`) + rate limiters `extraction_ai_text` (200/zi) + `extraction_ai_vision` (50/zi) + env vars (`ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, etc.) | 3h | — | 60% (pattern AnafLookup) | ⏳ |
 | 2.5.7 | Extracție | `OcrTextExtractionStrategy` (priority 70) — OCR + mask CNP + Claude API text + restore CNP + audit `AI_EXTRACTION` + fallback regex pe LOCAL_ONLY | 5h | 2.5.4, 2.5.5, 2.5.6 | 30% (pattern PdfParser) | ⏳ |
 | 2.5.8 | Extracție | `AiVisionExtractionStrategy` (priority 50) — Claude vision direct pe document + skip pe LOCAL_ONLY + audit + cascadă completă funcțională end-to-end | 4h | 2.5.4, 2.5.6 | 50% (pattern OcrText) | ⏳ |
@@ -1173,9 +1173,9 @@ Refactor enum la 3 valori distincte (ex: `B2B_PROFESIONAL`, `B2C_CONSUMER`, `NON
 
 ---
 
-#### PASUL 2.5.5 — Docker OCR + `TesseractOcrService` | ~4h | 0% reutilizare
+#### PASUL 2.5.5 — Docker OCR + `TesseractOcrService` | ~4h | 0% reutilizare ✅ DONE 2026-05-10
 
-**Rezultat**: _(va fi completat la marcarea ca DONE)_
+**Rezultat**: Dockerfile extins (Alpine `apk add`: tesseract-ocr 5.5.1 + tesseract-ocr-data-ron + tesseract-ocr-data-eng + poppler-utils 25.12 + imagemagick 7.1.2 + ghostscript + font-dejavu); `App\Service\Ocr\TesseractOcrService` (final class) cu pipeline image direct + PDF prin pdftoppm 300dpi → loop tesseract → parse TSV; `OcrServiceInterface`, `OcrException`, `OcrResult` DTO. Process array form (command-injection safe). Cleanup temp dir prin `try/finally`. Env `OCR_LANGUAGES=ron+eng` (ISO 639-3, NU `ro`/`rum`/`rom`) bind via `services.yaml`. 10 tests verzi (Nivel 1+2 mixed: real fixturi PNG + scanned PDF + sanity guard independent de tesseract; rejects-invalid-lang ca proof că `-l` parametrul ajunge la binary). Nivel 3 cascade — TRANSFERAT la 2.5.7 (TesseractOcrService NU implementează `ExtractionStrategyInterface` — e service utility consumat de `OcrTextExtractionStrategy` la 2.5.7). Reviews: legal-clean (GDPR art. 25 — Tesseract local, no AI extern, no PII în log); code: 2 BLOCKERS prinși și fix-uiți (`catch (ProcessFailedException)` cod mort cu `Process::run()` → schimbat la `\RuntimeException` care prinde și ProcessTimedOutException; sanity guard fixturi committed adăugat).
 
 **Scop**: pune Tesseract + dependențele OCR în Docker (Alpine) și implementează wrapperul PHP. Sub-pas izolat — testabil fără strategii AI.
 
