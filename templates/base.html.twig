@@ -8,7 +8,13 @@
         <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 128 128%22><text y=%221.2em%22 font-size=%2296%22>⚖️</text></svg>">
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+        <script>
+            // Apply dark mode before paint to avoid FOUC.
+            if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+        </script>
         {% if app.user is defined and app.user %}
             <script>
                 window.MERCURE_PUBLIC_URL = {{ mercure_public_url()|json_encode|raw }};
@@ -20,134 +26,86 @@
         {% endblock %}
     </head>
     <body data-controller="preline-init"
-          class="min-h-screen flex flex-col bg-surface text-gray-900 dark:bg-[var(--color-surface-dark)] dark:text-[var(--color-text-dark)]"
-          style="font-family:'DM Sans',sans-serif;">
-        {# Header #}
-        <header class="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" data-controller="mobile-menu">
-                <div class="flex items-center justify-between h-16">
-                    {# Logo #}
-                    <a href="{{ path('app_home') }}" class="text-xl font-bold text-primary dark:text-blue-300 no-underline">
-                        {{ 'layout.brand'|trans }}
-                    </a>
+          class="font-sans antialiased min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 {% block body_class %}{% endblock %}">
 
-                    {# Desktop Navigation #}
-                    <nav class="hidden md:flex items-center gap-6">
-                        <a href="{{ path('app_home') }}" class="text-gray-600 dark:text-gray-300 hover:text-primary font-medium no-underline">{{ 'layout.nav.home'|trans }}</a>
-                        {% if app.user %}
-                            <a href="{{ path('dashboard_cases') }}" class="text-gray-600 dark:text-gray-300 hover:text-primary font-medium no-underline">{{ 'layout.nav.my_cases'|trans }}</a>
-                            {% if is_granted('ROLE_ADMIN') %}
-                                <a href="{{ path('admin') }}" class="text-gray-600 dark:text-gray-300 hover:text-primary font-medium no-underline">{{ 'layout.nav.admin'|trans }}</a>
-                            {% endif %}
-                            <a href="{{ path('app_profile') }}" class="text-gray-500 dark:text-gray-400 hover:text-primary text-sm no-underline">{{ app.user.fullName ?: app.user.userIdentifier }}</a>
-                            <a href="{{ path('app_logout') }}" class="text-sm text-red-600 hover:text-red-800 font-medium no-underline">{{ 'layout.nav.logout'|trans }}</a>
-                        {% else %}
-                            <a href="{{ path('app_login') }}" class="text-gray-600 dark:text-gray-300 hover:text-primary font-medium no-underline">{{ 'layout.nav.login'|trans }}</a>
-                            <a href="{{ path('app_register') }}" class="inline-block px-4 py-2 bg-primary-light text-white rounded-lg font-medium hover:bg-primary no-underline text-sm">{{ 'layout.nav.register'|trans }}</a>
-                        {% endif %}
+        {% block layout %}
+            {% if app.user %}
+                {# Authenticated shell — sidebar (lg+) + topbar + content + footer. #}
+                {{ include('_sidebar.html.twig') }}
+                <div class="lg:pl-64 min-h-screen flex flex-col flex-1">
+                    {{ include('_topbar.html.twig') }}
 
-                        {# Dark mode toggle #}
-                        <button type="button"
-                                data-controller="dark-mode-toggle"
-                                data-action="click->dark-mode-toggle#toggle"
-                                aria-label="Toggle dark mode"
-                                class="p-2 rounded-md text-gray-500 dark:text-gray-300 hover:text-primary hover:bg-gray-100 dark:hover:bg-gray-800">
-                            <span data-dark-mode-toggle-target="icon">
-                                <svg class="w-5 h-5 hidden dark:inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
-                                </svg>
-                                <svg class="w-5 h-5 inline dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
-                                </svg>
-                            </span>
-                        </button>
+                    {# Legacy flash messages (backwards compat — controllers using addFlash('success', ...)). #}
+                    {% for type, messages in app.flashes(['success', 'error', 'warning', 'info', 'verify_email_error']) %}
+                        {% for message in messages %}
+                            <div class="px-4 lg:px-8 mt-4">
+                                <div role="alert" class="px-4 py-3 rounded-lg text-sm font-medium
+                                    {% if type == 'success' %} bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-900
+                                    {% elseif type == 'error' or type == 'verify_email_error' %} bg-red-50 text-red-800 border border-red-200 dark:bg-red-950/40 dark:text-red-200 dark:border-red-900
+                                    {% elseif type == 'warning' %} bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-900
+                                    {% else %} bg-blue-50 text-blue-800 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-200 dark:border-blue-900
+                                    {% endif %}">
+                                    {{ message|trans }}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% endfor %}
 
-                        {# Language Switcher - Desktop #}
-                        <div class="flex items-center gap-1 text-sm text-gray-400">
-                            {% for locale in ['ro', 'en'] %}
-                                {% if app.request.locale == locale %}
-                                    <span class="font-semibold text-primary">{{ locale|upper }}</span>
-                                {% else %}
-                                    <a href="{{ path('app_switch_locale', {locale: locale}) }}" class="hover:text-primary no-underline">{{ locale|upper }}</a>
-                                {% endif %}
-                                {% if not loop.last %}<span>|</span>{% endif %}
-                            {% endfor %}
+                    <main class="flex-1 px-4 lg:px-8 py-6">
+                        {% block body %}{% endblock %}
+                    </main>
+
+                    {{ include('_footer.html.twig') }}
+                </div>
+            {% else %}
+                {# Public/anonymous shell — minimal top bar + content + footer. #}
+                <header class="sticky top-0 z-50 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+                    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div class="flex items-center justify-between h-14">
+                            <a href="{{ path('app_home') }}" class="inline-flex items-center gap-2 text-lex-navy dark:text-white font-bold text-lg tracking-tight no-underline">
+                                <span class="inline-flex items-center justify-center size-8 rounded-lg bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white shadow-sm">
+                                    <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16l-3-3m3 3l3-3"/></svg>
+                                </span>
+                                {{ 'layout.brand'|trans }}
+                            </a>
+                            <nav class="flex items-center gap-3 sm:gap-5 text-sm">
+                                <a href="{{ path('app_login') }}" class="text-slate-600 dark:text-slate-300 hover:text-lex-navy dark:hover:text-blue-400 font-medium no-underline">{{ 'layout.nav.login'|trans }}</a>
+                                <a href="{{ path('app_register') }}" class="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg bg-lex-navy hover:bg-lex-navy-dark text-white font-semibold no-underline">{{ 'layout.nav.register'|trans }}</a>
+                                <button type="button"
+                                        data-controller="dark-mode-toggle"
+                                        data-action="click->dark-mode-toggle#toggle"
+                                        aria-label="{{ 'layout.topbar.toggle_dark'|trans }}"
+                                        class="p-2 rounded-lg text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+                                    <svg class="size-[18px] hidden dark:inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                                    <svg class="size-[18px] inline dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+                                </button>
+                            </nav>
                         </div>
-                    </nav>
+                    </div>
+                </header>
 
-                    {# Mobile Hamburger #}
-                    <button class="md:hidden p-2 text-gray-600 dark:text-gray-300 hover:text-primary" data-action="click->mobile-menu#toggle" aria-label="{{ 'layout.nav.menu_label'|trans }}">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-                        </svg>
-                    </button>
-                </div>
-
-                {# Mobile Menu #}
-                <div class="hidden md:hidden pb-4 border-t border-gray-100 dark:border-gray-800" data-mobile-menu-target="menu">
-                    <nav class="flex flex-col gap-3 pt-4">
-                        <a href="{{ path('app_home') }}" class="text-gray-600 dark:text-gray-300 hover:text-primary font-medium no-underline">{{ 'layout.nav.home'|trans }}</a>
-                        {% if app.user %}
-                            <a href="{{ path('dashboard_cases') }}" class="text-gray-600 dark:text-gray-300 hover:text-primary font-medium no-underline">{{ 'layout.nav.my_cases'|trans }}</a>
-                            {% if is_granted('ROLE_ADMIN') %}
-                                <a href="{{ path('admin') }}" class="text-gray-600 dark:text-gray-300 hover:text-primary font-medium no-underline">{{ 'layout.nav.admin'|trans }}</a>
-                            {% endif %}
-                            <a href="{{ path('app_profile') }}" class="text-gray-500 dark:text-gray-400 hover:text-primary text-sm no-underline">{{ app.user.fullName ?: app.user.userIdentifier }}</a>
-                            <a href="{{ path('app_logout') }}" class="text-red-600 hover:text-red-800 font-medium no-underline">{{ 'layout.nav.logout'|trans }}</a>
-                        {% else %}
-                            <a href="{{ path('app_login') }}" class="text-gray-600 dark:text-gray-300 hover:text-primary font-medium no-underline">{{ 'layout.nav.login'|trans }}</a>
-                            <a href="{{ path('app_register') }}" class="text-primary-light hover:text-primary font-medium no-underline">{{ 'layout.nav.register'|trans }}</a>
-                        {% endif %}
-
-                        {# Language Switcher - Mobile #}
-                        <div class="flex items-center gap-2 pt-2 border-t border-gray-100 dark:border-gray-800 text-sm text-gray-400">
-                            {% for locale in ['ro', 'en'] %}
-                                {% if app.request.locale == locale %}
-                                    <span class="font-semibold text-primary">{{ locale|upper }}</span>
-                                {% else %}
-                                    <a href="{{ path('app_switch_locale', {locale: locale}) }}" class="hover:text-primary no-underline">{{ locale|upper }}</a>
-                                {% endif %}
-                                {% if not loop.last %}<span>|</span>{% endif %}
-                            {% endfor %}
+                {% for type, messages in app.flashes(['success', 'error', 'warning', 'info', 'verify_email_error']) %}
+                    {% for message in messages %}
+                        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+                            <div role="alert" class="px-4 py-3 rounded-lg text-sm font-medium
+                                {% if type == 'success' %} bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-900
+                                {% elseif type == 'error' or type == 'verify_email_error' %} bg-red-50 text-red-800 border border-red-200 dark:bg-red-950/40 dark:text-red-200 dark:border-red-900
+                                {% elseif type == 'warning' %} bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-900
+                                {% else %} bg-blue-50 text-blue-800 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-200 dark:border-blue-900
+                                {% endif %}">
+                                {{ message|trans }}
+                            </div>
                         </div>
-                    </nav>
-                </div>
-            </div>
-        </header>
+                    {% endfor %}
+                {% endfor %}
 
-        {# Legacy flash messages (kept for backwards compatibility — keeps existing controllers using addFlash('success', ...) working). #}
-        {% for type, messages in app.flashes(['success', 'error', 'warning', 'info', 'verify_email_error']) %}
-            {% for message in messages %}
-                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
-                    <div role="alert" class="px-4 py-3 rounded-lg text-sm font-medium
-                        {% if type == 'success' %} bg-green-50 text-green-800 border border-green-200
-                        {% elseif type == 'error' or type == 'verify_email_error' %} bg-red-50 text-red-800 border border-red-200
-                        {% elseif type == 'warning' %} bg-yellow-50 text-yellow-800 border border-yellow-200
-                        {% else %} bg-blue-50 text-blue-800 border border-blue-200
-                        {% endif %}">
-                        {{ message|trans }}
-                    </div>
-                </div>
-            {% endfor %}
-        {% endfor %}
+                <main class="flex-1">
+                    {{ block('body') }}
+                </main>
 
-        {# Main Content #}
-        <main class="flex-1">
-            {% block body %}{% endblock %}
-        </main>
-
-        {# Footer #}
-        <footer class="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 mt-auto">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div class="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-gray-500 dark:text-gray-400">
-                    <p>{{ 'layout.footer.copyright'|trans({'%year%': "now"|date("Y")}) }}</p>
-                    <div class="flex gap-6">
-                        <a href="#" class="hover:text-primary no-underline">{{ 'layout.footer.terms'|trans }}</a>
-                        <a href="#" class="hover:text-primary no-underline">{{ 'layout.footer.contact'|trans }}</a>
-                    </div>
-                </div>
-            </div>
-        </footer>
+                {{ include('_footer.html.twig') }}
+            {% endif %}
+        {% endblock %}
 
         {# Toast container — bottom-right, populated from ToastService flash bag + window 'toast:show' events. #}
         <div data-controller="toast"

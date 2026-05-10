@@ -6,8 +6,8 @@
 
 ## TL;DR
 
-- **30 pași** grupați în **10 faze tehnice** (Bootstrap → Domain → Calcule → Extracție → Wizard → Termene → PDF → Monitorizare → UI → Monetizare → Deploy)
-- **~22 zile dezvoltare** efectiv | **~18 zile calendar** cu paralelism
+- **31 pași** grupați în **10 faze tehnice** (Bootstrap → Domain → Calcule → Extracție + Aliniere UI → Wizard → Termene → PDF → Monitorizare → UI → Monetizare → Deploy)
+- **~23.5 zile dezvoltare** efectiv | **~19 zile calendar** cu paralelism
 - **Strategia DB**: drop+recreate pe branch `lexrecovery` (NU migrare progresivă) — pivotul e prea profund
 - **Reguli cheie**: un pas = un prompt; un commit per pas; teste incremental
 - **Specificația funcțională**: [`ANALIZA-FLUXURI-LEXRECOVERY.md`](./ANALIZA-FLUXURI-LEXRECOVERY.md) ([rezumat](./REZUMAT-ANALIZA-FLUXURI.md))
@@ -33,11 +33,12 @@
 
 | Zonă | Fișier | Pas care îl consumă |
 |---|---|---|
-| Login | `01-auth/login.html` | refolosit din MVP |
-| Dashboard gol | `02-dashboard/empty.html` | 7.1 |
-| Dashboard populated | `02-dashboard/populated.html` | 7.1 |
+| Design tokens + sidebar + topbar | `shared/tokens.html` + `02-dashboard/*` | **2.7** (shell + componente reutilizabile) |
+| Login (split layout) | `01-auth/login.html` | 2.7 (re-implementat split 2-col) |
+| Dashboard gol | `02-dashboard/empty.html` | 2.7 (livrat parțial) + 7.1 (filtre + Live Component) |
+| Dashboard populated | `02-dashboard/populated.html` | 2.7 (livrat parțial: KPI + deadlines + tabel) + 7.1 |
 | Wizard Step 0-4 | `03-wizard/step{0..4}-*.html` | 3.0, 3.1, 3.2, 3.3 |
-| View dosar | `04-dosar/overview.html` | 7.2 |
+| View dosar | `04-dosar/overview.html` | 7.2 (consumă `PipelineStatus` livrat la 2.7) |
 
 **Lipsesc** (de derivat ad-hoc din direcția mock-up-urilor existente sau acceptat UI MVP refolosit): register/email-verify/reset, tab-uri view dosar (Documente/Termene/Activitate/Audit derivate din overview), modal-uri tranziții, pagini admin (EasyAdmin default), pagini monetizare, email templates.
 
@@ -81,7 +82,7 @@ bin/console doctrine:migrations:migrate
 | 1.3 | Workflow YAML refăcut + ajustare `CaseWorkflowService` | 0.5z | 70% |
 | 1.4 | Migrare baseline + fixtures + `app:seed-demo-dosare` | 0.5z | 80% |
 
-### Faza 2 — Calcule & Extracție (4.25 zile, 2.1-2.5 paralelizabile)
+### Faza 2 — Calcule & Extracție + Aliniere UI (5.75 zile, 2.1-2.5 paralelizabile)
 
 | # | Pas | Durată | Reutilizare |
 |---|---|---|---|
@@ -91,6 +92,9 @@ bin/console doctrine:migrations:migrate
 | 2.4 | `OpAdmissibilityValidator` (CPC art. 1014, L 85/2014) + integrare `AnafLookupService` existent + Debitor ANAF/BPI fields | 0.5z | 80% |
 | 2.5 | **`DataExtractionService` + 4 strategii cascadă** (PdfParser/OcrText/AiVision/Stub) + Tesseract + ImageMagick | **2z** | 0% |
 | 2.6 | `ExtractDataMessage` async (Messenger) | 0.5z | 30% |
+| 2.7 | **Aliniere shell + design system bază cu mockup-urile v2** (sidebar + topbar + 4 componente reutilizabile + split auth + dashboard KPI) — pas intermediar ÎNAINTE de Faza 3 | **1.5z** | 0% |
+
+> **De ce 2.7 între 2.6 și 3.0?** Pas 3.0 introduce primele template-uri Twig de wizard. Înainte, `base.html.twig` era topbar-only DM Sans cu 6 design tokens — disonant cu mockup-urile v2 (sidebar 256px Inter lex-navy + Preline + shadow-soft/card). Fără aliniere prealabilă, Pas 3.0+ ar fi cerut rescriere UI ulterioară. Pas 2.7 livrează: design tokens complete (`@theme` Tailwind v4), `_sidebar`/`_topbar`/`_footer` partials, 4 componente (`KpiCard`, `DeadlineList`, `HeroEmptyState`, `PipelineStatus`) + extensie `StatusBadge` enum-aware, refactor login/register la split 2-col, dashboard cu 4 KPI + DeadlineList + how-it-works empty state, i18n ~80 chei noi. Zero regresii test suite (baseline 41/4 neschimbat).
 
 ### Faza 3 — Wizard creare dosar (4 zile)
 
@@ -217,7 +221,7 @@ Vezi tabelul complet (R1-R13) la [§Riscuri în plan](./PLAN-DEZVOLTARE-LEXRECOV
 
 ```
 Săpt 1: 0.1 → 0.2 → 1.1‖1.2 → 1.3 → 1.4
-Săpt 2: 2.1‖2.2‖2.3‖2.4 → 2.5 → 2.6
+Săpt 2: 2.1‖2.2‖2.3‖2.4 → 2.5 → 2.6 → 2.7 (aliniere UI înainte de wizard)
 Săpt 3: 3.0 → 3.1 → 3.2 → 3.3 → 4.1 → 4.2 → 4.3
 Săpt 4: [5.1 → 5.2] ‖ [6.1 → 6.2 → 6.3] → 7.1 → 7.2 → 7.3‖8.1 → 8.2 → 9.1 → smoke test
 ```

@@ -1,0 +1,158 @@
+{# Authenticated sidebar — fixed 256px, hidden on <lg (mobile uses topbar drawer). #}
+{% set current_route = app.request.attributes.get('_route') %}
+{% set initials = (app.user.firstName|default('')|slice(0, 1) ~ app.user.lastName|default('')|slice(0, 1))|upper %}
+{% if initials is empty %}{% set initials = app.user.email|slice(0, 2)|upper %}{% endif %}
+
+<aside class="hidden lg:flex flex-col fixed inset-y-0 left-0 w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 z-30">
+
+    {# Logo bar #}
+    <div class="h-16 flex items-center px-5 border-b border-slate-100 dark:border-slate-800">
+        <a href="{{ path('dashboard_cases') }}" class="flex items-center gap-2 text-lex-navy dark:text-white font-bold text-lg tracking-tight no-underline">
+            <span class="inline-flex items-center justify-center size-8 rounded-lg bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white shadow-sm">
+                <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16l-3-3m3 3l3-3"/></svg>
+            </span>
+            {{ 'layout.brand'|trans }}
+        </a>
+    </div>
+
+    {# Cabinet switcher (single cabinet in MVP; UI hook for future multi-tenant). #}
+    <div class="px-3 py-3 border-b border-slate-100 dark:border-slate-800">
+        <div class="hs-dropdown relative inline-flex w-full">
+            <button type="button" class="hs-dropdown-toggle w-full inline-flex items-center gap-2 py-2 px-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition" aria-haspopup="menu" aria-expanded="false">
+                <span class="inline-flex items-center justify-center size-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-xs font-bold shrink-0">{{ initials }}</span>
+                <span class="flex-1 min-w-0 text-left">
+                    <span class="block text-sm font-semibold text-slate-900 dark:text-white truncate">{{ app.user.companyName|default(app.user.fullName ?: 'layout.sidebar.cabinet_default'|trans) }}</span>
+                    <span class="block text-[10px] text-slate-500 truncate">{{ 'layout.sidebar.plan_starter'|trans }}</span>
+                </span>
+                <svg class="hs-dropdown-open:rotate-180 size-3.5 text-slate-400 shrink-0 transition" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+            </button>
+            <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-[230px] bg-white shadow-card rounded-xl border border-slate-200 dark:bg-slate-900 dark:border-slate-800 mt-1 p-1.5 z-40" role="menu">
+                <div class="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">{{ 'layout.sidebar.current_cabinet'|trans }}</div>
+                <div class="flex items-center gap-2.5 py-2 px-2 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+                    <span class="inline-flex items-center justify-center size-7 rounded-md bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-[10px] font-bold">{{ initials }}</span>
+                    <span class="flex-1 text-sm font-medium truncate">{{ app.user.companyName|default(app.user.fullName ?: app.user.email) }}</span>
+                    <svg class="size-4 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# Nav — Principal #}
+    <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-6" aria-label="Sidebar">
+        <div class="space-y-0.5">
+            {# Dashboard #}
+            {% set is_dashboard = current_route == 'dashboard_cases' %}
+            <a href="{{ path('dashboard_cases') }}"
+               class="{{ is_dashboard ? 'nav-active text-lex-navy dark:text-blue-400 font-semibold' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium' }} flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm transition relative no-underline">
+                {% if is_dashboard %}<span class="absolute left-0 top-2 bottom-2 w-0.5 bg-lex-navy dark:bg-blue-400 rounded-r" aria-hidden="true"></span>{% endif %}
+                <svg class="size-[18px] {{ is_dashboard ? '' : 'text-slate-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+                {{ 'layout.sidebar.nav.dashboard'|trans }}
+            </a>
+
+            {# Dosare (count badge) — also routes to dashboard_cases for now; sidebar emphasizes the section. #}
+            <a href="{{ path('dashboard_cases') }}"
+               class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition no-underline">
+                <svg class="size-[18px] text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                {{ 'layout.sidebar.nav.cases'|trans }}
+                {% if sidebar_cases_count|default(0) > 0 %}
+                    <span class="ml-auto inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-bold tnum">{{ sidebar_cases_count }}</span>
+                {% endif %}
+            </a>
+
+            {# Termene — coming soon (Pas 4.3). #}
+            <a href="#" aria-disabled="true" title="{{ 'layout.sidebar.coming_soon'|trans }}"
+               class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-400 dark:text-slate-500 cursor-not-allowed no-underline"
+               onclick="event.preventDefault()">
+                <svg class="size-[18px] text-slate-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                {{ 'layout.sidebar.nav.deadlines'|trans }}
+                {% if sidebar_deadlines_count|default(0) > 0 %}
+                    <span class="ml-auto inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-md bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 text-[10px] font-bold tnum">{{ sidebar_deadlines_count }}</span>
+                {% endif %}
+            </a>
+
+            {# Notificări — coming soon (Pas 6.x). #}
+            <a href="#" aria-disabled="true" title="{{ 'layout.sidebar.coming_soon'|trans }}"
+               class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-400 dark:text-slate-500 cursor-not-allowed no-underline"
+               onclick="event.preventDefault()">
+                <svg class="size-[18px] text-slate-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                {{ 'layout.sidebar.nav.notifications'|trans }}
+            </a>
+        </div>
+
+        {# Section — Bibliotecă (placeholders, post-MVP). #}
+        <div class="space-y-0.5">
+            <div class="px-2.5 mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-600">{{ 'layout.sidebar.section.library'|trans }}</div>
+            <a href="#" aria-disabled="true" title="{{ 'layout.sidebar.coming_soon'|trans }}"
+               class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-400 dark:text-slate-500 cursor-not-allowed no-underline"
+               onclick="event.preventDefault()">
+                <svg class="size-[18px] text-slate-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"/></svg>
+                {{ 'layout.sidebar.nav.creditors'|trans }}
+            </a>
+            <a href="#" aria-disabled="true" title="{{ 'layout.sidebar.coming_soon'|trans }}"
+               class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-400 dark:text-slate-500 cursor-not-allowed no-underline"
+               onclick="event.preventDefault()">
+                <svg class="size-[18px] text-slate-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                {{ 'layout.sidebar.nav.debtors'|trans }}
+            </a>
+            <a href="#" aria-disabled="true" title="{{ 'layout.sidebar.coming_soon'|trans }}"
+               class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-400 dark:text-slate-500 cursor-not-allowed no-underline"
+               onclick="event.preventDefault()">
+                <svg class="size-[18px] text-slate-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                {{ 'layout.sidebar.nav.courts'|trans }}
+            </a>
+        </div>
+
+        {# Section — Cabinet #}
+        <div class="space-y-0.5">
+            <div class="px-2.5 mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-600">{{ 'layout.sidebar.section.cabinet'|trans }}</div>
+            <a href="#" aria-disabled="true" title="{{ 'layout.sidebar.coming_soon'|trans }}"
+               class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-400 dark:text-slate-500 cursor-not-allowed no-underline"
+               onclick="event.preventDefault()">
+                <svg class="size-[18px] text-slate-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+                {{ 'layout.sidebar.nav.subscription'|trans }}
+                <span class="ml-auto text-[9px] font-bold uppercase tracking-wide text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">{{ 'layout.sidebar.plan_label_starter'|trans }}</span>
+            </a>
+            {% set is_settings = current_route starts with 'app_profile' %}
+            <a href="{{ path('app_profile') }}"
+               class="{{ is_settings ? 'nav-active text-lex-navy dark:text-blue-400 font-semibold' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium' }} flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm transition relative no-underline">
+                {% if is_settings %}<span class="absolute left-0 top-2 bottom-2 w-0.5 bg-lex-navy dark:bg-blue-400 rounded-r" aria-hidden="true"></span>{% endif %}
+                <svg class="size-[18px] {{ is_settings ? '' : 'text-slate-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                {{ 'layout.sidebar.nav.settings'|trans }}
+            </a>
+            {% if is_granted('ROLE_ADMIN') %}
+                <a href="{{ path('admin') }}"
+                   class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition no-underline">
+                    <svg class="size-[18px] text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                    {{ 'layout.nav.admin'|trans }}
+                </a>
+            {% endif %}
+        </div>
+    </nav>
+
+    {# User dropdown — bottom #}
+    <div class="border-t border-slate-100 dark:border-slate-800 p-3">
+        <div class="hs-dropdown relative inline-flex w-full">
+            <button type="button" class="hs-dropdown-toggle w-full inline-flex items-center gap-2.5 py-2 px-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition" aria-haspopup="menu" aria-expanded="false">
+                <span class="inline-flex items-center justify-center size-9 rounded-full bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white text-sm font-semibold shrink-0 ring-2 ring-white dark:ring-slate-900">{{ initials }}</span>
+                <span class="flex-1 min-w-0 text-left">
+                    <span class="block text-sm font-semibold text-slate-900 dark:text-white truncate">{{ app.user.fullName ?: app.user.email }}</span>
+                    <span class="block text-[10px] text-slate-500 truncate">{{ app.user.email }}</span>
+                </span>
+                <svg class="hs-dropdown-open:rotate-180 size-3.5 text-slate-400 shrink-0 transition" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7"/></svg>
+            </button>
+            <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-[230px] bg-white shadow-card rounded-xl border border-slate-200 dark:bg-slate-900 dark:border-slate-800 mb-1 p-1.5 z-40 bottom-full" role="menu">
+                <a href="{{ path('app_profile') }}" class="flex items-center gap-2.5 py-2 px-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 text-sm no-underline">{{ 'layout.sidebar.user_menu.profile'|trans }}</a>
+                <button type="button"
+                        data-controller="dark-mode-toggle"
+                        data-action="click->dark-mode-toggle#toggle"
+                        class="w-full flex items-center gap-2.5 py-2 px-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 text-sm text-left">
+                    <span class="dark:hidden">{{ 'layout.sidebar.user_menu.dark_mode'|trans }}</span>
+                    <span class="hidden dark:inline">{{ 'layout.sidebar.user_menu.light_mode'|trans }}</span>
+                </button>
+                <hr class="my-1 border-slate-100 dark:border-slate-800">
+                <a href="{{ path('app_logout') }}" class="flex items-center gap-2.5 py-2 px-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-sm text-red-600 no-underline">{{ 'layout.nav.logout'|trans }}</a>
+            </div>
+        </div>
+    </div>
+
+</aside>

@@ -1,0 +1,66 @@
+{# @var label string         Small uppercase eyebrow text. #}
+{# @var value string|int     Main KPI value. Rendered with tabular-nums. #}
+{# @var unit string|null     Optional unit (RON / dosare / etc) — small after value. #}
+{# @var hint string|null     Optional sub-text below the value. #}
+{# @var trend string|null    Optional trend label (e.g. "+5 vs luna trecută"). #}
+{# @var trend_direction string|null   'up' | 'down' | 'flat'. Drives icon + color. Default 'flat'. #}
+{# @var accent string|null   Optional accent color for a decorative blur background. One of: navy, red, amber, blue, green, purple. Default none. #}
+{# @var emphasize bool|null  When true, applies a red-tinted gradient + ring (used for "urgent" KPI). Default false. #}
+
+{% set emphasize = emphasize|default(false) %}
+{% set trend_direction = trend_direction|default('flat') %}
+
+{% set accent_blur = {
+    navy:   'from-blue-200/30',
+    blue:   'from-blue-200/30',
+    purple: 'from-purple-200/30',
+    amber:  'from-amber-200/30',
+    green:  'from-green-200/30',
+    red:    'from-red-200/40',
+} %}
+{% set accent_blur_dark = {
+    navy:   'dark:from-blue-700/20',
+    blue:   'dark:from-blue-700/20',
+    purple: 'dark:from-purple-700/20',
+    amber:  'dark:from-amber-700/20',
+    green:  'dark:from-green-700/20',
+    red:    'dark:from-red-700/20',
+} %}
+
+<div {{ attributes.defaults({
+    class: emphasize
+        ? 'bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-950/30 dark:to-orange-950/30 rounded-xl border border-red-200 dark:border-red-900/50 p-5 shadow-soft ring-1 ring-red-100 dark:ring-red-950/50 relative overflow-hidden'
+        : 'bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 shadow-soft relative overflow-hidden',
+}) }}>
+    {% if accent is defined and accent and accent_blur[accent] is defined %}
+        <div class="absolute top-0 right-0 size-20 bg-gradient-to-br {{ accent_blur[accent] }} {{ accent_blur_dark[accent]|default('') }} to-transparent rounded-full blur-2xl" aria-hidden="true"></div>
+    {% endif %}
+
+    <div class="relative">
+        <div class="text-xs font-medium uppercase tracking-wide {{ emphasize ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400' }}">{{ label }}</div>
+        <div class="mt-2 flex items-baseline gap-2">
+            <div class="text-3xl font-bold tnum {{ emphasize ? 'text-red-600 dark:text-red-400' : '' }}">{{ value }}{% if unit is defined and unit %}<span class="text-base font-medium text-slate-400 ml-1">{{ unit }}</span>{% endif %}</div>
+            {% if emphasize and value is not null and value != 0 %}
+                <span class="relative flex size-2" aria-hidden="true">
+                    <span class="absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 soft-pulse"></span>
+                    <span class="relative inline-flex rounded-full size-2 bg-red-500"></span>
+                </span>
+            {% endif %}
+        </div>
+
+        {% if hint is defined and hint %}
+            <div class="mt-2 text-xs {{ emphasize ? 'text-red-700/70 dark:text-red-300/70' : 'text-slate-500 dark:text-slate-400' }}">{{ hint }}</div>
+        {% endif %}
+
+        {% if trend is defined and trend %}
+            <div class="mt-2 inline-flex items-center gap-1 text-xs font-medium {{ trend_direction == 'up' ? 'text-green-600 dark:text-green-400' : (trend_direction == 'down' ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400') }}">
+                {% if trend_direction == 'up' %}
+                    <svg class="size-3" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+                {% elseif trend_direction == 'down' %}
+                    <svg class="size-3" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L9 12.586V5a1 1 0 112 0v7.586l2.293-2.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                {% endif %}
+                {{ trend }}
+            </div>
+        {% endif %}
+    </div>
+</div>

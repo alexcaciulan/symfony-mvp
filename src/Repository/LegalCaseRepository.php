@@ -110,6 +110,48 @@ class LegalCaseRepository extends ServiceEntityRepository
             ->getSingleScalarResult();
     }
 
+    public function countActiveByUser(User $user): int
+    {
+        $terminal = array_filter(
+            CaseStatus::cases(),
+            static fn (CaseStatus $s): bool => $s->isTerminal()
+        );
+
+        return (int) $this->createQueryBuilder('lc')
+            ->select('COUNT(lc.id)')
+            ->where('lc.user = :user')
+            ->andWhere('lc.deletedAt IS NULL')
+            ->andWhere('lc.status NOT IN (:terminal)')
+            ->setParameter('user', $user)
+            ->setParameter('terminal', $terminal)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    /**
+     * Sum of principal claim amounts on active (non-terminal) cases for a user.
+     * Used by dashboard KPI "În recuperare".
+     */
+    public function sumActiveAmountByUser(User $user): float
+    {
+        $terminal = array_filter(
+            CaseStatus::cases(),
+            static fn (CaseStatus $s): bool => $s->isTerminal()
+        );
+
+        $result = $this->createQueryBuilder('lc')
+            ->select('COALESCE(SUM(lc.amount), 0) AS total')
+            ->where('lc.user = :user')
+            ->andWhere('lc.deletedAt IS NULL')
+            ->andWhere('lc.status NOT IN (:terminal)')
+            ->setParameter('user', $user)
+            ->setParameter('terminal', $terminal)
+            ->getQuery()
+            ->getSingleScalarResult();
+
+        return (float) $result;
+    }
+
     /**
      * Find cases eligible for portal.just.ro monitoring.
      * Cases must have a caseNumber, be in an active status, and have a court with portalCode.

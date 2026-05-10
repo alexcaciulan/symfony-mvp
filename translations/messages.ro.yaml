@@ -2,7 +2,7 @@
 # Navigation & Layout (base.html.twig)
 # =============================================================================
 layout:
-    brand: 'RecuperăriCreanțe'
+    brand: 'LexRecovery'
     nav:
         home: 'Acasă'
         new_case: 'Depune cerere'
@@ -13,31 +13,103 @@ layout:
         register: 'Înregistrare'
         menu_label: 'Meniu'
     footer:
-        copyright: '© %year% RecuperăriCreanțe. Toate drepturile rezervate.'
+        copyright: '© %year% LexRecovery. Toate drepturile rezervate.'
         terms: 'Termeni și condiții'
         contact: 'Contact'
+    sidebar:
+        cabinet_default: 'Cabinetul meu'
+        plan_starter: 'Plan Starter · 0/5 dosare'
+        plan_label_starter: 'Starter'
+        current_cabinet: 'Cabinet curent'
+        coming_soon: 'În curând'
+        nav:
+            dashboard: 'Dashboard'
+            cases: 'Dosare'
+            deadlines: 'Termene'
+            notifications: 'Notificări'
+            creditors: 'Creditori'
+            debtors: 'Debitori'
+            courts: 'Instanțe'
+            subscription: 'Abonament'
+            settings: 'Setări'
+        section:
+            library: 'Bibliotecă'
+            cabinet: 'Cabinet'
+        user_menu:
+            profile: 'Profilul meu'
+            dark_mode: 'Mod întunecat'
+            light_mode: 'Mod luminos'
+    topbar:
+        breadcrumb_default: 'Dashboard'
+        toggle_dark: 'Comută tema'
+        cta_new_case: 'Dosar nou'
+
+# =============================================================================
+# Auth split layout (login + register branding side)
+# =============================================================================
+auth:
+    or: 'sau'
+    branding:
+        tagline: 'Recuperare creanțe<br>automatizată pentru avocați.'
+        tagline_short: 'Recuperare creanțe pentru avocați'
+        subtitle: 'De la somația de plată până la titlul executoriu — un singur dosar, monitorizare automată, zero risc de pierdere termene.'
+        feature:
+            interest: 'Calcul dobândă legală automat (OG 13/2011)'
+            monitoring: 'Monitorizare zilnică portal.just.ro'
+            pdf_pack: 'Generare PDF: somație, cerere OP, opis, ZIP'
+            extraction: 'Extracție AI date din contract / factură'
+        quote: '„Înainte îmi lua 3 ore să pregătesc o cerere OP. Acum descarc ZIP-ul și îl depun."'
+        quote_author: '— Av. Andrei P., cabinet București'
+
+# =============================================================================
+# Pipeline component (PipelineStatus.html.twig)
+# =============================================================================
+pipeline:
+    aria_label: 'Etapele dosarului'
+    step_label: 'Pas %num%'
+    stage:
+        amicable: 'Amiabil'
+        notice: 'Somație'
+        filed: 'Cerere depusă'
+        decision: 'Decizie instanță'
+        final: 'Definitivă / Executare'
+
+# =============================================================================
+# Deadline list component (DeadlineList.html.twig)
+# =============================================================================
+component:
+    deadline_list:
+        default_title: 'Termene în 7 zile'
+        live: 'live'
+        empty: 'Niciun termen apropiat.'
+        due_at: 'Termen'
+        in_x_days: 'în %days% zile'
+        overdue: 'depășit'
 
 # =============================================================================
 # Login (security/login.html.twig)
 # =============================================================================
 login:
     title: 'Autentificare'
+    heading: 'Bine ai revenit'
+    subheading: 'Conectează-te pentru a-ți accesa dosarele.'
     logged_in_as: 'Ești autentificat ca'
     label_email: 'Email'
     label_password: 'Parolă'
-    submit: 'Autentificare'
-    no_account: 'Nu ai cont?'
-    register_link: 'Înregistrează-te'
+    submit: 'Conectează-te'
+    no_account: 'Cont nou?'
+    register_link: 'Creează unul aici'
     logout: 'Deconectare'
-    forgot_password: 'Am uitat parola'
+    forgot_password: 'Ai uitat parola?'
 
 # =============================================================================
 # Registration (registration/register.html.twig)
 # =============================================================================
 registration:
     title: 'Înregistrare'
-    heading: 'Creează un cont'
-    submit: 'Înregistrare'
+    heading: 'Creează cont nou'
+    subheading: 'Începe primul dosar în 5 minute. Restul îl face aplicația.'
+    submit: 'Creează contul'
     has_account: 'Ai deja cont?'
     login_link: 'Autentifică-te'
     check_email:
@@ -282,9 +354,12 @@ dashboard:
     cases:
         title: 'Dosarele mele'
         heading: 'Dosarele mele'
+        greeting_subtitle: 'Toate dosarele active într-un singur loc.'
         new_case: 'Cerere nouă'
         empty: 'Nu aveți dosare înregistrate.'
-        create_first: 'Depuneți prima cerere'
+        empty_heading: 'Bun venit pe LexRecovery'
+        empty_subtitle: 'Nu ai niciun dosar deschis încă. Hai să începem cu primul — îți ia 5 minute, restul îl face aplicația.'
+        create_first: 'Începe primul dosar'
         col_id: 'Nr.'
         col_court: 'Instanța'
         col_amount: 'Suma'
@@ -298,6 +373,33 @@ dashboard:
         continue: 'Continuă'
         view: 'Vezi'
         pay: 'Plătește'
+        table_title: 'Toate dosarele'
+        showing: 'Afișezi %count% dosare'
+        deadlines_title: 'Termene în 7 zile'
+        deadlines_count: '%count% termene'
+        portal_feed_title: 'Activitate portal.just.ro'
+        portal_feed_empty: 'Monitorizarea portalului va fi activată odată cu primul dosar înregistrat la instanță.'
+        coming_soon: 'În curând'
+        how_it_works: 'Cum funcționează LexRecovery'
+        how:
+            extract:
+                title: 'Încarcă documente'
+                description: 'Upload contract / factură. Extracția AI populează automat datele creditorului, debitorului și creanței.'
+            op_request:
+                title: 'Cerere ordonanță de plată'
+                description: 'După cel puțin 15 zile de la comunicarea somației (CPC art. 1015), descarci ZIP-ul cu cererea OP, opisul, somația și dovezile. Calcul automat dobândă + taxă timbru.'
+            enforcement:
+                title: 'Titlu executoriu'
+                description: 'Aplicația monitorizează zilnic portal.just.ro. Termenele sunt urmărite automat — niciun risc de pierdere.'
+        kpi:
+            active: 'Dosare active'
+            active_hint: 'în curs de procesare'
+            deadlines: 'Termene urgente'
+            deadlines_hint: '≤ 7 zile rămase'
+            amount_active: 'În recuperare'
+            amount_active_hint: 'portofoliu activ'
+            portal_events: 'Evenimente portal'
+            portal_events_hint: 'noutăți portal.just.ro'
 
 # =============================================================================
 # Reset Password (reset_password/*.html.twig)

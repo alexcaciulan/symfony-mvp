@@ -2,7 +2,7 @@
 # Navigation & Layout (base.html.twig)
 # =============================================================================
 layout:
-    brand: 'RecuperăriCreanțe'
+    brand: 'LexRecovery'
     nav:
         home: 'Home'
         new_case: 'New application'
@@ -13,21 +13,92 @@ layout:
         register: 'Register'
         menu_label: 'Menu'
     footer:
-        copyright: '© %year% RecuperăriCreanțe. All rights reserved.'
+        copyright: '© %year% LexRecovery. All rights reserved.'
         terms: 'Terms and conditions'
         contact: 'Contact'
+    sidebar:
+        cabinet_default: 'My practice'
+        plan_starter: 'Starter plan · 0/5 cases'
+        plan_label_starter: 'Starter'
+        current_cabinet: 'Current practice'
+        coming_soon: 'Coming soon'
+        nav:
+            dashboard: 'Dashboard'
+            cases: 'Cases'
+            deadlines: 'Deadlines'
+            notifications: 'Notifications'
+            creditors: 'Creditors'
+            debtors: 'Debtors'
+            courts: 'Courts'
+            subscription: 'Billing'
+            settings: 'Settings'
+        section:
+            library: 'Library'
+            cabinet: 'Practice'
+        user_menu:
+            profile: 'My profile'
+            dark_mode: 'Dark mode'
+            light_mode: 'Light mode'
+    topbar:
+        breadcrumb_default: 'Dashboard'
+        toggle_dark: 'Toggle theme'
+        cta_new_case: 'New case'
+
+# =============================================================================
+# Auth split layout (login + register branding side)
+# =============================================================================
+auth:
+    or: 'or'
+    branding:
+        tagline: 'Automated debt recovery<br>for legal professionals.'
+        tagline_short: 'Debt recovery for legal professionals'
+        subtitle: 'From the payment notice to the enforceable title — one case file, automated monitoring, no missed deadlines.'
+        feature:
+            interest: 'Automatic legal interest calculation (OG 13/2011)'
+            monitoring: 'Daily portal.just.ro monitoring'
+            pdf_pack: 'PDF generation: notice, petition, index, ZIP'
+            extraction: 'AI data extraction from contracts / invoices'
+        quote: '"Preparing a payment order used to take me 3 hours. Now I just download the ZIP and file it."'
+        quote_author: '— Andrei P., attorney, Bucharest'
+
+# =============================================================================
+# Pipeline component (PipelineStatus.html.twig)
+# =============================================================================
+pipeline:
+    aria_label: 'Case stages'
+    step_label: 'Step %num%'
+    stage:
+        amicable: 'Amicable'
+        notice: 'Notice'
+        filed: 'Petition filed'
+        decision: 'Court decision'
+        final: 'Final / Enforcement'
+
+# =============================================================================
+# Deadline list component (DeadlineList.html.twig)
+# =============================================================================
+component:
+    deadline_list:
+        default_title: 'Deadlines in 7 days'
+        live: 'live'
+        empty: 'No upcoming deadlines.'
+        due_at: 'Due'
+        in_x_days: 'in %days% days'
+        overdue: 'overdue'
 
 # =============================================================================
 # Login (security/login.html.twig)
 # =============================================================================
 login:
     title: 'Sign in'
+    heading: 'Welcome back'
+    subheading: 'Sign in to access your cases.'
     logged_in_as: 'You are signed in as'
     label_email: 'Email'
     label_password: 'Password'
     submit: 'Sign in'
-    no_account: "Don't have an account?"
-    register_link: 'Register'
+    no_account: "New here?"
+    register_link: 'Create an account'
     logout: 'Sign out'
     forgot_password: 'Forgot password?'
 
@@ -36,8 +107,9 @@ login:
 # =============================================================================
 registration:
     title: 'Register'
-    heading: 'Create an account'
-    submit: 'Register'
+    heading: 'Create your account'
+    subheading: 'Start your first case in 5 minutes. We handle the rest.'
+    submit: 'Create account'
     has_account: 'Already have an account?'
     login_link: 'Sign in'
     check_email:
@@ -281,9 +353,12 @@ dashboard:
     cases:
         title: 'My cases'
         heading: 'My cases'
+        greeting_subtitle: 'All active cases in one place.'
         new_case: 'New application'
         empty: 'You have no registered cases.'
-        create_first: 'Submit your first application'
+        empty_heading: 'Welcome to LexRecovery'
+        empty_subtitle: 'No cases yet. Let''s start with your first one — it takes 5 minutes, the app does the rest.'
+        create_first: 'Start your first case'
         col_id: 'No.'
         col_court: 'Court'
         col_amount: 'Amount'
@@ -297,6 +372,33 @@ dashboard:
         continue: 'Continue'
         view: 'View'
         pay: 'Pay'
+        table_title: 'All cases'
+        showing: 'Showing %count% cases'
+        deadlines_title: 'Deadlines in 7 days'
+        deadlines_count: '%count% deadlines'
+        portal_feed_title: 'portal.just.ro activity'
+        portal_feed_empty: 'Portal monitoring activates once a case is registered with the court.'
+        coming_soon: 'Coming soon'
+        how_it_works: 'How LexRecovery works'
+        how:
+            extract:
+                title: 'Upload documents'
+                description: 'Upload contract / invoice. AI extraction auto-populates creditor, debtor and claim data.'
+            op_request:
+                title: 'Payment order petition'
+                description: 'After at least 15 days from notice delivery (CPC art. 1015), download the ZIP with petition, index, notice and evidence. Auto interest + stamp duty.'
+            enforcement:
+                title: 'Enforceable title'
+                description: 'The app monitors portal.just.ro daily. Deadlines tracked automatically — no risk of missing them.'
+        kpi:
+            active: 'Active cases'
+            active_hint: 'in progress'
+            deadlines: 'Urgent deadlines'
+            deadlines_hint: '≤ 7 days remaining'
+            amount_active: 'In recovery'
+            amount_active_hint: 'active portfolio'
+            portal_events: 'Portal events'
+            portal_events_hint: 'portal.just.ro updates'
 
 # =============================================================================
 # Reset Password (reset_password/*.html.twig)

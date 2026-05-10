@@ -1,0 +1,41 @@
+{# Left side of the auth split layout — branding + features. Hidden on mobile. #}
+<div class="hidden lg:flex relative bg-gradient-to-br from-lex-navy via-lex-navy-dark to-slate-900 text-white p-12 flex-col justify-between overflow-hidden">
+    <div class="absolute top-0 right-0 size-96 bg-gradient-to-br from-blue-500/20 to-transparent rounded-full blur-3xl pointer-events-none" aria-hidden="true"></div>
+    <div class="absolute bottom-0 left-0 size-80 bg-gradient-to-tr from-blue-400/10 to-transparent rounded-full blur-3xl pointer-events-none" aria-hidden="true"></div>
+
+    <div class="relative">
+        <a href="{{ path('app_home') }}" class="inline-flex items-center gap-2 font-bold text-xl tracking-tight no-underline text-white">
+            <span class="inline-flex items-center justify-center size-9 rounded-lg bg-white/10 backdrop-blur">
+                <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16l-3-3m3 3l3-3"/></svg>
+            </span>
+            {{ 'layout.brand'|trans }}
+        </a>
+    </div>
+
+    <div class="relative">
+        <h1 class="text-3xl xl:text-4xl font-bold tracking-tight leading-tight">
+            {{ 'auth.branding.tagline'|trans|raw }}
+        </h1>
+        <p class="mt-4 text-blue-100/80 text-base max-w-md leading-relaxed">
+            {{ 'auth.branding.subtitle'|trans }}
+        </p>
+
+        <ul class="mt-8 space-y-3 text-sm">
+            {% for feature in ['interest', 'monitoring', 'pdf_pack', 'extraction'] %}
+                <li class="flex items-start gap-3">
+                    <span class="inline-flex items-center justify-center size-6 rounded-full bg-blue-500/20 text-blue-200 shrink-0 mt-0.5" aria-hidden="true">
+                        <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                    </span>
+                    <span class="text-blue-50/90">{{ ('auth.branding.feature.' ~ feature)|trans }}</span>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <div class="relative">
+        <blockquote class="border-l-2 border-blue-400/50 pl-4 italic text-sm text-blue-100/80">
+            {{ 'auth.branding.quote'|trans }}
+            <footer class="mt-2 not-italic text-xs text-blue-200/60">{{ 'auth.branding.quote_author'|trans }}</footer>
+        </blockquote>
+    </div>
+</div>

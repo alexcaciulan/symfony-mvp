@@ -1,0 +1,71 @@
+{# @var items iterable        Array of LegalDeadline entities (or any object with: title, deadlineDate (\DateTimeInterface), priority (DeadlinePriority enum), legalCase, type (DeadlineType enum)). #}
+{# @var title string|null      Section title. Default "Termene în 7 zile" (i18n). #}
+{# @var subtitle string|null   Right-aligned subtitle (e.g. count). #}
+{# @var live bool|null         Show "live" indicator with green pulsing dot. Default false. #}
+{# @var empty_label string|null  Text shown when items is empty. Default "Niciun termen apropiat" (i18n). #}
+
+{% set live = live|default(false) %}
+{% set today = date('today') %}
+{# Use DateInterval.days for DST-safe calendar-day counts (timestamp/86400 produces off-by-one across DST transitions). #}
+
+{# Priority palette: left-border gradient + label color + i18n label key for badge. #}
+{% set priority_palette = {
+    CRITICAL: { border: 'from-red-400 to-red-600', badge_bg: 'bg-red-100 dark:bg-red-950/40', badge_text: 'text-red-700 dark:text-red-400', days_text: 'text-red-600 dark:text-red-400' },
+    HIGH:     { border: 'from-amber-400 to-amber-600', badge_bg: 'bg-amber-100 dark:bg-amber-950/40', badge_text: 'text-amber-700 dark:text-amber-400', days_text: 'text-amber-600 dark:text-amber-400' },
+    MEDIUM:   { border: 'from-yellow-400 to-yellow-600', badge_bg: 'bg-yellow-100 dark:bg-yellow-950/40', badge_text: 'text-yellow-700 dark:text-yellow-400', days_text: 'text-yellow-600 dark:text-yellow-400' },
+    LOW:      { border: 'from-slate-300 to-slate-500', badge_bg: 'bg-slate-100 dark:bg-slate-800', badge_text: 'text-slate-700 dark:text-slate-300', days_text: 'text-slate-600 dark:text-slate-400' },
+} %}
+
+<section {{ attributes.defaults({
+    class: 'bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 overflow-hidden',
+}) }}>
+    <div class="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+            <span class="inline-flex items-center justify-center size-7 rounded-lg bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/30 text-amber-600 dark:text-amber-400" aria-hidden="true">
+                <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </span>
+            <h2 class="text-sm font-semibold">{{ title|default('component.deadline_list.default_title'|trans) }}</h2>
+        </div>
+        {% if live %}
+            <span class="inline-flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                <span class="size-1.5 rounded-full bg-green-500 soft-pulse" aria-hidden="true"></span>
+                {{ 'component.deadline_list.live'|trans }}
+            </span>
+        {% elseif subtitle is defined and subtitle %}
+            <span class="text-xs text-slate-500 dark:text-slate-400">{{ subtitle }}</span>
+        {% endif %}
+    </div>
+
+    {% if items is empty %}
+        <div class="px-5 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
+            {{ empty_label|default('component.deadline_list.empty'|trans) }}
+        </div>
+    {% else %}
+        <div class="divide-y divide-slate-100 dark:divide-slate-800">
+            {% for item in items %}
+                {% set priority_value = item.priority is defined ? item.priority.value : 'MEDIUM' %}
+                {% set p = priority_palette[priority_value] ?? priority_palette.MEDIUM %}
+                {% set diff = today.diff(item.deadlineDate) %}
+                {% set days_to = diff.invert ? -diff.days : diff.days %}
+                <div class="flex gap-3 px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
+                    <div class="w-1 self-stretch rounded-full bg-gradient-to-b {{ p.border }}" aria-hidden="true"></div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap mb-1">
+                            <span class="text-[10px] uppercase tracking-wide font-bold {{ p.badge_text }} {{ p.badge_bg }} px-1.5 py-0.5 rounded">{{ ('enum.deadline_priority.' ~ priority_value)|trans }}</span>
+                            <span class="text-xs text-slate-500 dark:text-slate-400">{{ ('enum.deadline_type.' ~ item.type.value)|trans }}</span>
+                        </div>
+                        <a href="{{ path('dashboard_cases') }}#case-{{ item.legalCase.id }}" class="block text-sm font-semibold hover:underline no-underline">{{ item.description ?? '#' ~ item.legalCase.id }}</a>
+                        <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            {{ 'component.deadline_list.due_at'|trans }}: {{ item.deadlineDate|date('d.m.Y') }}
+                            {% if days_to >= 0 %}
+                                · {{ 'component.deadline_list.in_x_days'|trans({'%days%': days_to}) }} <span class="font-bold {{ p.days_text }}">({{ days_to }})</span>
+                            {% else %}
+                                · <span class="font-bold text-red-600 dark:text-red-400">{{ 'component.deadline_list.overdue'|trans }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+</section>

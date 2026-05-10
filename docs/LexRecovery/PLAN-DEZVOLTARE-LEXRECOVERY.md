@@ -68,7 +68,8 @@
 | 2.5.7 | Extracție | `OcrTextExtractionStrategy` (priority 70) — OCR + mask CNP + IBAN round-trip + Claude API text + restore + audit `AI_EXTRACTION` + skip-on-empty-apiKey + extindere `PiiMasker::maskIban/buildIbanMap/restoreIban` | 5h | 2.5.4, 2.5.5, 2.5.6 | 40% (pattern PdfParser + reuse LlmClientInterface) | ✅ DONE 2026-05-10 (`0636006`) — D1 skip + D2 IBAN; 24 teste verzi (14 unit + 3 integration + 2 cascade Nivel 3 + 5 PiiMasker IBAN) |
 | 2.5.8 | Extracție | `AiVisionExtractionStrategy` (priority 50) — Claude vision direct pe document (image + PDF native) + GDPR transparency log + audit cu mimeType/fileSize + cascadă completă 4 trepte funcțională end-to-end | 4h | 2.5.4, 2.5.6 | 50% (pattern OcrText) | ✅ DONE 2026-05-10 (`6206bf6`) — 19 teste verzi (14 unit + 3 integration + 2 cascade Nivel 3) |
 | 2.6 | Extracție | `ExtractDataMessage` async (Symfony Messenger Doctrine transport) + `ExtractDataMessageHandler` + `DataExtractedEvent` + container `worker` separat în `compose.yaml` | 0.5z | 2.5.8 | 30% | ✅ DONE 2026-05-10 (`301fde1`) — 8 teste verzi (5 unit + 3 integration cu InMemoryTransport) |
-| 3.0 | Wizard | Step 0 wizard "Documente sursă": upload + procesare async + preview valori extrase + Turbo Stream polling status | 1z | 2.5.8, 2.6 | 0% | ⏳ |
+| 2.7 | UI shell | **Aliniere shell + design system bază cu mockup-urile v2** — sidebar 256px + topbar 56px + 4 componente reutilizabile (KpiCard/DeadlineList/HeroEmptyState/PipelineStatus) + StatusBadge extins enum-aware + login/register split 2-col + dashboard KPI + i18n ~80 chei. Pas intermediar ÎNAINTE de Pas 3.0 ca template-urile wizard să extindă un shell deja aliniat. | 1.5z | 1.1, 1.2 | 0% | ✅ DONE 2026-05-11 — 3 smoke tests verzi (`Pas27DesignSystemSmokeTest`); baseline 544/544 cu 41 errors/4 failures IDENTIC cu Pas 2.6 (zero regresii) |
+| 3.0 | Wizard | Step 0 wizard "Documente sursă": upload + procesare async + preview valori extrase + Turbo Stream polling status | 1z | 2.5.8, 2.6, 2.7 | 0% | ⏳ |
 | 3.1 | Wizard | DTOs + Forms 5 pași (Documente, Creditor, Debitor, Creanță, Confirmare) cu pre-populare din `Document.extractedData` + indicator vizual câmp auto-completat | 1z | 1.1, 2.1-2.3, 3.0 | 50% | ⏳ |
 | 3.2 | Wizard | `CaseWizardController` + session storage + templates | 1z | 3.1 | 60% | ⏳ |
 | 3.3 | Wizard | Stimulus controllers (`live-calc`, `creditor-search`, `debtor-search`) + endpoint-uri AJAX | 1z | 3.2, 2.1-2.4 | 20% | ⏳ |
@@ -1416,6 +1417,102 @@ Reviews: legal LEGAL-CLEAN cu 3 W non-blocking (W1 future GDPR la Pas 3.0 listen
 > Teste: `tests/MessageHandler/ExtractDataMessageHandlerTest.php` cu serviciu mocked, verifică status transitions și event dispatch.
 >
 > Commit: `feat(extragere): async processing via Messenger + DataExtractedEvent`.
+
+---
+
+### PASUL 2.7 | Aliniere shell + design system bază cu mockup-urile v2 | 1.5 zile | 0% reutilizare ✅ DONE 2026-05-11
+
+> 🟢 **PAS INTERMEDIAR — introdus user-driven 2026-05-11 ÎNAINTE de Pas 3.0**: Pas 3.0 introduce primele template-uri Twig de wizard (`_step0_documente_content.html.twig`). Înainte de delta-ul curent, `templates/base.html.twig` era topbar-only `max-w-7xl` cu DM Sans și 6 design tokens — **disonant** cu redesign-ul `docs/LexRecovery/mockups/v2/` (sidebar 256px Inter lex-navy + Preline UI + shadow-soft/card + 10 status badges). Fără aliniere prealabilă, Pas 3.0+ ar fi cerut rescriere UI ulterioară pe componente comune. Pas 2.7 elimină acest risc de muncă dublă.
+
+> 🟢 **DECIZII CHEIE (validate 2026-05-11)**:
+> - **D1 `{% block body %}` definit O SINGURĂ DATĂ** în `base.html.twig` ramura autentificată + `{{ block('body') }}` în ramura anonimă. Twig nu permite multiple declarații cu același nume — pattern obligatoriu de păstrat la viitoare refactorizări shell.
+> - **D2 Floating dark-toggle pe split layout** auth (login/register). `{% block layout %}` override-uit exclude topbar/sidebar, deci dark-mode-toggle trebuie să rămână accesibil printr-un button `absolute top-4 right-4`.
+> - **D3 Placeholder `href="#" aria-disabled="true"`** pentru rute lipsă din nav (Termene, Notificări, Creditori, Debitori, Instanțe, Abonament). `onclick="event.preventDefault()"` blochează navigarea. Wired la pașii dedicați (4.3, 6.x, post-MVP).
+> - **D4 Fallback CTA "Dosar nou" → `dashboard_cases`** temporar. Wizard route `case_wizard_step0` nu există încă; Pas 3.0 va înlocui fallback-ul cu ruta reală.
+> - **D5 StatusBadge extends API enum-aware** cu backward compat. Vechi `<twig:StatusBadge status_label="..." status_color="..." />` rămâne funcțional. Nou: `<twig:StatusBadge status="{{ case.status }}" />` derivă label + color din enum. Palette extinsă la 13 culori (acoperă toate `CaseStatus::color()` returns). Restrâns la enum-uri cu `color()` method — `ExtractionStatus` etc trebuie să pasează manual.
+> - **D6 Mobile drawer cu `data-controller="mobile-menu"` pe `<header>`** (NU pe button). Drawer e sibling al button-ului în DOM, accesibil prin `this.menuTarget`. Close button explicit cu `data-action="click->mobile-menu#toggle"` (controller-ul Stimulus existent `close()` verifică `!this.element.contains` — drawer-ul fiind copil al `<header>` nu se închide automat la click pe backdrop).
+> - **D7 DST-safe day count în DeadlineList**: `today.diff(deadlineDate).days` + sign-handling `diff.invert ? -diff.days : diff.days`. `timestamp/86400` produce off-by-one la tranziții DST (ultimul weekend martie + octombrie, România).
+
+**Rezultat**: shell autenticat aliniat 1:1 cu mockup-urile v2 — sidebar 256px (Preline cabinet switcher + nav 3 secțiuni + user dropdown), topbar sticky 56px (breadcrumb-block overridable + dark toggle + lang switcher + CTA "Dosar nou" lex-navy + mobile drawer), 4 componente reutilizabile (`KpiCard`, `DeadlineList`, `HeroEmptyState`, `PipelineStatus`) + extensie `StatusBadge` enum-aware, login/register refactor split 2-col, dashboard cu 4 KPI + DeadlineList + 3-cards how-it-works empty state, design tokens complete (`@theme` Tailwind v4 cu `lex-navy/-dark/-light`, Inter font, shadow-soft/card/hero, tnum/soft-pulse/nav-active/auth-bg utilities). 3 smoke tests verzi (`Pas27DesignSystemSmokeTest`). Baseline full-suite 544 tests cu 41 errors / 4 failures — **IDENTIC cu baseline Pas 2.6** (zero regresii). Twig lint clean pe toate 36 fișiere. `bin/console tailwind:build` 210ms clean.
+
+Reviews 2026-05-11:
+- **Legal LEGAL-CLEAN cu 3 W**: W1 (FIXAT pe loc) "30 zile" → "cel puțin 15 zile (CPC art. 1015)" în i18n marketing text pentru `dashboard.cases.how.op_request.description`. W2 `countUpcomingByUser` include scadențe depășite în KPI "Termene urgente" — transferat Pas 3.x/4.3 (necesită split KPI sau filter `>= today`). W3 `sumActiveAmountByUser` sumează doar principalul fără dobândă/timbru — transferat Pas 4.x (hint "principal" explicit odată ce calculator dobândă integrat).
+- **Code COMMIT-READY după fix-uri**: B1 (FIXAT) mobile-menu controller fără target → mutat `data-controller` pe `<header>` + adăugat drawer cu `data-mobile-menu-target="menu"` + close button. W1 (FIXAT) StatusBadge docblock restrâns la CaseStatus. W2 (FIXAT) DST off-by-one → `today.diff(deadlineDate)` cu sign-handling. W3 smoke test DB-dependent — transferat (acceptabil cu `markTestSkipped`). W4 query duplication LegalDeadlineRepository — refactor opportunity, defer.
+
+**Boundary explicit Pas 2.7 — NU livrează**: conținut wizard step 0 (Pas 3.0), DTOs+Forms wizard 1-4 (Pas 3.1+3.2), pagina dosar overview cu 5 Preline tabs (Pas 5.1+), pipeline status data wiring real per `LegalCase` (Pas 5.1), cabinet switcher multi-tenant logic (post-MVP), Mercure feed pentru notificări in-app real (Pas 6.x — badge dot e doar placeholder static), bibliotecă șabloane / calculator dobândă pages standalone (post-MVP — link-urile sidebar sunt `href="#"` cu "În curând").
+
+**Scop**: align shell + design tokens **înainte** ca Pas 3.0+ să adauge primele template-uri specifice wizard, astfel încât toate template-urile viitoare să extindă un `base.html.twig` deja aliniat și să refolosească componente partials existente — fără rescriere UI ulterioară.
+
+**Mock-up-uri de referință** (consumate de acest pas):
+- [`docs/LexRecovery/mockups/v2/shared/tokens.html`](./mockups/v2/shared/tokens.html) — design system showcase (paleta, typography, shadow scale, status badges).
+- [`docs/LexRecovery/mockups/v2/02-dashboard/populated.html`](./mockups/v2/02-dashboard/populated.html) — referință sidebar + topbar + KPI + tabel cu Preline dropdowns + deadline widget.
+- [`docs/LexRecovery/mockups/v2/02-dashboard/empty.html`](./mockups/v2/02-dashboard/empty.html) — hero empty state + 3 cards "Cum funcționează".
+- [`docs/LexRecovery/mockups/v2/01-auth/login.html`](./mockups/v2/01-auth/login.html) — split 2-col branding + form.
+
+**PROMPT**:
+> 1. **Design tokens & CSS foundation** — `assets/styles/app.css`:
+>    - Extinde `@theme` cu: `--color-lex-navy: #1E3A5F`, `--color-lex-navy-dark: #162A45`, `--color-lex-navy-light: #2B4F7C`, `--font-sans: 'Inter', system-ui, sans-serif`, `--shadow-soft`, `--shadow-card`, `--shadow-hero`. Păstrează aliasuri vechi `--color-primary*` (backward compat).
+>    - Adaugă utilități globale (în afara `@theme`): `.tnum { font-variant-numeric: tabular-nums; }`, `@keyframes soft-pulse` + `.soft-pulse` (animație 2.4s pe stări active), `.nav-active` gradient pentru link sidebar activ, `body.auth-bg` radial-gradient pattern pentru login/register.
+>    - Înlocuiește în `templates/base.html.twig`: link Google Fonts DM Sans → Inter `400;500;600;700;800` + body `style="font-family"` → `class="font-sans antialiased"`.
+>
+> 2. **Shell autentificat** — 3 partial-uri noi:
+>    - `templates/_sidebar.html.twig` (fixed `inset-y-0 left-0 w-64 hidden lg:flex flex-col`): logo bar 64px cu gradient navy → cabinet switcher Preline dropdown (`hs-dropdown-toggle` + `hs-dropdown-menu`, label din `app.user.companyName ?: fullName`) → nav 3 secțiuni (Principal: Dashboard activ cu `current_route == 'dashboard_cases'`, Dosare cu count badge, Termene+Notificări placeholder; Bibliotecă: Creditori/Debitori/Instanțe placeholder; Cabinet: Abonament placeholder, Setări → `app_profile`, Admin → `admin` dacă `is_granted('ROLE_ADMIN')`) → user dropdown bottom (inițiale din `firstName.slice(0,1)+lastName.slice(0,1)` cu fallback email, Profilul meu, Dark/Light toggle, Deconectare).
+>    - `templates/_topbar.html.twig` (sticky 56px `bg-white/85 backdrop-blur-md`, `data-controller="mobile-menu"` pe `<header>`): mobile hamburger trigger (`lg:hidden`, `data-action="click->mobile-menu#toggle"`) → `{% block breadcrumb %}` overridable → dark toggle + lang switcher RO/EN → CTA "Dosar nou" `bg-lex-navy hover:bg-lex-navy-dark` (href `dashboard_cases` fallback până la Pas 3.0). La final: drawer panel cu `data-mobile-menu-target="menu"` (backdrop `bg-slate-900/40 backdrop-blur-sm` + slide-in aside `w-72 max-w-[85%]` cu nav subset Dashboard/Settings/Admin/Logout + close button cu `data-action="click->mobile-menu#toggle"`).
+>    - `templates/_footer.html.twig`: extras din vechiul base, compact (copyright + Termeni + Contact).
+>
+> 3. **Refactor `templates/base.html.twig`**:
+>    - Body class: `font-sans antialiased min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 {% block body_class %}{% endblock %}` (drop inline `style="font-family"`).
+>    - `{% block layout %}` overridable, default conditional pe `{% if app.user %}`: ramură autentificată = include `_sidebar.html.twig` + `<div class="lg:pl-64">` cu `_topbar.html.twig` + `<main>{% block body %}{% endblock %}</main>` + `_footer.html.twig`. Ramură anonimă = header minimal (logo + login/register + dark toggle) + `<main>{{ block('body') }}</main>` + `_footer.html.twig`. **D1**: `{% block body %}` apare O SINGURĂ DATĂ (în ramura autentificată); ramura anonimă folosește `{{ block('body') }}` pentru re-emit.
+>    - Pre-paint dark-mode script mutat în `<head>` (anti-FOUC).
+>    - Toast container + Mercure subscribe la final, neatinse.
+>    - Flash messages rebrand la paleta slate/emerald/amber/red dark-aware.
+>
+> 4. **Componente partials** (4 noi în `templates/components/` + extensie StatusBadge):
+>    - `StatusBadge.html.twig` **refactor** — pe lângă vechiul API `status_label + status_color`, acceptă acum `status` (CaseStatus enum) și derivă label tradus + color din `status.label()` + `status.color()`. Palette extinsă la 13 token-uri (slate/gray/blue/sky/indigo/violet/purple/amber/orange/emerald/green/teal/red). Dot indicator `size-1.5 rounded-full` + opt-in `pulse=true` cu `soft-pulse`. Docblock restrâns la `\App\Enum\CaseStatus` (enum-uri fără `color()` precum `ExtractionStatus` trebuie să pasează manual `status_label + status_color`).
+>    - `KpiCard.html.twig` — props: `label`, `value`, `unit?`, `hint?`, `trend?`, `trend_direction?` (up/down/flat → icon arrow + culoare), `accent?` (color slot blur decorativ navy/blue/purple/amber/green/red), `emphasize?` (gradient red+orange ring pentru "urgent" cu pulse dot dacă `value != 0`).
+>    - `DeadlineList.html.twig` — props: `items` iterable (LegalDeadline cu `type`, `priority`, `deadlineDate`, `legalCase`), `title?`, `subtitle?`, `live?`, `empty_label?`. Priority palette CRITICAL/HIGH/MEDIUM/LOW → border-left gradient + badge i18n. **D7**: `days_to = today.diff(item.deadlineDate)` cu `diff.invert ? -diff.days : diff.days` (DST-safe).
+>    - `HeroEmptyState.html.twig` — props: `title`, `description?`, `cta_label?`, `cta_path?`, `secondary_label?`, `secondary_path?`, `icon_color?` (5 slots: blue/navy/green/amber/purple). `{% block icon %}` overridable cu SVG custom.
+>    - `PipelineStatus.html.twig` — props: `status` (CaseStatus enum). 5 stadii cu mapping `stage_index`: `AMIABIL=0`, `SOMATIE_TRIMISA=1`, `CERERE_DEPUSA|DOSAR_INREGISTRAT|TERMEN_FIXAT=2`, `ORDONANTA_EMISA|IN_ANULARE|RESPINSA=3`, `DEFINITIVA|EXECUTARE|INCHIS_SUCCES|INCHIS_PARTIAL_INSOLVABIL=4`. `RESPINSA` la stage 3 = red terminal failure; current = lex-navy ring; completed = emerald; pending = slate outline.
+>
+> 5. **Auth pages split layout**:
+>    - `templates/_auth_branding.html.twig` (shared partial): gradient `from-lex-navy via-lex-navy-dark to-slate-900`, tagline + 4 features bullet (interest/monitoring/pdf_pack/extraction) + testimonial blockquote, toate via i18n (`auth.branding.*`).
+>    - `templates/security/login.html.twig` — refactor complet. `{% block body_class %}auth-bg{% endblock %}`. `{% block layout %}` override cu floating dark-toggle (`absolute top-4 right-4 z-10`) + `<main class="min-h-screen grid lg:grid-cols-2">` (branding + form). Form preservă CSRF + `_username`/`_password`. Mobile-only brand header `lg:hidden`.
+>    - `templates/registration/register.html.twig` — același pattern split. `form_widget` cu `{'attr': {'class': input_classes}}` Tailwind injection. `agreeTerms` checkbox label inline.
+>    - `templates/registration/check_email.html.twig` — redesign minor cu icon card lex-navy.
+>
+> 6. **Dashboard redesign**:
+>    - Repository extensions (fără migrare, fără modificare schema):
+>      - `LegalCaseRepository::countActiveByUser(User): int` — filtrează `status NOT IN (terminal CaseStatus)` + `deletedAt IS NULL`.
+>      - `LegalCaseRepository::sumActiveAmountByUser(User): float` — `COALESCE(SUM(lc.amount), 0)` pe active. Cast `(float)`.
+>      - `LegalDeadlineRepository::countUpcomingByUser(User, $days=7): int`.
+>      - `LegalDeadlineRepository::findUpcomingByUser` extins cu `?int $limit = null`.
+>    - `DashboardController::cases()` — injectează `LegalDeadlineRepository`. Calculează `$kpis = [active_count, deadlines_7d, amount_active, portal_events=0]` + `$upcomingDeadlines` (limit 5) + `sidebar_cases_count` + `sidebar_deadlines_count`.
+>    - `templates/dashboard/cases.html.twig` — refactor complet:
+>      - Header titlu + sub-titlu cu greeting i18n.
+>      - **Empty**: `<twig:HeroEmptyState>` + 3 mini-cards "Cum funcționează" (extract/op_request/enforcement) cu badge numerotat + icon colorat. **W1 legal fix**: `dashboard.cases.how.op_request.description` folosește "După cel puțin 15 zile de la comunicarea somației (CPC art. 1015)" (NU "30 zile").
+>      - **Populated**: 4 `<twig:KpiCard>` (Active / Termene-urgente cu `emphasize=true` dacă >0 / Sumă-recuperare RON / Portal-events `accent="purple"`) + grid `lg:grid-cols-2` cu `<twig:DeadlineList>` + placeholder "Activitate portal" + tabel dosare cu `<twig:StatusBadge status="{{ case.status }}" />` per rând. `case.amount|number_format(2, ',', '.')` cu separatori RO.
+>
+> 7. **i18n RO + EN** — adaugă în `translations/messages.{ro,en}.yaml`:
+>    - `layout.brand` schimbat de la `'RecuperăriCreanțe'` la `'LexRecovery'` (rebrand consistent cu mockup-urile).
+>    - `layout.sidebar.*` (cabinet, plan, current_cabinet, coming_soon, nav.{dashboard/cases/deadlines/notifications/creditors/debtors/courts/subscription/settings}, section.{library/cabinet}, plan_label_starter, user_menu.{profile/dark_mode/light_mode}).
+>    - `layout.topbar.{breadcrumb_default/toggle_dark/cta_new_case}`.
+>    - `auth.or` + `auth.branding.*` (tagline/tagline_short/subtitle/feature.{interest/monitoring/pdf_pack/extraction}/quote/quote_author).
+>    - `login.{heading/subheading}`, `registration.{heading/subheading}` (updated).
+>    - `dashboard.cases.*` (greeting_subtitle, empty_heading, empty_subtitle, create_first updated, table_title, showing, deadlines_title, deadlines_count, portal_feed_title, portal_feed_empty, coming_soon, how_it_works, how.{extract/op_request/enforcement}.{title/description}, kpi.{active/deadlines/amount_active/portal_events}.{label/hint}).
+>    - `pipeline.{aria_label/step_label/stage.{amicable/notice/filed/decision/final}}`.
+>    - `component.deadline_list.{default_title/live/empty/due_at/in_x_days/overdue}`.
+>    - **NU atinge** `enum.case_status.*`, `enum.case_transition.*`, `enum.deadline_*`, `enum.relationship_type.*`, `enum.interest_kind.*` (limbajul juridic OFICIAL).
+>
+> Teste (Nivel 1+2 — Pas 2.7 NU procesează input extern):
+> - `tests/Smoke/Pas27DesignSystemSmokeTest.php` cu 3 teste shallow:
+>   - `testLoginUsesSplitLayoutWithBrandingAndDarkToggle` — assert `from-lex-navy`, `data-controller="dark-mode-toggle"`, `auth-bg`, `family=Inter`.
+>   - `testRegisterUsesSplitLayoutWithBranding` — același pattern.
+>   - `testAuthenticatedDashboardRendersSidebarTopbarAndKpis` — assert `w-64`, `fixed inset-y-0 left-0`, `bg-lex-navy`, `font-sans antialiased`, `bg-slate-50`, prezența hero OR KPI.
+> - Verify suite completă: 544 tests, 41 errors / 4 failures **IDENTIC** cu baseline Pas 2.6.
+> - `bin/console lint:twig templates/` clean pe 36 fișiere.
+> - `bin/console tailwind:build` clean.
+>
+> Commit: `feat(ui): Pas 2.7 — design system shell aliniat cu mockup-urile v2`.
 
 ---
 
