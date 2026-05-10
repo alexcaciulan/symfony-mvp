@@ -290,6 +290,25 @@ class AnthropicApiClientTest extends TestCase
         $client->complete([['role' => 'user', 'content' => 'x']]);
     }
 
+    public function testCompleteThrowsLlmExceptionWhenResponseExceedsMaxBytes(): void
+    {
+        // Defensive guard — a pathological model response (or a misbehaving
+        // proxy returning the wrong body) must NOT be passed to json_decode
+        // because (a) PHP would have to allocate ~2x the body for the
+        // intermediate UTF-8 string, and (b) the resulting array would
+        // overflow MySQL's JSON column limit when persisted to
+        // Document.extractedData. The strategy returns LlmException; the
+        // surrounding cascade then falls through to the next strategy.
+        // Limit is 1_048_576 (1 MiB); 1 byte over must trigger.
+        $oversized = str_repeat('x', 1_048_577);
+        $client = $this->makeClient([new MockResponse($oversized, ['http_code' => 200])]);
+
+        $this->expectException(LlmException::class);
+        $this->expectExceptionMessageMatches('/exceeded 1048576 bytes \(got 1048577\)/');
+
+        $client->complete([['role' => 'user', 'content' => 'x']]);
+    }
+
     // ---------- enum + fixtures sanity ----------
 
     public function testFinishReasonEnumLabelsAreI18nKeys(): void

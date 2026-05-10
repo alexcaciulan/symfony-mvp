@@ -16,6 +16,7 @@ use App\Service\Extraction\PdfParserExtractionStrategy;
 use App\Service\Extraction\StubExtractionStrategy;
 use App\Service\Llm\AnthropicApiClient;
 use App\Service\Ocr\OcrServiceInterface;
+use App\Service\Ocr\TesseractOcrService;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use Symfony\Component\HttpClient\MockHttpClient;
@@ -744,5 +745,81 @@ TEXT;
         $this->assertSame(0.0, $result->globalConfidence);
         $this->assertSame(ExtractionStatus::FAILED, $document->getExtractionStatus());
         $this->assertSame([], $audit->loggedCalls, 'Rate-limit denial must NOT trigger an audit entry');
+    }
+
+    public function testFullCascadeWithRealTesseractOnScanPng(): void
+    {
+        // The only cascade test that actually exercises the REAL Tesseract
+        // pipeline (`tests/fixtures/extraction/scan.png` is the page-1 raster
+        // of `invoice-realistic.pdf` committed at Pas 2.5.8 W7). All other
+        // cascade tests use a fake `OcrServiceInterface` that returns hand-
+        // crafted text — that lets them run in milliseconds, but it never
+        // proves the orchestrator + OcrTextExtractionStrategy + TesseractOcrService
+        // chain composes correctly. A subtle bug in mime detection, in the
+        // PiiMasker round-trip, or in how OcrText forwards the OCR text to
+        // the prompt could ride invisibly under the fakes; this test catches
+        // it. Skipped when tesseract isn't on PATH.
+        if (trim((string) shell_exec('which tesseract')) === '') {
+            $this->markTestSkipped('Tesseract binary not available; run inside Docker container');
+        }
+
+        $audit = $this->captureAuditLogService();
+        $orchestrator = new DataExtractionService([
+            new PdfParserExtractionStrategy(self::FIXTURES_DIR),
+            $this->makeOcrTextStrategyWithRealTesseract($audit),
+            new StubExtractionStrategy(),
+        ]);
+
+        // BALANCED mode opts the user into AI-backed strategies; PNG mime
+        // forces PdfParser to drop and OcrText to take over.
+        $document = $this->makeDocument('scan.png', mime: 'image/png', userMode: ExtractionMode::BALANCED);
+
+        $result = $orchestrator->extract($document);
+
+        // OcrText short-circuited the cascade — that's the contract for
+        // a clean rasterised PDF. The exact globalConfidence depends on
+        // OCR quality on the fixture (typically 0.7-0.9 on
+        // invoice-realistic page 1) and on the AI's response to the
+        // recovered text; we only require the COMPLETED status here.
+        $this->assertSame(OcrTextExtractionStrategy::STRATEGY_KEY, $result->strategy);
+        $this->assertGreaterThan(0.0, $result->globalConfidence);
+        $this->assertSame(ExtractionStatus::COMPLETED, $document->getExtractionStatus());
+        // OCR ran end-to-end — rawOcrText is populated (and PiiMasker has
+        // already masked any PII before persistence).
+        $this->assertNotNull($result->rawOcrText);
+        $this->assertStringContainsString('15193236', str_replace(' ', '', $result->rawOcrText), 'Real OCR must recover the creditor CUI from the rasterised invoice');
+        // Audit shows exactly one AI extraction event (no double-billing).
+        $this->assertCount(1, $audit->loggedCalls);
+        $this->assertSame(AuditLogService::CATEGORY_AI_EXTRACTION, $audit->loggedCalls[0]['category']);
+    }
+
+    private function makeOcrTextStrategyWithRealTesseract(AuditLogService $audit): OcrTextExtractionStrategy
+    {
+        // Real Tesseract over a real PNG, real PiiMasker round-trip, real
+        // AnthropicApiClient — only the HTTP transport is mocked because we
+        // don't burn live API credits in tests. The fixture replay carries
+        // creditor/debtor/claim placeholders so the round-trip restoration
+        // exercises both CNP and IBAN paths.
+        $body = file_get_contents(__DIR__ . '/../../fixtures/llm/anthropic-success-with-pii.json');
+        if ($body === false) {
+            self::fail('anthropic-success-with-pii.json unreadable in cascade test');
+        }
+        $http = new MockHttpClient(static fn (): MockResponse => new MockResponse($body, ['http_code' => 200]));
+
+        return new OcrTextExtractionStrategy(
+            ocrService: new TesseractOcrService(new NullLogger(), 'ron+eng'),
+            llmClient: new AnthropicApiClient(
+                httpClient: $http,
+                anthropicApiKey: 'sk-ant-cascade-real-tesseract',
+                anthropicModel: 'claude-sonnet-4-6',
+                logger: new NullLogger(),
+            ),
+            auditLogService: $audit,
+            extractionAiTextLimiter: $this->noLimitFactory(),
+            // FIXTURES_DIR is `tests/fixtures/extraction/` where scan.png lives.
+            uploadsDir: self::FIXTURES_DIR,
+            anthropicApiKey: 'sk-ant-cascade-real-tesseract',
+            logger: new NullLogger(),
+        );
     }
 }

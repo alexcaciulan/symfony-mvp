@@ -126,6 +126,32 @@ class DocumentUploadMimeValidationTest extends KernelTestCase
         $this->assertSame('application/pdf', $document->getMimeType());
     }
 
+    public function testUploadAcceptsRealGif(): void
+    {
+        $case = $this->createCase();
+        // Minimal 1×1 transparent GIF87a — finfo reports image/gif.
+        $gifBytes = base64_decode('R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==');
+        $this->assertNotFalse($gifBytes);
+        $upload = new UploadedFile($this->tempFile($gifBytes, 'gif'), 'photo.gif', 'image/gif', null, true);
+
+        $document = $this->service->upload($case, $upload, DocumentType::FACTURA, $this->user);
+
+        $this->assertSame('image/gif', $document->getMimeType());
+    }
+
+    public function testUploadAcceptsRealWebp(): void
+    {
+        $case = $this->createCase();
+        // Minimal 1×1 lossless WebP — RIFF/WEBP container, ~26 bytes.
+        $webpBytes = base64_decode('UklGRiYAAABXRUJQVlA4IBoAAAAwAQCdASoBAAEAAUAmJaQAA3AA/v3AgAA=');
+        $this->assertNotFalse($webpBytes);
+        $upload = new UploadedFile($this->tempFile($webpBytes, 'webp'), 'photo.webp', 'image/webp', null, true);
+
+        $document = $this->service->upload($case, $upload, DocumentType::FACTURA, $this->user);
+
+        $this->assertSame('image/webp', $document->getMimeType());
+    }
+
     // ---------- attack: client-supplied MIME doesn't override sniffed value ----------
 
     public function testUploadRejectsExeDisguisedAsPng(): void
