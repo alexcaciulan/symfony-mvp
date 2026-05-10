@@ -1,26 +1,60 @@
 
+# YAML anchor — both `php` (FPM) and `worker` (messenger:consume) share the
+# same image, working dir, mounts, and env. Defining once via &php_base avoids
+# drift between the two services as we add new env vars (ANTHROPIC_API_KEY,
+# OCR_LANGUAGES, etc.).
+x-php-base: &php_base
+  build:
+    context: .
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  working_dir: /var/www/html
+  volumes:
+    - .:/var/www/html
+    - vendor:/var/www/html/vendor
+  environment: &php_env
+    APP_ENV: ${APP_ENV:-dev}
+    APP_SECRET: ${APP_SECRET}
+    DATABASE_URL: mysql://${MYSQL_USER:-app}:${MYSQL_PASSWORD:-app_password}@database:3306/${MYSQL_DATABASE:-symfony_mvp}?serverVersion=${MYSQL_VERSION:-8.0}&charset=utf8mb4
+    MESSENGER_TRANSPORT_DSN: doctrine://default?auto_setup=0
+    MAILER_DSN: smtp://mailer:1025
+  depends_on:
+    database:
+      condition: service_healthy
+  networks:
+    - symfony-network
+
 services:
   php:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    <<: *php_base
     container_name: symfony-mvp-php
-    restart: unless-stopped
-    working_dir: /var/www/html
-    volumes:
-      - .:/var/www/html
-      - vendor:/var/www/html/vendor
-    environment:
-      APP_ENV: ${APP_ENV:-dev}
-      APP_SECRET: ${APP_SECRET}
-      DATABASE_URL: mysql://${MYSQL_USER:-app}:${MYSQL_PASSWORD:-app_password}@database:3306/${MYSQL_DATABASE:-symfony_mvp}?serverVersion=${MYSQL_VERSION:-8.0}&charset=utf8mb4
-      MESSENGER_TRANSPORT_DSN: doctrine://default?auto_setup=0
-      MAILER_DSN: smtp://mailer:1025
-    depends_on:
-      database:
-        condition: service_healthy
-    networks:
-      - symfony-network
+
+  worker:
+    <<: *php_base
+    container_name: symfony-mvp-worker
+    # Override the FPM entrypoint — we don't serve HTTP, we drain the async
+    # messenger queue. `--time-limit=3600` forces a graceful restart hourly
+    # to shed any PHP memory leaks accumulated during long Anthropic-heavy
+    # extractions; `--memory-limit=128M` is the safety net if that happens
+    # before the time-limit. Logs land on stdout/stderr (-vv), captured by
+    # Docker — no separate file destination.
+    entrypoint: []
+    command:
+      - sh
+      - -c
+      - |
+        # Wait until the database is reachable AND the main `php` container has
+        # finished applying migrations (it owns `make migrate` in dev).
+        # `doctrine:migrations:up-to-date` exits 0 when the schema matches the
+        # latest migration and ≠ 0 otherwise — the cheapest portable probe
+        # that doesn't depend on a specific table name.
+        until php bin/console doctrine:migrations:up-to-date >/dev/null 2>&1; do
+          echo "worker: waiting for migrations to be applied..."
+          sleep 3
+        done
+        echo "worker: starting messenger:consume async"
+        exec php bin/console messenger:consume async \
+            --time-limit=3600 --memory-limit=128M -vv
 
   nginx:
     image: nginx:alpine

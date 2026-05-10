@@ -1,0 +1,20 @@
+# Override the production Doctrine `async` transport with the in-memory variant
+# for the test suite. Two reasons:
+#   1. Speed — InMemoryTransport keeps messages in PHP memory; no MySQL row
+#      locks, no SELECT FOR UPDATE polling, no DB cleanup between tests.
+#   2. Isolation — each test boots a fresh kernel and the in-memory queue
+#      starts empty, so tests never inherit messages dispatched by previous
+#      tests in the same suite.
+#
+# The transport name `async` stays identical, so production routing
+# (`App\Message\ExtractDataMessage: async`) reaches the in-memory transport
+# in tests without any code change in the handler or the dispatcher.
+#
+# `failed` is intentionally NOT overridden — keeping it on Doctrine means the
+# `messenger_messages` table stays in the expected schema, so
+# `doctrine:schema:validate` (asserted by SchemaValidateTest) still passes
+# in the test environment.
+framework:
+    messenger:
+        transports:
+            async: 'in-memory://'

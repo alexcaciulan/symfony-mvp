@@ -26,8 +26,14 @@ use Psr\Log\NullLogger;
  *
  * Persistence: mutates the {@see Document} (extractedData / status / confidence / strategy) but
  * does NOT flush — the caller (sync controller, async handler at Pas 2.6, etc.) decides lifecycle.
+ *
+ * Not declared `final` so PHPUnit can mock it in the Pas 2.6 handler tests
+ * (`tests/MessageHandler/ExtractDataMessageHandlerTest.php`). Extracting an
+ * interface would be over-engineering for a service with one implementation;
+ * relaxing `final` is the smaller change and still discourages subclassing
+ * elsewhere via convention.
  */
-final class DataExtractionService
+class DataExtractionService
 {
     public const DEFAULT_CONFIDENCE_THRESHOLD = 0.6;
 
