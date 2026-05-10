@@ -13,6 +13,8 @@ use App\Service\Extraction\AiVisionExtractionStrategy;
 use App\Service\Llm\LlmClientInterface;
 use App\Service\Llm\LlmException;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\AbstractLogger;
+use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\RateLimiter\Storage\InMemoryStorage;
@@ -56,6 +58,7 @@ class AiVisionExtractionStrategyTest extends TestCase
         ?AuditLogService $auditLogService = null,
         ?RateLimiterFactory $extractionAiVisionLimiter = null,
         string $apiKey = 'sk-ant-vision-test',
+        ?LoggerInterface $logger = null,
     ): AiVisionExtractionStrategy {
         return new AiVisionExtractionStrategy(
             llmClient: $llmClient ?? $this->fakeLlmClient('{}'),
@@ -63,8 +66,27 @@ class AiVisionExtractionStrategyTest extends TestCase
             extractionAiVisionLimiter: $extractionAiVisionLimiter ?? $this->noLimitFactory(),
             uploadsDir: $this->uploadsDir,
             anthropicApiKey: $apiKey,
-            logger: new NullLogger(),
+            logger: $logger ?? new NullLogger(),
         );
+    }
+
+    /**
+     * Returns a PSR-3 logger that captures every log call into a public
+     * `$records` array. Used to assert the GDPR transparency event
+     * (`extraction.ai_vision.binary_sent_unmasked`) carries the required
+     * audit metadata (documentId + userId + mimeType + fileSize).
+     */
+    private function capturingLogger(): LoggerInterface
+    {
+        return new class extends AbstractLogger {
+            /** @var array<int, array{level: mixed, message: string, context: array<string, mixed>}> */
+            public array $records = [];
+
+            public function log($level, $message, array $context = []): void
+            {
+                $this->records[] = ['level' => $level, 'message' => (string) $message, 'context' => $context];
+            }
+        };
     }
 
     private function fakeLlmClient(string $content, ?\Throwable $throw = null): LlmClientInterface
@@ -420,5 +442,150 @@ class AiVisionExtractionStrategyTest extends TestCase
         $this->assertNotFalse($persisted);
         $this->assertStringNotContainsString('base64', strtolower($persisted));
         $this->assertStringNotContainsString('iVBORw0', $persisted);
+    }
+
+    // ---------- AI response edge cases (parser robustness) ----------
+
+    public function testInvalidLegalGroundCategoryFromAiBecomesNull(): void
+    {
+        $aiContent = json_encode([
+            'claim' => [
+                'amount' => 5000.0,
+                'currency' => 'RON',
+                'legalGround' => 'IMPRUMUT_CAMATARESC', // not in LegalGroundCategory enum
+                'confidencePerField' => ['amount' => 0.95],
+            ],
+            'globalConfidence' => 0.7,
+        ]);
+        $strategy = $this->makeStrategy(llmClient: $this->fakeLlmClient($aiContent));
+
+        $result = $strategy->extract($this->makeDocument(id: 80));
+
+        $this->assertNotNull($result->claim);
+        $this->assertNull($result->claim->legalGround, 'Unknown enum value must NOT raise; degrades to null');
+        $this->assertSame(5000.0, $result->claim->amount, 'Other claim fields survive an invalid legalGround');
+    }
+
+    public function testConfidenceValuesOutsideZeroOneRangeAreClamped(): void
+    {
+        $aiContent = json_encode([
+            'creditor' => [
+                'name' => 'SC Foo',
+                'confidencePerField' => ['name' => 1.5, 'cui' => -0.3],
+            ],
+            'globalConfidence' => 1.5, // out-of-range; must clamp to 1.0
+        ]);
+        $strategy = $this->makeStrategy(llmClient: $this->fakeLlmClient($aiContent));
+
+        $result = $strategy->extract($this->makeDocument(id: 81));
+
+        $this->assertSame(1.0, $result->globalConfidence, 'globalConfidence > 1 must clamp to 1.0');
+        $this->assertSame(1.0, $result->creditor?->confidencePerField['name']);
+        $this->assertSame(0.0, $result->creditor?->confidencePerField['cui']);
+    }
+
+    public function testMalformedDueDateBecomesNullClaim(): void
+    {
+        // Vision sometimes emits dates with `/` separator or Romanian format.
+        // createFromFormat('!Y-m-d') returns false → coercion to null without
+        // leaking a garbage DateTimeImmutable into the wizard.
+        $aiContent = json_encode([
+            'claim' => [
+                'amount' => 5000.0,
+                'currency' => 'RON',
+                'dueDate' => '15/06/2026',
+            ],
+            'globalConfidence' => 0.7,
+        ]);
+        $strategy = $this->makeStrategy(llmClient: $this->fakeLlmClient($aiContent));
+
+        $result = $strategy->extract($this->makeDocument(id: 82));
+
+        $this->assertNotNull($result->claim);
+        $this->assertNull($result->claim->dueDate);
+        $this->assertSame(5000.0, $result->claim->amount);
+    }
+
+    public function testAmountAsNumericStringIsCoercedToFloat(): void
+    {
+        $aiContent = json_encode([
+            'claim' => [
+                'amount' => '7532.70', // numeric string from AI
+                'currency' => 'RON',
+            ],
+            'globalConfidence' => 0.85,
+        ]);
+        $strategy = $this->makeStrategy(llmClient: $this->fakeLlmClient($aiContent));
+
+        $result = $strategy->extract($this->makeDocument(id: 83));
+
+        $this->assertNotNull($result->claim);
+        $this->assertSame(7532.7, $result->claim->amount);
+    }
+
+    public function testExtractAcceptsAiResponseWrappedInMarkdownFence(): void
+    {
+        // Vision tends more than text-only to wrap JSON in ```json ... ``` —
+        // parseAiResponse must strip the fence cleanly.
+        $aiContent = "```json\n" . json_encode([
+            'creditor' => ['name' => 'SC Z', 'confidencePerField' => ['name' => 0.9]],
+            'globalConfidence' => 0.88,
+        ]) . "\n```";
+
+        $strategy = $this->makeStrategy(llmClient: $this->fakeLlmClient($aiContent));
+
+        $result = $strategy->extract($this->makeDocument(id: 84));
+
+        $this->assertSame(0.88, $result->globalConfidence);
+        $this->assertSame('SC Z', $result->creditor?->name);
+    }
+
+    // ---------- GDPR transparency log + defensive null guard ----------
+
+    public function testGdprTransparencyLogCarriesDocumentIdUserIdMimeAndSize(): void
+    {
+        // Reg. UE 2016/679 art. 30 — registru activități prelucrare. The event
+        // marking a binary transfer to Anthropic must be reconstructable: who
+        // (userId), what (documentId + mimeType), how much (fileSize). If any
+        // field disappears in a refactor, an ANSPDCP audit can't trace the
+        // transfer back to the operator-of-record.
+        $logger = $this->capturingLogger();
+        $strategy = $this->makeStrategy(
+            llmClient: $this->fakeLlmClient(json_encode(['creditor' => ['name' => 'X'], 'globalConfidence' => 0.8])),
+            logger: $logger,
+        );
+
+        $strategy->extract($this->makeDocument(id: 85, mime: 'image/png'));
+
+        $transparencyEvent = null;
+        foreach ($logger->records as $record) {
+            if ($record['message'] === 'extraction.ai_vision.binary_sent_unmasked') {
+                $transparencyEvent = $record;
+                break;
+            }
+        }
+        $this->assertNotNull($transparencyEvent, 'GDPR transparency event must be logged on every binary transfer');
+        $this->assertSame('info', $transparencyEvent['level']);
+        $this->assertSame(85, $transparencyEvent['context']['documentId']);
+        $this->assertSame('42', $transparencyEvent['context']['userId']);
+        $this->assertSame('image/png', $transparencyEvent['context']['mimeType']);
+        $this->assertGreaterThan(0, $transparencyEvent['context']['fileSize']);
+    }
+
+    public function testExtractReturnsZeroConfidenceIfMimeBecomesUnsupportedBetweenSupportsAndExtract(): void
+    {
+        // Defensive guard inside extract(): if a Document object is mutated
+        // between supports() and extract() (different orchestrators / replay
+        // attacks / test-only scenarios), buildVisionContentBlock returns
+        // null on unrecognised MIME and the strategy fails closed instead of
+        // sending an empty / malformed content block to Anthropic.
+        $llm = $this->fakeLlmClient('{"creditor":{}}');
+        $strategy = $this->makeStrategy(llmClient: $llm);
+        $document = $this->makeDocument(id: 86, mime: 'application/x-not-supported');
+
+        $result = $strategy->extract($document);
+
+        $this->assertSame(0.0, $result->globalConfidence);
+        $this->assertNull($llm->lastMessages, 'LLM must NOT be invoked when content block construction fails');
     }
 }

@@ -205,4 +205,49 @@ class AiVisionExtractionStrategyIntegrationTest extends TestCase
         $this->assertGreaterThan(0, $entry['newData']['fileSize']);
         $this->assertMatchesRegularExpression('/^[a-f0-9]{32}$/', $entry['newData']['responseHash']);
     }
+
+    public function testExtractSendsRealScannedPdfAsDocumentContentBlock(): void
+    {
+        // Real-PDF smoke. `tests/fixtures/ocr/scanned-invoice.pdf` is a
+        // ~50 KB DomPDF→ImageMagick rasterised PDF (no text layer) committed
+        // by Pas 2.5.5. The strategy must detect application/pdf, build a
+        // `document` content block (Claude 3.5+ native PDF), and send a
+        // valid base64 payload that decodes back to the file's bytes.
+        // Anthropic's transport is mocked — the assertion is on the wire
+        // shape, not on how Claude would process it. This is the only test
+        // exercising the `document` block path with a real PDF binary; the
+        // unit-level PDF test uses a 4-byte stub.
+        $captured = [];
+        $strategy = $this->makeStrategyReplaying('anthropic-success-vision-rich.json', $captured);
+
+        $strategy->extract($this->makeDocument('scanned-invoice.pdf', 'application/pdf'));
+
+        $body = json_decode((string) $captured['body'], true);
+        $this->assertIsArray($body);
+
+        // Locate the `document` block in the user message content.
+        $userContent = $body['messages'][1]['content'];
+        $this->assertIsArray($userContent);
+        $documentBlock = null;
+        foreach ($userContent as $block) {
+            if (($block['type'] ?? null) === 'document') {
+                $documentBlock = $block;
+                break;
+            }
+        }
+        $this->assertNotNull($documentBlock, '`document` content block must be present for application/pdf');
+        $this->assertSame('base64', $documentBlock['source']['type']);
+        $this->assertSame('application/pdf', $documentBlock['source']['media_type']);
+
+        // Decoded base64 must equal the on-disk PDF bytes — proves the strategy
+        // didn't truncate, modify, or substitute the binary.
+        $decoded = base64_decode($documentBlock['source']['data'], true);
+        $this->assertNotFalse($decoded, 'PDF base64 must decode cleanly');
+        $expectedBytes = file_get_contents(self::OCR_FIXTURES_DIR . '/scanned-invoice.pdf');
+        $this->assertSame($expectedBytes, $decoded, 'Sent PDF bytes must equal the on-disk fixture verbatim');
+
+        // PDF magic header survived the round-trip — extra defence against
+        // accidental encoding shenanigans.
+        $this->assertStringStartsWith('%PDF', $decoded);
+    }
 }
