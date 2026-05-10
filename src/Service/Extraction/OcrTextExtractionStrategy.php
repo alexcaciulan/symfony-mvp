@@ -195,9 +195,13 @@ final class OcrTextExtractionStrategy implements ExtractionStrategyInterface
                 'tokensIn' => $response->tokensIn,
                 'tokensOut' => $response->tokensOut,
                 'finishReason' => $response->finishReason->value,
-                // First 16 hex chars of SHA-256 — enough to dedupe identical responses
-                // across runs without persisting the response body itself.
-                'responseHash' => substr(hash('sha256', $response->content), 0, 16),
+                // 32 hex chars (128 bits) of SHA-256 — birthday-bound collision
+                // after ~2^64 operations, comfortable for evidentiary use should
+                // an extraction dispute reach the audit trail. Aligned with
+                // AiVisionExtractionStrategy at Pas 2.5.8 W1 legal fix; previously
+                // 16 hex was sufficient for cost telemetry alone but would risk
+                // collision in long-lived multi-tenant audit logs.
+                'responseHash' => substr(hash('sha256', $response->content), 0, 32),
                 'globalConfidence' => $globalConfidence,
             ]),
             category: AuditLogService::CATEGORY_AI_EXTRACTION,

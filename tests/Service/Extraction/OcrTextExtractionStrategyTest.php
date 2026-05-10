@@ -382,7 +382,7 @@ class OcrTextExtractionStrategyTest extends TestCase
         // LlmFinishReason is the neutral-provider enum; 'end_turn' (Anthropic)
         // is mapped to COMPLETED inside AnthropicApiClient::mapStopReason.
         $this->assertSame('COMPLETED', $call['newData']['finishReason']);
-        $this->assertMatchesRegularExpression('/^[a-f0-9]{16}$/', $call['newData']['responseHash']);
+        $this->assertMatchesRegularExpression('/^[a-f0-9]{32}$/', $call['newData']['responseHash']);
         $this->assertArrayNotHasKey('prompt', $call['newData']);
         $this->assertArrayNotHasKey('content', $call['newData']);
     }

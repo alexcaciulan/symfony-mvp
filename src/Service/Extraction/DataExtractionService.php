@@ -84,7 +84,25 @@ final class DataExtractionService
                 continue;
             }
 
-            $result = $strategy->extract($document);
+            // Defense-in-depth: each strategy declares LlmException / OcrException
+            // as its `@throws` contract, but unexpected throwables (corrupt-PDF
+            // fatals from smalot, OOM during base64 encoding, parse errors on
+            // malformed JSON) would otherwise abort the entire cascade and
+            // leave the Document stuck in PROCESSING. Catching `\Throwable`
+            // here lets the next strategy try — critical for the upcoming
+            // Pas 2.6 async messenger handler where one bad document must not
+            // block the whole queue.
+            try {
+                $result = $strategy->extract($document);
+            } catch (\Throwable $e) {
+                $this->logger->error('extraction.strategy_unexpected_failure', [
+                    'documentId' => $document->getId(),
+                    'strategy' => $strategy::class,
+                    'exceptionClass' => $e::class,
+                    'code' => $e->getCode(),
+                ]);
+                continue;
+            }
 
             if ($bestSoFar === null || $result->globalConfidence > $bestSoFar->globalConfidence) {
                 $bestSoFar = $result;

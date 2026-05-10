@@ -267,7 +267,7 @@ TEXT;
         // ...but it MUST carry token counts and a stable response hash for traceability.
         $this->assertSame(837, $entry['newData']['tokensIn']);
         $this->assertSame(312, $entry['newData']['tokensOut']);
-        $this->assertMatchesRegularExpression('/^[a-f0-9]{16}$/', $entry['newData']['responseHash']);
+        $this->assertMatchesRegularExpression('/^[a-f0-9]{32}$/', $entry['newData']['responseHash']);
     }
 
     /**

@@ -13,6 +13,21 @@ use Symfony\Component\Uid\Uuid;
 
 class DocumentUploadService
 {
+    /**
+     * Whitelist of MIME types accepted for upload, matching what the
+     * extraction cascade can actually process (PdfParser handles PDF,
+     * Tesseract OCR handles JPEG/PNG, Claude vision handles JPEG/PNG/GIF/WebP/PDF).
+     * Anything outside this list is rejected at the boundary so untrusted
+     * binary never reaches the strategies in the first place.
+     */
+    public const ALLOWED_MIME_TYPES = [
+        'application/pdf',
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'image/webp',
+    ];
+
     public function __construct(
         private EntityManagerInterface $em,
         private AuditLogService $auditLogService,
@@ -23,7 +38,6 @@ class DocumentUploadService
     {
         $fileSize = $file->getSize();
         $clientOriginalName = $file->getClientOriginalName();
-        $clientMimeType = $file->getClientMimeType();
         $extension = $file->guessExtension() ?? 'bin';
 
         $storedBasename = Uuid::v4() . '.' . $extension;
@@ -31,6 +45,24 @@ class DocumentUploadService
         $absoluteDir = $this->uploadsDir . '/' . $relativeDir;
 
         $file->move($absoluteDir, $storedBasename);
+        $absolutePath = $absoluteDir . '/' . $storedBasename;
+
+        // Sniff MIME server-side AFTER the file lands on disk. UploadedFile::getClientMimeType()
+        // reflects the HTTP Content-Type header, which is attacker-controlled and lets a PHP
+        // exploit be uploaded as `image/png`. finfo reads magic bytes from the actual file
+        // content, which is what the extraction strategies need to trust.
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        $sniffedMimeType = $finfo->file($absolutePath);
+        if ($sniffedMimeType === false || !in_array($sniffedMimeType, self::ALLOWED_MIME_TYPES, true)) {
+            // Clean up the on-disk file before bailing — leaving it would let an attacker
+            // burn disk space by repeatedly POSTing junk.
+            @unlink($absolutePath);
+            throw new \InvalidArgumentException(sprintf(
+                'Uploaded file has unsupported MIME type "%s" (sniffed server-side). Allowed: %s',
+                $sniffedMimeType === false ? 'unknown' : $sniffedMimeType,
+                implode(', ', self::ALLOWED_MIME_TYPES),
+            ));
+        }
 
         $document = new Document();
         $document->setLegalCase($case);
@@ -38,7 +70,7 @@ class DocumentUploadService
         $document->setOriginalFilename($clientOriginalName);
         $document->setStoredFilename($relativeDir . '/' . $storedBasename);
         $document->setFileSize($fileSize);
-        $document->setMimeType($clientMimeType);
+        $document->setMimeType($sniffedMimeType);
         $document->setUploadedBy($user);
         $this->em->persist($document);
 
@@ -48,7 +80,7 @@ class DocumentUploadService
             'originalFilename' => $clientOriginalName,
             'documentType' => $type->value,
             'fileSize' => $fileSize,
-            'mimeType' => $clientMimeType,
+            'mimeType' => $sniffedMimeType,
         ]);
         $this->em->flush();
 

@@ -174,6 +174,64 @@ class DataExtractionServiceTest extends TestCase
         $this->assertSame(['fake_high', 'fake_mid', 'fake_low'], $callOrder);
     }
 
+    // ----- B1 audit fix: orchestrator must survive unexpected throwables -----
+
+    public function testCascadeContinuesWhenStrategyThrowsUnexpectedException(): void
+    {
+        // A strategy throwing a non-domain exception (e.g. corrupt-PDF fatal
+        // from smalot, OOM during base64, parse error on truncated JSON) must
+        // NOT abort the cascade. Critical for the upcoming Pas 2.6 async
+        // messenger handler — one bad document cannot block the queue.
+        $throwing = new class implements ExtractionStrategyInterface {
+            public function supports(Document $document): bool { return true; }
+            public function priority(): int { return 100; }
+            public function isAiBacked(): bool { return false; }
+
+            public function extract(Document $document): ExtractedDocumentData
+            {
+                throw new \RuntimeException('simulated smalot fatal');
+            }
+        };
+
+        $service = new DataExtractionService([
+            $throwing,
+            $this->makeFake(priority: 70, confidence: 0.85, strategyKey: 'rescue'),
+            new StubExtractionStrategy(),
+        ]);
+
+        $result = $service->extract($this->makeDocument(userMode: ExtractionMode::BALANCED));
+
+        $this->assertSame('rescue', $result->strategy, 'Cascade must skip the throwing strategy and reach the next one');
+        $this->assertSame(0.85, $result->globalConfidence);
+    }
+
+    public function testCascadeFallsBackToStubIfEveryStrategyThrows(): void
+    {
+        // All real strategies blow up → orchestrator still produces a result
+        // (Stub) so the Document doesn't get stuck in PROCESSING.
+        $thrower = static fn (int $priority, string $key) => new class($priority, $key) implements ExtractionStrategyInterface {
+            public function __construct(private int $p, private string $k) {}
+            public function supports(Document $document): bool { return true; }
+            public function priority(): int { return $this->p; }
+            public function isAiBacked(): bool { return false; }
+            public function extract(Document $document): ExtractedDocumentData
+            {
+                throw new \LogicException("strategy {$this->k} crashed");
+            }
+        };
+
+        $service = new DataExtractionService([
+            $thrower(100, 'a'),
+            $thrower(70, 'b'),
+            new StubExtractionStrategy(),
+        ]);
+
+        $result = $service->extract($this->makeDocument(userMode: ExtractionMode::BALANCED));
+
+        $this->assertSame('stub', $result->strategy);
+        $this->assertSame(0.0, $result->globalConfidence);
+    }
+
     // ----- helpers -----
 
     private function makeDocument(

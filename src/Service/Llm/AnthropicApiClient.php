@@ -30,6 +30,27 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  *     this layer (no built-in `RetryableHttpClient` decoration in MVP — Pas
  *     2.6 async messenger handler will retry on the message level instead).
  *   - Response body parsed and mapped into the neutral {@see LlmResponse}.
+ *
+ * GDPR & subprocessing notes (Reg. UE 2016/679 art. 28, 30, 44–49):
+ *   - Anthropic's default API retention is 30 days for prompts and responses
+ *     (no longer-term storage; verified in the Anthropic Trust Center). After
+ *     this window the data is deleted from Anthropic's systems. Operators
+ *     deploying LexRecovery to production MUST sign Anthropic's enterprise
+ *     DPA before processing real client data through this client.
+ *   - The endpoint `api.anthropic.com` resolves to US-based infrastructure.
+ *     Each request constitutes a transborder data transfer under GDPR
+ *     art. 44–49 — it is permitted only when the DPA includes valid
+ *     Standard Contractual Clauses (SCCs) for the controller→processor
+ *     transfer EU→US. The application layer assumes this contractual basis
+ *     is in place; no technical enforcement.
+ *   - Caller-side responsibility: every prompt body that reaches this method
+ *     must already have CNP/IBAN masked via {@see App\Util\PiiMasker}.
+ *     This client does NOT inspect message contents, so masking is a hard
+ *     contract on the caller per {@see LlmClientInterface::complete()} docblock.
+ *   - Response body size is capped at {@see self::MAX_RESPONSE_BYTES} before
+ *     JSON decode — defensive guard against pathological model outputs that
+ *     would otherwise OOM the decode step or overflow the persisted JSON
+ *     column.
  */
 final class AnthropicApiClient implements LlmClientInterface
 {
@@ -39,6 +60,16 @@ final class AnthropicApiClient implements LlmClientInterface
 
     /** Seconds before the request is aborted. Vision calls can take 20–30s. */
     private const REQUEST_TIMEOUT = 60;
+
+    /**
+     * Hard cap on response body size before JSON decode. The structured-extraction
+     * prompts used by Pas 2.5.7 / 2.5.8 produce responses well under 10 KB; a
+     * 1 MB ceiling leaves ~100× headroom while protecting against pathological
+     * AI outputs (e.g., a 50 MB `claim.description`) that would either OOM the
+     * `json_decode` step or push the resulting array past the MySQL JSON column
+     * limit when persisted into `Document.extractedData`.
+     */
+    private const MAX_RESPONSE_BYTES = 1_048_576;
 
     public function __construct(
         private readonly HttpClientInterface $httpClient,
@@ -99,6 +130,22 @@ final class AnthropicApiClient implements LlmClientInterface
                 'Anthropic API returned HTTP %d (type=%s)',
                 $statusCode,
                 $errorType ?? 'unknown',
+            ));
+        }
+
+        // Defensive size check before JSON decode. Anthropic responses for our
+        // prompts are tiny (<10 KB), but a buggy or hostile response could
+        // exhaust memory at decode time or, post-decode, blow past the MySQL
+        // JSON column limit when persisted into Document.extractedData.
+        if (strlen($rawBody) > self::MAX_RESPONSE_BYTES) {
+            $this->logger->error('llm.anthropic.response_too_large', [
+                'size' => strlen($rawBody),
+                'limit' => self::MAX_RESPONSE_BYTES,
+            ]);
+            throw new LlmException(sprintf(
+                'Anthropic response exceeded %d bytes (got %d) — refusing to decode',
+                self::MAX_RESPONSE_BYTES,
+                strlen($rawBody),
             ));
         }
 
