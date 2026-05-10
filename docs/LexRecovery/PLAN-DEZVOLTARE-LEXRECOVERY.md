@@ -1219,7 +1219,7 @@ Refactor enum la 3 valori distincte (ex: `B2B_PROFESIONAL`, `B2C_CONSUMER`, `NON
 
 ---
 
-#### PASUL 2.5.6 — `LlmClientInterface` + `AnthropicApiClient` + rate limiters + env vars | ~3.5h | 60% reutilizare (pattern AnafLookupService + OcrServiceInterface)
+#### PASUL 2.5.6 — `LlmClientInterface` + `AnthropicApiClient` + rate limiters + env vars | ~3.5h | 60% reutilizare (pattern AnafLookupService + OcrServiceInterface) ✅ DONE 2026-05-10 (`5d1095e`)
 
 > 🟢 **REVIZIE 2026-05-10 — Opțiunea 2 (Interface + Implementation)**: Pe baza pattern-ului consacrat la Pas 2.5.5 (`OcrServiceInterface` + `TesseractOcrService`), abstracția AI a fost introdusă prin `App\Service\Llm\LlmClientInterface` + `AnthropicApiClient implements LlmClientInterface`. Caller-ii Pas 2.5.7-2.5.8 vor primi `LlmClientInterface` (NU clasa concretă). Justificare: `ANALIZA-FLUXURI-LEXRECOVERY.md:448` documentează "Ollama + Qwen2-VL ... V2 post-MVP" → swap probabil. Cost extra ~30min acum, ~2h savings la pivot. Namespace `App\Service\Llm\` (NU `App\Service\Anthropic\` din spec original) — neutral provider naming. Plus: retry logic deferred la Pas 2.6 async messenger handler (NOT implementat în client la nivel HTTP; un singur request fără retry intern).
 
