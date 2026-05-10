@@ -2,15 +2,25 @@
 
 namespace App\Tests\Service\Extraction;
 
+use App\DTO\Ocr\OcrResult;
 use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\ExtractionMode;
 use App\Enum\ExtractionStatus;
+use App\Service\AuditLogService;
 use App\Service\Extraction\DataExtractionService;
+use App\Service\Extraction\OcrTextExtractionStrategy;
 use App\Service\Extraction\PdfParserExtractionStrategy;
 use App\Service\Extraction\StubExtractionStrategy;
+use App\Service\Llm\AnthropicApiClient;
+use App\Service\Ocr\OcrServiceInterface;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\NullLogger;
+use Symfony\Component\HttpClient\MockHttpClient;
+use Symfony\Component\HttpClient\Response\MockResponse;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
+use Symfony\Component\RateLimiter\Storage\InMemoryStorage;
 
 /**
  * End-to-end cascade integration tests with REAL strategy implementations
@@ -144,6 +154,171 @@ class CascadeIntegrationTest extends TestCase
         }
     }
 
+    // ---------- Pas 2.5.7 — cascade with OcrTextExtractionStrategy ----------
+
+    public function testScannedImageCascadesToOcrTextStrategy(): void
+    {
+        // Build a cascade orchestrator that has all three strategies registered
+        // with realistic priority ordering: PdfParser(100) > OcrText(70) > Stub(10).
+        // The image MIME forces PdfParser.supports() = false → OcrText takes over.
+        $audit = $this->captureAuditLogService();
+        $orchestrator = new DataExtractionService([
+            new PdfParserExtractionStrategy(self::FIXTURES_DIR),
+            $this->makeOcrTextStrategyReplaying('anthropic-success-with-pii.json', $audit),
+            new StubExtractionStrategy(),
+        ]);
+
+        // Document is image/png → PdfParser drops out, OcrText is the next candidate.
+        $document = $this->makeDocument('scan.png', mime: 'image/png', userMode: ExtractionMode::BALANCED);
+
+        $result = $orchestrator->extract($document);
+
+        $this->assertSame(OcrTextExtractionStrategy::STRATEGY_KEY, $result->strategy);
+        $this->assertGreaterThanOrEqual(0.6, $result->globalConfidence, 'OcrText must short-circuit above the cascade threshold');
+        $this->assertSame(ExtractionStatus::COMPLETED, $document->getExtractionStatus());
+        $this->assertSame('ocr_text', $document->getExtractionStrategy());
+        // Audit log was written exactly once with AI category — no double-billing.
+        $this->assertCount(1, $audit->loggedCalls);
+        $this->assertSame(AuditLogService::CATEGORY_AI_EXTRACTION, $audit->loggedCalls[0]['category']);
+    }
+
+    public function testLocalOnlyModeSkipsOcrTextStrategyAndFallsToStub(): void
+    {
+        // Same wiring as above, but the user's extractionMode is LOCAL_ONLY.
+        // The orchestrator must filter out OcrText (isAiBacked() === true) at
+        // selection time — the AI must NEVER be called, even with a working
+        // mock — so we wire a MockHttpClient that EXPLODES if hit.
+        $audit = $this->captureAuditLogService();
+        $strategy = $this->makeOcrTextStrategyWithExplodingClient($audit);
+
+        $orchestrator = new DataExtractionService([
+            new PdfParserExtractionStrategy(self::FIXTURES_DIR),
+            $strategy,
+            new StubExtractionStrategy(),
+        ]);
+
+        $document = $this->makeDocument('scan.png', mime: 'image/png', userMode: ExtractionMode::LOCAL_ONLY);
+
+        $result = $orchestrator->extract($document);
+
+        // Cascade: PdfParser (no — wrong mime) → OcrText (skipped — AI-backed under LOCAL_ONLY)
+        // → Stub (always supports) → status FAILED because confidence == 0.
+        $this->assertSame(StubExtractionStrategy::STRATEGY_KEY, $result->strategy);
+        $this->assertSame(0.0, $result->globalConfidence);
+        $this->assertSame(ExtractionStatus::FAILED, $document->getExtractionStatus());
+        // No audit log was written (OcrText never reached its audit step).
+        $this->assertSame([], $audit->loggedCalls);
+    }
+
+    private function makeOcrTextStrategyReplaying(
+        string $fixtureFilename,
+        AuditLogService $audit,
+    ): OcrTextExtractionStrategy {
+        $body = file_get_contents(__DIR__ . '/../../fixtures/llm/' . $fixtureFilename);
+        if ($body === false) {
+            self::fail("Fixture {$fixtureFilename} unreadable in cascade test");
+        }
+        $http = new MockHttpClient(static fn (): MockResponse => new MockResponse($body, ['http_code' => 200]));
+
+        return new OcrTextExtractionStrategy(
+            ocrService: $this->fakeOcrServiceWithRealisticText(),
+            llmClient: new AnthropicApiClient(
+                httpClient: $http,
+                anthropicApiKey: 'sk-ant-cascade-test',
+                anthropicModel: 'claude-sonnet-4-6',
+                logger: new NullLogger(),
+            ),
+            auditLogService: $audit,
+            extractionAiTextLimiter: $this->noLimitFactory(),
+            uploadsDir: '/tmp/cascade-tests-not-touched',
+            anthropicApiKey: 'sk-ant-cascade-test',
+            logger: new NullLogger(),
+        );
+    }
+
+    private function makeOcrTextStrategyWithExplodingClient(AuditLogService $audit): OcrTextExtractionStrategy
+    {
+        $http = new MockHttpClient(static function (): MockResponse {
+            throw new \LogicException(
+                'AnthropicApiClient must NOT be invoked under LOCAL_ONLY mode — '
+                . 'orchestrator should have filtered the AI-backed strategy upstream',
+            );
+        });
+
+        return new OcrTextExtractionStrategy(
+            ocrService: $this->fakeOcrServiceWithRealisticText(),
+            llmClient: new AnthropicApiClient(
+                httpClient: $http,
+                anthropicApiKey: 'sk-ant-cascade-test',
+                anthropicModel: 'claude-sonnet-4-6',
+                logger: new NullLogger(),
+            ),
+            auditLogService: $audit,
+            extractionAiTextLimiter: $this->noLimitFactory(),
+            uploadsDir: '/tmp',
+            anthropicApiKey: 'sk-ant-cascade-test',
+            logger: new NullLogger(),
+        );
+    }
+
+    private function fakeOcrServiceWithRealisticText(): OcrServiceInterface
+    {
+        // Same shape as OcrTextExtractionStrategyIntegrationTest's fake — kept
+        // private to each test class because the cascade test deliberately
+        // doesn't share infrastructure with the integration test (changes to
+        // one shouldn't silently shift the other's expectations).
+        $text = <<<TEXT
+CONTRACT DE PRESTĂRI SERVICII NR. 042/2026
+Creditor: SC Foo Consulting SRL, CUI RO15193236, cont RO49AAAA1B31007593840000.
+Debitor: Popescu Maria, CNP 1980715221232.
+Suma totală: 6.009,50 RON, scadenta la data de 15.06.2026.
+TEXT;
+
+        return new class($text) implements OcrServiceInterface {
+            public function __construct(private string $text) {}
+
+            public function extractText(string $absolutePath): OcrResult
+            {
+                return new OcrResult($this->text, 0.92, 1);
+            }
+        };
+    }
+
+    private function captureAuditLogService(): AuditLogService
+    {
+        return new class extends AuditLogService {
+            /** @var array<int, array<string, mixed>> */
+            public array $loggedCalls = [];
+
+            public function __construct() {}
+
+            public function log(
+                string $action,
+                string $entityType,
+                string $entityId,
+                ?array $oldData = null,
+                ?array $newData = null,
+                ?string $category = null,
+            ): \App\Entity\AuditLog {
+                $this->loggedCalls[] = [
+                    'action' => $action,
+                    'category' => $category,
+                    'newData' => $newData,
+                ];
+
+                return new \App\Entity\AuditLog();
+            }
+        };
+    }
+
+    private function noLimitFactory(): RateLimiterFactory
+    {
+        return new RateLimiterFactory(
+            ['id' => 'cascade_no_limit', 'policy' => 'no_limit'],
+            new InMemoryStorage(),
+        );
+    }
+
     private function makeDocument(
         string $filename,
         string $mime = 'application/pdf',
@@ -157,7 +332,9 @@ class CascadeIntegrationTest extends TestCase
 
         $document = new Document();
         $document->setLegalCase($case);
+        $document->setOriginalFilename($filename);
         $document->setStoredFilename($filename);
+        $document->setFileSize(1024);
         $document->setMimeType($mime);
 
         return $document;

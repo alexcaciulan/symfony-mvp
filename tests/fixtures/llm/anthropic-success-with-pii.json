@@ -1,0 +1,18 @@
+{
+  "id": "msg_01PII7n4HUmXqLPxgbAvLn7H",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-sonnet-4-6",
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"creditor\":{\"personType\":\"PJ\",\"name\":\"SC Foo SRL\",\"cui\":\"15193236\",\"isVatPayer\":true,\"address\":\"Str. Exemplu nr. 12, București\",\"iban\":\"IBAN_PLACEHOLDER_001\",\"legalRepresentative\":\"Ionescu Ion\",\"confidencePerField\":{\"name\":0.95,\"cui\":0.99,\"iban\":0.92}},\"debtor\":{\"personType\":\"PF\",\"name\":\"Popescu Maria\",\"personalId\":\"***-***-1232\",\"address\":\"Str. Test nr. 5, Cluj-Napoca\",\"confidencePerField\":{\"name\":0.91,\"personalId\":0.97}},\"claim\":{\"amount\":6009.50,\"currency\":\"RON\",\"dueDate\":\"2026-06-15\",\"legalGround\":\"CONTRACT_PRESTARI_SERVICII\",\"description\":\"Servicii consultanță conform contract 042/2026\",\"confidencePerField\":{\"amount\":0.99,\"dueDate\":0.94,\"legalGround\":0.85}},\"globalConfidence\":0.93}"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 837,
+    "output_tokens": 312
+  }
+}

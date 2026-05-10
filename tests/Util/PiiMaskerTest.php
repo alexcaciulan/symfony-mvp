@@ -230,4 +230,65 @@ class PiiMaskerTest extends TestCase
     {
         $this->assertSame([], PiiMasker::maskCnpInArray([]));
     }
+
+    // ---------- IBAN round-trip (Pas 2.5.7) ----------
+
+    public function testMaskIbanReplacesAllOccurrences(): void
+    {
+        $text = 'Cont creditor: RO49AAAA1B31007593840000. Cont debitor: RO66BACX0000001234567890.';
+
+        $masked = PiiMasker::maskIban($text);
+
+        $this->assertStringNotContainsString('RO49AAAA1B31007593840000', $masked);
+        $this->assertStringNotContainsString('RO66BACX0000001234567890', $masked);
+        $this->assertSame(2, substr_count($masked, 'RO**REDACTED**'));
+    }
+
+    public function testBuildIbanMapExtractsValidIbans(): void
+    {
+        $text = 'Plata se va efectua în contul RO49AAAA1B31007593840000 deschis la BCR. '
+            . 'Contul de retur e RO66BACX0000001234567890.';
+
+        $map = PiiMasker::buildIbanMap($text);
+
+        $this->assertArrayHasKey('RO49AAAA1B31007593840000', $map);
+        $this->assertArrayHasKey('RO66BACX0000001234567890', $map);
+        $this->assertSame('IBAN_PLACEHOLDER_001', $map['RO49AAAA1B31007593840000']);
+        $this->assertSame('IBAN_PLACEHOLDER_002', $map['RO66BACX0000001234567890']);
+    }
+
+    public function testBuildIbanMapDeduplicatesRepeatedIbans(): void
+    {
+        $text = 'Cont: RO49AAAA1B31007593840000. Reluare: RO49AAAA1B31007593840000.';
+
+        $map = PiiMasker::buildIbanMap($text);
+
+        $this->assertCount(1, $map);
+        $this->assertSame('IBAN_PLACEHOLDER_001', $map['RO49AAAA1B31007593840000']);
+    }
+
+    public function testRestoreIbanIsLossless(): void
+    {
+        $original = 'Cont creditor RO49AAAA1B31007593840000 și debitor RO66BACX0000001234567890.';
+        $map = PiiMasker::buildIbanMap($original);
+
+        $masked = $original;
+        foreach ($map as $iban => $placeholder) {
+            $masked = str_replace($iban, $placeholder, $masked);
+        }
+        // Confirm masked truly hides the originals before restore.
+        $this->assertStringNotContainsString('RO49AAAA1B31007593840000', $masked);
+        $this->assertStringNotContainsString('RO66BACX0000001234567890', $masked);
+        $this->assertStringContainsString('IBAN_PLACEHOLDER_001', $masked);
+
+        $restored = PiiMasker::restoreIban($masked, $map);
+
+        $this->assertSame($original, $restored);
+    }
+
+    public function testRestoreIbanLeavesTextIntactWhenMapEmpty(): void
+    {
+        $text = 'No IBANs here at all.';
+        $this->assertSame($text, PiiMasker::restoreIban($text, []));
+    }
 }

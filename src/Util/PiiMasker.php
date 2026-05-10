@@ -50,6 +50,25 @@ final class PiiMasker
 
     private const CUI_MASK_NON_VAT = '******';
 
+    /**
+     * Placeholder prefix for IBAN round-trip via {@see self::buildIbanMap()}.
+     * Tokens are formatted `IBAN_PLACEHOLDER_001`, `IBAN_PLACEHOLDER_002`, etc.
+     * Numeric suffix is fixed-width (3 digits, zero-padded) so the
+     * descending-length sort in {@see self::restoreIban()} is preventive
+     * against any future longer-suffix variant rather than load-bearing today.
+     */
+    public const IBAN_PLACEHOLDER_PREFIX = 'IBAN_PLACEHOLDER_';
+
+    /** Generic mask for IBANs in audit logs / display where round-trip isn't needed. */
+    private const IBAN_MASK_DISPLAY = 'RO**REDACTED**';
+
+    /**
+     * Romanian IBAN structure (ISO 13616 + ECBS RO branch):
+     *   `RO` + 2 check digits + 4 alphabetic bank code + 16 alphanumeric BBAN.
+     * Total length 24. Used both by maskIban and buildIbanMap.
+     */
+    private const IBAN_PATTERN = '/RO\d{2}[A-Z]{4}[A-Z0-9]{16}/';
+
     // ---------- validators ----------
 
     /**
@@ -228,6 +247,79 @@ final class PiiMasker
         // placeholder first would corrupt the inside of the longer one. Sort by
         // placeholder length DESCENDING to substitute longest-first, preserving
         // the round-trip property even under last-4 collisions.
+        $placeholders = array_values($map);
+        $originals = array_keys($map);
+
+        $indexed = [];
+        foreach ($placeholders as $i => $placeholder) {
+            $indexed[] = ['placeholder' => $placeholder, 'original' => $originals[$i]];
+        }
+        usort($indexed, static fn(array $a, array $b) => strlen($b['placeholder']) <=> strlen($a['placeholder']));
+
+        $sortedPlaceholders = array_column($indexed, 'placeholder');
+        $sortedOriginals = array_column($indexed, 'original');
+
+        return str_replace($sortedPlaceholders, $sortedOriginals, $maskedText);
+    }
+
+    /**
+     * Replaces every Romanian IBAN in `$text` with a generic redacted token.
+     * Use this for audit logs / display surfaces where the IBAN is not needed
+     * downstream. For AI-prompt round-trip use {@see self::buildIbanMap()} +
+     * {@see self::restoreIban()} instead — masking via this method is one-way.
+     */
+    public static function maskIban(string $text): string
+    {
+        return preg_replace(self::IBAN_PATTERN, self::IBAN_MASK_DISPLAY, $text) ?? $text;
+    }
+
+    /**
+     * Scans `$text` for Romanian IBANs and returns a map original → unique
+     * placeholder. Companion to {@see self::buildCnpMap()} for the
+     * Pas 2.5.7 OcrTextExtractionStrategy round-trip: mask BEFORE the AI call,
+     * use {@see self::restoreIban()} on the structured response.
+     *
+     * Note: IBAN structural validity (pattern + length) is checked here, but
+     * mod-97 checksum validation is NOT — fragments produced by bad OCR may
+     * fail checksum, and the round-trip remains correct regardless because
+     * substitution is symmetric. Strategies that need validated IBANs run
+     * checksum validation post-restore.
+     *
+     * @return array<string, string> [original_iban => placeholder]
+     */
+    public static function buildIbanMap(string $text): array
+    {
+        $matches = [];
+        if (!preg_match_all(self::IBAN_PATTERN, $text, $matches)) {
+            return [];
+        }
+
+        $map = [];
+        $counter = 1;
+        foreach (array_unique($matches[0]) as $iban) {
+            $map[$iban] = self::IBAN_PLACEHOLDER_PREFIX . str_pad((string) $counter, 3, '0', STR_PAD_LEFT);
+            $counter++;
+        }
+
+        return $map;
+    }
+
+    /**
+     * Reverse of {@see self::buildIbanMap()}: replaces placeholders in
+     * `$maskedText` with the original IBANs from `$map`. Mirrors
+     * {@see self::restoreCnp()} — substitutes longest placeholder first to
+     * remain robust against any future numeric-overflow suffix variants
+     * (today all placeholders share the same fixed length, so the sort is
+     * a no-op but cheap insurance).
+     *
+     * @param array<string, string> $map [original => placeholder] from buildIbanMap()
+     */
+    public static function restoreIban(string $maskedText, array $map): string
+    {
+        if ($map === []) {
+            return $maskedText;
+        }
+
         $placeholders = array_values($map);
         $originals = array_keys($map);
 
