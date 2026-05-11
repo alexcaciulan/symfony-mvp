@@ -201,7 +201,7 @@ final class AiVisionExtractionStrategy implements ExtractionStrategyInterface
         $creditor = $this->buildCreditorFromAi($parsed['creditor'] ?? null);
         $debtor = $this->buildDebtorFromAi($parsed['debtor'] ?? null);
         $claim = $this->buildClaimFromAi($parsed['claim'] ?? null);
-        $globalConfidence = $this->resolveGlobalConfidence($parsed, $creditor, $debtor, $claim);
+        $globalConfidence = $this->resolveGlobalConfidence($creditor, $debtor, $claim);
 
         // 6. Audit — metadata only. PiiMasker::maskCnpInArray defense-in-depth
         // on the persisted payload; even though we log mimeType + fileSize
@@ -514,36 +514,20 @@ PROMPT;
     }
 
     /**
-     * @param array<string, mixed> $parsed
+     * Coverage-weighted global confidence — see the analogous comment in
+     * {@see OcrTextExtractionStrategy::resolveGlobalConfidence()} for the
+     * rationale. AI-returned `globalConfidence` is discarded on purpose.
      */
     private function resolveGlobalConfidence(
-        array $parsed,
         ?CreditorExtraction $creditor,
         ?DebtorExtraction $debtor,
         ?ClaimExtraction $claim,
     ): float {
-        $explicit = $parsed['globalConfidence'] ?? null;
-        if (is_numeric($explicit)) {
-            return max(0.0, min(1.0, (float) $explicit));
-        }
-
-        $values = [];
-        foreach ([$creditor?->confidencePerField, $debtor?->confidencePerField, $claim?->confidencePerField] as $map) {
-            if (!is_array($map)) {
-                continue;
-            }
-            foreach ($map as $score) {
-                if (is_numeric($score)) {
-                    $values[] = max(0.0, min(1.0, (float) $score));
-                }
-            }
-        }
-
-        if ($values === []) {
-            return DataExtractionService::DEFAULT_CONFIDENCE_THRESHOLD;
-        }
-
-        return array_sum($values) / count($values);
+        return CoverageConfidenceCalculator::compute(
+            $creditor?->confidencePerField,
+            $debtor?->confidencePerField,
+            $claim?->confidencePerField,
+        );
     }
 
     private function coerceString(mixed $value): ?string

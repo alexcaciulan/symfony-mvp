@@ -112,17 +112,23 @@ class PdfParserExtractionStrategyIntegrationTest extends TestCase
         $this->assertNull($result->debtor->cui, 'Individual debtor must NOT have a CUI assigned');
     }
 
-    public function testGlobalConfidenceIsAboveThresholdForRealDocuments(): void
+    public function testGlobalConfidenceIsMeaningfulForRealDocuments(): void
     {
+        // After moving to coverage-weighted confidence (Pas 3.0 follow-up),
+        // PdfParser intentionally falls BELOW the 0.6 short-circuit threshold
+        // on partial extractions — that's the whole point: let the AI cascade
+        // try to fill the missing fields rather than declaring "done" on 5/25.
+        // Floor 0.15 keeps a regression signal: PdfParser must still surface
+        // multiple high-confidence fields on each realistic fixture.
         foreach (['invoice-realistic.pdf', 'contract-multipage.pdf', 'loan-individual.pdf'] as $filename) {
             $document = $this->makeDocument($filename);
 
             $result = $this->strategy->extract($document);
 
             $this->assertGreaterThan(
-                0.6,
+                0.15,
                 $result->globalConfidence,
-                "Expected confidence above default threshold (0.6) for {$filename}, got {$result->globalConfidence}",
+                "Expected meaningful coverage confidence for {$filename}, got {$result->globalConfidence}",
             );
         }
     }

@@ -39,6 +39,14 @@ services:
     App\Service\Extraction\DataExtractionService:
         arguments:
             $strategies: !tagged_iterator app.extraction_strategy
+            # Dev-only override: set EXTRACTION_FORCE_STRATEGY=ai_vision in
+            # .env.local to skip PdfParser+OcrText and exercise AiVision tier
+            # directly. Default '' (empty) = normal priority-based cascade.
+            $forceStrategyKey: '%env(default::EXTRACTION_FORCE_STRATEGY)%'
+            # Dev-only override: comma-separated list of strategy keys to mute
+            # (e.g. `ocr_text` or `ocr_text,ai_vision`). Cascade runs normally
+            # but jumps over the listed tiers. Default '' = nothing skipped.
+            $skipStrategyKeysCsv: '%env(default::EXTRACTION_SKIP_STRATEGIES)%'
 
     App\Workflow\MarkingStore\EnumMarkingStore:
         arguments:

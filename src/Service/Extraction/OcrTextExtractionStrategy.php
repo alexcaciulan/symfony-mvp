@@ -187,7 +187,7 @@ final class OcrTextExtractionStrategy implements ExtractionStrategyInterface
         $creditor = $this->buildCreditorFromAi($parsed['creditor'] ?? null, $cnpMap, $ibanMap);
         $debtor = $this->buildDebtorFromAi($parsed['debtor'] ?? null, $cnpMap, $ibanMap);
         $claim = $this->buildClaimFromAi($parsed['claim'] ?? null);
-        $globalConfidence = $this->resolveGlobalConfidence($parsed, $creditor, $debtor, $claim);
+        $globalConfidence = $this->resolveGlobalConfidence($creditor, $debtor, $claim);
 
         // 8. Audit — metadata only, defense-in-depth maskCnpInArray on the persisted payload.
         $this->auditLogService->log(
@@ -506,40 +506,25 @@ PROMPT;
     }
 
     /**
-     * @param array<string, mixed> $parsed
+     * Coverage-weighted global confidence — ignores the AI-returned
+     * `globalConfidence` field on purpose (the AI tends to self-report high
+     * confidence when it answered *what it could* and silently dropped the
+     * fields it didn't see). Using {@see CoverageConfidenceCalculator} makes
+     * every strategy compare on the same metric: how many of the 25 wizard
+     * fields actually have a numeric confidence > 0. That keeps the cascade
+     * honest — a strategy that fills 7 fields perfectly stops short-circuiting
+     * the AI tier that might fill 18.
      */
     private function resolveGlobalConfidence(
-        array $parsed,
         ?CreditorExtraction $creditor,
         ?DebtorExtraction $debtor,
         ?ClaimExtraction $claim,
     ): float {
-        $explicit = $parsed['globalConfidence'] ?? null;
-        if (is_numeric($explicit)) {
-            return max(0.0, min(1.0, (float) $explicit));
-        }
-
-        // Fall back to the average of all per-field confidence values across sub-DTOs.
-        $values = [];
-        foreach ([$creditor?->confidencePerField, $debtor?->confidencePerField, $claim?->confidencePerField] as $map) {
-            if (!is_array($map)) {
-                continue;
-            }
-            foreach ($map as $score) {
-                if (is_numeric($score)) {
-                    $values[] = max(0.0, min(1.0, (float) $score));
-                }
-            }
-        }
-
-        if ($values === []) {
-            // We have *something* (one of the sub-DTOs is non-null per parseAiResponse
-            // gating) but no usable confidence info — give it the default threshold so
-            // the cascade can still short-circuit if no higher-confidence strategy exists.
-            return DataExtractionService::DEFAULT_CONFIDENCE_THRESHOLD;
-        }
-
-        return array_sum($values) / count($values);
+        return CoverageConfidenceCalculator::compute(
+            $creditor?->confidencePerField,
+            $debtor?->confidencePerField,
+            $claim?->confidencePerField,
+        );
     }
 
     private function coerceString(mixed $value): ?string

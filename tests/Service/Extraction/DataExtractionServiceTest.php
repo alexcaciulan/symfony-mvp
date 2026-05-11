@@ -232,6 +232,134 @@ class DataExtractionServiceTest extends TestCase
         $this->assertSame(0.0, $result->globalConfidence);
     }
 
+    // ----- dev knobs (forceStrategyKey + skipStrategyKeysCsv) -----
+
+    public function testForceStrategyKeySkipsHigherPriorityStrategies(): void
+    {
+        // Without force: pdf_parser (priority 100) clears threshold and short-circuits.
+        // With force: pdf_parser is skipped despite supporting the doc — only
+        // ai_vision is even considered, exercising the lower-priority tier in
+        // isolation. Dev/test ergonomic for AI tuning without contriving inputs.
+        $service = new DataExtractionService(
+            strategies: [
+                $this->makeKeyedFake('pdf_parser', priority: 100, confidence: 0.95),
+                $this->makeKeyedFake('ai_vision', priority: 50, confidence: 0.7),
+                new StubExtractionStrategy(),
+            ],
+            forceStrategyKey: 'ai_vision',
+        );
+
+        $result = $service->extract($this->makeDocument(userMode: ExtractionMode::BALANCED));
+
+        $this->assertSame('ai_vision', $result->strategy, 'Force knob must bypass higher-priority strategies');
+        $this->assertSame(0.7, $result->globalConfidence);
+    }
+
+    public function testForceStrategyKeyEmptyStringIsTreatedAsNoOverride(): void
+    {
+        // services.yaml passes '%env(default::EXTRACTION_FORCE_STRATEGY)%' which
+        // becomes '' when the env var is absent. The orchestrator must treat
+        // '' identically to null — otherwise EVERY production deploy would
+        // accidentally skip the entire cascade.
+        $service = new DataExtractionService(
+            strategies: [
+                $this->makeKeyedFake('pdf_parser', priority: 100, confidence: 0.95),
+                new StubExtractionStrategy(),
+            ],
+            forceStrategyKey: '',
+        );
+
+        $result = $service->extract($this->makeDocument(userMode: ExtractionMode::BALANCED));
+
+        $this->assertSame('pdf_parser', $result->strategy);
+    }
+
+    public function testSkipStrategyKeysCsvSkipsListedTier(): void
+    {
+        // Mute pdf_parser — cascade jumps over it and ai_vision runs, even
+        // though pdf_parser would have short-circuited normally. Useful for
+        // benchmarking the AI tier's incremental contribution.
+        $service = new DataExtractionService(
+            strategies: [
+                $this->makeKeyedFake('pdf_parser', priority: 100, confidence: 0.95),
+                $this->makeKeyedFake('ai_vision', priority: 50, confidence: 0.8),
+                new StubExtractionStrategy(),
+            ],
+            skipStrategyKeysCsv: 'pdf_parser',
+        );
+
+        $result = $service->extract($this->makeDocument(userMode: ExtractionMode::BALANCED));
+
+        $this->assertSame('ai_vision', $result->strategy);
+    }
+
+    public function testSkipStrategyKeysCsvAcceptsMultipleCommaSeparated(): void
+    {
+        // CSV format `a,b` with optional whitespace must skip both.
+        $service = new DataExtractionService(
+            strategies: [
+                $this->makeKeyedFake('pdf_parser', priority: 100, confidence: 0.95),
+                $this->makeKeyedFake('ocr_text', priority: 70, confidence: 0.9),
+                $this->makeKeyedFake('ai_vision', priority: 50, confidence: 0.8),
+                new StubExtractionStrategy(),
+            ],
+            skipStrategyKeysCsv: 'pdf_parser, ocr_text',
+        );
+
+        $result = $service->extract($this->makeDocument(userMode: ExtractionMode::BALANCED));
+
+        $this->assertSame('ai_vision', $result->strategy, 'Both listed tiers must be skipped');
+    }
+
+    public function testSkipWinsOverForceWhenBothSetForSameKey(): void
+    {
+        // Skip is the broader constraint — if a key is in both force AND skip,
+        // skip must win (i.e. the strategy runs zero times). Documented contract
+        // in DataExtractionService::__construct(). Without explicit coverage,
+        // a future refactor could silently invert the precedence.
+        $service = new DataExtractionService(
+            strategies: [
+                $this->makeKeyedFake('pdf_parser', priority: 100, confidence: 0.95),
+                $this->makeKeyedFake('ai_vision', priority: 50, confidence: 0.8),
+                new StubExtractionStrategy(),
+            ],
+            forceStrategyKey: 'ai_vision',
+            skipStrategyKeysCsv: 'ai_vision',
+        );
+
+        $result = $service->extract($this->makeDocument(userMode: ExtractionMode::BALANCED));
+
+        // Force=ai_vision blocks pdf_parser; skip=ai_vision blocks ai_vision;
+        // Stub is also non-matching for force, so it gets blocked too → bestSoFar
+        // is null → Stub fallback via the defensive branch.
+        $this->assertSame('stub', $result->strategy);
+        $this->assertSame(0.0, $result->globalConfidence);
+    }
+
+    public function testAnonymousStrategiesWithoutStrategyKeyConstantAreUnaffectedByDevKnobs(): void
+    {
+        // The defensive `defined(::STRATEGY_KEY)` check in the orchestrator
+        // exists so test fakes without the constant don't crash when the env
+        // knobs are set. Exercise that path: a fake without the const must
+        // still run normally when force/skip are configured for OTHER keys.
+        $service = new DataExtractionService(
+            strategies: [
+                $this->makeFake(priority: 100, confidence: 0.95, strategyKey: 'no_const_fake'),
+                new StubExtractionStrategy(),
+            ],
+            forceStrategyKey: 'pdf_parser',
+            skipStrategyKeysCsv: 'ocr_text',
+        );
+
+        $result = $service->extract($this->makeDocument(userMode: ExtractionMode::BALANCED));
+
+        // forceStrategyKey='pdf_parser' filters out keys that don't match;
+        // no_const_fake returns null STRATEGY_KEY, so the force check (which
+        // compares against $strategyKey directly) skips it. Stub is filtered
+        // the same way → defensive fallback returns a 0.0 Stub result.
+        $this->assertSame('stub', $result->strategy);
+    }
+
     // ----- helpers -----
 
     private function makeDocument(
@@ -282,6 +410,71 @@ class DataExtractionServiceTest extends TestCase
                     extractedAt: new \DateTimeImmutable(),
                 );
             }
+        };
+    }
+
+    /**
+     * Builds a fake strategy that DECLARES a `STRATEGY_KEY` constant matching
+     * the orchestrator's force/skip dev-knob lookup. The plain {@see makeFake}
+     * uses a property instead of a constant — that's intentional for tests
+     * that exercise the defensive `defined(::STRATEGY_KEY)` path, but the dev
+     * knobs themselves require the constant.
+     *
+     * One named anonymous-class fixture per known production key, since PHP
+     * doesn't allow parameterising constants on anonymous classes.
+     */
+    private function makeKeyedFake(string $key, int $priority, float $confidence): ExtractionStrategyInterface
+    {
+        return match ($key) {
+            'pdf_parser' => new class($priority, $confidence) implements ExtractionStrategyInterface {
+                public const STRATEGY_KEY = 'pdf_parser';
+                public function __construct(private int $p, private float $c) {}
+                public function supports(Document $document): bool { return true; }
+                public function priority(): int { return $this->p; }
+                public function isAiBacked(): bool { return false; }
+                public function extract(Document $document): ExtractedDocumentData
+                {
+                    return new ExtractedDocumentData(
+                        sourceDocumentId: (int) $document->getId(),
+                        strategy: self::STRATEGY_KEY,
+                        globalConfidence: $this->c,
+                        extractedAt: new \DateTimeImmutable(),
+                    );
+                }
+            },
+            'ocr_text' => new class($priority, $confidence) implements ExtractionStrategyInterface {
+                public const STRATEGY_KEY = 'ocr_text';
+                public function __construct(private int $p, private float $c) {}
+                public function supports(Document $document): bool { return true; }
+                public function priority(): int { return $this->p; }
+                public function isAiBacked(): bool { return true; }
+                public function extract(Document $document): ExtractedDocumentData
+                {
+                    return new ExtractedDocumentData(
+                        sourceDocumentId: (int) $document->getId(),
+                        strategy: self::STRATEGY_KEY,
+                        globalConfidence: $this->c,
+                        extractedAt: new \DateTimeImmutable(),
+                    );
+                }
+            },
+            'ai_vision' => new class($priority, $confidence) implements ExtractionStrategyInterface {
+                public const STRATEGY_KEY = 'ai_vision';
+                public function __construct(private int $p, private float $c) {}
+                public function supports(Document $document): bool { return true; }
+                public function priority(): int { return $this->p; }
+                public function isAiBacked(): bool { return true; }
+                public function extract(Document $document): ExtractedDocumentData
+                {
+                    return new ExtractedDocumentData(
+                        sourceDocumentId: (int) $document->getId(),
+                        strategy: self::STRATEGY_KEY,
+                        globalConfidence: $this->c,
+                        extractedAt: new \DateTimeImmutable(),
+                    );
+                }
+            },
+            default => throw new \LogicException("Unknown strategy key in test fixture: {$key}"),
         };
     }
 

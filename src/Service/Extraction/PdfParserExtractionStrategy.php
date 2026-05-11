@@ -1130,22 +1130,27 @@ final class PdfParserExtractionStrategy implements ExtractionStrategyInterface
         ?DebtorExtraction $debtor,
         ?ClaimExtraction $claim,
     ): float {
-        $values = [];
-        foreach ([$creditor?->confidencePerField, $debtor?->confidencePerField, $claim?->confidencePerField] as $bucket) {
-            if ($bucket === null) {
-                continue;
-            }
-            foreach ($bucket as $value) {
-                if ($value > 0.0) {
-                    $values[] = $value;
-                }
-            }
-        }
-
-        if ($values === []) {
-            return 0.0;
-        }
-
-        return array_sum($values) / count($values);
+        // Coverage-weighted confidence: divide the SUM of per-field confidences
+        // by the TOTAL expected-field count across all sections — not by the
+        // count of fields we managed to extract.
+        //
+        // Rationale: the cascade short-circuits when globalConfidence ≥
+        // threshold. Under the older mean-over-extracted formula, extracting
+        // 3 fields at confidence 0.95 each gave globalConfidence = 0.95 — even
+        // though 17/20 fields remained empty — and the cascade would stop,
+        // leaving the lawyer to fill 17 fields manually.
+        //
+        // The new formula answers the right question: "how much of the wizard
+        // form did this strategy auto-fill?" 3 fields × 0.95 / 20 expected =
+        // 0.14, which lets the cascade move on to a higher-coverage AI tier.
+        //
+        // EXPECTED_TOTAL_FIELDS aligns with the per-section counts shown in
+        // the wizard sidecard (Step1CreditorData has 10 prefillable fields,
+        // Step2DebtorEntry has 10, Step3ClaimData has 5 — total 25).
+        return \App\Service\Extraction\CoverageConfidenceCalculator::compute(
+            $creditor?->confidencePerField,
+            $debtor?->confidencePerField,
+            $claim?->confidencePerField,
+        );
     }
 }

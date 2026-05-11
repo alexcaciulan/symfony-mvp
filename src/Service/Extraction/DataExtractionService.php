@@ -35,17 +35,60 @@ use Psr\Log\NullLogger;
  */
 class DataExtractionService
 {
+    /**
+     * Coverage-based threshold — see {@see CoverageConfidenceCalculator}.
+     * 0.6 ≈ 15 of 25 wizard fields extracted at confidence 1.0 (or proportionally
+     * more at lower confidence). Empirically PdfParser on realistic Romanian
+     * invoices/contracts yields ~0.25–0.45 coverage (it can't see emails,
+     * phones, administrators, ONRC numbers reliably), so it falls below and the
+     * AI tier gets a chance to fill the missing 14+ fields. AI typically
+     * returns 0.55–0.85 coverage and short-circuits. If both AI tiers fail
+     * (LOCAL_ONLY, missing API key, rate limit), the best-below-threshold
+     * fallback still persists the PdfParser partial — nothing is lost.
+     *
+     * Tune via `EXTRACTION_CONFIDENCE_THRESHOLD`: lower for cheaper extraction
+     * (PdfParser-only when it covers enough); higher to favour AI even when
+     * PdfParser did decently — lawyer time > AI cost is the operational bet.
+     *
+     * Precedence: at runtime, the value injected via `services.yaml`
+     * (`$confidenceThreshold`, bound from `EXTRACTION_CONFIDENCE_THRESHOLD`)
+     * takes priority. This PHP constant is the code-level fallback for tests
+     * or for direct calls that pass `null` as the threshold argument. Keep the
+     * two values in sync — the `.env` default and this constant should always
+     * match so a fresh checkout behaves the same with or without env loading.
+     */
     public const DEFAULT_CONFIDENCE_THRESHOLD = 0.6;
 
     /** @var list<ExtractionStrategyInterface> */
     private array $sortedStrategies;
 
+    /** @var list<string> */
+    private array $skippedStrategyKeys;
+
     /**
      * @param iterable<ExtractionStrategyInterface> $strategies tagged `app.extraction_strategy`
+     * @param ?string $forceStrategyKey when set (via env EXTRACTION_FORCE_STRATEGY),
+     *                                  cascade skips strategies whose ::STRATEGY_KEY
+     *                                  doesn't match. Dev-only knob for testing a
+     *                                  specific tier of the cascade in isolation;
+     *                                  bypasses the priority-based short-circuit
+     *                                  logic. Leave null in production. Values:
+     *                                  `pdf_parser` | `ocr_text` | `ai_vision` | `stub`.
+     * @param string $skipStrategyKeysCsv comma-separated list of STRATEGY_KEY values
+     *                                    to skip (via env EXTRACTION_SKIP_STRATEGIES).
+     *                                    Complementary to forceStrategyKey: cascade
+     *                                    runs normally but jumps over the listed
+     *                                    tiers. Useful for benchmarking the impact
+     *                                    of one tier (e.g. `ocr_text` to estimate
+     *                                    PdfParser→AiVision baseline) or for
+     *                                    bypassing a tier known-broken pending fix.
+     *                                    Empty string = no skip.
      */
     public function __construct(
         iterable $strategies,
         private LoggerInterface $logger = new NullLogger(),
+        private ?string $forceStrategyKey = null,
+        ?string $skipStrategyKeysCsv = null,
     ) {
         $list = [];
         foreach ($strategies as $strategy) {
@@ -54,6 +97,13 @@ class DataExtractionService
         usort($list, static fn(ExtractionStrategyInterface $a, ExtractionStrategyInterface $b)
             => $b->priority() <=> $a->priority());
         $this->sortedStrategies = $list;
+
+        // `%env(default::...)%` resolves to null when the env var is absent
+        // (test environments don't always source `.env`); treat null and ''
+        // identically as "no override".
+        $this->skippedStrategyKeys = ($skipStrategyKeysCsv === null || $skipStrategyKeysCsv === '')
+            ? []
+            : array_values(array_filter(array_map('trim', explode(',', $skipStrategyKeysCsv))));
     }
 
     /**
@@ -82,6 +132,41 @@ class DataExtractionService
                 $this->logger->debug('extraction.skip_ai_local_only', [
                     'documentId' => $document->getId(),
                     'strategy' => $strategy::class,
+                ]);
+                continue;
+            }
+
+            // Strategy identification — production strategies declare a
+            // `STRATEGY_KEY` constant; anonymous test doubles often don't.
+            // Resolve defensively so the dev knobs below don't crash unit
+            // tests that pass throw-away anonymous strategies through the
+            // cascade.
+            $strategyKey = defined($strategy::class . '::STRATEGY_KEY')
+                ? $strategy::STRATEGY_KEY
+                : null;
+
+            // Dev-only knob: when EXTRACTION_FORCE_STRATEGY is set, skip every
+            // strategy whose STRATEGY_KEY doesn't match. Lets us exercise a
+            // specific cascade tier (e.g. AiVision) without contriving a
+            // document that would naturally bypass the higher-priority tiers.
+            // NEVER set this in production — it disables the priority-based
+            // short-circuit and degrades extraction quality.
+            if ($this->forceStrategyKey !== null && $this->forceStrategyKey !== ''
+                && $strategyKey !== $this->forceStrategyKey) {
+                continue;
+            }
+
+            // Dev-only knob: when EXTRACTION_SKIP_STRATEGIES lists this tier,
+            // jump over it but keep the cascade running on the rest. Inverse
+            // of forceStrategyKey: leave it broad, mute one or two tiers.
+            // Mutually compatible with forceStrategyKey (skip wins — a forced
+            // strategy that's also in the skip list won't run).
+            if ($strategyKey !== null
+                && $this->skippedStrategyKeys !== []
+                && in_array($strategyKey, $this->skippedStrategyKeys, true)) {
+                $this->logger->debug('extraction.skip_strategy_dev_override', [
+                    'documentId' => $document->getId(),
+                    'strategy' => $strategyKey,
                 ]);
                 continue;
             }

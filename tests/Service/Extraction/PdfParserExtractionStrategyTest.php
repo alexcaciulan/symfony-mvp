@@ -191,7 +191,12 @@ class PdfParserExtractionStrategyTest extends TestCase
 
         $result = $this->strategy->extract($document);
 
-        $this->assertGreaterThan(0.7, $result->globalConfidence);
+        // Coverage-based formula: sum(per_field_confidence) / 25 expected fields.
+        // The mini-fixture contract.pdf yields a handful of high-confidence
+        // fields (CUI x2 + IBAN + amount + dates) — well above zero but far
+        // from full coverage. The exact value is intentionally not pinned;
+        // we only assert it produced *some* signal and stayed inside [0, 1].
+        $this->assertGreaterThan(0.1, $result->globalConfidence);
         $this->assertLessThanOrEqual(1.0, $result->globalConfidence);
     }
 

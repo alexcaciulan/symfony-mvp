@@ -340,7 +340,11 @@ class OcrTextExtractionStrategyTest extends TestCase
         $result = $strategy->extract($this->makeDocument(21, 'image/png'));
 
         $this->assertInstanceOf(ExtractedDocumentData::class, $result);
-        $this->assertSame(0.9, $result->globalConfidence);
+        // globalConfidence is now coverage-weighted (sum of per-field / 25);
+        // the AI-returned `globalConfidence` is intentionally ignored. We just
+        // assert a positive value here — the PII restoration is what this test
+        // actually covers.
+        $this->assertGreaterThan(0.0, $result->globalConfidence);
         $this->assertSame($iban, $result->creditor?->iban, 'IBAN should be restored from placeholder');
         $this->assertSame($cnp, $result->debtor?->personalId, 'CNP should be restored from placeholder');
 
@@ -442,7 +446,10 @@ class OcrTextExtractionStrategyTest extends TestCase
 
         $result = $strategy->extract($this->makeDocument(50, 'image/png'));
 
-        $this->assertSame(0.88, $result->globalConfidence);
+        // What this test actually verifies: AI response wrapped in
+        // ```json``` fences is parsed correctly. globalConfidence semantics
+        // are tested elsewhere — here we just confirm a non-zero value emerged.
+        $this->assertGreaterThan(0.0, $result->globalConfidence);
         $this->assertSame('SC X', $result->creditor?->name);
     }
 
@@ -476,10 +483,11 @@ class OcrTextExtractionStrategyTest extends TestCase
 
     public function testConfidenceValuesOutsideZeroOneRangeAreClamped(): void
     {
-        // Defensive coercion: globalConfidence and per-field confidence are floats
-        // 0..1 by contract — but the AI sometimes returns 1.2 or -0.1 (sloppy
-        // calibration). Strategy must clamp instead of producing out-of-range
-        // floats that would corrupt cascade short-circuit logic.
+        // Defensive coercion: per-field confidence is float 0..1 by contract —
+        // but the AI sometimes returns 1.2 or -0.1 (sloppy calibration).
+        // Per-field clamp still happens in coerceConfidenceMap, so a 1.5 input
+        // becomes 1.0 stored. globalConfidence is now coverage-weighted and
+        // clamped at 1.0 by CoverageConfidenceCalculator.
         $aiContent = json_encode([
             'creditor' => [
                 'name' => 'SC Foo',
@@ -494,7 +502,8 @@ class OcrTextExtractionStrategyTest extends TestCase
 
         $result = $strategy->extract($this->makeDocument(61, 'image/png'));
 
-        $this->assertSame(1.0, $result->globalConfidence, 'globalConfidence > 1 must clamp to 1.0');
+        $this->assertLessThanOrEqual(1.0, $result->globalConfidence, 'globalConfidence must stay in [0, 1]');
+        $this->assertGreaterThanOrEqual(0.0, $result->globalConfidence);
         $this->assertSame(1.0, $result->creditor?->confidencePerField['name']);
         $this->assertSame(0.0, $result->creditor?->confidencePerField['cui'], 'Negative confidence must clamp to 0.0');
     }
