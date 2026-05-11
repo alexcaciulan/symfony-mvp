@@ -55,13 +55,15 @@ final class Step4ConfirmationTypeTest extends KernelTestCase
         self::assertFalse($form->isValid());
     }
 
-    public function testAcknowledgedWarningsFieldExistsButHasNoConstraintIn31(): void
+    public function testAcknowledgedWarningsUncheckedIsValidInDefaultGroup(): void
     {
         $form = $this->buildForm();
         $form->submit([
             'acceptTerms' => '1',
             'acceptDataAccuracy' => '1',
-            // acknowledgedWarnings deliberately omitted (false default)
+            // acknowledgedWarnings deliberately omitted (false default).
+            // Pas 3.2 controller switches to ['Default', 'with_warnings']
+            // groups when WARNINGs are present — covered in DTO test.
         ]);
 
         self::assertTrue($form->isValid());

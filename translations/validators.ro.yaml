@@ -54,6 +54,7 @@ wizard:
         error:
             must_accept_terms: 'Trebuie să accepți termenii de utilizare pentru a continua.'
             must_accept_data_accuracy: 'Trebuie să confirmi exactitatea datelor introduse.'
+            must_acknowledge_warnings: 'Confirmă că ai verificat avertismentele de admisibilitate.'
     step6:
         agree_data_correct_required: 'Trebuie să confirmați corectitudinea datelor.'
         agree_terms_required: 'Trebuie să fiți de acord cu termenii și condițiile.'

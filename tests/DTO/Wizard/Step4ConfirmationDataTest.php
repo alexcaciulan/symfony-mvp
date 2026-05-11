@@ -56,11 +56,8 @@ final class Step4ConfirmationDataTest extends KernelTestCase
         self::assertSame('wizard.step4.error.must_accept_data_accuracy', $violations[0]->getMessageTemplate());
     }
 
-    public function testAcknowledgedWarningsNotValidatedIn31(): void
+    public function testAcknowledgedWarningsNotValidatedInDefaultGroup(): void
     {
-        // In Pas 3.1 the `acknowledgedWarnings` field has no constraint —
-        // Pas 3.2 controller orchestrates it conditionally via validation_groups
-        // when OpAdmissibilityValidator reports WARNINGs.
         $dto = new Step4ConfirmationData(
             acceptTerms: true,
             acceptDataAccuracy: true,
@@ -68,6 +65,36 @@ final class Step4ConfirmationDataTest extends KernelTestCase
         );
 
         $violations = $this->validator->validate($dto);
+
+        self::assertCount(0, $violations);
+    }
+
+    public function testAcknowledgedWarningsRequiredInWithWarningsGroup(): void
+    {
+        $dto = new Step4ConfirmationData(
+            acceptTerms: true,
+            acceptDataAccuracy: true,
+            acknowledgedWarnings: false,
+        );
+
+        $violations = $this->validator->validate($dto, null, ['Default', 'with_warnings']);
+
+        self::assertSame(1, $violations->count());
+        self::assertSame(
+            'wizard.step4.error.must_acknowledge_warnings',
+            $violations[0]->getMessageTemplate(),
+        );
+    }
+
+    public function testAcknowledgedWarningsCheckedSatisfiesWithWarningsGroup(): void
+    {
+        $dto = new Step4ConfirmationData(
+            acceptTerms: true,
+            acceptDataAccuracy: true,
+            acknowledgedWarnings: true,
+        );
+
+        $violations = $this->validator->validate($dto, null, ['Default', 'with_warnings']);
 
         self::assertCount(0, $violations);
     }

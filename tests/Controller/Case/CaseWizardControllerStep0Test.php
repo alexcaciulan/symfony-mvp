@@ -176,11 +176,14 @@ final class CaseWizardControllerStep0Test extends WebTestCase
         self::assertResponseRedirects('/case/new/creditor');
     }
 
-    public function testCreditorPlaceholderReturns501(): void
+    public function testCreditorStepRendersOnEmptySession(): void
     {
         $this->client->request('GET', '/case/new/creditor');
 
-        self::assertResponseStatusCodeSame(Response::HTTP_NOT_IMPLEMENTED);
+        // Pas 3.2 wires the real route — drops the Pas 3.0 501 placeholder.
+        self::assertResponseIsSuccessful();
+        $html = $this->client->getResponse()->getContent();
+        self::assertStringContainsString('Date creditor', $html);
     }
 
     public function testPostUploadWithTurboFrameHeaderReturnsTurboStream(): void

@@ -1,0 +1,224 @@
+{% extends 'case/wizard.html.twig' %}
+
+{# Pas 3.2 wizard step 4 — Confirmare.
+   4 summary cards (Documente, Creditor, Debitor, Creanță) with per-field
+   auto/manual badges + final calculations + GDPR notice + ERROR/WARNING
+   admissibility display + IsTrue checkboxes + CTA green gradient. #}
+
+{% block wizard_step_content %}
+<div class="space-y-6">
+    <header class="flex items-start justify-between gap-4">
+        <div>
+            <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">{{ 'wizard.step4.title'|trans }}</h2>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ 'wizard.step4.subtitle'|trans }}</p>
+        </div>
+        <div class="hidden sm:flex items-center gap-2 text-xs">
+            <span class="inline-flex items-center gap-1 text-blue-700 bg-blue-50 dark:bg-blue-950/40 dark:text-blue-300 px-2 py-0.5 rounded-full">
+                <svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                {{ 'wizard.step4.legend.auto'|trans }}
+            </span>
+            <span class="inline-flex items-center gap-1 text-slate-500 bg-slate-100 dark:bg-slate-800 dark:text-slate-400 px-2 py-0.5 rounded-full">
+                <svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                {{ 'wizard.step4.legend.manual'|trans }}
+            </span>
+        </div>
+    </header>
+
+    {% if has_errors %}
+        <div class="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/60 rounded-xl p-4">
+            <div class="flex items-start gap-3">
+                <svg class="size-5 text-red-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"/></svg>
+                <div>
+                    <div class="font-semibold text-red-900 dark:text-red-200">{{ 'wizard.step4.alert.errors_title'|trans }}</div>
+                    <ul class="mt-2 space-y-1 text-sm text-red-800 dark:text-red-200/80">
+                        {% for issue in errors %}
+                            <li class="flex items-start gap-2"><span class="text-red-500">•</span><span>{{ issue.messageKey|trans }}</span></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    {% elseif has_warnings %}
+        <div class="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-xl p-4">
+            <div class="flex items-start gap-3">
+                <svg class="size-5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"/></svg>
+                <div>
+                    <div class="font-semibold text-amber-900 dark:text-amber-200">{{ 'wizard.step4.alert.warnings_title'|trans }}</div>
+                    <ul class="mt-2 space-y-1 text-sm text-amber-800 dark:text-amber-200/80">
+                        {% for issue in warnings %}
+                            <li class="flex items-start gap-2"><span class="text-amber-500">•</span><span>{{ issue.messageKey|trans }}</span></li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {# Card 1: Documente #}
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft p-5">
+            <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">{{ 'wizard.step4.card.documents'|trans }}</h3>
+            <div class="text-sm text-slate-600 dark:text-slate-400">
+                {{ 'wizard.step4.card.documents_count'|trans({ '%count%': claim.amount is null ? 0 : auto_filled.auto|length + auto_filled.manual|length, '%docCount%': auto_filled.auto is empty ? 0 : 1 }) }}
+            </div>
+        </div>
+
+        {# Card 2: Creditor #}
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft p-5">
+            <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">{{ 'wizard.step4.card.creditor'|trans }}</h3>
+            <dl class="space-y-2 text-sm">
+                <div class="flex items-baseline justify-between gap-2">
+                    <dt class="text-slate-500">{{ 'wizard.step1.field.name'|trans }}</dt>
+                    <dd class="font-medium text-slate-900 dark:text-slate-100 text-right">
+                        <span>{{ creditor.name|default('—') }}</span>
+                        {{ include('case/_wizard_field_badge.html.twig', { field_name: 'name', auto_fields: creditor.autoFilled }) }}
+                    </dd>
+                </div>
+                <div class="flex items-baseline justify-between gap-2">
+                    <dt class="text-slate-500">{{ 'wizard.step1.field.cui'|trans }}</dt>
+                    <dd class="font-mono text-slate-900 dark:text-slate-100 text-right">
+                        <span>{{ creditor.cui|default('—') }}</span>
+                        {{ include('case/_wizard_field_badge.html.twig', { field_name: 'cui', auto_fields: creditor.autoFilled }) }}
+                    </dd>
+                </div>
+                <div class="flex items-baseline justify-between gap-2">
+                    <dt class="text-slate-500">{{ 'wizard.step1.field.address'|trans }}</dt>
+                    <dd class="text-slate-900 dark:text-slate-100 text-right">
+                        <span class="text-xs">{{ creditor.address|default('—') }}</span>
+                        {{ include('case/_wizard_field_badge.html.twig', { field_name: 'address', auto_fields: creditor.autoFilled }) }}
+                    </dd>
+                </div>
+            </dl>
+        </div>
+
+        {# Card 3: Debitor(i) #}
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft p-5">
+            <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">{{ 'wizard.step4.card.debtors'|trans({ '%count%': debtors.debtors|length }) }}</h3>
+            <div class="space-y-3 text-sm">
+                {% for entry in debtors.debtors %}
+                    <div class="{% if not loop.first %}pt-3 border-t border-slate-100 dark:border-slate-800{% endif %}">
+                        <div class="flex items-baseline justify-between gap-2">
+                            <span class="font-medium text-slate-900 dark:text-slate-100">{{ entry.name|default('—') }}</span>
+                            {{ include('case/_wizard_field_badge.html.twig', { field_name: 'name', auto_fields: entry.autoFilled }) }}
+                        </div>
+                        <div class="text-xs text-slate-500">
+                            {% if entry.cui %}{{ 'wizard.step2.field.cui'|trans }}: <span class="font-mono">{{ entry.cui }}</span>{% endif %}
+                            {% if entry.personType %} · {{ ('enum.person_type.' ~ entry.personType.value)|trans }}{% endif %}
+                        </div>
+                        {% if entry.inInsolvency %}
+                            <span class="inline-block mt-1 text-[11px] text-red-700 bg-red-50 dark:bg-red-950/40 dark:text-red-300 px-1.5 py-0.5 rounded">{{ 'wizard.step2.field.in_insolvency_short'|trans }}</span>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        {# Card 4: Creanță #}
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft p-5">
+            <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-3">{{ 'wizard.step4.card.claim'|trans }}</h3>
+            <dl class="space-y-2 text-sm">
+                <div class="flex items-baseline justify-between gap-2">
+                    <dt class="text-slate-500">{{ 'wizard.step3.field.amount'|trans }}</dt>
+                    <dd class="font-semibold tabular-nums text-slate-900 dark:text-slate-100">
+                        <span>{{ claim.amount is null ? '—' : claim.amount|number_format(2, '.', ',') }} {{ claim.currency }}</span>
+                        {{ include('case/_wizard_field_badge.html.twig', { field_name: 'amount', auto_fields: claim.autoFilled }) }}
+                    </dd>
+                </div>
+                <div class="flex items-baseline justify-between gap-2">
+                    <dt class="text-slate-500">{{ 'wizard.step3.field.due_date'|trans }}</dt>
+                    <dd class="text-slate-900 dark:text-slate-100 tabular-nums">
+                        <span>{{ claim.dueDate ? claim.dueDate|date('d M Y') : '—' }}</span>
+                        {{ include('case/_wizard_field_badge.html.twig', { field_name: 'dueDate', auto_fields: claim.autoFilled }) }}
+                    </dd>
+                </div>
+                <div class="flex items-baseline justify-between gap-2">
+                    <dt class="text-slate-500">{{ 'wizard.step3.field.relationship_type'|trans }}</dt>
+                    <dd class="text-slate-900 dark:text-slate-100">
+                        {{ claim.relationshipType is null ? '—' : ('enum.relationship_type.' ~ claim.relationshipType.value)|trans }}
+                    </dd>
+                </div>
+            </dl>
+        </div>
+    </div>
+
+    {# Final calculations strip #}
+    <div class="bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white rounded-2xl shadow-soft p-5">
+        <h3 class="text-sm font-semibold mb-4">{{ 'wizard.step4.final_calculations.title'|trans }}</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div>
+                <div class="text-[11px] uppercase tracking-wider opacity-70">{{ 'wizard.step3.sidebar.interest_label'|trans }}</div>
+                <div class="mt-1 text-xl font-semibold tabular-nums">
+                    {{ interest is null ? '—' : interest.total|number_format(2, '.', ',') ~ ' ' ~ claim.currency }}
+                </div>
+            </div>
+            <div>
+                <div class="text-[11px] uppercase tracking-wider opacity-70">{{ 'wizard.step3.sidebar.stamp_duty_label'|trans }}</div>
+                <div class="mt-1 text-xl font-semibold tabular-nums">
+                    {{ stamp_duty is null ? '—' : stamp_duty.amount|number_format(2, '.', ',') ~ ' RON' }}
+                </div>
+            </div>
+            <div>
+                <div class="text-[11px] uppercase tracking-wider opacity-70">{{ 'wizard.step3.sidebar.court_label'|trans }}</div>
+                <div class="mt-1 text-sm font-medium">
+                    {% if court is null or court.court is null %}
+                        {{ 'wizard.step3.sidebar.court_placeholder'|trans }}
+                    {% else %}
+                        {{ court.court.name }}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# GDPR notice (Anthropic 30-day retention) #}
+    <div class="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-xl p-4 flex gap-3">
+        <svg class="size-5 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"/></svg>
+        <div class="text-sm">
+            <div class="font-semibold text-amber-900 dark:text-amber-200">{{ 'wizard.step4.gdpr.title'|trans }}</div>
+            <p class="mt-0.5 text-amber-800 dark:text-amber-200/80">{{ 'wizard.step4.gdpr.body'|trans }}</p>
+        </div>
+    </div>
+
+    {# Acknowledgement checkboxes + submit #}
+    {{ form_start(form, { attr: { 'class': 'space-y-4', 'novalidate': 'novalidate' }}) }}
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft p-5 space-y-3">
+            <label class="inline-flex items-start gap-2 cursor-pointer">
+                {{ form_widget(form.acceptTerms, { attr: { 'class': 'mt-0.5 rounded border-slate-300 text-lex-navy focus:ring-lex-navy' }}) }}
+                <span class="text-sm text-slate-700 dark:text-slate-300">{{ 'wizard.step4.field.accept_terms'|trans|raw }}</span>
+            </label>
+            {{ form_errors(form.acceptTerms) }}
+
+            <label class="inline-flex items-start gap-2 cursor-pointer">
+                {{ form_widget(form.acceptDataAccuracy, { attr: { 'class': 'mt-0.5 rounded border-slate-300 text-lex-navy focus:ring-lex-navy' }}) }}
+                <span class="text-sm text-slate-700 dark:text-slate-300">{{ 'wizard.step4.field.accept_data_accuracy'|trans }}</span>
+            </label>
+            {{ form_errors(form.acceptDataAccuracy) }}
+
+            {% if has_warnings %}
+                <label class="inline-flex items-start gap-2 cursor-pointer pt-2 border-t border-slate-200 dark:border-slate-800">
+                    {{ form_widget(form.acknowledgedWarnings, { attr: { 'class': 'mt-0.5 rounded border-amber-400 text-amber-600 focus:ring-amber-500' }}) }}
+                    <span class="text-sm text-amber-800 dark:text-amber-200">{{ 'wizard.step4.field.acknowledged_warnings'|trans }}</span>
+                </label>
+                {{ form_errors(form.acknowledgedWarnings) }}
+            {% else %}
+                {# Render hidden so the form binds the false default; no UI noise. #}
+                <div class="hidden">{{ form_widget(form.acknowledgedWarnings) }}</div>
+            {% endif %}
+        </div>
+
+        {{ form_errors(form) }}
+
+        <div class="flex items-center justify-between">
+            <a href="{{ path('case_wizard_claim') }}" class="text-sm font-medium text-slate-600 dark:text-slate-300 hover:underline">
+                {{ 'wizard.button.back'|trans }}
+            </a>
+            <button type="submit"
+                    {% if has_errors %}disabled aria-disabled="true"{% endif %}
+                    class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-white text-sm font-semibold {% if has_errors %}bg-slate-400 cursor-not-allowed{% else %}bg-gradient-to-br from-emerald-600 to-emerald-700 hover:opacity-90{% endif %}">
+                <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                <span>{{ 'wizard.step4.button.submit'|trans }}</span>
+            </button>
+        </div>
+    {{ form_end(form) }}
+</div>
+{% endblock %}

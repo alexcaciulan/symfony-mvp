@@ -17,6 +17,17 @@ class AuditLogService
      */
     public const CATEGORY_AI_EXTRACTION = 'AI_EXTRACTION';
 
+    /**
+     * Audit category for the case wizard final submit (Pas 3.2
+     * CaseWizardController). `newData` records the per-field source split
+     * (`fields_auto` from extraction vs `fields_manual` entered by the user)
+     * plus the extracted document IDs and any non-blocking admissibility
+     * warnings the user acknowledged before submit. Lets us answer "which
+     * fields on this case came from AI extraction?" without re-reading
+     * historical extraction payloads.
+     */
+    public const CATEGORY_WIZARD_SUBMIT = 'WIZARD_SUBMIT';
+
     public function __construct(
         private EntityManagerInterface $em,
         private Security $security,

@@ -54,6 +54,7 @@ wizard:
         error:
             must_accept_terms: 'You must accept the terms of use to continue.'
             must_accept_data_accuracy: 'You must confirm the accuracy of the entered data.'
+            must_acknowledge_warnings: 'Confirm you have reviewed the admissibility warnings.'
     step6:
         agree_data_correct_required: 'You must confirm the data is correct.'
         agree_terms_required: 'You must agree to the terms and conditions.'

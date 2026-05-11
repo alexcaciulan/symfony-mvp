@@ -160,6 +160,9 @@ language:
 wizard:
     next: 'Next step'
     previous: 'Previous step'
+    button:
+        back: 'Back'
+        continue: 'Continue'
     stepper:
         label: 'Application progress'
         court: 'Court'
@@ -169,7 +172,11 @@ wizard:
         evidence: 'Evidence'
         confirmation: 'Confirmation'
     step1:
-        title: 'Select court'
+        title: 'Creditor details'
+        subtitle: 'Identify the creditor — the party submitting the payment-order request.'
+        help:
+            title: 'About this step'
+            body: 'If the creditor is already in your cabinet catalog you can pick them. Otherwise fill in the manual fields: person type, name, address. CUI and ONRC are optional for individuals.'
         county: 'County'
         county_placeholder: '-- Select county --'
         county_required: 'Please select a county.'
@@ -190,7 +197,13 @@ wizard:
         placeholder:
             person_type: '-- Select person type --'
     step2:
-        title: 'Claimant details'
+        title: 'Debtor(s) details'
+        subtitle: 'Add one or more debtors. Verify ANAF status and confirm the BPI check for every legal entity.'
+        entry_heading: 'Debtor #%index%'
+        button:
+            add_debtor: '+ Add secondary debtor'
+        flash:
+            max_debtors_reached: 'Max 5 debtors per case — product cap.'
         type: 'Claimant type'
         type_pf: 'Individual'
         type_pj: 'Legal entity'
@@ -226,10 +239,21 @@ wizard:
             iban: 'IBAN'
             administrator: 'Administrator'
             in_insolvency: 'Debtor in insolvency (Law 85/2014)'
+            in_insolvency_short: 'Insolvency'
         placeholder:
             person_type: '-- Select person type --'
     step3:
-        title: 'Defendant details'
+        title: 'Claim details'
+        subtitle: 'Enter the amount due, due date and legal ground. Interest / stamp duty / competent-court calculations appear live in the sidebar.'
+        sidebar:
+            title: 'Live calculations'
+            interest_label: 'Accrued interest'
+            interest_placeholder: 'Enter amount and due date to see interest.'
+            bnr_breakdown: 'BNR period breakdown'
+            stamp_duty_label: 'Stamp duty'
+            stamp_duty_placeholder: 'Computed per OUG 80/2013 art. 6 (2).'
+            court_label: 'Competent court'
+            court_placeholder: 'Court could not be determined — verify manually.'
         description: 'Add at least one defendant (maximum 3). Fill in the identification data and address for each defendant.'
         type: 'Defendant type'
         type_pf: 'Individual'
@@ -261,12 +285,43 @@ wizard:
         placeholder:
             legal_ground: '-- Select legal ground --'
     step4:
-        title: 'Claim details'
+        title: 'Case confirmation'
+        subtitle: 'Review the summary, final calculations and confirm the data. Once saved, the case appears in your list.'
+        legend:
+            auto: 'auto-filled'
+            manual: 'manual'
+        alert:
+            errors_title: 'Case cannot be submitted yet'
+            warnings_title: 'Heads up — review the following before submission'
+        card:
+            documents: 'Source documents'
+            documents_count: '%docCount% documents uploaded · %count% fields filled'
+            creditor: 'Creditor'
+            debtors: 'Debtor(s) · %count%'
+            claim: 'Claim'
+        gdpr:
+            title: 'Data privacy'
+            body: 'AI-extracted data passes through Anthropic (30-day retention, no model training). Binary documents never leave our server without explicit consent (MAX_ACCURACY mode).'
+        flash:
+            errors_blocking: 'Admissibility errors block submission — fix them before saving.'
+            creditor_reused: 'Existing creditor reused from your catalog (same CUI).'
+            success: 'Case created successfully — number %caseNumber%.'
+        final_calculations:
+            title: 'Final calculations'
+        button:
+            submit: 'Save case'
+        badge:
+            auto: 'auto'
+            manual: 'manual'
+            auto_filled_tooltip: 'Field auto-filled from documents'
+            manual_tooltip: 'Field entered manually'
+        error:
+            must_accept_terms: 'You must accept the terms.'
+            must_accept_data_accuracy: 'Confirm the accuracy of the data.'
+            must_acknowledge_warnings: 'Confirm you have reviewed the admissibility warnings.'
         claim_amount: 'Claimed amount'
-        amount_hint: 'Maximum 10,000 RON per OUG 80/2013.'
         amount_required: 'Please enter the claimed amount.'
         amount_positive: 'The amount must be greater than 0.'
-        amount_max: 'The maximum amount is 10,000 RON.'
         claim_description: 'Claim description'
         description_required: 'Please describe the reason for the claim.'
         due_date: 'Due date'

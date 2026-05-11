@@ -1,0 +1,125 @@
+{% extends 'case/wizard.html.twig' %}
+
+{# Pas 3.2 wizard step 3 — Creanță.
+   Grid 3-col: form (2 col) + dark navy sidebar with server-rendered
+   calculations (3 cards: interest, stamp duty, competent court). Pas 3.3
+   replaces the sidebar with Step3ClaimLiveComponent for instant updates as
+   the user edits inputs. Calculations come from controller — null values
+   render placeholder text rather than crashing the page. #}
+
+{% block wizard_step_content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2">
+        {{ form_start(form, { attr: {
+            'class': 'bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft p-6 space-y-5',
+            'novalidate': 'novalidate',
+        }}) }}
+            <header>
+                <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">{{ 'wizard.step3.title'|trans }}</h2>
+                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ 'wizard.step3.subtitle'|trans }}</p>
+            </header>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    {{ form_label(form.amount) }}
+                    {{ form_widget(form.amount, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800', 'inputmode': 'decimal' }}) }}
+                    {{ form_errors(form.amount) }}
+                </div>
+                <div>
+                    {{ form_label(form.currency) }}
+                    {{ form_widget(form.currency, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800' }}) }}
+                    {{ form_errors(form.currency) }}
+                </div>
+                <div>
+                    {{ form_label(form.dueDate) }}
+                    {{ form_widget(form.dueDate, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800' }}) }}
+                    {{ form_errors(form.dueDate) }}
+                </div>
+                <div>
+                    {{ form_label(form.relationshipType) }}
+                    {{ form_widget(form.relationshipType, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800' }}) }}
+                    {{ form_errors(form.relationshipType) }}
+                </div>
+            </div>
+
+            <div>
+                {{ form_label(form.legalGround) }}
+                {{ form_widget(form.legalGround, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800' }}) }}
+                {{ form_errors(form.legalGround) }}
+            </div>
+
+            <div>
+                {{ form_label(form.description) }}
+                {{ form_widget(form.description, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800', 'rows': 3 }}) }}
+                {{ form_errors(form.description) }}
+            </div>
+
+            {{ form_errors(form) }}
+
+            <div class="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800">
+                <a href="{{ path('case_wizard_debtor') }}" class="text-sm font-medium text-slate-600 dark:text-slate-300 hover:underline">
+                    {{ 'wizard.button.back'|trans }}
+                </a>
+                <button type="submit" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white text-sm font-medium hover:opacity-90">
+                    <span>{{ 'wizard.button.continue'|trans }}</span>
+                    <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                </button>
+            </div>
+        {{ form_end(form) }}
+    </div>
+
+    <aside class="lg:col-span-1 lg:sticky lg:top-20 self-start">
+        <div class="bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white rounded-2xl shadow-soft p-5 space-y-4">
+            <div class="flex items-center gap-2">
+                <svg class="size-4 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                <h3 class="text-sm font-semibold">{{ 'wizard.step3.sidebar.title'|trans }}</h3>
+            </div>
+
+            <div>
+                <div class="text-[11px] uppercase tracking-wider opacity-70">{{ 'wizard.step3.sidebar.interest_label'|trans }}</div>
+                {% if interest is null %}
+                    <div class="mt-1 text-xs opacity-70">{{ 'wizard.step3.sidebar.interest_placeholder'|trans }}</div>
+                {% else %}
+                    <div class="mt-1 text-2xl font-semibold tabular-nums">{{ interest.total|number_format(2, '.', ',') }} {{ dto.currency }}</div>
+                    {% if interest.breakdown|length > 0 %}
+                        <details class="mt-2 text-xs opacity-80">
+                            <summary class="cursor-pointer hover:opacity-100">{{ 'wizard.step3.sidebar.bnr_breakdown'|trans }}</summary>
+                            <ul class="mt-2 space-y-1">
+                                {% for period in interest.breakdown %}
+                                    <li class="flex justify-between gap-2">
+                                        <span>{{ period.startDate|date('d M Y') }} → {{ period.endDate|date('d M Y') }}</span>
+                                        <span class="tabular-nums">{{ period.applicableRate|number_format(2) }}% · {{ period.periodInterest|number_format(2) }} {{ dto.currency }}</span>
+                                    </li>
+                                {% endfor %}
+                            </ul>
+                        </details>
+                    {% endif %}
+                {% endif %}
+            </div>
+
+            <div class="border-t border-white/10 pt-4">
+                <div class="text-[11px] uppercase tracking-wider opacity-70">{{ 'wizard.step3.sidebar.stamp_duty_label'|trans }}</div>
+                {% if stamp_duty is null %}
+                    <div class="mt-1 text-xs opacity-70">{{ 'wizard.step3.sidebar.stamp_duty_placeholder'|trans }}</div>
+                {% else %}
+                    <div class="mt-1 text-2xl font-semibold tabular-nums">{{ stamp_duty.amount|number_format(2, '.', ',') }} RON</div>
+                    <div class="mt-0.5 text-[11px] opacity-70">{{ stamp_duty.lawVersion }}</div>
+                {% endif %}
+            </div>
+
+            <div class="border-t border-white/10 pt-4">
+                <div class="text-[11px] uppercase tracking-wider opacity-70">{{ 'wizard.step3.sidebar.court_label'|trans }}</div>
+                {% if court is null or court.court is null %}
+                    <div class="mt-1 text-sm font-medium">{{ 'wizard.step3.sidebar.court_placeholder'|trans }}</div>
+                    {% if court is not null %}
+                        <div class="mt-0.5 text-[11px] opacity-70">{{ court.explanationKey|trans }}</div>
+                    {% endif %}
+                {% else %}
+                    <div class="mt-1 text-sm font-medium">{{ court.court.name }}</div>
+                    <div class="mt-0.5 text-[11px] opacity-70">{{ court.court.county }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </aside>
+</div>
+{% endblock %}

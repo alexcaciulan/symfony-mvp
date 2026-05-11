@@ -1,0 +1,18 @@
+{# Reusable mini-badge for wizard step 4 summary cards: "auto" (lightning,
+   blue) when the field was prefilled from extraction, "manual" (pencil,
+   slate) when the user typed it. Pas 3.2 — Pas 3.3 keeps this partial as-is
+   when the LiveComponents render the same per-field summary on confirmation. #}
+{% set is_auto = field_name in auto_fields|default([]) %}
+{% if is_auto %}
+    <span class="inline-flex items-center gap-1 text-[11px] font-medium text-blue-700 bg-blue-50 dark:bg-blue-950/40 dark:text-blue-300 px-1.5 py-0.5 rounded-full"
+          title="{{ 'wizard.step4.badge.auto_filled_tooltip'|trans }}">
+        <svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        <span>{{ 'wizard.step4.badge.auto'|trans }}</span>
+    </span>
+{% else %}
+    <span class="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 bg-slate-100 dark:bg-slate-800 dark:text-slate-400 px-1.5 py-0.5 rounded-full"
+          title="{{ 'wizard.step4.badge.manual_tooltip'|trans }}">
+        <svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+        <span>{{ 'wizard.step4.badge.manual'|trans }}</span>
+    </span>
+{% endif %}

@@ -160,6 +160,9 @@ language:
 wizard:
     next: 'Următorul pas'
     previous: 'Pasul anterior'
+    button:
+        back: 'Înapoi'
+        continue: 'Continuă'
     stepper:
         label: 'Progres completare cerere'
         court: 'Instanță'
@@ -169,7 +172,11 @@ wizard:
         evidence: 'Probe'
         confirmation: 'Confirmare'
     step1:
-        title: 'Selectare instanță'
+        title: 'Date creditor'
+        subtitle: 'Identifică creditorul — cel care emite cererea de ordonanță de plată.'
+        help:
+            title: 'Despre acest pas'
+            body: 'Dacă creditorul este deja salvat în catalogul tău (cabinet), îl poți selecta. Altfel completează manual câmpurile principale: tip persoană, denumire, adresă. CUI și ONRC sunt opționale pentru persoane fizice.'
         county: 'Județul'
         county_placeholder: '-- Selectați județul --'
         county_required: 'Selectați județul.'
@@ -190,7 +197,13 @@ wizard:
         placeholder:
             person_type: '-- Selectează tip persoană --'
     step2:
-        title: 'Date reclamant'
+        title: 'Date debitor(i)'
+        subtitle: 'Adaugă unul sau mai mulți debitori. Verifică statutul ANAF și bifează BPI-ul pentru fiecare persoană juridică.'
+        entry_heading: 'Debitor #%index%'
+        button:
+            add_debtor: '+ Adaugă debitor secundar'
+        flash:
+            max_debtors_reached: 'Maxim 5 debitori per dosar — limită produs.'
         type: 'Tip reclamant'
         type_pf: 'Persoană fizică'
         type_pj: 'Persoană juridică'
@@ -226,10 +239,21 @@ wizard:
             iban: 'IBAN'
             administrator: 'Administrator'
             in_insolvency: 'Debitor în insolvență (Legea 85/2014)'
+            in_insolvency_short: 'Insolvență'
         placeholder:
             person_type: '-- Selectează tip persoană --'
     step3:
-        title: 'Date pârât'
+        title: 'Detalii creanță'
+        subtitle: 'Introdu suma datorată, scadența și temeiul juridic. Calculele dobândă / taxă timbru / instanță apar live în panoul lateral.'
+        sidebar:
+            title: 'Calcule live'
+            interest_label: 'Dobândă acumulată'
+            interest_placeholder: 'Introdu suma și scadența pentru a vedea dobânda.'
+            bnr_breakdown: 'Detaliu BNR per perioadă'
+            stamp_duty_label: 'Taxă judiciară de timbru'
+            stamp_duty_placeholder: 'Calculată conform OUG 80/2013 art. 6 alin (2).'
+            court_label: 'Instanță competentă'
+            court_placeholder: 'Instanță needeterminată — verifică manual.'
         description: 'Adăugați cel puțin un pârât (maxim 3). Completați datele de identificare și adresa fiecărui pârât.'
         type: 'Tip pârât'
         type_pf: 'Persoană fizică'
@@ -262,12 +286,43 @@ wizard:
         placeholder:
             legal_ground: '-- Selectează temeiul juridic --'
     step4:
-        title: 'Detalii creanță'
+        title: 'Confirmare dosar'
+        subtitle: 'Verifică sumarul, calculele finale și confirmă datele. După salvare dosarul devine vizibil în lista ta.'
+        legend:
+            auto: 'câmp auto-completat'
+            manual: 'introdus manual'
+        alert:
+            errors_title: 'Cererea NU poate fi depusă încă'
+            warnings_title: 'Atenție — verifică următoarele înainte de depunere'
+        card:
+            documents: 'Documente sursă'
+            documents_count: '%docCount% documente încărcate · %count% câmpuri completate'
+            creditor: 'Creditor'
+            debtors: 'Debitor(i) · %count%'
+            claim: 'Creanță'
+        gdpr:
+            title: 'Confidențialitate date'
+            body: 'Datele AI extrase trec prin Anthropic (retention 30 zile, fără antrenare model). Documentele binare nu părăsesc serverul nostru fără acordul tău explicit (Modul „MAX_ACCURACY").'
+        flash:
+            errors_blocking: 'Există erori de admisibilitate — corectează-le înainte de a salva.'
+            creditor_reused: 'Creditor existent reutilizat din catalogul tău (același CUI).'
+            success: 'Dosar creat cu succes — număr %caseNumber%.'
+        final_calculations:
+            title: 'Calcule finale'
+        button:
+            submit: 'Salvează dosar'
+        badge:
+            auto: 'auto'
+            manual: 'manual'
+            auto_filled_tooltip: 'Câmp completat automat din documente'
+            manual_tooltip: 'Câmp introdus manual de tine'
+        error:
+            must_accept_terms: 'Trebuie să accepți termenii.'
+            must_accept_data_accuracy: 'Confirmă exactitatea datelor.'
+            must_acknowledge_warnings: 'Confirmă că ai verificat avertismentele de admisibilitate.'
         claim_amount: 'Suma pretinsă'
-        amount_hint: 'Maxim 10.000 RON conform OUG 80/2013.'
         amount_required: 'Introduceți suma pretinsă.'
         amount_positive: 'Suma trebuie să fie mai mare decât 0.'
-        amount_max: 'Suma maximă este 10.000 RON.'
         claim_description: 'Descrierea creanței'
         description_required: 'Descrieți motivul creanței.'
         due_date: 'Data scadenței'
