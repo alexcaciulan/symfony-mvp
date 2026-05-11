@@ -159,14 +159,17 @@ class AiVisionExtractionStrategyIntegrationTest extends TestCase
         $this->assertIsArray($body);
         $this->assertSame('claude-sonnet-4-6', $body['model']);
         $this->assertSame(2048, $body['max_tokens']);
-        $this->assertCount(2, $body['messages']);
-        $this->assertSame('system', $body['messages'][0]['role']);
-        $this->assertSame('user', $body['messages'][1]['role']);
+        // Anthropic Messages API contract: system prompt is top-level; only
+        // `user`/`assistant` roles live in `messages`.
+        $this->assertCount(1, $body['messages']);
+        $this->assertSame('user', $body['messages'][0]['role']);
+        $this->assertArrayHasKey('system', $body);
+        $this->assertNotEmpty($body['system']);
 
         // The user message content must be an array of blocks (image + text)
         // because vision parts were appended. The image block carries the
         // base64-encoded fixture content.
-        $userContent = $body['messages'][1]['content'];
+        $userContent = $body['messages'][0]['content'];
         $this->assertIsArray($userContent, 'User message content must be a structured array when vision parts are present');
         $blockTypes = array_column($userContent, 'type');
         $this->assertContains('image', $blockTypes, 'Vision image block must be in the request');
@@ -225,8 +228,10 @@ class AiVisionExtractionStrategyIntegrationTest extends TestCase
         $body = json_decode((string) $captured['body'], true);
         $this->assertIsArray($body);
 
-        // Locate the `document` block in the user message content.
-        $userContent = $body['messages'][1]['content'];
+        // Locate the `document` block in the user message content. After the
+        // Anthropic-shape adaptation, `messages` contains only the user entry;
+        // system is at body root.
+        $userContent = $body['messages'][0]['content'];
         $this->assertIsArray($userContent);
         $documentBlock = null;
         foreach ($userContent as $block) {

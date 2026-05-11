@@ -217,13 +217,15 @@ TEXT;
         $this->assertIsArray($body);
         $this->assertSame('claude-sonnet-4-6', $body['model']);
         $this->assertSame(2048, $body['max_tokens']);
-        $this->assertCount(2, $body['messages']);
-        $this->assertSame('system', $body['messages'][0]['role']);
-        $this->assertSame('user', $body['messages'][1]['role']);
-        // System message must establish the JSON-only output contract.
-        $this->assertStringContainsString('JSON', $body['messages'][0]['content']);
-        // User message must contain the OCR text under the marker.
-        $this->assertStringContainsString('TEXT OCR:', $body['messages'][1]['content']);
+        // Anthropic Messages API contract: the system prompt is a TOP-LEVEL
+        // `system` field; only `user`/`assistant` roles live in `messages`.
+        // The OpenAI-style role:system inside messages would return HTTP 400
+        // invalid_request_error from Anthropic.
+        $this->assertCount(1, $body['messages']);
+        $this->assertSame('user', $body['messages'][0]['role']);
+        $this->assertArrayHasKey('system', $body);
+        $this->assertStringContainsString('JSON', $body['system']);
+        $this->assertStringContainsString('TEXT OCR:', $body['messages'][0]['content']);
     }
 
     public function testExtractWritesAuditLogWithoutSensitiveContent(): void

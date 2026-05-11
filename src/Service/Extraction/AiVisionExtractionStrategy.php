@@ -53,12 +53,20 @@ final class AiVisionExtractionStrategy implements ExtractionStrategyInterface
     private const PDF_MIME = 'application/pdf';
 
     /**
-     * Hard limit on file size sent to vision. 5 MB is the Anthropic-recommended
-     * sweet spot for vision input — larger files inflate latency dramatically
-     * (each extra MB ≈ 2-4s of round-trip) and cost without proportional
-     * accuracy gains. Files exceeding this fall through to Stub.
+     * Hard limit on RAW file size sent to vision. Anthropic enforces a 5 MB
+     * limit on the BASE64-ENCODED payload (`messages.N.content.M.image.source.
+     * base64: image exceeds 5 MB maximum`). Base64 inflates by ~33% (4 bytes
+     * encode 3 raw bytes), so a raw file of `5 MB * 3/4 ≈ 3.75 MB` is the
+     * largest that fits under the encoded ceiling. We use 3.7 MB to leave
+     * headroom for the JSON envelope (`source.type`, `source.media_type`,
+     * `type: image` etc.) which adds ~80 bytes per request.
+     *
+     * Files exceeding this fall through to Stub (FAILED status, lawyer
+     * completes manually). Users get an upstream hint via the upload form
+     * which still allows up to 10 MB per file, so large originals can still
+     * be persisted for the wizard — they just won't reach the AI vision tier.
      */
-    private const MAX_FILE_BYTES = 5 * 1024 * 1024;
+    private const MAX_FILE_BYTES = 3_700_000;
 
     private const MAX_TOKENS = 2048;
 
@@ -297,10 +305,37 @@ final class AiVisionExtractionStrategy implements ExtractionStrategyInterface
 Analizează DOCUMENTUL ATAȘAT (imagine sau PDF) și extrage datele structurate.
 
 CONTEXT JURIDIC: documentul stă la baza unei cereri de ordonanță de plată
-(CPC art. 1013-1024). Ai grijă la rolurile părților (creditor = cel ce
-pretinde plata; debitor = cel ce datorează).
+(CPC art. 1013-1024). Identifică ROLURILE PĂRȚILOR FOLOSIND ACEST GLOSAR
+STRICT — niciodată nu inversa rolurile:
 
-Returnează JSON cu această schemă (toate câmpurile opționale dacă nu apar):
+CREDITOR (cel care PRETINDE plata, livrează bunul/serviciul, este partea
+neplătită) = oricare dintre acești termeni contractuali RO:
+  • Prestator (în contract de prestări servicii)
+  • Furnizor / Vânzător (în factură sau contract de vânzare)
+  • Executant / Antreprenor (în contract de antrepriză/lucrări)
+  • Locator (în contract de locațiune — proprietarul)
+  • Imprumutător / Creditor (în contract de împrumut)
+  • Cedent (în cesiune de creanță)
+  • Emitent / Trăgător (în cambie / bilet la ordin / cec)
+  • Mandant (în mandat)
+  • Producător
+
+DEBITOR (cel care DATOREAZĂ plata, primește bunul/serviciul) = oricare dintre:
+  • Beneficiar (în contract de prestări servicii)
+  • Client / Cumpărător / Achizitor (în factură sau contract de vânzare)
+  • Locatar / Chiriaș (în locațiune)
+  • Imprumutat / Debitor (în împrumut)
+  • Cesionar (în cesiune)
+  • Trasă (în cambie)
+  • Mandatar (în mandat — dacă datorează contravaloare servicii)
+
+REGULA-CHEIE: în contractele de prestări servicii românești tipice,
+"Prestator" e CREDITOR și "Beneficiar" e DEBITOR — chiar dacă în text
+Prestator apare cu un cont bancar (acela e contul în care primește plata),
+NU îl confunda cu Debitor. Plata curge DE LA Beneficiar (debitor) CĂTRE
+Prestator (creditor).
+
+Returnează JSON cu această schemă (toate câmpurile opționale dacă nu apar — returnează `null` pentru câmpuri lipsă):
 {
   "creditor": {
     "personType": "PJ"|"PF",
@@ -308,7 +343,10 @@ Returnează JSON cu această schemă (toate câmpurile opționale dacă nu apar)
     "cui": "doar cifre, fără prefix RO",
     "isVatPayer": true|false,
     "personalId": "13 cifre CNP dacă e persoană fizică",
+    "onrcNumber": "format canonic J/F + jud/seq/an, ex: J40/1234/2025",
     "address": "...",
+    "email": "format valid email",
+    "phone": "format compact RO: 0XXXXXXXXX sau +40XXXXXXXXX",
     "iban": "RO + 22 caractere",
     "legalRepresentative": "...",
     "confidencePerField": {"name": 0.95, "cui": 0.99}
@@ -319,7 +357,12 @@ Returnează JSON cu această schemă (toate câmpurile opționale dacă nu apar)
     "cui": "...",
     "isVatPayer": true|false,
     "personalId": "...",
+    "onrcNumber": "format canonic J/F + jud/seq/an",
     "address": "...",
+    "email": "format valid email",
+    "phone": "format compact RO",
+    "iban": "RO + 22 caractere",
+    "administrator": "nume reprezentant legal / administrator (PJ)",
     "confidencePerField": {}
   },
   "claim": {
@@ -336,6 +379,8 @@ Returnează JSON cu această schemă (toate câmpurile opționale dacă nu apar)
 Confidence per câmp: 0..1, reflectă cât de sigur ești pe baza vizuală
 (text + sigil clare = 0.95+; text obscurat parțial sau ambiguu = 0.5-0.7;
 ghicit din context = 0.3-0.5).
+Pentru email/phone returnează `null` dacă nu apar explicit — nu inventa.
+Pentru onrcNumber respectă format `J40/1234/2025`.
 PROMPT;
 
         return [
@@ -397,7 +442,10 @@ PROMPT;
             cui: $this->coerceString($raw['cui'] ?? null),
             isVatPayer: $this->coerceNullableBool($raw['isVatPayer'] ?? null),
             personalId: $this->coerceString($raw['personalId'] ?? null),
+            onrcNumber: $this->coerceString($raw['onrcNumber'] ?? null),
             address: $this->coerceString($raw['address'] ?? null),
+            email: $this->coerceEmail($raw['email'] ?? null),
+            phone: $this->coercePhone($raw['phone'] ?? null),
             iban: $this->coerceString($raw['iban'] ?? null),
             legalRepresentative: $this->coerceString($raw['legalRepresentative'] ?? null),
             confidencePerField: $this->coerceConfidenceMap($raw['confidencePerField'] ?? null),
@@ -419,7 +467,12 @@ PROMPT;
             cui: $this->coerceString($raw['cui'] ?? null),
             isVatPayer: $this->coerceNullableBool($raw['isVatPayer'] ?? null),
             personalId: $this->coerceString($raw['personalId'] ?? null),
+            onrcNumber: $this->coerceString($raw['onrcNumber'] ?? null),
             address: $this->coerceString($raw['address'] ?? null),
+            email: $this->coerceEmail($raw['email'] ?? null),
+            phone: $this->coercePhone($raw['phone'] ?? null),
+            iban: $this->coerceString($raw['iban'] ?? null),
+            administrator: $this->coerceString($raw['administrator'] ?? null),
             confidencePerField: $this->coerceConfidenceMap($raw['confidencePerField'] ?? null),
         );
     }
@@ -515,6 +568,46 @@ PROMPT;
         }
 
         return PersonType::tryFrom($value);
+    }
+
+    /**
+     * Validates AI-returned email; same shape as the OcrText sibling so the two
+     * AI strategies behave identically when promoted/demoted by the cascade
+     * (prevents hallucinated emails reaching the DTO).
+     */
+    private function coerceEmail(mixed $value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+        $trimmed = trim($value);
+        if ($trimmed === '' || filter_var($trimmed, FILTER_VALIDATE_EMAIL) === false) {
+            return null;
+        }
+
+        return $trimmed;
+    }
+
+    /**
+     * Accepts RO phone in canonical compact form. Strips separators the AI may
+     * still emit (despite the prompt asking for compact form), then validates
+     * digit count. See OcrTextExtractionStrategy::coercePhone for rationale.
+     */
+    private function coercePhone(mixed $value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+        $compact = preg_replace('/[\s-]+/', '', trim($value));
+        if ($compact === null || $compact === '') {
+            return null;
+        }
+        $digitsOnly = ltrim($compact, '+');
+        if (!preg_match('/^(0\d{9}|40\d{9})$/', $digitsOnly)) {
+            return null;
+        }
+
+        return $compact;
     }
 
     /**

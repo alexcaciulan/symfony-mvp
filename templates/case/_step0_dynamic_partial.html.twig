@@ -62,11 +62,15 @@
                                     {% endif %}
                                     <span>{{ ('enum.extraction_status.' ~ status)|trans }}</span>
                                 </span>
-                                {% if document.extractionConfidence is not null %}
-                                    <span class="ml-2 text-[11px] text-slate-500 dark:text-slate-400" data-wizard-step0-target="confidence">
-                                        {{ (document.extractionConfidence * 100)|number_format(0) }}%
-                                    </span>
-                                {% endif %}
+                                {# We deliberately don't surface the per-document
+                                   confidence here. It's the mean of per-field
+                                   confidences for the fields that DID extract
+                                   — which is misleading (95% on one extracted
+                                   field reads as "95% complete" but really
+                                   leaves 19 other fields empty). The side-card
+                                   shows per-section coverage (filled/expected)
+                                   which answers the question lawyers actually
+                                   care about. #}
                             </div>
                         </div>
                     </li>

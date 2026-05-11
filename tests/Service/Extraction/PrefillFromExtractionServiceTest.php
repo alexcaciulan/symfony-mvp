@@ -191,6 +191,97 @@ final class PrefillFromExtractionServiceTest extends TestCase
         self::assertNotContains('dueDate', $claim->autoFilled);
     }
 
+    public function testAllCreditorAndDebtorFieldsAggregatedWhenPresent(): void
+    {
+        // Full-coverage happy path: every target field that the extraction
+        // pipeline can populate must surface in the aggregated DTOs with the
+        // correct value AND the field name in `autoFilled[]`. This guards
+        // against drift where a new field gets added to one layer (e.g. AI
+        // prompt) but the agreggator's iteration list isn't extended.
+        $document = $this->buildDocumentWithExtractedData([
+            'creditor' => [
+                'personType' => PersonType::PJ->value,
+                'name' => 'Tehno Construct SRL',
+                'cui' => '12345678',
+                'personalId' => null,
+                'onrcNumber' => 'J40/1234/2025',
+                'address' => 'Bd. Demo 100, București',
+                'email' => 'contact@tehno.ro',
+                'phone' => '0721234567',
+                'iban' => 'RO49AAAA1B31007593840000',
+                'legalRepresentative' => 'Popescu Ion',
+                'confidencePerField' => [
+                    'personType' => 0.99,
+                    'name' => 0.95,
+                    'cui' => 0.99,
+                    'onrcNumber' => 0.92,
+                    'address' => 0.88,
+                    'email' => 0.90,
+                    'phone' => 0.85,
+                    'iban' => 0.93,
+                    'legalRepresentative' => 0.81,
+                ],
+            ],
+            'debtor' => [
+                'personType' => PersonType::PJ->value,
+                'name' => 'Datornic Trans SA',
+                'cui' => '87654321',
+                'onrcNumber' => 'J12/5678/2020',
+                'address' => 'Str. Datornic 5, Cluj-Napoca',
+                'email' => 'office@datornic.ro',
+                'phone' => '+40722000111',
+                // Real checksum-valid IBAN (mod-97 = 1) to avoid misleading
+                // future readers; aggregator does pure pass-through, never
+                // validates, but a valid example reduces the chance of this
+                // string being copy-pasted into a checksum-aware context later.
+                'iban' => 'RO49AAAA1B31007593840000',
+                'administrator' => 'Ionescu Maria',
+                'confidencePerField' => [
+                    'personType' => 0.99,
+                    'name' => 0.94,
+                    'cui' => 0.99,
+                    'onrcNumber' => 0.90,
+                    'address' => 0.85,
+                    'email' => 0.88,
+                    'phone' => 0.82,
+                    'iban' => 0.91,
+                    'administrator' => 0.80,
+                ],
+            ],
+        ]);
+
+        $service = $this->buildServiceFor([$document]);
+
+        $creditor = $service->aggregateForCreditor([1]);
+        self::assertSame(PersonType::PJ, $creditor->personType);
+        self::assertSame('Tehno Construct SRL', $creditor->name);
+        self::assertSame('12345678', $creditor->cui);
+        self::assertSame('J40/1234/2025', $creditor->onrcNumber);
+        self::assertSame('Bd. Demo 100, București', $creditor->address);
+        self::assertSame('contact@tehno.ro', $creditor->email);
+        self::assertSame('0721234567', $creditor->phone);
+        self::assertSame('RO49AAAA1B31007593840000', $creditor->iban);
+        self::assertSame('Popescu Ion', $creditor->legalRepresentative);
+        self::assertEqualsCanonicalizing(
+            ['personType', 'name', 'cui', 'onrcNumber', 'address', 'email', 'phone', 'iban', 'legalRepresentative'],
+            $creditor->autoFilled,
+        );
+
+        $debtor = $service->aggregateForDebtor([1]);
+        self::assertSame('Datornic Trans SA', $debtor->name);
+        self::assertSame('87654321', $debtor->cui);
+        self::assertSame('J12/5678/2020', $debtor->onrcNumber);
+        self::assertSame('Str. Datornic 5, Cluj-Napoca', $debtor->address);
+        self::assertSame('office@datornic.ro', $debtor->email);
+        self::assertSame('+40722000111', $debtor->phone);
+        self::assertSame('RO49AAAA1B31007593840000', $debtor->iban);
+        self::assertSame('Ionescu Maria', $debtor->administrator);
+        self::assertEqualsCanonicalizing(
+            ['personType', 'name', 'cui', 'onrcNumber', 'address', 'email', 'phone', 'iban', 'administrator'],
+            $debtor->autoFilled,
+        );
+    }
+
     public function testMissingConfidencePerFieldIsTreatedAsBelowThreshold(): void
     {
         $document = $this->buildDocumentWithExtractedData([

@@ -281,8 +281,35 @@ final class OcrTextExtractionStrategy implements ExtractionStrategyInterface
 Analizează textul OCR al documentului și extrage datele structurate.
 
 CONTEXT JURIDIC: documentul stă la baza unei cereri de ordonanță de plată
-(CPC art. 1013-1024). Ai grijă la rolurile părților (creditor = cel ce
-pretinde plata; debitor = cel ce datorează).
+(CPC art. 1013-1024). Identifică ROLURILE PĂRȚILOR FOLOSIND ACEST GLOSAR
+STRICT — niciodată nu inversa rolurile:
+
+CREDITOR (cel care PRETINDE plata, livrează bunul/serviciul, este partea
+neplătită) = oricare dintre acești termeni contractuali RO:
+  • Prestator (în contract de prestări servicii)
+  • Furnizor / Vânzător (în factură sau contract de vânzare)
+  • Executant / Antreprenor (în contract de antrepriză/lucrări)
+  • Locator (în contract de locațiune — proprietarul)
+  • Imprumutător / Creditor (în contract de împrumut)
+  • Cedent (în cesiune de creanță)
+  • Emitent / Trăgător (în cambie / bilet la ordin / cec)
+  • Mandant (în mandat)
+  • Producător
+
+DEBITOR (cel care DATOREAZĂ plata, primește bunul/serviciul) = oricare dintre:
+  • Beneficiar (în contract de prestări servicii)
+  • Client / Cumpărător / Achizitor (în factură sau contract de vânzare)
+  • Locatar / Chiriaș (în locațiune)
+  • Imprumutat / Debitor (în împrumut)
+  • Cesionar (în cesiune)
+  • Trasă (în cambie)
+  • Mandatar (în mandat — dacă datorează contravaloare servicii)
+
+REGULA-CHEIE: în contractele de prestări servicii românești tipice,
+"Prestator" e CREDITOR și "Beneficiar" e DEBITOR — chiar dacă în text
+Prestator apare cu un cont bancar (acela e contul în care primește plata),
+NU îl confunda cu Debitor. Plata curge DE LA Beneficiar (debitor) CĂTRE
+Prestator (creditor).
 
 NOTĂ MASCARE: CNP-urile au fost mascate cu placeholder începând cu `***-***-`
 și IBAN-urile cu placeholder `IBAN_PLACEHOLDER_xxx`. Folosește placeholder-ul
@@ -293,7 +320,7 @@ TEXT OCR:
 {$maskedOcrText}
 ---
 
-Returnează JSON cu această schemă (toate câmpurile opționale dacă nu apar):
+Returnează JSON cu această schemă (toate câmpurile opționale dacă nu apar — returnează `null` pentru câmpuri lipsă):
 {
   "creditor": {
     "personType": "PJ"|"PF",
@@ -301,7 +328,10 @@ Returnează JSON cu această schemă (toate câmpurile opționale dacă nu apar)
     "cui": "doar cifre, fără prefix RO",
     "isVatPayer": true|false,
     "personalId": "***-***-XXXX placeholder",
+    "onrcNumber": "format canonic J/F + jud/seq/an, ex: J40/1234/2025",
     "address": "...",
+    "email": "format valid email",
+    "phone": "format compact RO: 0XXXXXXXXX sau +40XXXXXXXXX",
     "iban": "IBAN_PLACEHOLDER_xxx",
     "legalRepresentative": "...",
     "confidencePerField": {"name": 0.95, "cui": 0.99}
@@ -312,7 +342,12 @@ Returnează JSON cu această schemă (toate câmpurile opționale dacă nu apar)
     "cui": "...",
     "isVatPayer": true|false,
     "personalId": "***-***-XXXX placeholder",
+    "onrcNumber": "format canonic J/F + jud/seq/an",
     "address": "...",
+    "email": "format valid email",
+    "phone": "format compact RO",
+    "iban": "IBAN_PLACEHOLDER_xxx",
+    "administrator": "nume reprezentant legal / administrator (PJ)",
     "confidencePerField": {}
   },
   "claim": {
@@ -328,6 +363,8 @@ Returnează JSON cu această schemă (toate câmpurile opționale dacă nu apar)
 
 Confidence per câmp: 0..1, reflectă cât de sigur ești pe baza textului OCR
 (text clar = 0.95+; ambiguu sau OCR cu erori = 0.5-0.7; ghicit din context = 0.3-0.5).
+Pentru email/phone returnează `null` dacă nu apar explicit — nu inventa.
+Pentru onrcNumber respectă format `J40/1234/2025` (litera + cifre + slash + cifre + slash + an cu 4 cifre).
 PROMPT;
 
         return [
@@ -394,7 +431,10 @@ PROMPT;
             cui: $this->coerceString($raw['cui'] ?? null),
             isVatPayer: $this->coerceNullableBool($raw['isVatPayer'] ?? null),
             personalId: $this->restoreString($raw['personalId'] ?? null, $cnpMap, []),
+            onrcNumber: $this->coerceString($raw['onrcNumber'] ?? null),
             address: $this->coerceString($raw['address'] ?? null),
+            email: $this->coerceEmail($raw['email'] ?? null),
+            phone: $this->coercePhone($raw['phone'] ?? null),
             iban: $this->restoreString($raw['iban'] ?? null, [], $ibanMap),
             legalRepresentative: $this->coerceString($raw['legalRepresentative'] ?? null),
             confidencePerField: $this->coerceConfidenceMap($raw['confidencePerField'] ?? null),
@@ -418,7 +458,12 @@ PROMPT;
             cui: $this->coerceString($raw['cui'] ?? null),
             isVatPayer: $this->coerceNullableBool($raw['isVatPayer'] ?? null),
             personalId: $this->restoreString($raw['personalId'] ?? null, $cnpMap, []),
+            onrcNumber: $this->coerceString($raw['onrcNumber'] ?? null),
             address: $this->coerceString($raw['address'] ?? null),
+            email: $this->coerceEmail($raw['email'] ?? null),
+            phone: $this->coercePhone($raw['phone'] ?? null),
+            iban: $this->restoreString($raw['iban'] ?? null, [], $ibanMap),
+            administrator: $this->coerceString($raw['administrator'] ?? null),
             confidencePerField: $this->coerceConfidenceMap($raw['confidencePerField'] ?? null),
         );
     }
@@ -523,6 +568,48 @@ PROMPT;
         }
 
         return PersonType::tryFrom($value);
+    }
+
+    /**
+     * Validates AI-returned email with filter_var; drops anything that wouldn't
+     * round-trip through Symfony Validator. Prevents the AI from injecting
+     * hallucinated emails (e.g. inferring from the company name) into the DTO.
+     */
+    private function coerceEmail(mixed $value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+        $trimmed = trim($value);
+        if ($trimmed === '' || filter_var($trimmed, FILTER_VALIDATE_EMAIL) === false) {
+            return null;
+        }
+
+        return $trimmed;
+    }
+
+    /**
+     * Accepts AI-returned phone if it matches the canonical RO compact form
+     * (national `0XXXXXXXXX`, 10 digits, or international `+40XXXXXXXXX`, 11
+     * digits after the plus). Strips whitespace/dashes the AI may emit, then
+     * validates the digit shape. Rejects garbage to avoid persisting non-phone
+     * strings in the DTO.
+     */
+    private function coercePhone(mixed $value): ?string
+    {
+        if (!is_string($value)) {
+            return null;
+        }
+        $compact = preg_replace('/[\s-]+/', '', trim($value));
+        if ($compact === null || $compact === '') {
+            return null;
+        }
+        $digitsOnly = ltrim($compact, '+');
+        if (!preg_match('/^(0\d{9}|40\d{9})$/', $digitsOnly)) {
+            return null;
+        }
+
+        return $compact;
     }
 
     /**

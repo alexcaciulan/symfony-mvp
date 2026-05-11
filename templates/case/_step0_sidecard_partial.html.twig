@@ -18,20 +18,38 @@
             </div>
         {% else %}
             <div class="px-5 py-4 space-y-5 text-sm">
+                {# Expected field counts per section — used to compute the coverage
+                   percentage shown next to each section title. These match the
+                   wizard DTOs (Step1CreditorData / Step2DebtorEntry / Step3ClaimData)
+                   so the percentage answers "how many of the prefillable wizard
+                   inputs did we manage to extract", which is what the lawyer
+                   actually cares about (not the average confidence of the few
+                   fields the parser happened to pick up). #}
                 {% set sections = [
-                    { key: 'creditor', accent: 'blue', dto: creditor_preview },
-                    { key: 'debtor',   accent: 'orange', dto: debtor_preview },
-                    { key: 'claim',    accent: 'green', dto: claim_preview },
+                    { key: 'creditor', accent: 'blue',  dto: creditor_preview, expected: 10 },
+                    { key: 'debtor',   accent: 'orange', dto: debtor_preview,  expected: 10 },
+                    { key: 'claim',    accent: 'green',  dto: claim_preview,   expected: 5 },
                 ] %}
                 {% for section in sections %}
                     {% set dto = section.dto %}
-                    {% set has_data = dto.autoFilled is defined and dto.autoFilled|length > 0 %}
+                    {% set filled_count = dto.autoFilled is defined ? dto.autoFilled|length : 0 %}
+                    {% set has_data = filled_count > 0 %}
+                    {% set coverage_pct = (filled_count / section.expected * 100)|round %}
                     <div>
-                        <div class="text-[10px] font-bold uppercase tracking-wide
-                            {% if section.accent == 'blue' %}text-blue-600 dark:text-blue-400
-                            {% elseif section.accent == 'orange' %}text-orange-600 dark:text-orange-400
-                            {% else %}text-emerald-600 dark:text-emerald-400{% endif %} mb-2">
-                            {{ ('wizard.step0.detected_data.' ~ section.key)|trans }}
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="text-[10px] font-bold uppercase tracking-wide
+                                {% if section.accent == 'blue' %}text-blue-600 dark:text-blue-400
+                                {% elseif section.accent == 'orange' %}text-orange-600 dark:text-orange-400
+                                {% else %}text-emerald-600 dark:text-emerald-400{% endif %}">
+                                {{ ('wizard.step0.detected_data.' ~ section.key)|trans }}
+                            </div>
+                            <span class="text-[10px] font-semibold tabular-nums
+                                {% if coverage_pct == 0 %}text-slate-400 dark:text-slate-500
+                                {% elseif coverage_pct < 40 %}text-amber-600 dark:text-amber-400
+                                {% elseif coverage_pct < 70 %}text-blue-600 dark:text-blue-400
+                                {% else %}text-emerald-600 dark:text-emerald-400{% endif %}">
+                                {{ filled_count }}/{{ section.expected }} · {{ coverage_pct }}%
+                            </span>
                         </div>
                         {% if not has_data %}
                             <p class="text-xs text-slate-400 dark:text-slate-500 italic">—</p>

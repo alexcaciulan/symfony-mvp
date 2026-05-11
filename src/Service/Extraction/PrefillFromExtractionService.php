@@ -101,7 +101,7 @@ final class PrefillFromExtractionService
                 continue;
             }
             $confidence = is_array($creditor['confidencePerField'] ?? null) ? $creditor['confidencePerField'] : [];
-            foreach (['personType', 'name', 'cui', 'personalId', 'address', 'iban', 'legalRepresentative'] as $field) {
+            foreach (['personType', 'name', 'cui', 'personalId', 'onrcNumber', 'address', 'email', 'phone', 'iban', 'legalRepresentative'] as $field) {
                 $this->captureCandidate($bag, $field, $creditor[$field] ?? null, $confidence[$field] ?? null);
             }
         }
@@ -123,7 +123,7 @@ final class PrefillFromExtractionService
                 continue;
             }
             $confidence = is_array($debtor['confidencePerField'] ?? null) ? $debtor['confidencePerField'] : [];
-            foreach (['personType', 'name', 'cui', 'personalId', 'address'] as $field) {
+            foreach (['personType', 'name', 'cui', 'personalId', 'onrcNumber', 'address', 'email', 'phone', 'iban', 'administrator'] as $field) {
                 $this->captureCandidate($bag, $field, $debtor[$field] ?? null, $confidence[$field] ?? null);
             }
         }
@@ -208,7 +208,10 @@ final class PrefillFromExtractionService
             name: $this->toStringOrNull($v['name'] ?? null),
             cui: $this->toStringOrNull($v['cui'] ?? null),
             personalId: $this->toStringOrNull($v['personalId'] ?? null),
+            onrcNumber: $this->toStringOrNull($v['onrcNumber'] ?? null),
             address: $this->toStringOrNull($v['address'] ?? null),
+            email: $this->toStringOrNull($v['email'] ?? null),
+            phone: $this->toStringOrNull($v['phone'] ?? null),
             iban: $this->toStringOrNull($v['iban'] ?? null),
             legalRepresentative: $this->toStringOrNull($v['legalRepresentative'] ?? null),
             autoFilled: $picked['autoFilled'],
@@ -228,7 +231,12 @@ final class PrefillFromExtractionService
             name: $this->toStringOrNull($v['name'] ?? null),
             cui: $this->toStringOrNull($v['cui'] ?? null),
             personalId: $this->toStringOrNull($v['personalId'] ?? null),
+            onrcNumber: $this->toStringOrNull($v['onrcNumber'] ?? null),
             address: $this->toStringOrNull($v['address'] ?? null),
+            email: $this->toStringOrNull($v['email'] ?? null),
+            phone: $this->toStringOrNull($v['phone'] ?? null),
+            iban: $this->toStringOrNull($v['iban'] ?? null),
+            administrator: $this->toStringOrNull($v['administrator'] ?? null),
             autoFilled: $picked['autoFilled'],
         );
     }

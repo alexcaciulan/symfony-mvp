@@ -7,6 +7,7 @@ use App\DTO\Extraction\CreditorExtraction;
 use App\DTO\Extraction\DebtorExtraction;
 use App\DTO\Extraction\ExtractedDocumentData;
 use App\Entity\Document;
+use App\Enum\PersonType;
 use App\Service\Court\LocalityNormalizer;
 use App\Util\PiiMasker;
 use Psr\Log\LoggerInterface;
@@ -41,12 +42,22 @@ final class PdfParserExtractionStrategy implements ExtractionStrategyInterface
     /** Max distance from a section keyword for section-based attribution (stronger signal). */
     private const SECTION_WINDOW = 500;
 
+    /**
+     * Section keywords for party attribution. Covers the canonical Romanian
+     * contract roles plus operational synonyms encountered in real documents:
+     * service contracts ("Prestator"/"Beneficiar"), sale contracts ("Vanzator"/
+     * "Cumparator"), construction/work ("Executant"/"Achizitor"), mandate
+     * ("Mandant"/"Mandatar"). All entries are diacritic-stripped because
+     * findSectionRole walks the LocalityNormalizer-normalized text.
+     */
     private const CREDITOR_KEYWORDS = [
         'creditor', 'imprumutator', 'furnizor', 'locator', 'cedent', 'emitent',
+        'prestator', 'executant', 'vanzator', 'mandant', 'producator', 'antreprenor',
     ];
 
     private const DEBTOR_KEYWORDS = [
         'debitor', 'imprumutat', 'client', 'locatar', 'cesionar', 'trasa',
+        'beneficiar', 'cumparator', 'achizitor', 'mandatar',
     ];
 
     private const DUE_DATE_KEYWORDS = [
@@ -154,28 +165,46 @@ final class PdfParserExtractionStrategy implements ExtractionStrategyInterface
     {
         $cui = $this->extractCuiForRole($rawText, $normalized, 'creditor');
         $personalId = $this->extractCnpForRole($rawText, $normalized, 'creditor');
-        $iban = $this->extractIban($rawText);
+        $name = $this->extractNameForRole($rawText, $normalized, 'creditor');
+        $onrc = $this->extractOnrcForRole($rawText, $normalized, 'creditor');
+        $iban = $this->extractIbanForRole($rawText, $normalized, 'creditor');
+        $email = $this->extractEmailForRole($rawText, $normalized, 'creditor');
+        $phone = $this->extractPhoneForRole($rawText, $normalized, 'creditor');
+        $administrator = $this->extractAdministratorForRole($rawText, $normalized, 'creditor');
 
-        if ($cui === null && $personalId === null && $iban === null) {
+        if ($cui === null && $personalId === null && $iban === null && $onrc === null
+            && $name === null && $email === null && $phone === null && $administrator === null) {
             return null;
         }
 
         $confidence = [];
-        if ($cui !== null) {
-            $confidence['cui'] = $cui['confidence'];
-        }
-        if ($personalId !== null) {
-            $confidence['personalId'] = $personalId['confidence'];
-        }
-        if ($iban !== null) {
-            $confidence['iban'] = $iban['confidence'];
+        foreach ([
+            'cui' => $cui,
+            'personalId' => $personalId,
+            'name' => $name,
+            'personType' => $name, // personType derived from name entity-suffix match
+            'onrcNumber' => $onrc,
+            'iban' => $iban,
+            'email' => $email,
+            'phone' => $phone,
+            'legalRepresentative' => $administrator,
+        ] as $field => $extracted) {
+            if ($extracted !== null) {
+                $confidence[$field] = $extracted['confidence'];
+            }
         }
 
         return new CreditorExtraction(
+            personType: $name['personType'] ?? null,
+            name: $name['value'] ?? null,
             cui: $cui['value'] ?? null,
             isVatPayer: $cui['isVatPayer'] ?? null,
             personalId: $personalId['value'] ?? null,
+            onrcNumber: $onrc['value'] ?? null,
+            email: $email['value'] ?? null,
+            phone: $phone['value'] ?? null,
             iban: $iban['value'] ?? null,
+            legalRepresentative: $administrator['value'] ?? null,
             confidencePerField: $confidence,
         );
     }
@@ -184,23 +213,46 @@ final class PdfParserExtractionStrategy implements ExtractionStrategyInterface
     {
         $cui = $this->extractCuiForRole($rawText, $normalized, 'debtor');
         $personalId = $this->extractCnpForRole($rawText, $normalized, 'debtor');
+        $name = $this->extractNameForRole($rawText, $normalized, 'debtor');
+        $onrc = $this->extractOnrcForRole($rawText, $normalized, 'debtor');
+        $iban = $this->extractIbanForRole($rawText, $normalized, 'debtor');
+        $email = $this->extractEmailForRole($rawText, $normalized, 'debtor');
+        $phone = $this->extractPhoneForRole($rawText, $normalized, 'debtor');
+        $administrator = $this->extractAdministratorForRole($rawText, $normalized, 'debtor');
 
-        if ($cui === null && $personalId === null) {
+        if ($cui === null && $personalId === null && $onrc === null && $iban === null
+            && $name === null && $email === null && $phone === null && $administrator === null) {
             return null;
         }
 
         $confidence = [];
-        if ($cui !== null) {
-            $confidence['cui'] = $cui['confidence'];
-        }
-        if ($personalId !== null) {
-            $confidence['personalId'] = $personalId['confidence'];
+        foreach ([
+            'cui' => $cui,
+            'personalId' => $personalId,
+            'name' => $name,
+            'personType' => $name,
+            'onrcNumber' => $onrc,
+            'iban' => $iban,
+            'email' => $email,
+            'phone' => $phone,
+            'administrator' => $administrator,
+        ] as $field => $extracted) {
+            if ($extracted !== null) {
+                $confidence[$field] = $extracted['confidence'];
+            }
         }
 
         return new DebtorExtraction(
+            personType: $name['personType'] ?? null,
+            name: $name['value'] ?? null,
             cui: $cui['value'] ?? null,
             isVatPayer: $cui['isVatPayer'] ?? null,
             personalId: $personalId['value'] ?? null,
+            onrcNumber: $onrc['value'] ?? null,
+            email: $email['value'] ?? null,
+            phone: $phone['value'] ?? null,
+            iban: $iban['value'] ?? null,
+            administrator: $administrator['value'] ?? null,
             confidencePerField: $confidence,
         );
     }
@@ -245,34 +297,226 @@ final class PdfParserExtractionStrategy implements ExtractionStrategyInterface
      */
     private function findSectionRole(string $normalized, int $offset): ?string
     {
-        $bestOffset = -1;
-        $bestRole = null;
+        /** @var list<array{pos: int, role: 'creditor'|'debtor'}> $rawHits */
+        $rawHits = [];
+        // Anchored at the keyword start (left lookbehind: no word char before)
+        // and at a word boundary after an optional RO definite-article suffix
+        // (`-ul`, `-a`, `-i`, `-e`, `-le`). Catches articulated forms like
+        // "Prestatorul" / "Beneficiarul" / "Imprumutatul" while preventing
+        // shorter keywords from substring-matching longer ones.
         foreach (self::CREDITOR_KEYWORDS as $keyword) {
-            $position = 0;
-            while (($found = mb_stripos($normalized, $keyword, $position)) !== false && $found < $offset) {
-                if ($found > $bestOffset) {
-                    $bestOffset = $found;
-                    $bestRole = 'creditor';
-                }
-                $position = $found + 1;
+            foreach ($this->collectKeywordPositions($normalized, $keyword, $offset) as $pos) {
+                $rawHits[] = ['pos' => $pos, 'role' => 'creditor'];
             }
         }
         foreach (self::DEBTOR_KEYWORDS as $keyword) {
-            $position = 0;
-            while (($found = mb_stripos($normalized, $keyword, $position)) !== false && $found < $offset) {
-                if ($found > $bestOffset) {
-                    $bestOffset = $found;
-                    $bestRole = 'debtor';
-                }
-                $position = $found + 1;
+            foreach ($this->collectKeywordPositions($normalized, $keyword, $offset) as $pos) {
+                $rawHits[] = ['pos' => $pos, 'role' => 'debtor'];
             }
         }
 
-        if ($bestRole === null || ($offset - $bestOffset) > self::SECTION_WINDOW) {
+        usort($rawHits, static fn ($a, $b) => $a['pos'] <=> $b['pos']);
+
+        // Compound headers (e.g. "Prestatorul si Beneficiarul") introduce both
+        // parties at once via a conjunction — the actual party-specific
+        // sections that follow are numbered "1. ..." and "2. ...". We:
+        //   1) Detect compound-header pairs and capture their roles in order
+        //      (first role = the role of the numbered "1." section that
+        //      follows; second = "2.").
+        //   2) Remove the header keywords from the hit list so they don't
+        //      misattribute the parties beneath.
+        //   3) Apply a synthetic role for offsets that fall inside the
+        //      "1. ..." / "2. ..." numbered ranges following the header.
+        $compoundContext = $this->extractCompoundHeaderContext($rawHits, $normalized);
+        $hits = $this->dropCompoundHeaders($rawHits, $normalized);
+
+        $bestRole = null;
+        $bestOffset = -1;
+        foreach ($hits as $hit) {
+            if ($hit['pos'] > $bestOffset) {
+                $bestOffset = $hit['pos'];
+                $bestRole = $hit['role'];
+            }
+        }
+
+        if ($bestRole !== null && ($offset - $bestOffset) <= self::SECTION_WINDOW) {
+            return $bestRole;
+        }
+
+        // Fallback: no keyword hit covers this offset. Check if a compound
+        // header precedes the offset and the offset falls inside one of its
+        // numbered child sections ("1. ..." → first role; "2. ..." → second).
+        foreach ($compoundContext as $ctx) {
+            if ($ctx['headerPos'] >= $offset) {
+                continue;
+            }
+            // Limit the numbered-list scan to the section window — beyond that
+            // the compound header's influence is too speculative.
+            if (($offset - $ctx['headerPos']) > self::SECTION_WINDOW * 2) {
+                continue;
+            }
+            $synthetic = $this->resolveNumberedSubsection($normalized, $ctx['headerPos'], $offset, $ctx['firstRole'], $ctx['secondRole']);
+            if ($synthetic !== null) {
+                return $synthetic;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Walks the keyword hits in order and returns the contexts of compound
+     * headers (keyword + conjunction + opposite-keyword) along with the role
+     * of each side, in their textual order. Used by findSectionRole to apply
+     * synthetic role attribution to numbered subsections beneath the header.
+     *
+     * @param list<array{pos: int, role: 'creditor'|'debtor'}> $hits
+     * @return list<array{headerPos: int, firstRole: 'creditor'|'debtor', secondRole: 'creditor'|'debtor'}>
+     */
+    private function extractCompoundHeaderContext(array $hits, string $haystack): array
+    {
+        $contexts = [];
+        $count = count($hits);
+        $compoundJoiner = '/^(?:ul|a|le|i|e)?\s*(?:si|și|şi|&|,|\/)\s*$/iu';
+        for ($i = 0; $i < $count - 1; $i++) {
+            if ($hits[$i]['role'] === $hits[$i + 1]['role']) {
+                continue;
+            }
+            $startA = $hits[$i]['pos'];
+            $startB = $hits[$i + 1]['pos'];
+            $endA = $startA;
+            $haystackLen = strlen($haystack);
+            while ($endA < $haystackLen && $endA < $startB && !ctype_space($haystack[$endA])) {
+                $endA++;
+            }
+            if ($endA >= $startB) {
+                continue;
+            }
+            $between = trim(substr($haystack, $endA, $startB - $endA));
+            if (preg_match($compoundJoiner, $between) === 1) {
+                $contexts[] = [
+                    'headerPos' => $startA,
+                    'firstRole' => $hits[$i]['role'],
+                    'secondRole' => $hits[$i + 1]['role'],
+                ];
+            }
+        }
+
+        return $contexts;
+    }
+
+    /**
+     * Inside a compound-header context, finds the numbered subsection
+     * ("1. ...", "2. ...") that contains the target offset and returns the
+     * corresponding role. Returns null if no numbered marker precedes the
+     * offset or the offset is past the third party (we only attribute the
+     * first two — beyond that the contract is multi-party and falls outside
+     * PdfParser's heuristic coverage).
+     */
+    private function resolveNumberedSubsection(
+        string $normalized,
+        int $headerPos,
+        int $offset,
+        string $firstRole,
+        string $secondRole,
+    ): ?string {
+        // Find numbered list markers ("1. ", "2. ") after the header.
+        // Note: $normalized is lowercased by LocalityNormalizer, so the letter
+        // lookahead is case-insensitive (`\p{L}` matches any unicode letter
+        // including a-z + diacritics).
+        if (preg_match_all('/(?<!\d)([12])\.\s+(?=\p{L})/u', substr($normalized, $headerPos, $offset - $headerPos + 1), $m, PREG_OFFSET_CAPTURE) === false) {
+            return null;
+        }
+        $markers = [];
+        foreach ($m[1] as $hit) {
+            $markers[] = ['n' => (int) $hit[0], 'pos' => $headerPos + $hit[1]];
+        }
+        // Pick the latest marker preceding the target offset.
+        $latest = null;
+        foreach ($markers as $marker) {
+            if ($marker['pos'] < $offset && ($latest === null || $marker['pos'] > $latest['pos'])) {
+                $latest = $marker;
+            }
+        }
+        if ($latest === null) {
             return null;
         }
 
-        return $bestRole;
+        return $latest['n'] === 1 ? $firstRole : $secondRole;
+    }
+
+    /**
+     * Returns all offsets where `$keyword` occurs as a whole word (with an
+     * optional RO definite-article suffix), filtered to positions strictly
+     * before `$cutoff`. Used by section-role attribution; see findSectionRole.
+     *
+     * @return list<int>
+     */
+    private function collectKeywordPositions(string $haystack, string $keyword, int $cutoff): array
+    {
+        $pattern = '/(?<!\w)' . preg_quote($keyword, '/') . '(?:ul|a|le|i|e)?\b(?!\w)/iu';
+        $matches = [];
+        if (preg_match_all($pattern, $haystack, $matches, PREG_OFFSET_CAPTURE) === false) {
+            return [];
+        }
+        $positions = [];
+        foreach ($matches[0] as [$_, $pos]) {
+            if ($pos < $cutoff) {
+                $positions[] = $pos;
+            }
+        }
+
+        return $positions;
+    }
+
+    /**
+     * @param list<array{pos: int, role: 'creditor'|'debtor'}> $hits
+     * @return list<array{pos: int, role: 'creditor'|'debtor'}>
+     */
+    private function dropCompoundHeaders(array $hits, string $haystack): array
+    {
+        $drop = [];
+        $count = count($hits);
+        // "between" must be just an optional definite-article suffix on the
+        // first keyword + a conjunction + (optional spaces). Any other content
+        // (period/colon, free text, multiple words) means the two keywords are
+        // logically separate sections, not a compound title.
+        $compoundJoiner = '/^(?:ul|a|le|i|e)?\s*(?:si|și|şi|&|,|\/)\s*$/iu';
+        for ($i = 0; $i < $count - 1; $i++) {
+            if ($hits[$i]['role'] === $hits[$i + 1]['role']) {
+                continue;
+            }
+            $startA = $hits[$i]['pos'];
+            $startB = $hits[$i + 1]['pos'];
+            // Compute end of keyword A — search for the next whitespace from
+            // its start (the keyword itself is alpha, suffix is alpha).
+            $endA = $startA;
+            $haystackLen = strlen($haystack);
+            while ($endA < $haystackLen && $endA < $startB && !ctype_space($haystack[$endA])) {
+                $endA++;
+            }
+            if ($endA >= $startB) {
+                continue;
+            }
+            $between = substr($haystack, $endA, $startB - $endA);
+            if (preg_match($compoundJoiner, trim($between)) === 1) {
+                $drop[$i] = true;
+                $drop[$i + 1] = true;
+            }
+        }
+
+        if ($drop === []) {
+            return $hits;
+        }
+
+        $filtered = [];
+        foreach ($hits as $idx => $hit) {
+            if (!isset($drop[$idx])) {
+                $filtered[] = $hit;
+            }
+        }
+
+        return $filtered;
     }
 
     /**
@@ -363,27 +607,325 @@ final class PdfParserExtractionStrategy implements ExtractionStrategyInterface
         return $best;
     }
 
-    /** @return array{value: string, confidence: float}|null */
-    private function extractIban(string $rawText): ?array
+    /**
+     * @return array{value: string, confidence: float}|null
+     *
+     * Role-aware IBAN extractor. RO IBANs are canonically printed in 4-character
+     * blocks separated by spaces (`RO49 AAAA 1B31 0075 9384 0000`) and PDF text
+     * extraction tends to preserve those spaces — so the regex MUST accept
+     * optional whitespace between groups. We capture greedily, then strip the
+     * whitespace before checksum + length validation. The section role is
+     * computed from the offset of the first character of the match in $rawText
+     * (same surface findSectionRole() walks via $normalized).
+     *
+     * Anti-regression: an earlier revision matched only contiguous
+     * `RO\d{2}[A-Z]{4}[A-Z0-9]{16}` which silently dropped every space-separated
+     * IBAN in production contracts.
+     */
+    private function extractIbanForRole(string $rawText, string $normalized, string $expectedRole): ?array
     {
-        // PDF text-extraction may split an IBAN across line wraps with stray spaces.
-        // Search on a whitespace-stripped copy; the regex anchors on the canonical
-        // RO IBAN shape (RO + 2 check digits + 4-letter bank code + 16 alphanumeric
-        // BBAN — RO BBAN is alphanumeric, not digits-only). The mod-97 checksum
-        // validates the candidate end-to-end.
-        $compact = preg_replace('/\s+/', '', $rawText) ?? $rawText;
+        $matches = [];
+        if (preg_match_all('/RO\d{2}(?:\s*[A-Z]){4}(?:\s*[A-Z0-9]){16}/u', $rawText, $matches, PREG_OFFSET_CAPTURE) === false) {
+            return null;
+        }
+
+        $best = null;
+        foreach ($matches[0] as $match) {
+            [$raw, $offset] = $match;
+            $iban = preg_replace('/\s+/', '', $raw) ?? $raw;
+            if (strlen($iban) !== 24 || !$this->validateIbanChecksum($iban)) {
+                continue;
+            }
+            $sectionRole = $this->findSectionRole($normalized, $offset);
+            if ($sectionRole !== $expectedRole) {
+                continue;
+            }
+            $confidence = 0.95;
+            if ($best === null || $confidence > $best['confidence']) {
+                $best = ['value' => $iban, 'confidence' => $confidence];
+            }
+        }
+
+        return $best;
+    }
+
+    /**
+     * @return array{value: string, confidence: float}|null
+     *
+     * Romanian Trade Registry number (Registrul Comerțului): `J/F + county/4 +
+     * sequence/4-5 + year/4` per OUG 99/2006. Canonical form `J40/1234/2025`.
+     * The leading letter is J (companies) or F (sole proprietorships).
+     */
+    private function extractOnrcForRole(string $rawText, string $normalized, string $expectedRole): ?array
+    {
+        $matches = [];
+        if (preg_match_all(
+            '/\b([JF])\s*(\d{1,5})\s*\/\s*(\d{1,5})\s*\/\s*(\d{4})\b/',
+            $rawText,
+            $matches,
+            PREG_OFFSET_CAPTURE,
+        ) === false) {
+            return null;
+        }
+
+        $best = null;
+        $count = count($matches[0]);
+        for ($i = 0; $i < $count; $i++) {
+            $offset = $matches[0][$i][1];
+            $canonical = sprintf(
+                '%s%s/%s/%s',
+                strtoupper($matches[1][$i][0]),
+                $matches[2][$i][0],
+                $matches[3][$i][0],
+                $matches[4][$i][0],
+            );
+
+            $sectionRole = $this->findSectionRole($normalized, $offset);
+            if ($sectionRole !== $expectedRole) {
+                continue;
+            }
+
+            $confidence = 0.9;
+            if ($best === null || $confidence > $best['confidence']) {
+                $best = ['value' => $canonical, 'confidence' => $confidence];
+            }
+        }
+
+        return $best;
+    }
+
+    /**
+     * @return array{value: string, confidence: float}|null
+     *
+     * Section-attributed email extraction. Uses a permissive regex (RFC 5322 is
+     * overkill for legal documents) then validates with `filter_var` so we don't
+     * leak garbage from OCR into the DTO. Confidence is lower than CUI/IBAN
+     * because the format alone doesn't certify ownership of the address.
+     */
+    private function extractEmailForRole(string $rawText, string $normalized, string $expectedRole): ?array
+    {
+        $matches = [];
+        if (preg_match_all('/\b[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}\b/u', $rawText, $matches, PREG_OFFSET_CAPTURE) === false) {
+            return null;
+        }
+
+        $best = null;
+        foreach ($matches[0] as $match) {
+            [$email, $offset] = $match;
+            if (filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+                continue;
+            }
+            $sectionRole = $this->findSectionRole($normalized, $offset);
+            if ($sectionRole !== $expectedRole) {
+                continue;
+            }
+            $confidence = 0.85;
+            if ($best === null || $confidence > $best['confidence']) {
+                $best = ['value' => $email, 'confidence' => $confidence];
+            }
+        }
+
+        return $best;
+    }
+
+    /**
+     * @return array{value: string, confidence: float}|null
+     *
+     * Romanian phone numbers: landline (021/...), mobile (07x/...), or +40
+     * international form. Accepts spaces/dashes between groups, normalizes to
+     * compact form. Length check after stripping separators rejects too-short
+     * (timestamps, postal codes) and too-long (long IDs) sequences.
+     */
+    private function extractPhoneForRole(string $rawText, string $normalized, string $expectedRole): ?array
+    {
+        $matches = [];
+        if (preg_match_all(
+            '/(?:\+?40[\s-]?|0)(?:[2-9]\d{1,2})[\s-]?\d{3}[\s-]?\d{3,4}/',
+            $rawText,
+            $matches,
+            PREG_OFFSET_CAPTURE,
+        ) === false) {
+            return null;
+        }
+
+        $best = null;
+        foreach ($matches[0] as $match) {
+            [$raw, $offset] = $match;
+            $compact = preg_replace('/[\s-]+/', '', $raw) ?? $raw;
+            // RO national numbers: 10 digits starting with 0; international: 11
+            // digits starting with 40. Anything else is noise.
+            $digitsOnly = ltrim($compact, '+');
+            if (!preg_match('/^(0\d{9}|40\d{9})$/', $digitsOnly)) {
+                continue;
+            }
+            $sectionRole = $this->findSectionRole($normalized, $offset);
+            if ($sectionRole !== $expectedRole) {
+                continue;
+            }
+            $confidence = 0.8;
+            if ($best === null || $confidence > $best['confidence']) {
+                $best = ['value' => $compact, 'confidence' => $confidence];
+            }
+        }
+
+        return $best;
+    }
+
+    /**
+     * @return array{value: string, confidence: float, personType: ?PersonType}|null
+     *
+     * Romanian commercial entity name (PJ). Matches the canonical legal forms:
+     * `S.R.L.`, `S.A.`, `S.N.C.`, `S.C.S.`, `P.F.A.`, `I.I.`, `I.F.`, with or
+     * without the optional `S.C.` prefix. Captures the entity body + suffix
+     * and normalizes punctuation. Section-attributed like the other extractors.
+     *
+     * Returns personType=PJ on success since every entity-suffix match is by
+     * definition a legal person (PFA/II/IF are professional natural-person
+     * forms but we treat them as PJ for OP procedure — they own a separate
+     * legal identity for credit/debit attribution).
+     *
+     * Natural persons (pure PF without an entity form) are not extracted by
+     * this regex — AI strategies (OcrText / AiVision) handle that fuzzier
+     * case. PdfParser stays conservative to avoid grabbing street names or
+     * party-keyword adjacents.
+     */
+    private function extractNameForRole(string $rawText, string $normalized, string $expectedRole): ?array
+    {
+        // Pattern strategy: limit the "core" (entity body) to 1-5 ALL-CAPITAL
+        // tokens immediately preceding the legal-form suffix. Real Romanian
+        // legal names use uppercase ("HN SERVICES DEVELOPMENT S.R.L.",
+        // "TECHEDGE SOLUTIONS SRL", "ALPHA SA"). Restricting to uppercase
+        // tokens avoids dragging in preceding noise like "CAP. II ...
+        // PARTILE CONTRACTANTE Art.1 X S.R.L." or "BENEFICIAR si 2. Y SRL".
+        //
+        // Suffix capture handles all canonical commercial forms; trailing
+        // optional `\b` anchor avoids partial matches like "SRL-uri".
+        $regex = '/(?<![A-ZĂÂÎȘȚ\w])([A-ZĂÂÎȘȚ][A-ZĂÂÎȘȚ0-9.&\-]{1,}(?:\s+[A-ZĂÂÎȘȚ][A-ZĂÂÎȘȚ0-9.&\-]{1,}){0,5})\s+(S\.?\s*R\.?\s*L\.?|S\.?\s*A\.?|S\.?\s*N\.?\s*C\.?|S\.?\s*C\.?\s*S\.?|P\.?\s*F\.?\s*A\.?|I\.?\s*I\.?|I\.?\s*F\.?)\b/u';
 
         $matches = [];
-        if (preg_match('/RO\d{2}[A-Z]{4}[A-Z0-9]{16}/', $compact, $matches) !== 1) {
+        if (preg_match_all($regex, $rawText, $matches, PREG_OFFSET_CAPTURE) === false) {
             return null;
         }
 
-        $iban = $matches[0];
-        if (!$this->validateIbanChecksum($iban)) {
+        $best = null;
+        $count = count($matches[0]);
+        $sectionKeywordsLower = array_map('mb_strtolower', [...self::CREDITOR_KEYWORDS, ...self::DEBTOR_KEYWORDS]);
+        for ($i = 0; $i < $count; $i++) {
+            $offset = $matches[0][$i][1];
+            $core = trim($matches[1][$i][0]);
+            $suffix = strtoupper(preg_replace('/[\s.]+/', '', $matches[2][$i][0]) ?? '');
+
+            // Strip leading numbering ("2. TECHEDGE SOLUTIONS" → "TECHEDGE SOLUTIONS").
+            $core = preg_replace('/^\d+\.\s*/', '', $core) ?? $core;
+            // Reject if any token in the core EXACTLY equals a section keyword
+            // (e.g. "BENEFICIAR si TECHEDGE" — the "BENEFICIAR" token leaks the
+            // section label into the captured name). Exact-equality check (not
+            // prefix) so a real company "LOCATOR GRUP SRL" or "BENEFICIAR
+            // HOLDING SRL" isn't filtered: the legal name happens to start
+            // with a role keyword but is otherwise a distinct legal person.
+            $tokensLower = array_map('mb_strtolower', preg_split('/\s+/', $core) ?: []);
+            $hasKeywordContamination = false;
+            foreach ($tokensLower as $token) {
+                if (in_array($token, $sectionKeywordsLower, true)) {
+                    $hasKeywordContamination = true;
+                    break;
+                }
+            }
+            if ($hasKeywordContamination) {
+                continue;
+            }
+            // Reject obvious legal-document artifacts.
+            if (preg_match('/^(?:CAP|ART|CAPITOLUL|ARTICOL)/i', $core) === 1) {
+                continue;
+            }
+
+            $fullName = $core . ' ' . $suffix;
+
+            $sectionRole = $this->findSectionRole($normalized, $offset);
+            if ($sectionRole !== $expectedRole) {
+                continue;
+            }
+
+            // Earliest match in section wins — Romanian documents introduce
+            // the legal name immediately after the party keyword. Lower offset
+            // = closer to the keyword.
+            $confidence = 0.88;
+            if ($best === null || $offset < $best['offset']) {
+                $best = ['value' => $fullName, 'confidence' => $confidence, 'personType' => PersonType::PJ, 'offset' => $offset];
+            }
+        }
+
+        if ($best !== null) {
+            unset($best['offset']);
+        }
+
+        return $best;
+    }
+
+    /**
+     * @return array{value: string, confidence: float}|null
+     *
+     * Keyword-based extraction for the named representative (administrator /
+     * reprezentant legal / director general) of a PJ party. Matches the keyword
+     * followed by an optional separator and a name pattern (2-4 capitalized
+     * tokens). Confidence is intentionally lower than CUI/IBAN/ONRC because
+     * the name pattern is fuzzy and may match street names ("Str. Popescu Ion").
+     */
+    private function extractAdministratorForRole(string $rawText, string $normalized, string $expectedRole): ?array
+    {
+        $matches = [];
+        // Capture: keyword + optional separators + name pattern (2-4 capitalized
+        // tokens). Reject if the FIRST token after the keyword is a connector
+        // word ("sau", "si", "și", "ori") — common in legal boilerplate like
+        // "reprezentant legal sau imputernicit, Y POPESCU" — we want the actual
+        // name, not the connector.
+        if (preg_match_all(
+            '/(?:administrator|reprezentant\s+legal|director\s+general)\b[\s:,.\-]*([A-ZĂÂÎȘȚ][\wĂÂÎȘȚăâîșț.\-]+(?:\s+[A-ZĂÂÎȘȚ][\wĂÂÎȘȚăâîșț.\-]+){1,3})/iu',
+            $rawText,
+            $matches,
+            PREG_OFFSET_CAPTURE,
+        ) === false) {
             return null;
         }
 
-        return ['value' => $iban, 'confidence' => 0.95];
+        $best = null;
+        $count = count($matches[0]);
+        $stopwords = ['sau', 'si', 'și', 'ori', 'imputernicit', 'imputernicita', 'imputernicitul'];
+        for ($i = 0; $i < $count; $i++) {
+            $offset = $matches[0][$i][1];
+            $name = trim($matches[1][$i][0]);
+            if ($name === '') {
+                continue;
+            }
+            // Drop connector-prefixed matches.
+            $firstToken = mb_strtolower(preg_split('/\s+/', $name)[0] ?? '');
+            if (in_array($firstToken, $stopwords, true)) {
+                continue;
+            }
+            // Trim trailing "denumit"/"denumita" / "in" artefacts that the
+            // greedy capture sometimes grabs from "... POPESCU ION, denumit in
+            // continuare ...". Allow up to 3 trailing chars (`?`, `.`, U+FFFD
+            // replacement char from corrupt PDF encoding) on the keyword
+            // because Smalot's text extraction can emit garbage adjacent to
+            // diacritic-stripped words.
+            $name = preg_replace('/\s+(?:denumit|denumita|denumitul|denumiti)\S{0,3}\b.*$/iu', '', $name) ?? $name;
+            $name = trim($name);
+            $tokenCount = count(preg_split('/\s+/', $name) ?: []);
+            if ($tokenCount < 2) {
+                continue;
+            }
+
+            $sectionRole = $this->findSectionRole($normalized, $offset);
+            if ($sectionRole !== $expectedRole) {
+                continue;
+            }
+            $confidence = 0.65;
+            if ($best === null || $confidence > $best['confidence']) {
+                $best = ['value' => $name, 'confidence' => $confidence];
+            }
+        }
+
+        return $best;
     }
 
     /** @return array{value: float, confidence: float}|null */

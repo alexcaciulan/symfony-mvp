@@ -122,9 +122,15 @@ final class AnthropicApiClient implements LlmClientInterface
 
         if ($statusCode >= 400) {
             $errorType = $this->extractErrorType($rawBody);
+            $errorMessage = $this->extractErrorMessage($rawBody);
             $this->logger->error('llm.anthropic.http_error', [
                 'status' => $statusCode,
                 'errorType' => $errorType,
+                // Anthropic error messages are diagnostic (e.g. "image exceeds 5MB",
+                // "model not found"), not the user's prompt — safe to log for ops
+                // triage. Truncated at 300 chars in case Anthropic ever returns
+                // verbose validation output that would bloat the logs.
+                'errorMessage' => $errorMessage !== null ? mb_substr($errorMessage, 0, 300) : null,
             ]);
             throw new LlmException(sprintf(
                 'Anthropic API returned HTTP %d (type=%s)',
@@ -166,17 +172,38 @@ final class AnthropicApiClient implements LlmClientInterface
      */
     private function buildRequestBody(array $messages, int $maxTokens, ?array $documentParts): array
     {
+        // Anthropic Messages API expects the system prompt as a TOP-LEVEL
+        // `system` field, not as a `role: system` entry inside `messages`
+        // (that's the OpenAI convention). Callers use the OpenAI-style shape
+        // for portability; we adapt here. Multiple system entries are joined
+        // with double-newlines so the order in the caller's intent is preserved.
+        $systemParts = [];
+        $userMessages = [];
+        foreach ($messages as $message) {
+            if (($message['role'] ?? null) === 'system') {
+                if (is_string($message['content'] ?? null) && $message['content'] !== '') {
+                    $systemParts[] = $message['content'];
+                }
+                continue;
+            }
+            $userMessages[] = $message;
+        }
+
         $body = [
             'model' => $this->anthropicModel,
             'max_tokens' => $maxTokens,
-            'messages' => $messages,
+            'messages' => $userMessages,
         ];
+
+        if ($systemParts !== []) {
+            $body['system'] = implode("\n\n", $systemParts);
+        }
 
         // Vision: append document parts (image content blocks) to the last user
         // message's content. Anthropic expects content as a structured array
         // of blocks, not a plain string, when images are involved.
         if ($documentParts !== null && $documentParts !== []) {
-            $body['messages'] = $this->appendDocumentPartsToLastUserMessage($messages, $documentParts);
+            $body['messages'] = $this->appendDocumentPartsToLastUserMessage($userMessages, $documentParts);
         }
 
         return $body;
@@ -281,5 +308,19 @@ final class AnthropicApiClient implements LlmClientInterface
         $err = $decoded['error'] ?? null;
 
         return is_array($err) && isset($err['type']) ? (string) $err['type'] : null;
+    }
+
+    private function extractErrorMessage(string $rawBody): ?string
+    {
+        if ($rawBody === '') {
+            return null;
+        }
+        $decoded = json_decode($rawBody, true);
+        if (!is_array($decoded)) {
+            return null;
+        }
+        $err = $decoded['error'] ?? null;
+
+        return is_array($err) && isset($err['message']) ? (string) $err['message'] : null;
     }
 }

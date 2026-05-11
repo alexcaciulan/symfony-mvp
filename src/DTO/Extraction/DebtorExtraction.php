@@ -18,7 +18,12 @@ final readonly class DebtorExtraction
         public ?string $cui = null,
         public ?bool $isVatPayer = null,
         public ?string $personalId = null,
+        public ?string $onrcNumber = null,
         public ?string $address = null,
+        public ?string $email = null,
+        public ?string $phone = null,
+        public ?string $iban = null,
+        public ?string $administrator = null,
         public array $confidencePerField = [],
     ) {}
 }
