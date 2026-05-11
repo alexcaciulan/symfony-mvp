@@ -43,8 +43,13 @@ class Step1CreditorData
         #[Assert\Email(message: 'validation.email.invalid')]
         public ?string $email = null,
         public ?string $phone = null,
+        // IBAN accepted with optional spaces (BCR/BT statements often show
+        // RO49 RNCB 0082 ...). Strip + upper before regex via normalizer in
+        // Step1CreditorType. The compiled value (no spaces, upper) matches
+        // \d{16} on the account part — the [A-Z0-9]{16} alternative would
+        // accept letters in the account portion which RO IBANs never have.
         #[Assert\Regex(
-            pattern: '/^RO\d{2}[A-Z]{4}[A-Z0-9]{16}$/',
+            pattern: '/^RO\d{2}[A-Z]{4}\d{16}$/',
             message: 'validation.iban.invalid_format',
         )]
         public ?string $iban = null,

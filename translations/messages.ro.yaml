@@ -177,6 +177,13 @@ wizard:
         help:
             title: 'Despre acest pas'
             body: 'Dacă creditorul este deja salvat în catalogul tău (cabinet), îl poți selecta. Altfel completează manual câmpurile principale: tip persoană, denumire, adresă. CUI și ONRC sunt opționale pentru persoane fizice.'
+            iban_format: 'Format: RO + 2 cifre + 4 litere bancă + 16 cifre cont. Spațiile sunt permise (le ignorăm la validare).'
+        toggle:
+            existing: 'Selectează creditor existent'
+            new: 'Creditor nou'
+            existing_disabled_title: 'Disponibil din Pas 3.3 (UX Autocomplete).'
+        button:
+            continue: 'Continuă la pas 2 (debitor)'
         county: 'Județul'
         county_placeholder: '-- Selectați județul --'
         county_required: 'Selectați județul.'

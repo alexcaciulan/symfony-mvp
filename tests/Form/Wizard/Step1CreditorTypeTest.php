@@ -53,7 +53,7 @@ final class Step1CreditorTypeTest extends KernelTestCase
             'cui' => '15193236',
             'address' => 'Str. Test 1, București',
             'email' => 'foo@example.com',
-            'iban' => 'RO49AAAA1B31007593840000',
+            'iban' => 'RO49RNCB0082004480010001',
         ]);
 
         self::assertTrue($form->isValid(), (string) $form->getErrors(true));

@@ -177,6 +177,13 @@ wizard:
         help:
             title: 'About this step'
             body: 'If the creditor is already in your cabinet catalog you can pick them. Otherwise fill in the manual fields: person type, name, address. CUI and ONRC are optional for individuals.'
+            iban_format: 'Format: RO + 2 digits + 4 bank letters + 16 account digits. Spaces are allowed (stripped on validation).'
+        toggle:
+            existing: 'Pick existing creditor'
+            new: 'New creditor'
+            existing_disabled_title: 'Available from Pas 3.3 (UX Autocomplete).'
+        button:
+            continue: 'Continue to step 2 (debtor)'
         county: 'County'
         county_placeholder: '-- Select county --'
         county_required: 'Please select a county.'

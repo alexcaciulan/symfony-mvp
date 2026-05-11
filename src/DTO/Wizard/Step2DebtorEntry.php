@@ -38,8 +38,10 @@ class Step2DebtorEntry
         #[Assert\Email(message: 'validation.email.invalid')]
         public ?string $email = null,
         public ?string $phone = null,
+        // IBAN accepted with optional spaces / lowercase — normalized to
+        // upper + stripped by Step2DebtorEntryType before this regex fires.
         #[Assert\Regex(
-            pattern: '/^RO\d{2}[A-Z]{4}[A-Z0-9]{16}$/',
+            pattern: '/^RO\d{2}[A-Z]{4}\d{16}$/',
             message: 'validation.iban.invalid_format',
         )]
         public ?string $iban = null,

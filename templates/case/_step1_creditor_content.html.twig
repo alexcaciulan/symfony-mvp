@@ -1,102 +1,154 @@
 {% extends 'case/wizard.html.twig' %}
 
 {# Pas 3.2 wizard step 1 — Creditor.
-   2-col layout (form on left, help/tips on right). Fields rendered with the
-   default Symfony form theme; `data-auto-filled="true"` attribute (set by
-   AutoFilledMarker in Pas 3.1) is read by Pas 3.3 Stimulus to show the
-   "auto · N%" badge. For Pas 3.2 we only mark the form field as such via
-   the attribute — visible badge is wired with the LiveComponent. #}
+   Layout inspired by mockups/v2/03-wizard/step1-creditor.html. Single-column
+   white card with a toggle bar at the top ("Selectează creditor existent" vs
+   "Creditor nou" — placeholder until Pas 3.3 UX Autocomplete wires the
+   existing-creditor flow). Inputs use the mockup pattern:
+   `px-3 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500`. #}
+
+{% set has_form_errors = form.vars.errors|length > 0 %}
 
 {% block wizard_step_content %}
-<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-    <div class="lg:col-span-2">
-        {{ form_start(form, { attr: {
-            'class': 'bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft p-6 space-y-5',
-            'novalidate': 'novalidate',
-        }}) }}
-            <header class="mb-2">
-                <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">{{ 'wizard.step1.title'|trans }}</h2>
-                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ 'wizard.step1.subtitle'|trans }}</p>
-            </header>
+<div class="max-w-3xl mx-auto">
+    <header class="mb-6">
+        <h2 class="text-2xl font-semibold text-slate-900 dark:text-slate-100">{{ 'wizard.step1.title'|trans }}</h2>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">{{ 'wizard.step1.subtitle'|trans }}</p>
+    </header>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    {{ form_label(form.personType) }}
-                    {{ form_widget(form.personType, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800' }}) }}
-                    {{ form_errors(form.personType) }}
+    {# Toggle bar — Pas 3.2 keeps "Creditor nou" active by default; the
+       existing-creditor autocomplete flow ships in Pas 3.3 (UX Autocomplete). #}
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 mb-6 shadow-soft">
+        <div class="grid grid-cols-2 gap-2">
+            <button type="button" disabled aria-disabled="true"
+                    title="{{ 'wizard.step1.toggle.existing_disabled_title'|trans }}"
+                    class="flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-400 cursor-not-allowed">
+                <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <span>{{ 'wizard.step1.toggle.existing'|trans }}</span>
+            </button>
+            <button type="button" aria-pressed="true"
+                    class="flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-blue-500 bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-950/20 text-sm font-bold text-blue-700 dark:text-blue-300">
+                <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+                <span>{{ 'wizard.step1.toggle.new'|trans }}</span>
+            </button>
+        </div>
+    </div>
+
+    {{ form_start(form, { attr: {
+        'class': 'bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-6 shadow-soft',
+        'novalidate': 'novalidate',
+    }}) }}
+        {% if has_form_errors %}
+            <div role="alert" class="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/60 rounded-lg p-4">
+                <div class="flex items-start gap-3">
+                    <svg class="size-5 text-red-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"/></svg>
+                    <div class="text-sm text-red-800 dark:text-red-200">
+                        {{ form_errors(form) }}
+                    </div>
                 </div>
-                <div>
-                    {{ form_label(form.name) }}
-                    {{ form_widget(form.name, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800' }}) }}
-                    {{ form_errors(form.name) }}
-                </div>
-                <div>
-                    {{ form_label(form.cui) }}
-                    {{ form_widget(form.cui, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800' }}) }}
-                    {{ form_errors(form.cui) }}
-                </div>
-                <div>
-                    {{ form_label(form.onrcNumber) }}
-                    {{ form_widget(form.onrcNumber, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800' }}) }}
-                    {{ form_errors(form.onrcNumber) }}
-                </div>
-                <div>
-                    {{ form_label(form.personalId) }}
-                    {{ form_widget(form.personalId, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800' }}) }}
-                    {{ form_errors(form.personalId) }}
-                </div>
-                <div>
-                    {{ form_label(form.legalRepresentative) }}
-                    {{ form_widget(form.legalRepresentative, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800' }}) }}
-                    {{ form_errors(form.legalRepresentative) }}
-                </div>
+            </div>
+        {% endif %}
+
+        <div>
+            <label for="{{ form.personType.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'wizard.step1.field.person_type'|trans }} <span class="text-red-500">*</span></label>
+            {{ form_widget(form.personType, { attr: {
+                'class': 'w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500',
+            }}) }}
+            {{ form_errors(form.personType) }}
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="md:col-span-2">
+                <label for="{{ form.name.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'wizard.step1.field.name'|trans }} <span class="text-red-500">*</span></label>
+                {{ form_widget(form.name, { attr: {
+                    'class': 'w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500',
+                }}) }}
+                {{ form_errors(form.name) }}
             </div>
 
             <div>
-                {{ form_label(form.address) }}
-                {{ form_widget(form.address, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800', 'rows': 3 }}) }}
+                <label for="{{ form.cui.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'wizard.step1.field.cui'|trans }}</label>
+                {{ form_widget(form.cui, { attr: {
+                    'class': 'w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500',
+                    'placeholder': 'RO12345678',
+                }}) }}
+                {{ form_errors(form.cui) }}
+            </div>
+
+            <div>
+                <label for="{{ form.onrcNumber.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'wizard.step1.field.onrc_number'|trans }}</label>
+                {{ form_widget(form.onrcNumber, { attr: {
+                    'class': 'w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500',
+                    'placeholder': 'J40/1234/2018',
+                }}) }}
+                {{ form_errors(form.onrcNumber) }}
+            </div>
+
+            <div>
+                <label for="{{ form.personalId.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'wizard.step1.field.personal_id'|trans }}</label>
+                {{ form_widget(form.personalId, { attr: {
+                    'class': 'w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500',
+                }}) }}
+                {{ form_errors(form.personalId) }}
+            </div>
+
+            <div>
+                <label for="{{ form.legalRepresentative.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'wizard.step1.field.legal_representative'|trans }}</label>
+                {{ form_widget(form.legalRepresentative, { attr: {
+                    'class': 'w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500',
+                }}) }}
+                {{ form_errors(form.legalRepresentative) }}
+            </div>
+
+            <div class="md:col-span-2">
+                <label for="{{ form.address.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'wizard.step1.field.address'|trans }} <span class="text-red-500">*</span></label>
+                {{ form_widget(form.address, { attr: {
+                    'class': 'w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500',
+                    'rows': 2,
+                }}) }}
                 {{ form_errors(form.address) }}
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                    {{ form_label(form.email) }}
-                    {{ form_widget(form.email, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800' }}) }}
-                    {{ form_errors(form.email) }}
-                </div>
-                <div>
-                    {{ form_label(form.phone) }}
-                    {{ form_widget(form.phone, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800' }}) }}
-                    {{ form_errors(form.phone) }}
-                </div>
-                <div>
-                    {{ form_label(form.iban) }}
-                    {{ form_widget(form.iban, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800' }}) }}
-                    {{ form_errors(form.iban) }}
-                </div>
+            <div class="md:col-span-2">
+                <label for="{{ form.iban.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'wizard.step1.field.iban'|trans }}</label>
+                {{ form_widget(form.iban, { attr: {
+                    'class': 'w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500',
+                    'placeholder': 'RO49 RNCB 0082 0044 8001 0001',
+                }}) }}
+                <p class="mt-1 text-[11px] text-slate-500">{{ 'wizard.step1.help.iban_format'|trans }}</p>
+                {{ form_errors(form.iban) }}
             </div>
 
-            {{ form_widget(form.creditorId, { attr: { 'class': 'hidden' }}) }}
-
-            {{ form_errors(form) }}
-
-            <div class="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800">
-                <a href="{{ path('case_wizard_documents') }}" class="text-sm font-medium text-slate-600 dark:text-slate-300 hover:underline">
-                    {{ 'wizard.button.back'|trans }}
-                </a>
-                <button type="submit" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white text-sm font-medium hover:opacity-90">
-                    <span>{{ 'wizard.button.continue'|trans }}</span>
-                    <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-                </button>
+            <div>
+                <label for="{{ form.email.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'wizard.step1.field.email'|trans }}</label>
+                {{ form_widget(form.email, { attr: {
+                    'class': 'w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500',
+                }}) }}
+                {{ form_errors(form.email) }}
             </div>
-        {{ form_end(form) }}
-    </div>
 
-    <aside class="lg:col-span-1">
-        <div class="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
-            <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ 'wizard.step1.help.title'|trans }}</h3>
-            <p class="mt-2 text-xs text-slate-600 dark:text-slate-400">{{ 'wizard.step1.help.body'|trans }}</p>
+            <div>
+                <label for="{{ form.phone.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'wizard.step1.field.phone'|trans }}</label>
+                {{ form_widget(form.phone, { attr: {
+                    'class': 'w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500',
+                }}) }}
+                {{ form_errors(form.phone) }}
+            </div>
         </div>
-    </aside>
+
+        {# Pas 3.3 wires `creditorId` to UX Autocomplete; rendered hidden for now. #}
+        {{ form_widget(form.creditorId, { attr: { 'class': 'hidden' }}) }}
+
+        <div class="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
+            <a href="{{ path('case_wizard_documents') }}" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 no-underline">
+                <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                <span>{{ 'wizard.button.back'|trans }}</span>
+            </a>
+            <button type="submit" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white text-sm font-semibold hover:shadow-lg hover:shadow-lex-navy/20 transition shadow-sm">
+                <span>{{ 'wizard.step1.button.continue'|trans }}</span>
+                <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+            </button>
+        </div>
+    {{ form_end(form) }}
 </div>
 {% endblock %}

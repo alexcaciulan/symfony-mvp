@@ -13,6 +13,8 @@ use Symfony\Component\Form\Extension\Core\Type\EnumType;
 use Symfony\Component\Form\Extension\Core\Type\TextareaType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
+use Symfony\Component\Form\FormEvent;
+use Symfony\Component\Form\FormEvents;
 use Symfony\Component\Form\FormInterface;
 use Symfony\Component\Form\FormView;
 use Symfony\Component\OptionsResolver\OptionsResolver;
@@ -83,6 +85,22 @@ final class Step2DebtorEntryType extends AbstractType
                 'required' => false,
             ])
         ;
+
+        // PRE_SUBMIT normalizer — same UX as Step1CreditorType: accept IBAN
+        // with spaces / lowercase CUI and strip+upper before strict regex.
+        $builder->addEventListener(FormEvents::PRE_SUBMIT, static function (FormEvent $event): void {
+            $data = $event->getData();
+            if (!is_array($data)) {
+                return;
+            }
+            if (isset($data['iban']) && is_string($data['iban'])) {
+                $data['iban'] = strtoupper(preg_replace('/\s+/', '', $data['iban']) ?? '');
+            }
+            if (isset($data['cui']) && is_string($data['cui'])) {
+                $data['cui'] = strtoupper(preg_replace('/\s+/', '', $data['cui']) ?? '');
+            }
+            $event->setData($data);
+        });
     }
 
     public function finishView(FormView $view, FormInterface $form, array $options): void
