@@ -144,8 +144,12 @@ final class OcrTextExtractionStrategy implements ExtractionStrategyInterface
         $maskedText = $this->applyPiiMaps($ocrResult->text, $cnpMap, $ibanMap);
 
         // 5. Per-user rate limit. Bucket key = userId so one tenant can't drain
-        // the daily allowance for everyone (sliding_window 200/day).
-        $userId = (string) $document->getLegalCase()->getUser()->getId();
+        // the daily allowance for everyone (sliding_window 200/day). Prefer
+        // LegalCase->getUser() when the case is attached (post-wizard flow);
+        // fall back to Document.uploadedBy for Pas 3.0 wizard step 0 uploads
+        // where the case doesn't exist yet.
+        $owner = $document->getLegalCase()?->getUser() ?? $document->getUploadedBy();
+        $userId = (string) $owner->getId();
         if (!$this->extractionAiTextLimiter->create($userId)->consume(1)->isAccepted()) {
             $this->logger->warning('extraction.ocr_text.rate_limit_exhausted', ['userId' => $userId]);
 

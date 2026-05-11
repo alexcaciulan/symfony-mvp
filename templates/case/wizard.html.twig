@@ -1,33 +1,31 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}{{ ('wizard.step' ~ step ~ '.title')|trans }} - {{ parent() }}{% endblock %}
+{# Pas 3.0 wizard shell — 5-step layout (0..4) extending the Pas 2.7 authenticated shell.
+   Step content is rendered by children via {% block wizard_step_content %}.
+   `current_step` (0..4) is set by the controller per route. #}
+
+{% block title %}{{ 'wizard.title'|trans }} · {{ parent() }}{% endblock %}
 
 {% block body %}
-<div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    {# Stepper #}
-    {% include 'case/_stepper.html.twig' with {
-        step: step,
-        currentStep: legalCase ? legalCase.currentStep : 1,
-        legalCase: legalCase,
-    } %}
+<div class="max-w-5xl mx-auto py-2">
+    <header class="mb-6">
+        <h1 class="text-2xl font-semibold text-slate-900 dark:text-slate-100">{{ 'wizard.heading'|trans }}</h1>
+        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ 'wizard.subheading'|trans }}</p>
+    </header>
 
-    {# Step Content #}
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-8">
-        <h2 class="text-xl font-bold text-primary mb-6">{{ ('wizard.step' ~ step ~ '.title')|trans }}</h2>
+    <twig:Stepper
+        :labels="[
+            'wizard.step.documents'|trans,
+            'wizard.step.creditor'|trans,
+            'wizard.step.debtor'|trans,
+            'wizard.step.claim'|trans,
+            'wizard.step.confirmation'|trans,
+        ]"
+        :current_step="current_step"
+        start_index="0"
+        class="mb-8"
+    />
 
-        {% if step == 1 %}
-            {% include 'case/_step1_content.html.twig' %}
-        {% elseif step == 2 %}
-            {% include 'case/_step2_content.html.twig' %}
-        {% elseif step == 3 %}
-            {% include 'case/_step3_content.html.twig' %}
-        {% elseif step == 4 %}
-            {% include 'case/_step4_content.html.twig' %}
-        {% elseif step == 5 %}
-            {% include 'case/_step5_content.html.twig' %}
-        {% elseif step == 6 %}
-            {% include 'case/_step6_content.html.twig' %}
-        {% endif %}
-    </div>
+    {% block wizard_step_content %}{% endblock %}
 </div>
 {% endblock %}

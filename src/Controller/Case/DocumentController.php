@@ -42,7 +42,7 @@ class DocumentController extends AbstractController
 
         $document = $this->documentRepository->find($documentId);
 
-        if (!$document || $document->getLegalCase()->getId() !== $legalCase->getId()) {
+        if (!$document || $document->getLegalCase()?->getId() !== $legalCase->getId()) {
             throw $this->createNotFoundException();
         }
 
@@ -131,7 +131,7 @@ class DocumentController extends AbstractController
 
         $document = $this->documentRepository->find($documentId);
 
-        if (!$document || $document->getLegalCase()->getId() !== $legalCase->getId()) {
+        if (!$document || $document->getLegalCase()?->getId() !== $legalCase->getId()) {
             throw $this->createNotFoundException();
         }
 

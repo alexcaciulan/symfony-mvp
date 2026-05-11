@@ -41,8 +41,13 @@ use Symfony\Component\Messenger\Attribute\AsMessageHandler;
  *
  *   3. Downstream notification: dispatches `DataExtractedEvent` so Pas 3.0
  *      can publish Mercure updates without coupling the handler to the
- *      transport layer. Pas 2.6 ships no listener — early consumers will
- *      subscribe later.
+ *      transport layer. The event fires on BOTH terminal outcomes — success
+ *      (COMPLETED) and caught failure (FAILED) — so subscribers see every
+ *      transition out of PROCESSING. Subscribers inspect
+ *      `$document->getExtractionStatus()` to branch behaviour. If the
+ *      failure-path flush itself failed (Document stuck in PROCESSING),
+ *      we skip the event because the persisted state doesn't match what
+ *      we'd announce — operator reconciliation handles that edge.
  */
 #[AsMessageHandler]
 final class ExtractDataMessageHandler
@@ -72,14 +77,19 @@ final class ExtractDataMessageHandler
         $document->setExtractionStatus(ExtractionStatus::PROCESSING);
         $this->em->flush();
 
+        // Flag that drives whether to dispatch DataExtractedEvent at the end.
+        // Stays true on success and on caught failure where we successfully
+        // flushed FAILED; flips to false only when the failure-path flush also
+        // blew up (Document is stuck in PROCESSING — don't announce a state
+        // we couldn't persist).
+        $shouldAnnounce = true;
+
         try {
             // The orchestrator sets COMPLETED / FAILED + extractedData via
             // persistResult() but does not flush — we own that here so the
             // status transition is atomic with the data payload.
             $this->extractor->extract($document);
             $this->em->flush();
-
-            $this->events->dispatch(new DataExtractedEvent($document));
         } catch (\Throwable $e) {
             $this->logger->error('extraction.handler.unexpected_failure', [
                 'documentId' => $message->documentId,
@@ -94,16 +104,25 @@ final class ExtractDataMessageHandler
                 // Both the cascade AND the failure-state flush blew up. The
                 // Document stays in PROCESSING; ops will reconcile via a
                 // follow-up command (out of scope MVP). Log critical so
-                // alerting can fire.
+                // alerting can fire. Skip event dispatch because the announced
+                // state would diverge from the persisted state.
                 $this->logger->critical('extraction.handler.flush_failed_in_failure_path', [
                     'documentId' => $message->documentId,
                     'flushExceptionClass' => $flushError::class,
                 ]);
+                $shouldAnnounce = false;
             }
 
             // Deliberately swallow — Pas 2.6 spec: "NU re-throw (dă chance la
             // fallback manual)". The user completes manually in the wizard
             // when they see status=FAILED.
+        }
+
+        // Announce terminal status (COMPLETED or FAILED) so the Pas 3.0
+        // Mercure publisher subscriber can push the badge update to the UI.
+        // Subscribers inspect $document->getExtractionStatus() to branch.
+        if ($shouldAnnounce) {
+            $this->events->dispatch(new DataExtractedEvent($document));
         }
     }
 }

@@ -5,12 +5,16 @@ namespace App\Command;
 use App\Entity\Court;
 use App\Entity\Creditor;
 use App\Entity\Debtor;
+use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\DeadlinePriority;
 use App\Enum\DeadlineType;
+use App\Enum\DocumentType;
+use App\Enum\ExtractionStatus;
+use App\Enum\LegalGroundCategory;
 use App\Enum\PersonType;
 use App\Enum\RelationshipType;
 use App\Repository\CourtRepository;
@@ -171,6 +175,15 @@ class SeedDemoCasesCommand extends Command
 
             $this->em->persist($case);
             $this->em->persist($debtor);
+
+            // Attach one fake "already-extracted" document to the first case so
+            // Pas 3.0 manual smoke tests have realistic-looking extractedData
+            // in the DB without uploading anything through the wizard. Pas 7.2
+            // case_view will render this.
+            if ($idx === 0) {
+                $this->em->persist($this->buildDemoDocument($case, $lawyer, $row));
+            }
+
             $created++;
         }
 
@@ -238,6 +251,63 @@ class SeedDemoCasesCommand extends Command
             $deadline->setCompleted(false);
             yield $deadline;
         }
+    }
+
+    /**
+     * @param array{amount: string, dueOffsetDays: int, ...} $row
+     */
+    private function buildDemoDocument(LegalCase $case, User $lawyer, array $row): Document
+    {
+        $document = new Document();
+        $document->setLegalCase($case);
+        $document->setDocumentType(DocumentType::FACTURA);
+        $document->setOriginalFilename('demo-factura.pdf');
+        $document->setStoredFilename('cases/demo/demo-factura.pdf');
+        $document->setFileSize(124_000);
+        $document->setMimeType('application/pdf');
+        $document->setUploadedBy($lawyer);
+        $document->setExtractionStatus(ExtractionStatus::COMPLETED);
+        $document->setExtractionConfidence('0.87');
+        $document->setExtractionStrategy('pdf_parser');
+        $document->setExtractedData([
+            'sourceDocumentId' => 0,
+            'strategy' => 'pdf_parser',
+            'globalConfidence' => 0.87,
+            'extractedAt' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
+            'creditor' => [
+                'personType' => PersonType::PJ->value,
+                'name' => 'Demo Recovery SRL',
+                'cui' => 'RO12345678',
+                'isVatPayer' => true,
+                'personalId' => null,
+                'address' => 'Bd. Demo 100, București, Sector 1',
+                'iban' => 'RO49AAAA1B31007593840000',
+                'legalRepresentative' => 'Demo Administrator',
+                'confidencePerField' => [
+                    'name' => 0.95,
+                    'cui' => 0.99,
+                    'address' => 0.88,
+                    'iban' => 0.92,
+                    'personType' => 0.99,
+                ],
+            ],
+            'debtor' => null,
+            'claim' => [
+                'amount' => (float) $row['amount'],
+                'currency' => 'RON',
+                'dueDate' => (new \DateTimeImmutable(sprintf('%+d days', $row['dueOffsetDays'])))->format(\DateTimeInterface::ATOM),
+                'legalGround' => LegalGroundCategory::FACTURA_ACCEPTATA->value,
+                'description' => 'Factură demo nr. 142/2025',
+                'confidencePerField' => [
+                    'amount' => 0.97,
+                    'dueDate' => 0.91,
+                    'legalGround' => 0.85,
+                ],
+            ],
+            'rawOcrText' => null,
+        ]);
+
+        return $document;
     }
 
     private function isAtOrAfter(CaseStatus $status, CaseStatus $threshold): bool

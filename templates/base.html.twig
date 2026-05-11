@@ -107,8 +107,11 @@
             {% endif %}
         {% endblock %}
 
-        {# Toast container — bottom-right, populated from ToastService flash bag + window 'toast:show' events. #}
-        <div data-controller="toast"
+        {# Toast container — bottom-right, populated from ToastService flash bag + window 'toast:show' events.
+           id="toasts" is a stable target for Turbo Streams (`<turbo-stream action="append" target="toasts">`)
+           so controllers can push transient notifications without full-page reloads. #}
+        <div id="toasts"
+             data-controller="toast"
              class="fixed bottom-6 right-6 z-[9999] pointer-events-none flex flex-col items-end">
             {% for variant in ['success', 'error', 'warning', 'info'] %}
                 {% for message in app.flashes('toast.' ~ variant) %}

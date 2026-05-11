@@ -34,14 +34,31 @@ class DocumentUploadService
         private string $uploadsDir,
     ) {}
 
-    public function upload(LegalCase $case, UploadedFile $file, DocumentType $type, UserInterface $user): Document
+    /**
+     * Upload a file and persist a Document row.
+     *
+     * Pas 3.0: $case is nullable — wizard step 0 uploads documents BEFORE the
+     * LegalCase exists. In that case files land in cases/_pending/{userId}/{uuid}/
+     * and Document.legal_case_id stays NULL until submit Step 4 attaches them
+     * to the freshly created case (Pas 3.2 will also move the files to the
+     * final cases/{caseId}/ directory).
+     */
+    public function upload(?LegalCase $case, UploadedFile $file, DocumentType $type, UserInterface $user): Document
     {
         $fileSize = $file->getSize();
         $clientOriginalName = $file->getClientOriginalName();
         $extension = $file->guessExtension() ?? 'bin';
 
         $storedBasename = Uuid::v4() . '.' . $extension;
-        $relativeDir = 'cases/' . $case->getId();
+        if ($case !== null) {
+            $relativeDir = 'cases/' . $case->getId();
+        } else {
+            // Pas 3.0 wizard step 0: case doesn't exist yet. Group pending uploads
+            // by user + a per-upload uuid so concurrent wizards don't collide and
+            // cleanup is straightforward (rm -rf cases/_pending/{userId}/{uuid}/).
+            $userId = method_exists($user, 'getId') ? $user->getId() : $user->getUserIdentifier();
+            $relativeDir = 'cases/_pending/' . $userId . '/' . Uuid::v4();
+        }
         $absoluteDir = $this->uploadsDir . '/' . $relativeDir;
 
         $file->move($absoluteDir, $storedBasename);

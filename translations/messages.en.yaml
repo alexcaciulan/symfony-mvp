@@ -271,6 +271,77 @@ wizard:
     error:
         not_draft: 'This case can no longer be edited.'
         step_not_reached: 'You have not reached this step yet.'
+    # ---------------------------------------------------------------------
+    # Pas 3.0 wizard (5-step LexRecovery: documents / creditor / debtor / claim / confirmation)
+    # ---------------------------------------------------------------------
+    title: 'New case'
+    heading: 'Create a new case'
+    subheading: 'Complete the 5 steps to submit your payment-order petition.'
+    step:
+        documents: 'Documents'
+        creditor: 'Creditor'
+        debtor: 'Debtor'
+        claim: 'Claim'
+        confirmation: 'Confirmation'
+    step0:
+        title: 'Source documents'
+        subtitle: 'Upload contracts, invoices or proofs. Relevant data is extracted automatically.'
+        drop_zone:
+            heading: 'Drop files here'
+            cta: 'Choose files'
+            hint: 'PDF, JPG, PNG, WebP — up to 10 MB per file, max 10 files.'
+            empty: 'No documents uploaded yet.'
+        documents_count: 'Uploaded documents ({count})'
+        list:
+            file_size: '{size} · {type}'
+            uploaded_at: 'Uploaded {when}'
+        status:
+            pending: 'Queued'
+            processing: 'Processing'
+            completed: 'Data extracted'
+            failed: 'Extraction failed'
+        detected_data:
+            title: 'Detected data'
+            empty: 'Upload documents to see extracted values.'
+            creditor: 'Creditor'
+            debtor: 'Debtor'
+            claim: 'Claim'
+            field:
+                name: 'Name'
+                cui: 'CUI'
+                personalId: 'National ID'
+                address: 'Address'
+                iban: 'IBAN'
+                personType: 'Person type'
+                legalRepresentative: 'Legal representative'
+                amount: 'Amount'
+                currency: 'Currency'
+                dueDate: 'Due date'
+                legalGround: 'Legal ground'
+                description: 'Description'
+            confidence_label: 'Confidence'
+        gdpr:
+            title: 'AI-extracted data — privacy'
+            body: 'Documents stay on our servers. Only the OCR text (with masked national IDs) is sent to AI for structured extraction.'
+        skip: 'Skip — fill in manually'
+        continue: 'Continue with extracted data'
+        continue_blocked: 'Wait for all documents to finish processing'
+        error:
+            no_files: 'Select at least one file.'
+            too_many_files: 'You can upload at most {{ limit }} files.'
+            invalid_mime: 'Unsupported format. Allowed: PDF, JPG, PNG, GIF, WebP.'
+            file_too_large: 'File exceeds the 10 MB limit.'
+            invalid_csrf: 'Invalid security token. Please retry.'
+        toast:
+            completed: 'Document processed — extracted data is shown in the side panel.'
+            failed: 'Extraction failed for a document — please fill in the fields manually.'
+    placeholder:
+        not_implemented_title: 'Step {step} — coming soon'
+        not_implemented_body: 'This step will be available in a future release (Step 3.1/3.2/3.3). Go back to documents.'
+        back_to_documents: 'Back to documents'
+    flash:
+        uploaded: 'Documents uploaded. Waiting for automatic processing.'
+        skipped: 'You skipped document extraction — please fill in the forms manually.'
 
 # =============================================================================
 # Case View (read-only)
@@ -540,10 +611,10 @@ enum:
         bpi_proof: 'BPI proof (Insolvency Proceedings Bulletin)'
         alt_document: 'Other document'
     extraction_status:
-        PENDING: 'Pending'
+        PENDING: 'Queued'
         PROCESSING: 'Processing'
-        COMPLETED: 'Completed'
-        FAILED: 'Failed'
+        COMPLETED: 'Data extracted'
+        FAILED: 'Extraction failed'
     notification_channel:
         email: 'Email'
         in_app: 'In-app'

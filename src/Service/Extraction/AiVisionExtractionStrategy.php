@@ -136,7 +136,11 @@ final class AiVisionExtractionStrategy implements ExtractionStrategyInterface
         }
 
         // 3. Per-user rate limit (extraction_ai_vision: 50/day, sliding_window).
-        $userId = (string) $document->getLegalCase()->getUser()->getId();
+        // Prefer LegalCase->getUser() when the case is attached (post-wizard flow);
+        // fall back to Document.uploadedBy for Pas 3.0 wizard step 0 uploads where
+        // the case doesn't exist yet. Both resolve to the same User in production.
+        $owner = $document->getLegalCase()?->getUser() ?? $document->getUploadedBy();
+        $userId = (string) $owner->getId();
         if (!$this->extractionAiVisionLimiter->create($userId)->consume(1)->isAccepted()) {
             $this->logger->warning('extraction.ai_vision.rate_limit_exhausted', ['userId' => $userId]);
 

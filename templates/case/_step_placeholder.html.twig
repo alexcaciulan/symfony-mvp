@@ -1,0 +1,26 @@
+{% extends 'case/wizard.html.twig' %}
+
+{# Temporary placeholder for wizard steps 1-4 (Pas 3.1/3.2 will replace this).
+   Renders inside the 5-step shell with the correct stepper highlight so the
+   user understands where they landed instead of seeing a 404. #}
+
+{% set current_step = step_number %}
+
+{% block wizard_step_content %}
+<div class="max-w-2xl mx-auto py-12">
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft p-8 text-center">
+        <svg class="mx-auto size-10 text-slate-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">
+            {{ 'wizard.placeholder.not_implemented_title'|trans({ '{step}': step_number }) }}
+        </h2>
+        <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">
+            {{ 'wizard.placeholder.not_implemented_body'|trans }}
+        </p>
+        <a href="{{ path('case_wizard_documents') }}"
+           class="inline-flex items-center gap-2 mt-6 px-4 py-2 rounded-lg bg-lex-navy hover:bg-lex-navy-dark text-white text-sm font-medium no-underline">
+            <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+            <span>{{ 'wizard.placeholder.back_to_documents'|trans }}</span>
+        </a>
+    </div>
+</div>
+{% endblock %}

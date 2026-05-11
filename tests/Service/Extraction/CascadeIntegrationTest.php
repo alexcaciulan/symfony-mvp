@@ -500,6 +500,12 @@ TEXT;
 
         $document = new Document();
         $document->setLegalCase($case);
+        // Pas 3.0: extraction strategies read user from Document.uploadedBy
+        // (not via LegalCase->getUser()) so that wizard step 0 uploads —
+        // where legal_case_id is NULL — still resolve a user. Mirror the
+        // case's user here so this in-memory fixture preserves the prior
+        // semantics ("user owns this document, user mode applies").
+        $document->setUploadedBy($user);
         $document->setOriginalFilename($filename);
         $document->setStoredFilename($filename);
         $document->setFileSize(1024);

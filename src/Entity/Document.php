@@ -18,8 +18,8 @@ class Document
     private ?int $id = null;
 
     #[ORM\ManyToOne(targetEntity: LegalCase::class, inversedBy: 'documents')]
-    #[ORM\JoinColumn(nullable: false)]
-    private LegalCase $legalCase;
+    #[ORM\JoinColumn(nullable: true)]
+    private ?LegalCase $legalCase = null;
 
     #[ORM\Column(length: 30, enumType: DocumentType::class)]
     private DocumentType $documentType;
@@ -65,12 +65,12 @@ class Document
         return $this->id;
     }
 
-    public function getLegalCase(): LegalCase
+    public function getLegalCase(): ?LegalCase
     {
         return $this->legalCase;
     }
 
-    public function setLegalCase(LegalCase $legalCase): static
+    public function setLegalCase(?LegalCase $legalCase): static
     {
         $this->legalCase = $legalCase;
 

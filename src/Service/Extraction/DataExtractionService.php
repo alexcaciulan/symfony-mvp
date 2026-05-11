@@ -152,12 +152,22 @@ class DataExtractionService
 
     private function resolveExtractionMode(Document $document): ExtractionMode
     {
-        $override = $document->getLegalCase()->getExtractionModeOverride();
-        if ($override !== null) {
-            return $override;
+        // Pas 3.0: Document can be uploaded BEFORE a LegalCase exists (wizard step 0).
+        // In that case there is no per-case override, so fall back to the
+        // user's preference. Prefer LegalCase->getUser() when the case is
+        // attached (post-wizard flow) and fall back to Document.uploadedBy
+        // for Pas 3.0 wizard step 0 uploads where the case doesn't exist yet.
+        $case = $document->getLegalCase();
+        if ($case !== null) {
+            $override = $case->getExtractionModeOverride();
+            if ($override !== null) {
+                return $override;
+            }
+
+            return $case->getUser()->getExtractionMode();
         }
 
-        return $document->getLegalCase()->getUser()->getExtractionMode();
+        return $document->getUploadedBy()->getExtractionMode();
     }
 
     private function persistResult(Document $document, ExtractedDocumentData $result): void

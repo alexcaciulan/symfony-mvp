@@ -1,0 +1,64 @@
+{% extends 'case/wizard.html.twig' %}
+
+{% block wizard_step_content %}
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6"
+     data-controller="wizard-step0"
+     data-toast-completed="{{ 'wizard.step0.toast.completed'|trans }}"
+     data-toast-failed="{{ 'wizard.step0.toast.failed'|trans }}">
+
+    <div class="lg:col-span-2 space-y-6">
+        {# Upload form — submits INTO the dynamic frame so the page stays put.
+           Turbo intercepts the POST automatically when `data-turbo-frame` matches
+           an existing frame on the page; the controller responds with a Turbo
+           Stream that swaps the frame + sidecard + appends a toast. No PRG
+           redirect, no scroll jump, no flash-message-vanishes-on-reload. #}
+        {{ form_start(form, { attr: {
+            'class': 'bg-white dark:bg-slate-900 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-400 transition p-10 text-center shadow-soft',
+            'enctype': 'multipart/form-data',
+            'data-turbo-frame': 'step0-dynamic',
+        }}) }}
+            <svg class="mx-auto size-10 text-slate-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <h2 class="text-base font-semibold text-slate-900 dark:text-slate-100">{{ 'wizard.step0.drop_zone.heading'|trans }}</h2>
+            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ 'wizard.step0.drop_zone.hint'|trans }}</p>
+            <label class="inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-lg bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white font-medium cursor-pointer hover:opacity-90">
+                <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                <span>{{ 'wizard.step0.drop_zone.cta'|trans }}</span>
+                {{ form_widget(form.documents, { attr: { 'class': 'sr-only', 'data-action': 'change->wizard-step0#submitOnChange' }}) }}
+            </label>
+            <div class="mt-3">
+                {{ form_errors(form.documents) }}
+            </div>
+        {{ form_end(form) }}
+
+        {# Dynamic list of uploaded documents + Continue button. Wrapped in
+           turbo-frame#step0-dynamic; replaced atomically by POST stream and
+           Mercure-driven frame.reload(). #}
+        {{ include('case/_step0_dynamic_partial.html.twig') }}
+
+        {# GDPR notice (always visible to set expectations). #}
+        <div class="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-xl p-4 flex gap-3">
+            <svg class="size-5 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"/></svg>
+            <div class="text-sm">
+                <div class="font-semibold text-amber-900 dark:text-amber-200">{{ 'wizard.step0.gdpr.title'|trans }}</div>
+                <p class="mt-0.5 text-amber-800 dark:text-amber-200/80">{{ 'wizard.step0.gdpr.body'|trans }}</p>
+            </div>
+        </div>
+
+        {# Skip — full navigation out of the wizard, NOT a frame submit. #}
+        <div class="pt-2">
+            <form method="post" action="{{ path('case_wizard_skip') }}" class="inline-flex" data-turbo-frame="_top">
+                <input type="hidden" name="_token" value="{{ csrf_token('wizard_step0_skip') }}">
+                <button type="submit" class="text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 hover:underline">
+                    {{ 'wizard.step0.skip'|trans }}
+                </button>
+            </form>
+        </div>
+    </div>
+
+    {# Sidecard sits in its own grid column. Wrapped in turbo-frame#step0-sidecard
+       so the controller can swap it independently. #}
+    <aside class="lg:sticky lg:top-20 self-start">
+        {{ include('case/_step0_sidecard_partial.html.twig') }}
+    </aside>
+</div>
+{% endblock %}

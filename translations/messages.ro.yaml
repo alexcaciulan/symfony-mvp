@@ -272,6 +272,77 @@ wizard:
     error:
         not_draft: 'Acest dosar nu mai poate fi editat.'
         step_not_reached: 'Nu ați ajuns încă la acest pas.'
+    # ---------------------------------------------------------------------
+    # Pas 3.0 wizard (5-step LexRecovery: documente / creditor / debitor / creanță / confirmare)
+    # ---------------------------------------------------------------------
+    title: 'Dosar nou'
+    heading: 'Creare dosar nou'
+    subheading: 'Completează cei 5 pași pentru a depune cererea de ordonanță de plată.'
+    step:
+        documents: 'Documente'
+        creditor: 'Creditor'
+        debtor: 'Debitor'
+        claim: 'Creanță'
+        confirmation: 'Confirmare'
+    step0:
+        title: 'Documente sursă'
+        subtitle: 'Încarcă contracte, facturi sau dovezi. Datele relevante sunt extrase automat.'
+        drop_zone:
+            heading: 'Trage fișierele aici'
+            cta: 'Alege fișiere'
+            hint: 'PDF, JPG, PNG, WebP — până la 10 MB / fișier, maxim 10 fișiere.'
+            empty: 'Niciun document încărcat încă.'
+        documents_count: 'Documente încărcate ({count})'
+        list:
+            file_size: '{size} · {type}'
+            uploaded_at: 'Încărcat {when}'
+        status:
+            pending: 'În coadă'
+            processing: 'În procesare'
+            completed: 'Date extrase'
+            failed: 'Eșec extracție'
+        detected_data:
+            title: 'Date detectate'
+            empty: 'Încarcă documente pentru a vedea valorile extrase.'
+            creditor: 'Creditor'
+            debtor: 'Debitor'
+            claim: 'Creanță'
+            field:
+                name: 'Denumire'
+                cui: 'CUI'
+                personalId: 'CNP'
+                address: 'Adresă'
+                iban: 'IBAN'
+                personType: 'Tip persoană'
+                legalRepresentative: 'Reprezentant legal'
+                amount: 'Sumă'
+                currency: 'Monedă'
+                dueDate: 'Scadență'
+                legalGround: 'Temei juridic'
+                description: 'Descriere'
+            confidence_label: 'Încredere'
+        gdpr:
+            title: 'Date extrase prin AI — confidențialitate'
+            body: 'Documentele rămân pe serverul nostru. Doar textul OCR (cu CNP-uri mascate) este trimis la AI pentru extracție structurată.'
+        skip: 'Sări peste — completez manual'
+        continue: 'Continuă cu datele extrase'
+        continue_blocked: 'Așteaptă finalizarea extracției pentru toate documentele'
+        error:
+            no_files: 'Selectează cel puțin un fișier.'
+            too_many_files: 'Poți încărca maxim {{ limit }} fișiere.'
+            invalid_mime: 'Format nepermis. Acceptăm: PDF, JPG, PNG, GIF, WebP.'
+            file_too_large: 'Fișierul depășește limita de 10 MB.'
+            invalid_csrf: 'Token de securitate invalid. Reîncearcă.'
+        toast:
+            completed: 'Document procesat — datele extrase sunt afișate în panoul lateral.'
+            failed: 'Extracția a eșuat pentru un document — completează câmpurile manual.'
+    placeholder:
+        not_implemented_title: 'Pas {step} — în lucru'
+        not_implemented_body: 'Acest pas va fi disponibil într-o versiune ulterioară (Pas 3.1/3.2/3.3). Întoarce-te la documente.'
+        back_to_documents: 'Înapoi la documente'
+    flash:
+        uploaded: 'Documentele au fost încărcate. Așteaptă procesarea automată.'
+        skipped: 'Ai sărit peste extracția documentelor — completează manual.'
 
 # =============================================================================
 # Case View (read-only)
@@ -542,10 +613,10 @@ enum:
         bpi_proof: 'Dovadă BPI (Buletinul Procedurilor de Insolvență)'
         alt_document: 'Alt document'
     extraction_status:
-        PENDING: 'În așteptare'
+        PENDING: 'În coadă'
         PROCESSING: 'În procesare'
-        COMPLETED: 'Finalizată'
-        FAILED: 'Eșuată'
+        COMPLETED: 'Date extrase'
+        FAILED: 'Eșec extracție'
     notification_channel:
         email: 'Email'
         in_app: 'În aplicație'

@@ -69,10 +69,10 @@
 | 2.5.8 | Extracție | `AiVisionExtractionStrategy` (priority 50) — Claude vision direct pe document (image + PDF native) + GDPR transparency log + audit cu mimeType/fileSize + cascadă completă 4 trepte funcțională end-to-end | 4h | 2.5.4, 2.5.6 | 50% (pattern OcrText) | ✅ DONE 2026-05-10 (`6206bf6`) — 19 teste verzi (14 unit + 3 integration + 2 cascade Nivel 3) |
 | 2.6 | Extracție | `ExtractDataMessage` async (Symfony Messenger Doctrine transport) + `ExtractDataMessageHandler` + `DataExtractedEvent` + container `worker` separat în `compose.yaml` | 0.5z | 2.5.8 | 30% | ✅ DONE 2026-05-10 (`301fde1`) — 8 teste verzi (5 unit + 3 integration cu InMemoryTransport) |
 | 2.7 | UI shell | **Aliniere shell + design system bază cu mockup-urile v2** — sidebar 256px + topbar 56px + 4 componente reutilizabile (KpiCard/DeadlineList/HeroEmptyState/PipelineStatus) + StatusBadge extins enum-aware + login/register split 2-col + dashboard KPI + i18n ~80 chei. Pas intermediar ÎNAINTE de Pas 3.0 ca template-urile wizard să extindă un shell deja aliniat. | 1.5z | 1.1, 1.2 | 0% | ✅ DONE 2026-05-11 — 3 smoke tests verzi (`Pas27DesignSystemSmokeTest`); baseline 544/544 cu 41 errors/4 failures IDENTIC cu Pas 2.6 (zero regresii) |
-| 3.0 | Wizard | Step 0 wizard "Documente sursă": upload + procesare async + preview valori extrase + Turbo Stream polling status | 1z | 2.5.8, 2.6, 2.7 | 0% | ⏳ |
-| 3.1 | Wizard | DTOs + Forms 5 pași (Documente, Creditor, Debitor, Creanță, Confirmare) cu pre-populare din `Document.extractedData` + indicator vizual câmp auto-completat | 1z | 1.1, 2.1-2.3, 3.0 | 50% | ⏳ |
-| 3.2 | Wizard | `CaseWizardController` + session storage + templates | 1z | 3.1 | 60% | ⏳ |
-| 3.3 | Wizard | Stimulus controllers (`live-calc`, `creditor-search`, `debtor-search`) + endpoint-uri AJAX | 1z | 3.2, 2.1-2.4 | 20% | ⏳ |
+| 3.0 | Wizard | Step 0 wizard "Documente sursă": upload + procesare async (Mercure-first cu polling fallback) + side-card agregat „Date detectate" + `PrefillFromExtractionService` (mutat din 3.1 per analiză 2026-05-11) + migrare `Document.legalCase` NULLABLE | 1.5z | 2.5.8, 2.6, 2.7 | 0% | ⏳ — REVIZIE 2026-05-11 |
+| 3.1 | Wizard | DTOs + Forms 4 pași (1-4: Creditor, Debitor, Creanță, Confirmare) cu validări complete + meta `autoFilled` (NU `_autoFilled`) + indicator vizual câmp auto vs manual. Notă: DTOs scheletice + `PrefillFromExtractionService` deja create în Pas 3.0 — aici doar refactor cu validări | 1z | 1.1, 2.1-2.3, 3.0 | 50% | ⏳ |
+| 3.2 | Wizard | `CaseWizardController` extins step 1-4 + session storage + templates + **integrare obligatorie `OpAdmissibilityValidator` la Step 4 submit** (ERROR blochează, WARNING cu confirmare bifabilă) + audit `wizard_submit` cu `fields_auto[]`/`fields_manual[]` + reuse Creditor existent pe UNIQUE(user, cui) | 1z | 3.1 | 60% | ⏳ |
+| 3.3 | Wizard | `Step3ClaimLiveComponent` + **`Step2DebtorsLiveComponent`** (Live Component pentru multi-debtor, decis în loc de CollectionType vanilla) + UX Autocomplete creditor (cu `CreditorRepository::createAutocompleteQueryBuilder` scoped per-user) + `debitor-anaf-lookup_controller.js` + `LookupController` `/api/anaf-lookup/{cui}` | 1z | 3.2, 2.1-2.4 | 20% | ⏳ |
 | 4.1 | Termene | `DeadlineService` (creare automată somație/cerere în anulare/prescripție) | 0.5z | 1.1 | 0% | ⏳ |
 | 4.2 | Termene | `DeadlineCreationSubscriber` + refactor `CaseWorkflowSubscriber`→`CaseWorkflowSubscriber` | 0.5z | 4.1, 1.3 | 80% | ⏳ |
 | 4.3 | Termene | UI tab "Termene" în view dosar + mark complete | 0.5z | 4.1 | 0% | ⏳ |
@@ -1516,47 +1516,82 @@ Reviews 2026-05-11:
 
 ---
 
-### PASUL 3.0 | Step 0 wizard "Documente sursă" | 1 zi | 0% reutilizare
+### PASUL 3.0 | Step 0 wizard "Documente sursă" + agregare extracție | 1.5 zile | 0% reutilizare | 🔴 Nivel 3 testing
 
 **Rezultat**: _(va fi completat la marcarea ca DONE)_
 
-**Scop**: prim step wizard — upload documente, procesare async, preview valori extrase.
+**Scop**: prim step wizard — upload documente, procesare async (Mercure-first cu fallback polling), side-card cu valorile extrase **agregate cross-document** (best confidence per câmp ≥ 0.8). Include și `PrefillFromExtractionService` mutat din Pas 3.1 (per decizia D2 din revizia 2026-05-11) — astfel side-card-ul mockup-ului poate fi populat real, nu cu placeholder.
 
-**Mock-up de referință** (sugestiv): [`docs/LexRecovery/mockups/v2/03-wizard/step0-documente.html`](./mockups/v2/03-wizard/step0-documente.html) — direcție pentru layout, drag-and-drop area, listă status per document, preview valori extrase. Adaptează după nevoie.
+**Mock-up de referință**: [`docs/LexRecovery/mockups/v2/03-wizard/step0-documente.html`](./mockups/v2/03-wizard/step0-documente.html) — layout, drop zone, listă documente, side-card agregat „Date detectate" cu 3 secțiuni (Creditor / Debitor / Creanță) și confidence bar per secțiune.
+
+**🔵 Modificări scope post-analiză 2026-05-11**:
+- Adăugat: `PrefillFromExtractionService` (mutat din 3.1).
+- Adăugat: migrare `Document.legal_case_id` NULLABLE (rezolvă C6 — upload înainte de a exista dosarul).
+- Adăugat: `ExtractionMercurePublisher` subscriber pe `DataExtractedEvent`, publică doar metadata (fix W1 GDPR Pas 2.6).
+- Scope-cut (D1): NU implementăm progres granular per-strategie — doar 4 stări status.
+- Estimare actualizată: 1z → 1.5z.
 
 **PROMPT**:
-> 1. **Update `CaseWizardController`**: ruta `GET/POST /case/new/documente` ca step 0. Behaviour:
->    - GET: dacă session bag are deja `documentIds`, afișează preview cu valorile extrase pentru fiecare document; altfel afișează formular upload.
->    - POST upload: Symfony FormType cu `FileType` multiple (max 10 fișiere, max 10MB fiecare, doar PDF/JPG/PNG). Pentru fiecare fișier: persist `Document` (legat temporar de session, nu de Dosar — dosarul nu există încă) + dispatch `ExtractDataMessage`. Salvează `documentIds` în session bag.
->    - Buton "Sări peste" — direct la step 1 cu session bag gol pentru extracție.
+> 1. **Migrare `Document.legal_case_id` NULLABLE** (rezolvă C6):
+>    - Modifică `Document.legalCase` → nullable în entitate.
+>    - Generează migrare `ALTER TABLE document MODIFY legal_case_id INT NULL`.
+>    - Update `DocumentUploadService::upload()` pentru a accepta `?LegalCase`.
 >
-> 2. **Mercure push în loc de polling** (folosește `mercure_controller.js` din Pas 0.2):
->    - Document upload → publică pe topic `case/temp/{sessionId}/extraction-status` evenimente cu `{documentId, status, confidence}`.
->    - În UI step 0: container cu `data-controller="mercure"` și `data-mercure-topic-value="case/temp/{sessionId}/extraction-status"`.
->    - La fiecare event Mercure → update HTML element corespunzător documentului (Turbo Stream `replace` pe element).
->    - Indicator vizual: skeleton pulsant pentru PROCESSING, ✓ verde pentru COMPLETED, ⚠ portocaliu pentru FAILED.
->    - Fallback polling: dacă EventSource fail după 5s, fall back la `extracted-data-poll_controller.js` (polling la 3s).
+> 2. **`CaseWizardController` nou** (`src/Controller/Case/CaseWizardController.php`):
+>    - Rute: `GET /case/new` (route name `case_wizard_start`) → redirect 302 la step 0; `GET/POST /case/new/documents` (route name `case_wizard_documents`).
+>    - Session bag `case_wizard_data` cu cheile: `documentIds[]` (Pas 3.0), `creditor`, `debtors`, `claim` (Pas 3.1-3.2).
+>    - GET `/case/new/documents`: dacă `documentIds` în session → afișează listă documente cu badge status + side-card agregat (din `PrefillFromExtractionService`); altfel afișează drop zone gol.
+>    - POST upload: `Step0DocumentsType` cu `FileType` multiple (max 10 fișiere × 10 MB, MIME whitelist `DocumentUploadService::ALLOWED_MIME_TYPES`). Pentru fiecare fișier: `DocumentUploadService::upload($file, null, $user)` (LegalCase null per migrare) + dispatch `ExtractDataMessage($document->getId())` + salvează ID în session.
+>    - Buton „Sări peste" — redirect direct la `case_wizard_creditor` (Pas 3.2) cu session bag gol.
 >
-> 3. **Endpoint Mercure publish** după dispatch `ExtractDataMessage` la upload + în `ExtractDataMessageHandler` la fiecare schimbare status (PROCESSING/COMPLETED/FAILED).
+> 3. **`PrefillFromExtractionService` nou** (`src/Service/Extragere/PrefillFromExtractionService.php`, mutat din Pas 3.1):
+>    - `aggregateForCreditor(int[] $documentIds): Step1CreditorData`
+>    - `aggregateForDebtor(int[] $documentIds): Step2DebtorEntry` (un singur debtor primar)
+>    - `aggregateForClaim(int[] $documentIds): Step3ClaimData`
+>    - Algoritm: parcurge `Document.extractedData[creditor|debtor|claim]` cu hidratare în sub-DTOs (`CreditorExtraction`, `DebtorExtraction`, `ClaimExtraction`), alege per câmp valoarea cu cel mai mare `confidencePerField[fieldName]` ≥ 0.8; câmpurile < 0.8 lăsate `null`. Tolerează lipsa cheii / sub-DTO null (C8).
+>    - Returnează DTOs cu meta `array $autoFilled = []` (lista numelor de câmpuri auto-completate).
+>    - DTO-urile (`Step1CreditorData`, `Step2DebtorEntry`, `Step2DebtorsData`, `Step3ClaimData`) sunt scheletice aici — Pas 3.1 adaugă constraints + Forms.
 >
-> 4. **Template** `templates/case/_step0_documente_content.html.twig`:
->    - Drop zone upload + lista documente uploadate cu badge status și preview valori extrase (dacă COMPLETED).
->    - Pentru fiecare doc COMPLETED: card cu valorile principale extrase (denumire creditor, denumire debitor, sumă, scadență) și badge confidence.
->    - Buton "Continuă" disabled până când toate documentele sunt în status terminal (COMPLETED sau FAILED).
->    - Notă GDPR explicită: "Documentele sunt procesate cu un serviciu AI. Vezi politica noastră de confidențialitate."
+> 4. **`ExtractionMercurePublisher` subscriber** (`src/EventSubscriber/ExtractionMercurePublisher.php`, B7):
+>    - Subscribe `DataExtractedEvent`.
+>    - Publică pe topic `document/{documentId}/extraction-status` (per-document, NU session-scoped — mai simplu pentru worker).
+>    - Payload **doar metadata** (W1 GDPR fix Pas 2.6): `{documentId, status: 'COMPLETED'|'FAILED', confidence: float}`. **NU publica `extractedData`**.
 >
-> 5. **Logică pre-populare**: la GET step 1, controller-ul agregă `extractedData` din toate documentele session și pre-populează formularul `Step1CreditorData` cu valorile cele mai înalt-confidence per câmp. Idem step 2 (debitori) și step 3 (creanță). Câmpurile pre-populate sunt marcate cu un atribut HTML data care declanșează stilizare specială (badge "auto" lângă input).
+> 5. **Frontend Mercure + fallback polling** (A6):
+>    - În template step 0, container `<ul data-controller="mercure" data-mercure-topics-value="<json-encoded-list-of-topics>">` (un topic per document).
+>    - La fiecare event Mercure → swap badge status + (dacă COMPLETED) trigger reload soft al side-card-ului via Turbo Stream `replace`.
+>    - `assets/controllers/extracted-data-poll_controller.js` — fallback la polling 3s dacă EventSource emite `error` în primele 5s.
+>    - Indicator vizual: skeleton Preline pulsant pentru PROCESSING, ✓ verde pentru COMPLETED, ⚠ portocaliu pentru FAILED. **NU** afișa procent / nume strategie (D1).
 >
-> 6. **Asociere documente la dosar**: la finalul wizard (Pas 3.2 step 4 submit), documentele session se asociază definitiv cu Dosar-ul nou creat (FK `legalCase_id` setat).
+> 6. **Template `templates/case/wizard.html.twig`** (rewrite — vechiul small-claims 6-step e șters):
+>    - Extinde `base.html.twig` (sidebar + topbar Pas 2.7).
+>    - Header cu `<twig:Stepper>` (5 entries 0-4).
+>    - `{% block wizard_step_content %}` overridable per pas.
 >
-> 7. **Update `app:seed-demo-cases`**: include 1-2 dosare demo cu documente pre-uploadate și extracție simulată (status COMPLETED, extractedData populat manual).
+> 7. **Template `templates/case/_step0_documents_content.html.twig`**:
+>    - Layout grid `lg:grid-cols-3`: form `lg:col-span-2` + side-card `lg:col-span-1 lg:sticky lg:top-20`.
+>    - Drop zone + listă documente cu badge status + skeleton/spinner.
+>    - Side-card „Date detectate" populat din `PrefillFromExtractionService::aggregateForCreditor/Debtor/Claim` apelat pe GET cu `documentIds` din session. Confidence bar gradient per secțiune (RO labels per mockup).
+>    - GDPR notice amber: „Documentele rămân pe serverul nostru. Doar textul OCR (cu CNP-uri mascate) e trimis la AI pentru extracție structurată."
+>    - CTA primary „Continuă cu datele extrase" (POST la `case_wizard_creditor` cu redirect 303) + secondary „Sări peste — completez manual".
+>    - Continuă enabled doar dacă toate documentele sunt în status terminal.
 >
-> Teste funcționale:
-> - Upload 1 document → status PENDING → simulare worker → COMPLETED → preview vizibil → continuă la step 1 → câmpuri pre-populate.
-> - Upload document corupt → status FAILED → continuă posibilă, fără pre-populare.
-> - Skip step 0 → wizard merge ca înainte (manual fill).
+> 8. **Update CTA „Dosar nou" în `templates/_topbar.html.twig`**: înlocuiește fallback `dashboard_cases` cu `path('case_wizard_start')` (rezolvă placeholder-ul setat în Pas 2.7).
 >
-> Commit: `feat(wizard): step 0 source documents with async extraction and pre-fill`.
+> 9. **Update `app:seed-demo-cases`**: include 1-2 dosare demo cu documente pre-uploadate și extracție simulată (status COMPLETED, extractedData populat manual cu sub-DTOs corecte).
+>
+> **Teste 🔴 Nivel 3** (`feedback_test_coverage_3_layers.md`):
+> - **Nivel 1 (unit)**: `PrefillFromExtractionServiceTest` cu 3 scenarii (multiple docs valori conflictuale, confidence variat, niciun doc / toate < 0.8). `Step0DocumentsTypeTest` validări MIME + file count + size.
+> - **Nivel 2 (integration)**: `CaseWizardControllerStep0Test` (`WebTestCase`) — upload real → assert Document persistat + ExtractDataMessage în `InMemoryTransport` + sesiune populată. Fixtură: PDF realist din `tests/fixtures/extraction/` (reuse Pas 2.5.3).
+> - **Nivel 3 (cascade)**: `WizardStep0CascadeTest` end-to-end: upload → worker consume real (Stub strategy default LOCAL_ONLY) → `DataExtractedEvent` dispatched → `ExtractionMercurePublisher` interceptat → assert apel HTTP cu payload metadata-only (NU `extractedData` în payload).
+>
+> **Boundary explicit — NU livrează Pas 3.0**:
+> - DTOs+Forms cu validări complete (Pas 3.1).
+> - Live Components Step 2 / Step 3 (Pas 3.3).
+> - ANAF lookup endpoint și Stimulus (Pas 3.3).
+> - Persist final LegalCase + Creditor + Debtors la submit (Pas 3.2).
+>
+> Commit: `feat(wizard): step 0 source documents with async extraction, prefill aggregator and Mercure publisher`.
 
 ---
 
@@ -1566,114 +1601,218 @@ Reviews 2026-05-11:
 
 **Rezultat**: _(va fi completat la marcarea ca DONE)_
 
-**Scop**: structură DTO + Form pentru wizard cu 5 pași (step 0 deja livrat la Pas 3.0; aici DTOs/Forms pentru 1-4) și logică de pre-populare din `Document.extractedData`.
+**Scop**: refactor DTOs scheletice din Pas 3.0 cu validări complete + Forms (FormTypes) pentru step 1-4 + setup `data-auto-filled` attribute pe câmpurile pre-completate.
 
 **Mock-up-uri de referință** (sugestive — toate în [`docs/LexRecovery/mockups/v2/03-wizard/`](./mockups/v2/03-wizard/)):
-- `step1-creditor.html` — direcție pentru câmpuri PF/PJ + autocomplete creditor + badge "auto-completat"
+- `step1-creditor.html` — direcție pentru câmpuri PF/PJ + autocomplete creditor + badge "auto · 95%"
 - `step2-debitor.html` — direcție pentru collection cu adăugare/ștergere debitor + ANAF lookup la blur CUI
 - `step3-creanta.html` — direcție pentru câmpuri creanță + zona de calcul live
 - `step4-confirmare.html` — direcție pentru sumar cu câmpuri auto vs manuale + checkboxes acceptare
 
 Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Forms; ajustează (adaugă/elimini) dacă apare o nevoie justificată.
 
+**🔵 Modificări scope post-analiză 2026-05-11**:
+- DTOs scheletice + `PrefillFromExtractionService` **deja create în Pas 3.0** (mutat per D2) — Pas 3.1 face refactor cu validări + Forms.
+- Meta câmp `autoFilled` (NU `_autoFilled` — underscore prefix interpretat de Symfony Forms ca form field, NU vrem asta).
+- Câmpurile Creditor/Debtor folosesc `cui` (NU `taxId`) și `onrcNumber` (NU `tradeRegistryNumber`) — rename efectuat la Pas 2.4.
+- Step3 dropdown `relationshipType` afișează doar `COMERCIAL` (CIVIL aruncă DomainException — C4).
+- Step3 adăugat `currency: string` (RON/EUR, default RON).
+- Step3 validare `dueDate <= today` (NU strict `în trecut`).
+
 **PROMPT**:
-> Creează în `src/DTO/Dosar/`:
-> - `Step1CreditorData`: `creditorId` (int nullable — pentru autocomplete), sau câmpuri Creditor: `personType`, `name`, `taxId`, `personalId`, `address`, `email`, `phone`, `iban`. Plus câmpuri meta `_autoFilled` (array string field names — populated from extraction). Validări: dacă `creditorId == null`, câmpurile sunt obligatorii.
-> - `Step2DebtorsData`: `debtors` (array of `Step2DebtorEntry`). Min 1, max 5.
-> - `Step2DebtorEntry`: `personType`, `name`, `taxId` (validare format cu Symfony Validator), `personalId`, `address`, `email`, `phone`. Plus `_autoFilled`.
-> - `Step3ClaimData`: `amount`, `dueDate`, `relationshipType`, `legalGround`, `contractualInterest` (optional %), `penalties` (optional %), `description`. Plus `_autoFilled`. Validări: amount > 0, dueDate în trecut.
-> - `Step4ConfirmationData`: `acceptTerms` (bool, IsTrue), `acceptDataAccuracy` (bool, IsTrue), `_extractionSummary` (info-only — sumar câmpuri auto-completate vs manuale, afișat în confirmare).
+> Refactor DTOs scheletice din `src/DTO/Dosar/` (create la Pas 3.0):
+> - `Step1CreditorData`:
+>   - `creditorId: ?int` (pentru autocomplete UX bundle — Pas 3.3).
+>   - Câmpuri Creditor: `personType: ?PersonType`, `name: ?string`, `cui: ?string`, `personalId: ?string`, `onrcNumber: ?string`, `address: ?string`, `email: ?string`, `phone: ?string`, `iban: ?string`, `legalRepresentative: ?string`.
+>   - Meta: `array $autoFilled = []` (lista numelor de câmpuri auto-completate).
+>   - Validări: dacă `creditorId === null`, atunci `personType`, `name`, `address` obligatorii (Symfony Validator `Expression` constraint).
+> - `Step2DebtorEntry`:
+>   - Câmpuri Debtor: `personType: ?PersonType`, `name: ?string`, `cui: ?string` (validator CUI checksum — reutilizăm logica din `PdfParserExtractionStrategy`), `personalId: ?string`, `onrcNumber: ?string`, `address: ?string`, `email: ?string`, `phone: ?string`, `iban: ?string`, `administrator: ?string`.
+>   - ANAF metadata: `anafStatus: ?AnafStatus`, `anafCheckedAt: ?\DateTimeImmutable` (setate de Stimulus controller Pas 3.3).
+>   - BPI metadata: `inInsolvency: bool = false`, `insolvencyCheckedAt: ?\DateTimeImmutable` (cerut explicit C7 — bifare „Am verificat BPI"; altfel orice dosar PJ e blocat la submit Step 4 per OpAdmissibilityValidator).
+>   - Meta: `array $autoFilled = []`.
+> - `Step2DebtorsData`:
+>   - `array $debtors` (min 1, max 5, `Assert\Valid` recursiv pe entries).
+> - `Step3ClaimData`:
+>   - `amount: ?float` (>0), `currency: string = 'RON'` (RON/EUR), `dueDate: ?\DateTimeImmutable` (Assert\LessThanOrEqual('today')), `relationshipType: RelationshipType = COMERCIAL` (CIVIL hidden — C4), `legalGround: ?LegalGroundCategory`, `description: ?string`.
+>   - Meta: `array $autoFilled = []`.
+> - `Step4ConfirmationData`:
+>   - `acceptTerms: bool` (Assert\IsTrue).
+>   - `acceptDataAccuracy: bool` (Assert\IsTrue).
+>   - `acknowledgedWarnings: bool = false` (Assert\IsTrue condițional — devine cerut DOAR dacă `OpAdmissibilityValidator` returnează WARNING-uri la Step 4 GET; vezi Pas 3.2 D3).
 >
 > Forms în `src/Form/Dosar/`:
-> - `Step1CreditorType`, `Step2DebtorsType` (CollectionType cu `Step2DebtorEntryType`), `Step3ClaimType`, `Step4ConfirmationType`.
-> - Form types adaugă `data-auto-filled` attribute pe câmpurile pre-completate (folosit de Stimulus pentru badge vizual).
+> - `Step1CreditorType`, `Step2DebtorEntryType` (form pentru un debitor), `Step2DebtorsType` (CollectionType cu `Step2DebtorEntryType` — totuși la runtime în Pas 3.3 e wrap-uit într-un `Step2DebtorsLiveComponent` pentru add/remove dinamic), `Step3ClaimType`, `Step4ConfirmationType`.
+> - Form types adaugă `data-auto-filled="true"` attribute pe câmpurile pre-populate (citit de Stimulus Pas 3.3 pentru badge vizual „auto · N%" peste field label).
 >
-> Helper service `src/Service/Extragere/PrefillFromExtractionService.php`:
-> - `prefillCreditor(array $documentIds): Step1CreditorData` — agregă `extractedData` din documente, alege per câmp valoarea cu cel mai mare confidence (≥ 0.8); câmpurile cu confidence < 0.8 lăsate goale.
-> - `prefillDebtors(array $documentIds): Step2DebtorsData`.
-> - `prefillClaim(array $documentIds): Step3ClaimData`.
-> - Returnează DTO cu `_autoFilled` populat cu numele câmpurilor pre-completate.
+> Refactor `PrefillFromExtractionService` (creat în Pas 3.0):
+> - Returnează DTOs validate (`Step2DebtorsData` garantat cu min 1 entry).
+> - Edge case: `documentIds` gol → returnează DTOs goale dar valide structural (validatorul Form va respinge la submit cu mesaje explicite).
 >
-> Teste: `tests/Form/Dosar/` — 1 test per FormType, verificare validări. `tests/Service/Extragere/PrefillFromExtractionServiceTest.php` cu 3 scenarii (multiple docs cu valori conflictuale, confidence variat, niciun doc).
+> Teste (Nivel 1 — logică pură):
+> - `tests/DTO/Dosar/*Test` — 1 test per DTO cu Symfony Validator (happy + edge cases per câmp obligatoriu / opțional).
+> - `tests/Form/Dosar/*Test` — 1 test per FormType (folosește `TypeTestCase`), verificare validări + `data-auto-filled` attribute setat conform.
+> - `PrefillFromExtractionServiceTest` extins cu validare DTO finale + scenariu „toate confidence < 0.8" (DTOs goale dar valide).
 >
-> Commit: `feat(wizard): DTOs + Forms 5-step + prefill from extraction`.
+> Commit: `feat(wizard): DTOs + Forms 4-step with validations and autoFilled metadata`.
 
 ---
 
-### PASUL 3.2 | `CaseWizardController` + session storage | 1 zi | 60% reutilizare
+### PASUL 3.2 | `CaseWizardController` extins step 1-4 + submit + validator OP | 1 zi | 60% reutilizare
 
 **Rezultat**: _(va fi completat la marcarea ca DONE)_
 
-**Mock-up-uri de referință** (sugestive): aceleași 5 fișiere din [`docs/LexRecovery/mockups/v2/03-wizard/`](./mockups/v2/03-wizard/) (step0-documente.html → step4-confirmare.html). Template-urile Twig se inspiră din ele pentru pattern-ul de wizard (header cu Stepper, container layout, butoane back/next pe footer), cu libertate de adaptare.
+**Mock-up-uri de referință** (sugestive): aceleași 5 fișiere din [`docs/LexRecovery/mockups/v2/03-wizard/`](./mockups/v2/03-wizard/). Template-urile Twig se inspiră din ele.
+
+**🔵 Modificări scope post-analiză 2026-05-11**:
+- Adăugat (D3): integrare obligatorie `OpAdmissibilityValidator` la Step 4 GET + POST. ERROR-uri blochează submit; WARNING-uri afișate cu `acknowledgedWarnings` checkbox condițional.
+- Adăugat (C3): reuse `Creditor` existent pe UNIQUE(user, cui) la submit — verifică ÎNAINTE de persist, flash info „Creditor existent reutilizat".
+- Adăugat (C7): la Step 2 sau Step 4 bifare „Verificat BPI azi" setează `Debtor.insolvencyCheckedAt = now()` (altfel ERROR validator).
+- Adăugat (C5): `CompetentCourtResolver::resolve()` returnează `null` court acceptat — afișat ca „Instanță needeterminată — verifică manual", submit poate continua.
+- Adăugat (B10): audit log `wizard_submit` cu `newData = {fields_auto: [...], fields_manual: [...], extractedDocIds: [...]}`.
+- Adăugat (B9): la submit final → redirect `dashboard_cases` cu flash success (NU `case_view` — nu există încă, Pas 7.2).
 
 **PROMPT**:
-> Creează `src/Controller/Case/CaseWizardController.php` cu rute:
-> - `GET /case/new` → redirect la step 0 (documente).
-> - `GET/POST /case/new/{step}` (step = documents|creditor|debtor|claim|confirmation).
->
-> Foloseste `$request->getSession()` pentru session bag `case_wizard_data` (similar cu pattern-ul din vechiul `CaseWizardController` — referință git history).
+> Extinde `src/Controller/Case/CaseWizardController.php` (creat la Pas 3.0) cu rute step 1-4. Route names: `case_wizard_creditor`, `case_wizard_debtor`, `case_wizard_claim`, `case_wizard_confirmation`. Path-uri: `/case/new/{creditor|debtor|claim|confirmation}`.
 >
 > Algoritm:
-> 0. Step 0 deja implementat la Pas 3.0 (upload + dispatch ExtractDataMessage + persistă `documentIds` în session).
-> 1. La GET step 1: dacă `documentIds` în session → apel `PrefillFromExtractionService::prefillCreditor()` și folosește returnul ca `data` pentru form. La POST: salvează în session.
-> 2. La GET step 2: idem `prefillDebtors()`. La POST (după ANAF lookup live): salvează.
-> 3. La GET step 3: idem `prefillClaim()`. La POST: validare + calcul auto (folosește `InterestCalculatorService`, `StampDutyCalculator`, `CompetentCourtResolver`).
-> 4. La step 4 submit: persist entități (Creditor — dacă nou, Debitori, Dosar) + asociere documente session cu Dosar nou (set `legalCase_id`) + audit log per câmp auto-completat (sursa: AI/manual) + tranziție inițială (status implicit `AMIABIL`).
+> 0. **Step 0** deja implementat la Pas 3.0 (upload + dispatch + side-card agregat).
 >
-> Rate limiting: aplică `case_creation` rate limiter (existent, 10/oră per user) la endpoint final.
+> 1. **GET step 1 (creditor)**:
+>    - Dacă `documentIds` în session → apel `PrefillFromExtractionService::aggregateForCreditor()`.
+>    - Render `Step1CreditorType` cu DTO returnat ca `data`.
+>    - Afișează badge „auto · N%" pe câmpurile din `$dto->autoFilled[]`.
+>    POST → validează → salvează în session bag → redirect step 2.
+>
+> 2. **GET step 2 (debitori)**:
+>    - Apel `PrefillFromExtractionService::aggregateForDebtor()` → wrap într-un `Step2DebtorsData` cu o singură entry.
+>    - Render template care delegate la `Step2DebtorsLiveComponent` (Pas 3.3) — pentru moment în Pas 3.2 folosim CollectionType static; Live Component-ul completează interactivitatea în 3.3.
+>    POST → validează → salvează în session → redirect step 3.
+>
+> 3. **GET step 3 (creanță)**:
+>    - Apel `PrefillFromExtractionService::aggregateForClaim()`.
+>    - Render `Step3ClaimType` + slot pentru `Step3ClaimLiveComponent` (Pas 3.3).
+>    POST → validează → salvează în session → redirect step 4.
+>
+> 4. **GET step 4 (confirmare)** — Punct critic:
+>    - Construiește un `LegalCase` skeleton din session (NU `persist` încă).
+>    - Apel `OpAdmissibilityValidator::validate($caseSkeleton)` → returnează `array<AdmissibilityIssue>`.
+>    - Split issues în ERROR și WARNING.
+>    - Render template cu:
+>      - Sumar 4 cards (Documente, Creditor, Debitor, Creanță) cu badge auto/manual per câmp (din `$dto->autoFilled[]`).
+>      - Calcule finale (re-rulează `InterestCalculatorService`, `StampDutyCalculator`, `CompetentCourtResolver`).
+>      - Dacă există ERROR → alert roșu inline cu lista issues (mesaj i18n din `IssueCode`) + buton „Salvează dosar" disabled.
+>      - Dacă există WARNING (fără ERROR) → alert amber + checkbox `acknowledgedWarnings` (devine IsTrue cerut).
+>      - Dacă nici ERROR nici WARNING → 2 IsTrue checkboxes (`acceptTerms`, `acceptDataAccuracy`) + buton enabled.
+>      - GDPR notice amber (Anthropic 30-day retention citat din mockup).
+>
+> 5. **POST step 4 (submit final)** — Tranzacționat în `EntityManager::wrapInTransaction`:
+>    a. **Re-rulează validator** (defense): orice ERROR → respinge cu flash + redirect step 4 GET (nu rescrie session).
+>    b. **Reuse Creditor** (C3): dacă `Step1.creditorId` setat → `CreditorRepository::find()`. Altfel: `CreditorRepository::findOneBy(['user' => $user, 'cui' => $cui])`; dacă există → reuse + flash info; altfel → create nou.
+>    c. **Persist `LegalCase`** cu: `setUser`, `setCreditor`, `setStatus(AMIABIL)` (implicit), `setAmount` (string format Doctrine decimal), `setCurrency`, `setDueDate`, `setRelationshipType`, plus `setCalculatedInterest(InterestResult::$total)` + `setStampDuty(StampDutyResult::$amount)` + `setCourt(CourtResolveResult::$court)` (acceptă null per C5).
+>    d. **Persist `Debtor` per entry** cu FK `legalCase`. Setează `anafStatus`, `anafCheckedAt`, `inInsolvency`, `insolvencyCheckedAt`.
+>    e. **Update Document.legalCase** pentru toate documentele session (`UPDATE document SET legal_case_id = :caseId WHERE id IN (:ids)`).
+>    f. **AuditLog**: `AuditLogService::log('wizard_submit', 'LegalCase', (string) $case->getId(), newData: ['fields_auto' => $allAutoFilled, 'fields_manual' => $allManual, 'extractedDocIds' => $documentIds, 'admissibility_warnings' => $warningCodes])`.
+>    g. Clear session bag `case_wizard_data`.
+>    h. Redirect `dashboard_cases` cu flash success „Dosar creat cu succes — număr {caseNumber}".
+>
+> **Rate limiting**: aplică `case_creation` (10/h existent) **doar pe POST step 4**.
 >
 > Templates:
-> - `templates/case/wizard.html.twig` — layout cu stepper 4 pași.
-> - `_step1_creditor_content.html.twig`, `_step2_debtor_content.html.twig`, `_step3_claim_content.html.twig`, `_step4_confirmation_content.html.twig`.
-> - `_stepper.html.twig` (refolosit din vechiul wizard cu adaptare la 4 pași).
+> - `templates/case/wizard.html.twig` — extins în Pas 3.0; aici doar overrides per pas.
+> - `templates/case/_step1_creditor_content.html.twig`
+> - `templates/case/_step2_debtor_content.html.twig` (placeholder Live Component slot — Pas 3.3)
+> - `templates/case/_step3_claim_content.html.twig` (placeholder Live Component sidebar slot — Pas 3.3)
+> - `templates/case/_step4_confirmation_content.html.twig` — 4 cards summary + Calcule finale + GDPR notice + ERROR/WARNING display + IsTrue checkboxes + CTA „Salvează dosar" verde gradient.
 >
-> Teste funcționale: `tests/Controller/Case/CaseWizardControllerTest.php` — happy path complet (login → 4 pași → dosar persistat cu status AMIABIL).
+> Markaj câmp auto vs manual (per mockup step 4):
+> - Badge top page: 2 chips „câmp auto-completat" (blue ⚡) + „introdus manual" (slate ✎).
+> - Per câmp pe cards: icon `⚡` blue lângă valoare dacă auto, fără icon dacă manual.
 >
-> Commit: `feat(wizard): CaseWizardController with 5-step session storage`.
+> Teste (Nivel 1+2):
+> - `CaseWizardControllerStep1To4Test` (`WebTestCase`) — happy path: login → 4 pași → POST submit → assert LegalCase persistat (cu toate FK-urile + Court + Interest + StampDuty) + Debtors persistați + Documents.legal_case_id setat + AuditLog `wizard_submit` cu newData corect + flash success + redirect.
+> - Test path ERROR: debitor cu `anafStatus = RADIAT` → assert step 4 GET returnează alert roșu + buton disabled.
+> - Test path WARNING: debitor PF → assert checkbox `acknowledgedWarnings` cerut; submit fără bifare → respins.
+> - Test reuse Creditor C3: submit cu CUI existent → assert Creditor existent reutilizat, NU duplicat.
+> - Test insolvency check C7: submit cu `insolvencyCheckedAt = null` → assert blocat la step 4 GET cu ERROR `OP_INSOLVENCY_NOT_VERIFIED`.
+> - Test rate limiter: 11 submituri consecutive → al 11-lea respins cu HTTP 429.
+>
+> Commit: `feat(wizard): CaseWizardController step 1-4 with OpAdmissibilityValidator and audit per-field source`.
 
 ---
 
-### PASUL 3.3 | Live Component pentru calc + UX Autocomplete + ANAF lookup | 1 zi | 20% reutilizare
+### PASUL 3.3 | Live Components + UX Autocomplete + ANAF lookup | 1 zi | 20% reutilizare
 
 **Rezultat**: _(va fi completat la marcarea ca DONE)_
 
 **Mock-up-uri de referință** (sugestive):
-- [`step3-creanta.html`](./mockups/v2/03-wizard/step3-creanta.html) — direcție pentru zona de calcul live (carduri cu dobândă/taxă/instanță); Live Component înlocuiește JS-ul mock-up-ului
+- [`step3-creanta.html`](./mockups/v2/03-wizard/step3-creanta.html) — direcție pentru zona de calcul live (carduri cu dobândă/taxă/instanță) + Preline accordion BNR breakdown; Live Component înlocuiește JS-ul mock-up-ului
 - [`step1-creditor.html`](./mockups/v2/03-wizard/step1-creditor.html) — direcție pentru dropdown autocomplete creditor (Tom Select via UX Autocomplete)
-- [`step2-debitor.html`](./mockups/v2/03-wizard/step2-debitor.html) — direcție pentru feedback vizual la blur CUI (loading spinner + auto-fill rows)
+- [`step2-debitor.html`](./mockups/v2/03-wizard/step2-debitor.html) — direcție pentru feedback vizual la blur CUI (loading spinner + badge „ANAF verificat" emerald + auto-fill rows)
+
+**🔵 Modificări scope post-analiză 2026-05-11**:
+- Adăugat (D4): `Step2DebtorsLiveComponent` cu LiveActions `addDebtor` / `removeDebtor` — înlocuiește CollectionType vanilla pentru multi-debtor UI.
+- Adăugat (B3): `CreditorRepository::createAutocompleteQueryBuilder(User)` pentru scoping UX Autocomplete per-user.
+- Adăugat (O): Live Component-urile primesc `county` și `locality` ca props prin `mount()` din session bag (NU citesc session direct).
+- Clarificat: Live Component-urile fac POST la endpoint server intern auto-generat de Symfony UX (NU prin API custom expus) — fără rate limiter custom.
 
 **PROMPT**:
 > Reactivitate wizard step 1-3 — folosește bundle-urile UX din Pas 0.2 unde aplicabil:
 >
 > 1. **`Step3ClaimLiveComponent`** (Symfony UX Live Component) în `src/Twig/Components/Step3ClaimLiveComponent.php` cu template `templates/components/Step3ClaimLiveComponent.html.twig`:
->    - Props live: `amount`, `dueDate`, `relationshipType`, `county` (din debtor).
->    - La fiecare schimbare câmp (debounce 300ms automat de Live Components), serviciul recalculează: dobânda (`InterestCalculatorService`), taxa timbru (`StampDutyCalculator`), instanța sugerată (`CompetentCourtResolver`).
->    - Render server-side instant fără JS custom — beneficiu Live Components: zero endpoint AJAX manual, zero Stimulus pentru asta.
+>    - Props live: `amount: float`, `dueDate: ?\DateTimeImmutable`, `relationshipType: RelationshipType`, `currency: string`.
+>    - Props mount-only (din controller, NU live): `county: ?string`, `locality: ?string` — citite din session bag debtor primar la `mount()`.
+>    - La fiecare schimbare prop live (debounce 300ms automat), serviciul recalculează: dobânda (`InterestCalculatorService::calculate()`), taxa timbru (`StampDutyCalculator::calculate()`), instanța (`CompetentCourtResolver::resolve()`).
+>    - Render server-side instant — zero endpoint AJAX manual, zero Stimulus pentru asta.
+>    - Eroare handling: prinde `RuntimeException` (`exception.calculation.interest_rate_missing`) → afișează `t(...)`.
+>    - C5: dacă `Court === null` → afișează „Instanță needeterminată — verifică manual" (nu crash).
+>    - Template: sidebar dark gradient (`bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white`) cu:
+>      - Card sumă principală + dobândă + total
+>      - Preline `hs-accordion-group` cu breakdown BNR per perioadă (citat din mockup step 3)
+>      - Card taxă timbru + total + taxă
+>      - Card instanță competentă (sau placeholder dacă null).
 >
-> 2. **Step 1 creditor — UX Autocomplete** (Symfony UX Autocomplete):
->    - În `Step1CreditorType`: câmpul `creditorId` ca `EntityType` cu opțiunea `autocomplete: true`. Setup `AsEntityAutocompleteField` pe entitate.
->    - UX Autocomplete generează dropdown searchable cu Tom Select (zero cod custom).
->    - La selectare existent → ascunde câmpurile manual fill via Stimulus controller mic `creditor-mode_controller.js`.
+> 2. **`Step2DebtorsLiveComponent`** (Symfony UX Live Component, ✱ D4):
+>    - LiveActions: `addDebtor()` (apendă `Step2DebtorEntry` gol la `$debtors`), `removeDebtor(int $index)` (max 1 entry e protejată — buton remove disabled pe singura entry).
+>    - State: `array $debtors` (DTOs `Step2DebtorEntry`).
+>    - Pe submit (în `Step2DebtorsType`) — datele Live Component sunt serializate în form data via `LiveCollectionType` din UX Live Component sau prin `data_class` cu submit forward.
+>    - Template: listă form-uri inline (form widget per entry) + buton „+ Adaugă debitor secundar" (max 5).
 >
-> 3. **`debitor-anaf-lookup_controller.js`** (Stimulus, custom):
->    - La blur pe câmp CUI din step 2 (cu validare format înainte), fetch `/api/anaf-lookup/{cui}` cu rate limiter `company_lookup` (existent).
->    - La răspuns success: populează automat name + address, cu indicator vizual "completat din ANAF" (badge).
->    - La eroare: toast cu `toast:show` event (controller existent din Pas 0.2).
+> 3. **UX Autocomplete pentru Step 1 creditor**:
+>    - În `Step1CreditorType`: câmpul `creditorId` ca `EntityType` cu opțiunea `autocomplete: true`. Setup `#[AsEntityAutocompleteField]` pe `Creditor` cu `searchable: ['name', 'cui']`.
+>    - **CreditorRepository extension** (✱ B3): `createAutocompleteQueryBuilder(User $user): QueryBuilder` care filtrează `WHERE c.user = :user`. Wired via `searchable_query_builder` parameter al UX Autocomplete.
+>    - La selectare existent → ascunde câmpurile manual fill via Stimulus controller mic `creditor-mode_controller.js` (targets `manualFields`, action `change->creditor-mode#toggle`).
 >
-> 4. **Endpoint AJAX rămas** doar pentru ANAF lookup:
->    - `src/Controller/Api/LookupController.php`: `/api/anaf-lookup/{cui}` (GET) — refolosește `AnafLookupService` cu rate limiter `company_lookup` existent.
+> 4. **`debitor-anaf-lookup_controller.js`** (Stimulus, custom):
+>    - Triggere: `blur` pe input `cui` din Step 2 (un per debitor în collection).
+>    - Validare format client-side: regex `/^(RO)?\d{2,10}$/` înainte de fetch.
+>    - Loading: înlocuiește badge label cu „În ANAF..." + spinner. Success: populate hidden inputs `anafStatus`, `anafCheckedAt`, vizibile inputs `name`, `address` + badge emerald „ANAF verificat" + green dot + timestamp afișat sub câmp.
+>    - Eroare: dispatch event `toast:show` cu mesaj (`exception.anaf.cui_invalid` / `exception.anaf.unavailable`).
 >
-> 5. **Skeleton loading** pe câmpurile pre-populate din extracție (Pas 3.0 prefill): folosește `skeleton_controller.js` din Pas 0.2 — afișat până când extracția documentelor session e COMPLETED.
+> 5. **Endpoint AJAX pentru ANAF lookup** (✱ B4):
+>    - `src/Controller/Api/LookupController.php`: `#[Route('/api/anaf-lookup/{cui}', requirements: ['cui' => '(RO)?\d{2,10}'], methods: ['GET'])]`.
+>    - Folosește `AnafLookupService::lookupByCui()` + rate limiter `company_lookup` (10/h existent).
+>    - Răspuns JSON: `{companyName, cui, address, anafStatus, anafCheckedAt: ISO8601}` la success; `{error: 'exception.anaf.X'}` la eroare cu HTTP 404/503.
 >
-> Update `assets/controllers.json` cu controller-ele noi (creditor-mode, debitor-anaf-lookup).
+> 6. **Skeleton loading** pe câmpuri pre-populate (B5): folosește `skeleton_controller.js` existent — afișat doar dacă wizard accesat înainte ca worker să termine extracția (rar — în practică user așteaptă la step 0 până COMPLETED). Pe step 1+ când deja COMPLETED, skip skeleton.
 >
-> Notă: NU se mai adaugă rate limiter `live_calc` — Live Components fac POST direct la endpoint server intern, nu prin API custom expus.
+> 7. **Polling fallback refinement** (de la Pas 3.0):
+>    - `assets/controllers/extracted-data-poll_controller.js` — apelat de Mercure controller la timeout EventSource. Verifică `/api/document-status/{id}` la 3s.
+>    - Endpoint optional dacă Mercure e stabil — implementare doar dacă observăm în staging că EventSource pică.
 >
-> Teste: `tests/Twig/Components/Step3ClaimLiveComponentTest.php` cu schimbare props + assertion pe valori calculate.
+> Update `assets/controllers.json` cu controller-ele noi (`creditor-mode`, `debitor-anaf-lookup`, `extracted-data-poll`).
+>
+> Notă: NU se mai adaugă rate limiter `live_calc` — Live Components fac POST la endpoint server intern UX, nu prin API custom expus.
+>
+> Teste:
+> - `tests/Twig/Components/Step3ClaimLiveComponentTest.php` — schimbare props + assertion pe valori calculate. Edge case: `dueDate` în viitor → assert validation error.
+> - `tests/Twig/Components/Step2DebtorsLiveComponentTest.php` — `addDebtor()` adaugă entry, `removeDebtor(0)` pe singura entry → no-op (sau warning); `removeDebtor(1)` pe 2 entries → entry 0 rămâne.
+> - `tests/Controller/Api/LookupControllerTest.php` — MockHttpClient pentru ANAF + assert response shape success/failure + rate limiter respect (test environment cu `no_limit` doar pentru happy path; rate limit testat în WebTestCase separat).
+> - `tests/Repository/CreditorRepositoryTest.php` — `createAutocompleteQueryBuilder(User)` scopurile sunt strict per-user (assert NU returnează creditori altor utilizatori).
 >
 > Rulează `bin/console importmap:install` și `make tailwind` la final.
 >
-> Commit: `feat(wizard): Step3ClaimLiveComponent + UX Autocomplete creditor + ANAF lookup Stimulus`.
+> Commit: `feat(wizard): Step3ClaimLiveComponent + Step2DebtorsLiveComponent + UX Autocomplete creditor + ANAF lookup Stimulus`.
 
 ---
 

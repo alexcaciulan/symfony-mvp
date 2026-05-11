@@ -74,7 +74,9 @@ class SeedDemoCasesCommandTest extends KernelTestCase
         }
 
         $conn = $this->em->getConnection();
-        // Clean in FK-respecting order
+        // Clean in FK-respecting order. Documents reference legal_case (Pas 3.0
+        // command now seeds a demo Document on the first case for case-view UX).
+        $conn->executeStatement("DELETE d FROM document d JOIN legal_case lc ON d.legal_case_id = lc.id WHERE lc.case_number LIKE 'LR-DEMO-%'");
         $conn->executeStatement("DELETE ld FROM legal_deadline ld JOIN legal_case lc ON ld.legal_case_id = lc.id WHERE lc.case_number LIKE 'LR-DEMO-%'");
         $conn->executeStatement("DELETE d FROM debtor d JOIN legal_case lc ON d.legal_case_id = lc.id WHERE lc.case_number LIKE 'LR-DEMO-%'");
         $conn->executeStatement("DELETE FROM legal_case WHERE case_number LIKE 'LR-DEMO-%'");

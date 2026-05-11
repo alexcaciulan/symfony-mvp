@@ -46,7 +46,17 @@ final class MercureTokenService
             self::userNotificationTopic($user),
             'user/'.$id.'/deadline-alert',
             'case/{id}/status-change',
+            // Pas 3.0 wizard step 0: per-document extraction status. URI template
+            // `{id}` matches any document id but the user-scoped prefix locks it
+            // to documents the user owns — paired with ExtractionMercurePublisher
+            // publishing on `user/{userId}/document/{docId}/extraction-status`.
+            'user/'.$id.'/document/{id}/extraction-status',
         ];
+    }
+
+    public static function wizardDocumentExtractionTopic(User $user, int $documentId): string
+    {
+        return 'user/'.$user->getId().'/document/'.$documentId.'/extraction-status';
     }
 
     public static function userNotificationTopic(User $user): string

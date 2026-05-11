@@ -108,8 +108,12 @@ class ExtractDataMessageHandlerTest extends TestCase
         );
     }
 
-    public function testCascadeThrowableSetsFailedFlushesAndDoesNotDispatchEvent(): void
+    public function testCascadeThrowableSetsFailedFlushesAndStillDispatchesEvent(): void
     {
+        // Pas 3.0 OP4: DataExtractedEvent now fires on BOTH terminal outcomes
+        // (success and caught failure) so the Mercure publisher can push the
+        // FAILED badge to the wizard UI. The handler still swallows the
+        // exception so Messenger doesn't retry.
         $document = $this->makeDocument(8);
 
         $documents = $this->createMock(DocumentRepository::class);
@@ -119,8 +123,12 @@ class ExtractDataMessageHandlerTest extends TestCase
         $extractor->method('extract')->willThrowException(new \RuntimeException('cascade exploded'));
 
         $events = $this->createMock(EventDispatcherInterface::class);
-        $events->expects(self::never())
-            ->method('dispatch');
+        $events->expects(self::once())
+            ->method('dispatch')
+            ->with(self::callback(
+                fn (DataExtractedEvent $e) => $e->document === $document
+                    && $e->document->getExtractionStatus() === ExtractionStatus::FAILED,
+            ));
 
         $em = $this->createMock(EntityManagerInterface::class);
         // Two flush() calls expected: one to publish PROCESSING, one to publish FAILED.

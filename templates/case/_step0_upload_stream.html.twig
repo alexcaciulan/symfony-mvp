@@ -1,0 +1,50 @@
+{# Turbo Stream returned by POST /case/new/documents after a (successful or
+   rate-limited or MIME-rejected) upload attempt.
+   - Replaces #step0-dynamic with the fresh list of documents in the session.
+   - Replaces #step0-sidecard so the aggregation reflects current extraction state.
+   - Appends a toast notification carrying outcome + variant (success / warning /
+     error) so the user gets a colour-coded confirmation without a flash bag.
+   include() returns Markup that Twig treats as already-safe; |raw on it is a
+   no-op kept for clarity inside the <template> tag. #}
+
+<turbo-stream action="replace" target="step0-dynamic">
+    <template>
+        {{ include('case/_step0_dynamic_partial.html.twig')|raw }}
+    </template>
+</turbo-stream>
+
+<turbo-stream action="replace" target="step0-sidecard">
+    <template>
+        {{ include('case/_step0_sidecard_partial.html.twig')|raw }}
+    </template>
+</turbo-stream>
+
+{% set toast_variant_classes = {
+    'success': 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-100',
+    'warning': 'bg-amber-50 border-amber-200 text-amber-800 dark:bg-amber-900/30 dark:border-amber-700 dark:text-amber-100',
+    'error':   'bg-red-50 border-red-200 text-red-800 dark:bg-red-900/30 dark:border-red-700 dark:text-red-100',
+} %}
+{% set variant = toast_variant|default('success') %}
+{% set variant_class = toast_variant_classes[variant] ?? toast_variant_classes['success'] %}
+{% set role = variant == 'error' ? 'alert' : 'status' %}
+{% set aria_live = variant == 'error' ? 'assertive' : 'polite' %}
+
+<turbo-stream action="append" target="toasts">
+    <template>
+        <div class="pointer-events-auto border rounded-lg shadow-lg px-4 py-3 mb-2 text-sm flex items-start gap-3 max-w-sm {{ variant_class }}"
+             role="{{ role }}"
+             aria-live="{{ aria_live }}"
+             data-controller="autoremove"
+             data-autoremove-timeout-value="4000">
+            {% if variant == 'success' %}
+                <svg class="size-4 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+            {% elseif variant == 'warning' %}
+                <svg class="size-4 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a1 1 0 011 1v3a1 1 0 11-2 0V6a1 1 0 011-1zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+            {% else %}
+                <svg class="size-4 mt-0.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+            {% endif %}
+            <span class="flex-1">{{ toast_message|trans }}</span>
+            <button type="button" class="opacity-60 hover:opacity-100" aria-label="Închide" onclick="this.parentElement.remove()">&times;</button>
+        </div>
+    </template>
+</turbo-stream>
