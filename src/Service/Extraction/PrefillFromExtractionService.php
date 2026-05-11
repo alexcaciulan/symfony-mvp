@@ -21,7 +21,20 @@ use App\Repository\DocumentRepository;
  *
  * Pas 3.0 builds this so the step-0 side-card ("Date detectate") can render
  * the cross-document preview before the user moves to step 1. Pas 3.1 reuses
- * the same service on entry to steps 1/2/3 to seed each form.
+ * the same service on entry to steps 1/2/3 to seed each form, and adds
+ * Symfony Validator constraints onto the returned DTOs.
+ *
+ * **Structural contract** (refined in Pas 3.1):
+ *   - `aggregateForCreditor()` / `aggregateForDebtor()` / `aggregateForClaim()`
+ *     always return a populated DTO instance, possibly with all nullable
+ *     fields left null when no document carries above-threshold confidence.
+ *   - `aggregateForDebtors()` always returns a `Step2DebtorsData` with
+ *     **exactly one** debtor entry, even when `documentIds === []` — so the
+ *     form can render the primary debtor card without a "no debtor" branch.
+ *     Pas 3.3 lets the user add secondary entries via Live Component.
+ *   - `Step3ClaimData::$dueDate` is only marked `autoFilled` if the raw value
+ *     parsed successfully into `\DateTimeImmutable`; malformed dates from the
+ *     extraction payload are silently dropped (the lawyer picks manually).
  *
  * Resilient to malformed extractedData JSON: tolerates missing keys, null
  * sub-DTOs, and confidence maps with missing fields. A document that's already

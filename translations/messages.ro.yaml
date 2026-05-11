@@ -176,6 +176,19 @@ wizard:
         court: 'Instanța'
         court_placeholder: '-- Selectați instanța --'
         court_required: 'Selectați instanța.'
+        field:
+            person_type: 'Tip persoană'
+            name: 'Denumire / Nume'
+            cui: 'CUI'
+            personal_id: 'CNP'
+            onrc_number: 'Număr Reg. Comerțului'
+            address: 'Adresă'
+            email: 'Email'
+            phone: 'Telefon'
+            iban: 'IBAN'
+            legal_representative: 'Reprezentant legal'
+        placeholder:
+            person_type: '-- Selectează tip persoană --'
     step2:
         title: 'Date reclamant'
         type: 'Tip reclamant'
@@ -201,6 +214,20 @@ wizard:
         lawyer_phone: 'Telefon avocat'
         lawyer_email: 'Email avocat'
         lawyer_bar_number: 'Număr legitimație barou'
+        field:
+            person_type: 'Tip persoană'
+            name: 'Denumire / Nume'
+            cui: 'CUI'
+            personal_id: 'CNP'
+            onrc_number: 'Număr Reg. Comerțului'
+            address: 'Adresă'
+            email: 'Email'
+            phone: 'Telefon'
+            iban: 'IBAN'
+            administrator: 'Administrator'
+            in_insolvency: 'Debitor în insolvență (Legea 85/2014)'
+        placeholder:
+            person_type: '-- Selectează tip persoană --'
     step3:
         title: 'Date pârât'
         description: 'Adăugați cel puțin un pârât (maxim 3). Completați datele de identificare și adresa fiecărui pârât.'
@@ -225,6 +252,15 @@ wizard:
         add_defendant: 'Adaugă pârât'
         remove: 'Elimină'
         lookup_button: 'Caută după CUI'
+        field:
+            amount: 'Sumă'
+            currency: 'Monedă'
+            due_date: 'Scadență'
+            relationship_type: 'Tip raport'
+            legal_ground: 'Temei juridic'
+            description: 'Descriere'
+        placeholder:
+            legal_ground: '-- Selectează temeiul juridic --'
     step4:
         title: 'Detalii creanță'
         claim_amount: 'Suma pretinsă'
@@ -245,6 +281,10 @@ wizard:
         interest_rate: 'Rata dobânzii (%)'
         interest_start_date: 'Data de la care se calculează'
         request_court_costs: 'Solicit cheltuieli de judecată'
+        field:
+            accept_terms: 'Am citit și accept termenii de utilizare'
+            accept_data_accuracy: 'Confirm exactitatea datelor introduse'
+            acknowledged_warnings: 'Am verificat avertismentele de admisibilitate și înțeleg riscurile'
     step5:
         title: 'Probe și martori'
         evidence_description: 'Descrierea probelor'
@@ -648,6 +688,9 @@ enum:
         LOCAL_ONLY: 'Doar local (fără AI)'
         BALANCED: 'Echilibrat (cascadă completă)'
         MAX_ACCURACY: 'Acuratețe maximă (vision)'
+    currency:
+        RON: 'RON (lei)'
+        EUR: 'EUR (euro)'
     legal_ground_category:
         CONTRACT_VANZARE: 'Contract de vânzare-cumpărare'
         CONTRACT_PRESTARI_SERVICII: 'Contract de prestări servicii'

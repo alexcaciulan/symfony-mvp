@@ -298,6 +298,63 @@ final class PrefillFromExtractionServiceTest extends TestCase
         self::assertSame([], $creditor->autoFilled);
     }
 
+    public function testAllConfidencesBelowThresholdReturnsEmptyDtos(): void
+    {
+        // A single document with all per-field confidences just below the
+        // 0.8 cutoff: every value is "known" but none is trusted enough to
+        // prefill. The DTOs must come back structurally valid (no nulls
+        // escaping into required positions) and `autoFilled` empty.
+        $document = $this->buildDocumentWithExtractedData([
+            'creditor' => [
+                'personType' => PersonType::PJ->value,
+                'name' => 'Below Threshold SRL',
+                'cui' => 'RO12345678',
+                'confidencePerField' => [
+                    'personType' => 0.79,
+                    'name' => 0.5,
+                    'cui' => 0.6,
+                ],
+            ],
+            'debtor' => [
+                'name' => 'Below Threshold Debtor',
+                'confidencePerField' => ['name' => 0.7],
+            ],
+            'claim' => [
+                'amount' => 1500,
+                'confidencePerField' => ['amount' => 0.79],
+            ],
+        ]);
+
+        $service = $this->buildServiceFor([$document]);
+
+        $creditor = $service->aggregateForCreditor([1]);
+        $debtors = $service->aggregateForDebtors([1]);
+        $claim = $service->aggregateForClaim([1]);
+
+        self::assertSame([], $creditor->autoFilled);
+        self::assertNull($creditor->name);
+        self::assertSame([], $debtors->debtors[0]->autoFilled);
+        self::assertNull($debtors->debtors[0]->name);
+        self::assertSame([], $claim->autoFilled);
+        self::assertNull($claim->amount);
+    }
+
+    public function testAggregateForDebtorsAlwaysReturnsAtLeastOneEntry(): void
+    {
+        // Even with no documents at all, the Step2DebtorsData contract is
+        // "minimum one entry so the form can render the primary debtor card
+        // immediately"; the entry is empty but structurally present so the
+        // Symfony Validator `Count(min: 1)` constraint at submit time only
+        // triggers when the user explicitly removed all entries.
+        $service = $this->buildServiceFor([]);
+
+        $debtors = $service->aggregateForDebtors([]);
+
+        self::assertCount(1, $debtors->debtors);
+        self::assertNull($debtors->debtors[0]->name);
+        self::assertSame([], $debtors->debtors[0]->autoFilled);
+    }
+
     /**
      * @param array<string, mixed> $extractedData
      */

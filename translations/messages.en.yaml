@@ -176,6 +176,19 @@ wizard:
         court: 'Court'
         court_placeholder: '-- Select court --'
         court_required: 'Please select a court.'
+        field:
+            person_type: 'Person type'
+            name: 'Name / Company name'
+            cui: 'Fiscal code (CUI)'
+            personal_id: 'Personal ID (CNP)'
+            onrc_number: 'Trade registry number'
+            address: 'Address'
+            email: 'Email'
+            phone: 'Phone'
+            iban: 'IBAN'
+            legal_representative: 'Legal representative'
+        placeholder:
+            person_type: '-- Select person type --'
     step2:
         title: 'Claimant details'
         type: 'Claimant type'
@@ -201,6 +214,20 @@ wizard:
         lawyer_phone: 'Lawyer phone'
         lawyer_email: 'Lawyer email'
         lawyer_bar_number: 'Bar association number'
+        field:
+            person_type: 'Person type'
+            name: 'Name / Company name'
+            cui: 'Fiscal code (CUI)'
+            personal_id: 'Personal ID (CNP)'
+            onrc_number: 'Trade registry number'
+            address: 'Address'
+            email: 'Email'
+            phone: 'Phone'
+            iban: 'IBAN'
+            administrator: 'Administrator'
+            in_insolvency: 'Debtor in insolvency (Law 85/2014)'
+        placeholder:
+            person_type: '-- Select person type --'
     step3:
         title: 'Defendant details'
         description: 'Add at least one defendant (maximum 3). Fill in the identification data and address for each defendant.'
@@ -224,6 +251,15 @@ wizard:
         defendant_number: 'Defendant #%num%'
         add_defendant: 'Add defendant'
         remove: 'Remove'
+        field:
+            amount: 'Amount'
+            currency: 'Currency'
+            due_date: 'Due date'
+            relationship_type: 'Relationship type'
+            legal_ground: 'Legal ground'
+            description: 'Description'
+        placeholder:
+            legal_ground: '-- Select legal ground --'
     step4:
         title: 'Claim details'
         claim_amount: 'Claimed amount'
@@ -244,6 +280,10 @@ wizard:
         interest_rate: 'Interest rate (%)'
         interest_start_date: 'Interest start date'
         request_court_costs: 'I request court costs'
+        field:
+            accept_terms: 'I have read and accept the terms of use'
+            accept_data_accuracy: 'I confirm the accuracy of the data entered'
+            acknowledged_warnings: 'I have reviewed the admissibility warnings and understand the risks'
     step5:
         title: 'Evidence and witnesses'
         evidence_description: 'Evidence description'
@@ -646,6 +686,9 @@ enum:
         LOCAL_ONLY: 'Local only (no AI)'
         BALANCED: 'Balanced (full cascade)'
         MAX_ACCURACY: 'Maximum accuracy (vision)'
+    currency:
+        RON: 'RON (Romanian leu)'
+        EUR: 'EUR (Euro)'
     legal_ground_category:
         CONTRACT_VANZARE: 'Sale contract'
         CONTRACT_PRESTARI_SERVICII: 'Services contract'

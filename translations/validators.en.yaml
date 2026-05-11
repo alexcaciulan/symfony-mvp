@@ -31,6 +31,39 @@ wizard:
         name_required: 'Please enter the witness name.'
     witnesses:
         max_five: 'You can add a maximum of 5 witnesses.'
+    step1:
+        error:
+            either_id_or_manual: 'Select an existing creditor or fill in the person type, name and address manually.'
+    step2:
+        error:
+            person_type_required: 'Select the debtor person type.'
+            name_required: 'Enter the debtor name or company name.'
+            address_required: 'Enter the debtor address.'
+            at_least_one_debtor: 'You must add at least one debtor.'
+            too_many_debtors: 'You can add at most 5 debtors per case.'
+    step3:
+        error:
+            amount_required: 'Enter the amount owed.'
+            amount_positive: 'The amount must be strictly greater than 0.'
+            currency_required: 'Select the currency.'
+            invalid_currency: 'Accepted currencies: RON or EUR.'
+            due_date_required: 'Enter the due date.'
+            due_date_not_future: 'Due date cannot be in the future — the claim is not yet enforceable (CPC art. 1014).'
+            relationship_required: 'Select the legal relationship type.'
+    step4:
+        error:
+            must_accept_terms: 'You must accept the terms of use to continue.'
+            must_accept_data_accuracy: 'You must confirm the accuracy of the entered data.'
     step6:
         agree_data_correct_required: 'You must confirm the data is correct.'
         agree_terms_required: 'You must agree to the terms and conditions.'
+
+validation:
+    cui:
+        invalid_checksum: 'Invalid CUI — checksum does not match the ANAF algorithm.'
+    cnp:
+        invalid_checksum: 'Invalid CNP — checksum does not match the OUG 97/2005 algorithm.'
+    email:
+        invalid: 'Email address is not in a valid format.'
+    iban:
+        invalid_format: 'IBAN must follow the Romanian format (ROXX BBBB XXXXXXXXXXXXXXXX).'

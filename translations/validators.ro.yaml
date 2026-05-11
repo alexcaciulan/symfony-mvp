@@ -31,6 +31,39 @@ wizard:
         name_required: 'Introduceți numele martorului.'
     witnesses:
         max_five: 'Puteți adăuga maxim 5 martori.'
+    step1:
+        error:
+            either_id_or_manual: 'Selectează un creditor existent sau completează manual tipul de persoană, denumirea și adresa.'
+    step2:
+        error:
+            person_type_required: 'Selectează tipul de persoană pentru debitor.'
+            name_required: 'Introdu denumirea sau numele complet al debitorului.'
+            address_required: 'Introdu adresa debitorului.'
+            at_least_one_debtor: 'Trebuie să adaugi cel puțin un debitor.'
+            too_many_debtors: 'Poți adăuga maxim 5 debitori într-un singur dosar.'
+    step3:
+        error:
+            amount_required: 'Introdu suma datorată.'
+            amount_positive: 'Suma trebuie să fie strict mai mare decât 0.'
+            currency_required: 'Selectează moneda.'
+            invalid_currency: 'Monedă acceptată: RON sau EUR.'
+            due_date_required: 'Introdu data scadenței.'
+            due_date_not_future: 'Scadența nu poate fi în viitor — creanța nu e încă exigibilă (CPC art. 1014).'
+            relationship_required: 'Selectează tipul raportului juridic.'
+    step4:
+        error:
+            must_accept_terms: 'Trebuie să accepți termenii de utilizare pentru a continua.'
+            must_accept_data_accuracy: 'Trebuie să confirmi exactitatea datelor introduse.'
     step6:
         agree_data_correct_required: 'Trebuie să confirmați corectitudinea datelor.'
         agree_terms_required: 'Trebuie să fiți de acord cu termenii și condițiile.'
+
+validation:
+    cui:
+        invalid_checksum: 'CUI invalid — cifra de control nu corespunde algoritmului ANAF.'
+    cnp:
+        invalid_checksum: 'CNP invalid — cifra de control nu corespunde algoritmului OUG 97/2005.'
+    email:
+        invalid: 'Adresa de email nu are un format valid.'
+    iban:
+        invalid_format: 'IBAN-ul trebuie să respecte formatul românesc (ROXX BBBB XXXXXXXXXXXXXXXX).'

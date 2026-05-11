@@ -5,18 +5,28 @@ declare(strict_types=1);
 namespace App\DTO\Wizard;
 
 use App\Enum\PersonType;
+use App\Validator\Constraints\ValidCnp;
+use App\Validator\Constraints\ValidCui;
+use Symfony\Component\Validator\Constraints as Assert;
 
 /**
  * Wizard step 1 — Creditor.
  *
- * Skeletal version (Pas 3.0): public mutable properties so the form can bind
- * directly via `data_class`. Pas 3.1 adds Symfony Validator constraints +
- * conditional validation (creditorId xor manual fields).
- *
+ * Public mutable properties so the form can bind directly via `data_class`.
  * `autoFilled` carries the list of field names that the prefill aggregator
  * populated from extracted documents — the form renders a badge "auto · N%"
  * for each of those.
+ *
+ * The class-level `Assert\Expression` enforces the xor between (a) selecting
+ * an existing creditor by id and (b) filling the manual fields. When
+ * `creditorId` is provided we trust the autocompletion path (the entity is
+ * loaded in Pas 3.2 controller); otherwise `personType`, `name`, `address`
+ * are mandatory.
  */
+#[Assert\Expression(
+    expression: 'this.creditorId !== null or (this.personType !== null and this.name !== null and this.address !== null)',
+    message: 'wizard.step1.error.either_id_or_manual',
+)]
 class Step1CreditorData
 {
     /** @param list<string> $autoFilled */
@@ -24,12 +34,19 @@ class Step1CreditorData
         public ?int $creditorId = null,
         public ?PersonType $personType = null,
         public ?string $name = null,
+        #[ValidCui]
         public ?string $cui = null,
+        #[ValidCnp]
         public ?string $personalId = null,
         public ?string $onrcNumber = null,
         public ?string $address = null,
+        #[Assert\Email(message: 'validation.email.invalid')]
         public ?string $email = null,
         public ?string $phone = null,
+        #[Assert\Regex(
+            pattern: '/^RO\d{2}[A-Z]{4}[A-Z0-9]{16}$/',
+            message: 'validation.iban.invalid_format',
+        )]
         public ?string $iban = null,
         public ?string $legalRepresentative = null,
         public array $autoFilled = [],
