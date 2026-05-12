@@ -1,0 +1,125 @@
+{# Pas 4.0.2 — Pipeline 5-step. Reflectă mockup linii 362-428. Etichetele Amiabil / Somație trimisă /
+   Cerere depusă / Monitorizare / Definitivă diferă de PipelineStatus component (`amicable/notice/filed/decision/final`)
+   — mockup separă Monitorizare ca stadiu propriu pentru DOSAR_INREGISTRAT+TERMEN_FIXAT+ORDONANTA_EMISA+IN_ANULARE. #}
+{% from 'case/overview/_icons.html.twig' import icon_check, icon_clock, icon_document, icon_building, icon_eye %}
+
+{# Mapping CaseStatus.value → indice stadiu (0..4). #}
+{% set stage_map = {
+    'AMIABIL': 0,
+    'SOMATIE_TRIMISA': 1,
+    'CERERE_DEPUSA': 2,
+    'DOSAR_INREGISTRAT': 3,
+    'TERMEN_FIXAT': 3,
+    'ORDONANTA_EMISA': 3,
+    'IN_ANULARE': 3,
+    'DEFINITIVA': 4,
+    'EXECUTARE': 4,
+    'INCHIS_SUCCES': 4,
+    'INCHIS_PARTIAL_INSOLVABIL': 4,
+    'RESPINSA': 4,
+} %}
+{% set current_stage = stage_map[case.status.value] ?? 0 %}
+
+{% set stages = [
+    { key: 'AMIABIL',          label: 'case_overview.pipeline.stage_1_amiabil'|trans },
+    { key: 'SOMATIE_TRIMISA',  label: 'case_overview.pipeline.stage_2_somatie'|trans },
+    { key: 'CERERE_DEPUSA',    label: 'case_overview.pipeline.stage_3_cerere'|trans },
+    { key: 'DOSAR_INREGISTRAT', label: 'case_overview.pipeline.stage_4_monitorizare'|trans },
+    { key: 'DEFINITIVA',       label: 'case_overview.pipeline.stage_5_definitiva'|trans },
+] %}
+
+{# Date afișată per stadiu done: caută în statusHistory prima tranziție către un newStatus mapat la acest stadiu.
+   Pentru stadiu 0 (AMIABIL) fallback la case.createdAt. #}
+{% set history_dates = {} %}
+{% for entry in case.statusHistory %}
+    {% set stage_index = stage_map[entry.newStatus] ?? null %}
+    {% if stage_index is not null and history_dates[stage_index] is not defined %}
+        {% set history_dates = history_dates|merge({(stage_index): entry.createdAt}) %}
+    {% endif %}
+{% endfor %}
+
+{% set progress_pct = ((current_stage + 1) / 5 * 100)|round(0, 'floor') %}
+{% set current_stage_label = stages[current_stage].label %}
+
+<section class="bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 p-6 mb-6">
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <div class="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">{{ 'case_overview.pipeline.section_title'|trans }}</div>
+            <h2 class="text-base font-semibold text-slate-900 dark:text-white">
+                {{ 'case_overview.pipeline.progress'|trans({'%current%': current_stage + 1, '%total%': 5, '%label%': current_stage_label}) }}
+            </h2>
+        </div>
+        <div class="hidden md:flex items-center gap-2 text-xs text-slate-500">
+            <div class="w-24 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden" role="progressbar" aria-valuenow="{{ progress_pct }}" aria-valuemin="0" aria-valuemax="100">
+                <div class="h-full bg-gradient-to-r from-green-500 to-amber-500 rounded-full" style="width: {{ progress_pct }}%"></div>
+            </div>
+            <span class="font-medium tnum">{{ progress_pct }}%</span>
+        </div>
+    </div>
+
+    <ul class="relative grid grid-cols-5 gap-2 md:gap-4" aria-label="{{ 'case_overview.pipeline.section_title'|trans }}">
+        {% for stage in stages %}
+            {% set idx = loop.index0 %}
+            {% set state = idx < current_stage ? 'done' : (idx == current_stage ? 'active' : 'future') %}
+            {% set stage_date = history_dates[idx] ?? (idx == 0 ? case.createdAt : null) %}
+
+            <li class="flex flex-col items-center text-center gap-2 relative">
+                {# Connector lines (only between stages, never on first/last edges). #}
+                {% if not loop.first %}
+                    {% set left_state = (idx - 1) < current_stage ? 'done' : ((idx - 1) == current_stage ? 'transition' : 'future') %}
+                    {% if left_state == 'done' %}
+                        <div class="absolute top-5 left-0 right-1/2 h-px bg-gradient-to-r from-green-500 to-green-500" aria-hidden="true"></div>
+                    {% elseif left_state == 'transition' %}
+                        <div class="absolute top-5 left-0 right-1/2 h-px bg-gradient-to-r from-green-500 to-amber-500" aria-hidden="true"></div>
+                    {% else %}
+                        <div class="absolute top-5 left-0 right-1/2 h-px border-t border-dashed border-slate-300 dark:border-slate-700" aria-hidden="true"></div>
+                    {% endif %}
+                {% endif %}
+                {% if not loop.last %}
+                    {% set right_state = idx < current_stage ? 'done' : (idx == current_stage ? 'transition' : 'future') %}
+                    {% if right_state == 'done' %}
+                        <div class="absolute top-5 left-1/2 right-0 h-px bg-gradient-to-r from-green-500 to-green-500" aria-hidden="true"></div>
+                    {% elseif right_state == 'transition' %}
+                        <div class="absolute top-5 left-1/2 right-0 h-px bg-gradient-to-r from-green-500 to-amber-500" aria-hidden="true"></div>
+                    {% else %}
+                        <div class="absolute top-5 left-1/2 right-0 h-px border-t border-dashed border-slate-300 dark:border-slate-700" aria-hidden="true"></div>
+                    {% endif %}
+                {% endif %}
+
+                {% if state == 'done' %}
+                    <div class="relative z-10 inline-flex items-center justify-center size-10 rounded-full bg-gradient-to-br from-green-400 to-green-600 text-white shadow-lg shadow-green-500/20 ring-4 ring-white dark:ring-slate-900">
+                        {{ icon_check('size-5') }}
+                    </div>
+                    <div class="text-xs font-semibold text-slate-900 dark:text-white">{{ stage.label }}</div>
+                    <div class="text-[10px] text-slate-500 font-medium uppercase tracking-wide">
+                        {% if stage_date %}{{ stage_date|date('d.m.Y') }}{% else %}{{ 'case_overview.pipeline.stage_pending_label'|trans }}{% endif %}
+                    </div>
+                {% elseif state == 'active' %}
+                    <div class="relative z-10 inline-flex items-center justify-center size-10 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-lg shadow-amber-500/30 ring-4 ring-amber-50 dark:ring-amber-950/40">
+                        <span class="absolute inset-0 rounded-full bg-amber-400 opacity-30 soft-pulse" aria-hidden="true"></span>
+                        <span class="relative">{{ icon_document('size-4') }}</span>
+                    </div>
+                    <div class="text-xs font-bold text-amber-700 dark:text-amber-400">{{ stage.label }}</div>
+                    <div class="text-[10px] text-amber-600 dark:text-amber-500 font-medium uppercase tracking-wide">
+                        {% if stage_date %}
+                            {{ 'case_overview.pipeline.stage_in_progress_label'|trans }} · {{ stage_date|date('d.m') }}
+                        {% else %}
+                            {{ 'case_overview.pipeline.stage_in_progress_label'|trans }}
+                        {% endif %}
+                    </div>
+                {% else %}
+                    <div class="relative z-10 inline-flex items-center justify-center size-10 rounded-full bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500 ring-2 ring-slate-200 dark:ring-slate-700">
+                        {% if idx == 2 %}{{ icon_document('size-4') }}
+                        {% elseif idx == 3 %}{{ icon_eye('size-4') }}
+                        {% else %}{{ icon_building('size-4') }}
+                        {% endif %}
+                    </div>
+                    <div class="text-xs font-medium text-slate-500 dark:text-slate-400">{{ stage.label }}</div>
+                    <div class="text-[10px] text-slate-400 uppercase tracking-wide">
+                        {% if idx == 4 %}{{ 'case_overview.pipeline.title_executoriu'|trans }}{% else %}{{ 'case_overview.pipeline.stage_pending_label'|trans }}{% endif %}
+                    </div>
+                {% endif %}
+            </li>
+        {% endfor %}
+    </ul>
+</section>

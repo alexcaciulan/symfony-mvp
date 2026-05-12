@@ -15,34 +15,35 @@
 {% endblock %}
 
 {% block body %}
-  {# Pas 4.0.2 — hero + KPI grid + pipeline + tabs nav populeaza aici. Placeholder vizibil sub-pas curent. #}
-  <section class="mb-6 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 p-6 text-center text-sm text-slate-500 dark:text-slate-400">
-    {{ 'case_overview.placeholder.header'|trans }}
-  </section>
+  {{ include('case/overview/_hero.html.twig') }}
+  {{ include('case/overview/_kpi_grid.html.twig') }}
+  {{ include('case/overview/_pipeline.html.twig') }}
+  {{ include('case/overview/_tabs_nav.html.twig') }}
 
-  {# Tabs panels stub — populate la 4.0.3 (Detalii) / 4.0.4 (Documente) / 4.0.5 (Termene) / 4.0.6 (Portal) / 4.0.7 (Audit + Modale). #}
+  {# Tabs panels — populate la 4.0.3 (Detalii) / 4.0.4 (Documente) / 4.0.5 (Termene) / 4.0.6 (Portal) / 4.0.7 (Audit + Modale).
+     Default active panel: detalii (no `hidden`). Preline `data-hs-tab` din _tabs_nav.html.twig comută clasele. #}
   <div>
-    <div id="panel-detalii" role="tabpanel">
+    <div id="panel-detalii" role="tabpanel" aria-labelledby="tab-detalii">
       <div class="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-8 text-center text-sm text-slate-400 dark:text-slate-500">
         {{ 'case_overview.placeholder.tab.details'|trans }}
       </div>
     </div>
-    <div id="panel-documente" class="hidden" role="tabpanel">
+    <div id="panel-documente" class="hidden" role="tabpanel" aria-labelledby="tab-documente">
       <div class="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-8 text-center text-sm text-slate-400 dark:text-slate-500">
         {{ 'case_overview.placeholder.tab.documents'|trans }}
       </div>
     </div>
-    <div id="panel-termene" class="hidden" role="tabpanel">
+    <div id="panel-termene" class="hidden" role="tabpanel" aria-labelledby="tab-termene">
       <div class="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-8 text-center text-sm text-slate-400 dark:text-slate-500">
         {{ 'case_overview.placeholder.tab.deadlines'|trans }}
       </div>
     </div>
-    <div id="panel-portal" class="hidden" role="tabpanel">
+    <div id="panel-portal" class="hidden" role="tabpanel" aria-labelledby="tab-portal">
       <div class="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-8 text-center text-sm text-slate-400 dark:text-slate-500">
         {{ 'case_overview.placeholder.tab.portal'|trans }}
       </div>
     </div>
-    <div id="panel-audit" class="hidden" role="tabpanel">
+    <div id="panel-audit" class="hidden" role="tabpanel" aria-labelledby="tab-audit">
       <div class="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-8 text-center text-sm text-slate-400 dark:text-slate-500">
         {{ 'case_overview.placeholder.tab.audit'|trans }}
       </div>

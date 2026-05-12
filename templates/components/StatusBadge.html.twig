@@ -4,6 +4,11 @@
 {# @var pulse bool|null             Show animated pulse on dot indicator (active/in-progress statuses). Default false. #}
 {# @var show_dot bool|null          Show colored dot indicator before label. Default true. #}
 
+{# Explicit props declaration — required by Symfony UX 2.x template-only components
+   so non-scalar values (like CaseStatus enum) are forwarded as props instead of being
+   stringified into HTML attributes. #}
+{% props status = null, status_label = null, status_color = null, pulse = false, show_dot = true %}
+
 {% if status is defined and status %}
     {# Restricted to enums exposing color() + label() — currently CaseStatus only.
        For ExtractionStatus or other enums without color(), pass status_label + status_color explicitly. #}

@@ -188,6 +188,11 @@ wizard:
             existing: 'Selectează creditor existent'
             new: 'Creditor nou'
             existing_disabled_title: 'Disponibil din Pas 3.3 (UX Autocomplete).'
+        autocomplete:
+            title: 'Selectează creditor din biblioteca cabinetului'
+            hint: 'Caută după denumire sau CUI — completează manual dacă nu există.'
+            placeholder: 'Caută creditor existent...'
+            no_results: 'Niciun creditor găsit cu acest text.'
         button:
             continue: 'Continuă la pas 2 (debitor)'
         county: 'Județul'
@@ -221,11 +226,17 @@ wizard:
         button:
             add_debtor: 'Adaugă debitor secundar'
             continue: 'Continuă la creanță'
+            remove_debtor: 'Elimină acest debitor'
+            max_reached: 'Limită maxim 5 debitori atinsă'
         add_debtor_hint: 'pentru obligații solidare'
         flash:
             max_debtors_reached: 'Maxim 5 debitori per dosar — limită produs.'
         help:
-            anaf_pas33: 'Verificare automată ANAF activă din Pas 3.3 — completează manual statul fiscal acum.'
+            anaf_pas33: 'Introdu CUI-ul și apasă în afară — verificarea ANAF rulează automat.'
+        anaf:
+            verified: 'ANAF verificat'
+            lookup_loading: 'Verificare ANAF...'
+            checked_at: 'Verificat ANAF la %date%'
         bpi:
             title: 'Verificare BPI obligatorie (Legea 85/2014)'
             body: 'Înainte de a depune ordonanța de plată trebuie să verifici dacă debitorul nu e în procedura insolvenței. Accesează <a href="https://www.bpi.just.ro/" target="_blank" rel="noopener" class="underline font-medium">bpi.just.ro</a> → caută debitorul după CUI → confirmă rezultatul.'
@@ -301,6 +312,13 @@ wizard:
             court_label: 'Instanță competentă'
             court_placeholder: 'Instanță needeterminată — verifică manual.'
             footer_note: 'Calcule la rata BNR curentă. Verifică actualizarea înainte de depunere.'
+        live:
+            error:
+                due_date_future: 'Scadența e în viitor — creanța nu e încă exigibilă.'
+                currency_unsupported: 'Calcul dobândă suportat doar pentru RON (OG 13/2011).'
+            court:
+                indeterminate: 'Instanța se calculează la pasul de confirmare.'
+                computed_at_step4: 'Cu datele complete (adresă structurată debitor).'
         description: 'Adăugați cel puțin un pârât (maxim 3). Completați datele de identificare și adresa fiecărui pârât.'
         type: 'Tip pârât'
         type_pf: 'Persoană fizică'
@@ -513,8 +531,9 @@ case_view:
 
 # =============================================================================
 # Case Overview (Pas 4.0 — pagina overview dosar post-wizard, 5 tab-uri)
-# Sub-pas 4.0.1: foundation keys only (title, breadcrumb, tab labels, coming-soon
-# tooltips, placeholders). 4.0.2-4.0.7 vor extinde catalog.
+# Sub-pas 4.0.1: foundation keys (title, breadcrumb, tab labels, coming-soon, placeholders)
+# Sub-pas 4.0.2: hero + KPI + pipeline (header, cta, kpi, pipeline)
+# 4.0.3-4.0.7 vor extinde catalog.
 # =============================================================================
 case_overview:
     title: 'Dosar %reference%'
@@ -535,13 +554,49 @@ case_overview:
         coming_soon_share: 'Share & colaboratori — post-MVP'
         coming_soon_edit: 'Editare detalii — post-MVP'
     placeholder:
-        header: 'Hero + KPI + Pipeline vor fi populate la Pas 4.0.2'
         tab:
             details: 'Conținutul tab-ului Detalii va fi populat la Pas 4.0.3'
             documents: 'Conținutul tab-ului Documente va fi populat la Pas 4.0.4'
             deadlines: 'Conținutul tab-ului Termene va fi populat la Pas 4.0.5'
             portal: 'Conținutul tab-ului Activitate Portal va fi populat la Pas 4.0.6'
             audit: 'Conținutul tab-ului Audit va fi populat la Pas 4.0.7'
+    header:
+        type_op: 'Ordonanță de plată'
+        vs: 'vs'
+        created_on: 'Creat %date%'
+        no_debtor: '— fără debitor —'
+        court_undetermined: 'Instanță needeterminată'
+    cta:
+        generate_op: 'Generează cerere OP'
+        actions_menu: 'Acțiuni'
+        edit_details: 'Editează detalii'
+        share: 'Partajează cu colaborator'
+        duplicate: 'Duplică dosar'
+        close_case: 'Închide dosar'
+    kpi:
+        principal: 'Sumă principală'
+        principal_due: 'scadență %date%'
+        no_due_date: '—'
+        interest: 'Dobândă'
+        interest_hint_commercial: '%days% zile · BNR + 8 pp'
+        interest_hint_civil: '%days% zile · dobândă acumulată'
+        total: 'Total creanță'
+        total_hint: '+ taxă timbru %stampDuty% %currency%'
+        active_deadline: 'Termen activ'
+        active_deadline_unit: 'zile'
+        active_deadline_expires: 'expiră %date%'
+        no_active_deadline: 'Niciun termen activ'
+    pipeline:
+        section_title: 'Procedură ordonanță de plată'
+        progress: 'Stadiu %current% din %total% — %label%'
+        stage_1_amiabil: 'Amiabil'
+        stage_2_somatie: 'Somație trimisă'
+        stage_3_cerere: 'Cerere depusă'
+        stage_4_monitorizare: 'Monitorizare'
+        stage_5_definitiva: 'Definitivă'
+        stage_pending_label: '—'
+        stage_in_progress_label: 'în mers'
+        title_executoriu: 'titlu executoriu'
 
 # =============================================================================
 # Document Upload/Delete
@@ -910,6 +965,7 @@ exception:
         cui_invalid: 'CUI invalid: trebuie să conțină între 2 și 10 cifre.'
         unavailable: 'Serviciul ANAF nu este disponibil. Încercați mai târziu.'
         not_found: 'CUI-ul nu a fost găsit în baza de date ANAF.'
+        rate_limited: 'Prea multe căutări ANAF — așteaptă 1h sau introdu manual datele.'
     calculation:
         interest_rate_missing: 'Nu există o rată BNR validă pentru data de scadență. Verifică InterestRateConfigFixtures.'
         currency_unsupported: 'Calculul dobânzii este disponibil doar pentru creanțe în RON. Suportul pentru valută va fi adăugat ulterior.'

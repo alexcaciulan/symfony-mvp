@@ -1,0 +1,68 @@
+{# Pas 4.0.2 — Preline tabs nav. Reflectă mockup linii 430-438. Preline JS comută clasele `hidden` pe panels. #}
+
+{% set documents_count = case.documents|length %}
+{% set deadlines_count = deadlines|length %}
+{% set audit_count = auditLogs|length %}
+
+<div class="bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 mb-6 overflow-hidden">
+    <nav class="flex gap-1 px-2 border-b border-slate-200 dark:border-slate-800 overflow-x-auto" aria-label="{{ 'case_overview.title'|trans({'%reference%': case.caseNumber}) }}" role="tablist">
+        <button type="button"
+                id="tab-detalii"
+                role="tab"
+                aria-controls="panel-detalii"
+                aria-selected="true"
+                data-hs-tab="#panel-detalii"
+                class="hs-tab-active:font-semibold hs-tab-active:text-slate-900 hs-tab-active:after:bg-gradient-to-r hs-tab-active:after:from-lex-navy hs-tab-active:after:to-blue-500 dark:hs-tab-active:text-white relative py-3.5 px-4 inline-flex items-center text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 whitespace-nowrap after:content-[''] after:absolute after:bottom-0 after:left-2 after:right-2 after:h-0.5 after:rounded-t-full after:bg-transparent active">
+            {{ 'case_overview.tab.details'|trans }}
+        </button>
+
+        <button type="button"
+                id="tab-documente"
+                role="tab"
+                aria-controls="panel-documente"
+                aria-selected="false"
+                data-hs-tab="#panel-documente"
+                class="hs-tab-active:font-semibold hs-tab-active:text-slate-900 hs-tab-active:after:bg-gradient-to-r hs-tab-active:after:from-lex-navy hs-tab-active:after:to-blue-500 dark:hs-tab-active:text-white relative py-3.5 px-4 inline-flex items-center gap-x-1.5 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 whitespace-nowrap after:content-[''] after:absolute after:bottom-0 after:left-2 after:right-2 after:h-0.5 after:rounded-t-full after:bg-transparent">
+            {{ 'case_overview.tab.documents'|trans }}
+            {% if documents_count > 0 %}
+                <span class="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold tnum">{{ documents_count }}</span>
+            {% endif %}
+        </button>
+
+        <button type="button"
+                id="tab-termene"
+                role="tab"
+                aria-controls="panel-termene"
+                aria-selected="false"
+                data-hs-tab="#panel-termene"
+                class="hs-tab-active:font-semibold hs-tab-active:text-slate-900 hs-tab-active:after:bg-gradient-to-r hs-tab-active:after:from-lex-navy hs-tab-active:after:to-blue-500 dark:hs-tab-active:text-white relative py-3.5 px-4 inline-flex items-center gap-x-1.5 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 whitespace-nowrap after:content-[''] after:absolute after:bottom-0 after:left-2 after:right-2 after:h-0.5 after:rounded-t-full after:bg-transparent">
+            {{ 'case_overview.tab.deadlines'|trans }}
+            {% if deadlines_count > 0 %}
+                <span class="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-md bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 text-[10px] font-semibold tnum">{{ deadlines_count }}</span>
+            {% endif %}
+        </button>
+
+        <button type="button"
+                id="tab-portal"
+                role="tab"
+                aria-controls="panel-portal"
+                aria-selected="false"
+                data-hs-tab="#panel-portal"
+                class="hs-tab-active:font-semibold hs-tab-active:text-slate-900 hs-tab-active:after:bg-gradient-to-r hs-tab-active:after:from-lex-navy hs-tab-active:after:to-blue-500 dark:hs-tab-active:text-white relative py-3.5 px-4 inline-flex items-center text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 whitespace-nowrap after:content-[''] after:absolute after:bottom-0 after:left-2 after:right-2 after:h-0.5 after:rounded-t-full after:bg-transparent">
+            {{ 'case_overview.tab.portal'|trans }}
+        </button>
+
+        <button type="button"
+                id="tab-audit"
+                role="tab"
+                aria-controls="panel-audit"
+                aria-selected="false"
+                data-hs-tab="#panel-audit"
+                class="hs-tab-active:font-semibold hs-tab-active:text-slate-900 hs-tab-active:after:bg-gradient-to-r hs-tab-active:after:from-lex-navy hs-tab-active:after:to-blue-500 dark:hs-tab-active:text-white relative py-3.5 px-4 inline-flex items-center gap-x-1.5 text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 whitespace-nowrap after:content-[''] after:absolute after:bottom-0 after:left-2 after:right-2 after:h-0.5 after:rounded-t-full after:bg-transparent">
+            {{ 'case_overview.tab.audit'|trans }}
+            {% if audit_count > 0 %}
+                <span class="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold tnum">{{ audit_count }}</span>
+            {% endif %}
+        </button>
+    </nav>
+</div>

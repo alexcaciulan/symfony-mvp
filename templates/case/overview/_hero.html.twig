@@ -1,0 +1,94 @@
+{# Pas 4.0.2 — Hero header pentru pagina overview dosar. Reflectă mockup 04-dosar/overview.html linii 270-360. #}
+{% from 'case/overview/_icons.html.twig' import icon_calendar, icon_building, icon_document, icon_dots, icon_edit, icon_share, icon_copy, icon_trash %}
+
+{% set creditor_name = case.creditor ? case.creditor.name : ('case_overview.header.no_debtor'|trans) %}
+{% set debtor_name = case.debtors|first ? case.debtors|first.name : ('case_overview.header.no_debtor'|trans) %}
+{% set court_label = case.court ? case.court.name : ('case_overview.header.court_undetermined'|trans) %}
+{% set pulse_status = not case.status.isTerminal() %}
+
+<section class="relative bg-white dark:bg-slate-900 rounded-2xl shadow-hero overflow-hidden mb-6">
+    <div class="absolute inset-0 bg-gradient-to-br from-blue-50/40 via-transparent to-transparent dark:from-blue-950/20 pointer-events-none"></div>
+    <div class="absolute top-0 right-0 size-72 bg-gradient-to-br from-lex-navy/5 to-transparent rounded-full blur-3xl pointer-events-none"></div>
+
+    <div class="relative px-6 py-6 lg:px-8 lg:py-7">
+        <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+            <div class="min-w-0">
+                <div class="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+                    <span class="font-mono">{{ case.caseNumber }}</span>
+                    <span class="size-1 rounded-full bg-slate-300 dark:bg-slate-700" aria-hidden="true"></span>
+                    <span>{{ 'case_overview.header.type_op'|trans }}</span>
+                </div>
+                <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight">
+                    {{ creditor_name }}
+                    <span class="text-slate-400 dark:text-slate-500 font-medium mx-1.5">{{ 'case_overview.header.vs'|trans }}</span>
+                    <span class="block md:inline">{{ debtor_name }}</span>
+                </h1>
+                <div class="mt-3 flex flex-wrap items-center gap-3">
+                    <twig:StatusBadge :status="case.status" :pulse="pulse_status" />
+                    <span class="inline-flex items-center gap-x-1 text-xs text-slate-500 dark:text-slate-400">
+                        {{ icon_calendar('size-3.5') }}
+                        {{ 'case_overview.header.created_on'|trans({'%date%': case.createdAt|date('d.m.Y')}) }}
+                    </span>
+                    <span class="inline-flex items-center gap-x-1 text-xs text-slate-500 dark:text-slate-400">
+                        {{ icon_building('size-3.5') }}
+                        {{ court_label }}
+                    </span>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 self-start">
+                <button type="button"
+                        aria-disabled="true"
+                        title="{{ 'case_overview.tooltip.coming_soon_op'|trans }}"
+                        class="py-2 px-3.5 inline-flex items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-slate-900 dark:bg-white text-white dark:text-slate-900 opacity-60 cursor-not-allowed shadow-sm">
+                    {{ icon_document('size-4') }}
+                    {{ 'case_overview.cta.generate_op'|trans }}
+                </button>
+
+                <div class="hs-dropdown relative inline-flex">
+                    <button id="hs-case-actions-dropdown"
+                            type="button"
+                            class="hs-dropdown-toggle p-2 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                            aria-haspopup="menu"
+                            aria-expanded="false"
+                            aria-label="{{ 'case_overview.cta.actions_menu'|trans }}">
+                        {{ icon_dots('size-4') }}
+                    </button>
+                    <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-56 bg-white shadow-card rounded-xl border border-slate-200 dark:bg-slate-900 dark:border-slate-800 mt-2 p-1.5 z-40 right-0"
+                         role="menu"
+                         aria-labelledby="hs-case-actions-dropdown">
+                        <a href="#"
+                           aria-disabled="true"
+                           title="{{ 'case_overview.tooltip.coming_soon_edit'|trans }}"
+                           class="flex items-center gap-x-3 py-2 px-3 rounded-lg text-sm text-slate-800 dark:text-slate-300 opacity-60 cursor-not-allowed pointer-events-none">
+                            {{ icon_edit('size-4 text-slate-400') }}
+                            {{ 'case_overview.cta.edit_details'|trans }}
+                        </a>
+                        <a href="#"
+                           aria-disabled="true"
+                           title="{{ 'case_overview.tooltip.coming_soon_share'|trans }}"
+                           class="flex items-center gap-x-3 py-2 px-3 rounded-lg text-sm text-slate-800 dark:text-slate-300 opacity-60 cursor-not-allowed pointer-events-none">
+                            {{ icon_share('size-4 text-slate-400') }}
+                            {{ 'case_overview.cta.share'|trans }}
+                        </a>
+                        <a href="#"
+                           aria-disabled="true"
+                           title="{{ 'case_overview.tooltip.coming_soon_edit'|trans }}"
+                           class="flex items-center gap-x-3 py-2 px-3 rounded-lg text-sm text-slate-800 dark:text-slate-300 opacity-60 cursor-not-allowed pointer-events-none">
+                            {{ icon_copy('size-4 text-slate-400') }}
+                            {{ 'case_overview.cta.duplicate'|trans }}
+                        </a>
+                        <hr class="my-1 border-slate-100 dark:border-slate-800">
+                        <button type="button"
+                                aria-disabled="true"
+                                title="{{ 'case_overview.tooltip.coming_soon_close'|trans }}"
+                                class="flex w-full items-center gap-x-3 py-2 px-3 rounded-lg text-sm text-red-600 dark:text-red-400 opacity-60 cursor-not-allowed">
+                            {{ icon_trash('size-4') }}
+                            {{ 'case_overview.cta.close_case'|trans }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>

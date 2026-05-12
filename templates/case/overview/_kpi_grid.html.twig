@@ -1,0 +1,70 @@
+{# Pas 4.0.2 — KPI grid 4 celule. Reflectă mockup linii 329-359. Layout grid-px (separator thin gri prin background-color). #}
+
+{% set principal = case.amount|default(0)|number_format(2, ',', '.') %}
+{% set interest = case.calculatedInterest|default(0)|number_format(2, ',', '.') %}
+{% set total_value = (case.amount|default(0)) + (case.calculatedInterest|default(0)) %}
+{% set total = total_value|number_format(2, ',', '.') %}
+{% set stamp_duty = case.stampDuty|default(0)|number_format(2, ',', '.') %}
+{% set due_date_label = case.dueDate ? case.dueDate|date('d.m.Y') : ('case_overview.kpi.no_due_date'|trans) %}
+
+{# Interest days span: from dueDate to today (matches the commercial interest period under OG 13/2011). #}
+{% set interest_days = 0 %}
+{% if case.dueDate %}
+    {% set diff_seconds = ("now"|date('U') - case.dueDate|date('U')) %}
+    {% set interest_days = (diff_seconds / 86400)|round(0, 'floor') %}
+    {% if interest_days < 0 %}{% set interest_days = 0 %}{% endif %}
+{% endif %}
+
+{% set interest_hint_key = case.relationshipType and case.relationshipType.value == 'CIVIL'
+    ? 'case_overview.kpi.interest_hint_civil'
+    : 'case_overview.kpi.interest_hint_commercial' %}
+
+{# Active deadline countdown in whole days. #}
+{% set deadline_days_remaining = null %}
+{% set deadline_expires_label = null %}
+{% if active_deadline %}
+    {% set diff_seconds = (active_deadline.deadlineDate|date('U') - "now"|date('U')) %}
+    {% set deadline_days_remaining = (diff_seconds / 86400)|round(0, 'ceil') %}
+    {% if deadline_days_remaining < 0 %}{% set deadline_days_remaining = 0 %}{% endif %}
+    {% set deadline_expires_label = active_deadline.deadlineDate|date('d.m.Y') %}
+{% endif %}
+
+<section class="grid grid-cols-2 lg:grid-cols-4 gap-px bg-slate-100 dark:bg-slate-800 rounded-2xl overflow-hidden shadow-soft border border-slate-200 dark:border-slate-800 mb-6">
+    <div class="bg-white dark:bg-slate-900 px-6 py-4 lg:px-8">
+        <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ 'case_overview.kpi.principal'|trans }}</div>
+        <div class="mt-1.5 text-2xl font-bold tnum text-slate-900 dark:text-white">{{ principal }}<span class="text-base font-medium text-slate-400 ml-1">{{ case.currency }}</span></div>
+        <div class="mt-1 text-xs text-slate-500">{{ 'case_overview.kpi.principal_due'|trans({'%date%': due_date_label}) }}</div>
+    </div>
+
+    <div class="bg-white dark:bg-slate-900 px-6 py-4 lg:px-8">
+        <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ 'case_overview.kpi.interest'|trans }}</div>
+        <div class="mt-1.5 text-2xl font-bold tnum text-amber-600 dark:text-amber-400">+ {{ interest }}</div>
+        <div class="mt-1 text-xs text-slate-500">{{ interest_hint_key|trans({'%days%': interest_days}) }}</div>
+    </div>
+
+    <div class="bg-white dark:bg-slate-900 px-6 py-4 lg:px-8 relative">
+        <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 to-blue-600" aria-hidden="true"></div>
+        <div class="text-xs font-medium uppercase tracking-wide text-blue-600 dark:text-blue-400">{{ 'case_overview.kpi.total'|trans }}</div>
+        <div class="mt-1.5 text-2xl font-bold tnum text-blue-700 dark:text-blue-300">{{ total }}</div>
+        <div class="mt-1 text-xs text-slate-500">{{ 'case_overview.kpi.total_hint'|trans({'%stampDuty%': stamp_duty, '%currency%': case.currency}) }}</div>
+    </div>
+
+    <div class="bg-white dark:bg-slate-900 px-6 py-4 lg:px-8 relative">
+        <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber-500 to-red-500" aria-hidden="true"></div>
+        <div class="flex items-center gap-2">
+            <div class="text-xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-400">{{ 'case_overview.kpi.active_deadline'|trans }}</div>
+            {% if active_deadline %}
+                <span class="relative flex size-2" aria-hidden="true">
+                    <span class="absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 soft-pulse"></span>
+                    <span class="relative inline-flex rounded-full size-2 bg-red-500"></span>
+                </span>
+            {% endif %}
+        </div>
+        {% if active_deadline %}
+            <div class="mt-1.5 text-2xl font-bold tnum text-amber-700 dark:text-amber-300">{{ deadline_days_remaining }} <span class="text-base font-medium">{{ 'case_overview.kpi.active_deadline_unit'|trans }}</span></div>
+            <div class="mt-1 text-xs text-slate-500">{{ 'case_overview.kpi.active_deadline_expires'|trans({'%date%': deadline_expires_label}) }}</div>
+        {% else %}
+            <div class="mt-1.5 text-lg font-semibold text-slate-400 dark:text-slate-500">{{ 'case_overview.kpi.no_active_deadline'|trans }}</div>
+        {% endif %}
+    </div>
+</section>

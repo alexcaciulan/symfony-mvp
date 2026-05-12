@@ -16,6 +16,26 @@ class LegalCaseRepository extends ServiceEntityRepository
         parent::__construct($registry, LegalCase::class);
     }
 
+    /**
+     * Single-query load for the case overview page (Pas 4.0.2+): hydrates `creditor`,
+     * `debtors`, `court`, and `statusHistory` together with the case so hero, KPI grid,
+     * pipeline, and parties sections render without N+1 lazy-loads. `deadlines` is fetched
+     * separately via {@see LegalDeadlineRepository::findByCase()} because its ordering
+     * (ASC by deadlineDate) is enforced by that dedicated finder.
+     */
+    public function findWithOverviewRelations(int $id): ?LegalCase
+    {
+        return $this->createQueryBuilder('lc')
+            ->leftJoin('lc.creditor', 'cr')->addSelect('cr')
+            ->leftJoin('lc.debtors', 'db')->addSelect('db')
+            ->leftJoin('lc.court', 'ct')->addSelect('ct')
+            ->leftJoin('lc.statusHistory', 'sh')->addSelect('sh')
+            ->andWhere('lc.id = :id')
+            ->setParameter('id', $id)
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
+
     /** @return LegalCase[] */
     public function findByUser(User $user): array
     {

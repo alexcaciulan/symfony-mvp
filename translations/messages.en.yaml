@@ -188,6 +188,11 @@ wizard:
             existing: 'Pick existing creditor'
             new: 'New creditor'
             existing_disabled_title: 'Available from Pas 3.3 (UX Autocomplete).'
+        autocomplete:
+            title: 'Pick a creditor from your library'
+            hint: 'Search by name or fiscal code — fill manually if not in your library.'
+            placeholder: 'Search existing creditor...'
+            no_results: 'No creditor matches this search.'
         button:
             continue: 'Continue to step 2 (debtor)'
         county: 'County'
@@ -221,11 +226,17 @@ wizard:
         button:
             add_debtor: 'Add secondary debtor'
             continue: 'Continue to claim'
+            remove_debtor: 'Remove this debtor'
+            max_reached: 'Max 5 debtors reached'
         add_debtor_hint: 'for joint-and-several obligations'
         flash:
             max_debtors_reached: 'Max 5 debtors per case — product cap.'
         help:
-            anaf_pas33: 'Automatic ANAF verification ships in Pas 3.3 — fill the fiscal status manually for now.'
+            anaf_pas33: 'Type the fiscal code and tab out — ANAF verification runs automatically.'
+        anaf:
+            verified: 'ANAF verified'
+            lookup_loading: 'Verifying with ANAF...'
+            checked_at: 'ANAF checked at %date%'
         bpi:
             title: 'BPI verification required (Law 85/2014)'
             body: 'Before submitting the payment order you must check whether the debtor is in insolvency proceedings. Go to <a href="https://www.bpi.just.ro/" target="_blank" rel="noopener" class="underline font-medium">bpi.just.ro</a> → search by CUI → confirm the result.'
@@ -301,6 +312,13 @@ wizard:
             court_label: 'Competent court'
             court_placeholder: 'Court could not be determined — verify manually.'
             footer_note: 'Calculations at the current BNR rate. Re-check before submission.'
+        live:
+            error:
+                due_date_future: 'Due date is in the future — claim is not yet exigible.'
+                currency_unsupported: 'Interest calculation supported only for RON (OG 13/2011).'
+            court:
+                indeterminate: 'Court is computed at the confirmation step.'
+                computed_at_step4: 'With complete data (structured debtor address).'
         description: 'Add at least one defendant (maximum 3). Fill in the identification data and address for each defendant.'
         type: 'Defendant type'
         type_pf: 'Individual'
@@ -534,13 +552,49 @@ case_overview:
         coming_soon_share: 'Share & collaborators — post-MVP'
         coming_soon_edit: 'Edit details — post-MVP'
     placeholder:
-        header: 'Hero + KPI + Pipeline will be populated at Step 4.0.2'
         tab:
             details: 'Details tab content will be populated at Step 4.0.3'
             documents: 'Documents tab content will be populated at Step 4.0.4'
             deadlines: 'Deadlines tab content will be populated at Step 4.0.5'
             portal: 'Portal Activity tab content will be populated at Step 4.0.6'
             audit: 'Audit tab content will be populated at Step 4.0.7'
+    header:
+        type_op: 'Payment order'
+        vs: 'vs'
+        created_on: 'Created %date%'
+        no_debtor: '— no debtor —'
+        court_undetermined: 'Court undetermined'
+    cta:
+        generate_op: 'Generate payment order'
+        actions_menu: 'Actions'
+        edit_details: 'Edit details'
+        share: 'Share with collaborator'
+        duplicate: 'Duplicate case'
+        close_case: 'Close case'
+    kpi:
+        principal: 'Principal amount'
+        principal_due: 'due %date%'
+        no_due_date: '—'
+        interest: 'Interest'
+        interest_hint_commercial: '%days% days · BNR + 8 pp'
+        interest_hint_civil: '%days% days · accrued interest'
+        total: 'Total claim'
+        total_hint: '+ stamp duty %stampDuty% %currency%'
+        active_deadline: 'Active deadline'
+        active_deadline_unit: 'days'
+        active_deadline_expires: 'expires %date%'
+        no_active_deadline: 'No active deadline'
+    pipeline:
+        section_title: 'Payment order procedure'
+        progress: 'Stage %current% of %total% — %label%'
+        stage_1_amiabil: 'Amicable'
+        stage_2_somatie: 'Notice sent'
+        stage_3_cerere: 'Petition filed'
+        stage_4_monitorizare: 'Monitoring'
+        stage_5_definitiva: 'Final'
+        stage_pending_label: '—'
+        stage_in_progress_label: 'in progress'
+        title_executoriu: 'enforceable title'
 
 # =============================================================================
 # Document Upload/Delete
@@ -908,6 +962,7 @@ exception:
         cui_invalid: 'Invalid tax ID: must contain between 2 and 10 digits.'
         unavailable: 'ANAF service unavailable. Please try again later.'
         not_found: 'Tax ID not found in the ANAF database.'
+        rate_limited: 'Too many ANAF lookups — wait 1 hour or fill data manually.'
     calculation:
         interest_rate_missing: 'No BNR rate is configured for the due date. Check InterestRateConfigFixtures.'
         currency_unsupported: 'Interest calculation is only available for RON-denominated claims. Foreign-currency support will be added later.'
