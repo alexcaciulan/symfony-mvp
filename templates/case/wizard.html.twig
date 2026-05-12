@@ -2,15 +2,27 @@
 
 {# Pas 3.0 wizard shell — 5-step layout (0..4) extending the Pas 2.7 authenticated shell.
    Step content is rendered by children via {% block wizard_step_content %}.
+   Children can override:
+     - {% block wizard_subtitle %} — page-level subtitle under the h1 (per v2 mockup: "Pas X din 4 · …").
+     - {% block wizard_max_width %} — main container width (mockup: 4xl steps 1-2, 5xl steps 0+4, 6xl step 3).
+     - {% block wizard_breadcrumb_step %} — appended segment in the topbar breadcrumb (e.g. " · Documente").
    `current_step` (0..4) is set by the controller per route. #}
 
 {% block title %}{{ 'wizard.title'|trans }} · {{ parent() }}{% endblock %}
 
+{% block breadcrumb %}
+    <li class="hidden sm:inline-flex items-center"><a href="{{ path('dashboard_cases') }}" class="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 no-underline">{{ 'layout.sidebar.nav.dashboard'|trans }}</a><svg class="size-3 mx-1.5 text-slate-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></li>
+    <li class="inline-flex items-center"><a href="{{ path('dashboard_cases') }}" class="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 no-underline">{{ 'layout.sidebar.nav.cases'|trans }}</a><svg class="size-3 mx-1.5 text-slate-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></li>
+    <li class="font-medium text-slate-700 dark:text-slate-300">{{ 'wizard.breadcrumb_root'|trans }}{% block wizard_breadcrumb_step %}{% endblock %}</li>
+{% endblock %}
+
 {% block body %}
-<div class="max-w-5xl mx-auto py-2">
+<div class="{% block wizard_max_width %}max-w-5xl{% endblock %} mx-auto py-2">
     <header class="mb-6">
-        <h1 class="text-2xl font-semibold text-slate-900 dark:text-slate-100">{{ 'wizard.heading'|trans }}</h1>
-        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ 'wizard.subheading'|trans }}</p>
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{{ 'wizard.heading'|trans }}</h1>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">
+            {% block wizard_subtitle %}{{ 'wizard.subheading'|trans }}{% endblock %}
+        </p>
     </header>
 
     <twig:Stepper

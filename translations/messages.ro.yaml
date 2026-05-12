@@ -163,8 +163,13 @@ wizard:
     button:
         back: 'Înapoi'
         continue: 'Continuă'
+    field:
+        optional_suffix: '(opțional)'
+        auto: 'auto'
+        auto_filled_tooltip: 'Auto-completat din documente'
     stepper:
-        label: 'Progres completare cerere'
+        label: 'Etape wizard'
+        completed: 'Pas finalizat'
         court: 'Instanță'
         claimant: 'Reclamant'
         defendant: 'Pârât'
@@ -173,7 +178,8 @@ wizard:
         confirmation: 'Confirmare'
     step1:
         title: 'Date creditor'
-        subtitle: 'Identifică creditorul — cel care emite cererea de ordonanță de plată.'
+        subtitle: 'Pas 1 din 4 · Date creditor. Câmpurile cu badge ⚡ auto au fost detectate automat din documente.'
+        save_to_library: 'Salvează în biblioteca de creditori pentru reutilizare'
         help:
             title: 'Despre acest pas'
             body: 'Dacă creditorul este deja salvat în catalogul tău (cabinet), îl poți selecta. Altfel completează manual câmpurile principale: tip persoană, denumire, adresă. CUI și ONRC sunt opționale pentru persoane fizice.'
@@ -205,14 +211,15 @@ wizard:
             person_type: '-- Selectează tip persoană --'
     step2:
         title: 'Date debitor(i)'
-        subtitle: 'Adaugă unul sau mai mulți debitori. Verifică statutul ANAF și bifează BPI-ul pentru fiecare persoană juridică.'
+        subtitle: 'Pas 2 din 4 · Persoana datoare. Câmpurile cu badge ⚡ auto au fost detectate automat din documente.'
+        save_to_library: 'Salvează în biblioteca de debitori pentru reutilizare'
         entry_heading: 'Debitor #%index%'
         toggle:
             existing: 'Selectează debitor existent'
             new: 'Debitor nou'
             existing_disabled_title: 'Disponibil din Pas 3.3 (UX Autocomplete + ANAF lookup).'
         button:
-            add_debtor: '+ Adaugă debitor secundar'
+            add_debtor: 'Adaugă debitor secundar'
             continue: 'Continuă la creanță'
         add_debtor_hint: 'pentru obligații solidare'
         flash:
@@ -263,7 +270,7 @@ wizard:
             person_type: '-- Selectează tip persoană --'
     step3:
         title: 'Detalii creanță'
-        subtitle: 'Introdu suma datorată, scadența și temeiul juridic. Calculele dobândă / taxă timbru / instanță apar live în panoul lateral.'
+        subtitle: 'Pas 3 din 4 · Detalii creanță. Câmpurile cu badge ⚡ auto au fost detectate automat din documente.'
         section:
             main_data: 'Date principale'
         help:
@@ -328,7 +335,7 @@ wizard:
             description: 'Ex: Contract de prestări servicii nr. 145/12.03.2025, art. 7 — plata în 30 zile. Factura nr. 2024-012/15.10.2025.'
     step4:
         title: 'Confirmare dosar'
-        subtitle: 'Verifică sumarul, calculele finale și confirmă datele. După salvare dosarul devine vizibil în lista ta.'
+        subtitle: 'Pas 4 din 4 · Confirmare dosar. Verifică sumarul și calculele finale înainte de a salva.'
         legend:
             auto: 'câmp auto-completat'
             manual: 'introdus manual'
@@ -418,8 +425,9 @@ wizard:
     # Pas 3.0 wizard (5-step LexRecovery: documente / creditor / debitor / creanță / confirmare)
     # ---------------------------------------------------------------------
     title: 'Dosar nou'
-    heading: 'Creare dosar nou'
+    heading: 'Dosar nou'
     subheading: 'Completează cei 5 pași pentru a depune cererea de ordonanță de plată.'
+    breadcrumb_root: 'Dosar nou'
     step:
         documents: 'Documente'
         creditor: 'Creditor'
@@ -428,7 +436,7 @@ wizard:
         confirmation: 'Confirmare'
     step0:
         title: 'Documente sursă'
-        subtitle: 'Încarcă contracte, facturi sau dovezi. Datele relevante sunt extrase automat.'
+        subtitle: 'Pas 0 din 4 · Documente sursă (opțional)'
         drop_zone:
             heading: 'Trage fișierele aici'
             cta: 'Alege fișiere'

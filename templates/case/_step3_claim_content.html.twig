@@ -1,30 +1,34 @@
 {% extends 'case/wizard.html.twig' %}
 
 {# Pas 3.2 wizard step 3 — Creanță.
-   Layout inspired by mockups/v2/03-wizard/step3-creanta.html. Grid 3-col on
-   lg: form on left (col-span-2), dark navy sidebar with server-rendered
-   calculations on right. Pas 3.3 replaces the sidebar with
-   Step3ClaimLiveComponent for instant updates as the user edits inputs.
-   In 3.2 calcule update only on form re-render (server-rendered). #}
+   Mockup: docs/LexRecovery/mockups/v2/03-wizard/step3-creanta.html.
+   Page-level h1 + subtitle + breadcrumb come from wizard.html.twig shell via
+   block overrides below. Grid 3-col on lg: form on left (col-span-2), dark
+   navy sidebar with server-rendered calculations on right. Pas 3.3 replaces
+   the sidebar with Step3ClaimLiveComponent for instant updates as the user
+   edits inputs. In 3.2 calcule update only on form re-render (server-rendered).
+   Auto-filled fields (detected via AutoFilledMarker's `data-auto-filled`
+   attribute) get a ⚡ auto badge + blue-tinted input styling via shared macros. #}
+
+{% block wizard_max_width %}max-w-6xl{% endblock %}
+{% block wizard_subtitle %}{{ 'wizard.step3.subtitle'|trans }}{% endblock %}
+{% block wizard_breadcrumb_step %} · {{ 'wizard.step.claim'|trans }}{% endblock %}
+
+{% import 'case/_wizard_macros.html.twig' as f %}
 
 {% set has_form_errors = form.vars.errors|length > 0 %}
 
 {% block wizard_step_content %}
-<div class="max-w-6xl mx-auto">
-    <header class="mb-6">
-        <h2 class="text-2xl font-semibold text-slate-900 dark:text-slate-100">{{ 'wizard.step3.title'|trans }}</h2>
-        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">{{ 'wizard.step3.subtitle'|trans }}</p>
-    </header>
-
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {{ form_start(form, { attr: {
+            'id': 'step3-claim-form',
             'class': 'lg:col-span-2 space-y-5',
             'novalidate': 'novalidate',
         }}) }}
             {% if has_form_errors %}
                 <div role="alert" class="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/60 rounded-lg p-4">
                     <div class="flex items-start gap-3">
-                        <svg class="size-5 text-red-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"/></svg>
+                        <svg class="size-5 text-red-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"/></svg>
                         <div class="text-sm text-red-800 dark:text-red-200">
                             {{ form_errors(form) }}
                         </div>
@@ -37,12 +41,12 @@
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <label for="{{ form.amount.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'wizard.step3.field.amount'|trans }} <span class="text-red-500">*</span></label>
+                        {{ f.field_label(form.amount, 'wizard.step3.field.amount', false) }}
                         <div class="relative">
                             {{ form_widget(form.amount, { attr: {
-                                'class': 'w-full pl-3 pr-14 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-medium tnum focus:outline-none focus:ring-2 focus:ring-blue-500',
-                                'inputmode': 'decimal',
-                                'placeholder': '47500.00',
+                                class: f.input_classes(form.amount, 'pr-14 tnum')|trim,
+                                inputmode: 'decimal',
+                                placeholder: '47500.00',
                             }}) }}
                             <span class="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500 dark:text-slate-400 pointer-events-none">{{ dto.currency ?? 'RON' }}</span>
                         </div>
@@ -50,33 +54,27 @@
                     </div>
 
                     <div>
-                        <label for="{{ form.currency.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'wizard.step3.field.currency'|trans }} <span class="text-red-500">*</span></label>
-                        {{ form_widget(form.currency, { attr: {
-                            'class': 'w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
-                        }}) }}
+                        {{ f.field_label(form.currency, 'wizard.step3.field.currency', false) }}
+                        {{ form_widget(form.currency, { attr: { class: f.input_classes(form.currency)|trim }}) }}
                         {{ form_errors(form.currency) }}
                     </div>
 
                     <div>
-                        <label for="{{ form.dueDate.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'wizard.step3.field.due_date'|trans }} <span class="text-red-500">*</span></label>
-                        {{ form_widget(form.dueDate, { attr: {
-                            'class': 'w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
-                        }}) }}
+                        {{ f.field_label(form.dueDate, 'wizard.step3.field.due_date', false) }}
+                        {{ form_widget(form.dueDate, { attr: { class: f.input_classes(form.dueDate)|trim }}) }}
                         <p class="mt-1 text-[11px] text-slate-500">{{ 'wizard.step3.help.due_date'|trans }}</p>
                         {{ form_errors(form.dueDate) }}
                     </div>
 
                     <div>
-                        <label for="{{ form.legalGround.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'wizard.step3.field.legal_ground'|trans }}</label>
-                        {{ form_widget(form.legalGround, { attr: {
-                            'class': 'w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
-                        }}) }}
+                        {{ f.field_label(form.legalGround, 'wizard.step3.field.legal_ground', true) }}
+                        {{ form_widget(form.legalGround, { attr: { class: f.input_classes(form.legalGround)|trim }}) }}
                         {{ form_errors(form.legalGround) }}
                     </div>
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ 'wizard.step3.field.relationship_type'|trans }} <span class="text-red-500">*</span></label>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ 'wizard.step3.field.relationship_type'|trans }}</label>
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {# Single visible choice — Step3ClaimType restricts to COMERCIAL per C4. CIVIL is hidden until B2C/P2P post-MVP. #}
                         <div class="relative flex rounded-lg border-2 border-blue-500 bg-gradient-to-br from-blue-50 to-blue-100/30 dark:from-blue-950/30 p-3">
@@ -85,7 +83,7 @@
                                 <span class="text-sm font-bold text-blue-900 dark:text-blue-200">{{ 'enum.relationship_type.COMERCIAL'|trans }}</span>
                                 <span class="text-xs text-slate-600 dark:text-slate-400 mt-0.5">{{ 'wizard.step3.relationship.comercial_hint'|trans }}</span>
                             </div>
-                            <svg class="ml-auto size-5 text-blue-600 self-start" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                            <svg class="ml-auto size-5 text-blue-600 dark:text-blue-400 self-start" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
                         </div>
                         <div class="relative flex rounded-lg border-2 border-slate-200 dark:border-slate-700 p-3 opacity-60 cursor-not-allowed" title="{{ 'wizard.step3.relationship.civil_disabled_title'|trans }}">
                             <div class="flex flex-col">
@@ -98,26 +96,15 @@
                 </div>
 
                 <div>
-                    <label for="{{ form.description.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'wizard.step3.field.description'|trans }}</label>
+                    {{ f.field_label(form.description, 'wizard.step3.field.description', true) }}
                     {{ form_widget(form.description, { attr: {
-                        'class': 'w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500',
-                        'rows': 3,
-                        'placeholder': 'wizard.step3.placeholder.description'|trans,
+                        class: f.input_classes(form.description)|trim,
+                        rows: 3,
+                        placeholder: 'wizard.step3.placeholder.description'|trans,
                     }}) }}
                     {{ form_errors(form.description) }}
                 </div>
             </section>
-
-            <div class="flex items-center justify-between pt-2">
-                <a href="{{ path('case_wizard_debtor') }}" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 no-underline">
-                    <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-                    <span>{{ 'wizard.button.back'|trans }}</span>
-                </a>
-                <button type="submit" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white text-sm font-semibold hover:shadow-lg hover:shadow-lex-navy/20 transition shadow-sm">
-                    <span>{{ 'wizard.step3.button.continue'|trans }}</span>
-                    <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-                </button>
-            </div>
         {{ form_end(form) }}
 
         {# Dark navy sidebar — Pas 3.3 replaces this with Step3ClaimLiveComponent
@@ -126,7 +113,7 @@
         <aside class="lg:sticky lg:top-20 self-start">
             <div class="bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white rounded-2xl shadow-lg overflow-hidden">
                 <div class="px-5 py-4 border-b border-white/10 flex items-center gap-2">
-                    <span class="size-2 rounded-full bg-green-400"></span>
+                    <span class="size-2 rounded-full bg-green-400 animate-pulse" aria-hidden="true"></span>
                     <h3 class="text-sm font-semibold">{{ 'wizard.step3.sidebar.title'|trans }}</h3>
                     <span class="ml-auto text-[10px] uppercase tracking-wider text-white/50">{{ 'wizard.step3.sidebar.computed_at'|trans({ '%date%': 'now'|date('d.m.Y') }) }}</span>
                 </div>
@@ -166,7 +153,7 @@
                             <div class="hs-accordion" id="acc-bnr-{{ random() }}">
                                 <button type="button" class="hs-accordion-toggle inline-flex items-center justify-between gap-x-3 w-full text-xs font-medium text-white py-2.5 px-3 hover:bg-white/5 transition" aria-expanded="false">
                                     <span class="inline-flex items-center gap-2">
-                                        <svg class="hs-accordion-active:rotate-90 size-3.5 text-white/60 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                                        <svg class="hs-accordion-active:rotate-90 size-3.5 text-white/60 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                                         <span>{{ 'wizard.step3.sidebar.bnr_breakdown'|trans }}</span>
                                     </span>
                                     <span class="text-[10px] text-white/50">{{ 'wizard.step3.sidebar.periods'|trans({ '%count%': interest.breakdown|length }) }}</span>
@@ -215,7 +202,7 @@
                     <div class="pt-3 border-t border-white/10">
                         <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium mb-1.5">{{ 'wizard.step3.sidebar.court_label'|trans }}</div>
                         <div class="bg-black/20 rounded-lg p-3 flex gap-2.5">
-                            <svg class="size-5 text-blue-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5"/></svg>
+                            <svg class="size-5 text-blue-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5"/></svg>
                             <div class="text-sm">
                                 {% if court is null or court.court is null %}
                                     <div class="font-medium">{{ 'wizard.step3.sidebar.court_placeholder'|trans }}</div>
@@ -232,11 +219,23 @@
                 </div>
 
                 <div class="px-5 py-3 bg-black/20 text-[11px] text-white/60 flex items-start gap-2">
-                    <svg class="size-3.5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <svg class="size-3.5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     <span>{{ 'wizard.step3.sidebar.footer_note'|trans }}</span>
                 </div>
             </div>
         </aside>
     </div>
-</div>
+
+    {# Navigation bar — OUTSIDE the grid, full width, per Step 1/2 pattern.
+       Continue submits via form="step3-claim-form" (HTML5 form attribute). #}
+    <div class="mt-6 flex items-center justify-between gap-3">
+        <a href="{{ path('case_wizard_debtor') }}" class="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition no-underline">
+            <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+            <span>{{ 'wizard.button.back'|trans }}</span>
+        </a>
+        <button type="submit" form="step3-claim-form" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white text-sm font-semibold hover:shadow-lg hover:shadow-lex-navy/20 transition shadow-sm">
+            <span>{{ 'wizard.step3.button.continue'|trans }}</span>
+            <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+        </button>
+    </div>
 {% endblock %}

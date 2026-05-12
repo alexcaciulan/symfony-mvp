@@ -12,11 +12,14 @@
             <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
         </button>
 
-        {# Breadcrumb — overridable from child templates. Defaults to "Dashboard". #}
+        {# Breadcrumb — tunneled from extending pages via `breadcrumb` include var (base.html.twig wraps the overridable {% block breadcrumb %}).
+           Falls back to the default "Dashboard" entry when the include is rendered outside the authenticated shell. #}
         <ol class="flex items-center gap-1.5 text-xs flex-1" aria-label="Breadcrumb">
-            {% block breadcrumb %}
+            {%- if breadcrumb is defined and breadcrumb -%}
+                {{ breadcrumb|raw }}
+            {%- else -%}
                 <li class="font-medium text-slate-700 dark:text-slate-300">{{ 'layout.topbar.breadcrumb_default'|trans }}</li>
-            {% endblock %}
+            {%- endif -%}
         </ol>
 
         {# Dark mode toggle #}

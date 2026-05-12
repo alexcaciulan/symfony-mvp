@@ -2,24 +2,38 @@
    - labels: ordered list of step labels (length = total steps).
    - current_step: current step value, matched against `index + start_index`.
    - start_index: step numbering offset. Default 1 (legacy 1-indexed); pass 0 for
-     0-indexed flows like the Pas 3.0 wizard (steps 0..4). #}
+     0-indexed flows like the Pas 3.0 wizard (steps 0..4).
+   Visual: v2 mockup grid — circle + label on top, progress bar beneath each step.
+   Completed = green gradient + check icon. Current = lex-navy gradient + blue ring.
+   Future = slate-200 numeric. #}
 {% props labels = [], current_step = 1, start_index = 1 %}
-<ol {{ attributes.defaults({ class: 'flex items-center w-full text-sm font-medium text-gray-500 dark:text-gray-400' }) }}>
+<ol {{ attributes.defaults({ class: 'grid gap-2 md:gap-4 text-xs', style: 'grid-template-columns: repeat(' ~ labels|length ~ ', minmax(0, 1fr));' }) }}
+    aria-label="{{ 'wizard.stepper.label'|trans }}">
     {% for index, label in labels %}
         {% set step = index + start_index %}
         {% set is_done = step < current_step %}
         {% set is_current = step == current_step %}
-        <li class="flex items-center {{ not loop.last ? 'flex-1' : '' }}">
-            <span class="flex items-center justify-center w-8 h-8 rounded-full shrink-0
-                {% if is_done %}bg-emerald-500 text-white
-                {% elseif is_current %}bg-primary text-white ring-4 ring-primary/20
-                {% else %}bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300{% endif %}">
-                {% if is_done %}✓{% else %}{{ step }}{% endif %}
-            </span>
-            <span class="ml-3 {{ is_current ? 'text-gray-900 dark:text-gray-100 font-semibold' : '' }}">{{ label }}</span>
-            {% if not loop.last %}
-                <span class="flex-1 h-px bg-gray-200 dark:bg-gray-700 mx-4"></span>
-            {% endif %}
+        <li class="flex flex-col gap-1.5">
+            <div class="flex items-center gap-2">
+                {% if is_done %}
+                    <span class="inline-flex items-center justify-center size-7 rounded-full bg-gradient-to-br from-green-400 to-green-600 text-white shadow-md shadow-green-500/30 shrink-0"
+                          aria-label="{{ 'wizard.stepper.completed'|trans }}">
+                        <svg class="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                    </span>
+                    <span class="hidden sm:inline text-slate-600 dark:text-slate-400 truncate">{{ label }}</span>
+                {% elseif is_current %}
+                    <span class="inline-flex items-center justify-center size-7 rounded-full bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white text-xs font-bold ring-4 ring-blue-100 dark:ring-blue-950/50 shrink-0"
+                          aria-current="step">{{ step }}</span>
+                    <span class="hidden sm:inline font-semibold text-slate-900 dark:text-slate-100 truncate">{{ label }}</span>
+                {% else %}
+                    <span class="inline-flex items-center justify-center size-7 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-500 text-xs font-bold shrink-0">{{ step }}</span>
+                    <span class="hidden sm:inline text-slate-500 truncate">{{ label }}</span>
+                {% endif %}
+            </div>
+            <div class="h-1 rounded-full
+                {% if is_done %}bg-green-500
+                {% elseif is_current %}bg-gradient-to-r from-lex-navy to-blue-500
+                {% else %}bg-slate-200 dark:bg-slate-800{% endif %}"></div>
         </li>
     {% endfor %}
 </ol>

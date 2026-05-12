@@ -8,7 +8,12 @@
     --color-lex-navy-dark: #162A45;
     --color-lex-navy-light: #2B4F7C;
 
-    /* Backward-compat aliases — kept so pre-Pas 2.7 templates keep rendering. */
+    /* Backward-compat aliases — still consumed by pre-v2 page templates:
+       templates/home/index.html.twig, templates/reset_password/*, templates/profile/*,
+       templates/case/view.html.twig, templates/case/_documents_section.html.twig,
+       templates/case/_defendant_fields.html.twig, templates/components/EmptyState.html.twig,
+       templates/components/Stepper.html.twig.
+       Will be removed when those pages are migrated to lex-navy / slate Tailwind utilities. */
     --color-primary: #1E3A5F;
     --color-primary-light: #2563EB;
     --color-accent: #2563EB;
@@ -62,6 +67,23 @@ html.dark body {
 
 html.dark .nav-active {
     background: linear-gradient(90deg, rgba(96, 165, 250, 0.12) 0%, rgba(96, 165, 250, 0.02) 100%);
+}
+
+/* Wizard form selects — strip the browser-native dropdown arrow (which crunches
+   vertical height and breaks visual alignment with text inputs) and paint a custom
+   chevron so selects match the height of <input type="text"> at the same padding. */
+.wizard-select {
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20' stroke='%2364748b' stroke-width='1.75'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1.25em 1.25em;
+    padding-right: 2.5rem;
+}
+
+html.dark .wizard-select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20' stroke='%2394a3b8' stroke-width='1.75'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
 }
 
 /* Auth split-layout background (login / register) — set via body.auth-bg. */

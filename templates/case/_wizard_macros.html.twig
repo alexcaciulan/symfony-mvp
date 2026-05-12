@@ -1,0 +1,34 @@
+{# Reusable wizard form macros — extracted at Step 3 (3rd repeat of the pattern).
+   Used by Step 1 (Creditor), Step 2 (Debitor) entries, Step 3 (Creanță).
+
+   `field_label` renders a Tailwind <label> with optional "(opțional)" suffix
+   and a ⚡ auto badge when the field's view carries `data-auto-filled="true"`
+   (set by App\Form\Wizard\AutoFilledMarker::apply() from the DTO's $autoFilled
+   list).
+
+   `input_classes` returns the input class string, swapping border/bg to
+   blue-tinted on auto-filled fields to mirror the v2 mockup styling. #}
+
+{% macro field_label(field, label_key, is_optional) %}
+    <label for="{{ field.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+        {{ label_key|trans }}
+        {% if is_optional %}<span class="text-slate-400 font-normal ml-1">{{ 'wizard.field.optional_suffix'|trans }}</span>{% endif %}
+        {% if field.vars.attr['data-auto-filled']|default('') == 'true' %}
+            <span class="inline-flex items-center gap-1 ml-1 text-[11px] font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded-full" title="{{ 'wizard.field.auto_filled_tooltip'|trans }}">
+                <svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                <span>{{ 'wizard.field.auto'|trans }}</span>
+            </span>
+        {% endif %}
+    </label>
+{% endmacro %}
+
+{% macro input_classes(field, extra) %}
+    {%- set is_auto = field.vars.attr['data-auto-filled']|default('') == 'true' -%}
+    {%- set is_select = 'choice' in field.vars.block_prefixes and not field.vars.expanded|default(false) -%}
+    {%- set base = 'w-full px-3 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500' -%}
+    {%- set tone = is_auto
+        ? 'border border-blue-200 dark:border-blue-900/50 bg-blue-50/50 dark:bg-blue-950/20 font-medium'
+        : 'border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800' -%}
+    {%- set select_addon = is_select ? ' wizard-select' : '' -%}
+    {{- base }} {{ tone }}{{ select_addon }}{% if extra %} {{ extra }}{% endif -%}
+{% endmacro %}

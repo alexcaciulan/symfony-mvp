@@ -163,8 +163,13 @@ wizard:
     button:
         back: 'Back'
         continue: 'Continue'
+    field:
+        optional_suffix: '(optional)'
+        auto: 'auto'
+        auto_filled_tooltip: 'Auto-filled from documents'
     stepper:
-        label: 'Application progress'
+        label: 'Wizard steps'
+        completed: 'Step completed'
         court: 'Court'
         claimant: 'Claimant'
         defendant: 'Defendant'
@@ -173,7 +178,8 @@ wizard:
         confirmation: 'Confirmation'
     step1:
         title: 'Creditor details'
-        subtitle: 'Identify the creditor — the party submitting the payment-order request.'
+        subtitle: 'Step 1 of 4 · Creditor details. Fields tagged with ⚡ auto were extracted automatically from documents.'
+        save_to_library: 'Save to creditor library for reuse'
         help:
             title: 'About this step'
             body: 'If the creditor is already in your cabinet catalog you can pick them. Otherwise fill in the manual fields: person type, name, address. CUI and ONRC are optional for individuals.'
@@ -205,14 +211,15 @@ wizard:
             person_type: '-- Select person type --'
     step2:
         title: 'Debtor(s) details'
-        subtitle: 'Add one or more debtors. Verify ANAF status and confirm the BPI check for every legal entity.'
+        subtitle: 'Step 2 of 4 · Liable party. Fields tagged with ⚡ auto were extracted automatically from documents.'
+        save_to_library: 'Save to debtor library for reuse'
         entry_heading: 'Debtor #%index%'
         toggle:
             existing: 'Pick existing debtor'
             new: 'New debtor'
             existing_disabled_title: 'Available from Pas 3.3 (UX Autocomplete + ANAF lookup).'
         button:
-            add_debtor: '+ Add secondary debtor'
+            add_debtor: 'Add secondary debtor'
             continue: 'Continue to claim'
         add_debtor_hint: 'for joint-and-several obligations'
         flash:
@@ -263,7 +270,7 @@ wizard:
             person_type: '-- Select person type --'
     step3:
         title: 'Claim details'
-        subtitle: 'Enter the amount due, due date and legal ground. Interest / stamp duty / competent-court calculations appear live in the sidebar.'
+        subtitle: 'Step 3 of 4 · Claim details. Fields tagged with ⚡ auto were extracted automatically from documents.'
         section:
             main_data: 'Main data'
         help:
@@ -315,6 +322,7 @@ wizard:
         defendant_number: 'Defendant #%num%'
         add_defendant: 'Add defendant'
         remove: 'Remove'
+        lookup_button: 'Look up by CUI'
         field:
             amount: 'Amount'
             currency: 'Currency'
@@ -327,7 +335,7 @@ wizard:
             description: 'E.g.: Service agreement no. 145/12.03.2025, art. 7 — 30-day payment terms. Invoice no. 2024-012/15.10.2025.'
     step4:
         title: 'Case confirmation'
-        subtitle: 'Review the summary, final calculations and confirm the data. Once saved, the case appears in your list.'
+        subtitle: 'Step 4 of 4 · Case confirmation. Review the summary and final calculations before saving.'
         legend:
             auto: 'auto-filled'
             manual: 'manual'
@@ -417,8 +425,9 @@ wizard:
     # Pas 3.0 wizard (5-step LexRecovery: documents / creditor / debtor / claim / confirmation)
     # ---------------------------------------------------------------------
     title: 'New case'
-    heading: 'Create a new case'
+    heading: 'New case'
     subheading: 'Complete the 5 steps to submit your payment-order petition.'
+    breadcrumb_root: 'New case'
     step:
         documents: 'Documents'
         creditor: 'Creditor'
@@ -427,7 +436,7 @@ wizard:
         confirmation: 'Confirmation'
     step0:
         title: 'Source documents'
-        subtitle: 'Upload contracts, invoices or proofs. Relevant data is extracted automatically.'
+        subtitle: 'Step 0 of 4 · Source documents (optional)'
         drop_zone:
             heading: 'Drop files here'
             cta: 'Choose files'

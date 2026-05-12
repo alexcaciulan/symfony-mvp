@@ -30,10 +30,12 @@
 
         {% block layout %}
             {% if app.user %}
-                {# Authenticated shell — sidebar (lg+) + topbar + content + footer. #}
+                {# Authenticated shell — sidebar (lg+) + topbar + content. No footer per v2 mockup parity. #}
+                {# Block tunnel: capture overridable breadcrumb defined by extending pages and forward it as a variable into the included topbar. #}
+                {% set page_breadcrumb %}{% block breadcrumb %}<li class="font-medium text-slate-700 dark:text-slate-300">{{ 'layout.topbar.breadcrumb_default'|trans }}</li>{% endblock %}{% endset %}
                 {{ include('_sidebar.html.twig') }}
                 <div class="lg:pl-64 min-h-screen flex flex-col flex-1">
-                    {{ include('_topbar.html.twig') }}
+                    {{ include('_topbar.html.twig', { breadcrumb: page_breadcrumb }) }}
 
                     {# Legacy flash messages (backwards compat — controllers using addFlash('success', ...)). #}
                     {% for type, messages in app.flashes(['success', 'error', 'warning', 'info', 'verify_email_error']) %}
@@ -54,8 +56,6 @@
                     <main class="flex-1 px-4 lg:px-8 py-6">
                         {% block body %}{% endblock %}
                     </main>
-
-                    {{ include('_footer.html.twig') }}
                 </div>
             {% else %}
                 {# Public/anonymous shell — minimal top bar + content + footer. #}

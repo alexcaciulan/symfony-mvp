@@ -1,19 +1,20 @@
 {% extends 'case/wizard.html.twig' %}
 
 {# Pas 3.2 wizard step 4 — Confirmare.
-   Layout inspired by mockups/v2/03-wizard/step4-confirmare.html. Header +
-   legend chips at top, grid 2-col of 4 summary cards (Documente / Creditor
-   / Debitor / Creanță), then "Calcule finale" navy band with 4-col stats +
-   instanță footer, GDPR notice amber, ERROR/WARNING admissibility display,
-   acknowledgement checkboxes, green-gradient "Salvează dosar" CTA. #}
+   Mockup: docs/LexRecovery/mockups/v2/03-wizard/step4-confirmare.html.
+   Page-level h1 + subtitle + breadcrumb come from wizard.html.twig shell via
+   block overrides below. Legend chips at top, grid 2-col of 4 summary cards
+   (Documente / Creditor / Debitor / Creanță), then "Calcule finale" navy band
+   with 4-col stats + instanță footer, GDPR notice amber, ERROR/WARNING
+   admissibility display, acknowledgement checkboxes, green-gradient
+   "Salvează dosar" CTA submitted via HTML5 form="..." attribute from outside
+   the form (Steps 1/2/3 pattern). #}
+
+{% block wizard_max_width %}max-w-5xl{% endblock %}
+{% block wizard_subtitle %}{{ 'wizard.step4.subtitle'|trans }}{% endblock %}
+{% block wizard_breadcrumb_step %} · {{ 'wizard.step.confirmation'|trans }}{% endblock %}
 
 {% block wizard_step_content %}
-<div class="max-w-6xl mx-auto">
-    <header class="mb-6">
-        <h2 class="text-2xl font-semibold text-slate-900 dark:text-slate-100">{{ 'wizard.step4.title'|trans }}</h2>
-        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">{{ 'wizard.step4.subtitle'|trans }}</p>
-    </header>
-
     <div class="mb-6 inline-flex items-center gap-3 text-xs">
         <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300">
             <svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
@@ -284,8 +285,9 @@
         </div>
     </div>
 
-    {# Acceptance checkboxes + submit. #}
-    {{ form_start(form, { attr: { 'class': 'space-y-4', 'novalidate': 'novalidate' }}) }}
+    {# Acceptance checkboxes. Submit button lives OUTSIDE the form (Steps 1/2/3 pattern)
+       and submits via the HTML5 form="step4-confirmation-form" attribute. #}
+    {{ form_start(form, { attr: { 'id': 'step4-confirmation-form', 'class': 'space-y-4', 'novalidate': 'novalidate' }}) }}
         <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft p-5 space-y-3">
             <label class="flex items-start gap-2 cursor-pointer">
                 {{ form_widget(form.acceptTerms, { attr: { 'class': 'mt-0.5 rounded border-slate-300 text-lex-navy focus:ring-lex-navy' }}) }}
@@ -312,20 +314,22 @@
         </div>
 
         {{ form_errors(form) }}
-
-        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <a href="{{ path('case_wizard_claim') }}" class="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 no-underline">
-                <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-                <span>{{ 'wizard.step4.button.back'|trans }}</span>
-            </a>
-            <button type="submit"
-                    {% if has_errors %}disabled aria-disabled="true"{% endif %}
-                    class="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg text-white text-sm font-bold transition shadow-sm
-                        {% if has_errors %}bg-slate-400 cursor-not-allowed{% else %}bg-gradient-to-br from-green-500 to-emerald-600 hover:shadow-lg hover:shadow-green-500/30{% endif %}">
-                <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-                <span>{{ 'wizard.step4.button.submit'|trans }}</span>
-            </button>
-        </div>
     {{ form_end(form) }}
-</div>
+
+    {# Navigation bar — OUTSIDE the form, per Steps 1/2/3 pattern. Submit submits
+       via form="step4-confirmation-form" and stays disabled while admissibility
+       errors block the case from being filed. #}
+    <div class="mt-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <a href="{{ path('case_wizard_claim') }}" class="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition no-underline">
+            <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+            <span>{{ 'wizard.step4.button.back'|trans }}</span>
+        </a>
+        <button type="submit" form="step4-confirmation-form"
+                {% if has_errors %}disabled aria-disabled="true"{% endif %}
+                class="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg text-white text-sm font-bold transition shadow-sm
+                    {% if has_errors %}bg-slate-400 cursor-not-allowed{% else %}bg-gradient-to-br from-green-500 to-emerald-600 hover:shadow-lg hover:shadow-green-500/30{% endif %}">
+            <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+            <span>{{ 'wizard.step4.button.submit'|trans }}</span>
+        </button>
+    </div>
 {% endblock %}

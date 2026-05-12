@@ -1,4 +1,5 @@
-{# Compact footer used inside the authenticated and public shells. #}
+{# Compact footer used inside the public/unauthenticated shell only (homepage, login, register).
+   Authenticated layout (dashboard, wizard, case detail) omits the footer per v2 mockup parity. #}
 <footer class="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 mt-auto">
     <div class="px-4 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
         <p>{{ 'layout.footer.copyright'|trans({'%year%': "now"|date("Y")}) }}</p>
