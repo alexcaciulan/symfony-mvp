@@ -35,7 +35,7 @@ final class CaseOverviewController extends AbstractController
         private readonly CourtPortalEventRepository $portalEvents,
     ) {}
 
-    #[Route('/dosar/{id}', name: 'case_overview', requirements: ['id' => '\d+'], methods: ['GET'])]
+    #[Route('/case/{id}', name: 'case_overview', requirements: ['id' => '\d+'], methods: ['GET'])]
     public function __invoke(int $id): Response
     {
         $case = $this->cases->find($id);

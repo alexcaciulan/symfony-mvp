@@ -8,6 +8,7 @@ use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: AuditLogRepository::class)]
 #[ORM\Index(columns: ['category'], name: 'idx_audit_log_category')]
+#[ORM\Index(columns: ['entity_type', 'entity_id'], name: 'idx_audit_log_entity')]
 class AuditLog
 {
     #[ORM\Id]

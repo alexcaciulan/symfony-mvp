@@ -66,7 +66,7 @@ final class CaseOverviewControllerTest extends WebTestCase
     public function testGetOverviewForOwnedCaseReturns200(): void
     {
         $this->client->loginUser($this->user);
-        $this->client->request('GET', '/dosar/' . $this->case->getId());
+        $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseStatusCodeSame(Response::HTTP_OK);
         self::assertSelectorTextContains('title', 'Dosar ' . $this->case->getCaseNumber());
@@ -86,7 +86,7 @@ final class CaseOverviewControllerTest extends WebTestCase
 
         try {
             $this->client->loginUser($intruder);
-            $this->client->request('GET', '/dosar/' . $this->case->getId());
+            $this->client->request('GET', '/case/' . $this->case->getId());
 
             self::assertResponseStatusCodeSame(Response::HTTP_FORBIDDEN);
         } finally {
@@ -105,7 +105,7 @@ final class CaseOverviewControllerTest extends WebTestCase
 
     public function testGetOverviewUnauthenticatedRedirectsToLogin(): void
     {
-        $this->client->request('GET', '/dosar/' . $this->case->getId());
+        $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseStatusCodeSame(Response::HTTP_FOUND);
         self::assertResponseRedirects();
@@ -114,7 +114,7 @@ final class CaseOverviewControllerTest extends WebTestCase
     public function testAllFiveTabPanelsRenderInDom(): void
     {
         $this->client->loginUser($this->user);
-        $this->client->request('GET', '/dosar/' . $this->case->getId());
+        $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
         self::assertSelectorExists('#panel-detalii[role="tabpanel"]');
