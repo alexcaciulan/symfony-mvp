@@ -84,6 +84,15 @@ final class Step2DebtorEntryType extends AbstractType
                 'label' => 'wizard.step2.field.in_insolvency',
                 'required' => false,
             ])
+            // Virtual checkbox — "Am verificat BPI azi". Maps to a timestamp
+            // on the DTO via the SUBMIT listener below. The OpAdmissibilityValidator
+            // emits OP_INSOLVENCY_NOT_VERIFIED (ERROR) when `insolvencyCheckedAt`
+            // is null, so the user MUST tick this for any PJ debtor to pass step 4.
+            ->add('bpiVerifiedToday', CheckboxType::class, [
+                'mapped' => false,
+                'label' => 'wizard.step2.field.bpi_verified_today',
+                'required' => false,
+            ])
         ;
 
         // PRE_SUBMIT normalizer — same UX as Step1CreditorType: accept IBAN
@@ -100,6 +109,23 @@ final class Step2DebtorEntryType extends AbstractType
                 $data['cui'] = strtoupper(preg_replace('/\s+/', '', $data['cui']) ?? '');
             }
             $event->setData($data);
+        });
+
+        // SUBMIT listener — convert the virtual `bpiVerifiedToday` checkbox to
+        // the real `insolvencyCheckedAt` timestamp on the DTO. We deliberately
+        // never reset an existing timestamp when the box is unticked — the user
+        // may have verified BPI on a previous session and we don't want a stale
+        // re-render to wipe that. If they want to invalidate, they tick the
+        // "Debitor în insolvență" box instead, which is the ERROR path.
+        $builder->addEventListener(FormEvents::SUBMIT, static function (FormEvent $event): void {
+            $entry = $event->getData();
+            if (!$entry instanceof Step2DebtorEntry) {
+                return;
+            }
+            $checkbox = $event->getForm()->get('bpiVerifiedToday')->getData();
+            if ($checkbox === true) {
+                $entry->insolvencyCheckedAt = new \DateTimeImmutable();
+            }
         });
     }
 

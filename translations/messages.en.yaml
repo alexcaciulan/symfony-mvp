@@ -207,10 +207,21 @@ wizard:
         title: 'Debtor(s) details'
         subtitle: 'Add one or more debtors. Verify ANAF status and confirm the BPI check for every legal entity.'
         entry_heading: 'Debtor #%index%'
+        toggle:
+            existing: 'Pick existing debtor'
+            new: 'New debtor'
+            existing_disabled_title: 'Available from Pas 3.3 (UX Autocomplete + ANAF lookup).'
         button:
             add_debtor: '+ Add secondary debtor'
+            continue: 'Continue to claim'
+        add_debtor_hint: 'for joint-and-several obligations'
         flash:
             max_debtors_reached: 'Max 5 debtors per case — product cap.'
+        help:
+            anaf_pas33: 'Automatic ANAF verification ships in Pas 3.3 — fill the fiscal status manually for now.'
+        bpi:
+            title: 'BPI verification required (Law 85/2014)'
+            body: 'Before submitting the payment order you must check whether the debtor is in insolvency proceedings. Go to <a href="https://www.bpi.just.ro/" target="_blank" rel="noopener" class="underline font-medium">bpi.just.ro</a> → search by CUI → confirm the result.'
         type: 'Claimant type'
         type_pf: 'Individual'
         type_pj: 'Legal entity'
@@ -247,6 +258,7 @@ wizard:
             administrator: 'Administrator'
             in_insolvency: 'Debtor in insolvency (Law 85/2014)'
             in_insolvency_short: 'Insolvency'
+            bpi_verified_today: 'I checked BPI today — debtor is NOT in insolvency'
         placeholder:
             person_type: '-- Select person type --'
     step3:

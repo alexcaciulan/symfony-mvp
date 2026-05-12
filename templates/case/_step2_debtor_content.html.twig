@@ -1,122 +1,204 @@
 {% extends 'case/wizard.html.twig' %}
 
 {# Pas 3.2 wizard step 2 — Debitor(i).
-   Static CollectionType with non-JS "+ Adaugă debitor" button (POST with
-   _action=add_debtor). Pas 3.3 replaces with Step2DebtorsLiveComponent for
-   add/remove without round-trip. #}
+   Layout inspired by mockups/v2/03-wizard/step2-debitor.html. Static
+   CollectionType with non-JS "+ Adaugă debitor" button (POST with
+   _action=add_debtor). Pas 3.3 wires Step2DebtorsLiveComponent for
+   interactive add/remove + ANAF lookup on CUI blur. The "BPI verificat azi"
+   checkbox is wired today — it converts to `insolvencyCheckedAt = now()`
+   in Step2DebtorEntryType::SUBMIT listener so OpAdmissibilityValidator
+   doesn't emit OP_INSOLVENCY_NOT_VERIFIED at step 4. #}
+
+{% set has_form_errors = form.vars.errors|length > 0 or form.debtors.vars.errors|length > 0 %}
 
 {% block wizard_step_content %}
-<div class="space-y-6">
+<div class="max-w-3xl mx-auto">
+    <header class="mb-6">
+        <h2 class="text-2xl font-semibold text-slate-900 dark:text-slate-100">{{ 'wizard.step2.title'|trans }}</h2>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">{{ 'wizard.step2.subtitle'|trans }}</p>
+    </header>
+
+    {# Toggle bar — "Selectează debitor existent" disabled until Pas 3.3 UX Autocomplete. #}
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 mb-6 shadow-soft">
+        <div class="grid grid-cols-2 gap-2">
+            <button type="button" disabled aria-disabled="true"
+                    title="{{ 'wizard.step2.toggle.existing_disabled_title'|trans }}"
+                    class="flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-400 cursor-not-allowed">
+                <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <span>{{ 'wizard.step2.toggle.existing'|trans }}</span>
+            </button>
+            <button type="button" aria-pressed="true"
+                    class="flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-blue-500 bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-950/20 text-sm font-bold text-blue-700 dark:text-blue-300">
+                <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+                <span>{{ 'wizard.step2.toggle.new'|trans }}</span>
+            </button>
+        </div>
+    </div>
+
     {{ form_start(form, { attr: {
         'class': 'space-y-5',
         'novalidate': 'novalidate',
     }}) }}
-        <header>
-            <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">{{ 'wizard.step2.title'|trans }}</h2>
-            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ 'wizard.step2.subtitle'|trans }}</p>
-        </header>
+        {% if has_form_errors %}
+            <div role="alert" class="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/60 rounded-lg p-4">
+                <div class="flex items-start gap-3">
+                    <svg class="size-5 text-red-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"/></svg>
+                    <div class="text-sm text-red-800 dark:text-red-200">
+                        {{ form_errors(form) }}
+                        {{ form_errors(form.debtors) }}
+                    </div>
+                </div>
+            </div>
+        {% endif %}
 
-        <div class="space-y-4">
-            {% for entry in form.debtors %}
-                <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft p-5">
-                    <div class="flex items-center justify-between mb-3">
-                        <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                            {{ 'wizard.step2.entry_heading'|trans({ '%index%': loop.index }) }}
-                        </h3>
-                        {% if dto.debtors[loop.index0].anafStatus is defined and dto.debtors[loop.index0].anafStatus is not null %}
-                            <span class="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300 px-2 py-0.5 rounded-full">
-                                <svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                                <span>{{ ('enum.anaf_status.' ~ dto.debtors[loop.index0].anafStatus.value)|trans }}</span>
-                            </span>
-                        {% endif %}
+        {% for entry in form.debtors %}
+            <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-6 shadow-soft">
+                <header class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                    <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        {{ 'wizard.step2.entry_heading'|trans({ '%index%': loop.index }) }}
+                    </h3>
+                    {% if dto.debtors[loop.index0].anafStatus is defined and dto.debtors[loop.index0].anafStatus is not null %}
+                        <span class="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300 px-2 py-0.5 rounded-full">
+                            <svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                            <span>{{ ('enum.anaf_status.' ~ dto.debtors[loop.index0].anafStatus.value)|trans }}</span>
+                        </span>
+                    {% endif %}
+                </header>
+
+                <div>
+                    <label for="{{ entry.personType.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'wizard.step2.field.person_type'|trans }} <span class="text-red-500">*</span></label>
+                    {{ form_widget(entry.personType, { attr: {
+                        'class': 'w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500',
+                    }}) }}
+                    {{ form_errors(entry.personType) }}
+                </div>
+
+                <div>
+                    <label for="{{ entry.cui.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'wizard.step2.field.cui'|trans }}</label>
+                    {{ form_widget(entry.cui, { attr: {
+                        'class': 'w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500',
+                        'placeholder': 'RO12345678',
+                    }}) }}
+                    <p class="mt-1.5 text-[11px] text-slate-500">{{ 'wizard.step2.help.anaf_pas33'|trans }}</p>
+                    {{ form_errors(entry.cui) }}
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="md:col-span-2">
+                        <label for="{{ entry.name.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'wizard.step2.field.name'|trans }} <span class="text-red-500">*</span></label>
+                        {{ form_widget(entry.name, { attr: {
+                            'class': 'w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500',
+                        }}) }}
+                        {{ form_errors(entry.name) }}
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            {{ form_label(entry.personType) }}
-                            {{ form_widget(entry.personType, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800' }}) }}
-                            {{ form_errors(entry.personType) }}
-                        </div>
-                        <div>
-                            {{ form_label(entry.name) }}
-                            {{ form_widget(entry.name, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800' }}) }}
-                            {{ form_errors(entry.name) }}
-                        </div>
-                        <div>
-                            {{ form_label(entry.cui) }}
-                            {{ form_widget(entry.cui, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800' }}) }}
-                            {{ form_errors(entry.cui) }}
-                        </div>
-                        <div>
-                            {{ form_label(entry.onrcNumber) }}
-                            {{ form_widget(entry.onrcNumber, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800' }}) }}
-                            {{ form_errors(entry.onrcNumber) }}
-                        </div>
-                        <div>
-                            {{ form_label(entry.personalId) }}
-                            {{ form_widget(entry.personalId, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800' }}) }}
-                            {{ form_errors(entry.personalId) }}
-                        </div>
-                        <div>
-                            {{ form_label(entry.administrator) }}
-                            {{ form_widget(entry.administrator, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800' }}) }}
-                            {{ form_errors(entry.administrator) }}
-                        </div>
+                    <div>
+                        <label for="{{ entry.onrcNumber.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'wizard.step2.field.onrc_number'|trans }}</label>
+                        {{ form_widget(entry.onrcNumber, { attr: {
+                            'class': 'w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500',
+                            'placeholder': 'J40/8765/2019',
+                        }}) }}
+                        {{ form_errors(entry.onrcNumber) }}
                     </div>
 
-                    <div class="mt-4">
-                        {{ form_label(entry.address) }}
-                        {{ form_widget(entry.address, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800', 'rows': 2 }}) }}
+                    <div>
+                        <label for="{{ entry.personalId.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'wizard.step2.field.personal_id'|trans }}</label>
+                        {{ form_widget(entry.personalId, { attr: {
+                            'class': 'w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500',
+                        }}) }}
+                        {{ form_errors(entry.personalId) }}
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <label for="{{ entry.address.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'wizard.step2.field.address'|trans }} <span class="text-red-500">*</span></label>
+                        {{ form_widget(entry.address, { attr: {
+                            'class': 'w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500',
+                            'rows': 2,
+                        }}) }}
                         {{ form_errors(entry.address) }}
                     </div>
 
-                    <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                            {{ form_label(entry.email) }}
-                            {{ form_widget(entry.email, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800' }}) }}
-                            {{ form_errors(entry.email) }}
-                        </div>
-                        <div>
-                            {{ form_label(entry.phone) }}
-                            {{ form_widget(entry.phone, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800' }}) }}
-                            {{ form_errors(entry.phone) }}
-                        </div>
-                        <div>
-                            {{ form_label(entry.iban) }}
-                            {{ form_widget(entry.iban, { attr: { 'class': 'mt-1 block w-full rounded-lg border-slate-300 dark:border-slate-700 dark:bg-slate-800' }}) }}
-                            {{ form_errors(entry.iban) }}
-                        </div>
+                    <div class="md:col-span-2">
+                        <label for="{{ entry.administrator.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'wizard.step2.field.administrator'|trans }}</label>
+                        {{ form_widget(entry.administrator, { attr: {
+                            'class': 'w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500',
+                        }}) }}
+                        {{ form_errors(entry.administrator) }}
                     </div>
 
-                    <div class="mt-4 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60">
-                        <label class="inline-flex items-start gap-2 cursor-pointer">
-                            {{ form_widget(entry.inInsolvency, { attr: { 'class': 'mt-0.5 rounded border-amber-400 text-amber-600 focus:ring-amber-500' }}) }}
-                            <span class="text-xs text-amber-900 dark:text-amber-200">{{ 'wizard.step2.field.in_insolvency'|trans }}</span>
-                        </label>
+                    <div>
+                        <label for="{{ entry.email.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'wizard.step2.field.email'|trans }}</label>
+                        {{ form_widget(entry.email, { attr: {
+                            'class': 'w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500',
+                        }}) }}
+                        {{ form_errors(entry.email) }}
+                    </div>
+
+                    <div>
+                        <label for="{{ entry.phone.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'wizard.step2.field.phone'|trans }}</label>
+                        {{ form_widget(entry.phone, { attr: {
+                            'class': 'w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500',
+                        }}) }}
+                        {{ form_errors(entry.phone) }}
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <label for="{{ entry.iban.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'wizard.step2.field.iban'|trans }}</label>
+                        {{ form_widget(entry.iban, { attr: {
+                            'class': 'w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500',
+                            'placeholder': 'RO49 RNCB 0082 0044 8001 0001',
+                        }}) }}
+                        {{ form_errors(entry.iban) }}
                     </div>
                 </div>
-            {% endfor %}
+
+                {# BPI verification panel — admissibility critical (CPC art. 1014 + Legea 85/2014).
+                   "Verificat BPI azi" sets `insolvencyCheckedAt = now()` via Step2DebtorEntryType
+                   SUBMIT listener. Without it, OpAdmissibilityValidator emits
+                   OP_INSOLVENCY_NOT_VERIFIED (ERROR) at step 4 and blocks the submit. #}
+                <div class="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-lg p-4 space-y-3">
+                    <div class="flex items-start gap-2.5">
+                        <svg class="size-5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"/></svg>
+                        <div class="text-sm">
+                            <div class="font-semibold text-amber-900 dark:text-amber-200">{{ 'wizard.step2.bpi.title'|trans }}</div>
+                            <p class="mt-0.5 text-xs text-amber-800 dark:text-amber-200/80">{{ 'wizard.step2.bpi.body'|trans|raw }}</p>
+                        </div>
+                    </div>
+
+                    <label class="flex items-start gap-2 cursor-pointer">
+                        {{ form_widget(entry.bpiVerifiedToday, { attr: {
+                            'class': 'mt-0.5 rounded border-amber-400 text-amber-600 focus:ring-amber-500',
+                        }}) }}
+                        <span class="text-sm font-medium text-amber-900 dark:text-amber-200">{{ 'wizard.step2.field.bpi_verified_today'|trans }}</span>
+                    </label>
+
+                    <label class="flex items-start gap-2 cursor-pointer pt-2 border-t border-amber-200 dark:border-amber-900/40">
+                        {{ form_widget(entry.inInsolvency, { attr: {
+                            'class': 'mt-0.5 rounded border-red-400 text-red-600 focus:ring-red-500',
+                        }}) }}
+                        <span class="text-sm text-red-700 dark:text-red-300">{{ 'wizard.step2.field.in_insolvency'|trans }}</span>
+                    </label>
+                </div>
+            </div>
+        {% endfor %}
+
+        {# "+ Adaugă debitor secundar" — non-JS button submits with _action=add_debtor,
+           controller re-renders with an empty entry appended. LiveComponent in 3.3. #}
+        <div class="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/60 rounded-lg p-3 flex items-center gap-2.5 text-xs">
+            <svg class="size-4 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+            <button type="submit" name="_action" value="add_debtor" class="text-blue-700 dark:text-blue-300 font-medium hover:underline">{{ 'wizard.step2.button.add_debtor'|trans }}</button>
+            <span class="text-slate-500">— {{ 'wizard.step2.add_debtor_hint'|trans }}</span>
         </div>
 
-        {{ form_errors(form.debtors) }}
-        {{ form_errors(form) }}
-
-        <div class="flex items-center justify-between">
-            <button type="submit" name="_action" value="add_debtor"
-                    class="inline-flex items-center gap-1.5 text-sm font-medium text-lex-navy hover:underline">
-                <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
-                <span>{{ 'wizard.step2.button.add_debtor'|trans }}</span>
+        <div class="flex items-center justify-between pt-2">
+            <a href="{{ path('case_wizard_creditor') }}" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 no-underline">
+                <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                <span>{{ 'wizard.button.back'|trans }}</span>
+            </a>
+            <button type="submit" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white text-sm font-semibold hover:shadow-lg hover:shadow-lex-navy/20 transition shadow-sm">
+                <span>{{ 'wizard.step2.button.continue'|trans }}</span>
+                <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
             </button>
-
-            <div class="flex items-center gap-3">
-                <a href="{{ path('case_wizard_creditor') }}" class="text-sm font-medium text-slate-600 dark:text-slate-300 hover:underline">
-                    {{ 'wizard.button.back'|trans }}
-                </a>
-                <button type="submit" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white text-sm font-medium hover:opacity-90">
-                    <span>{{ 'wizard.button.continue'|trans }}</span>
-                    <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-                </button>
-            </div>
         </div>
     {{ form_end(form) }}
 </div>

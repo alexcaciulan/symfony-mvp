@@ -207,10 +207,21 @@ wizard:
         title: 'Date debitor(i)'
         subtitle: 'Adaugă unul sau mai mulți debitori. Verifică statutul ANAF și bifează BPI-ul pentru fiecare persoană juridică.'
         entry_heading: 'Debitor #%index%'
+        toggle:
+            existing: 'Selectează debitor existent'
+            new: 'Debitor nou'
+            existing_disabled_title: 'Disponibil din Pas 3.3 (UX Autocomplete + ANAF lookup).'
         button:
             add_debtor: '+ Adaugă debitor secundar'
+            continue: 'Continuă la creanță'
+        add_debtor_hint: 'pentru obligații solidare'
         flash:
             max_debtors_reached: 'Maxim 5 debitori per dosar — limită produs.'
+        help:
+            anaf_pas33: 'Verificare automată ANAF activă din Pas 3.3 — completează manual statul fiscal acum.'
+        bpi:
+            title: 'Verificare BPI obligatorie (Legea 85/2014)'
+            body: 'Înainte de a depune ordonanța de plată trebuie să verifici dacă debitorul nu e în procedura insolvenței. Accesează <a href="https://www.bpi.just.ro/" target="_blank" rel="noopener" class="underline font-medium">bpi.just.ro</a> → caută debitorul după CUI → confirmă rezultatul.'
         type: 'Tip reclamant'
         type_pf: 'Persoană fizică'
         type_pj: 'Persoană juridică'
@@ -247,6 +258,7 @@ wizard:
             administrator: 'Administrator'
             in_insolvency: 'Debitor în insolvență (Legea 85/2014)'
             in_insolvency_short: 'Insolvență'
+            bpi_verified_today: 'Am verificat BPI azi — debitorul NU este în insolvență'
         placeholder:
             person_type: '-- Selectează tip persoană --'
     step3:
