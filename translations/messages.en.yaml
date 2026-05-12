@@ -264,15 +264,36 @@ wizard:
     step3:
         title: 'Claim details'
         subtitle: 'Enter the amount due, due date and legal ground. Interest / stamp duty / competent-court calculations appear live in the sidebar.'
+        section:
+            main_data: 'Main data'
+        help:
+            due_date: 'Due date must be in the past or today (claim must be exigible — CPC art. 1014).'
+        button:
+            continue: 'Continue to confirmation'
+        relationship:
+            comercial_hint: 'Between professionals · BNR + 8 pp'
+            civil_disabled_hint: 'Available post-MVP (B2C/P2P).'
+            civil_disabled_title: 'Restricted to B2B in MVP — Pas 2.1 Option (a).'
         sidebar:
             title: 'Live calculations'
+            computed_at: 'at %date%'
+            principal_label: 'Principal'
+            principal_placeholder: 'Enter the amount in the form to see calculations.'
             interest_label: 'Accrued interest'
             interest_placeholder: 'Enter amount and due date to see interest.'
-            bnr_breakdown: 'BNR period breakdown'
-            stamp_duty_label: 'Stamp duty'
+            interest_last_rate: 'Current BNR rate %rate%%'
+            total_label: 'Claim total'
+            total_plus_stamp: 'Total + stamp'
+            bnr_breakdown: 'See BNR period breakdown'
+            periods: '%count% periods'
+            period_column: 'Period'
+            rate_column: 'Rate'
+            interest_column: 'Interest'
+            stamp_duty_label: 'OP stamp duty'
             stamp_duty_placeholder: 'Computed per OUG 80/2013 art. 6 (2).'
             court_label: 'Competent court'
             court_placeholder: 'Court could not be determined — verify manually.'
+            footer_note: 'Calculations at the current BNR rate. Re-check before submission.'
         description: 'Add at least one defendant (maximum 3). Fill in the identification data and address for each defendant.'
         type: 'Defendant type'
         type_pf: 'Individual'
@@ -303,6 +324,7 @@ wizard:
             description: 'Description'
         placeholder:
             legal_ground: '-- Select legal ground --'
+            description: 'E.g.: Service agreement no. 145/12.03.2025, art. 7 — 30-day payment terms. Invoice no. 2024-012/15.10.2025.'
     step4:
         title: 'Case confirmation'
         subtitle: 'Review the summary, final calculations and confirm the data. Once saved, the case appears in your list.'

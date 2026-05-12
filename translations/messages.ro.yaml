@@ -264,15 +264,36 @@ wizard:
     step3:
         title: 'Detalii creanță'
         subtitle: 'Introdu suma datorată, scadența și temeiul juridic. Calculele dobândă / taxă timbru / instanță apar live în panoul lateral.'
+        section:
+            main_data: 'Date principale'
+        help:
+            due_date: 'Scadența trebuie să fie în trecut sau astăzi (creanță exigibilă — CPC art. 1014).'
+        button:
+            continue: 'Continuă la confirmare'
+        relationship:
+            comercial_hint: 'Între profesioniști · BNR + 8 pp'
+            civil_disabled_hint: 'Disponibil post-MVP (B2C/P2P).'
+            civil_disabled_title: 'Restrâns la B2B în MVP — Pas 2.1 Opțiunea (a).'
         sidebar:
             title: 'Calcule live'
+            computed_at: 'la %date%'
+            principal_label: 'Sumă principală'
+            principal_placeholder: 'Introdu suma în formular pentru a vedea calculele.'
             interest_label: 'Dobândă acumulată'
             interest_placeholder: 'Introdu suma și scadența pentru a vedea dobânda.'
-            bnr_breakdown: 'Detaliu BNR per perioadă'
-            stamp_duty_label: 'Taxă judiciară de timbru'
+            interest_last_rate: 'Rata curentă BNR %rate%%'
+            total_label: 'Total creanță'
+            total_plus_stamp: 'Total + taxă'
+            bnr_breakdown: 'Vezi breakdown pe perioade BNR'
+            periods: '%count% perioade'
+            period_column: 'Perioadă'
+            rate_column: 'Rata'
+            interest_column: 'Dobândă'
+            stamp_duty_label: 'Taxă timbru OP'
             stamp_duty_placeholder: 'Calculată conform OUG 80/2013 art. 6 alin (2).'
             court_label: 'Instanță competentă'
             court_placeholder: 'Instanță needeterminată — verifică manual.'
+            footer_note: 'Calcule la rata BNR curentă. Verifică actualizarea înainte de depunere.'
         description: 'Adăugați cel puțin un pârât (maxim 3). Completați datele de identificare și adresa fiecărui pârât.'
         type: 'Tip pârât'
         type_pf: 'Persoană fizică'
@@ -304,6 +325,7 @@ wizard:
             description: 'Descriere'
         placeholder:
             legal_ground: '-- Selectează temeiul juridic --'
+            description: 'Ex: Contract de prestări servicii nr. 145/12.03.2025, art. 7 — plata în 30 zile. Factura nr. 2024-012/15.10.2025.'
     step4:
         title: 'Confirmare dosar'
         subtitle: 'Verifică sumarul, calculele finale și confirmă datele. După salvare dosarul devine vizibil în lista ta.'
