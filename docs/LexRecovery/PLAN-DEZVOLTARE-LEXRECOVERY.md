@@ -1814,9 +1814,48 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 >
 > Commit: `feat(wizard): Step3ClaimLiveComponent + Step2DebtorsLiveComponent + UX Autocomplete creditor + ANAF lookup Stimulus`.
 
+**🔵 Cross-reference 2026-05-12**: Vizualizarea overview a dosarului post-wizard se livrează la **Pas 4.0** (vezi mai jos) — primul pas din Faza 4, foundation pentru toate UI-urile ulterioare pe dosar.
+
 ---
 
-## Faza 4: Termene + Workflow Subscribers
+## Faza 4: Vizualizare dosar + Termene + Workflow Subscribers
+
+### PASUL 4.0 | Pagina overview dosar (`case_overview`) | 3-4 zile | 40% reutilizare | split în 7 sub-pași
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
+
+**Mock-up sursa de adevăr**: [`mockups/v2/04-dosar/overview.html`](./mockups/v2/04-dosar/overview.html) — toate cele 5 tab-uri și 2 modale trebuie reproduse 1:1.
+
+**Plan dezvoltare detaliat**: [`PLAN-PAS-4-0-OVERVIEW-DOSAR.md`](./PLAN-PAS-4-0-OVERVIEW-DOSAR.md) — 7 sub-pași (4.0.1 → 4.0.7) cu fișiere, deliverables, teste, criterii Done per sub-pas + catalog i18n complet + matrice date-binding + anti-pattern-uri.
+
+**Sub-pași**:
+- **4.0.1** Foundation: route `case_overview` + Controller + 3 repository methods noi (`LegalDeadlineRepository::findByCase`, `AuditLogRepository::findByCase`, `CourtPortalEventRepository::findByCase`) + shell template + macros icons + i18n base keys (0.5 zi)
+- **4.0.2** Hero (titlu părți + status pill cu pulse + CTA + dropdown 3-puncte) + KPI grid (4 celule) + Pipeline 5-step + Tabs nav cu count badges (0.5 zi)
+- **4.0.3** Tab **Detalii**: card Părți (Creditor + Debtor cu badge ANAF) + Claim composition bar + 4-stat dl + accordion BNR breakdown + Court summary + sidebar Active Deadline ring + Recommended Actions (0.5 zi)
+- **4.0.4** Tab **Documente**: Generated docs list (3 row-uri stub) + Source uploads (loop pe `case.documents`) + sidebar ZIP package CTA (dark navy gradient) + Communication warning conditional (0.5 zi)
+- **4.0.5** Tab **Termene**: 3 card variants (HIGH amber / MEDIUM yellow / COMPLETAT green) + sidebar Calendar 30 zile + Alerts info card (0.5 zi)
+- **4.0.6** Tab **Activitate Portal**: Config nr. dosar + Activate buton (aria-disabled până la Faza 5) + Timeline portal events (sau empty state) + Sample timeline preview + sidebar „Cum funcționează" + Status sincronizare (0.5 zi)
+- **4.0.7** Tab **Audit** (filter dropdown + search + Export CSV + tabel ordonat DESC) + 2 modale (Close case + Generate OP ZIP) + wire CTA-uri hero → modals + polish vizual final + tests E2E + code review (0.5 zi)
+
+**Pre-condiții**: Pas 3.2 DONE (LegalCase complet din wizard) · Pas 2.7 DONE (shell + design system + componente StatusBadge/PipelineStatus/DeadlineList) · Pas 2.5.4 DONE (`AuditLog.category` indexed).
+
+**Out of scope** (livrăm shell + `aria-disabled` cu tooltip `case_overview.tooltip.coming_soon_*` — wire-uit la pașii viitori):
+- Tab Termene CTA-uri „Adaugă/Edit/Complete" → wired la **Pas 4.3**.
+- Tab Activitate Portal activare monitorizare + cron + SOAP → wired la **Faza 5**.
+- Hero CTA „Generează cerere OP" + sidebar ZIP package + modal Generate OP → wired la **Faza 6** (Generare PDF).
+- Modal „Închide dosar" confirm → wired la **Faza 4.x** (workflow transition ARHIVAT cu validări).
+- Edit/Share/Duplicate din dropdown 3-puncte hero → **post-MVP**.
+- Export CSV audit → **post-MVP**.
+
+**Constrângeri stricte** (din plan dedicat — NU se compromit):
+- Zero hardcodare în text (toate string-urile prin `t()` cu chei `case_overview.*` + reutilizare existente).
+- Zero SVG duplicat — toate prin macro-uri în `templates/case/overview/_icons.html.twig`.
+- Zero dependențe JS noi — Preline existent (tabs/accordion/dropdown/modal) acoperă tot.
+- Zero entități/migrări noi — toată infra-ul există din Pas 1.1-2.7.
+- Reutilizare obligatorie a componentelor Pas 2.7 (StatusBadge, PipelineStatus, DeadlineList) — partials noi doar pentru ce diferă semnificativ.
+- Defensiv null pe court / calculatedInterest / deadlines / portalEvents / auditLog goale.
+
+---
 
 ### PASUL 4.1 | `DeadlineService` | 0.5 zi | 0% reutilizare
 
@@ -1930,6 +1969,8 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 
 **Rezultat**: _(va fi completat la marcarea ca DONE)_
 
+**🔵 Cross-reference 2026-05-12**: Tab-ul „Termene" din pagina overview dosar a fost livrat **shell-only la Pas 4.0.5** (carduri + calendar + alerts info; CTA-uri „+ Adaugă termen custom" și „Marchează completat" cu `aria-disabled` + tooltip `case_overview.tooltip.coming_soon_deadlines`). Pasul 4.3 wire-ează aici: rută POST complete, Turbo Stream replace pe card, controller Stimulus `optimistic-action`, și actualizează template-ul `_tab_termene.html.twig` (sub `templates/case/overview/`) să elimine `aria-disabled` de pe butoanele add/edit/complete.
+
 **PROMPT**:
 > Creează `src/Controller/Dosar/TermenController.php`:
 > - `POST /dosar/{id}/termen/{termenId}/complete` (CSRF) → marchează `Termen.completed = true` + audit log. Verificare voter `CASE_EDIT`. Răspuns: Turbo Stream care înlocuiește card-ul (mută din "necompletate" în "completate").
@@ -2015,6 +2056,8 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 
 **Rezultat**: _(va fi completat la marcarea ca DONE)_
 
+**🔵 Cross-reference 2026-05-12**: CTA „Generează cerere OP" din hero overview (Pas 4.0.2) + sidebar ZIP package (Pas 4.0.4) + modal generate_op (Pas 4.0.7) sunt livrate cu `aria-disabled` + tooltip `case_overview.tooltip.coming_soon_op`. Pasul 5.2 wire-ează aici: rută POST generate ZIP + actualizare template overview să elimine `aria-disabled` și să declanșeze download-ul.
+
 **PROMPT**:
 > 1. Creează `src/Service/Document/PaymentOrderRequestGeneratorService.php` (extinde `AbstractPdfGenerator`). Template `templates/pdf/payment_order_request.html.twig` — cerere ordonanță de plată conform CPC art. 1016: instanța competentă, părți, expunere de fapt, sume cerute (principal + dobândă + cheltuieli judiciare), temei juridic, anexe (referință la opis), semnătură avocat (cu barNumber).
 >
@@ -2043,6 +2086,8 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 **Rezultat**: _(va fi completat la marcarea ca DONE)_
 
 **Specificație**: secțiunea 10 din `ANALIZA-FLUXURI-LEXRECOVERY.md`.
+
+**🔵 Cross-reference 2026-05-12**: Tab-ul „Activitate Portal" din pagina overview (Pas 4.0.6) e livrat **shell-only** — input nr. dosar + buton „Activează monitorizare" cu `aria-disabled` + tooltip `case_overview.tooltip.coming_soon_portal`; timeline events e `empty state` default; sidebar Status sincronizare afișează „— încă nepornită". Pasul 6.1 wire-ează aici: rută POST activate, populare câmpuri `LegalCase.courtCaseNumber` + `portalMonitoringActive`, și actualizează template-ul `_tab_portal.html.twig` (sub `templates/case/overview/`) să elimine `aria-disabled` și să afișeze sync status real.
 
 **PROMPT**:
 > 1. Refactorizează `src/Service/Portal/CaseMonitoringService.php`:
