@@ -1,7 +1,7 @@
 {# Pas 4.0.2 — Hero header pentru pagina overview dosar. Reflectă mockup 04-dosar/overview.html linii 270-360. #}
 {% from 'case/overview/_icons.html.twig' import icon_calendar, icon_building, icon_document, icon_dots, icon_edit, icon_share, icon_copy, icon_trash %}
 
-{% set creditor_name = case.creditor ? case.creditor.name : ('case_overview.header.no_debtor'|trans) %}
+{% set creditor_name = case.creditor ? case.creditor.name : ('case_overview.header.no_creditor'|trans) %}
 {% set debtor_name = case.debtors|first ? case.debtors|first.name : ('case_overview.header.no_debtor'|trans) %}
 {% set court_label = case.court ? case.court.name : ('case_overview.header.court_undetermined'|trans) %}
 {% set pulse_status = not case.status.isTerminal() %}
@@ -59,6 +59,7 @@
                          aria-labelledby="hs-case-actions-dropdown">
                         <a href="#"
                            aria-disabled="true"
+                           tabindex="-1"
                            title="{{ 'case_overview.tooltip.coming_soon_edit'|trans }}"
                            class="flex items-center gap-x-3 py-2 px-3 rounded-lg text-sm text-slate-800 dark:text-slate-300 opacity-60 cursor-not-allowed pointer-events-none">
                             {{ icon_edit('size-4 text-slate-400') }}
@@ -66,6 +67,7 @@
                         </a>
                         <a href="#"
                            aria-disabled="true"
+                           tabindex="-1"
                            title="{{ 'case_overview.tooltip.coming_soon_share'|trans }}"
                            class="flex items-center gap-x-3 py-2 px-3 rounded-lg text-sm text-slate-800 dark:text-slate-300 opacity-60 cursor-not-allowed pointer-events-none">
                             {{ icon_share('size-4 text-slate-400') }}
@@ -73,6 +75,7 @@
                         </a>
                         <a href="#"
                            aria-disabled="true"
+                           tabindex="-1"
                            title="{{ 'case_overview.tooltip.coming_soon_edit'|trans }}"
                            class="flex items-center gap-x-3 py-2 px-3 rounded-lg text-sm text-slate-800 dark:text-slate-300 opacity-60 cursor-not-allowed pointer-events-none">
                             {{ icon_copy('size-4 text-slate-400') }}

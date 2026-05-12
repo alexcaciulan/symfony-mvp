@@ -562,6 +562,7 @@ case_overview:
         type_op: 'Payment order'
         vs: 'vs'
         created_on: 'Created %date%'
+        no_creditor: '— no creditor —'
         no_debtor: '— no debtor —'
         court_undetermined: 'Court undetermined'
     cta:

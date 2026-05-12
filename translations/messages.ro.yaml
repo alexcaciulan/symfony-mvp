@@ -564,6 +564,7 @@ case_overview:
         type_op: 'Ordonanță de plată'
         vs: 'vs'
         created_on: 'Creat %date%'
+        no_creditor: '— fără creditor —'
         no_debtor: '— fără debitor —'
         court_undetermined: 'Instanță needeterminată'
     cta:

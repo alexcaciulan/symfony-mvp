@@ -271,4 +271,32 @@ final class CaseOverviewControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
         self::assertCount(5, $crawler->filter('button[data-hs-tab]'));
     }
+
+    public function testHeroNoCreditorFallbackUsesCreditorSpecificLabel(): void
+    {
+        // Base setUp case has no creditor — verify the fallback label says „fără creditor",
+        // not „fără debitor" (W1 regression guard against i18n key copy-paste).
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('h1', 'fără creditor');
+    }
+
+    public function testHeroStatusPillSkipsPulseForTerminalStatus(): void
+    {
+        $this->case->setStatus(CaseStatus::INCHIS_SUCCES);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        // The status pill itself is present, but the soft-pulse animation must NOT be
+        // attached to it (terminal cases shouldn't visually nag the user).
+        $pillNode = $crawler->filter('span.bg-green-100')->first();
+        self::assertGreaterThan(0, $pillNode->count(), 'INCHIS_SUCCES uses green palette');
+        $dotClass = $pillNode->filter('span')->first()->attr('class') ?? '';
+        self::assertStringNotContainsString('soft-pulse', $dotClass);
+    }
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Repository;
 
 use App\Entity\LegalCase;
@@ -17,11 +19,8 @@ class LegalCaseRepository extends ServiceEntityRepository
     }
 
     /**
-     * Single-query load for the case overview page (Pas 4.0.2+): hydrates `creditor`,
-     * `debtors`, `court`, and `statusHistory` together with the case so hero, KPI grid,
-     * pipeline, and parties sections render without N+1 lazy-loads. `deadlines` is fetched
-     * separately via {@see LegalDeadlineRepository::findByCase()} because its ordering
-     * (ASC by deadlineDate) is enforced by that dedicated finder.
+     * Eager-load for the case overview page (Pas 4.0.2+). Explicit `sh.createdAt ASC`
+     * because OrderBy on the OneToMany applies only to lazy-loads, not joined hydration.
      */
     public function findWithOverviewRelations(int $id): ?LegalCase
     {
@@ -32,6 +31,7 @@ class LegalCaseRepository extends ServiceEntityRepository
             ->leftJoin('lc.statusHistory', 'sh')->addSelect('sh')
             ->andWhere('lc.id = :id')
             ->setParameter('id', $id)
+            ->addOrderBy('sh.createdAt', 'ASC')
             ->getQuery()
             ->getOneOrNullResult();
     }
