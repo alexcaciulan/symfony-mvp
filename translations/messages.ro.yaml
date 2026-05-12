@@ -338,9 +338,14 @@ wizard:
         card:
             documents: 'Documente sursă'
             documents_count: '%docCount% documente încărcate · %count% câmpuri completate'
+            documents_attached_hint: 'Atașate automat la ZIP-ul cererii OP.'
+            documents_empty: 'Niciun document încărcat. Nu există pre-populare AI.'
             creditor: 'Creditor'
             debtors: 'Debitor(i) · %count%'
             claim: 'Creanță'
+            edit: 'Editează'
+            bpi_verified: 'BPI verificat'
+            bpi_unverified: 'BPI neverificat'
         gdpr:
             title: 'Confidențialitate date'
             body: 'Datele AI extrase trec prin Anthropic (retention 30 zile, fără antrenare model). Documentele binare nu părăsesc serverul nostru fără acordul tău explicit (Modul „MAX_ACCURACY").'
@@ -352,6 +357,7 @@ wizard:
             title: 'Calcule finale'
         button:
             submit: 'Salvează dosar'
+            back: 'Editează (înapoi pas 3)'
         badge:
             auto: 'auto'
             manual: 'manual'

@@ -411,6 +411,7 @@ final class CaseWizardController extends AbstractController
         $hasWarnings = $warnings !== [];
 
         $calculations = $this->safeComputeForSidebar($claimDto, $debtorsDto->debtors[0] ?? null);
+        $sessionDocuments = $this->loadOwnedDocuments($bag['documentIds'], $user);
 
         $confirmation = new Step4ConfirmationData();
         $form = $this->createForm(Step4ConfirmationType::class, $confirmation, [
@@ -424,18 +425,18 @@ final class CaseWizardController extends AbstractController
             if ($hasErrors) {
                 $this->addFlash('error', 'wizard.step4.flash.errors_blocking');
 
-                return $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex);
+                return $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex, $sessionDocuments);
             }
 
             if (!$form->isValid()) {
-                return $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex);
+                return $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex, $sessionDocuments);
             }
 
             $limiter = $caseCreationLimiter->create($user->getUserIdentifier());
             if (!$limiter->consume(1)->isAccepted()) {
                 $this->addFlash('warning', 'rate_limit.case_creation');
 
-                return $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex);
+                return $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex, $sessionDocuments);
             }
 
             $creditorOutcome = ['wasReused' => false];
@@ -461,7 +462,7 @@ final class CaseWizardController extends AbstractController
             return $this->redirectToRoute('dashboard_cases');
         }
 
-        return $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex);
+        return $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex, $sessionDocuments);
     }
 
     /**
@@ -469,6 +470,7 @@ final class CaseWizardController extends AbstractController
      * @param list<AdmissibilityIssue> $errors
      * @param list<AdmissibilityIssue> $warnings
      * @param array{auto: list<string>, manual: list<string>} $autoFilledIndex
+     * @param list<Document> $sessionDocuments
      */
     private function renderConfirmation(
         FormInterface $form,
@@ -479,6 +481,7 @@ final class CaseWizardController extends AbstractController
         array $warnings,
         array $calculations,
         array $autoFilledIndex,
+        array $sessionDocuments = [],
     ): Response {
         return $this->render('case/_step4_confirmation_content.html.twig', [
             'current_step' => 4,
@@ -486,6 +489,7 @@ final class CaseWizardController extends AbstractController
             'creditor' => $creditor,
             'debtors' => $debtors,
             'claim' => $claim,
+            'documents' => $sessionDocuments,
             'errors' => $errors,
             'warnings' => $warnings,
             'has_errors' => $errors !== [],

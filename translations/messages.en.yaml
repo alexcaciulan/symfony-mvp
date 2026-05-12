@@ -337,9 +337,14 @@ wizard:
         card:
             documents: 'Source documents'
             documents_count: '%docCount% documents uploaded · %count% fields filled'
+            documents_attached_hint: 'Attached automatically to the OP request ZIP.'
+            documents_empty: 'No documents uploaded. No AI pre-fill available.'
             creditor: 'Creditor'
             debtors: 'Debtor(s) · %count%'
             claim: 'Claim'
+            edit: 'Edit'
+            bpi_verified: 'BPI verified'
+            bpi_unverified: 'BPI unverified'
         gdpr:
             title: 'Data privacy'
             body: 'AI-extracted data passes through Anthropic (30-day retention, no model training). Binary documents never leave our server without explicit consent (MAX_ACCURACY mode).'
@@ -351,6 +356,7 @@ wizard:
             title: 'Final calculations'
         button:
             submit: 'Save case'
+            back: 'Edit (back to step 3)'
         badge:
             auto: 'auto'
             manual: 'manual'
