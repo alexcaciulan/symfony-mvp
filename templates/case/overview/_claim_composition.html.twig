@@ -1,0 +1,147 @@
+{# Pas 4.0.3 — Card Creanță (composition bar + 4-stat dl + Preline accordion BNR). Reflectă mockup linii 484-548. #}
+{% from 'case/overview/_icons.html.twig' import icon_money, icon_chevron_right, icon_warning %}
+
+{% set principal = case.amount|default(0) + 0 %}
+{% set interest = case.calculatedInterest|default(0) + 0 %}
+{% set stamp_duty = case.stampDuty|default(0) + 0 %}
+{% set total_value = principal + interest %}
+{% set grand_total = total_value + stamp_duty %}
+{% set principal_pct = total_value > 0 ? (principal / total_value * 100) : 0 %}
+{% set interest_pct = total_value > 0 ? (interest / total_value * 100) : 0 %}
+
+{% set interest_days = 0 %}
+{% if case.dueDate %}
+    {% set diff_seconds = ("now"|date('U') - case.dueDate|date('U')) %}
+    {% set interest_days = (diff_seconds / 86400)|round(0, 'floor') %}
+    {% if interest_days < 0 %}{% set interest_days = 0 %}{% endif %}
+{% endif %}
+
+{% set first_period_rate = (interest_breakdown is not null and interest_breakdown|length > 0) ? (interest_breakdown|first).applicableRate : null %}
+
+<section class="bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <header class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+            <span class="inline-flex items-center justify-center size-7 rounded-lg bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/50 dark:to-green-900/30 text-green-600 dark:text-green-400">
+                {{ icon_money('size-4') }}
+            </span>
+            <h3 class="text-sm font-semibold text-slate-900 dark:text-white">{{ 'case_overview.claim.title'|trans }}</h3>
+        </div>
+        {% if case.relationshipType %}
+            <span class="text-xs text-slate-500">
+                {{ 'case_overview.claim.report_type'|trans }}:
+                <span class="font-semibold text-slate-700 dark:text-slate-300">{{ case.relationshipType.label()|trans }}</span>
+            </span>
+        {% endif %}
+    </header>
+
+    <div class="px-6 py-5">
+        {# Composition bar — only when total > 0 to avoid divide-by-zero artifacts. #}
+        {% if total_value > 0 %}
+            <div class="mb-5">
+                <div class="flex items-baseline justify-between mb-2">
+                    <span class="text-xs font-medium text-slate-500">{{ 'case_overview.claim.composition'|trans }}</span>
+                    <div class="text-2xl font-bold tnum text-blue-700 dark:text-blue-300">{{ grand_total|number_format(2, ',', '.') }} <span class="text-sm font-medium text-slate-400">{{ case.currency }}</span></div>
+                </div>
+                <div class="flex h-2.5 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800">
+                    <div class="bg-gradient-to-r from-blue-500 to-blue-600" style="width: {{ principal_pct|number_format(1, '.', '') }}%"></div>
+                    <div class="bg-gradient-to-r from-amber-400 to-amber-500" style="width: {{ interest_pct|number_format(1, '.', '') }}%"></div>
+                </div>
+                <div class="flex items-center gap-4 mt-2 text-[11px]">
+                    <div class="flex items-center gap-1.5"><span class="size-2 rounded-sm bg-blue-500" aria-hidden="true"></span><span class="text-slate-600 dark:text-slate-400">{{ 'case_overview.claim.principal'|trans }} <span class="font-semibold text-slate-900 dark:text-white">{{ principal_pct|number_format(1, ',', '.') }}%</span></span></div>
+                    <div class="flex items-center gap-1.5"><span class="size-2 rounded-sm bg-amber-500" aria-hidden="true"></span><span class="text-slate-600 dark:text-slate-400">{{ 'case_overview.claim.interest_label'|trans }} <span class="font-semibold text-slate-900 dark:text-white">{{ interest_pct|number_format(1, ',', '.') }}%</span></span></div>
+                </div>
+            </div>
+        {% endif %}
+
+        {# 4-stat dl grid #}
+        <dl class="grid grid-cols-2 md:grid-cols-4 gap-px bg-slate-100 dark:bg-slate-800 rounded-lg overflow-hidden mb-4">
+            <div class="bg-slate-50 dark:bg-slate-950/50 p-3">
+                <dt class="text-[10px] font-medium uppercase tracking-wide text-slate-500">{{ 'case_overview.claim.stat_principal'|trans }}</dt>
+                <dd class="mt-1 text-base font-bold tnum text-slate-900 dark:text-white">{{ principal|number_format(2, ',', '.') }}</dd>
+                {% if case.dueDate %}
+                    <dd class="text-[10px] text-slate-500">{{ 'case_overview.claim.stat_principal_hint'|trans({'%date%': case.dueDate|date('d.m.Y')}) }}</dd>
+                {% endif %}
+            </div>
+            <div class="bg-slate-50 dark:bg-slate-950/50 p-3">
+                <dt class="text-[10px] font-medium uppercase tracking-wide text-slate-500">{{ 'case_overview.claim.stat_interest'|trans }}</dt>
+                <dd class="mt-1 text-base font-bold tnum text-amber-600 dark:text-amber-400">+ {{ interest|number_format(2, ',', '.') }}</dd>
+                {% if first_period_rate is not null %}
+                    <dd class="text-[10px] text-slate-500">{{ 'case_overview.claim.stat_interest_hint'|trans({'%days%': interest_days, '%rate%': first_period_rate|number_format(2, ',', '.')}) }}</dd>
+                {% endif %}
+            </div>
+            <div class="bg-slate-50 dark:bg-slate-950/50 p-3">
+                <dt class="text-[10px] font-medium uppercase tracking-wide text-slate-500">{{ 'case_overview.claim.stat_stamp'|trans }}</dt>
+                <dd class="mt-1 text-base font-bold tnum text-slate-900 dark:text-white">{{ stamp_duty|number_format(2, ',', '.') }}</dd>
+                <dd class="text-[10px] text-slate-500">{{ 'case_overview.claim.stat_stamp_hint'|trans }}</dd>
+            </div>
+            <div class="bg-slate-50 dark:bg-slate-950/50 p-3">
+                <dt class="text-[10px] font-medium uppercase tracking-wide text-slate-500">{{ 'case_overview.claim.stat_total'|trans }}</dt>
+                <dd class="mt-1 text-base font-bold tnum text-blue-700 dark:text-blue-300">{{ grand_total|number_format(2, ',', '.') }}</dd>
+                <dd class="text-[10px] text-slate-500">{{ 'case_overview.claim.stat_total_hint'|trans }}</dd>
+            </div>
+        </dl>
+
+        {# BNR breakdown — Preline accordion with table OR error/empty banner #}
+        {% if breakdown_error %}
+            <div class="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-xs text-amber-900 dark:text-amber-200">
+                {{ icon_warning('size-4 text-amber-600 shrink-0 mt-0.5') }}
+                <span>{{ 'case_overview.claim.breakdown_error'|trans }}</span>
+            </div>
+        {% elseif interest_breakdown is null or interest_breakdown|length == 0 %}
+            <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-950/30 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
+                {{ 'case_overview.claim.breakdown_zero'|trans }}
+            </div>
+        {% else %}
+            <div class="hs-accordion-group border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+                <div class="hs-accordion" id="acc-bnr-breakdown">
+                    <button type="button"
+                            class="hs-accordion-toggle hs-accordion-active:bg-slate-50 dark:hs-accordion-active:bg-slate-950/50 inline-flex items-center justify-between gap-x-3 w-full text-sm font-medium text-slate-700 dark:text-slate-300 py-3 px-4 hover:bg-slate-50 dark:hover:bg-slate-950/30 transition"
+                            aria-expanded="false"
+                            aria-controls="acc-bnr-breakdown-content">
+                        <span class="inline-flex items-center gap-2">
+                            <span class="hs-accordion-active:rotate-90 transition-transform">{{ icon_chevron_right('size-4 text-slate-400') }}</span>
+                            {{ 'case_overview.claim.breakdown_toggle'|trans }}
+                        </span>
+                        <span class="text-xs text-slate-500 font-normal">{{ 'case_overview.claim.breakdown_summary'|trans({'%periods%': interest_breakdown|length}) }}</span>
+                    </button>
+                    <div id="acc-bnr-breakdown-content"
+                         class="hs-accordion-content hidden w-full overflow-hidden transition-[height] duration-300"
+                         role="region"
+                         aria-labelledby="acc-bnr-breakdown">
+                        <div class="px-4 pb-4 overflow-x-auto">
+                            <table class="w-full text-xs">
+                                <thead class="text-[10px] uppercase tracking-wide text-slate-500 border-b border-slate-200 dark:border-slate-800">
+                                    <tr>
+                                        <th class="text-left py-2 font-medium">{{ 'case_overview.claim.breakdown_period'|trans }}</th>
+                                        <th class="text-right py-2 font-medium">{{ 'case_overview.claim.breakdown_bnr'|trans }}</th>
+                                        <th class="text-right py-2 font-medium">{{ 'case_overview.claim.breakdown_applicable'|trans }}</th>
+                                        <th class="text-right py-2 font-medium">{{ 'case_overview.claim.breakdown_days'|trans }}</th>
+                                        <th class="text-right py-2 font-medium">{{ 'case_overview.claim.breakdown_interest'|trans }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                    {% for period in interest_breakdown %}
+                                        <tr>
+                                            <td class="py-2 text-slate-700 dark:text-slate-300">{{ period.startDate|date('d.m.Y') }} → {{ period.endDate|date('d.m.Y') }}</td>
+                                            <td class="py-2 text-right tnum">{{ period.nbrRate|number_format(2, ',', '.') }}%</td>
+                                            <td class="py-2 text-right tnum font-medium">{{ period.applicableRate|number_format(2, ',', '.') }}%</td>
+                                            <td class="py-2 text-right tnum text-slate-500">{{ period.days }}</td>
+                                            <td class="py-2 text-right tnum font-semibold">{{ period.periodInterest|number_format(2, ',', '.') }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                                <tfoot class="border-t-2 border-slate-200 dark:border-slate-700 font-bold">
+                                    <tr>
+                                        <td colspan="3" class="py-2 text-slate-900 dark:text-white">{{ 'case_overview.claim.breakdown_total'|trans }}</td>
+                                        <td class="py-2 text-right tnum text-slate-500">{{ interest_days }}</td>
+                                        <td class="py-2 text-right tnum text-amber-600 dark:text-amber-400">{{ interest|number_format(2, ',', '.') }}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</section>

@@ -9,6 +9,8 @@ use App\Entity\Creditor;
 use App\Entity\Debtor;
 use App\Entity\LegalCase;
 use App\Entity\User;
+use App\Entity\CaseStatusHistory;
+use App\Enum\AnafStatus;
 use App\Enum\CaseStatus;
 use App\Enum\CourtType;
 use App\Enum\PersonType;
@@ -76,13 +78,15 @@ final class CaseOverviewControllerTest extends WebTestCase
      * Attach a creditor, primary debtor, court, and full claim figures to {@see self::$case}
      * so hero/KPI assertions have realistic data. Returns the case for chaining.
      */
-    private function enrichCase(?CaseStatus $status = null): LegalCase
+    private function enrichCase(?CaseStatus $status = null, ?AnafStatus $debtorAnafStatus = AnafStatus::ACTIV): LegalCase
     {
         $creditor = new Creditor();
         $creditor->setUser($this->user);
         $creditor->setPersonType(PersonType::PJ);
         $creditor->setName('SC Tehno Construct SRL');
         $creditor->setAddress('Str. Industriilor 47, București');
+        $creditor->setCui('RO12345678');
+        $creditor->setIban('RO49RNCB0082004480010001');
         $this->em->persist($creditor);
 
         $debtor = new Debtor();
@@ -90,6 +94,11 @@ final class CaseOverviewControllerTest extends WebTestCase
         $debtor->setPersonType(PersonType::PJ);
         $debtor->setName('SC Beta Solutions SRL');
         $debtor->setAddress('Str. Iuliu Maniu 152, București');
+        $debtor->setCui('RO87654321');
+        $debtor->setAdministrator('Constantin Marinescu');
+        if ($debtorAnafStatus !== null) {
+            $debtor->setAnafStatus($debtorAnafStatus);
+        }
         $this->em->persist($debtor);
 
         $court = new Court();
@@ -114,6 +123,23 @@ final class CaseOverviewControllerTest extends WebTestCase
         $this->em->flush();
 
         return $this->case;
+    }
+
+    /**
+     * Append a status-history entry so the Recommended Actions card can resolve
+     * "Generează somație → deja generată %date%" against a real transition date.
+     */
+    private function recordTransition(string $newStatus, string $oldStatus = 'AMIABIL'): CaseStatusHistory
+    {
+        $entry = new CaseStatusHistory();
+        $entry->setLegalCase($this->case);
+        $entry->setOldStatus($oldStatus);
+        $entry->setNewStatus($newStatus);
+        $entry->setCreatedBy($this->user);
+        $this->em->persist($entry);
+        $this->em->flush();
+
+        return $entry;
     }
 
     public function testGetOverviewForOwnedCaseReturns200(): void
@@ -298,5 +324,88 @@ final class CaseOverviewControllerTest extends WebTestCase
         self::assertGreaterThan(0, $pillNode->count(), 'INCHIS_SUCCES uses green palette');
         $dotClass = $pillNode->filter('span')->first()->attr('class') ?? '';
         self::assertStringNotContainsString('soft-pulse', $dotClass);
+    }
+
+    public function testDetaliiPartyCardCreditorRendersFields(): void
+    {
+        $this->enrichCase();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $html = $this->client->getResponse()->getContent();
+        // Inside #panel-detalii — party card must surface CUI + seat + IBAN.
+        self::assertStringContainsString('RO12345678', $html, 'Creditor CUI rendered');
+        self::assertStringContainsString('Str. Industriilor 47', $html, 'Creditor seat rendered');
+        self::assertStringContainsString('RO49RNCB0082004480010001', $html, 'Creditor IBAN rendered');
+    }
+
+    public function testDetaliiPartyCardDebtorRendersAnafBadgeWhenActive(): void
+    {
+        $this->enrichCase(null, AnafStatus::ACTIV);
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        // ANAF ACTIV → green badge with the localized label.
+        $badge = $crawler->filter('span.bg-green-100')->reduce(static function ($node) {
+            return str_contains($node->text(), 'ONRC ACTIV');
+        });
+        self::assertGreaterThan(0, $badge->count(), 'Green ONRC ACTIV badge must be rendered for AnafStatus::ACTIV debtor');
+    }
+
+    public function testDetaliiClaimCompositionBarPercentagesMatch(): void
+    {
+        // Principal 47500 + Interest 3842.50 ⇒ total 51342.50 ⇒ ~92.5% / ~7.5%
+        $this->enrichCase();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $html = $this->client->getResponse()->getContent();
+        self::assertStringContainsString('92,5%', $html, 'Principal share rendered with Romanian decimal');
+        self::assertStringContainsString('7,5%', $html, 'Interest share rendered with Romanian decimal');
+    }
+
+    public function testDetaliiCourtSummaryRendersCountyHint(): void
+    {
+        $this->enrichCase();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        // Rule hint dynamically interpolates `court.county` into the i18n string.
+        self::assertSelectorTextContains('body', 'în raza București');
+        self::assertSelectorTextContains('body', 'CPC art. 1015');
+    }
+
+    public function testDetaliiCourtSummaryFallbackWhenNull(): void
+    {
+        // No enrichCase — base setup case has no court.
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('#panel-detalii', 'Instanță needeterminată');
+    }
+
+    public function testDetaliiRecommendedActionsStrikesGeneratedSummonsWhenStatusAdvanced(): void
+    {
+        $this->enrichCase(CaseStatus::SOMATIE_TRIMISA);
+        $this->recordTransition('SOMATIE_TRIMISA');
+        $this->em->clear(); // Detach so the request EM re-reads statusHistory from DB.
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        // The "Generează somație" entry must be line-through styled when summons is past.
+        $struck = $crawler->filter('#panel-detalii .line-through');
+        self::assertGreaterThan(0, $struck->count(), 'Summons row must be struck through when status is past AMIABIL');
+        self::assertSelectorTextContains('#panel-detalii', 'deja generată');
     }
 }

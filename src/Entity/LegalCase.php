@@ -91,7 +91,7 @@ class LegalCase
     private ?\DateTimeImmutable $lastPortalCheckAt = null;
 
     /** @var Collection<int, Document> */
-    #[ORM\OneToMany(targetEntity: Document::class, mappedBy: 'legalCase')]
+    #[ORM\OneToMany(targetEntity: Document::class, mappedBy: 'legalCase', fetch: 'EXTRA_LAZY')]
     private Collection $documents;
 
     /** @var Collection<int, CaseStatusHistory> */
@@ -100,7 +100,7 @@ class LegalCase
     private Collection $statusHistory;
 
     /** @var Collection<int, CourtPortalEvent> */
-    #[ORM\OneToMany(targetEntity: CourtPortalEvent::class, mappedBy: 'legalCase')]
+    #[ORM\OneToMany(targetEntity: CourtPortalEvent::class, mappedBy: 'legalCase', fetch: 'EXTRA_LAZY')]
     #[ORM\OrderBy(['eventDate' => 'DESC'])]
     private Collection $portalEvents;
 

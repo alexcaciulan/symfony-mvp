@@ -24,9 +24,7 @@
      Default active panel: detalii (no `hidden`). Preline `data-hs-tab` din _tabs_nav.html.twig comută clasele. #}
   <div>
     <div id="panel-detalii" role="tabpanel" aria-labelledby="tab-detalii">
-      <div class="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-8 text-center text-sm text-slate-400 dark:text-slate-500">
-        {{ 'case_overview.placeholder.tab.details'|trans }}
-      </div>
+      {{ include('case/overview/_tab_detalii.html.twig') }}
     </div>
     <div id="panel-documente" class="hidden" role="tabpanel" aria-labelledby="tab-documente">
       <div class="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-8 text-center text-sm text-slate-400 dark:text-slate-500">

@@ -1,0 +1,85 @@
+{# Pas 4.0.3 — Sidebar Termen activ cu SVG circle progress. Reflectă mockup linii 571-598. #}
+{% from 'case/overview/_icons.html.twig' import icon_clock %}
+
+{% if active_deadline is null %}
+    <section class="bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 p-5">
+        <div class="flex items-start gap-3">
+            <span class="inline-flex items-center justify-center size-9 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 shrink-0">
+                {{ icon_clock('size-5') }}
+            </span>
+            <div>
+                <div class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-0.5">{{ 'case_overview.active_deadline_card.label'|trans }}</div>
+                <div class="font-semibold text-slate-700 dark:text-slate-300">{{ 'case_overview.active_deadline_card.empty_title'|trans }}</div>
+                <p class="mt-1 text-xs text-slate-500">{{ 'case_overview.active_deadline_card.empty_body'|trans }}</p>
+            </div>
+        </div>
+    </section>
+{% else %}
+    {% set total_seconds = active_deadline.deadlineDate|date('U') - active_deadline.createdAt|date('U') %}
+    {% set elapsed_seconds = "now"|date('U') - active_deadline.createdAt|date('U') %}
+    {% set progress = total_seconds > 0 ? (elapsed_seconds / total_seconds) : 1 %}
+    {% if progress < 0 %}{% set progress = 0 %}{% endif %}
+    {% if progress > 1 %}{% set progress = 1 %}{% endif %}
+    {# Circumference 2 * PI * 36 ≈ 226. dashoffset shrinks as more time elapses. #}
+    {% set dashoffset = (226 * (1 - progress))|round(0, 'floor') %}
+    {% set remaining_seconds = active_deadline.deadlineDate|date('U') - "now"|date('U') %}
+    {% set remaining_days = (remaining_seconds / 86400)|round(0, 'ceil') %}
+    {% if remaining_days < 0 %}{% set remaining_days = 0 %}{% endif %}
+
+    <section class="relative bg-gradient-to-br from-amber-50 via-amber-50 to-orange-50 dark:from-amber-950/30 dark:via-amber-950/20 dark:to-orange-950/30 border border-amber-200 dark:border-amber-900/50 rounded-2xl shadow-card overflow-hidden p-5">
+        <div class="absolute top-0 right-0 size-32 bg-gradient-to-br from-amber-200/40 to-transparent dark:from-amber-700/20 rounded-full blur-2xl pointer-events-none" aria-hidden="true"></div>
+
+        <div class="relative flex items-start justify-between mb-4">
+            <div>
+                <div class="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 mb-0.5">{{ 'case_overview.active_deadline_card.label'|trans }}</div>
+                <div class="text-xs text-amber-800/80 dark:text-amber-300/80">{{ active_deadline.type.label()|trans }}</div>
+            </div>
+            <span class="relative flex size-3" aria-hidden="true">
+                <span class="absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75 soft-pulse"></span>
+                <span class="relative inline-flex rounded-full size-3 bg-amber-500"></span>
+            </span>
+        </div>
+
+        <div class="relative flex items-center gap-4">
+            <div class="relative shrink-0">
+                <svg class="size-20 -rotate-90" viewBox="0 0 80 80" aria-hidden="true">
+                    <circle cx="40" cy="40" r="36" fill="none" stroke="rgba(180, 83, 9, 0.15)" stroke-width="6"/>
+                    <circle cx="40" cy="40" r="36"
+                            fill="none"
+                            stroke="url(#deadlineGradient-{{ active_deadline.id }})"
+                            stroke-width="6"
+                            stroke-linecap="round"
+                            stroke-dasharray="226"
+                            stroke-dashoffset="{{ dashoffset }}"
+                            class="ring-fill"
+                            style="--ring-target: {{ dashoffset }};"/>
+                    <defs>
+                        <linearGradient id="deadlineGradient-{{ active_deadline.id }}" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#f59e0b"/>
+                            <stop offset="100%" stop-color="#ef4444"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+                <div class="absolute inset-0 flex flex-col items-center justify-center">
+                    <div class="text-2xl font-bold tnum text-amber-900 dark:text-amber-100 leading-none">{{ remaining_days }}</div>
+                    <div class="text-[9px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400 mt-0.5">{{ 'case_overview.kpi.active_deadline_unit'|trans }}</div>
+                </div>
+            </div>
+
+            <div class="flex-1 min-w-0 space-y-1.5">
+                <div class="text-xs">
+                    <span class="text-amber-800/70 dark:text-amber-300/70">{{ 'case_overview.active_deadline_card.expires_on'|trans }}</span>
+                    <span class="font-semibold text-amber-900 dark:text-amber-100 tnum">{{ active_deadline.deadlineDate|date('d.m.Y') }}</span>
+                </div>
+                <div class="text-xs">
+                    <span class="text-amber-800/70 dark:text-amber-300/70">{{ 'case_overview.active_deadline_card.next_alert'|trans }}</span>
+                    <span class="font-semibold text-amber-900 dark:text-amber-100">{{ 'case_overview.active_deadline_card.next_alert_pending'|trans }}</span>
+                </div>
+                <div class="text-xs">
+                    <span class="text-amber-800/70 dark:text-amber-300/70">{{ 'case_overview.active_deadline_card.then'|trans }}</span>
+                    <span class="font-semibold text-amber-900 dark:text-amber-100">{{ 'case_overview.active_deadline_card.auto_transition'|trans }}</span>
+                </div>
+            </div>
+        </div>
+    </section>
+{% endif %}

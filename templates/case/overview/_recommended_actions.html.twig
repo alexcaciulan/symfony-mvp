@@ -1,0 +1,85 @@
+{# Pas 4.0.3 — Sidebar Acțiuni recomandate cu 4 buttons enum-mapped pe CaseStatus. Reflectă mockup linii 600-624. #}
+{% from 'case/overview/_icons.html.twig' import icon_check, icon_document, icon_money, icon_chevron_right %}
+
+{# A case has its summons sent (or beyond) when its status is past AMIABIL in the pipeline. #}
+{% set summons_done = case.status.value != 'AMIABIL' %}
+
+{# Find the date when SOMATIE_TRIMISA was first reached, if any, to display under "deja generată".
+   Filter the Doctrine collection then take the first match — Twig 3.x dropped `for...if` syntax. #}
+{% set summons_match = case.statusHistory|filter(e => e.newStatus == 'SOMATIE_TRIMISA')|first %}
+{% set summons_date = summons_match ? summons_match.createdAt : null %}
+
+<section class="bg-white dark:bg-slate-900 rounded-2xl shadow-card border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <header class="px-5 py-4 bg-gradient-to-br from-lex-navy via-lex-navy to-lex-navy-dark text-white">
+        <h3 class="text-sm font-semibold">{{ 'case_overview.recommended_actions.title'|trans }}</h3>
+        <p class="mt-0.5 text-[11px] text-blue-100/80">{{ 'case_overview.recommended_actions.subtitle'|trans }}</p>
+    </header>
+
+    <div class="p-3 space-y-1">
+        {# 1. Generate notice — done if status moved past AMIABIL. #}
+        <button type="button"
+                aria-disabled="true"
+                tabindex="-1"
+                title="{{ 'case_overview.tooltip.coming_soon_op'|trans }}"
+                class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg {% if summons_done %}opacity-50 cursor-not-allowed{% else %}opacity-60 cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-800/50{% endif %}">
+            <div class="size-9 rounded-lg {% if summons_done %}bg-green-100 dark:bg-green-950/40 text-green-600 dark:text-green-400{% else %}bg-slate-100 dark:bg-slate-800 text-slate-400{% endif %} flex items-center justify-center shrink-0">
+                {{ icon_check('size-4') }}
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium text-slate-700 dark:text-slate-300 {% if summons_done %}line-through decoration-1{% endif %}">{{ 'case_overview.recommended_actions.generate_summons'|trans }}</div>
+                {% if summons_done and summons_date %}
+                    <div class="text-[10px] text-green-600 dark:text-green-400 font-semibold uppercase tracking-wide">{{ 'case_overview.recommended_actions.generate_summons_done'|trans({'%date%': summons_date|date('d.m.Y')}) }}</div>
+                {% endif %}
+            </div>
+        </button>
+
+        {# 2. Generate payment order — RECOMMENDED, aria-disabled cu tooltip Faza 6. #}
+        <button type="button"
+                aria-disabled="true"
+                tabindex="-1"
+                title="{{ 'case_overview.tooltip.coming_soon_op'|trans }}"
+                class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg bg-gradient-to-r from-blue-50 to-blue-50/50 dark:from-blue-950/40 dark:to-blue-950/20 border border-blue-200/60 dark:border-blue-900/40 ring-1 ring-blue-100 dark:ring-blue-950/50 opacity-80 cursor-not-allowed">
+            <div class="size-9 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-blue-500/30">
+                {{ icon_document('size-4') }}
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-1.5">
+                    <span class="text-sm font-bold text-blue-900 dark:text-blue-100">{{ 'case_overview.recommended_actions.generate_op'|trans }}</span>
+                    <span class="text-[9px] font-bold uppercase tracking-wide text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-950/60 px-1.5 py-0.5 rounded">{{ 'case_overview.recommended_actions.recommended_badge'|trans }}</span>
+                </div>
+                <div class="text-[11px] text-blue-700/80 dark:text-blue-300/80 mt-0.5">{{ 'case_overview.recommended_actions.generate_op_hint'|trans }}</div>
+            </div>
+            {{ icon_chevron_right('size-4 text-blue-600 dark:text-blue-400 shrink-0') }}
+        </button>
+
+        {# 3. Mark amicable payment — aria-disabled cu tooltip Faza 4.x. #}
+        <button type="button"
+                aria-disabled="true"
+                tabindex="-1"
+                title="{{ 'case_overview.tooltip.coming_soon_mark_paid'|trans }}"
+                class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg opacity-60 cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+            <div class="size-9 rounded-lg bg-green-100 dark:bg-green-950/40 text-green-600 dark:text-green-400 flex items-center justify-center shrink-0">
+                {{ icon_money('size-4') }}
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium text-slate-900 dark:text-white">{{ 'case_overview.recommended_actions.mark_paid'|trans }}</div>
+                <div class="text-[11px] text-slate-500 mt-0.5">{{ 'case_overview.recommended_actions.mark_paid_hint'|trans }}</div>
+            </div>
+        </button>
+
+        {# 4. Add document — aria-disabled cu tooltip post-MVP. #}
+        <button type="button"
+                aria-disabled="true"
+                tabindex="-1"
+                title="{{ 'case_overview.tooltip.coming_soon_doc_upload'|trans }}"
+                class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg opacity-60 cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
+            <div class="size-9 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 flex items-center justify-center shrink-0">
+                {{ icon_document('size-4') }}
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium text-slate-900 dark:text-white">{{ 'case_overview.recommended_actions.add_document'|trans }}</div>
+                <div class="text-[11px] text-slate-500 mt-0.5">{{ 'case_overview.recommended_actions.add_document_hint'|trans }}</div>
+            </div>
+        </button>
+    </div>
+</section>

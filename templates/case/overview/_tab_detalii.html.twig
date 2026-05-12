@@ -1,0 +1,16 @@
+{# Pas 4.0.3 — Tab Detalii orchestrator: main col-span-2 (Părți + Creanță + Court) + sticky sidebar (Termen ring + Acțiuni recomandate). #}
+
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+
+    <div class="xl:col-span-2 space-y-6">
+        {{ include('case/overview/_party_card.html.twig') }}
+        {{ include('case/overview/_claim_composition.html.twig') }}
+        {{ include('case/overview/_court_summary.html.twig') }}
+    </div>
+
+    <aside class="xl:col-span-1 space-y-6 xl:sticky xl:top-20 self-start">
+        {{ include('case/overview/_active_deadline_ring.html.twig') }}
+        {{ include('case/overview/_recommended_actions.html.twig') }}
+    </aside>
+
+</div>

@@ -60,6 +60,19 @@ html.dark body {
     animation: soft-pulse 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+/* Ring-fill animation for SVG circle progress on Active Deadline card (Pas 4.0.3).
+   Starts from full circumference (226 = 2 * PI * 36) and animates to the target offset
+   passed via inline `style="--ring-target: <value>"`. The cubic-bezier produces a slight
+   overshoot-free deceleration so the ring "settles" into place. */
+@keyframes ring-fill {
+    from { stroke-dashoffset: 226; }
+    to   { stroke-dashoffset: var(--ring-target, 54); }
+}
+
+.ring-fill {
+    animation: ring-fill 1.2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
 /* Active nav link gradient in sidebar. */
 .nav-active {
     background: linear-gradient(90deg, rgba(30, 58, 95, 0.08) 0%, rgba(30, 58, 95, 0.02) 100%);
