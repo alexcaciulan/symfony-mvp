@@ -499,7 +499,7 @@ wizard:
         skipped: 'You skipped document extraction — please fill in the forms manually.'
 
 # =============================================================================
-# Case View (read-only)
+# Case View (read-only) — legacy stub, will be replaced by case_overview at Pas 4.0
 # =============================================================================
 case_view:
     title: 'Case #%id%'
@@ -510,6 +510,37 @@ case_view:
     documents: 'Documents'
     download: 'Download'
     no_documents: 'No documents.'
+
+# =============================================================================
+# Case Overview (Pas 4.0 — post-wizard case overview page, 5 tabs)
+# Sub-pas 4.0.1: foundation keys only.
+# =============================================================================
+case_overview:
+    title: 'Case %reference%'
+    breadcrumb:
+        cases: 'Cases'
+    tab:
+        details: 'Details'
+        documents: 'Documents'
+        deadlines: 'Deadlines'
+        portal: 'Portal activity'
+        audit: 'Audit'
+    tooltip:
+        coming_soon_op: 'Available once PDF generation ships (Phase 6)'
+        coming_soon_portal: 'Available once Portal Monitoring ships (Phase 5)'
+        coming_soon_deadlines: 'Available once Deadlines Wiring ships (Step 4.3)'
+        coming_soon_close: 'Available once Close Case Workflow ships (Phase 4.x)'
+        coming_soon_export: 'CSV export — post-MVP'
+        coming_soon_share: 'Share & collaborators — post-MVP'
+        coming_soon_edit: 'Edit details — post-MVP'
+    placeholder:
+        header: 'Hero + KPI + Pipeline will be populated at Step 4.0.2'
+        tab:
+            details: 'Details tab content will be populated at Step 4.0.3'
+            documents: 'Documents tab content will be populated at Step 4.0.4'
+            deadlines: 'Deadlines tab content will be populated at Step 4.0.5'
+            portal: 'Portal Activity tab content will be populated at Step 4.0.6'
+            audit: 'Audit tab content will be populated at Step 4.0.7'
 
 # =============================================================================
 # Document Upload/Delete

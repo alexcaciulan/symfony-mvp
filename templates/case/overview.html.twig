@@ -1,0 +1,49 @@
+{% extends 'base.html.twig' %}
+
+{# Pas 4.0.1 — Shell foundation. Hero / KPI / Pipeline / tab contents populate in 4.0.2 → 4.0.7. #}
+
+{% block title %}{{ 'case_overview.title'|trans({'%reference%': case.caseNumber}) }}{% endblock %}
+
+{% block breadcrumb %}
+  <li class="inline-flex items-center">
+    <a href="{{ path('dashboard_cases') }}" class="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300">{{ 'case_overview.breadcrumb.cases'|trans }}</a>
+    <svg class="shrink-0 mx-1.5 size-3 text-slate-300 dark:text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+  </li>
+  <li class="inline-flex items-center font-mono font-medium text-slate-700 dark:text-slate-300 truncate" aria-current="page">{{ case.caseNumber }}</li>
+{% endblock %}
+
+{% block body %}
+  {# Pas 4.0.2 — hero + KPI grid + pipeline + tabs nav populeaza aici. Placeholder vizibil sub-pas curent. #}
+  <section class="mb-6 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 p-6 text-center text-sm text-slate-500 dark:text-slate-400">
+    {{ 'case_overview.placeholder.header'|trans }}
+  </section>
+
+  {# Tabs panels stub — populate la 4.0.3 (Detalii) / 4.0.4 (Documente) / 4.0.5 (Termene) / 4.0.6 (Portal) / 4.0.7 (Audit + Modale). #}
+  <div>
+    <div id="panel-detalii" role="tabpanel">
+      <div class="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-8 text-center text-sm text-slate-400 dark:text-slate-500">
+        {{ 'case_overview.placeholder.tab.details'|trans }}
+      </div>
+    </div>
+    <div id="panel-documente" class="hidden" role="tabpanel">
+      <div class="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-8 text-center text-sm text-slate-400 dark:text-slate-500">
+        {{ 'case_overview.placeholder.tab.documents'|trans }}
+      </div>
+    </div>
+    <div id="panel-termene" class="hidden" role="tabpanel">
+      <div class="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-8 text-center text-sm text-slate-400 dark:text-slate-500">
+        {{ 'case_overview.placeholder.tab.deadlines'|trans }}
+      </div>
+    </div>
+    <div id="panel-portal" class="hidden" role="tabpanel">
+      <div class="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-8 text-center text-sm text-slate-400 dark:text-slate-500">
+        {{ 'case_overview.placeholder.tab.portal'|trans }}
+      </div>
+    </div>
+    <div id="panel-audit" class="hidden" role="tabpanel">
+      <div class="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-8 text-center text-sm text-slate-400 dark:text-slate-500">
+        {{ 'case_overview.placeholder.tab.audit'|trans }}
+      </div>
+    </div>
+  </div>
+{% endblock %}

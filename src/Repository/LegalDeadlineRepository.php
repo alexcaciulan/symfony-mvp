@@ -2,6 +2,7 @@
 
 namespace App\Repository;
 
+use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
@@ -13,6 +14,17 @@ class LegalDeadlineRepository extends ServiceEntityRepository
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, LegalDeadline::class);
+    }
+
+    /** @return LegalDeadline[] */
+    public function findByCase(LegalCase $case): array
+    {
+        return $this->createQueryBuilder('d')
+            ->andWhere('d.legalCase = :case')
+            ->setParameter('case', $case)
+            ->orderBy('d.deadlineDate', 'ASC')
+            ->getQuery()
+            ->getResult();
     }
 
     /** @return LegalDeadline[] */
