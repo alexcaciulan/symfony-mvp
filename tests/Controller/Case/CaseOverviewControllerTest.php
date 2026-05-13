@@ -10,6 +10,7 @@ use App\Entity\Debtor;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Entity\CaseStatusHistory;
+use App\Entity\CourtPortalEvent;
 use App\Entity\Document;
 use App\Entity\LegalDeadline;
 use App\Enum\AnafStatus;
@@ -20,6 +21,7 @@ use App\Enum\DeadlineType;
 use App\Enum\DocumentType;
 use App\Enum\ExtractionStatus;
 use App\Enum\PersonType;
+use App\Enum\PortalEventType;
 use App\Enum\RelationshipType;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
@@ -69,6 +71,7 @@ final class CaseOverviewControllerTest extends WebTestCase
         $userId = $this->user->getId();
         $conn = $this->em->getConnection();
         $conn->executeStatement('DELETE FROM audit_log WHERE user_id = :id', ['id' => $userId]);
+        $conn->executeStatement('DELETE FROM court_portal_event WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM legal_deadline WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM document WHERE uploaded_by_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
@@ -79,6 +82,22 @@ final class CaseOverviewControllerTest extends WebTestCase
         $conn->executeStatement('DELETE FROM `user` WHERE id = :id', ['id' => $userId]);
 
         parent::tearDown();
+    }
+
+    /**
+     * Attach a CourtPortalEvent to {@see self::$case} for Tab Activitate Portal tests.
+     */
+    private function attachPortalEvent(PortalEventType $type, \DateTimeImmutable $date, string $description = 'Test portal event'): CourtPortalEvent
+    {
+        $event = new CourtPortalEvent();
+        $event->setLegalCase($this->case);
+        $event->setEventType($type);
+        $event->setEventDate($date);
+        $event->setDescription($description);
+        $this->em->persist($event);
+        $this->em->flush();
+
+        return $event;
     }
 
     /**
@@ -640,5 +659,89 @@ final class CaseOverviewControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('#panel-termene', 'niciun termen apropiat');
+    }
+
+    public function testPortalConfigRendersInactiveBadgeWhenNoCourtCaseNumber(): void
+    {
+        // Base setUp case has no courtCaseNumber — proxy „monitoring inactive".
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('#panel-portal', 'NEACTIVATĂ');
+    }
+
+    public function testPortalConfigInputAndButtonAreDisabled(): void
+    {
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        // Input + activate button both must carry aria-disabled until Faza 5 ships.
+        self::assertGreaterThan(0, $crawler->filter('#panel-portal input[aria-disabled="true"]')->count());
+        $activateBtn = $crawler->filter('#panel-portal button[aria-disabled="true"]')->reduce(static function ($node) {
+            return str_contains($node->text(), 'Activează monitorizare');
+        });
+        self::assertGreaterThan(0, $activateBtn->count(), 'Activate button must be aria-disabled');
+    }
+
+    public function testPortalTimelineEmptyStateWhenNoEvents(): void
+    {
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('#panel-portal', 'Niciun eveniment monitorizat încă');
+    }
+
+    public function testPortalSampleTimelineRenders3PreviewEntries(): void
+    {
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        // Sample preview shows 3 educational entries regardless of actual portalEvents.
+        self::assertSelectorTextContains('#panel-portal', 'Exemplu de timeline');
+        self::assertSelectorTextContains('#panel-portal', 'Ordonanță emisă');
+        self::assertSelectorTextContains('#panel-portal', 'Termen judecată fixat');
+        self::assertSelectorTextContains('#panel-portal', 'Dosar înregistrat la registratură');
+    }
+
+    public function testPortalSyncStatusShowsNeporneetWhenNeverChecked(): void
+    {
+        // Base case has lastPortalCheckAt = null → italic fallback in sync status sidebar.
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('#panel-portal', 'încă nepornită');
+    }
+
+    public function testPortalConfigRendersActiveBadgeWhenCourtCaseNumberSet(): void
+    {
+        // Proxy „monitoring active" = courtCaseNumber !== null. Flip the proxy and assert
+        // the badge crosses over to green ACTIVĂ — covers the other side of the W1 branch.
+        $this->case->setCourtCaseNumber('4521/302/2026');
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('#panel-portal', 'ACTIVĂ');
+    }
+
+    public function testPortalHowItWorksRenders4Steps(): void
+    {
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        // Sidebar „Cum funcționează" must list all 4 numbered steps.
+        self::assertSelectorTextContains('#panel-portal', 'Cum funcționează');
+        self::assertSelectorTextContains('#panel-portal', 'Cron rulează zilnic');
+        self::assertSelectorTextContains('#panel-portal', 'Detectare evenimente noi');
+        self::assertSelectorTextContains('#panel-portal', 'Tranziții automate');
+        self::assertSelectorTextContains('#panel-portal', 'Email + notificare');
     }
 }

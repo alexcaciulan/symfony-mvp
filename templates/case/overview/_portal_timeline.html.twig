@@ -1,0 +1,71 @@
+{# Pas 4.0.6 — Timeline portal events (real). Loop pe `portalEvents` cu icon colorat per PortalEventType
+   sau empty state. Reflectă mockup linii 908-926. #}
+{% from 'case/overview/_icons.html.twig' import icon_document, icon_refresh, icon_check, icon_calendar, icon_warning, icon_building %}
+
+{# Color map pentru iconuri timeline events. Fallback slate pentru cases noi în enum. #}
+{% set event_palette = {
+    'hearing_scheduled':  { 'gradient': 'from-indigo-400 to-indigo-500', 'icon': 'calendar' },
+    'hearing_completed':  { 'gradient': 'from-green-400 to-green-500',   'icon': 'check' },
+    'ruling_issued':      { 'gradient': 'from-purple-400 to-purple-500', 'icon': 'document' },
+    'appeal_filed':       { 'gradient': 'from-amber-400 to-amber-500',   'icon': 'warning' },
+    'case_info_update':   { 'gradient': 'from-blue-400 to-blue-500',     'icon': 'building' },
+} %}
+{% set default_event = { 'gradient': 'from-slate-400 to-slate-500', 'icon': 'building' } %}
+
+<section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft overflow-hidden">
+    <header class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+            <span class="inline-flex items-center justify-center size-7 rounded-lg bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/50 dark:to-purple-900/30 text-purple-600">
+                {{ icon_building('size-4') }}
+            </span>
+            <h3 class="text-sm font-semibold">{{ 'case_overview.portal.timeline_title'|trans }}</h3>
+        </div>
+        <button type="button"
+                aria-disabled="true"
+                tabindex="-1"
+                title="{{ 'case_overview.tooltip.coming_soon_portal'|trans }}"
+                class="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-700 opacity-60 cursor-not-allowed">
+            {{ icon_refresh('size-3.5 text-slate-500') }}
+            {{ 'case_overview.portal.timeline_check_now'|trans }}
+        </button>
+    </header>
+
+    {% if portalEvents|length == 0 %}
+        <div class="p-12 text-center">
+            <div class="inline-flex items-center justify-center size-16 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 text-slate-400 mb-4">
+                {{ icon_building('size-8') }}
+            </div>
+            <h4 class="text-base font-semibold">{{ 'case_overview.portal.empty_title'|trans }}</h4>
+            <p class="mt-2 text-sm text-slate-500 max-w-md mx-auto">{{ 'case_overview.portal.empty_body'|trans }}</p>
+        </div>
+    {% else %}
+        <div class="px-6 py-5">
+            <ol class="relative space-y-5">
+                <div class="absolute left-[11px] top-2 bottom-2 w-px bg-slate-200 dark:bg-slate-700" aria-hidden="true"></div>
+                {% for event in portalEvents %}
+                    {% set p = event_palette[event.eventType.value]|default(default_event) %}
+                    <li class="relative pl-9">
+                        <span class="absolute left-0 top-1 inline-flex items-center justify-center size-6 rounded-full bg-gradient-to-br {{ p.gradient }} text-white shadow-md ring-2 ring-white dark:ring-slate-900">
+                            {% if p.icon == 'check' %}{{ icon_check('size-3') }}
+                            {% elseif p.icon == 'calendar' %}{{ icon_calendar('size-3') }}
+                            {% elseif p.icon == 'document' %}{{ icon_document('size-3') }}
+                            {% elseif p.icon == 'warning' %}{{ icon_warning('size-3') }}
+                            {% else %}{{ icon_building('size-3') }}
+                            {% endif %}
+                        </span>
+                        <div class="flex items-baseline justify-between gap-2 mb-0.5">
+                            <span class="text-sm font-semibold">{{ event.eventType.label()|trans }}</span>
+                            {% if event.eventDate %}
+                                <time class="text-[11px] text-slate-500 tnum">{{ event.eventDate|date('d.m.Y') }}</time>
+                            {% endif %}
+                        </div>
+                        <p class="text-xs text-slate-600 dark:text-slate-400">{{ event.description }}</p>
+                        {% if event.solutieSumar %}
+                            <p class="text-[11px] text-slate-500 mt-1 italic">{{ event.solutieSumar }}</p>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ol>
+        </div>
+    {% endif %}
+</section>

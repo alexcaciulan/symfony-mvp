@@ -1,0 +1,23 @@
+{# Pas 4.0.6 — Sidebar Status sincronizare (dl cu fallback italic „— încă nepornită"). Mockup linii 984-991. #}
+
+<section class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-soft">
+    <h3 class="text-sm font-semibold mb-3">{{ 'case_overview.portal.sync_title'|trans }}</h3>
+    <dl class="space-y-2 text-xs">
+        <div class="flex justify-between">
+            <dt class="text-slate-500">{{ 'case_overview.portal.sync_last_check'|trans }}</dt>
+            {% if case.lastPortalCheckAt %}
+                <dd class="font-medium tnum">{{ case.lastPortalCheckAt|date('d.m.Y H:i') }}</dd>
+            {% else %}
+                <dd class="text-slate-400 italic">{{ 'case_overview.portal.sync_not_started'|trans }}</dd>
+            {% endif %}
+        </div>
+        <div class="flex justify-between">
+            <dt class="text-slate-500">{{ 'case_overview.portal.sync_next_check'|trans }}</dt>
+            <dd class="text-slate-400 italic">{{ 'case_overview.portal.sync_not_scheduled'|trans }}</dd>
+        </div>
+        <div class="flex justify-between">
+            <dt class="text-slate-500">{{ 'case_overview.portal.sync_total_events'|trans }}</dt>
+            <dd class="font-semibold tnum">{{ portalEvents|length }}</dd>
+        </div>
+    </dl>
+</section>
