@@ -569,17 +569,18 @@ final class CaseOverviewControllerTest extends WebTestCase
         self::assertCount(0, $crawler->filter('#panel-documente section.bg-amber-50'));
     }
 
-    public function testDocumenteZipCtaAriaDisabled(): void
+    public function testDocumenteZipCtaTriggersGenerateOpModal(): void
     {
         $this->client->loginUser($this->user);
         $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
-        // The ZIP CTA button is aria-disabled until Phase 6 (PDF generation) ships.
-        $zipCta = $crawler->filter('#panel-documente button[aria-disabled="true"]')->reduce(static function ($node) {
+        // Since 4.0.7 the ZIP CTA opens the generate-op modal (informative);
+        // the final ZIP generation itself is wired in Faza 6.
+        $zipCta = $crawler->filter('#panel-documente button[data-hs-overlay="#hs-modal-cerere-op"]')->reduce(static function ($node) {
             return str_contains($node->text(), 'Generează & descarcă ZIP');
         });
-        self::assertGreaterThan(0, $zipCta->count(), 'ZIP CTA must be aria-disabled');
+        self::assertGreaterThan(0, $zipCta->count(), 'ZIP CTA must trigger generate-op modal');
     }
 
     public function testTermeneCounterShowsActiveExpiredCompleted(): void
@@ -743,5 +744,84 @@ final class CaseOverviewControllerTest extends WebTestCase
         self::assertSelectorTextContains('#panel-portal', 'Detectare evenimente noi');
         self::assertSelectorTextContains('#panel-portal', 'Tranziții automate');
         self::assertSelectorTextContains('#panel-portal', 'Email + notificare');
+    }
+
+    public function testModalCloseCasePresentInDom(): void
+    {
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorExists('#hs-modal-close-case[role="dialog"]');
+        self::assertSelectorTextContains('#hs-modal-close-case', 'Confirmă închiderea dosarului');
+    }
+
+    public function testModalCloseCaseReasonSelectHas4Options(): void
+    {
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        // 4 real options + 1 placeholder = 5 <option> tags.
+        self::assertCount(5, $crawler->filter('#hs-modal-close-case-reason option'));
+    }
+
+    public function testModalCloseCaseConfirmButtonIsAriaDisabled(): void
+    {
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $confirm = $crawler->filter('#hs-modal-close-case button[aria-disabled="true"]')->reduce(static function ($node) {
+            return str_contains($node->text(), 'Închide dosar');
+        });
+        self::assertGreaterThan(0, $confirm->count(), 'Close-case confirm must be aria-disabled until Faza 4.x ships');
+    }
+
+    public function testModalGenerateOpPresentInDom(): void
+    {
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorExists('#hs-modal-cerere-op[role="dialog"]');
+        self::assertSelectorTextContains('#hs-modal-cerere-op', 'Generează pachet cerere OP');
+    }
+
+    public function testModalGenerateOpDisclaimerRendersCourtName(): void
+    {
+        $this->enrichCase();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        // Disclaimer text dynamically interpolates court.name.
+        self::assertSelectorTextContains('#hs-modal-cerere-op', $this->case->getCourt()->getName());
+    }
+
+    public function testModalGenerateOpConfirmButtonIsAriaDisabled(): void
+    {
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $confirm = $crawler->filter('#hs-modal-cerere-op button[aria-disabled="true"]')->reduce(static function ($node) {
+            return str_contains($node->text(), 'Generează & descarcă ZIP');
+        });
+        self::assertGreaterThan(0, $confirm->count(), 'Generate-OP confirm must be aria-disabled until Faza 6 ships');
+    }
+
+    public function testHeroGenerateOpCtaTriggersModalViaDataHsOverlay(): void
+    {
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        // Hero CTA must wire `data-hs-overlay` to the modal (NOT aria-disabled).
+        $cta = $crawler->filter('button[data-hs-overlay="#hs-modal-cerere-op"]')->reduce(static function ($node) {
+            return str_contains($node->text(), 'Generează cerere OP');
+        });
+        self::assertGreaterThan(0, $cta->count(), 'Hero CTA must trigger modal via data-hs-overlay');
     }
 }

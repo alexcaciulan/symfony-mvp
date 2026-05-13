@@ -30,9 +30,8 @@
             </li>
         </ul>
         <button type="button"
-                aria-disabled="true"
-                title="{{ 'case_overview.tooltip.coming_soon_op'|trans }}"
-                class="mt-4 w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-bold rounded-lg bg-white text-lex-navy shadow-lg opacity-90 cursor-not-allowed">
+                data-hs-overlay="#hs-modal-cerere-op"
+                class="mt-4 w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-bold rounded-lg bg-white text-lex-navy hover:bg-blue-50 transition shadow-lg">
             {{ icon_download('size-4') }}
             {{ 'case_overview.zip_package.cta'|trans }}
         </button>

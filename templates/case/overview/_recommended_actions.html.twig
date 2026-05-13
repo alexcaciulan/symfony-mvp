@@ -33,12 +33,10 @@
             </div>
         </button>
 
-        {# 2. Generate payment order — RECOMMENDED, aria-disabled cu tooltip Faza 6. #}
+        {# 2. Generate payment order — RECOMMENDED, opens modal cerere-op (confirm in modal still aria-disabled). #}
         <button type="button"
-                aria-disabled="true"
-                tabindex="-1"
-                title="{{ 'case_overview.tooltip.coming_soon_op'|trans }}"
-                class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg bg-gradient-to-r from-blue-50 to-blue-50/50 dark:from-blue-950/40 dark:to-blue-950/20 border border-blue-200/60 dark:border-blue-900/40 ring-1 ring-blue-100 dark:ring-blue-950/50 opacity-80 cursor-not-allowed">
+                data-hs-overlay="#hs-modal-cerere-op"
+                class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg bg-gradient-to-r from-blue-50 to-blue-50/50 dark:from-blue-950/40 dark:to-blue-950/20 border border-blue-200/60 dark:border-blue-900/40 ring-1 ring-blue-100 dark:ring-blue-950/50 hover:from-blue-100 dark:hover:from-blue-950/60 transition group">
             <div class="size-9 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-blue-500/30">
                 {{ icon_document('size-4') }}
             </div>

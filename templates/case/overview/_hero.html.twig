@@ -38,9 +38,8 @@
 
             <div class="flex items-center gap-2 self-start">
                 <button type="button"
-                        aria-disabled="true"
-                        title="{{ 'case_overview.tooltip.coming_soon_op'|trans }}"
-                        class="py-2 px-3.5 inline-flex items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-slate-900 dark:bg-white text-white dark:text-slate-900 opacity-60 cursor-not-allowed shadow-sm">
+                        data-hs-overlay="#hs-modal-cerere-op"
+                        class="py-2 px-3.5 inline-flex items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 transition shadow-sm">
                     {{ icon_document('size-4') }}
                     {{ 'case_overview.cta.generate_op'|trans }}
                 </button>
@@ -83,9 +82,8 @@
                         </a>
                         <hr class="my-1 border-slate-100 dark:border-slate-800">
                         <button type="button"
-                                aria-disabled="true"
-                                title="{{ 'case_overview.tooltip.coming_soon_close'|trans }}"
-                                class="flex w-full items-center gap-x-3 py-2 px-3 rounded-lg text-sm text-red-600 dark:text-red-400 opacity-60 cursor-not-allowed">
+                                data-hs-overlay="#hs-modal-close-case"
+                                class="flex w-full items-center gap-x-3 py-2 px-3 rounded-lg text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30">
                             {{ icon_trash('size-4') }}
                             {{ 'case_overview.cta.close_case'|trans }}
                         </button>

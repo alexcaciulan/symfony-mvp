@@ -38,10 +38,8 @@
                 <div class="text-xs text-slate-500 mt-0.5">{{ 'case_overview.documents.cerere_pending_hint'|trans }}</div>
             </div>
             <button type="button"
-                    aria-disabled="true"
-                    tabindex="-1"
-                    title="{{ 'case_overview.tooltip.coming_soon_op'|trans }}"
-                    class="py-2 px-3 inline-flex items-center gap-1.5 text-xs font-bold rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md shadow-blue-500/30 opacity-70 cursor-not-allowed">
+                    data-hs-overlay="#hs-modal-cerere-op"
+                    class="py-2 px-3 inline-flex items-center gap-1.5 text-xs font-bold rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md shadow-blue-500/30 hover:shadow-lg hover:shadow-blue-500/40 transition">
                 {{ 'case_overview.documents.cerere_cta'|trans }}
                 {{ icon_chevron_right('size-3.5') }}
             </button>

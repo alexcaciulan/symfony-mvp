@@ -41,4 +41,9 @@
       </div>
     </div>
   </div>
+
+  {# Pas 4.0.7 — Preline modals rendered once per request, triggered via data-hs-overlay from hero CTA,
+     hero dropdown „Închide dosar", ZIP package card, Cerere OP „Generează acum", Recommended Actions. #}
+  {{ include('case/overview/_modal_close_case.html.twig') }}
+  {{ include('case/overview/_modal_generate_op.html.twig') }}
 {% endblock %}

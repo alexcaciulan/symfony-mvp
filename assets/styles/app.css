@@ -1,6 +1,33 @@
 @import "tailwindcss";
 
+/* ─── Preline UI v4 integration ──────────────────────────────────────────────
+   Preline v4 is shipped as a pure ES module — it does not provide a Tailwind v4
+   plugin file (no `@plugin "preline"` available). The official path for the v4 stack
+   is to (1) scan the vendor JS so utility class strings Preline injects dynamically
+   (backdrops, popovers, tooltip panels, datepicker chrome, etc.) reach the generated
+   stylesheet, and (2) declare custom variants for the state classes Preline toggles
+   via JS on wrapper elements. Build cost is ~500-800ms on the Oxide engine — once per
+   `make tailwind`, never per request — in exchange for zero re-config at the adoption
+   of any future Preline component (Stepper, Datepicker, ComboBox, Tooltip, etc.). */
+@source "../vendor/preline/preline.index.js";
+
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* State variants — Preline JS toggles `.open` / `.active` / `.opened` / `.show` on
+   outer wrappers; utility descendants (panels, chevrons, badges, dropdown menus) use
+   `hs-X-state:` utilities. Each variant matches the element itself OR any descendant
+   inside an `.X`-class ancestor. Without these, transitions/animations stay frozen
+   at the closed state because Tailwind doesn't compile the utility rules. */
+@custom-variant hs-tab-active (&.active, .active &);
+@custom-variant hs-dropdown-open (&.open, .open &);
+@custom-variant hs-accordion-active (&.active, .active &);
+@custom-variant hs-overlay-open (&.open, .open &);
+@custom-variant hs-overlay-backdrop-open (&.open, .open &);
+@custom-variant hs-collapse-open (&.open, .open &);
+@custom-variant hs-select-opened (&.opened, .opened &);
+@custom-variant hs-combo-box-opened (&.opened, .opened &);
+@custom-variant hs-tooltip-shown (&.show, .show &);
+@custom-variant hs-removing (&.hs-removing, .hs-removing &);
 
 @theme {
     /* Brand palette (LexRecovery v2) */
