@@ -142,3 +142,45 @@ html.dark body.auth-bg {
         radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.04) 1px, transparent 0);
     background-size: auto, auto, 24px 24px;
 }
+
+/* ─── Pas 3.4 — Wizard fluid transitions ────────────────────────────────────
+   Step → step swaps run inside <turbo-frame id="wizard-frame">. With the View
+   Transitions API (Chrome 111+ / Safari 18+ / Firefox 130+) the swap fades out
+   the old step content and fades in the new one over 200ms with a small slide.
+   Honors `prefers-reduced-motion: reduce` — animations skip entirely so users
+   who opt out get an instant swap (still a win over the pre-3.4 full-page reload). */
+@media (prefers-reduced-motion: no-preference) {
+    turbo-frame#wizard-frame {
+        view-transition-name: wizard-frame;
+    }
+
+    ::view-transition-old(wizard-frame) {
+        animation: 180ms cubic-bezier(0.4, 0, 1, 1) both wizard-frame-out;
+    }
+
+    ::view-transition-new(wizard-frame) {
+        animation: 220ms cubic-bezier(0, 0, 0.2, 1) both wizard-frame-in;
+    }
+
+    @keyframes wizard-frame-out {
+        to {
+            opacity: 0;
+            transform: translateY(-8px);
+        }
+    }
+
+    @keyframes wizard-frame-in {
+        from {
+            opacity: 0;
+            transform: translateY(8px);
+        }
+    }
+}
+
+/* Turbo Drive global progress bar — defaults to a blue thin bar. Re-skin to
+   lex-navy gradient so it matches the brand. Shown only when a request takes
+   longer than the Turbo `progressBarDelay` (default 500ms). */
+.turbo-progress-bar {
+    background: linear-gradient(90deg, #1e3a5f 0%, #0f1e34 100%);
+    height: 3px;
+}

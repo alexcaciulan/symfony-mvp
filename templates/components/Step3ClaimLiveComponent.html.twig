@@ -1,0 +1,128 @@
+{# Pas 3.3 — wraps the Step 3 form + sidebar so the `data-model` bindings on
+   the inner form inputs can update the LiveProps on this component (the
+   bundle scopes `data-model` to the closest `[data-controller~="live"]`
+   ancestor — which is THIS element).
+   The form widgets are passed in via the `form_slot` block from the parent
+   template (`_step3_claim_content.html.twig`). The right-hand sidebar reads
+   `this.getInterest()` / `this.getStampDuty()` so it re-renders whenever a
+   bound input fires its debounced 300ms update.
+   Court resolver is intentionally NOT wired here — see PHP docblock. #}
+{% set interest = this.getInterest() %}
+{% set stamp_duty = this.getStampDuty() %}
+{% set due_in_future = this.isDueDateInFuture() %}
+
+<div{{ attributes.defaults({ 'class': 'grid grid-cols-1 lg:grid-cols-3 gap-6' }) }}>
+    <div class="lg:col-span-2 space-y-5">
+        {% block form_slot %}{% endblock %}
+    </div>
+
+    <aside class="lg:sticky lg:top-20 self-start">
+        <div class="bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white rounded-2xl shadow-lg overflow-hidden">
+            <div class="px-5 py-4 border-b border-white/10 flex items-center gap-2">
+                <span class="size-2 rounded-full bg-green-400 animate-pulse" aria-hidden="true"></span>
+                <h3 class="text-sm font-semibold">{{ 'wizard.step3.sidebar.title'|trans }}</h3>
+                <span class="ml-auto text-[10px] uppercase tracking-wider text-white/50">{{ 'wizard.step3.sidebar.computed_at'|trans({ '%date%': 'now'|date('d.m.Y') }) }}</span>
+            </div>
+
+            <div class="px-5 py-4 space-y-4">
+                <div>
+                    <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.principal_label'|trans }}</div>
+                    {% if amount is not null and amount > 0 %}
+                        <div class="mt-1 text-2xl font-bold tnum">{{ amount|number_format(2, '.', ',') }} <span class="text-sm font-normal text-white/70">{{ currency }}</span></div>
+                    {% else %}
+                        <div class="mt-1 text-xs text-white/60">{{ 'wizard.step3.sidebar.principal_placeholder'|trans }}</div>
+                    {% endif %}
+                </div>
+
+                <div>
+                    <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.interest_label'|trans }}</div>
+                    {% if interest is null %}
+                        {% if due_in_future %}
+                            <div class="mt-1 text-xs text-amber-300">{{ 'wizard.step3.live.error.due_date_future'|trans }}</div>
+                        {% elseif currency != 'RON' %}
+                            <div class="mt-1 text-xs text-amber-300">{{ 'wizard.step3.live.error.currency_unsupported'|trans }}</div>
+                        {% else %}
+                            <div class="mt-1 text-xs text-white/60">{{ 'wizard.step3.sidebar.interest_placeholder'|trans }}</div>
+                        {% endif %}
+                    {% else %}
+                        <div class="mt-1 text-2xl font-bold tnum text-amber-300">+ {{ interest.total|number_format(2, '.', ',') }} <span class="text-sm font-normal text-white/70">{{ currency }}</span></div>
+                        {% if interest.breakdown|length > 0 %}
+                            {% set last = interest.breakdown|last %}
+                            <div class="mt-1 text-[11px] text-white/50">{{ 'wizard.step3.sidebar.interest_last_rate'|trans({ '%rate%': last.applicableRate|number_format(2) }) }}</div>
+                        {% endif %}
+                    {% endif %}
+                </div>
+
+                {% if interest is not null and amount is not null %}
+                    <div class="pt-3 border-t border-white/10">
+                        <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.total_label'|trans }}</div>
+                        <div class="mt-1 text-3xl font-bold tnum text-green-300">{{ (amount + interest.total)|number_format(2, '.', ',') }} <span class="text-base font-normal text-white/70">{{ currency }}</span></div>
+                    </div>
+                {% endif %}
+
+                {% if interest is not null and interest.breakdown|length > 0 %}
+                    <div class="hs-accordion-group bg-black/20 rounded-lg overflow-hidden">
+                        <div class="hs-accordion" id="acc-bnr-live">
+                            <button type="button" class="hs-accordion-toggle inline-flex items-center justify-between gap-x-3 w-full text-xs font-medium text-white py-2.5 px-3 hover:bg-white/5 transition" aria-expanded="false">
+                                <span class="inline-flex items-center gap-2">
+                                    <svg class="hs-accordion-active:rotate-90 size-3.5 text-white/60 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                                    <span>{{ 'wizard.step3.sidebar.bnr_breakdown'|trans }}</span>
+                                </span>
+                                <span class="text-[10px] text-white/50">{{ 'wizard.step3.sidebar.periods'|trans({ '%count%': interest.breakdown|length }) }}</span>
+                            </button>
+                            <div class="hs-accordion-content hidden w-full overflow-hidden transition-[height] duration-300" role="region">
+                                <table class="w-full text-[11px]">
+                                    <thead class="text-white/50 border-t border-white/10">
+                                        <tr>
+                                            <th class="px-3 py-1.5 text-left font-medium">{{ 'wizard.step3.sidebar.period_column'|trans }}</th>
+                                            <th class="px-2 py-1.5 text-right font-medium">{{ 'wizard.step3.sidebar.rate_column'|trans }}</th>
+                                            <th class="px-3 py-1.5 text-right font-medium">{{ 'wizard.step3.sidebar.interest_column'|trans }}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-white/10">
+                                        {% for p in interest.breakdown %}
+                                            <tr>
+                                                <td class="px-3 py-1.5 text-white/80">{{ p.startDate|date('d.m') }} → {{ p.endDate|date('d.m.y') }}</td>
+                                                <td class="px-2 py-1.5 text-right tnum">{{ p.applicableRate|number_format(2) }}%</td>
+                                                <td class="px-3 py-1.5 text-right tnum">{{ p.periodInterest|number_format(2) }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+
+                <div class="grid grid-cols-2 gap-3 pt-3 border-t border-white/10">
+                    <div>
+                        <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.stamp_duty_label'|trans }}</div>
+                        <div class="mt-0.5 text-base font-semibold tnum">{{ stamp_duty.amount|number_format(2, '.', ',') }}</div>
+                    </div>
+                    {% if interest is not null and amount is not null %}
+                        <div>
+                            <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.total_plus_stamp'|trans }}</div>
+                            <div class="mt-0.5 text-base font-semibold tnum">{{ (amount + interest.total + stamp_duty.amount)|number_format(2, '.', ',') }}</div>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="pt-3 border-t border-white/10">
+                    <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium mb-1.5">{{ 'wizard.step3.sidebar.court_label'|trans }}</div>
+                    <div class="bg-black/20 rounded-lg p-3 flex gap-2.5">
+                        <svg class="size-5 text-blue-300 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5"/></svg>
+                        <div class="text-sm">
+                            <div class="font-medium">{{ 'wizard.step3.live.court.indeterminate'|trans }}</div>
+                            <div class="text-xs text-white/60 mt-0.5">{{ 'wizard.step3.live.court.computed_at_step4'|trans }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-5 py-3 bg-black/20 text-[11px] text-white/60 flex items-start gap-2">
+                <svg class="size-3.5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span>{{ 'wizard.step3.sidebar.footer_note'|trans }}</span>
+            </div>
+        </div>
+    </aside>
+</div>

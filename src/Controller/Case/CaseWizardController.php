@@ -71,7 +71,6 @@ use Symfony\UX\Turbo\TurboBundle;
 final class CaseWizardController extends AbstractController
 {
     private const SESSION_KEY = 'case_wizard_data';
-    private const DEBTORS_MAX = 5;
 
     public function __construct(
         private readonly DocumentUploadService $uploadService,
@@ -298,32 +297,13 @@ final class CaseWizardController extends AbstractController
 
         $dto = $bag['debtors'] ?? $this->prefill->aggregateForDebtors($bag['documentIds']);
 
+        // Pas 3.3 — add/remove debtor happens through Step2DebtorsLiveComponent
+        // (LiveActions on the component re-render only its template). The
+        // controller now owns ONLY the page entry + final submit. The form
+        // is rebuilt here from the request data so server-side validation
+        // catches a debtor list mutated past the cap or with empty entries.
         $form = $this->createForm(Step2DebtorsType::class, $dto);
         $form->handleRequest($request);
-
-        // Multi-debtor in Pas 3.2 — non-JS add-debtor button posts with
-        // _action=add_debtor; we bind the current state, append an empty
-        // entry up to the cap, and re-render WITHOUT validating yet. Pas 3.3
-        // replaces this with a LiveComponent (no full submit round-trip).
-        $action = (string) $request->request->get('_action', '');
-        if ($form->isSubmitted() && $action === 'add_debtor') {
-            $current = $form->getData();
-            if (count($current->debtors) >= self::DEBTORS_MAX) {
-                $this->addFlash('warning', 'wizard.step2.flash.max_debtors_reached');
-            } else {
-                $current->debtors[] = new Step2DebtorEntry();
-            }
-
-            // Replace the form with a fresh one bound to the mutated DTO so the
-            // template gets the new row rendered.
-            $form = $this->createForm(Step2DebtorsType::class, $current);
-
-            return $this->render('case/_step2_debtor_content.html.twig', [
-                'current_step' => 2,
-                'form' => $form,
-                'dto' => $current,
-            ]);
-        }
 
         if ($form->isSubmitted() && $form->isValid()) {
             $bag['debtors'] = $form->getData();
@@ -335,7 +315,7 @@ final class CaseWizardController extends AbstractController
         return $this->render('case/_step2_debtor_content.html.twig', [
             'current_step' => 2,
             'form' => $form,
-            'dto' => $dto,
+            'dto' => $form->getData() ?? $dto,
         ]);
     }
 
@@ -356,24 +336,15 @@ final class CaseWizardController extends AbstractController
             return $this->redirectToRoute('case_wizard_confirmation');
         }
 
-        // Server-rendered live calculations (Pas 3.3 replaces with LiveComponent).
-        // Best-effort: only run when the form has the minimum inputs and the
-        // calculator won't throw. On any DomainException/RuntimeException we
-        // fall back to nulls in the sidebar — the template prints a placeholder
-        // instead of crashing the page.
-        $debtor = isset($bag['debtors']) && $bag['debtors']->debtors !== []
-            ? $bag['debtors']->debtors[0]
-            : null;
-
-        $calculations = $this->safeComputeForSidebar($dto, $debtor);
-
+        // Pas 3.3 — sidebar calc is owned by `Step3ClaimLiveComponent`. The
+        // controller no longer pre-renders interest / stamp duty / court for
+        // the page template; the Live Component recomputes from props on
+        // every debounced input change. Step 4 still uses
+        // {@see safeComputeForSidebar()} to materialize the final figures.
         return $this->render('case/_step3_claim_content.html.twig', [
             'current_step' => 3,
             'form' => $form,
             'dto' => $dto,
-            'interest' => $calculations['interest'],
-            'stamp_duty' => $calculations['stampDuty'],
-            'court' => $calculations['court'],
         ]);
     }
 

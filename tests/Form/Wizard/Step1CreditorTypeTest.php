@@ -125,6 +125,44 @@ final class Step1CreditorTypeTest extends KernelTestCase
         self::assertSame('_token', $options['csrf_field_name']);
     }
 
+    public function testPersonTypePfClearsCuiAndOnrcOnSubmit(): void
+    {
+        $form = $this->buildForm();
+        $form->submit([
+            'personType' => 'PF',
+            'name' => 'Ion Popescu',
+            'cui' => 'RO15193236',        // stale value from a previous PJ selection
+            'onrcNumber' => 'J40/1234/2018', // stale
+            'personalId' => '1980715221232',
+            'address' => 'Str. Test 1, București',
+        ]);
+
+        self::assertTrue($form->isValid(), (string) $form->getErrors(true));
+        $dto = $form->getData();
+        self::assertSame(PersonType::PF, $dto->personType);
+        self::assertNull($dto->cui, 'CUI must be cleared for PF');
+        self::assertNull($dto->onrcNumber, 'onrcNumber must be cleared for PF');
+        self::assertSame('1980715221232', $dto->personalId);
+    }
+
+    public function testPersonTypePjClearsPersonalIdOnSubmit(): void
+    {
+        $form = $this->buildForm();
+        $form->submit([
+            'personType' => 'PJ',
+            'name' => 'SC Foo SRL',
+            'cui' => 'RO15193236',
+            'address' => 'Str. Test 1, București',
+            'personalId' => '1980715221232', // stale value from a previous PF selection
+        ]);
+
+        self::assertTrue($form->isValid(), (string) $form->getErrors(true));
+        $dto = $form->getData();
+        self::assertSame(PersonType::PJ, $dto->personType);
+        self::assertNull($dto->personalId, 'personalId (CNP) must be cleared for PJ');
+        self::assertSame('RO15193236', $dto->cui);
+    }
+
     private function buildForm(?Step1CreditorData $data = null): FormInterface
     {
         return $this->factory->create(Step1CreditorType::class, $data, ['csrf_protection' => false]);

@@ -94,16 +94,21 @@
     </div>
 
     {# Action bar — Skip (left) + Continue (right). Always visible.
-       Skip is a CSRF-protected POST that breaks out of the frame (data-turbo-frame="_top").
+       Skip is a CSRF-protected POST; both forms target the outer wizard-frame
+       so Step 1 swaps in-place without reloading sidebar/topbar.
        Continue is a GET form that also breaks out; disabled while extraction is still running. #}
     <div class="flex items-center justify-between gap-3 mt-4">
-        <form method="post" action="{{ path('case_wizard_skip') }}" class="inline-flex" data-turbo-frame="_top">
+        {# Pas 3.4 — target the outer `wizard-frame` (parent of `step0-dynamic`)
+           so navigation to Step 1 swaps the WHOLE wizard area in-place without
+           reloading sidebar/topbar. Pre-3.4 used `_top` because Step 1+ didn't
+           have a Turbo Frame yet. #}
+        <form method="post" action="{{ path('case_wizard_skip') }}" class="inline-flex" data-turbo-frame="wizard-frame">
             <input type="hidden" name="_token" value="{{ csrf_token('wizard_step0_skip') }}">
             <button type="submit" class="text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:underline">
                 {{ 'wizard.step0.skip'|trans }}
             </button>
         </form>
-        <form method="get" action="{{ path('case_wizard_creditor') }}" class="inline-flex" data-turbo-frame="_top">
+        <form method="get" action="{{ path('case_wizard_creditor') }}" class="inline-flex" data-turbo-frame="wizard-frame">
             <button type="submit"
                     {% if not all_terminal %}disabled aria-disabled="true"{% endif %}
                     title="{% if not all_terminal %}{{ 'wizard.step0.continue_blocked'|trans }}{% endif %}"

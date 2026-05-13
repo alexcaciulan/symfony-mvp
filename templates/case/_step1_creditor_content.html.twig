@@ -16,28 +16,31 @@
 {% set has_form_errors = form.vars.errors|length > 0 %}
 
 {% block wizard_step_content %}
-    {# Toggle bar — Pas 3.2 keeps "Creditor nou" active by default; the
-       existing-creditor autocomplete flow ships in Pas 3.3 (UX Autocomplete). #}
-    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 mb-6 shadow-soft">
-        <div class="grid grid-cols-2 gap-2">
-            <button type="button" disabled aria-disabled="true"
-                    title="{{ 'wizard.step1.toggle.existing_disabled_title'|trans }}"
-                    class="flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-400 cursor-not-allowed">
-                <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                <span>{{ 'wizard.step1.toggle.existing'|trans }}</span>
-            </button>
-            <button type="button" aria-pressed="true"
-                    class="flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-blue-500 bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-950/20 text-sm font-bold text-blue-700 dark:text-blue-300">
-                <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
-                <span>{{ 'wizard.step1.toggle.new'|trans }}</span>
-            </button>
+    <div data-controller="creditor-mode">
+        {# Pas 3.3 — UX Autocomplete picker for creditors from the user's library.
+           The select sits at the top of the form; manual fields below auto-hide
+           (creditor-mode_controller.js) when an existing creditor is picked. #}
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 mb-6 shadow-soft">
+            <div class="flex items-start gap-3 mb-3">
+                <svg class="size-5 text-blue-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <div class="flex-1">
+                    <div class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ 'wizard.step1.autocomplete.title'|trans }}</div>
+                    <p class="text-xs text-slate-500 mt-0.5">{{ 'wizard.step1.autocomplete.hint'|trans }}</p>
+                </div>
+            </div>
+            {{ form_widget(form.creditorEntity, { attr: {
+                'data-creditor-mode-target': 'select',
+                'data-action': 'change->creditor-mode#toggle',
+                'form': 'step1-creditor-form',
+            }}) }}
         </div>
-    </div>
 
     {{ form_start(form, { attr: {
         'id': 'step1-creditor-form',
         'class': 'bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-6 shadow-soft',
         'novalidate': 'novalidate',
+        'data-creditor-mode-target': 'manualFields',
+        'data-controller': 'person-type-toggle',
     }}) }}
         {% if has_form_errors %}
             <div role="alert" class="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/60 rounded-lg p-4">
@@ -56,22 +59,35 @@
            mockup's "selected card" state is visible immediately. Calling form_widget below the
            cards (discarded into _) marks the original ChoiceType select as rendered, preventing
            form_end's form_rest() from emitting a duplicate dropdown. #}
+        {# personType radio cards — styling reflects the CHECKED state through
+           CSS `:peer-checked` utilities (no JS round-trip, no server re-render).
+           The hidden `<input>` is marked `peer`; its siblings (`<span>` label
+           text + `<svg>` checkmark) toggle classes via `peer-checked:*`. The
+           parent `<label>` uses `:has(:checked)` for the border + gradient
+           swap. Browser support: Chrome 105+ / Safari 15.4+ / Firefox 121+. #}
         {% set effective_person_type = form.personType.vars.value ?: form.personType.vars.choices|first.value %}
         <div>
             <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ 'wizard.step1.field.person_type'|trans }}</label>
             <div class="grid grid-cols-2 gap-3 max-w-md">
                 {% for choice in form.personType.vars.choices %}
-                    {% set is_selected = effective_person_type == choice.value %}
                     <label class="relative flex items-center cursor-pointer rounded-lg border-2 p-3 transition
-                        {% if is_selected %}border-blue-500 bg-gradient-to-br from-blue-50 to-blue-100/30 dark:from-blue-950/30 dark:to-blue-950/10
-                        {% else %}border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600{% endif %}">
+                                  border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600
+                                  has-[:checked]:border-blue-500
+                                  has-[:checked]:bg-gradient-to-br has-[:checked]:from-blue-50 has-[:checked]:to-blue-100/30
+                                  dark:has-[:checked]:from-blue-950/30 dark:has-[:checked]:to-blue-950/10">
                         <input type="radio" name="{{ form.personType.vars.full_name }}" value="{{ choice.value }}"
-                               {% if is_selected %}checked{% endif %}
-                               class="sr-only">
-                        <span class="text-sm {{ is_selected ? 'font-bold text-blue-900 dark:text-blue-200' : 'font-semibold text-slate-700 dark:text-slate-300' }}">{{ choice.label|trans }}</span>
-                        {% if is_selected %}
-                            <svg class="ml-auto size-5 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-                        {% endif %}
+                               {% if effective_person_type == choice.value %}checked{% endif %}
+                               class="peer sr-only"
+                               data-person-type-toggle-target="radio"
+                               data-action="change->person-type-toggle#update">
+                        <span class="text-sm font-semibold text-slate-700 dark:text-slate-300
+                                     peer-checked:font-bold peer-checked:text-blue-900 dark:peer-checked:text-blue-200">
+                            {{ choice.label|trans }}
+                        </span>
+                        <svg class="ml-auto size-5 text-blue-600 dark:text-blue-400 hidden peer-checked:block"
+                             fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
                     </label>
                 {% endfor %}
             </div>
@@ -86,19 +102,19 @@
                 {{ form_errors(form.name) }}
             </div>
 
-            <div>
+            <div data-person-type-toggle-target="pjOnly">
                 {{ f.field_label(form.cui, 'wizard.step1.field.cui', true) }}
                 {{ form_widget(form.cui, { attr: { class: f.input_classes(form.cui, 'font-mono')|trim, placeholder: 'RO12345678' }}) }}
                 {{ form_errors(form.cui) }}
             </div>
 
-            <div>
+            <div data-person-type-toggle-target="pjOnly">
                 {{ f.field_label(form.onrcNumber, 'wizard.step1.field.onrc_number', true) }}
                 {{ form_widget(form.onrcNumber, { attr: { class: f.input_classes(form.onrcNumber)|trim, placeholder: 'J40/1234/2018' }}) }}
                 {{ form_errors(form.onrcNumber) }}
             </div>
 
-            <div>
+            <div data-person-type-toggle-target="pfOnly">
                 {{ f.field_label(form.personalId, 'wizard.step1.field.personal_id', true) }}
                 {{ form_widget(form.personalId, { attr: { class: f.input_classes(form.personalId, 'font-mono')|trim }}) }}
                 {{ form_errors(form.personalId) }}
@@ -136,8 +152,9 @@
             </div>
         </div>
 
-        {# Pas 3.3 wires `creditorId` to UX Autocomplete; rendered hidden for now. #}
-        {{ form_widget(form.creditorId, { attr: { class: 'hidden' }}) }}
+        {# Hidden int — populated by Step1CreditorType POST_SUBMIT listener when
+           the autocomplete above picks an existing creditor. #}
+        {{ form_widget(form.creditorId, { attr: { class: 'hidden', style: 'display:none' }}) }}
 
         {# COSMETIC ONLY — NOT connected to DTO/backend.
            Cabinet creditor library is post-MVP (Pas 6.x); checkbox visible per
@@ -162,4 +179,5 @@
             <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
         </button>
     </div>
+    </div>{# /data-controller="creditor-mode" #}
 {% endblock %}

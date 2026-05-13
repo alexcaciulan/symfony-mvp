@@ -287,7 +287,10 @@
 
     {# Acceptance checkboxes. Submit button lives OUTSIDE the form (Steps 1/2/3 pattern)
        and submits via the HTML5 form="step4-confirmation-form" attribute. #}
-    {{ form_start(form, { attr: { 'id': 'step4-confirmation-form', 'class': 'space-y-4', 'novalidate': 'novalidate' }}) }}
+    {# data-turbo-frame="_top" — on POST success, controller redirects to
+       /dashboard/cases. That route doesn't have <turbo-frame id="wizard-frame">,
+       so we tell Turbo to break out of the frame and replace the whole page. #}
+    {{ form_start(form, { attr: { 'id': 'step4-confirmation-form', 'class': 'space-y-4', 'novalidate': 'novalidate', 'data-turbo-frame': '_top' }}) }}
         <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft p-5 space-y-3">
             <label class="flex items-start gap-2 cursor-pointer">
                 {{ form_widget(form.acceptTerms, { attr: { 'class': 'mt-0.5 rounded border-slate-300 text-lex-navy focus:ring-lex-navy' }}) }}

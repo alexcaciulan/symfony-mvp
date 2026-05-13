@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Form\Wizard;
 
 use App\DTO\Wizard\Step2DebtorEntry;
+use App\Enum\AnafStatus;
 use App\Enum\PersonType;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
 use Symfony\Component\Form\Extension\Core\Type\EmailType;
 use Symfony\Component\Form\Extension\Core\Type\EnumType;
+use Symfony\Component\Form\Extension\Core\Type\HiddenType;
 use Symfony\Component\Form\Extension\Core\Type\TextareaType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
@@ -93,10 +95,29 @@ final class Step2DebtorEntryType extends AbstractType
                 'label' => 'wizard.step2.field.bpi_verified_today',
                 'required' => false,
             ])
+            // Pas 3.3 — ANAF metadata, populated client-side by the
+            // `debtor-anaf-lookup` Stimulus controller on CUI blur. Declared as
+            // unmapped HiddenType (the DTO has typed `?AnafStatus` and
+            // `?\DateTimeImmutable` properties — direct Form-to-DTO mapping
+            // would need a transformer). The SUBMIT listener below converts the
+            // raw string back to the typed DTO properties.
+            ->add('anafStatus', HiddenType::class, [
+                'mapped' => false,
+                'required' => false,
+            ])
+            ->add('anafCheckedAt', HiddenType::class, [
+                'mapped' => false,
+                'required' => false,
+            ])
         ;
 
         // PRE_SUBMIT normalizer — same UX as Step1CreditorType: accept IBAN
         // with spaces / lowercase CUI and strip+upper before strict regex.
+        //
+        // Also clears the fields that aren't applicable to the picked
+        // personType (defense-in-depth for the `person-type-toggle` Stimulus
+        // controller — if JS is disabled or DevTools tampers, stale values
+        // from a previous selection won't reach the DTO).
         $builder->addEventListener(FormEvents::PRE_SUBMIT, static function (FormEvent $event): void {
             $data = $event->getData();
             if (!is_array($data)) {
@@ -108,6 +129,20 @@ final class Step2DebtorEntryType extends AbstractType
             if (isset($data['cui']) && is_string($data['cui'])) {
                 $data['cui'] = strtoupper(preg_replace('/\s+/', '', $data['cui']) ?? '');
             }
+
+            $personType = $data['personType'] ?? null;
+            if ($personType === PersonType::PF->value) {
+                $data['cui'] = null;
+                $data['onrcNumber'] = null;
+                $data['administrator'] = null;
+                // ANAF only applies to PJ — clear any stale lookup metadata
+                // a previous PJ selection may have populated.
+                $data['anafStatus'] = null;
+                $data['anafCheckedAt'] = null;
+            } elseif ($personType === PersonType::PJ->value) {
+                $data['personalId'] = null;
+            }
+
             $event->setData($data);
         });
 
@@ -122,9 +157,28 @@ final class Step2DebtorEntryType extends AbstractType
             if (!$entry instanceof Step2DebtorEntry) {
                 return;
             }
-            $checkbox = $event->getForm()->get('bpiVerifiedToday')->getData();
+            $form = $event->getForm();
+
+            $checkbox = $form->get('bpiVerifiedToday')->getData();
             if ($checkbox === true) {
                 $entry->insolvencyCheckedAt = new \DateTimeImmutable();
+            }
+
+            // Map raw HTML form values (populated by the Stimulus ANAF lookup)
+            // back to the typed DTO properties. Empty strings → null so a fresh
+            // form load doesn't overwrite a previously-set ANAF status.
+            $rawStatus = (string) ($form->get('anafStatus')->getData() ?? '');
+            if ($rawStatus !== '') {
+                $entry->anafStatus = AnafStatus::tryFrom($rawStatus);
+            }
+
+            $rawCheckedAt = (string) ($form->get('anafCheckedAt')->getData() ?? '');
+            if ($rawCheckedAt !== '') {
+                try {
+                    $entry->anafCheckedAt = new \DateTimeImmutable($rawCheckedAt);
+                } catch (\Exception) {
+                    // Malformed timestamp from the client — leave the DTO alone.
+                }
             }
         });
     }

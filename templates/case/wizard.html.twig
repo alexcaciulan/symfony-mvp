@@ -18,26 +18,35 @@
 
 {% block body %}
 <div class="{% block wizard_max_width %}max-w-5xl{% endblock %} mx-auto py-2">
-    <header class="mb-6">
-        <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{{ 'wizard.heading'|trans }}</h1>
-        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">
-            {% block wizard_subtitle %}{{ 'wizard.subheading'|trans }}{% endblock %}
-        </p>
-    </header>
+    {# Pas 3.4 — Turbo Frame wraps the wizard content so step → step transitions
+       replace ONLY the stepper + step content + nav bar. Sidebar (256px) +
+       topbar (56px) + footer stay mounted across submits, no flash of reload.
+       `data-turbo-action="advance"` pushes the new URL via history.pushState
+       so browser back/forward navigation works through wizard steps.
+       Step 4 form opts out with `data-turbo-frame="_top"` to allow the
+       redirect to /dashboard/cases to break out of the frame. #}
+    <turbo-frame id="wizard-frame" data-turbo-action="advance" class="block">
+        <header class="mb-6">
+            <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{{ 'wizard.heading'|trans }}</h1>
+            <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                {% block wizard_subtitle %}{{ 'wizard.subheading'|trans }}{% endblock %}
+            </p>
+        </header>
 
-    <twig:Stepper
-        :labels="[
-            'wizard.step.documents'|trans,
-            'wizard.step.creditor'|trans,
-            'wizard.step.debtor'|trans,
-            'wizard.step.claim'|trans,
-            'wizard.step.confirmation'|trans,
-        ]"
-        :current_step="current_step"
-        start_index="0"
-        class="mb-8"
-    />
+        <twig:Stepper
+            :labels="[
+                'wizard.step.documents'|trans,
+                'wizard.step.creditor'|trans,
+                'wizard.step.debtor'|trans,
+                'wizard.step.claim'|trans,
+                'wizard.step.confirmation'|trans,
+            ]"
+            :current_step="current_step"
+            start_index="0"
+            class="mb-8"
+        />
 
-    {% block wizard_step_content %}{% endblock %}
+        {% block wizard_step_content %}{% endblock %}
+    </turbo-frame>
 </div>
 {% endblock %}

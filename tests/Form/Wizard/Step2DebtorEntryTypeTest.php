@@ -45,6 +45,48 @@ final class Step2DebtorEntryTypeTest extends KernelTestCase
         self::assertFalse($form->isValid());
     }
 
+    public function testPersonTypePfClearsCuiOnrcAndAdministratorOnSubmit(): void
+    {
+        $form = $this->buildForm();
+        $form->submit([
+            'personType' => 'PF',
+            'name' => 'Ion Popescu',
+            'cui' => 'RO14186770',        // stale from previous PJ selection
+            'onrcNumber' => 'J40/8765/2019', // stale
+            'administrator' => 'Ion Popescu', // stale (PF has no administrator)
+            'personalId' => '1980715221232',
+            'address' => 'Bd. Test 2',
+        ]);
+
+        self::assertTrue($form->isValid(), (string) $form->getErrors(true));
+        $dto = $form->getData();
+        self::assertSame(PersonType::PF, $dto->personType);
+        self::assertNull($dto->cui, 'CUI must be cleared for PF');
+        self::assertNull($dto->onrcNumber, 'onrcNumber must be cleared for PF');
+        self::assertNull($dto->administrator, 'administrator must be cleared for PF');
+        self::assertNull($dto->anafStatus, 'anafStatus must be cleared for PF (ANAF only applies to PJ)');
+        self::assertNull($dto->anafCheckedAt, 'anafCheckedAt must be cleared for PF');
+        self::assertSame('1980715221232', $dto->personalId);
+    }
+
+    public function testPersonTypePjClearsPersonalIdOnSubmit(): void
+    {
+        $form = $this->buildForm();
+        $form->submit([
+            'personType' => 'PJ',
+            'name' => 'SC Bar SRL',
+            'cui' => '14186770',
+            'address' => 'Bd. Test 2',
+            'personalId' => '1980715221232', // stale from previous PF selection
+        ]);
+
+        self::assertTrue($form->isValid(), (string) $form->getErrors(true));
+        $dto = $form->getData();
+        self::assertSame(PersonType::PJ, $dto->personType);
+        self::assertNull($dto->personalId, 'personalId (CNP) must be cleared for PJ');
+        self::assertSame('14186770', $dto->cui);
+    }
+
     public function testAutoFilledFieldsCarryDataAttribute(): void
     {
         $dto = new Step2DebtorEntry(
