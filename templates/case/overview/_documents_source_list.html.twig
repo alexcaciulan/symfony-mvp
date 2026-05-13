@@ -1,0 +1,103 @@
+{# Pas 4.0.4 — Section Documente sursă (uploadate). Loop pe `documents` (din DocumentRepository::findByCase).
+   Reflectă mockup linii 689-728. Actions sunt aria-disabled (post-MVP). #}
+{% from 'case/overview/_icons.html.twig' import icon_copy, icon_download, icon_trash, icon_plus, icon_document %}
+
+{# DocumentType → badge color map (single source pentru consistență cross-app). #}
+{% set doc_type_map = {
+    'somatie':           { 'badge': 'bg-amber-50  text-amber-700   dark:bg-amber-950/40   dark:text-amber-300' },
+    'cerere_op':         { 'badge': 'bg-blue-50   text-blue-700    dark:bg-blue-950/40    dark:text-blue-300' },
+    'opis':              { 'badge': 'bg-slate-50  text-slate-600   dark:bg-slate-800      dark:text-slate-300' },
+    'dovada_comunicare': { 'badge': 'bg-green-50  text-green-700   dark:bg-green-950/40   dark:text-green-300' },
+    'contract':          { 'badge': 'bg-blue-50   text-blue-700    dark:bg-blue-950/40    dark:text-blue-300' },
+    'factura':           { 'badge': 'bg-purple-50 text-purple-700  dark:bg-purple-950/40  dark:text-purple-300' },
+    'act_constatator':   { 'badge': 'bg-indigo-50 text-indigo-700  dark:bg-indigo-950/40  dark:text-indigo-300' },
+    'anexa':             { 'badge': 'bg-slate-50  text-slate-600   dark:bg-slate-800      dark:text-slate-300' },
+    'dovada':            { 'badge': 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' },
+    'bpi_proof':         { 'badge': 'bg-orange-50 text-orange-700  dark:bg-orange-950/40  dark:text-orange-300' },
+    'alt_document':      { 'badge': 'bg-slate-50  text-slate-600   dark:bg-slate-800      dark:text-slate-300' },
+} %}
+{% set default_badge_classes = 'bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-300' %}
+
+<section class="bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <header class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+            <span class="inline-flex items-center justify-center size-7 rounded-lg bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 text-slate-600 dark:text-slate-400">
+                {{ icon_copy('size-4') }}
+            </span>
+            <h3 class="text-sm font-semibold">{{ 'case_overview.documents.source_title'|trans }}</h3>
+        </div>
+        <button type="button"
+                aria-disabled="true"
+                tabindex="-1"
+                title="{{ 'case_overview.tooltip.coming_soon_doc_upload'|trans }}"
+                class="text-xs font-medium text-blue-600 dark:text-blue-400 opacity-60 cursor-not-allowed">
+            {{ 'case_overview.documents.source_add'|trans }}
+        </button>
+    </header>
+
+    {% if documents|length == 0 %}
+        <div class="px-6 py-8 text-center text-sm text-slate-400 dark:text-slate-500">
+            {{ 'case_overview.documents.source_empty'|trans }}
+        </div>
+    {% else %}
+        <div class="divide-y divide-slate-100 dark:divide-slate-800">
+            {% for doc in documents %}
+                {% set badge_classes = doc_type_map[doc.documentType.value].badge|default(default_badge_classes) %}
+                {% set is_pdf = doc.mimeType == 'application/pdf' %}
+                {# File size formatting (inline thresholds): >= 1 MB → MB cu 1 zecimală, altfel KB. #}
+                {% if doc.fileSize >= 1048576 %}
+                    {% set size_label = (doc.fileSize / 1048576)|number_format(1, ',', '.') ~ ' MB' %}
+                {% else %}
+                    {% set size_label = (doc.fileSize / 1024)|number_format(0, ',', '.') ~ ' KB' %}
+                {% endif %}
+                {% set type_label = doc.documentType.label()|trans %}
+                {% set date_label = doc.createdAt|date('d.m.Y') %}
+
+                <div class="px-6 py-3 flex items-center gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
+                    <div class="size-9 rounded-lg {% if is_pdf %}bg-red-50 dark:bg-red-950/30 text-red-600{% else %}bg-slate-100 dark:bg-slate-800 text-slate-500{% endif %} flex items-center justify-center shrink-0 font-bold text-[10px]">
+                        {{ is_pdf ? 'PDF' : 'DOC' }}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="font-medium text-sm truncate">{{ doc.originalFilename }}</div>
+                        <div class="text-xs text-slate-500">
+                            {% if doc.extractionConfidence is not null %}
+                                {% set pct = (doc.extractionConfidence * 100)|round(0) %}
+                                {{ 'case_overview.documents.extraction_hint_pct'|trans({'%type%': type_label, '%size%': size_label, '%date%': date_label, '%pct%': pct}) }}
+                            {% else %}
+                                {{ 'case_overview.documents.extraction_hint_no_pct'|trans({'%type%': type_label, '%size%': size_label, '%date%': date_label}) }}
+                            {% endif %}
+                        </div>
+                    </div>
+                    <span class="text-[10px] uppercase tracking-wider font-bold {{ badge_classes }} px-1.5 py-0.5 rounded">{{ type_label }}</span>
+                    <button type="button"
+                            aria-disabled="true"
+                            tabindex="-1"
+                            title="{{ 'case_overview.documents.action_download'|trans }}"
+                            aria-label="{{ 'case_overview.documents.action_download'|trans }}"
+                            class="p-1.5 rounded opacity-60 cursor-not-allowed hover:bg-slate-200 dark:hover:bg-slate-700">
+                        {{ icon_download('size-3.5 text-slate-400') }}
+                    </button>
+                    <button type="button"
+                            aria-disabled="true"
+                            tabindex="-1"
+                            title="{{ 'case_overview.documents.action_delete'|trans }}"
+                            aria-label="{{ 'case_overview.documents.action_delete'|trans }}"
+                            class="p-1.5 rounded opacity-60 cursor-not-allowed hover:bg-red-100 dark:hover:bg-red-950/40">
+                        {{ icon_trash('size-3.5 text-slate-400') }}
+                    </button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="px-6 py-4 border-t border-slate-100 dark:border-slate-800 border-dashed text-center">
+        <button type="button"
+                aria-disabled="true"
+                tabindex="-1"
+                title="{{ 'case_overview.tooltip.coming_soon_doc_upload'|trans }}"
+                class="inline-flex items-center gap-2 text-sm text-slate-500 opacity-60 cursor-not-allowed">
+            {{ icon_plus('size-4') }}
+            {{ 'case_overview.documents.source_dropzone'|trans }}
+        </button>
+    </div>
+</section>

@@ -27,9 +27,7 @@
       {{ include('case/overview/_tab_detalii.html.twig') }}
     </div>
     <div id="panel-documente" class="hidden" role="tabpanel" aria-labelledby="tab-documente">
-      <div class="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-8 text-center text-sm text-slate-400 dark:text-slate-500">
-        {{ 'case_overview.placeholder.tab.documents'|trans }}
-      </div>
+      {{ include('case/overview/_tab_documente.html.twig') }}
     </div>
     <div id="panel-termene" class="hidden" role="tabpanel" aria-labelledby="tab-termene">
       <div class="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-8 text-center text-sm text-slate-400 dark:text-slate-500">

@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Controller\Case;
 
+use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
+use App\Enum\DocumentType;
 use App\Repository\AuditLogRepository;
 use App\Repository\CourtPortalEventRepository;
+use App\Repository\DocumentRepository;
 use App\Repository\LegalCaseRepository;
 use App\Repository\LegalDeadlineRepository;
 use App\Security\Voter\CaseVoter;
@@ -35,6 +38,7 @@ final class CaseOverviewController extends AbstractController
         private readonly LegalDeadlineRepository $deadlines,
         private readonly AuditLogRepository $auditLogs,
         private readonly CourtPortalEventRepository $portalEvents,
+        private readonly DocumentRepository $documents,
         private readonly InterestCalculatorService $interestService,
     ) {}
 
@@ -50,6 +54,7 @@ final class CaseOverviewController extends AbstractController
 
         $deadlines = $this->deadlines->findByCase($case);
         [$interestBreakdown, $breakdownError] = $this->computeBreakdown($case);
+        $documents = $this->documents->findByCase($case);
 
         return $this->render('case/overview.html.twig', [
             'case' => $case,
@@ -59,6 +64,8 @@ final class CaseOverviewController extends AbstractController
             'portalEvents' => $this->portalEvents->findByLegalCase($case),
             'interest_breakdown' => $interestBreakdown,
             'breakdown_error' => $breakdownError,
+            'documents' => $documents,
+            'has_communication_proof' => $this->hasCommunicationProof($documents),
         ]);
     }
 
@@ -115,5 +122,22 @@ final class CaseOverviewController extends AbstractController
             // errors (\Error, \TypeError) deliberately propagate to the Symfony handler.
             return [null, true];
         }
+    }
+
+    /**
+     * Whether the case already has a `DOVADA_COMUNICARE` document attached. Drives the
+     * Tab Documente sidebar warning ("Lipsește dovada comunicării") on the overview page.
+     *
+     * @param Document[] $documents
+     */
+    private function hasCommunicationProof(array $documents): bool
+    {
+        foreach ($documents as $document) {
+            if ($document->getDocumentType() === DocumentType::DOVADA_COMUNICARE) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

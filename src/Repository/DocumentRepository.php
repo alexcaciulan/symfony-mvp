@@ -18,6 +18,22 @@ class DocumentRepository extends ServiceEntityRepository
     }
 
     /**
+     * Documents attached to a case, ordered newest first. Used by Tab Documente
+     * on the case overview page (Pas 4.0.4) to render the source uploads list.
+     *
+     * @return Document[]
+     */
+    public function findByCase(LegalCase $case): array
+    {
+        return $this->createQueryBuilder('d')
+            ->andWhere('d.legalCase = :case')
+            ->setParameter('case', $case)
+            ->orderBy('d.createdAt', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * Bulk-attach pre-uploaded documents to a freshly persisted LegalCase.
      *
      * Used by the wizard step 4 submit: documents uploaded in step 0 are

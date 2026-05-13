@@ -1,0 +1,40 @@
+{# Pas 4.0.4 — Sidebar ZIP package card. Reflectă mockup linii 733-751. CTA aria-disabled (Faza 6 PDF generation). #}
+{% from 'case/overview/_icons.html.twig' import icon_check, icon_download, icon_document %}
+
+{% set intro_key = case.court ? 'case_overview.zip_package.intro' : 'case_overview.zip_package.intro_no_court' %}
+{% set intro_params = case.court ? {'%court%': case.court.name} : {} %}
+
+<section class="bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white rounded-2xl shadow-card overflow-hidden">
+    <div class="p-5">
+        <div class="flex items-center gap-2 mb-3">
+            {{ icon_document('size-5') }}
+            <h3 class="text-sm font-semibold">{{ 'case_overview.zip_package.title'|trans }}</h3>
+        </div>
+        <p class="text-xs text-blue-100/80 mb-4">{{ intro_key|trans(intro_params) }}</p>
+        <ul class="space-y-1.5 text-xs">
+            <li class="flex items-center gap-2">
+                {{ icon_check('size-3.5 text-green-300') }}
+                {{ 'case_overview.zip_package.item_cerere'|trans }}
+            </li>
+            <li class="flex items-center gap-2">
+                {{ icon_check('size-3.5 text-green-300') }}
+                {{ 'case_overview.zip_package.item_opis'|trans }}
+            </li>
+            <li class="flex items-center gap-2">
+                {{ icon_check('size-3.5 text-green-300') }}
+                {{ 'case_overview.zip_package.item_somatie'|trans }}
+            </li>
+            <li class="flex items-center gap-2">
+                {{ icon_check('size-3.5 text-green-300') }}
+                {{ 'case_overview.zip_package.item_evidence'|trans }}
+            </li>
+        </ul>
+        <button type="button"
+                aria-disabled="true"
+                title="{{ 'case_overview.tooltip.coming_soon_op'|trans }}"
+                class="mt-4 w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-bold rounded-lg bg-white text-lex-navy shadow-lg opacity-90 cursor-not-allowed">
+            {{ icon_download('size-4') }}
+            {{ 'case_overview.zip_package.cta'|trans }}
+        </button>
+    </div>
+</section>

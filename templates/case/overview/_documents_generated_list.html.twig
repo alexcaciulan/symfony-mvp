@@ -1,0 +1,63 @@
+{# Pas 4.0.4 — Section Documente generate (3 row-uri stub). Reflectă mockup linii 634-687.
+   Toate row-urile sunt placeholder static până la Faza 6 (PDF generation) când câmpul
+   `Document.generatedByApp` + filter logic se adaugă. CTA-urile sunt aria-disabled. #}
+{% from 'case/overview/_icons.html.twig' import icon_document, icon_chevron_right %}
+
+<section class="bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 overflow-hidden">
+    <header class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+            <span class="inline-flex items-center justify-center size-7 rounded-lg bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 text-blue-600 dark:text-blue-400">
+                {{ icon_document('size-4') }}
+            </span>
+            <h3 class="text-sm font-semibold text-slate-900 dark:text-white">{{ 'case_overview.documents.generated_title'|trans }}</h3>
+        </div>
+        <span class="text-xs text-slate-500">{{ 'case_overview.documents.generated_ratio'|trans({'%generated%': 0, '%total%': 3}) }}</span>
+    </header>
+
+    <div class="divide-y divide-slate-100 dark:divide-slate-800">
+
+        {# Row 1 — Somație de plată: stub până la Faza 6 #}
+        <div class="px-6 py-4 flex items-center gap-4">
+            <div class="size-11 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center shrink-0 font-bold text-[10px]">PDF</div>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-semibold text-sm text-slate-500">{{ 'case_overview.documents.somatie_label'|trans }}</span>
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">{{ 'case_overview.documents.somatie_status_pending'|trans }}</span>
+                </div>
+            </div>
+        </div>
+
+        {# Row 2 — Cerere ordonanță de plată: recommended cu CTA aria-disabled (Faza 6) #}
+        <div class="px-6 py-4 flex items-center gap-4 bg-blue-50/40 dark:bg-blue-950/10">
+            <div class="size-11 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center shrink-0 font-bold text-[10px] shadow-md shadow-blue-500/20">PDF</div>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-semibold text-sm">{{ 'case_overview.documents.cerere_label'|trans }}</span>
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">{{ 'case_overview.documents.cerere_status_pending'|trans }}</span>
+                </div>
+                <div class="text-xs text-slate-500 mt-0.5">{{ 'case_overview.documents.cerere_pending_hint'|trans }}</div>
+            </div>
+            <button type="button"
+                    aria-disabled="true"
+                    tabindex="-1"
+                    title="{{ 'case_overview.tooltip.coming_soon_op'|trans }}"
+                    class="py-2 px-3 inline-flex items-center gap-1.5 text-xs font-bold rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-md shadow-blue-500/30 opacity-70 cursor-not-allowed">
+                {{ 'case_overview.documents.cerere_cta'|trans }}
+                {{ icon_chevron_right('size-3.5') }}
+            </button>
+        </div>
+
+        {# Row 3 — Opis documente: stub final #}
+        <div class="px-6 py-4 flex items-center gap-4">
+            <div class="size-11 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center shrink-0 font-bold text-[10px]">PDF</div>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-semibold text-sm text-slate-500">{{ 'case_overview.documents.opis_label'|trans }}</span>
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">{{ 'case_overview.documents.opis_status_pending'|trans }}</span>
+                </div>
+                <div class="text-xs text-slate-400 mt-0.5">{{ 'case_overview.documents.opis_pending_hint'|trans }}</div>
+            </div>
+        </div>
+
+    </div>
+</section>

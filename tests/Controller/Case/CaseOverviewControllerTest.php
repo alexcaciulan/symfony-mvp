@@ -10,9 +10,12 @@ use App\Entity\Debtor;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Entity\CaseStatusHistory;
+use App\Entity\Document;
 use App\Enum\AnafStatus;
 use App\Enum\CaseStatus;
 use App\Enum\CourtType;
+use App\Enum\DocumentType;
+use App\Enum\ExtractionStatus;
 use App\Enum\PersonType;
 use App\Enum\RelationshipType;
 use Doctrine\ORM\EntityManagerInterface;
@@ -64,6 +67,7 @@ final class CaseOverviewControllerTest extends WebTestCase
         $conn = $this->em->getConnection();
         $conn->executeStatement('DELETE FROM audit_log WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM legal_deadline WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
+        $conn->executeStatement('DELETE FROM document WHERE uploaded_by_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM case_status_history WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM legal_case WHERE user_id = :id', ['id' => $userId]);
@@ -72,6 +76,30 @@ final class CaseOverviewControllerTest extends WebTestCase
         $conn->executeStatement('DELETE FROM `user` WHERE id = :id', ['id' => $userId]);
 
         parent::tearDown();
+    }
+
+    /**
+     * Attach a Document to {@see self::$case} for Tab Documente tests. Defaults to a 100 KB
+     * PDF with no extraction confidence — caller overrides via parameters as needed.
+     */
+    private function attachDocument(DocumentType $type, ?float $confidence = null, string $filename = 'test-document.pdf', int $sizeBytes = 102400): Document
+    {
+        $doc = new Document();
+        $doc->setLegalCase($this->case);
+        $doc->setDocumentType($type);
+        $doc->setOriginalFilename($filename);
+        $doc->setStoredFilename('stored-' . uniqid() . '.pdf');
+        $doc->setFileSize($sizeBytes);
+        $doc->setMimeType('application/pdf');
+        $doc->setUploadedBy($this->user);
+        $doc->setExtractionStatus(ExtractionStatus::COMPLETED);
+        if ($confidence !== null) {
+            $doc->setExtractionConfidence((string) $confidence);
+        }
+        $this->em->persist($doc);
+        $this->em->flush();
+
+        return $doc;
     }
 
     /**
@@ -407,5 +435,105 @@ final class CaseOverviewControllerTest extends WebTestCase
         $struck = $crawler->filter('#panel-detalii .line-through');
         self::assertGreaterThan(0, $struck->count(), 'Summons row must be struck through when status is past AMIABIL');
         self::assertSelectorTextContains('#panel-detalii', 'deja generată');
+    }
+
+    public function testDetaliiBreakdownErrorRenderedWhenCalculatorFails(): void
+    {
+        // CIVIL relationship throws DomainException from RelationshipType::applicableRate()
+        // per Pas 2.1 C3 (MVP B2B-only) — Controller catches and sets breakdown_error=true.
+        $this->enrichCase();
+        $this->case->setRelationshipType(RelationshipType::CIVIL);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('#panel-detalii', 'calculul indisponibil');
+    }
+
+    public function testDocumenteGeneratedRenders3RowsAlways(): void
+    {
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        // Three placeholder rows (Somație / Cerere OP / Opis) — Faza 6 will wire real generation.
+        self::assertSelectorTextContains('#panel-documente', 'Somație de plată');
+        self::assertSelectorTextContains('#panel-documente', 'Cerere ordonanță de plată');
+        self::assertSelectorTextContains('#panel-documente', 'Opis documente');
+    }
+
+    public function testDocumenteSourceListCountMatchesCaseDocuments(): void
+    {
+        $this->attachDocument(DocumentType::CONTRACT, null, 'contract-x.pdf');
+        $this->attachDocument(DocumentType::FACTURA, null, 'factura-y.pdf');
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $html = $this->client->getResponse()->getContent();
+        self::assertStringContainsString('contract-x.pdf', $html);
+        self::assertStringContainsString('factura-y.pdf', $html);
+    }
+
+    public function testDocumenteSourceListEmptyStateWhenNoDocuments(): void
+    {
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('#panel-documente', 'Niciun document încărcat încă');
+    }
+
+    public function testDocumenteSourceListExtractionPctRendered(): void
+    {
+        $this->attachDocument(DocumentType::CONTRACT, 0.95, 'contract-95.pdf');
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('#panel-documente', 'extracție 95%');
+    }
+
+    public function testDocumenteCommunicationWarningShownWhenNoProof(): void
+    {
+        // No DOVADA_COMUNICARE attached — warning must surface in the documents aside.
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('#panel-documente', 'Lipsește dovada comunicării');
+    }
+
+    public function testDocumenteCommunicationWarningHiddenWhenProofExists(): void
+    {
+        $this->attachDocument(DocumentType::DOVADA_COMUNICARE);
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        // Target the warning section DOM element directly — robust against unrelated copy
+        // changes that might accidentally contain the literal "Lipsește dovada comunicării".
+        self::assertCount(0, $crawler->filter('#panel-documente section.bg-amber-50'));
+    }
+
+    public function testDocumenteZipCtaAriaDisabled(): void
+    {
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        // The ZIP CTA button is aria-disabled until Phase 6 (PDF generation) ships.
+        $zipCta = $crawler->filter('#panel-documente button[aria-disabled="true"]')->reduce(static function ($node) {
+            return str_contains($node->text(), 'Generează & descarcă ZIP');
+        });
+        self::assertGreaterThan(0, $zipCta->count(), 'ZIP CTA must be aria-disabled');
     }
 }
