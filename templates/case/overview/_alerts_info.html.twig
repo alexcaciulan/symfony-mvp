@@ -1,0 +1,12 @@
+{# Pas 4.0.5 — Sidebar Alerte automate (informational blue card). Mockup linii 867-875. #}
+{% from 'case/overview/_icons.html.twig' import icon_clock %}
+
+<section class="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-xl p-4">
+    <div class="flex items-start gap-2">
+        {{ icon_clock('size-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5') }}
+        <div class="text-xs text-blue-900 dark:text-blue-200">
+            <div class="font-bold">{{ 'case_overview.deadlines.alerts_card_title'|trans }}</div>
+            <p class="mt-0.5 text-blue-800 dark:text-blue-300/80">{{ 'case_overview.deadlines.alerts_card_body'|trans }}</p>
+        </div>
+    </div>
+</section>

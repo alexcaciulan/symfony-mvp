@@ -106,7 +106,7 @@ class LegalCaseEntityTest extends TestCase
         $case = new LegalCase();
         $deadline = new LegalDeadline();
         $deadline->setType(DeadlineType::JUDECATA);
-        $deadline->setDeadlineDate(new \DateTime('+30 days'));
+        $deadline->setDeadlineDate(new \DateTimeImmutable('+30 days'));
 
         $case->addDeadline($deadline);
 

@@ -245,7 +245,7 @@ class SeedDemoCasesCommand extends Command
             $deadline = new LegalDeadline();
             $deadline->setLegalCase($case);
             $deadline->setType($d['type']);
-            $deadline->setDeadlineDate(new \DateTime($now->modify(sprintf('%+d days', $d['offset']))->format('Y-m-d')));
+            $deadline->setDeadlineDate(new \DateTimeImmutable($now->modify(sprintf('%+d days', $d['offset']))->format('Y-m-d')));
             $deadline->setPriority($d['priority']);
             $deadline->setDescription($d['desc']);
             $deadline->setCompleted(false);

@@ -1,0 +1,23 @@
+{# Pas 4.0.5 — Tab Termene header: titlu + counter + CTA add custom (aria-disabled până la Pas 4.3). #}
+{% from 'case/overview/_icons.html.twig' import icon_plus %}
+
+<div class="flex items-center justify-between">
+    <div>
+        <h3 class="text-base font-semibold">{{ 'case_overview.deadlines.title'|trans }}</h3>
+        <p class="text-xs text-slate-500 mt-0.5">
+            {{ 'case_overview.deadlines.counter'|trans({
+                '%active%': deadline_counters.active,
+                '%expired%': deadline_counters.expired,
+                '%completed%': deadline_counters.completed,
+            }) }}
+        </p>
+    </div>
+    <button type="button"
+            aria-disabled="true"
+            tabindex="-1"
+            title="{{ 'case_overview.tooltip.coming_soon_deadlines'|trans }}"
+            class="inline-flex items-center gap-1.5 py-2 px-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-medium opacity-60 cursor-not-allowed">
+        {{ icon_plus('size-4 text-slate-500') }}
+        {{ 'case_overview.deadlines.add_custom'|trans }}
+    </button>
+</div>

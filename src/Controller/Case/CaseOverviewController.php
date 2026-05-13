@@ -59,6 +59,7 @@ final class CaseOverviewController extends AbstractController
         return $this->render('case/overview.html.twig', [
             'case' => $case,
             'deadlines' => $deadlines,
+            'deadline_counters' => $this->countDeadlines($deadlines),
             'active_deadline' => $this->pickActiveDeadline($deadlines),
             'auditLogs' => $this->auditLogs->findByCase($case, 50),
             'portalEvents' => $this->portalEvents->findByLegalCase($case),
@@ -139,5 +140,29 @@ final class CaseOverviewController extends AbstractController
         }
 
         return false;
+    }
+
+    /**
+     * Bucket counts for the Tab Termene header ("X active · Y expirate · Z completat").
+     * Computed in the controller to keep the Twig template purely presentational.
+     *
+     * @param LegalDeadline[] $deadlines
+     * @return array{active: int, expired: int, completed: int}
+     */
+    private function countDeadlines(array $deadlines): array
+    {
+        $now = new \DateTimeImmutable();
+        $counts = ['active' => 0, 'expired' => 0, 'completed' => 0];
+        foreach ($deadlines as $deadline) {
+            if ($deadline->isCompleted()) {
+                $counts['completed']++;
+            } elseif ($deadline->getDeadlineDate() <= $now) {
+                $counts['expired']++;
+            } else {
+                $counts['active']++;
+            }
+        }
+
+        return $counts;
     }
 }

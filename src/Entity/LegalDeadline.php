@@ -24,8 +24,8 @@ class LegalDeadline
     #[ORM\Column(length: 30, enumType: DeadlineType::class)]
     private DeadlineType $type;
 
-    #[ORM\Column(type: Types::DATE_MUTABLE)]
-    private \DateTimeInterface $deadlineDate;
+    #[ORM\Column(type: Types::DATE_IMMUTABLE)]
+    private \DateTimeImmutable $deadlineDate;
 
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $description = null;
@@ -98,12 +98,12 @@ class LegalDeadline
         return $this;
     }
 
-    public function getDeadlineDate(): \DateTimeInterface
+    public function getDeadlineDate(): \DateTimeImmutable
     {
         return $this->deadlineDate;
     }
 
-    public function setDeadlineDate(\DateTimeInterface $deadlineDate): static
+    public function setDeadlineDate(\DateTimeImmutable $deadlineDate): static
     {
         $this->deadlineDate = $deadlineDate;
 
@@ -164,6 +164,30 @@ class LegalDeadline
         $this->completedAt = new \DateTimeImmutable();
 
         return $this;
+    }
+
+    /**
+     * Deadline-in-the-past predicate: true when the deadline date has passed AND the
+     * deadline is still open (not completed). Used by the overview Tab Termene counter
+     * and by future alerting jobs.
+     */
+    public function isOverdue(): bool
+    {
+        return !$this->completed && $this->deadlineDate <= new \DateTimeImmutable();
+    }
+
+    /**
+     * Whole days remaining until the deadline. Positive = upcoming, negative = expired,
+     * 0 = completed (irrelevant to count). Used by Tab Termene cards + sidebar calendar.
+     */
+    public function getDaysRemaining(): int
+    {
+        if ($this->completed) {
+            return 0;
+        }
+        $diff = $this->deadlineDate->getTimestamp() - (new \DateTimeImmutable())->getTimestamp();
+
+        return (int) ceil($diff / 86400);
     }
 
     public function isAlertSent7(): bool

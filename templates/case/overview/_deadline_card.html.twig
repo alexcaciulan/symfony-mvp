@@ -1,0 +1,124 @@
+{# Pas 4.0.5 — Card pentru o singură LegalDeadline. Variant computed din state (completed) sau priority.
+   Reflectă mockup linii 781-845. Variantele: completed / critical / high (with blur + large icon + pulse)
+   / medium / low. Caller passes `deadline: LegalDeadline` via include. #}
+{% from 'case/overview/_icons.html.twig' import icon_check, icon_clock, icon_warning, icon_document %}
+
+{% set variant_key = deadline.completed ? 'completed' : deadline.priority.value|lower %}
+
+{# Single source of truth for the visual styling of each variant. Keep all variant-dependent
+   classes here so a future redesign / palette tweak stays in one place. #}
+{% set variant_map = {
+    'completed': {
+        card: 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 opacity-60',
+        icon_size: 'size-12',
+        icon_classes: 'bg-green-100 dark:bg-green-950/40 text-green-600 dark:text-green-400',
+        badge: 'bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300',
+        large_icon: false,
+        decoration: false,
+        pulse: false,
+        badge_label_key: 'case_overview.deadlines.status_completed_badge',
+    },
+    'critical': {
+        card: 'bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-950/30 dark:to-rose-950/20 border-red-200 dark:border-red-900/50',
+        icon_size: 'size-14',
+        icon_classes: 'bg-gradient-to-br from-red-400 to-red-600 text-white shadow-lg shadow-red-500/30',
+        badge: 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300',
+        large_icon: true,
+        decoration: true,
+        pulse: true,
+        decoration_classes: 'bg-gradient-to-br from-red-200/30 to-transparent dark:from-red-700/20',
+    },
+    'high': {
+        card: 'bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 border-amber-200 dark:border-amber-900/50',
+        icon_size: 'size-14',
+        icon_classes: 'bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-lg shadow-amber-500/30',
+        badge: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
+        large_icon: true,
+        decoration: true,
+        pulse: true,
+        decoration_classes: 'bg-gradient-to-br from-amber-200/30 to-transparent dark:from-amber-700/20',
+    },
+    'medium': {
+        card: 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800',
+        icon_size: 'size-12',
+        icon_classes: 'bg-yellow-100 dark:bg-yellow-950/40 text-yellow-600 dark:text-yellow-400',
+        badge: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-300',
+        large_icon: false,
+        decoration: false,
+        pulse: false,
+    },
+    'low': {
+        card: 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800',
+        icon_size: 'size-12',
+        icon_classes: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400',
+        badge: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+        large_icon: false,
+        decoration: false,
+        pulse: false,
+    },
+} %}
+{# Fallback to LOW variant for any new DeadlinePriority case that might be added later. #}
+{% set v = variant_map[variant_key]|default(variant_map['low']) %}
+{% set badge_label = v.badge_label_key is defined and v.badge_label_key ? v.badge_label_key|trans : deadline.priority.value %}
+
+{% set days_remaining = deadline.daysRemaining %}
+{% set type_label = deadline.type.label()|trans %}
+{% set date_label = deadline.deadlineDate|date('d.m.Y') %}
+
+<section class="{{ v.card }} border rounded-2xl p-5 shadow-soft relative overflow-hidden">
+    {% if v.decoration %}
+        <div class="absolute top-0 right-0 size-32 {{ v.decoration_classes }} rounded-full blur-2xl pointer-events-none" aria-hidden="true"></div>
+    {% endif %}
+    <div class="relative flex items-start gap-4">
+        <div class="shrink-0">
+            <div class="{{ v.icon_size }} rounded-xl {{ v.icon_classes }} flex items-center justify-center">
+                {% if deadline.completed %}
+                    {{ icon_check('size-6') }}
+                {% elseif v.large_icon %}
+                    {{ icon_document('size-7') }}
+                {% else %}
+                    {{ icon_clock('size-6') }}
+                {% endif %}
+            </div>
+        </div>
+        <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 flex-wrap mb-1">
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold {{ v.badge }}">
+                    {% if v.pulse %}<span class="size-1.5 rounded-full bg-amber-500 animate-pulse" aria-hidden="true"></span>{% endif %}
+                    {{ badge_label }}
+                </span>
+                <span class="text-[10px] uppercase tracking-wider font-bold {% if deadline.completed %}text-slate-500 line-through{% else %}text-amber-700 dark:text-amber-400{% endif %}">{{ type_label }}</span>
+            </div>
+            <div class="text-base font-bold {% if deadline.completed %}text-slate-700 dark:text-slate-300 line-through{% else %}text-slate-900 dark:text-white{% endif %}">
+                {% if deadline.completed %}
+                    {{ 'case_overview.deadlines.completed_on'|trans({'%date%': date_label}) }}
+                {% else %}
+                    {{ 'case_overview.deadlines.date_in_days'|trans({'%date%': date_label, '%days%': days_remaining}) }}
+                {% endif %}
+            </div>
+            {% if deadline.description %}
+                <p class="text-xs {% if deadline.completed %}text-slate-500{% else %}text-slate-600 dark:text-slate-400{% endif %} mt-1">{{ deadline.description }}</p>
+            {% endif %}
+
+            {% if not deadline.completed and (variant_key == 'high' or variant_key == 'critical') %}
+                <div class="mt-3 flex items-center gap-3 text-[11px] text-slate-500">
+                    <span class="inline-flex items-center gap-1">
+                        {{ icon_clock('size-3') }}
+                        {{ 'case_overview.deadlines.alerts_label'|trans }}
+                        {{ deadline.alertSent7 ? 'case_overview.deadlines.alert_7_sent'|trans : 'case_overview.deadlines.alert_7_pending'|trans }} ·
+                        {{ deadline.alertSent3 ? 'case_overview.deadlines.alert_3_sent'|trans : 'case_overview.deadlines.alert_3_pending'|trans }} ·
+                        {{ deadline.alertSent1 ? 'case_overview.deadlines.alert_1_sent'|trans : 'case_overview.deadlines.alert_1_pending'|trans }}
+                    </span>
+                </div>
+            {% endif %}
+        </div>
+
+        {# Completion toggle — visual-only at 4.0.5; Pas 4.3 will wire POST + Turbo Stream. #}
+        <label class="cursor-not-allowed">
+            <input type="checkbox" {% if deadline.completed %}checked{% endif %} aria-disabled="true" tabindex="-1" disabled class="sr-only peer">
+            <span class="inline-flex items-center justify-center size-6 rounded-full border-2 {% if deadline.completed %}bg-green-500 border-green-500 text-white{% else %}border-slate-300 dark:border-slate-600{% endif %} transition">
+                {% if deadline.completed %}{{ icon_check('size-3.5') }}{% endif %}
+            </span>
+        </label>
+    </div>
+</section>

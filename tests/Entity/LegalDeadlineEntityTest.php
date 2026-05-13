@@ -27,7 +27,7 @@ class LegalDeadlineEntityTest extends TestCase
     {
         $deadline = new LegalDeadline();
         $case = new LegalCase();
-        $date = new \DateTime('2026-06-15');
+        $date = new \DateTimeImmutable('2026-06-15');
 
         $deadline->setLegalCase($case);
         $deadline->setType(DeadlineType::CERERE_IN_ANULARE);

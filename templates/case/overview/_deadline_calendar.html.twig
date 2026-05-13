@@ -1,0 +1,40 @@
+{# Pas 4.0.5 — Sidebar Calendar termene · următoarele 30 zile. Filtre: non-completed + daysRemaining ∈ (0, 30].
+   Listează maxim 5 entries. Reflectă mockup linii 850-865. #}
+
+{% set upcoming = deadlines|filter(d => not d.completed and d.daysRemaining > 0 and d.daysRemaining <= 30)|slice(0, 5) %}
+
+{# Per-priority calendar entry styling — keeps the small list visually aligned with cards. #}
+{% set calendar_palette = {
+    'CRITICAL': { row: 'bg-red-50 dark:bg-red-950/30',     label: 'text-red-600',    value: 'text-red-700 dark:text-red-400' },
+    'HIGH':     { row: 'bg-amber-50 dark:bg-amber-950/30', label: 'text-amber-600',  value: 'text-amber-700 dark:text-amber-400' },
+    'MEDIUM':   { row: 'bg-yellow-50 dark:bg-yellow-950/30', label: 'text-yellow-600', value: 'text-yellow-700 dark:text-yellow-400' },
+    'LOW':      { row: 'bg-slate-50 dark:bg-slate-800/50', label: 'text-slate-500',  value: 'text-slate-700 dark:text-slate-300' },
+} %}
+
+<section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-soft">
+    <h3 class="text-sm font-semibold mb-4">{{ 'case_overview.deadlines.calendar_title'|trans }}</h3>
+    <div class="space-y-3">
+        {% if upcoming|length == 0 %}
+            <div class="text-center text-[10px] text-slate-400 py-3">{{ 'case_overview.deadlines.calendar_empty'|trans }}</div>
+        {% else %}
+            {% for deadline in upcoming %}
+                {% set p = calendar_palette[deadline.priority.value]|default(calendar_palette['LOW']) %}
+                <div class="flex items-center gap-3 p-2 rounded-lg {{ p.row }}">
+                    <div class="text-center shrink-0 w-12">
+                        <div class="text-[9px] uppercase font-bold {{ p.label }}">{{ ('case_overview.deadlines.month_short_' ~ deadline.deadlineDate|date('n'))|trans }}</div>
+                        <div class="text-xl font-bold tnum {{ p.value }}">{{ deadline.deadlineDate|date('d') }}</div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-xs font-semibold">{{ deadline.type.label()|trans }}</div>
+                        <div class="text-[10px] text-slate-500">
+                            {{ 'case_overview.deadlines.calendar_in_days'|trans({
+                                '%days%': deadline.daysRemaining,
+                                '%priority%': deadline.priority.value,
+                            }) }}
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+</section>

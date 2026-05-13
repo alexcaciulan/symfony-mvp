@@ -65,7 +65,7 @@ class LegalDeadlineRepositoryTest extends KernelTestCase
         return $case;
     }
 
-    private function createDeadline(LegalCase $case, \DateTimeInterface $date, DeadlineType $type = DeadlineType::RASPUNS_SOMATIE): LegalDeadline
+    private function createDeadline(LegalCase $case, \DateTimeImmutable $date, DeadlineType $type = DeadlineType::RASPUNS_SOMATIE): LegalDeadline
     {
         $deadline = new LegalDeadline();
         $deadline->setLegalCase($case);
@@ -83,9 +83,9 @@ class LegalDeadlineRepositoryTest extends KernelTestCase
         $case2 = $this->createCase();
         $this->em->flush();
 
-        $this->createDeadline($case1, new \DateTime('+5 days'));
-        $this->createDeadline($case1, new \DateTime('+10 days'));
-        $this->createDeadline($case2, new \DateTime('+7 days'));
+        $this->createDeadline($case1, new \DateTimeImmutable('+5 days'));
+        $this->createDeadline($case1, new \DateTimeImmutable('+10 days'));
+        $this->createDeadline($case2, new \DateTimeImmutable('+7 days'));
         $this->em->flush();
 
         $result = $this->repo->findByCase($case1);
@@ -101,9 +101,9 @@ class LegalDeadlineRepositoryTest extends KernelTestCase
         $case = $this->createCase();
         $this->em->flush();
 
-        $this->createDeadline($case, new \DateTime('+15 days'));
-        $this->createDeadline($case, new \DateTime('+3 days'));
-        $this->createDeadline($case, new \DateTime('+9 days'));
+        $this->createDeadline($case, new \DateTimeImmutable('+15 days'));
+        $this->createDeadline($case, new \DateTimeImmutable('+3 days'));
+        $this->createDeadline($case, new \DateTimeImmutable('+9 days'));
         $this->em->flush();
 
         $result = $this->repo->findByCase($case);

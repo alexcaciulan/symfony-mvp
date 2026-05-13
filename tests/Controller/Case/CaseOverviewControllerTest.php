@@ -11,9 +11,12 @@ use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Entity\CaseStatusHistory;
 use App\Entity\Document;
+use App\Entity\LegalDeadline;
 use App\Enum\AnafStatus;
 use App\Enum\CaseStatus;
 use App\Enum\CourtType;
+use App\Enum\DeadlinePriority;
+use App\Enum\DeadlineType;
 use App\Enum\DocumentType;
 use App\Enum\ExtractionStatus;
 use App\Enum\PersonType;
@@ -79,6 +82,28 @@ final class CaseOverviewControllerTest extends WebTestCase
     }
 
     /**
+     * Attach a LegalDeadline to {@see self::$case} for Tab Termene tests.
+     */
+    private function attachDeadline(DeadlineType $type, DeadlinePriority $priority, \DateTimeImmutable $date, bool $completed = false, ?string $description = null): LegalDeadline
+    {
+        $deadline = new LegalDeadline();
+        $deadline->setLegalCase($this->case);
+        $deadline->setType($type);
+        $deadline->setDeadlineDate($date);
+        $deadline->setPriority($priority);
+        if ($description !== null) {
+            $deadline->setDescription($description);
+        }
+        if ($completed) {
+            $deadline->markCompleted();
+        }
+        $this->em->persist($deadline);
+        $this->em->flush();
+
+        return $deadline;
+    }
+
+    /**
      * Attach a Document to {@see self::$case} for Tab Documente tests. Defaults to a 100 KB
      * PDF with no extraction confidence — caller overrides via parameters as needed.
      */
@@ -140,6 +165,7 @@ final class CaseOverviewControllerTest extends WebTestCase
         $this->case->setCourt($court);
         $this->case->setAmount('47500.00');
         $this->case->setCurrency('RON');
+        // LegalCase.dueDate still uses DATE_MUTABLE — pass \DateTime, not \DateTimeImmutable.
         $this->case->setDueDate(new \DateTime('-90 days'));
         $this->case->setCalculatedInterest('3842.50');
         $this->case->setStampDuty('200.00');
@@ -535,5 +561,84 @@ final class CaseOverviewControllerTest extends WebTestCase
             return str_contains($node->text(), 'Generează & descarcă ZIP');
         });
         self::assertGreaterThan(0, $zipCta->count(), 'ZIP CTA must be aria-disabled');
+    }
+
+    public function testTermeneCounterShowsActiveExpiredCompleted(): void
+    {
+        $this->attachDeadline(DeadlineType::RASPUNS_SOMATIE, DeadlinePriority::HIGH, new \DateTimeImmutable('+5 days'));
+        $this->attachDeadline(DeadlineType::DEPUNERE_CERERE, DeadlinePriority::MEDIUM, new \DateTimeImmutable('-3 days'));
+        $this->attachDeadline(DeadlineType::OTHER, DeadlinePriority::LOW, new \DateTimeImmutable('-10 days'), true);
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('#panel-termene', '1 active');
+        self::assertSelectorTextContains('#panel-termene', '1 expirate');
+        self::assertSelectorTextContains('#panel-termene', '1 completat');
+    }
+
+    public function testTermeneEmptyStateWhenNoDeadlines(): void
+    {
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('#panel-termene', 'Niciun termen creat încă');
+    }
+
+    public function testTermeneCardHighRendersAmberGradient(): void
+    {
+        $this->attachDeadline(DeadlineType::RASPUNS_SOMATIE, DeadlinePriority::HIGH, new \DateTimeImmutable('+7 days'));
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $html = $this->client->getResponse()->getContent();
+        self::assertStringContainsString('from-amber-50', $html, 'HIGH priority card must use amber-orange gradient');
+    }
+
+    public function testTermeneCardCompletedRendersLineThrough(): void
+    {
+        $this->attachDeadline(DeadlineType::OTHER, DeadlinePriority::MEDIUM, new \DateTimeImmutable('-5 days'), true, 'Recipisa atașată.');
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $struck = $crawler->filter('#panel-termene .line-through');
+        self::assertGreaterThan(0, $struck->count(), 'Completed deadline card must use line-through styling');
+        self::assertSelectorTextContains('#panel-termene', 'făcut');
+    }
+
+    public function testTermeneCalendarShowsUpcomingDeadline(): void
+    {
+        $this->attachDeadline(DeadlineType::RASPUNS_SOMATIE, DeadlinePriority::HIGH, new \DateTimeImmutable('+7 days'));
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        // The calendar sidebar must list the deadline type label within 30-day window.
+        self::assertSelectorTextContains('#panel-termene', 'Calendar termene');
+        self::assertSelectorTextContains('#panel-termene', 'Răspuns somație');
+    }
+
+    public function testTermeneCalendarEmptyFallback(): void
+    {
+        // Deadline beyond 30 days — should not appear in the calendar, fallback renders.
+        $this->attachDeadline(DeadlineType::PRESCRIPTIE, DeadlinePriority::LOW, new \DateTimeImmutable('+2 years'));
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('#panel-termene', 'niciun termen apropiat');
     }
 }
