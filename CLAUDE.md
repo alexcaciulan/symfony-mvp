@@ -53,6 +53,19 @@ symfony server:start           # Preferred (requires Symfony CLI)
 php -S 127.0.0.1:8000 -t public # Fallback
 ```
 
+### Mockup-uri statice (navigare design v1/v2)
+Mockup-urile HTML pentru design review se află în `docs/LexRecovery/mockups/`
+(părinte `index.html` + `v1/` + `v2/`). Pentru navigare în browser:
+```bash
+php -S 127.0.0.1:8888 -t docs/LexRecovery/mockups
+```
+- http://localhost:8888/      → index părinte (link-uri spre v1/v2)
+- http://localhost:8888/v2/   → mockup-urile curente (auth/dashboard/wizard/dosar)
+
+Nu folosi `0.0.0.0` (auto mode classifier blochează expunerea în rețea).
+Rulează în background ca task; oprește-l cu `kill <PID>` sau prin task manager
+când nu mai e nevoie.
+
 ### Dependencies and Setup
 ```bash
 # With Docker:

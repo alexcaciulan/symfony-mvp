@@ -2,6 +2,8 @@
 
 > Plan dezvoltare detaliat — sub-pași 4.0.1 → 4.0.7
 >
+> **Status**: ✅ **DONE 2026-05-13** — toate 7 sub-pași livrați (commits `78ceb0a` → `7192a99`). Tab Audit AMÂNAT post-MVP (decizia user). Detalii memory: `~/.claude/projects/-Users-alexc-Downloads-myprojects-symfony-mvp/memory/project_lexrecovery_pas_4_0.md`.
+>
 > **Versiune**: v1.0 — 2026-05-12
 > **Sursa de adevăr (vizuală)**: [`mockups/v2/04-dosar/overview.html`](./mockups/v2/04-dosar/overview.html)
 > **Effort total estimat**: 3-4 zile (7 × 0.5 zi)
@@ -216,7 +218,7 @@ Pentru tab Detalii (claim composition + accordion BNR), `InterestCalculatorServi
 
 ## 4. Sub-pași dezvoltare
 
-### 4.0.1 — Foundation: route + controller + repo methods + base shell
+### 4.0.1 — Foundation: route + controller + repo methods + base shell — ✅ DONE 2026-05-13 (`78ceb0a` + `e0eee0f`)
 
 **Effort**: 0.5 zi
 **Pre-condiții**: Pas 3.2 DONE.
@@ -301,7 +303,7 @@ Pentru tab Detalii (claim composition + accordion BNR), `InterestCalculatorServi
 
 ---
 
-### 4.0.2 — Hero + KPI grid + Pipeline + Tabs nav
+### 4.0.2 — Hero + KPI grid + Pipeline + Tabs nav — ✅ DONE 2026-05-13 (`6752618` + `cd72e35`)
 
 **Effort**: 0.5 zi
 **Pre-condiții**: 4.0.1 DONE.
@@ -374,7 +376,7 @@ Pentru tab Detalii (claim composition + accordion BNR), `InterestCalculatorServi
 
 ---
 
-### 4.0.3 — Tab Detalii (Parties + Claim composition + Court + Sidebar)
+### 4.0.3 — Tab Detalii (Parties + Claim composition + Court + Sidebar) — ✅ DONE 2026-05-13 (`f50a3ed`)
 
 **Effort**: 0.5 zi
 **Pre-condiții**: 4.0.2 DONE.
@@ -449,7 +451,7 @@ Pentru tab Detalii (claim composition + accordion BNR), `InterestCalculatorServi
 
 ---
 
-### 4.0.4 — Tab Documente (Generated + Source + ZIP + Warning)
+### 4.0.4 — Tab Documente (Generated + Source + ZIP + Warning) — ✅ DONE 2026-05-13 (`dee225f`)
 
 **Effort**: 0.5 zi
 **Pre-condiții**: 4.0.3 DONE.
@@ -506,7 +508,7 @@ Pentru tab Detalii (claim composition + accordion BNR), `InterestCalculatorServi
 
 ---
 
-### 4.0.5 — Tab Termene (Cards + Calendar + Alerts info)
+### 4.0.5 — Tab Termene (Cards + Calendar + Alerts info) — ✅ DONE 2026-05-13 (`b152fa4`)
 
 **Effort**: 0.5 zi
 **Pre-condiții**: 4.0.4 DONE.
@@ -556,7 +558,7 @@ Pentru tab Detalii (claim composition + accordion BNR), `InterestCalculatorServi
 
 ---
 
-### 4.0.6 — Tab Activitate Portal (Config + Timeline + How + Status)
+### 4.0.6 — Tab Activitate Portal (Config + Timeline + How + Status) — ✅ DONE 2026-05-13 (`d9faf94`)
 
 **Effort**: 0.5 zi
 **Pre-condiții**: 4.0.5 DONE.
@@ -605,7 +607,7 @@ Pentru tab Detalii (claim composition + accordion BNR), `InterestCalculatorServi
 
 ---
 
-### 4.0.7 — Tab Audit + Modal-uri + polish final + tests E2E
+### 4.0.7 — Modal-uri + wire CTA + polish final — ✅ DONE 2026-05-13 (`7192a99`); **Tab Audit AMÂNAT post-MVP** (decizia user)
 
 **Effort**: 0.5 zi
 **Pre-condiții**: 4.0.6 DONE.

@@ -1822,20 +1822,20 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 
 ### PASUL 4.0 | Pagina overview dosar (`case_overview`) | 3-4 zile | 40% reutilizare | split în 7 sub-pași
 
-**Rezultat**: _(va fi completat la marcarea ca DONE)_
+**Rezultat**: ✅ DONE 2026-05-13 (commits `78ceb0a` → `7192a99`). Livrat: rută `case_overview /case/{id}` cu 5 tab-uri (Detalii / Documente / Termene / Activitate Portal populate; **Tab Audit amânat post-MVP** per decizia user). ~30 partials Twig sub `templates/case/overview/`, 23 macro icons SVG (single source), 4 repository methods noi (`findByCase` pe LegalDeadline/AuditLog/Document + `findWithOverviewRelations` pe LegalCase pentru N+1 fix), 2 modale Preline wire-uite la 5 trigger points (hero CTA + dropdown Close + ZIP CTA + Generate Acum + Recommended Actions; butoanele confirm `aria-disabled` până la Faza 4.x/6). Entity changes: `AuditLog` index compound `(entity_type, entity_id)`, `LegalCase.documents`+`portalEvents` `fetch: EXTRA_LAZY`, `LegalDeadline.deadlineDate` migrat la DATE_IMMUTABLE + `isOverdue()` / `getDaysRemaining()` helpers. ~250 chei i18n RO+EN. 49 teste WebTestCase + 2 repository test files. **Bonus polish**: Preline UI v4 config app-wide în `app.css` (vendor scan + 10 `@custom-variant` lines) + 14 Stimulus controllers wizard-only marcați `stimulusFetch: 'lazy'` (zero preload warnings pe paginile non-wizard). Suite globală 744/39/1 (vs baseline Pas 3.2: 673/39/4 → +71 teste, -3 failures). Detalii: `~/.claude/projects/-Users-alexc-Downloads-myprojects-symfony-mvp/memory/project_lexrecovery_pas_4_0.md`.
 
 **Mock-up sursa de adevăr**: [`mockups/v2/04-dosar/overview.html`](./mockups/v2/04-dosar/overview.html) — toate cele 5 tab-uri și 2 modale trebuie reproduse 1:1.
 
 **Plan dezvoltare detaliat**: [`PLAN-PAS-4-0-OVERVIEW-DOSAR.md`](./PLAN-PAS-4-0-OVERVIEW-DOSAR.md) — 7 sub-pași (4.0.1 → 4.0.7) cu fișiere, deliverables, teste, criterii Done per sub-pas + catalog i18n complet + matrice date-binding + anti-pattern-uri.
 
 **Sub-pași**:
-- **4.0.1** Foundation: route `case_overview` + Controller + 3 repository methods noi (`LegalDeadlineRepository::findByCase`, `AuditLogRepository::findByCase`, `CourtPortalEventRepository::findByCase`) + shell template + macros icons + i18n base keys (0.5 zi)
-- **4.0.2** Hero (titlu părți + status pill cu pulse + CTA + dropdown 3-puncte) + KPI grid (4 celule) + Pipeline 5-step + Tabs nav cu count badges (0.5 zi)
-- **4.0.3** Tab **Detalii**: card Părți (Creditor + Debtor cu badge ANAF) + Claim composition bar + 4-stat dl + accordion BNR breakdown + Court summary + sidebar Active Deadline ring + Recommended Actions (0.5 zi)
-- **4.0.4** Tab **Documente**: Generated docs list (3 row-uri stub) + Source uploads (loop pe `case.documents`) + sidebar ZIP package CTA (dark navy gradient) + Communication warning conditional (0.5 zi)
-- **4.0.5** Tab **Termene**: 3 card variants (HIGH amber / MEDIUM yellow / COMPLETAT green) + sidebar Calendar 30 zile + Alerts info card (0.5 zi)
-- **4.0.6** Tab **Activitate Portal**: Config nr. dosar + Activate buton (aria-disabled până la Faza 5) + Timeline portal events (sau empty state) + Sample timeline preview + sidebar „Cum funcționează" + Status sincronizare (0.5 zi)
-- **4.0.7** Tab **Audit** (filter dropdown + search + Export CSV + tabel ordonat DESC) + 2 modale (Close case + Generate OP ZIP) + wire CTA-uri hero → modals + polish vizual final + tests E2E + code review (0.5 zi)
+- **4.0.1** ✅ DONE (`78ceb0a` + `e0eee0f`) — Foundation: route `case_overview` + Controller + 3 repository methods noi + shell + macros icons + i18n base
+- **4.0.2** ✅ DONE (`6752618` + `cd72e35`) — Hero + KPI grid + Pipeline 5-step + Tabs nav + `findWithOverviewRelations()` N+1 fix
+- **4.0.3** ✅ DONE (`f50a3ed`) — Tab **Detalii**: Părți + Claim composition + accordion BNR + Court + sidebar Deadline ring + Recommended Actions
+- **4.0.4** ✅ DONE (`dee225f`) — Tab **Documente**: Generated stubs + Source uploads + ZIP package + Communication warning
+- **4.0.5** ✅ DONE (`b152fa4`) — Tab **Termene**: 3 card variants + Calendar 30 zile + Alerts info + `LegalDeadline.deadlineDate` DATE_IMMUTABLE migration
+- **4.0.6** ✅ DONE (`d9faf94`) — Tab **Activitate Portal**: Config + Timeline + Sample preview + Cum funcționează + Sync status
+- **4.0.7** ✅ DONE (`7192a99`) — 2 modale (Close case + Generate OP) + wire CTA hero/ZIP/recommended + Preline app-wide config + Stimulus lazy loading; **Tab Audit amânat post-MVP** (decizia user)
 
 **Pre-condiții**: Pas 3.2 DONE (LegalCase complet din wizard) · Pas 2.7 DONE (shell + design system + componente StatusBadge/PipelineStatus/DeadlineList) · Pas 2.5.4 DONE (`AuditLog.category` indexed).
 

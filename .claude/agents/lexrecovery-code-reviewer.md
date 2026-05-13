@@ -85,8 +85,10 @@ Dacă diff-ul e doar config infra (Docker, Make) fără cod, secțiunea Test cov
 - Niciodată `Dosar`, `Avocat`, `Creanta` ca PHP class name = BLOCKER
 
 ### A.2 Signature & teste (sursă: feedback `no_unused_params_no_fake_tests`)
-- **Parametru neutilizat în signature** = BLOCKER (semnatura minte despre comportament; "for future use" nu e justificare)
-- **Teste fake**: N teste cu input-uri diferite pe care metoda nu le citește (ex: 4 teste cu `amount` 0/100/1000/100000 când metoda întoarce o constantă) = BLOCKER
+- **Parametru declarat în signature dar nereferit în body-ul metodei** = 🔴 BLOCKER (semnatura minte despre comportament; "for future use" nu e justificare). Verificare: pentru fiecare param `$x` din signature, caută `\$x\b` în body. Dacă apare doar în docblock sau deloc → BLOCKER.
+- **Argument pasat la call site pe care metoda îl ignoră / nu îl propagă** = 🟡 WARNING. Pattern tipic: refactor lăsat pe jumătate — metoda nu mai folosește parametrul X, dar caller-ii încă îl pasează. Sugestie fix: drop param din signature + actualizează caller-ii.
+- **Argument hardcodat la call site care duplică default-ul declarat în signature** (`foo(bar: 'default')` când `foo(string $bar = 'default')`) = 🟡 WARNING (noise, induce în eroare). Excepție: clarificare intenționată într-un context senzitiv (test fixture explicit) — atunci OK.
+- **Teste fake**: N teste cu input-uri diferite pe care metoda nu le citește (ex: 4 teste cu `amount` 0/100/1000/100000 când metoda întoarce o constantă) = 🔴 BLOCKER
 - Min. teste pe Pas — citește din PLAN secțiunea curentă "Teste:"
 - Test method names imperative + descriptive: `testFeatureDoesExpectedAction()`
 
@@ -134,6 +136,39 @@ Dacă diff-ul e doar config infra (Docker, Make) fără cod, secțiunea Test cov
 - `Makefile`: target nou cu help comment + `.PHONY`
 - `composer.json`: pachete noi cu version constraint sensibil (nu `*`); `composer require` rulat din container
 - `phpunit.dist.xml`: nu modifica `failOnDeprecation/Notice/Warning` la false fără justificare — slăbire de gating = BLOCKER
+
+### A.9 Comentarii & claritate cod (sursă: CLAUDE-base "Default to writing no comments")
+- 🟡 WARNING — bloc de comentariu peste **3 linii consecutive** (multi-paragraph docstring / banner ASCII / explicație lungă). Preferabil zero comentarii; max 1 linie pentru *de ce* (constrângere ascunsă, invariant subtil, workaround pentru bug specific). Niciodată *ce face codul* — identificatorii o spun.
+- 🟡 WARNING — comentariu care narează WHAT când identificatorii sunt deja descriptivi: `// loop through users` peste `foreach ($users as $user)`, `// increment counter` peste `$count++`
+- 🟡 WARNING — comentariu cu referințe care rotesc rapid: `// Used by X`, `// Added for issue #123`, `// Hot fix from PR 456`, `// TODO before next release`, `// removed in v2 — kept for compat`. Aparțin PR description / git history, nu codului.
+- 🟡 WARNING — cod comentat (dead code în `//` sau `/* ... */`): șterge-l. Git îl păstrează dacă cineva îl caută.
+- 🟡 WARNING — DocBlock redundant care doar repetă typehint-ul din signature: `@param string $x` peste `function foo(string $x)`, `@return void` peste `: void`. Permis doar când adaugă info semantică: format așteptat (`@param string $iso8601 date in ISO-8601`), unități (`@param int $seconds`), `@throws`, `@return list<Foo>` / array shapes pe care PHP nu le poate exprima nativ.
+- 🟢 NOTE — comentariu de o linie care explică *de ce* o decizie non-obvioasă: păstrează-l, util.
+
+### A.10 Configuration & magic values
+- 🟡 WARNING — magic number cu semnificație business (rate dobândă, taxe, threshold-uri, prag-uri legale, capacitate) **fără constantă de clasă numită sau bind în config**. Exemple: `0.06` pentru rata BNR de referință, `200` pentru taxa timbru OP, `0.7` pentru extraction confidence threshold, `5 * 1024 * 1024` pentru upload cap 5 MB. Fix: `private const BNR_REFERENCE_RATE = 0.06;` sau `bind: $threshold: '%env(float:EXTRACTION_CONFIDENCE_THRESHOLD)%'` în `services.yaml`.
+- 🟡 WARNING — URL / path absolut / port / timeout / max-size hardcodat în serviciu PHP, în loc de bind în `services.yaml` sau env var. Exemple: `'https://api.anaf.ro/...'`, `'/var/uploads'`, `60` (timeout HTTP), `8025` (port Mailpit).
+- 🟡 WARNING — string magic repetat (≥3 ori în fișier sau ≥2 fișiere) cu semnificație: chei flash (`'success'` literal), nume rute (`'app_login'`), mime-types (`'application/pdf'`), lang codes (`'ron+eng'`). Fix: constantă de clasă sau enum existent (`PaymentStatus`, `DocumentType`...).
+- 🔴 BLOCKER — secret/API key/parolă/DSN/token hardcodat (cross-link B.7). Folosește `%env(secret:...)%`.
+- **Precedent corect citat**: `EXTRACTION_CONFIDENCE_THRESHOLD` env var → bind în `services.yaml` → constructor `private readonly float $threshold` (Pas 2.5.6/2.5.7). Tot ce poate fi tunat operațional fără re-deploy ar trebui să urmeze pattern-ul.
+
+### A.11 Imports & namespace usage
+- 🟡 WARNING — **FQCN inline în cod** când există loc pentru import: `new \Symfony\Component\HttpFoundation\Response()` în mijlocul codului, în loc de `use Symfony\Component\HttpFoundation\Response;` la top + `new Response()`. Aplicabil pentru `new X()`, typehints, `X::staticCall()`, `instanceof X`, attribute `#[X]`.
+- **Excepții permise (NU raporta)** — globale PHP idiomatice acceptate inline: `\DateTimeImmutable`, `\DateTimeInterface`, `\DateInterval`, `\Throwable`, `\Exception`, `\RuntimeException`, `\InvalidArgumentException`, `\LogicException`, `\DomainException`, `\Closure`, `\Stringable`, `\ArrayObject`, `\Generator`, `\Iterator`. Convenția PHP modernă tolerează `\` prefix pentru built-in-uri.
+- 🟡 WARNING — **import mort**: `use Foo\Bar;` la top dar `Bar` nu apare în nicio expresie din fișier (typehint, instanceof, `new`, static call, atribut, docblock structurat). Drop-l.
+- **Excepție permisă** — import folosit doar în `@throws Bar` / `@param Bar` / `@return Bar` din docblock-uri: e validă referința (PHPStan/Psalm o respectă), NU raporta.
+- 🔴 BLOCKER — folosire `Bar` în cod fără `use Foo\Bar;` la top, când `Bar` nu există nici în namespace-ul curent nici în global (autoload error la run-time). Verificare rapidă: `php -l` pe fișier nu prinde, dar load-ul clasei la prima utilizare va exploda.
+
+### A.12 Dimensiune metodă & clasă
+- 🟡 WARNING — **metodă peste ~50 linii** (excluzând docblock + signature + acoladă închidere). Sugerează extragere de helpers private cu nume vorbitor. Raportează cu numărul concret: `(metoda are 72 linii)`.
+- 🟡 WARNING — **clasă peste ~300 linii** (excluzând `use` statements + docblock-uri top-level). Indică responsabilități multiple — sugerează split.
+- **Tolerare (NU raporta)**:
+  - Entități Doctrine cu mulți getters/setters generați (semnal: blocuri repetitive `public function getX()/setX()` — domain richness, nu cod fat)
+  - Repository cu multe query methods specifice domeniului (cohesion ridicat)
+  - EasyAdmin CRUD controllers (`configureFields`, `configureActions` — boilerplate cerut de framework)
+  - Migrațiile Doctrine (`up()`/`down()` auto-generate cu mult SQL)
+  - Fixturi cu date seed extinse
+- Threshold-urile sunt orientative; raportează cu măsurătoarea concretă în paranteze, fără a impune un refactor rigid.
 
 ## Checklist — B. Security (OWASP)
 
@@ -185,9 +220,11 @@ Dacă diff-ul e doar config infra (Docker, Make) fără cod, secțiunea Test cov
 
 ## Reguli de severitate
 
-- **🔴 BLOCKER**: bug funcțional (logică greșită, deprecation pe test gating, fake tests, missing migration), vulnerabilitate security (SQL injection, XSS exploitable, CSRF lipsă, secrets în log, authorization missing). NU se comite.
-- **🟡 WARNING**: anti-pattern documentat (controller fat, missing rate limit pe public endpoint, missing Romanian-identifier exception justification), test coverage gap care nu e bloc dar ar trebui închis. Reparat înainte de commit.
-- **🟢 NOTE**: refactor opțional, naming sub-optim, oportunitate de DRY. Nu blochează.
+- **🔴 BLOCKER**: bug funcțional (logică greșită, deprecation pe test gating, fake tests, missing migration, parametru declarat dar nereferit în body, import lipsă cu autoload error), vulnerabilitate security (SQL injection, XSS exploitable, CSRF lipsă, secrets în log/hardcodate, authorization missing). NU se comite.
+- **🟡 WARNING**: anti-pattern documentat (controller fat, missing rate limit pe public endpoint, missing Romanian-identifier exception justification), smell de stil (comentarii lungi, hardcodări non-secret, FQCN inline cu import disponibil, import mort, metode/clase peste prag, docblock redundant), test coverage gap care nu e bloc dar ar trebui închis. Reparat înainte de commit.
+- **🟢 NOTE**: refactor opțional, naming sub-optim, oportunitate de DRY, comentariu de o linie care explică *de ce*. Nu blochează.
+
+**Politica de severitate pentru smell-uri de stil (A.9–A.12)**: default 🟡 WARNING. Devin 🔴 BLOCKER doar când produc bug funcțional sau vulnerabilitate — exemple: secret hardcodat (A.10 → B.7), import lipsă care va arunca autoload error la runtime (A.11), parametru declarat în signature dar nefolosit (A.2 — existent, păstrat). Stilul singur (comentariu lung, magic number fără semnificație critică, metodă lungă, FQCN inline) NU blochează commit-ul.
 
 ## La final
 
