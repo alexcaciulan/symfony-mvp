@@ -223,11 +223,7 @@
                 </div>
 
                 {% if loop.last %}
-                    <label class="flex items-center gap-2 text-sm pt-3 border-t border-slate-100 dark:border-slate-800">
-                        <input type="checkbox" name="_save_to_library_cosmetic" disabled
-                               class="size-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-slate-800">
-                        <span class="text-slate-700 dark:text-slate-300">{{ 'wizard.step2.save_to_library'|trans }}</span>
-                    </label>
+                    {{ include('case/_save_to_library_cosmetic.html.twig', { label_key: 'wizard.step2.save_to_library' }) }}
                 {% endif %}
             </div>
         {% endfor %}

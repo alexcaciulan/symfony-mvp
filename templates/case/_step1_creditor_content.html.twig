@@ -157,14 +157,10 @@
         {{ form_widget(form.creditorId, { attr: { class: 'hidden', style: 'display:none' }}) }}
 
         {# COSMETIC ONLY — NOT connected to DTO/backend.
-           Cabinet creditor library is post-MVP (Pas 6.x); checkbox visible per
-           mockup parity but submission ignores the value. Wire to a future
-           `saveToLibrary` field on Step1CreditorData when the library feature ships. #}
-        <label class="flex items-center gap-2 text-sm pt-3 border-t border-slate-100 dark:border-slate-800">
-            <input type="checkbox" name="_save_to_library_cosmetic" disabled
-                   class="size-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-slate-800">
-            <span class="text-slate-700 dark:text-slate-300">{{ 'wizard.step1.save_to_library'|trans }}</span>
-        </label>
+           Cabinet creditor library is post-MVP (Pas 6.x). Shared partial with
+           Step 2 to guarantee byte-identical render (CSS scope differs between
+           server-rendered Step 1 and LC-rendered Step 2). #}
+        {{ include('case/_save_to_library_cosmetic.html.twig', { label_key: 'wizard.step1.save_to_library' }) }}
     {{ form_end(form) }}
 
     {# Navigation bar — outside the form card, per v2 mockup. The Continue button

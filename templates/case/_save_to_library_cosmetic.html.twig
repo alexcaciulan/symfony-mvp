@@ -1,0 +1,16 @@
+{# Cosmetic „save to library" checkbox shared between Step 1 (creditor) and
+   Step 2 (debtor) of the wizard. Disabled — cabinet library is post-MVP
+   (Pas 6.x); checkbox visible per mockup parity but submission ignores the
+   value. The shared partial guarantees byte-identical markup across both
+   steps (extracted because subtle CSS scope differences between server-rendered
+   Step 1 and LiveComponent-rendered Step 2 made the rendered sizes drift).
+
+   `appearance-auto` + explicit pixel size pin the browser default styling so
+   Preline AutoInit or any inherited form rules cannot resize the input.
+
+   @var label_key string — i18n key for the label text. #}
+<label class="flex items-center gap-2 text-sm pt-3 border-t border-slate-100 dark:border-slate-800">
+    <input type="checkbox" name="_save_to_library_cosmetic" disabled
+           class="appearance-auto w-4 h-4 min-w-4 min-h-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-slate-800">
+    <span class="text-slate-700 dark:text-slate-300">{{ label_key|trans }}</span>
+</label>
