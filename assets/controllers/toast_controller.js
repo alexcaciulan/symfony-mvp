@@ -15,10 +15,40 @@ export default class extends Controller {
     connect() {
         this._handler = (event) => this.show(event.detail || {});
         window.addEventListener('toast:show', this._handler);
+
+        // Server-rendered toasts (din flash bag → base.html.twig include)
+        // ajung în DOM ca HTML static la connect. `show()` se aplică doar
+        // pentru toast-uri create dinamic via `toast:show`, așa că le
+        // programăm și pe acestea pentru auto-dismiss + adăugăm un buton
+        // de close ca să poată fi închise manual.
+        this._enhanceExistingToasts();
     }
 
     disconnect() {
         window.removeEventListener('toast:show', this._handler);
+    }
+
+    _enhanceExistingToasts() {
+        const existing = Array.from(this.element.children);
+        existing.forEach((node) => {
+            // Skip dacă deja are buton de close (toast dinamic).
+            if (node.querySelector('button[data-toast-close]')) return;
+
+            // Buton close manual.
+            const close = document.createElement('button');
+            close.type = 'button';
+            close.setAttribute('aria-label', 'Închide');
+            close.setAttribute('data-toast-close', '');
+            close.className = 'opacity-60 hover:opacity-100 ml-2';
+            close.innerHTML = '&times;';
+            close.addEventListener('click', () => node.remove());
+            node.appendChild(close);
+
+            // Auto-dismiss după timeoutValue.
+            if (this.timeoutValue > 0) {
+                setTimeout(() => node.remove(), this.timeoutValue);
+            }
+        });
     }
 
     show({ message, variant = 'info' }) {
