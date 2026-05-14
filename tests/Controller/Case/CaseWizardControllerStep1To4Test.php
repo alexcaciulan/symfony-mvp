@@ -98,6 +98,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
                 'personType' => PersonType::PJ->value,
                 'name' => 'Acme Creditor SRL',
                 'cui' => 'RO15193236',
+                'onrcNumber' => 'J40/1234/2018',
                 'address' => 'Str. Exemplu nr. 1, București',
             ],
         ]);
@@ -111,6 +112,49 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
             'Acme Creditor SRL',
             $crawler->filter('input[name="step1_creditor[name]"]')->first()->attr('value'),
         );
+    }
+
+    public function testDebtorPostWithEmptyFieldsRendersValidationErrorsAndDoesNotAdvance(): void
+    {
+        // Regression: previously the controller validated correctly (isValid=false
+        // → stays on /debtor) but the Step2DebtorsLiveComponent rebuilt a fresh
+        // form from `initialFormData`, discarding the errors. The user saw no
+        // feedback. Fix: `_step2_debtor_content.html.twig` passes
+        // `form: form.createView` so ComponentWithFormTrait::initializeForm
+        // picks up the validated FormView and sets isValidated=true.
+        $crawler = $this->client->request('GET', '/case/new/debtor');
+        $token = $crawler->filter('input[name="step2_debtors[_token]"]')->first()->attr('value');
+
+        // POST with personType=PJ (the new default) and EVERY other field empty.
+        // The Step2DebtorEntry DTO + Callback should produce violations on
+        // name, address, cui, onrcNumber.
+        $this->client->request('POST', '/case/new/debtor', [
+            'step2_debtors' => [
+                '_token' => $token,
+                'debtors' => [
+                    [
+                        'personType' => 'PJ',
+                        'name' => '',
+                        'cui' => '',
+                        'onrcNumber' => '',
+                        'address' => '',
+                    ],
+                ],
+            ],
+        ]);
+
+        // Symfony 7 returns 422 on invalid form submissions (RFC 9110). The
+        // controller stays on /debtor — no redirect to /claim.
+        self::assertSame(422, $this->client->getResponse()->getStatusCode());
+
+        $html = $this->client->getResponse()->getContent();
+        // Each of the 4 required-PJ fields surfaces its own translated error.
+        // Assert on the RO copy (validators.ro.yaml) — these are the strings
+        // the user actually reads when validation fails.
+        self::assertStringContainsString('denumirea sau numele complet al debitorului', $html);
+        self::assertStringContainsString('adresa debitorului', $html);
+        self::assertStringContainsString('CUI-ul debitorului este obligatoriu', $html);
+        self::assertStringContainsString('Numărul ONRC al debitorului este obligatoriu', $html);
     }
 
     public function testConfirmationGetWithoutPriorStepsRedirectsToCreditor(): void

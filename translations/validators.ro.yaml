@@ -33,12 +33,20 @@ wizard:
         max_five: 'Puteți adăuga maxim 5 martori.'
     step1:
         error:
-            either_id_or_manual: 'Selectează un creditor existent sau completează manual tipul de persoană, denumirea și adresa.'
+            person_type_required: 'Selectează tipul de persoană pentru creditor.'
+            name_required: 'Introdu denumirea sau numele complet al creditorului.'
+            address_required: 'Introdu adresa creditorului.'
+            cui_required: 'CUI-ul este obligatoriu pentru persoană juridică.'
+            onrc_required: 'Numărul ONRC este obligatoriu pentru persoană juridică.'
+            cnp_required: 'CNP-ul este obligatoriu pentru persoană fizică.'
     step2:
         error:
             person_type_required: 'Selectează tipul de persoană pentru debitor.'
             name_required: 'Introdu denumirea sau numele complet al debitorului.'
             address_required: 'Introdu adresa debitorului.'
+            cui_required: 'CUI-ul debitorului este obligatoriu pentru persoană juridică.'
+            onrc_required: 'Numărul ONRC al debitorului este obligatoriu pentru persoană juridică.'
+            cnp_required: 'CNP-ul debitorului este obligatoriu pentru persoană fizică.'
             at_least_one_debtor: 'Trebuie să adaugi cel puțin un debitor.'
             too_many_debtors: 'Poți adăuga maxim 5 debitori într-un singur dosar.'
     step3:

@@ -95,7 +95,7 @@
                             </label>
                         {% endfor %}
                     </div>
-                    {{ form_errors(entry.personType) }}
+                    {{ f.field_errors(entry.personType) }}
                 </div>
                 {% set _ = form_widget(entry.personType) %}
 
@@ -114,7 +114,7 @@
                      data-debtor-anaf-lookup-unavailable-msg-value="{{ 'exception.anaf.unavailable'|trans }}"
                      class="space-y-6">
                     <div class="relative" data-person-type-toggle-target="pjOnly">
-                        {{ f.field_label(entry.cui, 'wizard.step2.field.cui', true) }}
+                        {{ f.field_label(entry.cui, 'wizard.step2.field.cui', false, true) }}
                         {{ form_widget(entry.cui, { attr: {
                             class: f.input_classes(entry.cui, 'font-mono')|trim,
                             placeholder: 'RO12345678',
@@ -129,63 +129,63 @@
                             </svg>
                         </span>
                         <p class="mt-1.5 text-[11px] text-slate-500">{{ 'wizard.step2.help.anaf_pas33'|trans }}</p>
-                        {{ form_errors(entry.cui) }}
+                        {{ f.field_errors(entry.cui) }}
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="md:col-span-2">
-                            {{ f.field_label(entry.name, 'wizard.step2.field.name', false) }}
+                            {{ f.field_label(entry.name, 'wizard.step2.field.name', false, true) }}
                             {{ form_widget(entry.name, { attr: {
                                 class: f.input_classes(entry.name)|trim,
                                 'data-debtor-anaf-lookup-target': 'name',
                             }}) }}
-                            {{ form_errors(entry.name) }}
+                            {{ f.field_errors(entry.name) }}
                         </div>
 
                         <div data-person-type-toggle-target="pjOnly">
-                            {{ f.field_label(entry.onrcNumber, 'wizard.step2.field.onrc_number', true) }}
+                            {{ f.field_label(entry.onrcNumber, 'wizard.step2.field.onrc_number', false, true) }}
                             {{ form_widget(entry.onrcNumber, { attr: { class: f.input_classes(entry.onrcNumber, 'font-mono')|trim, placeholder: 'J40/8765/2019' }}) }}
-                            {{ form_errors(entry.onrcNumber) }}
+                            {{ f.field_errors(entry.onrcNumber) }}
                         </div>
 
                         <div data-person-type-toggle-target="pfOnly">
-                            {{ f.field_label(entry.personalId, 'wizard.step2.field.personal_id', true) }}
+                            {{ f.field_label(entry.personalId, 'wizard.step2.field.personal_id', false, true) }}
                             {{ form_widget(entry.personalId, { attr: { class: f.input_classes(entry.personalId, 'font-mono')|trim }}) }}
-                            {{ form_errors(entry.personalId) }}
+                            {{ f.field_errors(entry.personalId) }}
                         </div>
 
                         <div class="md:col-span-2">
-                            {{ f.field_label(entry.address, 'wizard.step2.field.address', false) }}
+                            {{ f.field_label(entry.address, 'wizard.step2.field.address', false, true) }}
                             {{ form_widget(entry.address, { attr: {
                                 class: f.input_classes(entry.address)|trim,
                                 rows: 2,
                                 'data-debtor-anaf-lookup-target': 'address',
                             }}) }}
-                            {{ form_errors(entry.address) }}
+                            {{ f.field_errors(entry.address) }}
                         </div>
 
                         <div class="md:col-span-2" data-person-type-toggle-target="pjOnly">
                             {{ f.field_label(entry.administrator, 'wizard.step2.field.administrator', true) }}
                             {{ form_widget(entry.administrator, { attr: { class: f.input_classes(entry.administrator)|trim }}) }}
-                            {{ form_errors(entry.administrator) }}
+                            {{ f.field_errors(entry.administrator) }}
                         </div>
 
                         <div>
                             {{ f.field_label(entry.email, 'wizard.step2.field.email', true) }}
                             {{ form_widget(entry.email, { attr: { class: f.input_classes(entry.email)|trim }}) }}
-                            {{ form_errors(entry.email) }}
+                            {{ f.field_errors(entry.email) }}
                         </div>
 
                         <div>
                             {{ f.field_label(entry.phone, 'wizard.step2.field.phone', true) }}
                             {{ form_widget(entry.phone, { attr: { class: f.input_classes(entry.phone)|trim }}) }}
-                            {{ form_errors(entry.phone) }}
+                            {{ f.field_errors(entry.phone) }}
                         </div>
 
                         <div class="md:col-span-2">
                             {{ f.field_label(entry.iban, 'wizard.step2.field.iban', true) }}
                             {{ form_widget(entry.iban, { attr: { class: f.input_classes(entry.iban, 'font-mono')|trim, placeholder: 'RO49 RNCB 0082 0044 8001 0001' }}) }}
-                            {{ form_errors(entry.iban) }}
+                            {{ f.field_errors(entry.iban) }}
                         </div>
                     </div>
 

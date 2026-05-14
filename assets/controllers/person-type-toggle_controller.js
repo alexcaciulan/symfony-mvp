@@ -1,26 +1,9 @@
 /* stimulusFetch: 'lazy' */
 import { Controller } from '@hotwired/stimulus';
 
-/*
- * Progressive disclosure for personType (PF vs PJ) in wizard Step 1 (creditor)
- * and Step 2 (debtor). Hides fields that aren't applicable to the selected
- * person type — CNP for PJ, CUI/ONRC/administrator for PF.
- *
- * Markup expected (per form / per debtor entry — controller scope is its root):
- *   <div data-controller="person-type-toggle">
- *     <input type="radio" name="..." value="PF" data-person-type-toggle-target="radio"
- *            data-action="change->person-type-toggle#update">
- *     <input type="radio" name="..." value="PJ" data-person-type-toggle-target="radio"
- *            data-action="change->person-type-toggle#update">
- *
- *     <div data-person-type-toggle-target="pfOnly">...CNP field...</div>
- *     <div data-person-type-toggle-target="pjOnly">...CUI / ONRC fields...</div>
- *   </div>
- *
- * Note: the server-side `PRE_SUBMIT` listener on Step1CreditorType /
- * Step2DebtorEntryType clears the irrelevant fields anyway — this controller
- * is a UX layer, not a security boundary.
- */
+// Progressive disclosure + HTML5 `required` toggling for PF/PJ branches in
+// wizard Step 1 (creditor) and per-entry Step 2 (debtor). The DTO Callback +
+// PRE_SUBMIT listener are the authoritative gate; this controller is UX-only.
 export default class extends Controller {
     static targets = ['radio', 'pfOnly', 'pjOnly'];
 
@@ -31,17 +14,31 @@ export default class extends Controller {
     update() {
         const selected = this.selectedValue();
 
-        // Hide everything until we know. Once a value is picked, only the
-        // matching slice is visible. The radios start unchecked on a fresh
-        // load — the page-level effective_person_type defaults to the first
-        // choice (PF) for visual styling, but Stimulus toggles based on the
-        // ACTUAL checked input. To keep parity with the visual default, fall
-        // back to PF when none are checked yet.
-        const isPf = selected === null ? true : selected === 'PF';
-        const isPj = selected === null ? false : selected === 'PJ';
+        // The wizard templates pre-check the first enum case (PJ — see
+        // PersonType.php ordering). Stimulus mirrors that default so the
+        // visible branch and the `required` attributes stay in sync from
+        // first paint, even before any radio change event fires.
+        const isPj = selected === null ? true : selected === 'PJ';
+        const isPf = selected === null ? false : selected === 'PF';
 
         this.pfOnlyTargets.forEach((el) => el.classList.toggle('hidden', !isPf));
         this.pjOnlyTargets.forEach((el) => el.classList.toggle('hidden', !isPj));
+
+        this.applyRequired(isPj ? 'pj' : 'pf');
+    }
+
+    applyRequired(activeBranch) {
+        // Scan only inputs inside this controller's scope so multiple debtor
+        // entries on the same page don't collide.
+        const inputs = this.element.querySelectorAll('[data-required-on]');
+        inputs.forEach((el) => {
+            const target = el.getAttribute('data-required-on');
+            if (target === activeBranch) {
+                el.setAttribute('required', 'required');
+            } else {
+                el.removeAttribute('required');
+            }
+        });
     }
 
     selectedValue() {

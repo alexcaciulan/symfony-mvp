@@ -51,6 +51,7 @@ final class Step1CreditorTypeTest extends KernelTestCase
             'personType' => 'PJ',
             'name' => 'SC Foo SRL',
             'cui' => '15193236',
+            'onrcNumber' => 'J40/1234/2018',
             'address' => 'Str. Test 1, București',
             'email' => 'foo@example.com',
             'iban' => 'RO49RNCB0082004480010001',
@@ -60,6 +61,35 @@ final class Step1CreditorTypeTest extends KernelTestCase
         $dto = $form->getData();
         self::assertSame(PersonType::PJ, $dto->personType);
         self::assertSame('SC Foo SRL', $dto->name);
+    }
+
+    public function testManualPjWithoutOnrcIsInvalid(): void
+    {
+        $form = $this->buildForm();
+        $form->submit([
+            'personType' => 'PJ',
+            'name' => 'SC Foo SRL',
+            'cui' => '15193236',
+            // onrcNumber missing — required for PJ via Step1CreditorData callback
+            'address' => 'Str. Test 1, București',
+        ]);
+
+        self::assertFalse($form->isValid());
+        self::assertGreaterThan(0, $form->get('onrcNumber')->getErrors()->count());
+    }
+
+    public function testManualPfWithoutCnpIsInvalid(): void
+    {
+        $form = $this->buildForm();
+        $form->submit([
+            'personType' => 'PF',
+            'name' => 'Ion Popescu',
+            // personalId missing — required for PF
+            'address' => 'Str. Test 1, București',
+        ]);
+
+        self::assertFalse($form->isValid());
+        self::assertGreaterThan(0, $form->get('personalId')->getErrors()->count());
     }
 
     public function testSubmitWithoutIdOrManualIsInvalid(): void
@@ -152,6 +182,7 @@ final class Step1CreditorTypeTest extends KernelTestCase
             'personType' => 'PJ',
             'name' => 'SC Foo SRL',
             'cui' => 'RO15193236',
+            'onrcNumber' => 'J40/1234/2018',
             'address' => 'Str. Test 1, București',
             'personalId' => '1980715221232', // stale value from a previous PF selection
         ]);

@@ -1,19 +1,125 @@
-{# Pas 3.3 — wraps the Step 3 form + sidebar so the `data-model` bindings on
-   the inner form inputs can update the LiveProps on this component (the
-   bundle scopes `data-model` to the closest `[data-controller~="live"]`
-   ancestor — which is THIS element).
-   The form widgets are passed in via the `form_slot` block from the parent
-   template (`_step3_claim_content.html.twig`). The right-hand sidebar reads
-   `this.getInterest()` / `this.getStampDuty()` so it re-renders whenever a
-   bound input fires its debounced 300ms update.
-   Court resolver is intentionally NOT wired here — see PHP docblock. #}
+{# Pas 3.3 — wraps the Step 3 form + sidebar. ComponentWithFormTrait
+   exposes `form` (the FormView built from `initialFormData`) and `formValues`
+   to the template. `data-model` on inputs binds to `formValues[<field>]`;
+   re-renders are debounced 300ms.
+
+   The form is rendered INSIDE this LC template (not via a parent slot) so
+   that LC re-renders rebuild the form from `initialFormData` and avoid the
+   slot-context crash (the parent's `form` variable doesn't propagate into
+   the embedded re-render context).
+
+   Court resolver is intentionally NOT wired here — see Step3ClaimLiveComponent
+   PHP docblock. #}
+{% import 'case/_wizard_macros.html.twig' as f %}
+
 {% set interest = this.getInterest() %}
 {% set stamp_duty = this.getStampDuty() %}
 {% set due_in_future = this.isDueDateInFuture() %}
+{% set amount = this.getAmount() %}
+{% set currency = this.getCurrency() %}
+{% set has_form_errors = form.vars.errors|length > 0 %}
 
 <div{{ attributes.defaults({ 'class': 'grid grid-cols-1 lg:grid-cols-3 gap-6' }) }}>
     <div class="lg:col-span-2 space-y-5">
-        {% block form_slot %}{% endblock %}
+        {{ form_start(form, { attr: {
+            'id': 'step3-claim-form',
+            'class': 'space-y-5',
+            'novalidate': 'novalidate',
+        }}) }}
+            {% if has_form_errors %}
+                <div role="alert" class="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/60 rounded-lg p-4">
+                    <div class="flex items-start gap-3">
+                        <svg class="size-5 text-red-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"/></svg>
+                        <div class="text-sm text-red-800 dark:text-red-200">
+                            {{ form_errors(form) }}
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+
+            <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-5 shadow-soft">
+                <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">{{ 'wizard.step3.section.main_data'|trans }}</h3>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        {{ f.field_label(form.amount, 'wizard.step3.field.amount', false, true) }}
+                        <div class="relative">
+                            {{ form_widget(form.amount, { attr: {
+                                class: f.input_classes(form.amount, 'pr-14 tnum')|trim,
+                                inputmode: 'decimal',
+                                placeholder: '47500.00',
+                                'data-model': 'debounce(300)|amount',
+                            }}) }}
+                            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500 dark:text-slate-400 pointer-events-none">{{ currency }}</span>
+                        </div>
+                        {{ f.field_errors(form.amount) }}
+                    </div>
+
+                    <div>
+                        {{ f.field_label(form.currency, 'wizard.step3.field.currency', false, true) }}
+                        {{ form_widget(form.currency, { attr: {
+                            class: f.input_classes(form.currency)|trim,
+                            'data-model': 'currency',
+                        }}) }}
+                        {{ f.field_errors(form.currency) }}
+                    </div>
+
+                    <div>
+                        {{ f.field_label(form.dueDate, 'wizard.step3.field.due_date', false, true) }}
+                        {{ form_widget(form.dueDate, { attr: {
+                            class: f.input_classes(form.dueDate)|trim,
+                            'data-model': 'debounce(300)|dueDate',
+                        }}) }}
+                        <p class="mt-1 text-[11px] text-slate-500">{{ 'wizard.step3.help.due_date'|trans }}</p>
+                        {{ f.field_errors(form.dueDate) }}
+                    </div>
+
+                    <div>
+                        {{ f.field_label(form.legalGround, 'wizard.step3.field.legal_ground', true) }}
+                        {{ form_widget(form.legalGround, { attr: { class: f.input_classes(form.legalGround)|trim }}) }}
+                        {{ f.field_errors(form.legalGround) }}
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                        {{ 'wizard.step3.field.relationship_type'|trans }}
+                        <span class="text-red-500 dark:text-red-400 ml-0.5" aria-hidden="true">*</span>
+                    </label>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {# Single visible choice — Step3ClaimType restricts to COMERCIAL per C4. CIVIL is hidden until B2C/P2P post-MVP. #}
+                        <div class="relative flex rounded-lg border-2 border-blue-500 bg-gradient-to-br from-blue-50 to-blue-100/30 dark:from-blue-950/30 p-3">
+                            {{ form_widget(form.relationshipType, { attr: {
+                                'class': 'sr-only',
+                                'data-model': 'relationshipType',
+                            }}) }}
+                            <div class="flex flex-col">
+                                <span class="text-sm font-bold text-blue-900 dark:text-blue-200">{{ 'enum.relationship_type.COMERCIAL'|trans }}</span>
+                                <span class="text-xs text-slate-600 dark:text-slate-400 mt-0.5">{{ 'wizard.step3.relationship.comercial_hint'|trans }}</span>
+                            </div>
+                            <svg class="ml-auto size-5 text-blue-600 dark:text-blue-400 self-start" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                        </div>
+                        <div class="relative flex rounded-lg border-2 border-slate-200 dark:border-slate-700 p-3 opacity-60 cursor-not-allowed" title="{{ 'wizard.step3.relationship.civil_disabled_title'|trans }}">
+                            <div class="flex flex-col">
+                                <span class="text-sm font-semibold text-slate-600">{{ 'enum.relationship_type.CIVIL'|trans }}</span>
+                                <span class="text-xs text-slate-500 mt-0.5">{{ 'wizard.step3.relationship.civil_disabled_hint'|trans }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    {{ f.field_errors(form.relationshipType) }}
+                </div>
+
+                <div>
+                    {{ f.field_label(form.description, 'wizard.step3.field.description', true) }}
+                    {{ form_widget(form.description, { attr: {
+                        class: f.input_classes(form.description)|trim,
+                        rows: 3,
+                        placeholder: 'wizard.step3.placeholder.description'|trans,
+                    }}) }}
+                    {{ f.field_errors(form.description) }}
+                </div>
+            </section>
+        {{ form_end(form) }}
     </div>
 
     <aside class="lg:sticky lg:top-20 self-start">

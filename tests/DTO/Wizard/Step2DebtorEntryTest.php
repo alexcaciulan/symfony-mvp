@@ -7,6 +7,7 @@ namespace App\Tests\DTO\Wizard;
 use App\DTO\Wizard\Step2DebtorEntry;
 use App\Enum\PersonType;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use Symfony\Component\Validator\ConstraintViolationListInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 final class Step2DebtorEntryTest extends KernelTestCase
@@ -25,7 +26,22 @@ final class Step2DebtorEntryTest extends KernelTestCase
             personType: PersonType::PJ,
             name: 'SC Bar SRL',
             cui: '14186770',
+            onrcNumber: 'J40/8765/2019',
             address: 'Bd. Test 2, Cluj-Napoca',
+        );
+
+        $violations = $this->validator->validate($dto);
+
+        self::assertCount(0, $violations, (string) $violations);
+    }
+
+    public function testValidPfDebtorPasses(): void
+    {
+        $dto = new Step2DebtorEntry(
+            personType: PersonType::PF,
+            name: 'Ion Popescu',
+            personalId: '1980715221232',
+            address: 'Str. Test 1, București',
         );
 
         $violations = $this->validator->validate($dto);
@@ -50,13 +66,14 @@ final class Step2DebtorEntryTest extends KernelTestCase
     {
         $dto = new Step2DebtorEntry(
             personType: PersonType::PJ,
+            cui: '14186770',
+            onrcNumber: 'J40/8765/2019',
             address: 'Bd. Test 2',
         );
 
         $violations = $this->validator->validate($dto);
 
-        $messages = $this->messageTemplates($violations);
-        self::assertContains('wizard.step2.error.name_required', $messages);
+        self::assertViolation($violations, 'name', 'wizard.step2.error.name_required');
     }
 
     public function testMissingAddressIsInvalid(): void
@@ -64,12 +81,84 @@ final class Step2DebtorEntryTest extends KernelTestCase
         $dto = new Step2DebtorEntry(
             personType: PersonType::PJ,
             name: 'SC Bar SRL',
+            cui: '14186770',
+            onrcNumber: 'J40/8765/2019',
         );
 
         $violations = $this->validator->validate($dto);
 
-        $messages = $this->messageTemplates($violations);
-        self::assertContains('wizard.step2.error.address_required', $messages);
+        self::assertViolation($violations, 'address', 'wizard.step2.error.address_required');
+    }
+
+    public function testPjMissingCuiProducesViolationOnCuiProperty(): void
+    {
+        $dto = new Step2DebtorEntry(
+            personType: PersonType::PJ,
+            name: 'SC Bar SRL',
+            onrcNumber: 'J40/8765/2019',
+            address: 'Bd. Test 2',
+        );
+
+        $violations = $this->validator->validate($dto);
+
+        self::assertViolation($violations, 'cui', 'wizard.step2.error.cui_required');
+    }
+
+    public function testPjMissingOnrcProducesViolationOnOnrcProperty(): void
+    {
+        $dto = new Step2DebtorEntry(
+            personType: PersonType::PJ,
+            name: 'SC Bar SRL',
+            cui: '14186770',
+            address: 'Bd. Test 2',
+        );
+
+        $violations = $this->validator->validate($dto);
+
+        self::assertViolation($violations, 'onrcNumber', 'wizard.step2.error.onrc_required');
+    }
+
+    public function testPfMissingCnpProducesViolationOnPersonalIdProperty(): void
+    {
+        $dto = new Step2DebtorEntry(
+            personType: PersonType::PF,
+            name: 'Ion Popescu',
+            address: 'Str. Test 1',
+        );
+
+        $violations = $this->validator->validate($dto);
+
+        self::assertViolation($violations, 'personalId', 'wizard.step2.error.cnp_required');
+    }
+
+    public function testPjDoesNotRequireCnp(): void
+    {
+        $dto = new Step2DebtorEntry(
+            personType: PersonType::PJ,
+            name: 'SC Bar SRL',
+            cui: '14186770',
+            onrcNumber: 'J40/8765/2019',
+            address: 'Bd. Test 2',
+        );
+
+        $violations = $this->validator->validate($dto);
+
+        self::assertNoViolation($violations, 'personalId');
+    }
+
+    public function testPfDoesNotRequireCuiOrOnrc(): void
+    {
+        $dto = new Step2DebtorEntry(
+            personType: PersonType::PF,
+            name: 'Ion Popescu',
+            personalId: '1980715221232',
+            address: 'Str. Test 1',
+        );
+
+        $violations = $this->validator->validate($dto);
+
+        self::assertNoViolation($violations, 'cui');
+        self::assertNoViolation($violations, 'onrcNumber');
     }
 
     public function testInvalidCuiIsRejected(): void
@@ -78,6 +167,7 @@ final class Step2DebtorEntryTest extends KernelTestCase
             personType: PersonType::PJ,
             name: 'SC Bar SRL',
             cui: '99999999',
+            onrcNumber: 'J40/8765/2019',
             address: 'Bd. Test 2',
         );
 
@@ -88,7 +178,7 @@ final class Step2DebtorEntryTest extends KernelTestCase
     }
 
     /**
-     * @param \Symfony\Component\Validator\ConstraintViolationListInterface<int, \Symfony\Component\Validator\ConstraintViolationInterface> $violations
+     * @param ConstraintViolationListInterface<int, \Symfony\Component\Validator\ConstraintViolationInterface> $violations
      * @return list<string>
      */
     private function messageTemplates(iterable $violations): array
@@ -99,5 +189,48 @@ final class Step2DebtorEntryTest extends KernelTestCase
         }
 
         return $out;
+    }
+
+    private static function assertViolation(
+        ConstraintViolationListInterface $violations,
+        string $expectedPath,
+        string $expectedTemplate,
+    ): void {
+        foreach ($violations as $v) {
+            if ($v->getPropertyPath() === $expectedPath && $v->getMessageTemplate() === $expectedTemplate) {
+                self::assertTrue(true);
+
+                return;
+            }
+        }
+
+        $debug = [];
+        foreach ($violations as $v) {
+            $debug[] = sprintf('%s: %s', $v->getPropertyPath(), $v->getMessageTemplate());
+        }
+
+        self::fail(sprintf(
+            'Expected violation "%s" on property "%s" but got: %s',
+            $expectedTemplate,
+            $expectedPath,
+            $debug ? implode(' | ', $debug) : '(no violations)',
+        ));
+    }
+
+    private static function assertNoViolation(
+        ConstraintViolationListInterface $violations,
+        string $forbiddenPath,
+    ): void {
+        foreach ($violations as $v) {
+            if ($v->getPropertyPath() === $forbiddenPath) {
+                self::fail(sprintf(
+                    'Unexpected violation on property "%s": %s',
+                    $forbiddenPath,
+                    $v->getMessageTemplate(),
+                ));
+            }
+        }
+
+        self::assertTrue(true);
     }
 }

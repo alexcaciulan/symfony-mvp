@@ -56,7 +56,8 @@ final class Step2DebtorsDataTest extends KernelTestCase
     {
         $invalid = new Step2DebtorEntry(
             personType: PersonType::PJ,
-            // missing name + address
+            // missing name + address + cui + onrcNumber — every required PJ
+            // field should produce its own violation on its own property path.
         );
         $dto = new Step2DebtorsData([$invalid]);
 
@@ -68,6 +69,8 @@ final class Step2DebtorsDataTest extends KernelTestCase
         }
         self::assertContains('wizard.step2.error.name_required', $messages);
         self::assertContains('wizard.step2.error.address_required', $messages);
+        self::assertContains('wizard.step2.error.cui_required', $messages);
+        self::assertContains('wizard.step2.error.onrc_required', $messages);
     }
 
     private function makeValidDebtor(): Step2DebtorEntry
@@ -76,6 +79,7 @@ final class Step2DebtorsDataTest extends KernelTestCase
             personType: PersonType::PJ,
             name: 'SC Bar SRL',
             cui: '14186770',
+            onrcNumber: 'J40/8765/2019',
             address: 'Bd. Test 2, Cluj-Napoca',
         );
     }

@@ -8,6 +8,7 @@ use App\Enum\PersonType;
 use App\Validator\Constraints\ValidCnp;
 use App\Validator\Constraints\ValidCui;
 use Symfony\Component\Validator\Constraints as Assert;
+use Symfony\Component\Validator\Context\ExecutionContextInterface;
 
 /**
  * Wizard step 1 — Creditor.
@@ -17,28 +18,41 @@ use Symfony\Component\Validator\Constraints as Assert;
  * populated from extracted documents — the form renders a badge "auto · N%"
  * for each of those.
  *
- * The class-level `Assert\Expression` enforces the xor between (a) selecting
- * an existing creditor by id and (b) filling the manual fields. When
- * `creditorId` is provided we trust the autocompletion path (the entity is
- * loaded in Pas 3.2 controller); otherwise `personType`, `name`, `address`
- * are mandatory.
+ * Validation contract:
+ *  - When `creditorId` is set (user picked an existing creditor via the
+ *    autocomplete), the manual fields are skipped — the form's
+ *    `validation_groups` callback drops the `manual` group entirely.
+ *  - Otherwise (`manual` group active), `personType`, `name` and `address`
+ *    are required unconditionally, and the `validateConditionalRequiredFields`
+ *    callback enforces `cui`+`onrcNumber` for PJ or `personalId` (CNP) for PF.
+ *
+ * Each missing field gets its own violation on its own property path so the
+ * Twig templates can render the error inline under the correct input.
  */
-#[Assert\Expression(
-    expression: 'this.creditorId !== null or (this.personType !== null and this.name !== null and this.address !== null)',
-    message: 'wizard.step1.error.either_id_or_manual',
-)]
 class Step1CreditorData
 {
     /** @param list<string> $autoFilled */
     public function __construct(
         public ?int $creditorId = null,
+        #[Assert\NotNull(
+            message: 'wizard.step1.error.person_type_required',
+            groups: ['manual'],
+        )]
         public ?PersonType $personType = null,
+        #[Assert\NotBlank(
+            message: 'wizard.step1.error.name_required',
+            groups: ['manual'],
+        )]
         public ?string $name = null,
         #[ValidCui]
         public ?string $cui = null,
         #[ValidCnp]
         public ?string $personalId = null,
         public ?string $onrcNumber = null,
+        #[Assert\NotBlank(
+            message: 'wizard.step1.error.address_required',
+            groups: ['manual'],
+        )]
         public ?string $address = null,
         #[Assert\Email(message: 'validation.email.invalid')]
         public ?string $email = null,
@@ -56,4 +70,34 @@ class Step1CreditorData
         public ?string $legalRepresentative = null,
         public array $autoFilled = [],
     ) {}
+
+    /**
+     * Conditional NotBlank for PJ (CUI + ONRC) and PF (CNP).
+     *
+     * Runs only in the `manual` group — when the user picked an existing
+     * creditor via autocomplete, the form drops `manual` from
+     * `validation_groups` so this callback is never invoked.
+     */
+    #[Assert\Callback(groups: ['manual'])]
+    public function validateConditionalRequiredFields(ExecutionContextInterface $context): void
+    {
+        if ($this->personType === PersonType::PJ) {
+            if ($this->cui === null || $this->cui === '') {
+                $context->buildViolation('wizard.step1.error.cui_required')
+                    ->atPath('cui')
+                    ->addViolation();
+            }
+            if ($this->onrcNumber === null || $this->onrcNumber === '') {
+                $context->buildViolation('wizard.step1.error.onrc_required')
+                    ->atPath('onrcNumber')
+                    ->addViolation();
+            }
+        } elseif ($this->personType === PersonType::PF) {
+            if ($this->personalId === null || $this->personalId === '') {
+                $context->buildViolation('wizard.step1.error.cnp_required')
+                    ->atPath('personalId')
+                    ->addViolation();
+            }
+        }
+    }
 }

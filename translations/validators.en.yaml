@@ -33,12 +33,20 @@ wizard:
         max_five: 'You can add a maximum of 5 witnesses.'
     step1:
         error:
-            either_id_or_manual: 'Select an existing creditor or fill in the person type, name and address manually.'
+            person_type_required: 'Select the creditor person type.'
+            name_required: 'Enter the creditor name or company name.'
+            address_required: 'Enter the creditor address.'
+            cui_required: 'CUI is required for a legal entity.'
+            onrc_required: 'ONRC number is required for a legal entity.'
+            cnp_required: 'CNP is required for an individual.'
     step2:
         error:
             person_type_required: 'Select the debtor person type.'
             name_required: 'Enter the debtor name or company name.'
             address_required: 'Enter the debtor address.'
+            cui_required: 'Debtor CUI is required for a legal entity.'
+            onrc_required: 'Debtor ONRC number is required for a legal entity.'
+            cnp_required: 'Debtor CNP is required for an individual.'
             at_least_one_debtor: 'You must add at least one debtor.'
             too_many_debtors: 'You can add at most 5 debtors per case.'
     step3:

@@ -38,7 +38,7 @@ final class Step3ClaimType extends AbstractType
         $builder
             ->add('amount', NumberType::class, [
                 'label' => 'wizard.step3.field.amount',
-                'required' => false,
+                'required' => true,
                 'scale' => 2,
             ])
             ->add('currency', ChoiceType::class, [
@@ -53,7 +53,7 @@ final class Step3ClaimType extends AbstractType
                 'label' => 'wizard.step3.field.due_date',
                 'widget' => 'single_text',
                 'input' => 'datetime_immutable',
-                'required' => false,
+                'required' => true,
             ])
             ->add('relationshipType', EnumType::class, [
                 'class' => RelationshipType::class,

@@ -28,7 +28,10 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
  * pulls the Creditor list scoped per-user via
  * {@see \App\Repository\CreditorRepository::createAutocompleteQueryBuilder()}.
  * A POST_SUBMIT listener bridges the Creditor entity → its id back onto the
- * DTO so the validation contract (the Expression on the DTO) stays unchanged.
+ * DTO. `configureOptions()` then drops the `manual` validation group when
+ * `creditorId !== null`, which skips the `NotBlank`/`NotNull` assertions on
+ * `personType`/`name`/`address` and the conditional CUI/CNP `Assert\Callback`
+ * on the DTO.
  *
  * `data-auto-filled="true"` is applied in {@see finishView()} to every field
  * whose name appears in the DTO's `$autoFilled` list. Stimulus (Pas 3.3)
@@ -51,28 +54,35 @@ final class Step1CreditorType extends AbstractType
                 'class' => PersonType::class,
                 'label' => 'wizard.step1.field.person_type',
                 'placeholder' => 'wizard.step1.placeholder.person_type',
-                'required' => false,
+                'required' => true,
                 'choice_label' => fn (PersonType $t) => $t->label(),
             ])
             ->add('name', TextType::class, [
                 'label' => 'wizard.step1.field.name',
-                'required' => false,
+                'required' => true,
             ])
+            // `cui` + `onrcNumber` + `personalId` carry `data-required-on` so
+            // `person-type-toggle_controller.js` can flip the HTML5 `required`
+            // attribute based on the picked personType. Server-side validation
+            // (DTO callback) is the authoritative gate; HTML5 is the UX layer.
             ->add('cui', TextType::class, [
                 'label' => 'wizard.step1.field.cui',
                 'required' => false,
+                'attr' => ['data-required-on' => 'pj'],
             ])
             ->add('personalId', TextType::class, [
                 'label' => 'wizard.step1.field.personal_id',
                 'required' => false,
+                'attr' => ['data-required-on' => 'pf'],
             ])
             ->add('onrcNumber', TextType::class, [
                 'label' => 'wizard.step1.field.onrc_number',
                 'required' => false,
+                'attr' => ['data-required-on' => 'pj'],
             ])
             ->add('address', TextareaType::class, [
                 'label' => 'wizard.step1.field.address',
-                'required' => false,
+                'required' => true,
             ])
             ->add('email', EmailType::class, [
                 'label' => 'wizard.step1.field.email',
@@ -126,9 +136,10 @@ final class Step1CreditorType extends AbstractType
 
         // POST_SUBMIT — bridge from the unmapped `creditorEntity` autocomplete
         // field to the DTO's int `creditorId`. The autocomplete emits a
-        // Creditor entity (or null) — we copy its id back onto the DTO so all
-        // downstream code (the Expression validator + the controller's
-        // reuseOrCreateCreditor) keeps working unchanged.
+        // Creditor entity (or null) — we copy its id back onto the DTO so the
+        // `validation_groups` closure in configureOptions sees `creditorId !==
+        // null` and drops the `manual` group (skipping NotBlank/Callback on
+        // the manual fields).
         $builder->addEventListener(FormEvents::POST_SUBMIT, static function (FormEvent $event): void {
             $form = $event->getForm();
             if (!$form->has('creditorEntity')) {
@@ -144,8 +155,8 @@ final class Step1CreditorType extends AbstractType
             }
             // If the user later clears the autocomplete, `creditorId` stays
             // whatever it was rendered as (the hidden field round-trips it).
-            // Manual fill remains valid because the xor Expression accepts
-            // either path.
+            // The manual fill path then satisfies the `manual` group via
+            // per-property NotBlank + the conditional Callback on the DTO.
         });
     }
 
@@ -173,6 +184,19 @@ final class Step1CreditorType extends AbstractType
             // `extra_fields_message`. The DTO has strict typed properties so
             // unknown keys are dropped silently rather than persisted.
             'allow_extra_fields' => true,
+            // When the user picked an existing creditor via autocomplete
+            // (`creditorId` is set), drop the `manual` group — the personType /
+            // name / address NotBlank assertions and the conditional CUI/CNP
+            // callback are all gated on it, so the autocomplete path validates
+            // cleanly without manual fields.
+            'validation_groups' => static function (FormInterface $form): array {
+                $data = $form->getData();
+                if ($data instanceof Step1CreditorData && $data->creditorId !== null) {
+                    return ['Default'];
+                }
+
+                return ['Default', 'manual'];
+            },
         ]);
     }
 }

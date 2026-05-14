@@ -43,28 +43,35 @@ final class Step2DebtorEntryType extends AbstractType
                 'class' => PersonType::class,
                 'label' => 'wizard.step2.field.person_type',
                 'placeholder' => 'wizard.step2.placeholder.person_type',
-                'required' => false,
+                'required' => true,
                 'choice_label' => fn (PersonType $t) => $t->label(),
             ])
             ->add('name', TextType::class, [
                 'label' => 'wizard.step2.field.name',
-                'required' => false,
+                'required' => true,
             ])
+            // `cui` + `onrcNumber` + `personalId` carry `data-required-on` so
+            // `person-type-toggle_controller.js` can flip the HTML5 `required`
+            // attribute based on the picked personType. Server-side validation
+            // (DTO callback) is the authoritative gate; HTML5 is the UX layer.
             ->add('cui', TextType::class, [
                 'label' => 'wizard.step2.field.cui',
                 'required' => false,
+                'attr' => ['data-required-on' => 'pj'],
             ])
             ->add('personalId', TextType::class, [
                 'label' => 'wizard.step2.field.personal_id',
                 'required' => false,
+                'attr' => ['data-required-on' => 'pf'],
             ])
             ->add('onrcNumber', TextType::class, [
                 'label' => 'wizard.step2.field.onrc_number',
                 'required' => false,
+                'attr' => ['data-required-on' => 'pj'],
             ])
             ->add('address', TextareaType::class, [
                 'label' => 'wizard.step2.field.address',
-                'required' => false,
+                'required' => true,
             ])
             ->add('email', EmailType::class, [
                 'label' => 'wizard.step2.field.email',

@@ -30,7 +30,13 @@
         </div>
     </div>
 
-    {{ component('Step2DebtorsLiveComponent', { initialFormData: dto }) }}
+    {# Pass `form` (FormView — Symfony's render auto-converts FormInterface to
+       FormView for template variables) so ComponentWithFormTrait::initializeForm
+       picks up validation errors from the controller's POST handler. Without
+       this the LiveComponent would rebuild a fresh form from `initialFormData`
+       and the per-field errors would silently disappear on invalid-submit
+       re-render. #}
+    {{ component('Step2DebtorsLiveComponent', { initialFormData: dto, form: form }) }}
 
     {# Navigation bar — outside the live component. Continue submits via form="step2-debtors-form". #}
     <div class="mt-6 flex items-center justify-between gap-3">

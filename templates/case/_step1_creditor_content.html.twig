@@ -91,64 +91,64 @@
                     </label>
                 {% endfor %}
             </div>
-            {{ form_errors(form.personType) }}
+            {{ f.field_errors(form.personType) }}
         </div>
         {% set _ = form_widget(form.personType) %}
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="md:col-span-2">
-                {{ f.field_label(form.name, 'wizard.step1.field.name', false) }}
+                {{ f.field_label(form.name, 'wizard.step1.field.name', false, true) }}
                 {{ form_widget(form.name, { attr: { class: f.input_classes(form.name)|trim }}) }}
-                {{ form_errors(form.name) }}
+                {{ f.field_errors(form.name) }}
             </div>
 
             <div data-person-type-toggle-target="pjOnly">
-                {{ f.field_label(form.cui, 'wizard.step1.field.cui', true) }}
+                {{ f.field_label(form.cui, 'wizard.step1.field.cui', false, true) }}
                 {{ form_widget(form.cui, { attr: { class: f.input_classes(form.cui, 'font-mono')|trim, placeholder: 'RO12345678' }}) }}
-                {{ form_errors(form.cui) }}
+                {{ f.field_errors(form.cui) }}
             </div>
 
             <div data-person-type-toggle-target="pjOnly">
-                {{ f.field_label(form.onrcNumber, 'wizard.step1.field.onrc_number', true) }}
+                {{ f.field_label(form.onrcNumber, 'wizard.step1.field.onrc_number', false, true) }}
                 {{ form_widget(form.onrcNumber, { attr: { class: f.input_classes(form.onrcNumber)|trim, placeholder: 'J40/1234/2018' }}) }}
-                {{ form_errors(form.onrcNumber) }}
+                {{ f.field_errors(form.onrcNumber) }}
             </div>
 
             <div data-person-type-toggle-target="pfOnly">
-                {{ f.field_label(form.personalId, 'wizard.step1.field.personal_id', true) }}
+                {{ f.field_label(form.personalId, 'wizard.step1.field.personal_id', false, true) }}
                 {{ form_widget(form.personalId, { attr: { class: f.input_classes(form.personalId, 'font-mono')|trim }}) }}
-                {{ form_errors(form.personalId) }}
+                {{ f.field_errors(form.personalId) }}
             </div>
 
             <div>
                 {{ f.field_label(form.legalRepresentative, 'wizard.step1.field.legal_representative', true) }}
                 {{ form_widget(form.legalRepresentative, { attr: { class: f.input_classes(form.legalRepresentative)|trim }}) }}
-                {{ form_errors(form.legalRepresentative) }}
+                {{ f.field_errors(form.legalRepresentative) }}
             </div>
 
             <div class="md:col-span-2">
-                {{ f.field_label(form.address, 'wizard.step1.field.address', false) }}
+                {{ f.field_label(form.address, 'wizard.step1.field.address', false, true) }}
                 {{ form_widget(form.address, { attr: { class: f.input_classes(form.address)|trim, rows: 2 }}) }}
-                {{ form_errors(form.address) }}
+                {{ f.field_errors(form.address) }}
             </div>
 
             <div class="md:col-span-2">
                 {{ f.field_label(form.iban, 'wizard.step1.field.iban', true) }}
                 {{ form_widget(form.iban, { attr: { class: f.input_classes(form.iban, 'font-mono')|trim, placeholder: 'RO49 RNCB 0082 0044 8001 0001' }}) }}
                 <p class="mt-1 text-[11px] text-slate-500">{{ 'wizard.step1.help.iban_format'|trans }}</p>
-                {{ form_errors(form.iban) }}
+                {{ f.field_errors(form.iban) }}
             </div>
 
             <div>
                 {{ f.field_label(form.email, 'wizard.step1.field.email', true) }}
                 {{ form_widget(form.email, { attr: { class: f.input_classes(form.email)|trim }}) }}
-                {{ form_errors(form.email) }}
+                {{ f.field_errors(form.email) }}
             </div>
 
             <div>
                 {{ f.field_label(form.phone, 'wizard.step1.field.phone', true) }}
                 {{ form_widget(form.phone, { attr: { class: f.input_classes(form.phone)|trim }}) }}
-                {{ form_errors(form.phone) }}
+                {{ f.field_errors(form.phone) }}
             </div>
         </div>
 

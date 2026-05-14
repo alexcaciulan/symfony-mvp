@@ -1,17 +1,22 @@
 {# Reusable wizard form macros — extracted at Step 3 (3rd repeat of the pattern).
    Used by Step 1 (Creditor), Step 2 (Debitor) entries, Step 3 (Creanță).
 
-   `field_label` renders a Tailwind <label> with optional "(opțional)" suffix
-   and a ⚡ auto badge when the field's view carries `data-auto-filled="true"`
-   (set by App\Form\Wizard\AutoFilledMarker::apply() from the DTO's $autoFilled
-   list).
+   `field_label` renders a Tailwind <label> with optional "(opțional)" suffix,
+   a "*" red asterisk when `is_required` is true, and a ⚡ auto badge when the
+   field's view carries `data-auto-filled="true"` (set by App\Form\Wizard\
+   AutoFilledMarker::apply() from the DTO's $autoFilled list).
 
-   `input_classes` returns the input class string, swapping border/bg to
-   blue-tinted on auto-filled fields to mirror the v2 mockup styling. #}
+   `input_classes` returns the input class string, swapping border/bg to:
+     - red-tinted when the field is invalid (server-side error after submit)
+     - blue-tinted on auto-filled fields (v2 mockup styling)
+     - neutral slate otherwise
 
-{% macro field_label(field, label_key, is_optional) %}
+   `field_errors` renders the inline error block under an invalid input. #}
+
+{% macro field_label(field, label_key, is_optional = false, is_required = false) %}
     <label for="{{ field.vars.id }}" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
         {{ label_key|trans }}
+        {% if is_required %}<span class="text-red-500 dark:text-red-400 ml-0.5" aria-hidden="true">*</span>{% endif %}
         {% if is_optional %}<span class="text-slate-400 font-normal ml-1">{{ 'wizard.field.optional_suffix'|trans }}</span>{% endif %}
         {% if field.vars.attr['data-auto-filled']|default('') == 'true' %}
             <span class="inline-flex items-center gap-1 ml-1 text-[11px] font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded-full" title="{{ 'wizard.field.auto_filled_tooltip'|trans }}">
@@ -23,12 +28,28 @@
 {% endmacro %}
 
 {% macro input_classes(field, extra) %}
+    {%- set is_invalid = field.vars.valid is defined and not field.vars.valid -%}
     {%- set is_auto = field.vars.attr['data-auto-filled']|default('') == 'true' -%}
     {%- set is_select = 'choice' in field.vars.block_prefixes and not field.vars.expanded|default(false) -%}
-    {%- set base = 'w-full px-3 py-2.5 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500' -%}
-    {%- set tone = is_auto
-        ? 'border border-blue-200 dark:border-blue-900/50 bg-blue-50/50 dark:bg-blue-950/20 font-medium'
-        : 'border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800' -%}
+    {%- set base = 'w-full px-3 py-2.5 rounded-lg focus:outline-none focus:ring-2' -%}
+    {%- if is_invalid -%}
+        {%- set tone = 'border border-red-400 dark:border-red-600 bg-red-50/40 dark:bg-red-950/20 focus:ring-red-500' -%}
+    {%- elseif is_auto -%}
+        {%- set tone = 'border border-blue-200 dark:border-blue-900/50 bg-blue-50/50 dark:bg-blue-950/20 font-medium focus:ring-blue-500' -%}
+    {%- else -%}
+        {%- set tone = 'border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-blue-500' -%}
+    {%- endif -%}
     {%- set select_addon = is_select ? ' wizard-select' : '' -%}
     {{- base }} {{ tone }}{{ select_addon }}{% if extra %} {{ extra }}{% endif -%}
+{% endmacro %}
+
+{% macro field_errors(field) %}
+    {% if field.vars.valid is defined and not field.vars.valid %}
+        <div class="mt-1.5 flex items-start gap-1.5 text-sm text-red-600 dark:text-red-400" role="alert">
+            <svg class="size-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-3L13.74 4a2 2 0 00-3.48 0L3.34 16a2 2 0 001.73 3z"/>
+            </svg>
+            <div>{{ form_errors(field) }}</div>
+        </div>
+    {% endif %}
 {% endmacro %}

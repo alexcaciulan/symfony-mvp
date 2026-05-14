@@ -28,10 +28,40 @@ final class Step2DebtorEntryTypeTest extends KernelTestCase
             'personType' => 'PJ',
             'name' => 'SC Bar SRL',
             'cui' => '14186770',
+            'onrcNumber' => 'J40/8765/2019',
             'address' => 'Bd. Test 2',
         ]);
 
         self::assertTrue($form->isValid(), (string) $form->getErrors(true));
+    }
+
+    public function testSubmitPjMissingOnrcIsInvalid(): void
+    {
+        $form = $this->buildForm();
+        $form->submit([
+            'personType' => 'PJ',
+            'name' => 'SC Bar SRL',
+            'cui' => '14186770',
+            // onrcNumber missing — required for PJ via Step2DebtorEntry callback
+            'address' => 'Bd. Test 2',
+        ]);
+
+        self::assertFalse($form->isValid());
+        self::assertGreaterThan(0, $form->get('onrcNumber')->getErrors()->count());
+    }
+
+    public function testSubmitPfMissingCnpIsInvalid(): void
+    {
+        $form = $this->buildForm();
+        $form->submit([
+            'personType' => 'PF',
+            'name' => 'Ion Popescu',
+            // personalId missing — required for PF
+            'address' => 'Str. Test 1',
+        ]);
+
+        self::assertFalse($form->isValid());
+        self::assertGreaterThan(0, $form->get('personalId')->getErrors()->count());
     }
 
     public function testSubmitMissingRequiredIsInvalid(): void
@@ -76,6 +106,7 @@ final class Step2DebtorEntryTypeTest extends KernelTestCase
             'personType' => 'PJ',
             'name' => 'SC Bar SRL',
             'cui' => '14186770',
+            'onrcNumber' => 'J40/8765/2019',
             'address' => 'Bd. Test 2',
             'personalId' => '1980715221232', // stale from previous PF selection
         ]);

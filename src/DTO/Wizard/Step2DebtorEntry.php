@@ -9,16 +9,20 @@ use App\Enum\PersonType;
 use App\Validator\Constraints\ValidCnp;
 use App\Validator\Constraints\ValidCui;
 use Symfony\Component\Validator\Constraints as Assert;
+use Symfony\Component\Validator\Context\ExecutionContextInterface;
 
 /**
  * Wizard step 2 — one debtor in the (potentially multi-debtor) collection.
  *
  * Public mutable properties so the form can bind. `personType`, `name`, and
  * `address` are always required (a debtor can never be referenced by id —
- * the lawyer must spell them out). ANAF/BPI metadata (`anafStatus`,
- * `anafCheckedAt`, `inInsolvency`, `insolvencyCheckedAt`) is filled in Pas
- * 3.3 by the ANAF lookup Stimulus controller + BPI manual confirmation
- * checkbox; here we only declare the slots.
+ * the lawyer must spell them out). For PJ, `cui` and `onrcNumber` are also
+ * required; for PF, `personalId` (CNP) is required — enforced by the
+ * `validateConditionalRequiredFields` callback.
+ *
+ * ANAF/BPI metadata (`anafStatus`, `anafCheckedAt`, `inInsolvency`,
+ * `insolvencyCheckedAt`) is filled in Pas 3.3 by the ANAF lookup Stimulus
+ * controller + BPI manual confirmation checkbox.
  */
 class Step2DebtorEntry
 {
@@ -52,4 +56,33 @@ class Step2DebtorEntry
         public ?\DateTimeImmutable $insolvencyCheckedAt = null,
         public array $autoFilled = [],
     ) {}
+
+    /**
+     * Conditional NotBlank for PJ (CUI + ONRC) and PF (CNP).
+     *
+     * Each missing field gets its own violation on its own property path so
+     * the Twig templates can render the error inline under the correct input.
+     */
+    #[Assert\Callback]
+    public function validateConditionalRequiredFields(ExecutionContextInterface $context): void
+    {
+        if ($this->personType === PersonType::PJ) {
+            if ($this->cui === null || $this->cui === '') {
+                $context->buildViolation('wizard.step2.error.cui_required')
+                    ->atPath('cui')
+                    ->addViolation();
+            }
+            if ($this->onrcNumber === null || $this->onrcNumber === '') {
+                $context->buildViolation('wizard.step2.error.onrc_required')
+                    ->atPath('onrcNumber')
+                    ->addViolation();
+            }
+        } elseif ($this->personType === PersonType::PF) {
+            if ($this->personalId === null || $this->personalId === '') {
+                $context->buildViolation('wizard.step2.error.cnp_required')
+                    ->atPath('personalId')
+                    ->addViolation();
+            }
+        }
+    }
 }

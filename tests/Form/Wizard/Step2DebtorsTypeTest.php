@@ -31,6 +31,7 @@ final class Step2DebtorsTypeTest extends KernelTestCase
                     'personType' => 'PJ',
                     'name' => 'SC Bar SRL',
                     'cui' => '14186770',
+                    'onrcNumber' => 'J40/8765/2019',
                     'address' => 'Bd. Test 2',
                 ],
             ],
@@ -48,8 +49,8 @@ final class Step2DebtorsTypeTest extends KernelTestCase
         $form = $this->buildForm();
         $form->submit([
             'debtors' => [
-                ['personType' => 'PJ', 'name' => 'SC Bar SRL', 'cui' => '14186770', 'address' => 'Bd. Test 2'],
-                ['personType' => 'PJ', 'name' => 'SC Baz SRL', 'cui' => '15193236', 'address' => 'Str. Test 3'],
+                ['personType' => 'PJ', 'name' => 'SC Bar SRL', 'cui' => '14186770', 'onrcNumber' => 'J40/8765/2019', 'address' => 'Bd. Test 2'],
+                ['personType' => 'PJ', 'name' => 'SC Baz SRL', 'cui' => '15193236', 'onrcNumber' => 'J40/1234/2018', 'address' => 'Str. Test 3'],
             ],
         ]);
 
@@ -61,7 +62,7 @@ final class Step2DebtorsTypeTest extends KernelTestCase
     {
         $entries = [];
         for ($i = 0; $i < 6; $i++) {
-            $entries[] = ['personType' => 'PJ', 'name' => "SC X{$i}", 'cui' => '14186770', 'address' => "Addr {$i}"];
+            $entries[] = ['personType' => 'PJ', 'name' => "SC X{$i}", 'cui' => '14186770', 'onrcNumber' => 'J40/8765/2019', 'address' => "Addr {$i}"];
         }
 
         $form = $this->buildForm();
@@ -75,7 +76,7 @@ final class Step2DebtorsTypeTest extends KernelTestCase
         $form = $this->buildForm();
         $form->submit([
             'debtors' => [
-                ['personType' => 'PJ' /* missing name + address */],
+                ['personType' => 'PJ' /* missing name + address + cui + onrcNumber */],
             ],
         ]);
 
@@ -85,8 +86,8 @@ final class Step2DebtorsTypeTest extends KernelTestCase
     public function testRemovingEntryWorksWithByReferenceFalse(): void
     {
         $seed = new Step2DebtorsData([
-            new Step2DebtorEntry(personType: PersonType::PJ, name: 'A', cui: '14186770', address: 'X'),
-            new Step2DebtorEntry(personType: PersonType::PJ, name: 'B', cui: '15193236', address: 'Y'),
+            new Step2DebtorEntry(personType: PersonType::PJ, name: 'A', cui: '14186770', onrcNumber: 'J40/8765/2019', address: 'X'),
+            new Step2DebtorEntry(personType: PersonType::PJ, name: 'B', cui: '15193236', onrcNumber: 'J40/1234/2018', address: 'Y'),
         ]);
 
         $form = $this->buildForm($seed);
@@ -94,7 +95,7 @@ final class Step2DebtorsTypeTest extends KernelTestCase
         // setter (this is what `by_reference: false` enables on the DTO).
         $form->submit([
             'debtors' => [
-                ['personType' => 'PJ', 'name' => 'A', 'cui' => '14186770', 'address' => 'X'],
+                ['personType' => 'PJ', 'name' => 'A', 'cui' => '14186770', 'onrcNumber' => 'J40/8765/2019', 'address' => 'X'],
             ],
         ]);
 
