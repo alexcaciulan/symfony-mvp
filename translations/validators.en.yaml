@@ -48,7 +48,7 @@ wizard:
             currency_required: 'Select the currency.'
             invalid_currency: 'Accepted currencies: RON or EUR.'
             due_date_required: 'Enter the due date.'
-            due_date_not_future: 'Due date cannot be in the future — the claim is not yet enforceable (CPC art. 1014).'
+            due_date_not_future: 'Due date cannot be in the future; the claim is not yet enforceable (CPC art. 1014).'
             relationship_required: 'Select the legal relationship type.'
     step4:
         error:
@@ -61,9 +61,9 @@ wizard:
 
 validation:
     cui:
-        invalid_checksum: 'Invalid CUI — checksum does not match the ANAF algorithm.'
+        invalid_checksum: 'Invalid CUI: checksum does not match the ANAF algorithm.'
     cnp:
-        invalid_checksum: 'Invalid CNP — checksum does not match the OUG 97/2005 algorithm.'
+        invalid_checksum: 'Invalid CNP: checksum does not match the OUG 97/2005 algorithm.'
     email:
         invalid: 'Email address is not in a valid format.'
     iban:

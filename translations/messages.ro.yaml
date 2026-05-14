@@ -52,14 +52,14 @@ auth:
     branding:
         tagline: 'Recuperare creanțe<br>automatizată pentru avocați.'
         tagline_short: 'Recuperare creanțe pentru avocați'
-        subtitle: 'De la somația de plată până la titlul executoriu — un singur dosar, monitorizare automată, zero risc de pierdere termene.'
+        subtitle: 'De la somația de plată până la titlul executoriu: un singur dosar, monitorizare automată, zero risc de pierdere termene.'
         feature:
             interest: 'Calcul dobândă legală automat (OG 13/2011)'
             monitoring: 'Monitorizare zilnică portal.just.ro'
             pdf_pack: 'Generare PDF: somație, cerere OP, opis, ZIP'
             extraction: 'Extracție AI date din contract / factură'
         quote: '„Înainte îmi lua 3 ore să pregătesc o cerere OP. Acum descarc ZIP-ul și îl depun."'
-        quote_author: '— Av. Andrei P., cabinet București'
+        quote_author: 'Av. Andrei P., cabinet București'
 
 # =============================================================================
 # Pipeline component (PipelineStatus.html.twig)
@@ -190,7 +190,7 @@ wizard:
             existing_disabled_title: 'Disponibil din Pas 3.3 (UX Autocomplete).'
         autocomplete:
             title: 'Selectează creditor din biblioteca cabinetului'
-            hint: 'Caută după denumire sau CUI — completează manual dacă nu există.'
+            hint: 'Caută după denumire sau CUI. Dacă nu există, completează manual.'
             placeholder: 'Caută creditor existent...'
             no_results: 'Niciun creditor găsit cu acest text.'
         button:
@@ -230,9 +230,9 @@ wizard:
             max_reached: 'Limită maxim 5 debitori atinsă'
         add_debtor_hint: 'pentru obligații solidare'
         flash:
-            max_debtors_reached: 'Maxim 5 debitori per dosar — limită produs.'
+            max_debtors_reached: 'Maxim 5 debitori per dosar (limită produs).'
         help:
-            anaf_pas33: 'Introdu CUI-ul și apasă în afară — verificarea ANAF rulează automat.'
+            anaf_pas33: 'Introdu CUI-ul și apasă în afară. Verificarea ANAF rulează automat.'
         anaf:
             verified: 'ANAF verificat'
             lookup_loading: 'Verificare ANAF...'
@@ -276,7 +276,7 @@ wizard:
             administrator: 'Administrator'
             in_insolvency: 'Debitor în insolvență (Legea 85/2014)'
             in_insolvency_short: 'Insolvență'
-            bpi_verified_today: 'Am verificat BPI azi — debitorul NU este în insolvență'
+            bpi_verified_today: 'Am verificat BPI azi; debitorul NU este în insolvență'
         placeholder:
             person_type: '-- Selectează tip persoană --'
     step3:
@@ -285,13 +285,13 @@ wizard:
         section:
             main_data: 'Date principale'
         help:
-            due_date: 'Scadența trebuie să fie în trecut sau astăzi (creanță exigibilă — CPC art. 1014).'
+            due_date: 'Scadența trebuie să fie în trecut sau astăzi (creanță exigibilă, CPC art. 1014).'
         button:
             continue: 'Continuă la confirmare'
         relationship:
             comercial_hint: 'Între profesioniști · BNR + 8 pp'
             civil_disabled_hint: 'Disponibil post-MVP (B2C/P2P).'
-            civil_disabled_title: 'Restrâns la B2B în MVP — Pas 2.1 Opțiunea (a).'
+            civil_disabled_title: 'Restrâns la B2B în MVP (Pas 2.1 Opțiunea a).'
         sidebar:
             title: 'Calcule live'
             computed_at: 'la %date%'
@@ -310,11 +310,11 @@ wizard:
             stamp_duty_label: 'Taxă timbru OP'
             stamp_duty_placeholder: 'Calculată conform OUG 80/2013 art. 6 alin (2).'
             court_label: 'Instanță competentă'
-            court_placeholder: 'Instanță needeterminată — verifică manual.'
+            court_placeholder: 'Instanță needeterminată. Verifică manual.'
             footer_note: 'Calcule la rata BNR curentă. Verifică actualizarea înainte de depunere.'
         live:
             error:
-                due_date_future: 'Scadența e în viitor — creanța nu e încă exigibilă.'
+                due_date_future: 'Scadența e în viitor; creanța nu e încă exigibilă.'
                 currency_unsupported: 'Calcul dobândă suportat doar pentru RON (OG 13/2011).'
             court:
                 indeterminate: 'Instanța se calculează la pasul de confirmare.'
@@ -350,7 +350,7 @@ wizard:
             description: 'Descriere'
         placeholder:
             legal_ground: '-- Selectează temeiul juridic --'
-            description: 'Ex: Contract de prestări servicii nr. 145/12.03.2025, art. 7 — plata în 30 zile. Factura nr. 2024-012/15.10.2025.'
+            description: 'Ex: Contract de prestări servicii nr. 145/12.03.2025, art. 7, plata în 30 zile. Factura nr. 2024-012/15.10.2025.'
     step4:
         title: 'Confirmare dosar'
         subtitle: 'Pas 4 din 4 · Confirmare dosar. Verifică sumarul și calculele finale înainte de a salva.'
@@ -359,7 +359,7 @@ wizard:
             manual: 'introdus manual'
         alert:
             errors_title: 'Cererea NU poate fi depusă încă'
-            warnings_title: 'Atenție — verifică următoarele înainte de depunere'
+            warnings_title: 'Atenție: verifică următoarele înainte de depunere'
         card:
             documents: 'Documente sursă'
             documents_count: '%docCount% documente încărcate · %count% câmpuri completate'
@@ -375,9 +375,9 @@ wizard:
             title: 'Confidențialitate date'
             body: 'Datele AI extrase trec prin Anthropic (retention 30 zile, fără antrenare model). Documentele binare nu părăsesc serverul nostru fără acordul tău explicit (Modul „MAX_ACCURACY").'
         flash:
-            errors_blocking: 'Există erori de admisibilitate — corectează-le înainte de a salva.'
+            errors_blocking: 'Există erori de admisibilitate. Corectează-le înainte de a salva.'
             creditor_reused: 'Creditor existent reutilizat din catalogul tău (același CUI).'
-            success: 'Dosar creat cu succes — număr %caseNumber%.'
+            success: 'Dosar creat cu succes. Număr %caseNumber%.'
         final_calculations:
             title: 'Calcule finale'
         button:
@@ -458,7 +458,7 @@ wizard:
         drop_zone:
             heading: 'Trage fișierele aici'
             cta: 'Alege fișiere'
-            hint: 'PDF, JPG, PNG, WebP — până la 10 MB / fișier, maxim 10 fișiere.'
+            hint: 'PDF, JPG, PNG, WebP. Până la 10 MB / fișier, maxim 10 fișiere.'
             empty: 'Niciun document încărcat încă.'
         documents_count: 'Documente încărcate ({count})'
         list:
@@ -494,9 +494,9 @@ wizard:
                 description: 'Descriere'
             confidence_label: 'Încredere'
         gdpr:
-            title: 'Date extrase prin AI — confidențialitate'
+            title: 'Date extrase prin AI: confidențialitate'
             body: 'Documentele rămân pe serverul nostru. Doar textul OCR (cu CNP-uri mascate) este trimis la AI pentru extracție structurată.'
-        skip: 'Sări peste — completez manual'
+        skip: 'Sări peste și completez manual'
         continue: 'Continuă cu datele extrase'
         continue_blocked: 'Așteaptă finalizarea extracției pentru toate documentele'
         error:
@@ -506,15 +506,15 @@ wizard:
             file_too_large: 'Fișierul depășește limita de 10 MB.'
             invalid_csrf: 'Token de securitate invalid. Reîncearcă.'
         toast:
-            completed: 'Document procesat — datele extrase sunt afișate în panoul lateral.'
-            failed: 'Extracția a eșuat pentru un document — completează câmpurile manual.'
+            completed: 'Document procesat. Datele extrase sunt afișate în panoul lateral.'
+            failed: 'Extracția a eșuat pentru un document. Completează câmpurile manual.'
     placeholder:
-        not_implemented_title: 'Pas {step} — în lucru'
+        not_implemented_title: 'Pas {step}: în lucru'
         not_implemented_body: 'Acest pas va fi disponibil într-o versiune ulterioară (Pas 3.1/3.2/3.3). Întoarce-te la documente.'
         back_to_documents: 'Înapoi la documente'
     flash:
         uploaded: 'Documentele au fost încărcate. Așteaptă procesarea automată.'
-        skipped: 'Ai sărit peste extracția documentelor — completează manual.'
+        skipped: 'Ai sărit peste extracția documentelor. Completează manual.'
 
 # =============================================================================
 # Case View (read-only) — legacy stub, will be replaced by case_overview at Pas 4.0
@@ -550,24 +550,24 @@ case_overview:
         coming_soon_portal: 'Disponibil la livrarea Monitorizare Portal (Faza 5)'
         coming_soon_deadlines: 'Disponibil la livrarea Wiring Termene (Pas 4.3)'
         coming_soon_close: 'Disponibil la livrarea Workflow Închidere (Faza 4.x)'
-        coming_soon_export: 'Export CSV — post-MVP'
-        coming_soon_share: 'Share & colaboratori — post-MVP'
-        coming_soon_edit: 'Editare detalii — post-MVP'
+        coming_soon_export: 'Export CSV (post-MVP)'
+        coming_soon_share: 'Share & colaboratori (post-MVP)'
+        coming_soon_edit: 'Editare detalii (post-MVP)'
         coming_soon_doc_upload: 'Disponibil la livrarea reupload în pagina dosar (post-MVP)'
-        coming_soon_mark_paid: 'Marchează plată amiabilă — disponibil la livrarea Workflow Închidere (Faza 4.x)'
+        coming_soon_mark_paid: 'Marchează plată amiabilă (disponibil la livrarea Workflow Închidere, Faza 4.x)'
     placeholder:
         tab:
             details: 'Conținutul tab-ului Detalii va fi populat la Pas 4.0.3'
             documents: 'Conținutul tab-ului Documente va fi populat la Pas 4.0.4'
             deadlines: 'Conținutul tab-ului Termene va fi populat la Pas 4.0.5'
             portal: 'Conținutul tab-ului Activitate Portal va fi populat la Pas 4.0.6'
-            audit: 'Audit log — vizibil în versiunea post-MVP. Datele se persistă deja la fiecare acțiune.'
+            audit: 'Audit log: vizibil în versiunea post-MVP. Datele se persistă deja la fiecare acțiune.'
     header:
         type_op: 'Ordonanță de plată'
         vs: 'vs'
         created_on: 'Creat %date%'
-        no_creditor: '— fără creditor —'
-        no_debtor: '— fără debitor —'
+        no_creditor: '(fără creditor)'
+        no_debtor: '(fără debitor)'
         court_undetermined: 'Instanță needeterminată'
     cta:
         generate_op: 'Generează cerere OP'
@@ -591,7 +591,7 @@ case_overview:
         no_active_deadline: 'Niciun termen activ'
     pipeline:
         section_title: 'Procedură ordonanță de plată'
-        progress: 'Stadiu %current% din %total% — %label%'
+        progress: 'Stadiu %current% din %total%: %label%'
         stage_1_amiabil: 'Amiabil'
         stage_2_somatie: 'Somație trimisă'
         stage_3_cerere: 'Cerere depusă'
@@ -635,14 +635,14 @@ case_overview:
         breakdown_days: 'Zile'
         breakdown_interest: 'Dobândă'
         breakdown_total: 'Total dobândă acumulată'
-        breakdown_error: '— calculul indisponibil (verifică data scadenței și tipul de raport)'
+        breakdown_error: '(calcul indisponibil; verifică data scadenței și tipul de raport)'
         breakdown_zero: 'Nu există încă dobândă acumulată (data scadenței este în viitor).'
     court:
         title: 'INSTANȚĂ COMPETENTĂ'
         rule_hint: 'Sumă < 200.000 RON · în raza %county% · CPC art. 1015'
         case_number: 'Nr. dosar'
-        case_number_pending: '— încă nedepus'
-        no_court: 'Instanță needeterminată — verifică manual'
+        case_number_pending: '(încă nedepus)'
+        no_court: 'Instanță needeterminată. Verifică manual'
     active_deadline_card:
         label: 'TERMEN ACTIV'
         expires_on: 'Expiră'
@@ -668,7 +668,7 @@ case_overview:
         generated_title: 'Documente generate'
         generated_ratio: '%generated% din %total% generate'
         somatie_label: 'Somație de plată'
-        somatie_status_pending: '— încă negenerată'
+        somatie_status_pending: '(încă negenerată)'
         cerere_label: 'Cerere ordonanță de plată'
         cerere_status_pending: 'PREGĂTITĂ'
         cerere_pending_hint: 'Va fi generată la depunere cerere · pre-completată cu datele dosarului'
@@ -687,7 +687,7 @@ case_overview:
         action_delete: 'Șterge'
         action_regenerate: 'Regenerează'
     zip_package:
-        title: 'Pachet ZIP — depunere instanță'
+        title: 'Pachet ZIP: depunere instanță'
         intro: 'Descarcă tot ce ai nevoie pentru a depune cererea OP la %court%:'
         intro_no_court: 'Descarcă tot ce ai nevoie pentru a depune cererea OP:'
         item_cerere: 'Cerere OP (va fi generată)'
@@ -705,7 +705,7 @@ case_overview:
         close_case_body_prefix: 'Dosarul'
         close_case_body_suffix: 'va fi marcat ca închis. Monitorizarea automată portal.just.ro și alertele pe termene se opresc. Datele rămân în arhivă.'
         close_case_reason: 'Motiv închidere'
-        close_case_reason_placeholder: '— Selectează motiv —'
+        close_case_reason_placeholder: '(Selectează motiv)'
         close_case_reason_paid: 'Plată integrală amiabilă'
         close_case_reason_partial: 'Recuperare parțială'
         close_case_reason_insolvent: 'Debitor insolvabil'
@@ -751,16 +751,16 @@ case_overview:
         preview_event_3_time: '02.06.2026 · 09:15'
         preview_event_3_body: 'Nr. dosar atribuit · status DOSAR_ÎNREGISTRAT.'
         how_title: 'Cum funcționează'
-        how_step_1: 'Cron rulează zilnic la 08:00 — interogare SOAP la portal.just.ro'
+        how_step_1: 'Cron rulează zilnic la 08:00. Interogare SOAP la portal.just.ro'
         how_step_2: 'Detectare evenimente noi: termen, soluție, contestație, comunicări'
         how_step_3: 'Tranziții automate aplicate (TERMEN_FIXAT, ORDONANTA_EMISA, etc.)'
         how_step_4: 'Email + notificare in-app la fiecare schimbare'
-        how_source: 'Sursă: portalquery.just.ro/query.asmx — gratuit, public, oficial.'
+        how_source: 'Sursă: portalquery.just.ro/query.asmx (gratuit, public, oficial).'
         sync_title: 'Status sincronizare'
         sync_last_check: 'Ultima verificare'
         sync_next_check: 'Următoarea'
         sync_total_events: 'Evenimente totale'
-        sync_not_started: '— încă nepornită'
+        sync_not_started: '(încă nepornită)'
         sync_not_scheduled: '—'
     deadlines:
         title: 'Termene dosar'
@@ -783,8 +783,8 @@ case_overview:
         empty_body: 'Termenele se creează automat la fiecare tranziție de status (Pas 4.1).'
         in_days: 'în %days% zile'
         overdue_by: 'expirat cu %days% zile'
-        completed_on: '%date% — făcut'
-        date_in_days: '%date% — în %days% zile'
+        completed_on: '%date% (făcut)'
+        date_in_days: '%date% (în %days% zile)'
         alerts_label: 'Alerte:'
         alert_7_sent: '7z trimisă'
         alert_7_pending: '7z programată'
@@ -793,7 +793,7 @@ case_overview:
         alert_1_sent: '1z trimisă'
         alert_1_pending: '1z programată'
         calendar_title: 'Calendar termene · următoarele 30 zile'
-        calendar_empty: '— niciun termen apropiat —'
+        calendar_empty: '(niciun termen apropiat)'
         calendar_in_days: 'în %days% zile · %priority%'
         alerts_card_title: 'Alerte automate'
         alerts_card_body: 'Email la 7/3/1 zile înainte + alertă „expirat". Nu pierzi termene chiar dacă nu deschizi aplicația.'
@@ -831,7 +831,7 @@ document:
 # Payment
 # =============================================================================
 payment:
-    title: 'Plată — Dosar #%id%'
+    title: 'Plată: Dosar #%id%'
     heading: 'Plată dosar'
     fee_summary: 'Rezumat taxe'
     court_fee: 'Taxă judiciară'
@@ -870,7 +870,7 @@ dashboard:
         new_case: 'Cerere nouă'
         empty: 'Nu aveți dosare înregistrate.'
         empty_heading: 'Bun venit pe LexRecovery'
-        empty_subtitle: 'Nu ai niciun dosar deschis încă. Hai să începem cu primul — îți ia 5 minute, restul îl face aplicația.'
+        empty_subtitle: 'Nu ai niciun dosar deschis încă. Hai să începem cu primul. Îți ia 5 minute, restul îl face aplicația.'
         create_first: 'Începe primul dosar'
         col_id: 'Nr.'
         col_court: 'Instanța'
@@ -902,7 +902,7 @@ dashboard:
                 description: 'După cel puțin 15 zile de la comunicarea somației (CPC art. 1015), descarci ZIP-ul cu cererea OP, opisul, somația și dovezile. Calcul automat dobândă + taxă timbru.'
             enforcement:
                 title: 'Titlu executoriu'
-                description: 'Aplicația monitorizează zilnic portal.just.ro. Termenele sunt urmărite automat — niciun risc de pierdere.'
+                description: 'Aplicația monitorizează zilnic portal.just.ro. Termenele sunt urmărite automat, fără risc de pierdere.'
         kpi:
             active: 'Dosare active'
             active_hint: 'în curs de procesare'
@@ -1106,7 +1106,7 @@ home:
     hero:
         eyebrow: 'Pentru avocați și firme de recuperare creanțe'
         title: 'Recuperare creanțe simplu și rapid'
-        subtitle: 'Platformă completă pentru gestionarea procedurii ordonanței de plată conform OUG 80/2013 — de la somație la executare silită.'
+        subtitle: 'Platformă completă pentru gestionarea procedurii ordonanței de plată conform OUG 80/2013, de la somație la executare silită.'
         cta_primary: 'Începe gratuit'
         cta_secondary: 'Vezi cum funcționează'
     steps:
@@ -1118,7 +1118,7 @@ home:
         step_2:
             label: 'Pasul 2'
             title: 'Generăm somația'
-            description: 'Cu un click obții somația de plată gata de comunicat — 30 de zile de termen pornesc automat.'
+            description: 'Cu un click obții somația de plată gata de comunicat. 30 de zile de termen pornesc automat.'
         step_3:
             label: 'Pasul 3'
             title: 'Depui cererea'
@@ -1126,7 +1126,7 @@ home:
         step_4:
             label: 'Pasul 4'
             title: 'Monitorizăm dosarul'
-            description: 'Sincronizare cu portal.just.ro — alertă pe termene, contestații, soluții.'
+            description: 'Sincronizare cu portal.just.ro: alertă pe termene, contestații, soluții.'
     benefits:
         title: 'De ce LexRecovery'
         rapid:
@@ -1165,7 +1165,7 @@ exception:
         cui_invalid: 'CUI invalid: trebuie să conțină între 2 și 10 cifre.'
         unavailable: 'Serviciul ANAF nu este disponibil. Încercați mai târziu.'
         not_found: 'CUI-ul nu a fost găsit în baza de date ANAF.'
-        rate_limited: 'Prea multe căutări ANAF — așteaptă 1h sau introdu manual datele.'
+        rate_limited: 'Prea multe căutări ANAF. Așteaptă 1h sau introdu manual datele.'
     calculation:
         interest_rate_missing: 'Nu există o rată BNR validă pentru data de scadență. Verifică InterestRateConfigFixtures.'
         currency_unsupported: 'Calculul dobânzii este disponibil doar pentru creanțe în RON. Suportul pentru valută va fi adăugat ulterior.'
@@ -1182,7 +1182,7 @@ court:
         locality_unmatched_pick_manually: 'Localitatea debitorului nu se potrivește unic cu o judecătorie. Alege manual instanța din listă.'
         locality_ambiguous: 'Localitatea se potrivește cu mai multe judecătorii. Alege manual instanța corectă.'
         matched_judecatorie: 'Judecătorie competentă conform CPC art. 94 + 107 (raza teritorială).'
-        matched_tribunal: 'Tribunal competent conform CPC art. 95 (peste pragul 200.000 RON, valoare totală cu accesorii — CPC art. 98).'
+        matched_tribunal: 'Tribunal competent conform CPC art. 95 (peste pragul 200.000 RON, valoare totală cu accesorii, CPC art. 98).'
         tribunal_missing: 'Niciun tribunal activ în județul %county%. Contactează administratorul.'
         tribunal_ambiguous: 'Mai multe tribunale active în județul %county%. Verifică datele de configurare.'
 
@@ -1192,11 +1192,11 @@ court:
 # =============================================================================
 validation:
     op_admissibility:
-        OP_BLOCKED_DEREGISTERED: 'Debitorul este radiat din ANAF — nu mai are personalitate juridică, cererea OP este inadmisibilă. Verifică actele în Registrul Comerțului.'
+        OP_BLOCKED_DEREGISTERED: 'Debitorul este radiat din ANAF și nu mai are personalitate juridică, cererea OP este inadmisibilă. Verifică actele în Registrul Comerțului.'
         OP_BLOCKED_INSOLVENCY: 'Debitorul este în procedura insolvenței (Legea 85/2014). Creanța se înscrie la masa credală, nu se recuperează prin ordonanță de plată.'
         OP_DEFENDANT_FISCALLY_INACTIVE: 'Debitorul este declarat inactiv fiscal de ANAF. Cererea OP rămâne admisibilă, dar șansele de recuperare sunt reduse.'
         OP_ANAF_NOT_VERIFIED: 'Statusul ANAF al debitorului nu a fost verificat. Apelează ANAF pe baza CUI înainte de depunere.'
         OP_ANAF_STALE: 'Verificarea ANAF e mai veche de 30 de zile. Reverifică statusul fiscal înainte de depunere.'
         OP_INSOLVENCY_NOT_VERIFIED: 'Verifică statusul de insolvență al debitorului pe bpi.just.ro și confirmă în UI înainte de depunere (atașează PDF dovadă BPI).'
-        OP_INSOLVENCY_STALE: 'Verificarea BPI (insolvență) este mai veche de 7 zile. Reverifică pe bpi.just.ro și actualizează dovada — insolvența se schimbă rapid.'
-        OP_PF_BIPF_MANUAL_CHECK: 'Debitor persoană fizică: verifică manual BIPF (Buletinul Insolvenței Persoanelor Fizice — Legea 151/2015) pe bpi.just.ro înainte de depunere.'
+        OP_INSOLVENCY_STALE: 'Verificarea BPI (insolvență) este mai veche de 7 zile. Reverifică pe bpi.just.ro și actualizează dovada; insolvența se schimbă rapid.'
+        OP_PF_BIPF_MANUAL_CHECK: 'Debitor persoană fizică: verifică manual BIPF (Buletinul Insolvenței Persoanelor Fizice, Legea 151/2015) pe bpi.just.ro înainte de depunere.'

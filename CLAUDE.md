@@ -282,6 +282,17 @@ class PaymentProcessingService
 - Used by controllers: `$form = $this->createForm(FormType::class, $entity)`
 - Handle submission: `$form->handleRequest($request)` then `$form->isSubmitted() && $form->isValid()`
 
+### Translation Conventions (`translations/*.yaml`)
+- **No em-dash (`—`) inside translated sentences.** Em-dash as a sentence connector is a well-known AI-writing tell and erodes the product's perceived authorship. Reformulate with regular punctuation: a period for two independent clauses, a colon for label/value or heading/explanation, a comma or semicolon for tight links, parentheses for asides, or restructure the sentence entirely.
+  - Bad: `'Caută după denumire sau CUI — completează manual dacă nu există.'`
+  - Good: `'Caută după denumire sau CUI. Dacă nu există, completează manual.'`
+  - Bad: `'Maxim 5 debitori per dosar — limită produs.'`
+  - Good: `'Maxim 5 debitori per dosar (limită produs).'`
+- **Exception — standalone `'—'` is allowed** as a UI null/empty-value placeholder (e.g. `no_due_date: '—'`). That is conventional typography, not AI-flavored prose.
+- **Exception — YAML comments** (`# ...`) may use `—`; they are internal notes, not user-facing copy.
+- Same rule applies in both `ro` and `en` locales. Keep RO/EN keys in lockstep when adding new strings.
+- Run `php bin/console lint:yaml translations/` after edits to confirm valid syntax.
+
 ## Before Editing Code
 
 1. **Read related files first**: Controller + Form + Entity for the feature area

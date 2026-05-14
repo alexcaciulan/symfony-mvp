@@ -48,7 +48,7 @@ wizard:
             currency_required: 'Selectează moneda.'
             invalid_currency: 'Monedă acceptată: RON sau EUR.'
             due_date_required: 'Introdu data scadenței.'
-            due_date_not_future: 'Scadența nu poate fi în viitor — creanța nu e încă exigibilă (CPC art. 1014).'
+            due_date_not_future: 'Scadența nu poate fi în viitor; creanța nu e încă exigibilă (CPC art. 1014).'
             relationship_required: 'Selectează tipul raportului juridic.'
     step4:
         error:
@@ -61,9 +61,9 @@ wizard:
 
 validation:
     cui:
-        invalid_checksum: 'CUI invalid — cifra de control nu corespunde algoritmului ANAF.'
+        invalid_checksum: 'CUI invalid: cifra de control nu corespunde algoritmului ANAF.'
     cnp:
-        invalid_checksum: 'CNP invalid — cifra de control nu corespunde algoritmului OUG 97/2005.'
+        invalid_checksum: 'CNP invalid: cifra de control nu corespunde algoritmului OUG 97/2005.'
     email:
         invalid: 'Adresa de email nu are un format valid.'
     iban:

@@ -52,14 +52,14 @@ auth:
     branding:
         tagline: 'Automated debt recovery<br>for legal professionals.'
         tagline_short: 'Debt recovery for legal professionals'
-        subtitle: 'From the payment notice to the enforceable title — one case file, automated monitoring, no missed deadlines.'
+        subtitle: 'From the payment notice to the enforceable title: one case file, automated monitoring, no missed deadlines.'
         feature:
             interest: 'Automatic legal interest calculation (OG 13/2011)'
             monitoring: 'Daily portal.just.ro monitoring'
             pdf_pack: 'PDF generation: notice, petition, index, ZIP'
             extraction: 'AI data extraction from contracts / invoices'
         quote: '"Preparing a payment order used to take me 3 hours. Now I just download the ZIP and file it."'
-        quote_author: '— Andrei P., attorney, Bucharest'
+        quote_author: 'Andrei P., attorney, Bucharest'
 
 # =============================================================================
 # Pipeline component (PipelineStatus.html.twig)
@@ -190,7 +190,7 @@ wizard:
             existing_disabled_title: 'Available from Pas 3.3 (UX Autocomplete).'
         autocomplete:
             title: 'Pick a creditor from your library'
-            hint: 'Search by name or fiscal code — fill manually if not in your library.'
+            hint: 'Search by name or fiscal code. Fill manually if not in your library.'
             placeholder: 'Search existing creditor...'
             no_results: 'No creditor matches this search.'
         button:
@@ -230,9 +230,9 @@ wizard:
             max_reached: 'Max 5 debtors reached'
         add_debtor_hint: 'for joint-and-several obligations'
         flash:
-            max_debtors_reached: 'Max 5 debtors per case — product cap.'
+            max_debtors_reached: 'Max 5 debtors per case (product cap).'
         help:
-            anaf_pas33: 'Type the fiscal code and tab out — ANAF verification runs automatically.'
+            anaf_pas33: 'Type the fiscal code and tab out. ANAF verification runs automatically.'
         anaf:
             verified: 'ANAF verified'
             lookup_loading: 'Verifying with ANAF...'
@@ -276,7 +276,7 @@ wizard:
             administrator: 'Administrator'
             in_insolvency: 'Debtor in insolvency (Law 85/2014)'
             in_insolvency_short: 'Insolvency'
-            bpi_verified_today: 'I checked BPI today — debtor is NOT in insolvency'
+            bpi_verified_today: 'I checked BPI today; debtor is NOT in insolvency'
         placeholder:
             person_type: '-- Select person type --'
     step3:
@@ -285,13 +285,13 @@ wizard:
         section:
             main_data: 'Main data'
         help:
-            due_date: 'Due date must be in the past or today (claim must be exigible — CPC art. 1014).'
+            due_date: 'Due date must be in the past or today (claim must be exigible, CPC art. 1014).'
         button:
             continue: 'Continue to confirmation'
         relationship:
             comercial_hint: 'Between professionals · BNR + 8 pp'
             civil_disabled_hint: 'Available post-MVP (B2C/P2P).'
-            civil_disabled_title: 'Restricted to B2B in MVP — Pas 2.1 Option (a).'
+            civil_disabled_title: 'Restricted to B2B in MVP (Pas 2.1 Option a).'
         sidebar:
             title: 'Live calculations'
             computed_at: 'at %date%'
@@ -310,11 +310,11 @@ wizard:
             stamp_duty_label: 'OP stamp duty'
             stamp_duty_placeholder: 'Computed per OUG 80/2013 art. 6 (2).'
             court_label: 'Competent court'
-            court_placeholder: 'Court could not be determined — verify manually.'
+            court_placeholder: 'Court could not be determined. Verify manually.'
             footer_note: 'Calculations at the current BNR rate. Re-check before submission.'
         live:
             error:
-                due_date_future: 'Due date is in the future — claim is not yet exigible.'
+                due_date_future: 'Due date is in the future; claim is not yet exigible.'
                 currency_unsupported: 'Interest calculation supported only for RON (OG 13/2011).'
             court:
                 indeterminate: 'Court is computed at the confirmation step.'
@@ -350,7 +350,7 @@ wizard:
             description: 'Description'
         placeholder:
             legal_ground: '-- Select legal ground --'
-            description: 'E.g.: Service agreement no. 145/12.03.2025, art. 7 — 30-day payment terms. Invoice no. 2024-012/15.10.2025.'
+            description: 'E.g.: Service agreement no. 145/12.03.2025, art. 7, 30-day payment terms. Invoice no. 2024-012/15.10.2025.'
     step4:
         title: 'Case confirmation'
         subtitle: 'Step 4 of 4 · Case confirmation. Review the summary and final calculations before saving.'
@@ -359,7 +359,7 @@ wizard:
             manual: 'manual'
         alert:
             errors_title: 'Case cannot be submitted yet'
-            warnings_title: 'Heads up — review the following before submission'
+            warnings_title: 'Heads up: review the following before submission'
         card:
             documents: 'Source documents'
             documents_count: '%docCount% documents uploaded · %count% fields filled'
@@ -375,9 +375,9 @@ wizard:
             title: 'Data privacy'
             body: 'AI-extracted data passes through Anthropic (30-day retention, no model training). Binary documents never leave our server without explicit consent (MAX_ACCURACY mode).'
         flash:
-            errors_blocking: 'Admissibility errors block submission — fix them before saving.'
+            errors_blocking: 'Admissibility errors block submission. Fix them before saving.'
             creditor_reused: 'Existing creditor reused from your catalog (same CUI).'
-            success: 'Case created successfully — number %caseNumber%.'
+            success: 'Case created successfully. Number %caseNumber%.'
         final_calculations:
             title: 'Final calculations'
         button:
@@ -458,7 +458,7 @@ wizard:
         drop_zone:
             heading: 'Drop files here'
             cta: 'Choose files'
-            hint: 'PDF, JPG, PNG, WebP — up to 10 MB per file, max 10 files.'
+            hint: 'PDF, JPG, PNG, WebP. Up to 10 MB per file, max 10 files.'
             empty: 'No documents uploaded yet.'
         documents_count: 'Uploaded documents ({count})'
         list:
@@ -494,9 +494,9 @@ wizard:
                 description: 'Description'
             confidence_label: 'Confidence'
         gdpr:
-            title: 'AI-extracted data — privacy'
+            title: 'AI-extracted data: privacy'
             body: 'Documents stay on our servers. Only the OCR text (with masked national IDs) is sent to AI for structured extraction.'
-        skip: 'Skip — fill in manually'
+        skip: 'Skip and fill in manually'
         continue: 'Continue with extracted data'
         continue_blocked: 'Wait for all documents to finish processing'
         error:
@@ -506,15 +506,15 @@ wizard:
             file_too_large: 'File exceeds the 10 MB limit.'
             invalid_csrf: 'Invalid security token. Please retry.'
         toast:
-            completed: 'Document processed — extracted data is shown in the side panel.'
-            failed: 'Extraction failed for a document — please fill in the fields manually.'
+            completed: 'Document processed. Extracted data is shown in the side panel.'
+            failed: 'Extraction failed for a document. Please fill in the fields manually.'
     placeholder:
-        not_implemented_title: 'Step {step} — coming soon'
+        not_implemented_title: 'Step {step}: coming soon'
         not_implemented_body: 'This step will be available in a future release (Step 3.1/3.2/3.3). Go back to documents.'
         back_to_documents: 'Back to documents'
     flash:
         uploaded: 'Documents uploaded. Waiting for automatic processing.'
-        skipped: 'You skipped document extraction — please fill in the forms manually.'
+        skipped: 'You skipped document extraction. Please fill in the forms manually.'
 
 # =============================================================================
 # Case View (read-only) — legacy stub, will be replaced by case_overview at Pas 4.0
@@ -548,24 +548,24 @@ case_overview:
         coming_soon_portal: 'Available once Portal Monitoring ships (Phase 5)'
         coming_soon_deadlines: 'Available once Deadlines Wiring ships (Step 4.3)'
         coming_soon_close: 'Available once Close Case Workflow ships (Phase 4.x)'
-        coming_soon_export: 'CSV export — post-MVP'
-        coming_soon_share: 'Share & collaborators — post-MVP'
-        coming_soon_edit: 'Edit details — post-MVP'
+        coming_soon_export: 'CSV export (post-MVP)'
+        coming_soon_share: 'Share & collaborators (post-MVP)'
+        coming_soon_edit: 'Edit details (post-MVP)'
         coming_soon_doc_upload: 'Available once in-case document reupload ships (post-MVP)'
-        coming_soon_mark_paid: 'Mark amicable payment — available once Close Case Workflow ships (Phase 4.x)'
+        coming_soon_mark_paid: 'Mark amicable payment (available once Close Case Workflow ships, Phase 4.x)'
     placeholder:
         tab:
             details: 'Details tab content will be populated at Step 4.0.3'
             documents: 'Documents tab content will be populated at Step 4.0.4'
             deadlines: 'Deadlines tab content will be populated at Step 4.0.5'
             portal: 'Portal Activity tab content will be populated at Step 4.0.6'
-            audit: 'Audit log — available in a post-MVP release. Entries are already being persisted on every action.'
+            audit: 'Audit log: available in a post-MVP release. Entries are already being persisted on every action.'
     header:
         type_op: 'Payment order'
         vs: 'vs'
         created_on: 'Created %date%'
-        no_creditor: '— no creditor —'
-        no_debtor: '— no debtor —'
+        no_creditor: '(no creditor)'
+        no_debtor: '(no debtor)'
         court_undetermined: 'Court undetermined'
     cta:
         generate_op: 'Generate payment order'
@@ -589,7 +589,7 @@ case_overview:
         no_active_deadline: 'No active deadline'
     pipeline:
         section_title: 'Payment order procedure'
-        progress: 'Stage %current% of %total% — %label%'
+        progress: 'Stage %current% of %total%: %label%'
         stage_1_amiabil: 'Amicable'
         stage_2_somatie: 'Notice sent'
         stage_3_cerere: 'Petition filed'
@@ -633,14 +633,14 @@ case_overview:
         breakdown_days: 'Days'
         breakdown_interest: 'Interest'
         breakdown_total: 'Total accrued interest'
-        breakdown_error: '— calculation unavailable (check due date and report type)'
+        breakdown_error: '(calculation unavailable; check due date and report type)'
         breakdown_zero: 'No interest has accrued yet (due date is in the future).'
     court:
         title: 'COMPETENT COURT'
         rule_hint: 'Amount < 200,000 RON · within %county% jurisdiction · CCP art. 1015'
         case_number: 'Court case no.'
-        case_number_pending: '— not yet filed'
-        no_court: 'Court undetermined — verify manually'
+        case_number_pending: '(not yet filed)'
+        no_court: 'Court undetermined. Verify manually'
     active_deadline_card:
         label: 'ACTIVE DEADLINE'
         expires_on: 'Expires'
@@ -666,7 +666,7 @@ case_overview:
         generated_title: 'Generated documents'
         generated_ratio: '%generated% of %total% generated'
         somatie_label: 'Payment notice'
-        somatie_status_pending: '— not yet generated'
+        somatie_status_pending: '(not yet generated)'
         cerere_label: 'Payment order petition'
         cerere_status_pending: 'READY'
         cerere_pending_hint: 'Will be generated on filing · pre-filled with case data'
@@ -685,7 +685,7 @@ case_overview:
         action_delete: 'Delete'
         action_regenerate: 'Regenerate'
     zip_package:
-        title: 'ZIP pack — court filing'
+        title: 'ZIP pack: court filing'
         intro: 'Download everything you need to file the payment order petition at %court%:'
         intro_no_court: 'Download everything you need to file the payment order petition:'
         item_cerere: 'Payment order petition (to be generated)'
@@ -703,7 +703,7 @@ case_overview:
         close_case_body_prefix: 'Case'
         close_case_body_suffix: 'will be marked as closed. Automatic portal.just.ro monitoring and deadline alerts stop. Data remains archived.'
         close_case_reason: 'Closure reason'
-        close_case_reason_placeholder: '— Select reason —'
+        close_case_reason_placeholder: '(Select reason)'
         close_case_reason_paid: 'Full amicable payment'
         close_case_reason_partial: 'Partial recovery'
         close_case_reason_insolvent: 'Debtor insolvent'
@@ -732,7 +732,7 @@ case_overview:
         config_placeholder: 'e.g. 4521/302/2026'
         config_format: 'Ecris format'
         config_activate: 'Activate monitoring'
-        config_disclaimer: 'Monitoring runs daily at 08:00 — detects hearings / rulings / appeals and applies automatic transitions.'
+        config_disclaimer: 'Monitoring runs daily at 08:00. Detects hearings / rulings / appeals and applies automatic transitions.'
         timeline_title: 'Timeline portal.just.ro'
         timeline_check_now: 'Check now'
         empty_title: 'No events monitored yet'
@@ -749,16 +749,16 @@ case_overview:
         preview_event_3_time: '02.06.2026 · 09:15'
         preview_event_3_body: 'Case number assigned · status DOSAR_ÎNREGISTRAT.'
         how_title: 'How it works'
-        how_step_1: 'Cron runs daily at 08:00 — SOAP query against portal.just.ro'
+        how_step_1: 'Cron runs daily at 08:00. SOAP query against portal.just.ro'
         how_step_2: 'Detects new events: hearings, rulings, appeals, communications'
         how_step_3: 'Automatic transitions applied (TERMEN_FIXAT, ORDONANTA_EMISA, etc.)'
         how_step_4: 'Email + in-app notification on every change'
-        how_source: 'Source: portalquery.just.ro/query.asmx — free, public, official.'
+        how_source: 'Source: portalquery.just.ro/query.asmx (free, public, official).'
         sync_title: 'Sync status'
         sync_last_check: 'Last check'
         sync_next_check: 'Next check'
         sync_total_events: 'Total events'
-        sync_not_started: '— not started yet'
+        sync_not_started: '(not started yet)'
         sync_not_scheduled: '—'
     deadlines:
         title: 'Case deadlines'
@@ -781,8 +781,8 @@ case_overview:
         empty_body: 'Deadlines are auto-created on each status transition (Step 4.1).'
         in_days: 'in %days% days'
         overdue_by: 'overdue by %days% days'
-        completed_on: '%date% — done'
-        date_in_days: '%date% — in %days% days'
+        completed_on: '%date% (done)'
+        date_in_days: '%date% (in %days% days)'
         alerts_label: 'Alerts:'
         alert_7_sent: '7d sent'
         alert_7_pending: '7d pending'
@@ -791,7 +791,7 @@ case_overview:
         alert_1_sent: '1d sent'
         alert_1_pending: '1d pending'
         calendar_title: 'Deadlines calendar · next 30 days'
-        calendar_empty: '— no upcoming deadlines —'
+        calendar_empty: '(no upcoming deadlines)'
         calendar_in_days: 'in %days% days · %priority%'
         alerts_card_title: 'Automatic alerts'
         alerts_card_body: 'Email at 7/3/1 days before + "expired" alert. You will not miss deadlines even if you do not open the app.'
@@ -829,7 +829,7 @@ document:
 # Payment
 # =============================================================================
 payment:
-    title: 'Payment — Case #%id%'
+    title: 'Payment: Case #%id%'
     heading: 'Case payment'
     fee_summary: 'Fee summary'
     court_fee: 'Court fee'
@@ -868,7 +868,7 @@ dashboard:
         new_case: 'New application'
         empty: 'You have no registered cases.'
         empty_heading: 'Welcome to LexRecovery'
-        empty_subtitle: 'No cases yet. Let''s start with your first one — it takes 5 minutes, the app does the rest.'
+        empty_subtitle: 'No cases yet. Let''s start with your first one. It takes 5 minutes, the app does the rest.'
         create_first: 'Start your first case'
         col_id: 'No.'
         col_court: 'Court'
@@ -900,7 +900,7 @@ dashboard:
                 description: 'After at least 15 days from notice delivery (CPC art. 1015), download the ZIP with petition, index, notice and evidence. Auto interest + stamp duty.'
             enforcement:
                 title: 'Enforceable title'
-                description: 'The app monitors portal.just.ro daily. Deadlines tracked automatically — no risk of missing them.'
+                description: 'The app monitors portal.just.ro daily. Deadlines tracked automatically, with no risk of missing them.'
         kpi:
             active: 'Active cases'
             active_hint: 'in progress'
@@ -1008,8 +1008,8 @@ enum:
         DEFINITIVA: 'Final'
         EXECUTARE: 'Enforcement'
         RESPINSA: 'Rejected'
-        INCHIS_SUCCES: 'Closed — recovered'
-        INCHIS_PARTIAL_INSOLVABIL: 'Closed — partial / insolvent'
+        INCHIS_SUCCES: 'Closed: recovered'
+        INCHIS_PARTIAL_INSOLVABIL: 'Closed: partial / insolvent'
     case_transition:
         trimite_somatie: 'Send notice'
         depune_cerere: 'File payment order petition'
@@ -1021,8 +1021,8 @@ enum:
         admite_cerere_anulare: 'Grant annulment request'
         marcheaza_definitiva: 'Mark as final'
         respinge: 'Reject petition'
-        inchide_succes: 'Close — recovered'
-        inchide_insolvabil: 'Close — insolvent'
+        inchide_succes: 'Close: recovered'
+        inchide_insolvabil: 'Close: insolvent'
     court_type:
         judecatorie: 'Local court'
         tribunal: 'Tribunal'
@@ -1103,7 +1103,7 @@ home:
     hero:
         eyebrow: 'For lawyers and debt recovery firms'
         title: 'Debt recovery made simple and fast'
-        subtitle: 'Complete platform for managing the payment order procedure under OUG 80/2013 — from notice to enforcement.'
+        subtitle: 'Complete platform for managing the payment order procedure under OUG 80/2013, from notice to enforcement.'
         cta_primary: 'Start free'
         cta_secondary: 'See how it works'
     steps:
@@ -1115,7 +1115,7 @@ home:
         step_2:
             label: 'Step 2'
             title: 'We generate the notice'
-            description: 'One click and you have a payment notice ready to send — the 30-day clock starts automatically.'
+            description: 'One click and you have a payment notice ready to send. The 30-day clock starts automatically.'
         step_3:
             label: 'Step 3'
             title: 'File the petition'
@@ -1123,12 +1123,12 @@ home:
         step_4:
             label: 'Step 4'
             title: 'We monitor the case'
-            description: 'Sync with portal.just.ro — alerts on hearings, contestations, rulings.'
+            description: 'Sync with portal.just.ro: alerts on hearings, contestations, rulings.'
     benefits:
         title: 'Why LexRecovery'
         rapid:
             title: 'Fast'
-            description: 'Automatic generation of procedural documents — no copy-paste between templates.'
+            description: 'Automatic generation of procedural documents, no copy-paste between templates.'
         sigur:
             title: 'Reliable'
             description: 'OUG 80/2013 + CPC art. 1014-1024 compliant. Automatic interest (OG 13/2011) and stamp duty calculations.'
@@ -1162,7 +1162,7 @@ exception:
         cui_invalid: 'Invalid tax ID: must contain between 2 and 10 digits.'
         unavailable: 'ANAF service unavailable. Please try again later.'
         not_found: 'Tax ID not found in the ANAF database.'
-        rate_limited: 'Too many ANAF lookups — wait 1 hour or fill data manually.'
+        rate_limited: 'Too many ANAF lookups. Wait 1 hour or fill data manually.'
     calculation:
         interest_rate_missing: 'No BNR rate is configured for the due date. Check InterestRateConfigFixtures.'
         currency_unsupported: 'Interest calculation is only available for RON-denominated claims. Foreign-currency support will be added later.'
@@ -1179,7 +1179,7 @@ court:
         locality_unmatched_pick_manually: 'Debtor locality does not match a single local court. Please pick the competent court manually from the list.'
         locality_ambiguous: 'The locality matches multiple local courts. Please pick the correct one manually.'
         matched_judecatorie: 'Local court (judecătorie) competent per CPC art. 94 + 107 (territorial jurisdiction).'
-        matched_tribunal: 'Tribunal competent per CPC art. 95 (above 200,000 RON threshold on the total claim value with accessories — CPC art. 98).'
+        matched_tribunal: 'Tribunal competent per CPC art. 95 (above 200,000 RON threshold on the total claim value with accessories, CPC art. 98).'
         tribunal_missing: 'No active tribunal in %county%. Please contact the administrator.'
         tribunal_ambiguous: 'Multiple active tribunals in %county%. Please verify the configuration data.'
 
@@ -1189,11 +1189,11 @@ court:
 # =============================================================================
 validation:
     op_admissibility:
-        OP_BLOCKED_DEREGISTERED: 'The debtor is deregistered with ANAF — no longer has legal personality. The payment order petition is inadmissible. Verify with the Trade Registry.'
+        OP_BLOCKED_DEREGISTERED: 'The debtor is deregistered with ANAF and no longer has legal personality. The payment order petition is inadmissible. Verify with the Trade Registry.'
         OP_BLOCKED_INSOLVENCY: 'The debtor is in insolvency proceedings (Law 85/2014). The claim must be filed with the bankruptcy estate, not via a payment order.'
         OP_DEFENDANT_FISCALLY_INACTIVE: 'The debtor is declared fiscally inactive by ANAF. The payment order remains legally admissible, but the chances of recovery are low.'
         OP_ANAF_NOT_VERIFIED: 'The debtor''s ANAF status has not been verified. Look up the company by CUI before filing.'
         OP_ANAF_STALE: 'The ANAF check is older than 30 days. Re-verify the fiscal status before filing.'
         OP_INSOLVENCY_NOT_VERIFIED: 'Verify the debtor''s insolvency status on bpi.just.ro and confirm in the UI before filing (attach the BPI proof PDF).'
-        OP_INSOLVENCY_STALE: 'The BPI (insolvency) check is older than 7 days. Re-verify on bpi.just.ro and update the proof — insolvency status changes rapidly.'
-        OP_PF_BIPF_MANUAL_CHECK: 'Individual debtor: manually verify BIPF (Personal Insolvency Bulletin — Law 151/2015) on bpi.just.ro before filing.'
+        OP_INSOLVENCY_STALE: 'The BPI (insolvency) check is older than 7 days. Re-verify on bpi.just.ro and update the proof; insolvency status changes rapidly.'
+        OP_PF_BIPF_MANUAL_CHECK: 'Individual debtor: manually verify BIPF (Personal Insolvency Bulletin, Law 151/2015) on bpi.just.ro before filing.'
