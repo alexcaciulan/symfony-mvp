@@ -1,5 +1,6 @@
-{# @var message string #}
-{# @var variant string  one of: success, error, warning, info (default info) #}
+{# @var message string                — linia principală (deja tradusă) #}
+{# @var variant string                 — one of: success, error, warning, info (default info) #}
+{# @var details list<string>|null      — linii secundare opt., text mic 11px text-opacity-75 #}
 {% set palette = {
     success: 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-100',
     error:   'bg-red-50 border-red-200 text-red-800 dark:bg-red-900/30 dark:border-red-700 dark:text-red-100',
@@ -7,8 +8,17 @@
     info:    'bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-100',
 } %}
 {% set classes = palette[variant ?? 'info'] ?? palette.info %}
-<div role="status" aria-live="polite" {{ attributes.defaults({
-    class: 'pointer-events-auto border rounded-lg shadow-lg px-4 py-3 mb-2 text-sm flex items-start gap-3 max-w-sm ' ~ classes,
-}) }}>
-    <span class="flex-1">{{ message }}</span>
+{% set _base = 'pointer-events-auto border rounded-lg shadow-lg px-4 py-3 mb-2 text-sm flex items-start gap-3 max-w-sm ' ~ classes %}
+{# `attributes` e auto-injectat doar când componenta e randată prin `<twig:Toast>`;
+   cu `{% include %}` nu există. Suportăm ambele moduri (vezi base.html.twig). #}
+<div role="status" aria-live="polite"
+     {% if attributes is defined %}{{ attributes.defaults({ class: _base }) }}{% else %}class="{{ _base }}"{% endif %}>
+    <div class="flex-1">
+        <p class="font-medium">{{ message }}</p>
+        {% if details is defined and details is not null and details|length > 0 %}
+            <ul class="mt-1 text-xs opacity-75 space-y-0.5">
+                {% for line in details %}<li>{{ line }}</li>{% endfor %}
+            </ul>
+        {% endif %}
+    </div>
 </div>

@@ -378,6 +378,10 @@ wizard:
             errors_blocking: 'Admissibility errors block submission. Fix them before saving.'
             creditor_reused: 'Existing creditor reused from your catalog (same CUI).'
             success: 'Case created successfully. Number %caseNumber%.'
+            success_toast: 'Case %caseNumber% created successfully'
+            detail:
+                debtors: '%count% debtors registered'
+                total: 'Total claim: %total% RON'
         final_calculations:
             title: 'Final calculations'
         button:
@@ -567,6 +571,8 @@ case_overview:
         no_creditor: '(no creditor)'
         no_debtor: '(no debtor)'
         court_undetermined: 'Court undetermined'
+    hero:
+        next_step_badge: 'Next step'
     cta:
         generate_op: 'Generate payment order'
         actions_menu: 'Actions'

@@ -107,15 +107,32 @@
             {% endif %}
         {% endblock %}
 
-        {# Toast container — bottom-right, populated from ToastService flash bag + window 'toast:show' events.
+        {# Toast container — top-right, populated from ToastService flash bag + window 'toast:show' events.
            id="toasts" is a stable target for Turbo Streams (`<turbo-stream action="append" target="toasts">`)
-           so controllers can push transient notifications without full-page reloads. #}
+           so controllers can push transient notifications without full-page reloads.
+           Flash payload poate fi string (mesaj simplu, deja tradus / cheie i18n) sau
+           array cu structura { key, params, details: [{ key, params }] } — vezi
+           CaseWizardController::confirmation pentru exemplu. #}
         <div id="toasts"
              data-controller="toast"
-             class="fixed bottom-6 right-6 z-[9999] pointer-events-none flex flex-col items-end">
+             class="fixed top-6 right-6 z-[9999] pointer-events-none flex flex-col items-end gap-2">
             {% for variant in ['success', 'error', 'warning', 'info'] %}
-                {% for message in app.flashes('toast.' ~ variant) %}
-                    <twig:Toast message="{{ message|trans }}" variant="{{ variant }}" />
+                {% for flash in app.flashes('toast.' ~ variant) %}
+                    {% if flash is iterable and flash.key is defined %}
+                        {% set _detailLines = [] %}
+                        {% if flash.details is defined %}
+                            {% for d in flash.details %}
+                                {% set _detailLines = _detailLines|merge([d.key|trans(d.params|default({}))]) %}
+                            {% endfor %}
+                        {% endif %}
+                        {% include 'components/Toast.html.twig' with {
+                            message: flash.key|trans(flash.params|default({})),
+                            variant: variant,
+                            details: _detailLines,
+                        } only %}
+                    {% else %}
+                        <twig:Toast message="{{ flash|trans }}" variant="{{ variant }}" />
+                    {% endif %}
                 {% endfor %}
             {% endfor %}
         </div>

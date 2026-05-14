@@ -428,9 +428,27 @@ final class CaseWizardController extends AbstractController
             if ($creditorOutcome['wasReused']) {
                 $this->addFlash('info', 'wizard.step4.flash.creditor_reused');
             }
-            $this->addFlash('success', $this->trans('wizard.step4.flash.success', ['%caseNumber%' => $persisted->getCaseNumber()]));
 
-            return $this->redirectToRoute('dashboard_cases');
+            // Sumar bogat pentru toast pe overview: număr dosar (titlu) +
+            // 2 detalii (nr debitori, total cerere). Total = principal +
+            // dobândă (dacă există) + taxă timbru fixă 200 RON.
+            $totalAmount = (float) $persisted->getAmount()
+                + ($calculations['interest']?->total ?? 0.0)
+                + ($calculations['stampDuty']?->amount ?? 200.0);
+
+            $this->addFlash('toast.success', [
+                'key' => 'wizard.step4.flash.success_toast',
+                'params' => ['%caseNumber%' => $persisted->getCaseNumber()],
+                'details' => [
+                    ['key' => 'wizard.step4.flash.detail.debtors', 'params' => ['%count%' => count($debtorsDto->debtors)]],
+                    ['key' => 'wizard.step4.flash.detail.total', 'params' => ['%total%' => number_format($totalAmount, 2, ',', '.')]],
+                ],
+            ]);
+            // One-time hint pe overview: badge „Următorul pas" + pulse pe CTA
+            // „Generează cerere OP". Consumat la primul render de overview.
+            $this->addFlash('case_just_created', '1');
+
+            return $this->redirectToRoute('case_overview', ['id' => $persisted->getId()]);
         }
 
         return $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex, $sessionDocuments);

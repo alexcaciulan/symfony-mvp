@@ -16,6 +16,7 @@ use App\Repository\LegalDeadlineRepository;
 use App\Security\Voter\CaseVoter;
 use App\Service\Calculation\InterestCalculatorService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Routing\Attribute\Route;
@@ -43,7 +44,7 @@ final class CaseOverviewController extends AbstractController
     ) {}
 
     #[Route('/case/{id}', name: 'case_overview', requirements: ['id' => '\d+'], methods: ['GET'])]
-    public function __invoke(int $id): Response
+    public function __invoke(Request $request, int $id): Response
     {
         $case = $this->cases->findWithOverviewRelations($id);
         if ($case === null) {
@@ -56,6 +57,11 @@ final class CaseOverviewController extends AbstractController
         [$interestBreakdown, $breakdownError] = $this->computeBreakdown($case);
         $documents = $this->documents->findByCase($case);
 
+        // One-time „Următorul pas" badge pe CTA „Generează cerere OP" din hero,
+        // emis de CaseWizardController la submit. Flash bag e read-and-consume,
+        // deci F5 elimină badge-ul.
+        $justCreated = $request->getSession()->getFlashBag()->get('case_just_created') !== [];
+
         return $this->render('case/overview.html.twig', [
             'case' => $case,
             'deadlines' => $deadlines,
@@ -67,6 +73,7 @@ final class CaseOverviewController extends AbstractController
             'breakdown_error' => $breakdownError,
             'documents' => $documents,
             'has_communication_proof' => $this->hasCommunicationProof($documents),
+            'just_created' => $justCreated,
         ]);
     }
 

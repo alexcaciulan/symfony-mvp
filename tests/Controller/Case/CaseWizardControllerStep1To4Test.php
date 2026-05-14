@@ -236,13 +236,30 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
             ],
         ]);
 
-        self::assertResponseRedirects('/dashboard/cases');
-
         $this->em->clear();
 
         $cases = $this->em->getRepository(LegalCase::class)->findBy(['user' => $this->user]);
         self::assertCount(1, $cases);
         $case = $cases[0];
+
+        // Redirect goes to overview page (NOT dashboard_cases) — UX decision to
+        // land the lawyer on the newly-created case immediately. PLAN-DEZVOLTARE
+        // Pas 3.2 specified dashboard_cases originally; revised here.
+        self::assertResponseRedirects('/case/' . $case->getId());
+
+        // Toast flash bag carries rich structure (key + params + details list)
+        // so base.html.twig can render a multi-line toast on overview.
+        $session = $this->client->getRequest()->getSession();
+        $toastFlashes = $session->getFlashBag()->peek('toast.success');
+        self::assertCount(1, $toastFlashes);
+        self::assertIsArray($toastFlashes[0]);
+        self::assertSame('wizard.step4.flash.success_toast', $toastFlashes[0]['key']);
+        self::assertArrayHasKey('%caseNumber%', $toastFlashes[0]['params']);
+        self::assertCount(2, $toastFlashes[0]['details']);
+
+        // One-time „Următorul pas" hint on overview hero CTA.
+        self::assertNotEmpty($session->getFlashBag()->peek('case_just_created'));
+
         self::assertSame('1000.00', $case->getAmount());
         self::assertSame('RON', $case->getCurrency());
         self::assertSame(RelationshipType::COMERCIAL, $case->getRelationshipType());
@@ -262,6 +279,46 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         self::assertArrayHasKey('fields_manual', $newData);
         self::assertArrayHasKey('extractedDocIds', $newData);
         self::assertArrayHasKey('admissibility_warnings', $newData);
+    }
+
+    public function testOverviewAfterWizardSubmitRendersJustCreatedBadgeOnce(): void
+    {
+        // Regression for the wizard → overview UX flow: the first GET on
+        // /case/{id} after wizard submit must show the „Următorul pas" badge
+        // (flash bag consumed); subsequent F5 must drop it.
+        $this->primeSessionForStep4(
+            personType: PersonType::PJ,
+            anafStatus: AnafStatus::ACTIV,
+            anafCheckedAt: new \DateTimeImmutable('-1 day'),
+            insolvencyCheckedAt: new \DateTimeImmutable('-1 day'),
+        );
+
+        $crawler = $this->client->request('GET', '/case/new/confirmation');
+        $token = $crawler->filter('form input[name="step4_confirmation[_token]"]')->first()->attr('value');
+
+        $this->client->request('POST', '/case/new/confirmation', [
+            'step4_confirmation' => [
+                '_token' => $token,
+                'acceptTerms' => '1',
+                'acceptDataAccuracy' => '1',
+            ],
+        ]);
+
+        // Follow redirect → first GET on overview. Badge must be rendered.
+        $this->client->followRedirect();
+        self::assertResponseIsSuccessful();
+        $firstHtml = $this->client->getResponse()->getContent();
+        self::assertStringContainsString('Următorul pas', $firstHtml, 'next-step badge must appear after wizard submit');
+        self::assertStringContainsString('soft-pulse-once', $firstHtml, 'CTA must carry soft-pulse-once animation class');
+
+        // Second GET on same overview → badge gone (flash bag was consumed).
+        $cases = $this->em->getRepository(LegalCase::class)->findBy(['user' => $this->user]);
+        self::assertCount(1, $cases);
+        $this->client->request('GET', '/case/' . $cases[0]->getId());
+        self::assertResponseIsSuccessful();
+        $secondHtml = $this->client->getResponse()->getContent();
+        self::assertStringNotContainsString('Următorul pas', $secondHtml);
+        self::assertStringNotContainsString('soft-pulse-once', $secondHtml);
     }
 
     public function testConfirmationSubmitReusesExistingCreditorOnUserCuiUnique(): void
@@ -295,12 +352,14 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
             ],
         ]);
 
-        self::assertResponseRedirects('/dashboard/cases');
-
         $this->em->clear();
         $creditors = $this->em->getRepository(Creditor::class)->findBy(['user' => $this->user]);
         self::assertCount(1, $creditors, 'No duplicate creditor on UNIQUE(user, cui) reuse');
         self::assertSame($existingId, $creditors[0]->getId());
+
+        $cases = $this->em->getRepository(LegalCase::class)->findBy(['user' => $this->user]);
+        self::assertCount(1, $cases);
+        self::assertResponseRedirects('/case/' . $cases[0]->getId());
     }
 
     public function testConfirmationGetBlocksWhenInsolvencyNotVerified(): void
@@ -355,11 +414,10 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
             ],
         ]);
 
-        self::assertResponseRedirects('/dashboard/cases');
-
         $this->em->clear();
         $fresh = $this->em->find(Document::class, $docId);
         self::assertNotNull($fresh->getLegalCase(), 'Document must be attached to the new LegalCase');
+        self::assertResponseRedirects('/case/' . $fresh->getLegalCase()->getId());
     }
 
     /**

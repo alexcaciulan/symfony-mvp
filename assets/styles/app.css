@@ -87,6 +87,13 @@ html.dark body {
     animation: soft-pulse 2.4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+/* One-shot variant for "next step" highlights (wizard submit landing on
+   overview). Pulses ~6× (≈14s total) then settles. Used on CTA „Generează
+   cerere OP" din hero overview când utilizatorul tocmai a creat dosarul. */
+.soft-pulse-once {
+    animation: soft-pulse 2.4s cubic-bezier(0.4, 0, 0.6, 1) 6;
+}
+
 /* Ring-fill animation for SVG circle progress on Active Deadline card (Pas 4.0.3).
    Starts from full circumference (226 = 2 * PI * 36) and animates to the target offset
    passed via inline `style="--ring-target: <value>"`. The cubic-bezier produces a slight

@@ -378,6 +378,10 @@ wizard:
             errors_blocking: 'Există erori de admisibilitate. Corectează-le înainte de a salva.'
             creditor_reused: 'Creditor existent reutilizat din catalogul tău (același CUI).'
             success: 'Dosar creat cu succes. Număr %caseNumber%.'
+            success_toast: 'Dosar %caseNumber% creat cu succes'
+            detail:
+                debtors: '%count% debitori înregistrați'
+                total: 'Total cerere: %total% RON'
         final_calculations:
             title: 'Calcule finale'
         button:
@@ -569,6 +573,8 @@ case_overview:
         no_creditor: '(fără creditor)'
         no_debtor: '(fără debitor)'
         court_undetermined: 'Instanță needeterminată'
+    hero:
+        next_step_badge: 'Următorul pas'
     cta:
         generate_op: 'Generează cerere OP'
         actions_menu: 'Acțiuni'

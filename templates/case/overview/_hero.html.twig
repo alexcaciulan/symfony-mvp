@@ -37,12 +37,25 @@
             </div>
 
             <div class="flex items-center gap-2 self-start">
-                <button type="button"
-                        data-hs-overlay="#hs-modal-cerere-op"
-                        class="py-2 px-3.5 inline-flex items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 transition shadow-sm">
-                    {{ icon_document('size-4') }}
-                    {{ 'case_overview.cta.generate_op'|trans }}
-                </button>
+                <div class="relative">
+                    <button type="button"
+                            data-hs-overlay="#hs-modal-cerere-op"
+                            class="py-2 px-3.5 inline-flex items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 transition shadow-sm
+                                   {% if just_created|default(false) %}ring-2 ring-offset-2 ring-emerald-400 dark:ring-offset-slate-900 soft-pulse-once{% endif %}">
+                        {{ icon_document('size-4') }}
+                        {{ 'case_overview.cta.generate_op'|trans }}
+                    </button>
+                    {% if just_created|default(false) %}
+                        {# One-time hint emis de wizard submit. Flash bag `case_just_created`
+                           e consumat la primul GET pe overview, deci la F5 dispare. #}
+                        <span class="absolute -top-2 -right-2 inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-emerald-500 text-white rounded-full shadow-md">
+                            <svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5-5 5M6 12h12"/>
+                            </svg>
+                            {{ 'case_overview.hero.next_step_badge'|trans }}
+                        </span>
+                    {% endif %}
+                </div>
 
                 <div class="hs-dropdown relative inline-flex">
                     <button id="hs-case-actions-dropdown"
