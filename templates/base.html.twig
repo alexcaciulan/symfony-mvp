@@ -115,6 +115,7 @@
            CaseWizardController::confirmation pentru exemplu. #}
         <div id="toasts"
              data-controller="toast"
+             data-toast-close-label-value="{{ 'common.close'|trans }}"
              class="fixed top-6 right-6 z-[9999] pointer-events-none flex flex-col items-end gap-2">
             {% for variant in ['success', 'error', 'warning', 'info'] %}
                 {% for flash in app.flashes('toast.' ~ variant) %}

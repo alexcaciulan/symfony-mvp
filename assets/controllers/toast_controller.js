@@ -10,6 +10,9 @@ const VARIANT_CLASSES = {
 export default class extends Controller {
     static values = {
         timeout: { type: Number, default: 4000 },
+        // Translated label for the close button — passed from base.html.twig
+        // via `data-toast-close-label-value="{{ 'common.close'|trans }}"`.
+        closeLabel: { type: String, default: 'Close' },
     };
 
     connect() {
@@ -34,10 +37,11 @@ export default class extends Controller {
             // Skip dacă deja are buton de close (toast dinamic).
             if (node.querySelector('button[data-toast-close]')) return;
 
-            // Buton close manual.
+            // Buton close manual (label tradus, vine via `data-toast-close-label-value`
+            // pe containerul `#toasts` din base.html.twig).
             const close = document.createElement('button');
             close.type = 'button';
-            close.setAttribute('aria-label', 'Închide');
+            close.setAttribute('aria-label', this.closeLabelValue);
             close.setAttribute('data-toast-close', '');
             close.className = 'opacity-60 hover:opacity-100 ml-2';
             close.innerHTML = '&times;';
@@ -58,7 +62,7 @@ export default class extends Controller {
         node.className = `pointer-events-auto border rounded-lg shadow-lg px-4 py-3 mb-2 text-sm flex items-start gap-3 max-w-sm ${classes}`;
         node.setAttribute('role', variant === 'error' ? 'alert' : 'status');
         node.setAttribute('aria-live', variant === 'error' ? 'assertive' : 'polite');
-        node.innerHTML = `<span class="flex-1">${this._escape(message)}</span><button type="button" class="opacity-60 hover:opacity-100" aria-label="Închide">&times;</button>`;
+        node.innerHTML = `<span class="flex-1">${this._escape(message)}</span><button type="button" class="opacity-60 hover:opacity-100" aria-label="${this._escape(this.closeLabelValue)}" data-toast-close>&times;</button>`;
         node.querySelector('button').addEventListener('click', () => node.remove());
         this.element.appendChild(node);
         if (this.timeoutValue > 0) {
