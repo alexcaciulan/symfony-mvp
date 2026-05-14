@@ -6,12 +6,15 @@ namespace App\Tests\DTO\Wizard;
 
 use App\DTO\Wizard\Step2DebtorEntry;
 use App\Enum\PersonType;
+use App\Tests\Shared\ViolationAssertions;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\Validator\ConstraintViolationListInterface;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 final class Step2DebtorEntryTest extends KernelTestCase
 {
+    use ViolationAssertions;
+
     private ValidatorInterface $validator;
 
     protected function setUp(): void
@@ -191,46 +194,4 @@ final class Step2DebtorEntryTest extends KernelTestCase
         return $out;
     }
 
-    private static function assertViolation(
-        ConstraintViolationListInterface $violations,
-        string $expectedPath,
-        string $expectedTemplate,
-    ): void {
-        foreach ($violations as $v) {
-            if ($v->getPropertyPath() === $expectedPath && $v->getMessageTemplate() === $expectedTemplate) {
-                self::assertTrue(true);
-
-                return;
-            }
-        }
-
-        $debug = [];
-        foreach ($violations as $v) {
-            $debug[] = sprintf('%s: %s', $v->getPropertyPath(), $v->getMessageTemplate());
-        }
-
-        self::fail(sprintf(
-            'Expected violation "%s" on property "%s" but got: %s',
-            $expectedTemplate,
-            $expectedPath,
-            $debug ? implode(' | ', $debug) : '(no violations)',
-        ));
-    }
-
-    private static function assertNoViolation(
-        ConstraintViolationListInterface $violations,
-        string $forbiddenPath,
-    ): void {
-        foreach ($violations as $v) {
-            if ($v->getPropertyPath() === $forbiddenPath) {
-                self::fail(sprintf(
-                    'Unexpected violation on property "%s": %s',
-                    $forbiddenPath,
-                    $v->getMessageTemplate(),
-                ));
-            }
-        }
-
-        self::assertTrue(true);
-    }
 }

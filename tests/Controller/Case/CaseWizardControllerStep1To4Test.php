@@ -157,6 +157,43 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         self::assertStringContainsString('Numărul ONRC al debitorului este obligatoriu', $html);
     }
 
+    public function testClaimPostWithMissingRequiredFieldsRendersValidationErrorsAndDoesNotAdvance(): void
+    {
+        // Equivalent to testDebtorPostWithEmptyFields — verifies that Step 3's
+        // ComponentWithFormTrait refactor preserves controller-side validation
+        // errors across the LC re-render boundary.
+        $debtorBag = $this->primeSessionForClaimStep();
+        self::assertTrue($debtorBag, 'session bag must be primed');
+
+        $crawler = $this->client->request('GET', '/case/new/claim');
+        $token = $crawler->filter('input[name="step3_claim[_token]"]')->first()->attr('value');
+
+        // POST with empty amount + dueDate → DTO Asserts fire. Currency stays
+        // 'RON' because Step3ClaimData::$currency is non-nullable string; we
+        // exercise the optional-but-validated paths.
+        $this->client->request('POST', '/case/new/claim', [
+            'step3_claim' => [
+                '_token' => $token,
+                'amount' => '',
+                'currency' => 'RON',
+                'dueDate' => '',
+                'relationshipType' => 'COMERCIAL',
+            ],
+        ]);
+
+        // Symfony 7 returns 422 on invalid submissions; controller stays on /claim.
+        self::assertSame(422, $this->client->getResponse()->getStatusCode());
+
+        $html = $this->client->getResponse()->getContent();
+        // Required-amount + required-currency + required-due-date errors all
+        // surface inline via field_errors macro (controller-validated form
+        // propagates through Step3ClaimLiveComponent re-render via the
+        // ComponentWithFormTrait `form` arg). RO strings come from
+        // translations/validators.ro.yaml.
+        self::assertStringContainsString('Introdu suma datorată', $html);
+        self::assertStringContainsString('Introdu data scadenței', $html);
+    }
+
     public function testConfirmationGetWithoutPriorStepsRedirectsToCreditor(): void
     {
         $this->client->request('GET', '/case/new/confirmation');
@@ -468,5 +505,39 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
             'claim' => $claim,
         ]);
         $session->save();
+    }
+
+    /**
+     * Primes session for /claim GET (creditor + debtors only — claim left null
+     * so the form renders empty and the user can POST an invalid payload).
+     */
+    private function primeSessionForClaimStep(): bool
+    {
+        $creditor = new Step1CreditorData(
+            personType: PersonType::PJ,
+            name: 'Acme Creditor SRL',
+            cui: 'RO15193236',
+            onrcNumber: 'J40/1234/2018',
+            address: 'Str. Exemplu nr. 1, București',
+        );
+        $debtor = new Step2DebtorEntry(
+            personType: PersonType::PJ,
+            name: 'Acme Debtor SRL',
+            cui: 'RO14186770',
+            onrcNumber: 'J40/8765/2019',
+            address: 'Str. Debitor nr. 2, Cluj-Napoca',
+        );
+
+        $this->client->request('GET', '/case/new/documents');
+        $session = $this->client->getRequest()->getSession();
+        $session->set(self::SESSION_KEY, [
+            'documentIds' => [],
+            'creditor' => $creditor,
+            'debtors' => new Step2DebtorsData([$debtor]),
+            'claim' => null,
+        ]);
+        $session->save();
+
+        return true;
     }
 }

@@ -1,21 +1,8 @@
 /* stimulusFetch: 'lazy' */
 import { Controller } from '@hotwired/stimulus';
 
-// Autosave controller — debounced POST on form `blur`/`change`, with a status
-// indicator (saved-at / save error / network error).
-//
-// Status messages are i18n-aware: pass translated strings from the template
-// via Stimulus values, e.g.
-//   data-controller="autosave"
-//   data-autosave-url-value="{{ path('whatever_autosave') }}"
-//   data-autosave-saved-label-value="{{ 'autosave.saved_at'|trans }}"
-//   data-autosave-save-error-label-value="{{ 'autosave.save_error'|trans }}"
-//   data-autosave-network-error-label-value="{{ 'autosave.network_error'|trans }}"
-//
-// `savedLabel` is interpolated with `%time%` so the template controls the
-// formatting (e.g. "Salvat la %time%" → "Salvat la 14:32"). The English
-// defaults below are fallbacks for cases where the template forgets to wire
-// the value.
+// Debounced autosave on form blur/change. Status labels are i18n-aware via
+// Stimulus values; `savedLabel` supports `%time%` interpolation.
 export default class extends Controller {
     static targets = ['indicator'];
     static values = {

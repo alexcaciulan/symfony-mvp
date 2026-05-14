@@ -1,19 +1,7 @@
 import { Controller } from '@hotwired/stimulus';
 
-// Re-initializes Preline UI components (accordion / dropdown / modal / etc.)
-// on:
-//  - first connect (page load)
-//  - turbo:load (Turbo navigations)
-//  - live:connect (Symfony UX LiveComponent initial mount)
-//  - DOM subtree mutations under document.body — Symfony UX LiveComponent uses
-//    morphdom to swap children on re-render but does NOT dispatch a DOM event.
-//    Without re-init, accordions/modals inside a LC silently stop working after
-//    the first data-model update. The MutationObserver fires for every morphed
-//    subtree; debounced to coalesce bursts (typing into a debounced data-model
-//    field can trigger several mutations in rapid succession).
-//
-// Performance: HSStaticMethods.autoInit() is idempotent — already-bound nodes
-// are skipped. Worst case is a no-op walk; cheap enough to debounce at 50ms.
+// Re-init Preline after Turbo/LiveComponent connects AND after morphdom DOM
+// swaps (no `live:render` event exists, so MutationObserver + 50ms debounce).
 export default class extends Controller {
     connect() {
         this._handler = () => this._scheduleReinit();

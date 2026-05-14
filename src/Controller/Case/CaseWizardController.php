@@ -431,10 +431,12 @@ final class CaseWizardController extends AbstractController
 
             // Sumar bogat pentru toast pe overview: număr dosar (titlu) +
             // 2 detalii (nr debitori, total cerere). Total = principal +
-            // dobândă (dacă există) + taxă timbru fixă 200 RON.
+            // dobândă (dacă există) + taxă timbru. Fallback la calculator-ul
+            // injectat (OUG 80/2013 art. 6 alin 2 — 200 RON fix); evită magic
+            // numbers in cod cand cleanest source-of-truth e DI param-ul.
             $totalAmount = (float) $persisted->getAmount()
                 + ($calculations['interest']?->total ?? 0.0)
-                + ($calculations['stampDuty']?->amount ?? 200.0);
+                + ($calculations['stampDuty']?->amount ?? $this->stampDutyCalculator->calculate()->amount);
 
             $this->addFlash('toast.success', [
                 'key' => 'wizard.step4.flash.success_toast',
