@@ -41,6 +41,12 @@
                 <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">{{ 'wizard.step3.section.main_data'|trans }}</h3>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {# data-model bindings come from the form-level `on(change)|*`
+                       attribute auto-applied by ComponentWithFormTrait — on blur of
+                       any field the LC re-renders and the sidebar recomputes. No
+                       per-field data-model needed (and ones referencing standalone
+                       LiveProps would silently no-op now that the props live in
+                       `formValues`). #}
                     <div>
                         {{ f.field_label(form.amount, 'wizard.step3.field.amount', false, true) }}
                         <div class="relative">
@@ -48,7 +54,6 @@
                                 class: f.input_classes(form.amount, 'pr-14 tnum')|trim,
                                 inputmode: 'decimal',
                                 placeholder: '47500.00',
-                                'data-model': 'debounce(300)|amount',
                             }}) }}
                             <span class="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500 dark:text-slate-400 pointer-events-none">{{ currency }}</span>
                         </div>
@@ -59,7 +64,6 @@
                         {{ f.field_label(form.currency, 'wizard.step3.field.currency', false, true) }}
                         {{ form_widget(form.currency, { attr: {
                             class: f.input_classes(form.currency)|trim,
-                            'data-model': 'currency',
                         }}) }}
                         {{ f.field_errors(form.currency) }}
                     </div>
@@ -68,7 +72,6 @@
                         {{ f.field_label(form.dueDate, 'wizard.step3.field.due_date', false, true) }}
                         {{ form_widget(form.dueDate, { attr: {
                             class: f.input_classes(form.dueDate)|trim,
-                            'data-model': 'debounce(300)|dueDate',
                         }}) }}
                         <p class="mt-1 text-[11px] text-slate-500">{{ 'wizard.step3.help.due_date'|trans }}</p>
                         {{ f.field_errors(form.dueDate) }}
@@ -91,7 +94,6 @@
                         <div class="relative flex rounded-lg border-2 border-blue-500 bg-gradient-to-br from-blue-50 to-blue-100/30 dark:from-blue-950/30 p-3">
                             {{ form_widget(form.relationshipType, { attr: {
                                 'class': 'sr-only',
-                                'data-model': 'relationshipType',
                             }}) }}
                             <div class="flex flex-col">
                                 <span class="text-sm font-bold text-blue-900 dark:text-blue-200">{{ 'enum.relationship_type.COMERCIAL'|trans }}</span>

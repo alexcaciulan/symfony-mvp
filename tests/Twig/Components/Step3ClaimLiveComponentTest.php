@@ -141,6 +141,27 @@ final class Step3ClaimLiveComponentTest extends WebTestCase
         self::assertSame(200.0, $stampDuty->amount, 'OUG 80/2013 art. 6 alin. 2 — fixed 200 RON for OP cases.');
     }
 
+    public function testRenderedFormCarriesLiveDataModelForReRenderOnChange(): void
+    {
+        // Sanity guard for the "live recalc on field change" UX: the form tag
+        // must carry the `data-model="on(change)|*"` auto-applied by
+        // ComponentWithFormTrait, otherwise the sidebar wouldn't recompute
+        // when the user edits amount/dueDate/currency.
+        $testComponent = $this->createLiveComponent('Step3ClaimLiveComponent', [
+            'initialFormData' => new Step3ClaimData(
+                amount: 1000.0,
+                currency: 'RON',
+                dueDate: new \DateTimeImmutable('-30 days'),
+                relationshipType: RelationshipType::COMERCIAL,
+            ),
+        ]);
+
+        $html = $testComponent->render()->toString();
+
+        self::assertStringContainsString('data-model="on(change)|*"', $html);
+        self::assertStringContainsString('id="step3-claim-form"', $html);
+    }
+
     public function testMissingAmountReturnsNullInterest(): void
     {
         $testComponent = $this->createLiveComponent('Step3ClaimLiveComponent', [
