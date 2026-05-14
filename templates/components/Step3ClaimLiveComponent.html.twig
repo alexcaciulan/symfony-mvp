@@ -190,7 +190,7 @@
                                     <tbody class="divide-y divide-white/10">
                                         {% for p in interest.breakdown %}
                                             <tr>
-                                                <td class="px-3 py-1.5 text-white/80">{{ p.startDate|date('d.m') }} → {{ p.endDate|date('d.m.y') }}</td>
+                                                <td class="px-3 py-1.5 text-white/80 tnum">{{ p.startDate|date('d.m.y') }} → {{ p.endDate|date('d.m.y') }}</td>
                                                 <td class="px-2 py-1.5 text-right tnum">{{ p.applicableRate|number_format(2) }}%</td>
                                                 <td class="px-3 py-1.5 text-right tnum">{{ p.periodInterest|number_format(2) }}</td>
                                             </tr>
