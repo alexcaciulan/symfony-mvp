@@ -24,8 +24,11 @@ export default class extends Controller {
     static targets = ['cui', 'name', 'address', 'anafStatus', 'anafCheckedAt', 'badge', 'spinner'];
     static values = {
         url: String,
-        invalidMsg: { type: String, default: 'CUI invalid.' },
-        unavailableMsg: { type: String, default: 'ANAF indisponibil. Reîncearcă.' },
+        // English fallbacks — actual user-facing text vine via template:
+        //   data-debtor-anaf-lookup-invalid-msg-value="{{ 'exception.anaf.cui_invalid'|trans }}"
+        //   data-debtor-anaf-lookup-unavailable-msg-value="{{ 'exception.anaf.unavailable'|trans }}"
+        invalidMsg: { type: String, default: 'Invalid CUI.' },
+        unavailableMsg: { type: String, default: 'ANAF unavailable. Please retry.' },
     };
 
     async lookup() {

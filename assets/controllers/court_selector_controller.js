@@ -27,7 +27,7 @@ export default class extends Controller {
         if (!county) {
             const option = document.createElement('option');
             option.value = '';
-            option.textContent = courtSelect.dataset.placeholder || '-- Selectați instanța --';
+            option.textContent = courtSelect.dataset.placeholder || '-- Select court --';
             courtSelect.appendChild(option);
             return;
         }
@@ -40,7 +40,7 @@ export default class extends Controller {
 
             const placeholder = document.createElement('option');
             placeholder.value = '';
-            placeholder.textContent = courtSelect.dataset.placeholder || '-- Selectați instanța --';
+            placeholder.textContent = courtSelect.dataset.placeholder || '-- Select court --';
             courtSelect.appendChild(placeholder);
 
             courts.forEach(court => {

@@ -1,11 +1,29 @@
 /* stimulusFetch: 'lazy' */
 import { Controller } from '@hotwired/stimulus';
 
+// Autosave controller — debounced POST on form `blur`/`change`, with a status
+// indicator (saved-at / save error / network error).
+//
+// Status messages are i18n-aware: pass translated strings from the template
+// via Stimulus values, e.g.
+//   data-controller="autosave"
+//   data-autosave-url-value="{{ path('whatever_autosave') }}"
+//   data-autosave-saved-label-value="{{ 'autosave.saved_at'|trans }}"
+//   data-autosave-save-error-label-value="{{ 'autosave.save_error'|trans }}"
+//   data-autosave-network-error-label-value="{{ 'autosave.network_error'|trans }}"
+//
+// `savedLabel` is interpolated with `%time%` so the template controls the
+// formatting (e.g. "Salvat la %time%" → "Salvat la 14:32"). The English
+// defaults below are fallbacks for cases where the template forgets to wire
+// the value.
 export default class extends Controller {
     static targets = ['indicator'];
     static values = {
         url: String,
         debounce: { type: Number, default: 500 },
+        savedLabel: { type: String, default: 'Saved at %time%' },
+        saveErrorLabel: { type: String, default: 'Save failed' },
+        networkErrorLabel: { type: String, default: 'Network error' },
     };
 
     connect() {
@@ -38,12 +56,12 @@ export default class extends Controller {
                 headers: { 'X-Requested-With': 'XMLHttpRequest' },
             });
             if (response.ok) {
-                this._setIndicator(`Salvat la ${this._now()}`);
+                this._setIndicator(this.savedLabelValue.replace('%time%', this._now()));
             } else {
-                this._setIndicator('Eroare la salvare', true);
+                this._setIndicator(this.saveErrorLabelValue, true);
             }
         } catch (e) {
-            this._setIndicator('Eroare de rețea', true);
+            this._setIndicator(this.networkErrorLabelValue, true);
         }
     }
 

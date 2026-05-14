@@ -52,9 +52,12 @@ export default class extends Controller {
     }
 
     _emitToast(status) {
+        // English fallbacks — templatele wire RO via:
+        //   data-toast-completed="{{ 'wizard.step0.toast.completed'|trans }}"
+        //   data-toast-failed="{{ 'wizard.step0.toast.failed'|trans }}"
         const toastMessage = status === 'COMPLETED'
-            ? (this.element.dataset.toastCompleted || 'Document procesat')
-            : (this.element.dataset.toastFailed || 'Extracție eșuată — completează manual');
+            ? (this.element.dataset.toastCompleted || 'Document processed')
+            : (this.element.dataset.toastFailed || 'Extraction failed — please fill in manually');
         window.dispatchEvent(new CustomEvent('toast:show', {
             detail: { message: toastMessage, variant: status === 'COMPLETED' ? 'success' : 'warning' },
         }));
