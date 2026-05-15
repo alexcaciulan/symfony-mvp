@@ -10,7 +10,6 @@ use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Entity\User;
 use App\Enum\CaseStatus;
-use App\Enum\DeadlinePriority;
 use App\Enum\DeadlineType;
 use App\Enum\DocumentType;
 use App\Enum\ExtractionStatus;
@@ -228,15 +227,18 @@ class SeedDemoCasesCommand extends Command
      */
     private function deadlinesFor(CaseStatus $status, \DateTimeImmutable $now, LegalCase $case): iterable
     {
+        // Prioritatea derivă din `DeadlineType::defaultPriority()` (aliniat cu
+        // ANALIZA-FLUXURI section 8). Aici doar tipul + offsetul + descrierea
+        // demo sunt configurabile per status.
         $deadlines = match ($status) {
             CaseStatus::AMIABIL => [
-                ['type' => DeadlineType::RASPUNS_SOMATIE, 'offset' => 30, 'priority' => DeadlinePriority::MEDIUM, 'desc' => 'Termen estimativ răspuns somație'],
+                ['type' => DeadlineType::RASPUNS_SOMATIE, 'offset' => 30, 'desc' => 'Termen estimativ răspuns somație'],
             ],
             CaseStatus::SOMATIE_TRIMISA => [
-                ['type' => DeadlineType::RASPUNS_SOMATIE, 'offset' => 5, 'priority' => DeadlinePriority::HIGH, 'desc' => 'Răspuns somație (urgent)'],
+                ['type' => DeadlineType::RASPUNS_SOMATIE, 'offset' => 5, 'desc' => 'Răspuns somație (urgent)'],
             ],
             CaseStatus::ORDONANTA_EMISA => [
-                ['type' => DeadlineType::CERERE_IN_ANULARE, 'offset' => 10, 'priority' => DeadlinePriority::HIGH, 'desc' => 'Termen cerere în anulare ordonanță'],
+                ['type' => DeadlineType::CERERE_IN_ANULARE, 'offset' => 10, 'desc' => 'Termen cerere în anulare ordonanță'],
             ],
             default => [],
         };
@@ -246,7 +248,7 @@ class SeedDemoCasesCommand extends Command
             $deadline->setLegalCase($case);
             $deadline->setType($d['type']);
             $deadline->setDeadlineDate(new \DateTimeImmutable($now->modify(sprintf('%+d days', $d['offset']))->format('Y-m-d')));
-            $deadline->setPriority($d['priority']);
+            $deadline->setPriority($d['type']->defaultPriority());
             $deadline->setDescription($d['desc']);
             $deadline->setCompleted(false);
             yield $deadline;

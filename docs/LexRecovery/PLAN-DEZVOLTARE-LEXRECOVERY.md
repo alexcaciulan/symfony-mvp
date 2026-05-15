@@ -76,7 +76,7 @@
 | 4.1 | Termene | `DeadlineService` (creare automată somație/cerere în anulare/prescripție) | 0.5z | 1.1 | 0% | ⏳ |
 | 4.2 | Termene | `DeadlineCreationSubscriber` + refactor `CaseWorkflowSubscriber`→`CaseWorkflowSubscriber` | 0.5z | 4.1, 1.3 | 80% | ⏳ |
 | 4.3 | Termene | UI tab "Termene" în view dosar + mark complete | 0.5z | 4.1 | 0% | ⏳ |
-| 5.1 | PDF | `PaymentNoticeGeneratorService` + template `payment_notice.html.twig` | 0.5z | 1.1 | 80% | ⏳ |
+| 5.1 | PDF | `PaymentNoticeGeneratorService` + template `payment_notice.html.twig` + `CaseSummonsController` POST + modal C4 + alert dovadă | 0.5z | 1.1 | 80% | ✅ DONE 2026-05-15 (`af1ca63`) — **salt user peste 4.1-4.3**; cleanup legacy `PdfGeneratorService` (BROKEN); 11 teste verzi; deferred W1 legal (rename `paymentNoticeDate`) la 4.1 |
 | 5.2 | PDF | `PaymentOrderRequestGeneratorService` + opis + `CaseFilesPackager` | 1z | 5.1 | 50% | ⏳ |
 | 6.1 | Monitorizare | `PortalMonitoringSubscriber` + adaptare `CaseMonitoringService`/`PortalEventDetector` | 0.5z | 1.1, 1.3 | 95% | ⏳ |
 | 6.2 | Monitorizare | `DeadlineAlertService` + `app:check-deadlines` + `app:portal-check-all` | 0.75z | 4.1, 6.1 | 70% | ⏳ |
@@ -1861,6 +1861,18 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 
 **Rezultat**: _(va fi completat la marcarea ca DONE)_
 
+> 🔴 **DEFERRED de la Pas 5.1 (2026-05-15) — W1 LEGAL OBLIGATORIU**:
+>
+> `LegalCase.paymentNoticeDate` stocat la generare PDF în Pas 5.1 = **data generării**, NU data comunicării efective către debitor. Termenul legal de 15 zile (CPC art. 1015 alin. 1) curge de la **PRIMIRE** de către debitor, NU de la data tranziției `AMIABIL → SOMATIE_TRIMISA`.
+>
+> Recomandare obligatorie la implementare Pas 4.1:
+> - Opțiunea A (schema change): rename `LegalCase.paymentNoticeDate` → split în `paymentNoticeGeneratedAt` (deja setat la 5.1) + `paymentNoticeSentAt` (nullable, populat când avocatul atașează `DOVADA_COMUNICARE` cu metadata `communicationDate`). `createPaymentNoticeDeadline()` folosește `paymentNoticeSentAt` (NU `paymentNoticeGeneratedAt`) pentru calculul +15 zile.
+> - Opțiunea B (Document metadata): adaugă pe `Document` cu type `DOVADA_COMUNICARE` un câmp `communicationDate` (DATE_IMMUTABLE) populat la upload (cuplaj cu C4 split `DOVADA_COMUNICARE_EXECUTOR` / `DOVADA_COMUNICARE_AR_CD`). `createPaymentNoticeDeadline()` caută Document-ul și folosește `communicationDate`.
+>
+> Decizia A vs B se ia la planificarea 4.1 (Opțiunea B aliniată cu split DocumentType cerut tot la Pas 5.1 C4 — economie de schemă; Opțiunea A mai simplă semantic dar dublează câmpul pe LegalCase).
+>
+> Detalii: vezi `~/.claude/projects/-Users-alexc-Downloads-myprojects-symfony-mvp/memory/project_lexrecovery_pas_5_1.md` (secțiunea „Reviews → legal-reviewer W1").
+
 **Specificație**: secțiunea 8 din `ANALIZA-FLUXURI-LEXRECOVERY.md`.
 
 **PROMPT**:
@@ -1993,9 +2005,9 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 
 ## Faza 5: Generare documente PDF *(paralelizabilă cu Faza 6)*
 
-### PASUL 5.1 | `PaymentNoticeGeneratorService` + template | 0.5 zi | 80% reutilizare
+### PASUL 5.1 | `PaymentNoticeGeneratorService` + template | 0.5 zi | 80% reutilizare ✅ DONE 2026-05-15 (`af1ca63`)
 
-**Rezultat**: _(va fi completat la marcarea ca DONE)_
+**Rezultat**: ✅ DONE 2026-05-15 (commit `af1ca63`). **Salt user-driven peste 4.1-4.3** (UX-flow first: primul document real post-wizard, înainte de foundation termene). Livrat: `AbstractPdfGenerator` (refactor din legacy `PdfGeneratorService` care era BROKEN — refera `DocumentType::CERERE_PDF` inexistent post-pivot lexrecovery) + `PaymentNoticeGeneratorService final` extinde abstract base cu `DocumentType::SOMATIE` (NU `PAYMENT_NOTICE` — folosim enum existent din Pas 1.2) + `templates/pdf/payment_notice.html.twig` cu text verbatim CPC art. 1015 alin. 1 („prin prezenta somație vă punem în vedere să plătiți suma datorată în termen de **15 zile** de la primirea acesteia") + DejaVu Sans + A4 + format RO sume `5.000,00 RON` + footer cu C4 inline. `CaseSummonsController` `POST /case/{id}/summons/generate` cu voter `CASE_TRANSITION` (ownership only) + CSRF `generate_summons_{id}` + status guard `AMIABIL` + guard explicit `getDebtors()->isEmpty()` (W4 legal) + rate limiter dedicat `summons_generation 20/h` (NU reuse `case_creation` — semantici distincte) + `wrapInTransaction`: PDF generate → `setPaymentNoticeDate(new \DateTime())` → workflow `apply('trimite_somatie')` → `AuditLogService::log(category: CATEGORY_SUMMONS_GENERATED, newData: {documentId, caseNumber, paymentNoticeDate})` (GDPR-safe, no PII). UI overview: wire `_recommended_actions.html.twig` form POST CSRF (status==AMIABIL); `_documents_generated_list.html.twig` download dacă există SOMATIE / CTA generare dacă AMIABIL / „missing" warning dacă status avansat; modal Preline C4 `_modal_c4_summons_communication.html.twig` (executor / Poșta R+CD+AR; warning roșu curier privat Cargus/FAN/DPD NU admisibil) + Stimulus `auto-modal_controller.js` (deschidere via `window.HSOverlay.open` pe flash `show_c4_modal`) + alert amber persistent `_summons_communication_alert.html.twig` „atașează dovada comunicării" (vizibil când status==SOMATIE_TRIMISA && !DOVADA_COMUNICARE). Docblock pe `CaseStatus::SOMATIE_TRIMISA` clarifică juridic că termenul 15 zile (CPC art. 1015 alin. 1) **curge de la PRIMIRE de către debitor, NU de la data tranziției** — Pas 4.1 DeadlineService trebuie să calculeze pe baza datei comunicării efective (atașată ca dovadă), nu pe `paymentNoticeDate` (= data generării). i18n RO+EN paritate ~50 chei noi (`case_overview.summons.*` + `pdf.summons.*` + `documents.somatie_*` + `rate_limit.summons_generation`). `AuditLogService::CATEGORY_SUMMONS_GENERATED` constant + `declare(strict_types=1)`. Cleanup legacy: drop `PdfGeneratorService` + `cerere_valoare_redusa.html.twig` + `case/view.html.twig` + `_documents_section.html.twig` + `DocumentControllerTest.php` (broken — folosea metode LegalCase inexistente post-pivot) + `PdfGeneratorServiceTest.php`. Fix-uri pre-existing oportuniste flagged de legal reviewer: `portal.preview_event_1_body` (RO+EN) „contestație"/„Appeal" → „cerere în anulare"/„annulment application" (CPC art. 1024); `court.rule_hint` (RO+EN) citarea „CPC art. 1015" → „CPC art. 94 pct. 1 lit. k + art. 107" (competență materială + teritorială corectă). 11 teste verzi (6 service: 15 zile verbatim + 30 zile absent + heading „SOMAȚIE DE PLATĂ" + creditor+debtor names + Document persist + null interest no-crash; 5 controller: happy path cu AuditLog persist + caseNumber+documentId în payload + wrong status guard + CSRF reject + voter denial 403 + no-debtor guard). Suite globală: **771/29/2** vs baseline pre-Pas 5.1 769/39/2 (+9 teste, **-10 errors** prin cleanup legacy broken). Reviews legal-reviewer + code-reviewer NEEDS-FIX → all fix-uite în același commit (10 fix-uri: drop dead `total` var, drop dead Twig comment lines, add strict_types AuditLogService, new `summons_generation` limiter, debtor guard W4, docblock SOMATIE_TRIMISA, 2 i18n pre-existing fixes B1+D1, test assert SOMAȚIE DE PLATĂ heading, test assert AuditLog persist + new test no-debtor guard). **Deferred la Pas 4.1**: W1 legal — rename `paymentNoticeDate` → split în `paymentNoticeGeneratedAt` + `paymentNoticeSentAt` (impactează schemă + DeadlineService care va calcula termenul 15 zile RASPUNS_SOMATIE). Detalii: `~/.claude/projects/-Users-alexc-Downloads-myprojects-symfony-mvp/memory/project_lexrecovery_pas_5_1.md`.
 
 **PROMPT**:
 > 1. Refactorizează `src/Service/Document/PdfGeneratorService.php` în clasă abstractă `AbstractPdfGenerator` (cu logica DomPDF + persist Document).

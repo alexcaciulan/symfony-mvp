@@ -39,6 +39,23 @@ class AuditLogService
      */
     public const CATEGORY_SUMMONS_GENERATED = 'SUMMONS_GENERATED';
 
+    /**
+     * Audit category for procedural deadline creation (Pas 4.1 DeadlineService).
+     * `newData` records `deadlineId`, `type`, `caseNumber`, `baseDate`,
+     * `rawDeadline`, `deadlineDate`, `prorogated` (bool). Permite reconstrucția
+     * post-factum a calculului: ce dată a generat termenul, dacă a fost
+     * prorogat la zi lucrătoare per CPC art. 181 alin. 2.
+     */
+    public const CATEGORY_DEADLINE_CREATED = 'DEADLINE_CREATED';
+
+    /**
+     * Audit category for marking a deadline as completed (Pas 4.1
+     * DeadlineService::markCompleted). `newData` records `deadlineId`, `type`,
+     * `caseNumber`, `completedAt`. Userul care a marcat e captat prin
+     * `AuditLog.user` (Security context), nu duplicat în payload.
+     */
+    public const CATEGORY_DEADLINE_COMPLETED = 'DEADLINE_COMPLETED';
+
     public function __construct(
         private EntityManagerInterface $em,
         private Security $security,

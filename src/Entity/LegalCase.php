@@ -75,6 +75,16 @@ class LegalCase
     #[ORM\Column(type: Types::DATE_MUTABLE, nullable: true)]
     private ?\DateTimeInterface $finalRulingDate = null;
 
+    /**
+     * Data la care ordonanța de plată a fost COMUNICATĂ debitorului (NU data
+     * pronunțării). De la această dată curge termenul de 10 zile pentru cererea
+     * în anulare (CPC art. 1024 alin. 1) și — după prorogare CPC art. 181 alin.
+     * 2 + buffer 1 zi — tranziția automată la `DEFINITIVA` (cron Pas 6.2).
+     * Populat manual de avocat sau extras din portal.just.ro.
+     */
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $rulingCommunicationDate = null;
+
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     private ?string $notes = null;
 
@@ -343,6 +353,18 @@ class LegalCase
     public function setFinalRulingDate(?\DateTimeInterface $finalRulingDate): static
     {
         $this->finalRulingDate = $finalRulingDate;
+
+        return $this;
+    }
+
+    public function getRulingCommunicationDate(): ?\DateTimeImmutable
+    {
+        return $this->rulingCommunicationDate;
+    }
+
+    public function setRulingCommunicationDate(?\DateTimeImmutable $rulingCommunicationDate): static
+    {
+        $this->rulingCommunicationDate = $rulingCommunicationDate;
 
         return $this;
     }

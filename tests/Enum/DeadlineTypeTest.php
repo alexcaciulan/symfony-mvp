@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Tests\Enum;
 
 use App\Enum\DeadlinePriority;
@@ -20,13 +22,17 @@ class DeadlineTypeTest extends TestCase
         }
     }
 
-    public function testDefaultPrioritate(): void
+    public function testDefaultPriorityMatchesAnalizaFluxuriSection8(): void
     {
-        $this->assertSame(DeadlinePriority::CRITICAL, DeadlineType::CERERE_IN_ANULARE->defaultPrioritate());
-        $this->assertSame(DeadlinePriority::CRITICAL, DeadlineType::PRESCRIPTIE->defaultPrioritate());
-        $this->assertSame(DeadlinePriority::HIGH, DeadlineType::DEPUNERE_CERERE->defaultPrioritate());
-        $this->assertSame(DeadlinePriority::HIGH, DeadlineType::JUDECATA->defaultPrioritate());
-        $this->assertSame(DeadlinePriority::MEDIUM, DeadlineType::RASPUNS_SOMATIE->defaultPrioritate());
-        $this->assertSame(DeadlinePriority::MEDIUM, DeadlineType::OTHER->defaultPrioritate());
+        // ANALIZA-FLUXURI section 8 table (linii 466-471):
+        // PRESCRIPTIE + CERERE_IN_ANULARE => CRITICAL (impact juridic direct)
+        // RASPUNS_SOMATIE + DEPUNERE_CERERE => HIGH (15 zile termen procedural)
+        // JUDECATA + OTHER => MEDIUM
+        $this->assertSame(DeadlinePriority::CRITICAL, DeadlineType::CERERE_IN_ANULARE->defaultPriority());
+        $this->assertSame(DeadlinePriority::CRITICAL, DeadlineType::PRESCRIPTIE->defaultPriority());
+        $this->assertSame(DeadlinePriority::HIGH, DeadlineType::DEPUNERE_CERERE->defaultPriority());
+        $this->assertSame(DeadlinePriority::HIGH, DeadlineType::RASPUNS_SOMATIE->defaultPriority());
+        $this->assertSame(DeadlinePriority::MEDIUM, DeadlineType::JUDECATA->defaultPriority());
+        $this->assertSame(DeadlinePriority::MEDIUM, DeadlineType::OTHER->defaultPriority());
     }
 }

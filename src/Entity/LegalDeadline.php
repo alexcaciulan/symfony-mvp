@@ -39,6 +39,10 @@ class LegalDeadline
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $completedAt = null;
 
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $completedBy = null;
+
     #[ORM\Column]
     private bool $alertSent7 = false;
 
@@ -158,10 +162,32 @@ class LegalDeadline
         return $this;
     }
 
-    public function markCompleted(): static
+    public function getCompletedBy(): ?User
     {
+        return $this->completedBy;
+    }
+
+    public function setCompletedBy(?User $completedBy): static
+    {
+        $this->completedBy = $completedBy;
+
+        return $this;
+    }
+
+    /**
+     * Idempotent: ulterior la prima marcare, apelurile repetate NU schimbă
+     * `completedAt` sau `completedBy`. Astfel auditul reflectă cine a marcat
+     * efectiv primul (cazul deduplicării pe optimistic UI + retry server).
+     */
+    public function markCompleted(?User $user = null): static
+    {
+        if ($this->completed) {
+            return $this;
+        }
+
         $this->completed = true;
         $this->completedAt = new \DateTimeImmutable();
+        $this->completedBy = $user;
 
         return $this;
     }

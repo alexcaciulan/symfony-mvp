@@ -18,3 +18,8 @@ services:
     test.public.data_extraction_service:
         alias: App\Service\Extraction\DataExtractionService
         public: true
+
+    # TODO(Pas 4.2): drop after DeadlineCreationSubscriber injects DeadlineService.
+    test.public.deadline_service:
+        alias: App\Service\Deadline\DeadlineService
+        public: true

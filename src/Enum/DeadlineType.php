@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Enum;
 
 enum DeadlineType: string
@@ -16,12 +18,19 @@ enum DeadlineType: string
         return 'enum.deadline_type.' . $this->value;
     }
 
-    public function defaultPrioritate(): DeadlinePriority
+    /**
+     * Prioritatea default per tip termen, aliniată cu ANALIZA-FLUXURI secțiunea 8.
+     * RASPUNS_SOMATIE = HIGH (15 zile, CPC art. 1015 alin. 1 — ratarea înseamnă
+     * întârziere depunere cerere OP). CERERE_IN_ANULARE + PRESCRIPTIE = CRITICAL
+     * (impact juridic direct: ratare → pierdere drept material sau ordonanță
+     * neînvestită cu titlu executoriu).
+     */
+    public function defaultPriority(): DeadlinePriority
     {
         return match ($this) {
-            self::RASPUNS_SOMATIE => DeadlinePriority::MEDIUM,
+            self::RASPUNS_SOMATIE => DeadlinePriority::HIGH,
             self::DEPUNERE_CERERE => DeadlinePriority::HIGH,
-            self::JUDECATA => DeadlinePriority::HIGH,
+            self::JUDECATA => DeadlinePriority::MEDIUM,
             self::CERERE_IN_ANULARE => DeadlinePriority::CRITICAL,
             self::PRESCRIPTIE => DeadlinePriority::CRITICAL,
             self::OTHER => DeadlinePriority::MEDIUM,

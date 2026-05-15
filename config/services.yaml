@@ -57,3 +57,7 @@ services:
         arguments:
             $fixedAmount: '%app.taxa_timbru_op.fixed%'
             $lawVersion: '%app.taxa_timbru_op.law_version%'
+
+    App\Service\Deadline\WorkingDayResolver:
+        arguments:
+            $additionalHolidays: '%lexrecovery.working_days.additional_holidays%'

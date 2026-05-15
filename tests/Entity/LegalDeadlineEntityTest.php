@@ -1,9 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Tests\Entity;
 
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
+use App\Entity\User;
 use App\Enum\DeadlinePriority;
 use App\Enum\DeadlineType;
 use PHPUnit\Framework\TestCase;
@@ -17,6 +20,7 @@ class LegalDeadlineEntityTest extends TestCase
         $this->assertSame(DeadlinePriority::MEDIUM, $deadline->getPriority());
         $this->assertFalse($deadline->isCompleted());
         $this->assertNull($deadline->getCompletedAt());
+        $this->assertNull($deadline->getCompletedBy());
         $this->assertFalse($deadline->isAlertSent7());
         $this->assertFalse($deadline->isAlertSent3());
         $this->assertFalse($deadline->isAlertSent1());
@@ -50,6 +54,37 @@ class LegalDeadlineEntityTest extends TestCase
 
         $this->assertTrue($deadline->isCompleted());
         $this->assertInstanceOf(\DateTimeImmutable::class, $deadline->getCompletedAt());
+        $this->assertNull($deadline->getCompletedBy());
+    }
+
+    public function testMarkCompletedRecordsUser(): void
+    {
+        $deadline = new LegalDeadline();
+        $user = new User();
+        $user->setEmail('marker@test.com');
+
+        $deadline->markCompleted($user);
+
+        $this->assertTrue($deadline->isCompleted());
+        $this->assertSame($user, $deadline->getCompletedBy());
+    }
+
+    public function testMarkCompletedIsIdempotentOnEntity(): void
+    {
+        $deadline = new LegalDeadline();
+        $firstUser = new User();
+        $firstUser->setEmail('first@test.com');
+        $secondUser = new User();
+        $secondUser->setEmail('second@test.com');
+
+        $deadline->markCompleted($firstUser);
+        $firstCompletedAt = $deadline->getCompletedAt();
+
+        // Apel repetat — completedAt și completedBy rămân înghețate.
+        $deadline->markCompleted($secondUser);
+
+        $this->assertSame($firstCompletedAt, $deadline->getCompletedAt());
+        $this->assertSame($firstUser, $deadline->getCompletedBy());
     }
 
     public function testAlertFlagsCanBeToggled(): void

@@ -1,0 +1,9 @@
+# LexRecovery application-specific configuration.
+#
+# `working_days.additional_holidays` — date ISO-8601 (YYYY-MM-DD) declarate ca
+# sărbători legale suplimentare în plus față de Codul Muncii art. 139. Folosit
+# pentru OG-uri ad-hoc (ex: vacanță judecătorească iulie-august, zile speciale
+# declarate non-lucrătoare prin hotărâre de Guvern). `WorkingDayResolver` le va
+# prorogă identic cu sărbătorile fixe.
+parameters:
+    lexrecovery.working_days.additional_holidays: []
