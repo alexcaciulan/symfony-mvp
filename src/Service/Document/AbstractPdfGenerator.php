@@ -1,9 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Service\Document;
 
 use App\Entity\Document;
 use App\Entity\LegalCase;
+use App\Entity\User;
 use App\Enum\DocumentType;
 use Doctrine\ORM\EntityManagerInterface;
 use Dompdf\Dompdf;
@@ -11,49 +14,69 @@ use Dompdf\Options;
 use Symfony\Bundle\SecurityBundle\Security;
 use Twig\Environment;
 
-class PdfGeneratorService
+abstract class AbstractPdfGenerator
 {
     public function __construct(
-        private Environment $twig,
-        private EntityManagerInterface $em,
-        private Security $security,
-        private string $uploadsDir,
+        protected Environment $twig,
+        protected EntityManagerInterface $em,
+        protected Security $security,
+        protected string $uploadsDir,
     ) {}
 
-    public function generateCasePdf(LegalCase $case): Document
+    abstract protected function templatePath(): string;
+
+    abstract protected function documentType(): DocumentType;
+
+    abstract protected function originalFilenameFor(LegalCase $case): string;
+
+    abstract protected function storedFilenameStem(LegalCase $case): string;
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function templateContext(LegalCase $case): array
+    {
+        return [
+            'case' => $case,
+            'user' => $this->security->getUser(),
+            'today' => new \DateTimeImmutable(),
+        ];
+    }
+
+    public function renderHtml(LegalCase $case): string
+    {
+        return $this->twig->render($this->templatePath(), $this->templateContext($case));
+    }
+
+    public function generate(LegalCase $case): Document
     {
         $pdfContent = $this->renderPdf($case);
 
-        $storedFilename = 'cerere_' . $case->getId() . '.pdf';
+        $storedFilename = $this->storedFilenameStem($case) . '.pdf';
         $this->saveToDisk($case->getId(), $storedFilename, $pdfContent);
 
-        // Create Document entity
+        $uploader = $this->security->getUser();
+        if (!$uploader instanceof User) {
+            $uploader = $case->getUser();
+        }
+
         $document = new Document();
         $document->setLegalCase($case);
-        $document->setDocumentType(DocumentType::CERERE_PDF);
-        $document->setOriginalFilename('Cerere cu valoare redusă #' . $case->getId() . '.pdf');
+        $document->setDocumentType($this->documentType());
+        $document->setOriginalFilename($this->originalFilenameFor($case));
         $document->setStoredFilename('cases/' . $case->getId() . '/' . $storedFilename);
         $document->setFileSize(strlen($pdfContent));
         $document->setMimeType('application/pdf');
-        $document->setUploadedBy($case->getUser());
+        $document->setUploadedBy($uploader);
 
         $this->em->persist($document);
 
         return $document;
     }
 
-    public function regenerateCasePdf(LegalCase $case, Document $document): void
-    {
-        $pdfContent = $this->renderPdf($case);
-        $this->saveToDisk($case->getId(), basename($document->getStoredFilename()), $pdfContent);
-        $document->setFileSize(strlen($pdfContent));
-    }
-
     private function renderPdf(LegalCase $case): string
     {
-        $html = $this->twig->render('pdf/cerere_valoare_redusa.html.twig', [
-            'case' => $case,
-        ]);
+        $html = $this->renderHtml($case);
 
         $options = new Options();
         $options->setDefaultFont('DejaVu Sans');

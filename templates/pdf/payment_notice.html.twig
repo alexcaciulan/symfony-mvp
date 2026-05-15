@@ -1,0 +1,140 @@
+{# CPC art. 1015 alin. (1): „15 zile" e termen legal verbatim. NU 30 zile (Legea 72/2013 e termen contractual distinct). Nu modifica fără confirmare juridică. #}
+{% set creditor = case.creditor %}
+{% set debtor = case.debtors|first %}
+{% set principal = case.amount|default('0') %}
+{% set interest = case.calculatedInterest|default('0') %}
+{% set currency = case.currency|default('RON') %}
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ 'pdf.summons.heading'|trans }} {{ case.caseNumber }}</title>
+    <style>
+        @page { margin: 2cm 2.2cm; }
+        body { font-family: 'DejaVu Sans', sans-serif; font-size: 11pt; color: #111827; line-height: 1.45; }
+        h1 { font-size: 16pt; text-align: center; margin: 0 0 4pt 0; letter-spacing: 1pt; }
+        h2 { font-size: 11pt; margin: 16pt 0 4pt 0; text-transform: uppercase; letter-spacing: 0.5pt; color: #1f2937; border-bottom: 1px solid #d1d5db; padding-bottom: 2pt; }
+        .subheading { text-align: center; font-size: 10pt; color: #4b5563; margin: 0 0 10pt 0; }
+        .legal-basis { text-align: center; font-style: italic; font-size: 9pt; color: #6b7280; margin: 0 0 14pt 0; }
+        .meta { font-size: 9pt; color: #6b7280; }
+        .block { margin: 6pt 0; }
+        .block .label { font-weight: bold; display: inline-block; min-width: 110pt; color: #374151; }
+        .block .value { color: #111827; }
+        table.amounts { width: 100%; border-collapse: collapse; margin: 8pt 0; }
+        table.amounts th, table.amounts td { border: 1px solid #d1d5db; padding: 6pt 8pt; font-size: 10pt; }
+        table.amounts th { background: #f3f4f6; text-align: left; font-weight: bold; }
+        table.amounts td.amount { text-align: right; font-variant-numeric: tabular-nums; }
+        table.amounts tr.total td { font-weight: bold; background: #f9fafb; }
+        .deadline { background: #fef3c7; border-left: 3pt solid #d97706; padding: 8pt 10pt; margin: 12pt 0; font-size: 10.5pt; }
+        .deadline strong { color: #92400e; }
+        .signature { margin-top: 28pt; text-align: right; font-size: 10pt; }
+        .signature .line { display: block; border-top: 1px solid #9ca3af; width: 180pt; margin: 24pt 0 4pt auto; }
+        .footer { margin-top: 20pt; padding-top: 8pt; border-top: 1px dotted #d1d5db; font-size: 8.5pt; color: #6b7280; text-align: center; }
+        .caseref { text-align: right; font-size: 9pt; color: #6b7280; margin-bottom: 6pt; }
+    </style>
+</head>
+<body>
+
+<div class="caseref">{{ 'pdf.summons.case_reference'|trans }}: <strong>{{ case.caseNumber }}</strong></div>
+
+<h1>{{ 'pdf.summons.heading'|trans }}</h1>
+<p class="subheading">{{ 'pdf.summons.subheading_no'|trans({'%number%': case.caseNumber}) }}</p>
+<p class="legal-basis">{{ 'pdf.summons.legal_basis'|trans }}</p>
+
+<h2>{{ 'pdf.summons.creditor_block_title'|trans }}</h2>
+{% if creditor %}
+    <div class="block"><span class="label">{{ 'pdf.summons.field_name'|trans }}:</span> <span class="value">{{ creditor.name }}</span></div>
+    {% if creditor.cui %}
+        <div class="block"><span class="label">{{ 'pdf.summons.field_cui'|trans }}:</span> <span class="value">{{ creditor.cui }}</span></div>
+    {% endif %}
+    {% if creditor.onrcNumber %}
+        <div class="block"><span class="label">{{ 'pdf.summons.field_onrc'|trans }}:</span> <span class="value">{{ creditor.onrcNumber }}</span></div>
+    {% endif %}
+    <div class="block"><span class="label">{{ 'pdf.summons.field_address'|trans }}:</span> <span class="value">{{ creditor.address }}</span></div>
+    {% if creditor.email %}
+        <div class="block"><span class="label">{{ 'pdf.summons.field_email'|trans }}:</span> <span class="value">{{ creditor.email }}</span></div>
+    {% endif %}
+    {% if creditor.phone %}
+        <div class="block"><span class="label">{{ 'pdf.summons.field_phone'|trans }}:</span> <span class="value">{{ creditor.phone }}</span></div>
+    {% endif %}
+    {% if creditor.iban %}
+        <div class="block"><span class="label">{{ 'pdf.summons.field_iban'|trans }}:</span> <span class="value">{{ creditor.iban }}</span></div>
+    {% endif %}
+{% else %}
+    <div class="block"><span class="value">{{ 'pdf.summons.creditor_missing'|trans }}</span></div>
+{% endif %}
+
+<h2>{{ 'pdf.summons.debtor_block_title'|trans }}</h2>
+{% if debtor %}
+    <div class="block"><span class="label">{{ 'pdf.summons.field_name'|trans }}:</span> <span class="value">{{ debtor.name }}</span></div>
+    {% if debtor.cui %}
+        <div class="block"><span class="label">{{ 'pdf.summons.field_cui'|trans }}:</span> <span class="value">{{ debtor.cui }}</span></div>
+    {% endif %}
+    {% if debtor.onrcNumber %}
+        <div class="block"><span class="label">{{ 'pdf.summons.field_onrc'|trans }}:</span> <span class="value">{{ debtor.onrcNumber }}</span></div>
+    {% endif %}
+    <div class="block"><span class="label">{{ 'pdf.summons.field_address'|trans }}:</span> <span class="value">{{ debtor.address }}</span></div>
+{% else %}
+    <div class="block"><span class="value">{{ 'pdf.summons.debtor_missing'|trans }}</span></div>
+{% endif %}
+
+<h2>{{ 'pdf.summons.claim_block_title'|trans }}</h2>
+<p>{{ 'pdf.summons.claim_intro'|trans({
+    '%debtor%': debtor ? debtor.name : '—',
+    '%creditor%': creditor ? creditor.name : '—',
+}) }}</p>
+
+<table class="amounts">
+    <thead>
+        <tr>
+            <th>{{ 'pdf.summons.amount_label'|trans }}</th>
+            <th style="text-align:right">{{ 'pdf.summons.amount_value'|trans }}</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>{{ 'pdf.summons.amount_principal'|trans }}</td>
+            <td class="amount">{{ principal|number_format(2, ',', '.') }} {{ currency }}</td>
+        </tr>
+        {% if interest and interest != '0' and interest != '0.00' %}
+        <tr>
+            <td>{{ 'pdf.summons.amount_interest'|trans }}</td>
+            <td class="amount">{{ interest|number_format(2, ',', '.') }} {{ currency }}</td>
+        </tr>
+        {% endif %}
+        <tr class="total">
+            <td>{{ 'pdf.summons.amount_total'|trans }}</td>
+            <td class="amount">{{ ((principal ?: 0) + (interest ?: 0))|number_format(2, ',', '.') }} {{ currency }}</td>
+        </tr>
+    </tbody>
+</table>
+
+{% if case.dueDate %}
+    <p class="meta">{{ 'pdf.summons.due_date_note'|trans({'%date%': case.dueDate|date('d.m.Y')}) }}</p>
+{% endif %}
+
+<div class="deadline">
+    <strong>{{ 'pdf.summons.deadline_intro'|trans }}</strong>
+    {{ 'pdf.summons.subheading_15days'|trans }}
+</div>
+
+<p>{{ 'pdf.summons.consequence_note'|trans }}</p>
+
+<div class="signature">
+    <div>{{ 'pdf.summons.issued_on'|trans({'%date%': today|date('d.m.Y')}) }}</div>
+    <span class="line"></span>
+    {% if user and user.fullName %}
+        <div><strong>{{ user.fullName }}</strong></div>
+    {% endif %}
+    {% if user and user.barNumber %}
+        <div class="meta">{{ 'pdf.summons.bar_number'|trans({'%number%': user.barNumber}) }}</div>
+    {% endif %}
+    <div class="meta">{{ 'pdf.summons.signature_label'|trans }}</div>
+</div>
+
+<div class="footer">
+    {{ 'pdf.summons.footer_disclaimer'|trans }}
+</div>
+
+</body>
+</html>

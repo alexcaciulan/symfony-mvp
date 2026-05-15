@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Service;
 
 use App\Entity\AuditLog;
@@ -27,6 +29,15 @@ class AuditLogService
      * historical extraction payloads.
      */
     public const CATEGORY_WIZARD_SUBMIT = 'WIZARD_SUBMIT';
+
+    /**
+     * Audit category for somația de plată generation (Pas 5.1
+     * CaseSummonsController). `newData` records the generated `documentId`,
+     * the `caseNumber`, and the `paymentNoticeDate` set at the moment of
+     * transition AMIABIL → SOMATIE_TRIMISA. Lets us reconstruct the legal
+     * timeline for each case (when CPC art. 1015 alin. 1 was triggered).
+     */
+    public const CATEGORY_SUMMONS_GENERATED = 'SUMMONS_GENERATED';
 
     public function __construct(
         private EntityManagerInterface $em,

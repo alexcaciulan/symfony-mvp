@@ -16,22 +16,38 @@
     </header>
 
     <div class="p-3 space-y-1">
-        {# 1. Generate notice — done if status moved past AMIABIL. #}
-        <button type="button"
-                aria-disabled="true"
-                tabindex="-1"
-                title="{{ 'case_overview.tooltip.coming_soon_op'|trans }}"
-                class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg {% if summons_done %}opacity-50 cursor-not-allowed{% else %}opacity-60 cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-800/50{% endif %}">
-            <div class="size-9 rounded-lg {% if summons_done %}bg-green-100 dark:bg-green-950/40 text-green-600 dark:text-green-400{% else %}bg-slate-100 dark:bg-slate-800 text-slate-400{% endif %} flex items-center justify-center shrink-0">
-                {{ icon_check('size-4') }}
+        {# 1. Generate notice — wired POST when status==AMIABIL. After transition,
+           show as "done" with line-through + date. #}
+        {% if summons_done %}
+            <div class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg opacity-80">
+                <div class="size-9 rounded-lg bg-green-100 dark:bg-green-950/40 text-green-600 dark:text-green-400 flex items-center justify-center shrink-0">
+                    {{ icon_check('size-4') }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium text-slate-700 dark:text-slate-300 line-through decoration-1">{{ 'case_overview.recommended_actions.generate_summons'|trans }}</div>
+                    {% if summons_date %}
+                        <div class="text-[10px] text-green-600 dark:text-green-400 font-semibold uppercase tracking-wide">{{ 'case_overview.recommended_actions.generate_summons_done'|trans({'%date%': summons_date|date('d.m.Y')}) }}</div>
+                    {% endif %}
+                </div>
             </div>
-            <div class="flex-1 min-w-0">
-                <div class="text-sm font-medium text-slate-700 dark:text-slate-300 {% if summons_done %}line-through decoration-1{% endif %}">{{ 'case_overview.recommended_actions.generate_summons'|trans }}</div>
-                {% if summons_done and summons_date %}
-                    <div class="text-[10px] text-green-600 dark:text-green-400 font-semibold uppercase tracking-wide">{{ 'case_overview.recommended_actions.generate_summons_done'|trans({'%date%': summons_date|date('d.m.Y')}) }}</div>
-                {% endif %}
-            </div>
-        </button>
+        {% else %}
+            <form method="post"
+                  action="{{ path('case_summons_generate', {id: case.id}) }}"
+                  class="w-full">
+                <input type="hidden" name="_token" value="{{ csrf_token('generate_summons_' ~ case.id) }}">
+                <button type="submit"
+                        class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg bg-gradient-to-r from-amber-50 to-amber-50/50 dark:from-amber-950/30 dark:to-amber-950/10 border border-amber-200/60 dark:border-amber-900/40 hover:from-amber-100 dark:hover:from-amber-950/50 transition group">
+                    <div class="size-9 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
+                        {{ icon_check('size-4') }}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm font-semibold text-amber-900 dark:text-amber-100">{{ 'case_overview.recommended_actions.generate_summons'|trans }}</div>
+                        <div class="text-[11px] text-amber-700/80 dark:text-amber-300/80 mt-0.5">{{ 'case_overview.recommended_actions.generate_summons_hint'|trans }}</div>
+                    </div>
+                    {{ icon_chevron_right('size-4 text-amber-600 dark:text-amber-400 shrink-0') }}
+                </button>
+            </form>
+        {% endif %}
 
         {# 2. Generate payment order — RECOMMENDED, opens modal cerere-op (confirm in modal still aria-disabled). #}
         <button type="button"

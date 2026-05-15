@@ -1,7 +1,9 @@
-{# Pas 4.0.4 — Section Documente generate (3 row-uri stub). Reflectă mockup linii 634-687.
-   Toate row-urile sunt placeholder static până la Faza 6 (PDF generation) când câmpul
-   `Document.generatedByApp` + filter logic se adaugă. CTA-urile sunt aria-disabled. #}
+{# Pas 4.0.4 — Section Documente generate. Row 1 (Somație) wired la Pas 5.1.
+   Row 2 (Cerere OP) + Row 3 (Opis) rămân stub până la Pas 5.2. #}
 {% from 'case/overview/_icons.html.twig' import icon_document, icon_chevron_right %}
+
+{% set summons_doc = case.documents|filter(d => d.documentType.value == 'somatie')|first %}
+{% set summons_count = summons_doc ? 1 : 0 %}
 
 <section class="bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 overflow-hidden">
     <header class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
@@ -11,21 +13,59 @@
             </span>
             <h3 class="text-sm font-semibold text-slate-900 dark:text-white">{{ 'case_overview.documents.generated_title'|trans }}</h3>
         </div>
-        <span class="text-xs text-slate-500">{{ 'case_overview.documents.generated_ratio'|trans({'%generated%': 0, '%total%': 3}) }}</span>
+        <span class="text-xs text-slate-500">{{ 'case_overview.documents.generated_ratio'|trans({'%generated%': summons_count, '%total%': 3}) }}</span>
     </header>
 
     <div class="divide-y divide-slate-100 dark:divide-slate-800">
 
-        {# Row 1 — Somație de plată: stub până la Faza 6 #}
-        <div class="px-6 py-4 flex items-center gap-4">
-            <div class="size-11 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center shrink-0 font-bold text-[10px]">PDF</div>
-            <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 flex-wrap">
-                    <span class="font-semibold text-sm text-slate-500">{{ 'case_overview.documents.somatie_label'|trans }}</span>
-                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">{{ 'case_overview.documents.somatie_status_pending'|trans }}</span>
+        {# Row 1 — Somație de plată. Wired la Pas 5.1: download dacă există Document SOMATIE,
+           altfel CTA inline POST către case_summons_generate cu CSRF. #}
+        {% if summons_doc %}
+            <div class="px-6 py-4 flex items-center gap-4">
+                <div class="size-11 rounded-lg bg-gradient-to-br from-green-500 to-green-600 text-white flex items-center justify-center shrink-0 font-bold text-[10px] shadow-md shadow-green-500/20">PDF</div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-semibold text-sm text-slate-900 dark:text-white">{{ 'case_overview.documents.somatie_label'|trans }}</span>
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300">{{ 'case_overview.documents.somatie_status_generated'|trans }}</span>
+                    </div>
+                    <div class="text-xs text-slate-500 mt-0.5">{{ 'case_overview.documents.somatie_generated_on'|trans({'%date%': summons_doc.createdAt|date('d.m.Y H:i')}) }}</div>
+                </div>
+                <a href="{{ path('case_document_download', {caseId: case.id, documentId: summons_doc.id}) }}"
+                   class="py-2 px-3 inline-flex items-center gap-1.5 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+                    {{ 'case_overview.documents.somatie_download'|trans }}
+                    {{ icon_chevron_right('size-3.5') }}
+                </a>
+            </div>
+        {% elseif case.status.value == 'AMIABIL' %}
+            <div class="px-6 py-4 flex items-center gap-4 bg-amber-50/40 dark:bg-amber-950/10">
+                <div class="size-11 rounded-lg bg-gradient-to-br from-amber-500 to-amber-600 text-white flex items-center justify-center shrink-0 font-bold text-[10px] shadow-md shadow-amber-500/20">PDF</div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-semibold text-sm text-slate-900 dark:text-white">{{ 'case_overview.documents.somatie_label'|trans }}</span>
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">{{ 'case_overview.documents.somatie_status_pending'|trans }}</span>
+                    </div>
+                    <div class="text-xs text-slate-500 mt-0.5">{{ 'case_overview.documents.somatie_pending_hint'|trans }}</div>
+                </div>
+                <form method="post" action="{{ path('case_summons_generate', {id: case.id}) }}" class="shrink-0">
+                    <input type="hidden" name="_token" value="{{ csrf_token('generate_summons_' ~ case.id) }}">
+                    <button type="submit" class="py-2 px-3 inline-flex items-center gap-1.5 text-xs font-bold rounded-lg bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-md shadow-amber-500/30 hover:shadow-lg hover:shadow-amber-500/40 transition">
+                        {{ 'case_overview.documents.somatie_cta'|trans }}
+                        {{ icon_chevron_right('size-3.5') }}
+                    </button>
+                </form>
+            </div>
+        {% else %}
+            <div class="px-6 py-4 flex items-center gap-4">
+                <div class="size-11 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center shrink-0 font-bold text-[10px]">PDF</div>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="font-semibold text-sm text-slate-500">{{ 'case_overview.documents.somatie_label'|trans }}</span>
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">{{ 'case_overview.documents.somatie_status_missing'|trans }}</span>
+                    </div>
+                    <div class="text-xs text-slate-400 mt-0.5">{{ 'case_overview.documents.somatie_missing_hint'|trans }}</div>
                 </div>
             </div>
-        </div>
+        {% endif %}
 
         {# Row 2 — Cerere ordonanță de plată: recommended cu CTA aria-disabled (Faza 6) #}
         <div class="px-6 py-4 flex items-center gap-4 bg-blue-50/40 dark:bg-blue-950/10">

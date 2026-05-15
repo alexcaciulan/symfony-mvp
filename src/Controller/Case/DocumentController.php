@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Controller\Case;
 
 use App\Enum\DocumentType;
@@ -7,8 +9,6 @@ use App\Form\Case\DocumentUploadType;
 use App\Repository\DocumentRepository;
 use App\Repository\LegalCaseRepository;
 use App\Service\Document\DocumentUploadService;
-use App\Service\Document\PdfGeneratorService;
-use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -23,8 +23,6 @@ class DocumentController extends AbstractController
     public function __construct(
         private LegalCaseRepository $legalCaseRepository,
         private DocumentRepository $documentRepository,
-        private EntityManagerInterface $em,
-        private PdfGeneratorService $pdfGenerator,
         private DocumentUploadService $documentUploadService,
         private string $uploadsDir,
     ) {}
@@ -49,18 +47,9 @@ class DocumentController extends AbstractController
         $filePath = $this->uploadsDir . '/' . $document->getStoredFilename();
 
         if (!file_exists($filePath)) {
-            // Auto-regenerate CERERE_PDF if missing
-            if ($document->getDocumentType() === DocumentType::CERERE_PDF) {
-                $this->pdfGenerator->regenerateCasePdf($legalCase, $document);
-                $this->em->flush();
-                $filePath = $this->uploadsDir . '/' . $document->getStoredFilename();
-            }
+            $this->addFlash('error', 'document.download.file_missing');
 
-            if (!file_exists($filePath)) {
-                $this->addFlash('error', 'document.download.file_missing');
-
-                return $this->redirectToRoute('case_view', ['id' => $caseId]);
-            }
+            return $this->redirectToRoute('case_overview', ['id' => $caseId]);
         }
 
         $response = new BinaryFileResponse($filePath);
@@ -83,20 +72,18 @@ class DocumentController extends AbstractController
 
         $this->denyAccessUnlessGranted('CASE_UPLOAD', $legalCase);
 
-        // Rate limit
         $limiter = $documentUploadLimiter->create($this->getUser()->getUserIdentifier());
         if (!$limiter->consume()->isAccepted()) {
             $this->addFlash('warning', 'rate_limit.document_upload');
 
-            return $this->redirectToRoute('case_view', ['id' => $caseId]);
+            return $this->redirectToRoute('case_overview', ['id' => $caseId]);
         }
 
-        // Check max file count
         $documentCount = $this->documentRepository->count(['legalCase' => $legalCase]);
         if ($documentCount >= 10) {
             $this->addFlash('error', 'document.upload.max_files_reached');
 
-            return $this->redirectToRoute('case_view', ['id' => $caseId]);
+            return $this->redirectToRoute('case_overview', ['id' => $caseId]);
         }
 
         $form = $this->createForm(DocumentUploadType::class);
@@ -115,7 +102,7 @@ class DocumentController extends AbstractController
             }
         }
 
-        return $this->redirectToRoute('case_view', ['id' => $caseId]);
+        return $this->redirectToRoute('case_overview', ['id' => $caseId]);
     }
 
     #[Route('/{caseId}/document/{documentId}/delete', name: 'case_document_delete', requirements: ['caseId' => '\d+', 'documentId' => '\d+'], methods: ['POST'])]
@@ -135,24 +122,16 @@ class DocumentController extends AbstractController
             throw $this->createNotFoundException();
         }
 
-        // Prevent deletion of auto-generated CERERE_PDF
-        if ($document->getDocumentType() === DocumentType::CERERE_PDF) {
-            $this->addFlash('error', 'document.delete.cerere_pdf_protected');
-
-            return $this->redirectToRoute('case_view', ['id' => $caseId]);
-        }
-
-        // CSRF check
         if (!$this->isCsrfTokenValid('delete-document-' . $documentId, $request->getPayload()->getString('_token'))) {
             $this->addFlash('error', 'document.delete.invalid_csrf');
 
-            return $this->redirectToRoute('case_view', ['id' => $caseId]);
+            return $this->redirectToRoute('case_overview', ['id' => $caseId]);
         }
 
         $this->documentUploadService->delete($document);
 
         $this->addFlash('success', 'document.delete.success');
 
-        return $this->redirectToRoute('case_view', ['id' => $caseId]);
+        return $this->redirectToRoute('case_overview', ['id' => $caseId]);
     }
 }

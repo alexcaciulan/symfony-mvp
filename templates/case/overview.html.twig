@@ -15,6 +15,15 @@
 {% endblock %}
 
 {% block body %}
+  {% set show_c4_modal = app.flashes('show_c4_modal')|length > 0 %}
+  {% if show_c4_modal %}
+    <div data-controller="auto-modal"
+         data-auto-modal-target-id-value="hs-modal-c4-summons"
+         class="hidden"
+         aria-hidden="true"></div>
+  {% endif %}
+
+  {{ include('case/overview/_summons_communication_alert.html.twig') }}
   {{ include('case/overview/_hero.html.twig') }}
   {{ include('case/overview/_kpi_grid.html.twig') }}
   {{ include('case/overview/_pipeline.html.twig') }}
@@ -46,4 +55,5 @@
      hero dropdown „Închide dosar", ZIP package card, Cerere OP „Generează acum", Recommended Actions. #}
   {{ include('case/overview/_modal_close_case.html.twig') }}
   {{ include('case/overview/_modal_generate_op.html.twig') }}
+  {{ include('case/overview/_modal_c4_summons_communication.html.twig') }}
 {% endblock %}

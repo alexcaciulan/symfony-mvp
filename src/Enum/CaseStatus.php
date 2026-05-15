@@ -1,10 +1,22 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Enum;
 
 enum CaseStatus: string
 {
     case AMIABIL = 'AMIABIL';
+
+    /**
+     * Somația de plată a fost generată (PDF) și avocatul urmează să o comunice
+     * debitorului. Statusul NU înseamnă „comunicare confirmată" — el reflectă
+     * intenția procedurală a creditorului. Termenul legal de 15 zile (CPC
+     * art. 1015 alin. 1) curge de la PRIMIREA somației de către debitor, nu
+     * de la data acestei tranziții. Pas 4.1 (DeadlineService) va calcula
+     * termenul pe baza datei comunicării efective (atașată ca dovadă), nu
+     * pe baza `paymentNoticeDate` setat la generare.
+     */
     case SOMATIE_TRIMISA = 'SOMATIE_TRIMISA';
     case CERERE_DEPUSA = 'CERERE_DEPUSA';
     case DOSAR_INREGISTRAT = 'DOSAR_INREGISTRAT';
