@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Security\Voter;
 
 use App\Entity\LegalCase;
@@ -15,6 +17,15 @@ class CaseVoter extends Voter
     public const UPLOAD = 'CASE_UPLOAD';
     public const TRANSITION = 'CASE_TRANSITION';
 
+    /**
+     * Permite managementul termenelor procedurale (mark complete, add custom,
+     * set rulingCommunicationDate) — ownership-only, FĂRĂ restricție de status.
+     * Termenele pot exista pe dosare în orice stadiu (inclusiv ORDONANTA_EMISA,
+     * DEFINITIVA, INCHIS_SUCCES) și avocatul trebuie să poată marca completarea
+     * oricând. CASE_EDIT e prea restrictiv aici (limitat la AMIABIL/SOMATIE/CERERE).
+     */
+    public const DEADLINE_MANAGE = 'CASE_DEADLINE_MANAGE';
+
     private const EDITABLE_STATUSES = [
         CaseStatus::AMIABIL,
         CaseStatus::SOMATIE_TRIMISA,
@@ -23,7 +34,7 @@ class CaseVoter extends Voter
 
     protected function supports(string $attribute, mixed $subject): bool
     {
-        return in_array($attribute, [self::VIEW, self::EDIT, self::UPLOAD, self::TRANSITION], true)
+        return in_array($attribute, [self::VIEW, self::EDIT, self::UPLOAD, self::TRANSITION, self::DEADLINE_MANAGE], true)
             && $subject instanceof LegalCase;
     }
 
@@ -47,6 +58,7 @@ class CaseVoter extends Voter
             self::EDIT => $this->canEdit($legalCase, $user),
             self::UPLOAD => $this->canUpload($legalCase, $user),
             self::TRANSITION => $this->canTransition($legalCase, $user),
+            self::DEADLINE_MANAGE => $this->canManageDeadlines($legalCase, $user),
             default => false,
         };
     }
@@ -69,6 +81,11 @@ class CaseVoter extends Voter
     }
 
     private function canTransition(LegalCase $legalCase, User $user): bool
+    {
+        return $legalCase->getUser() === $user;
+    }
+
+    private function canManageDeadlines(LegalCase $legalCase, User $user): bool
     {
         return $legalCase->getUser() === $user;
     }

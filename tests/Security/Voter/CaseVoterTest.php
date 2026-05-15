@@ -236,4 +236,44 @@ class CaseVoterTest extends TestCase
             $this->voter->vote($token, $case, [CaseVoter::TRANSITION])
         );
     }
+
+    /**
+     * Pas 4.3 — DEADLINE_MANAGE: ownership-only, indiferent de status.
+     * Verifică inclusiv stadii avansate (ORDONANTA_EMISA, DEFINITIVA) unde
+     * CASE_EDIT ar fi denied (status non-editable).
+     */
+    public function testOwnerCanManageDeadlinesInAnyStatus(): void
+    {
+        $owner = new User();
+
+        foreach ([CaseStatus::AMIABIL, CaseStatus::ORDONANTA_EMISA, CaseStatus::DEFINITIVA, CaseStatus::INCHIS_SUCCES] as $status) {
+            $case = new LegalCase();
+            $case->setUser($owner);
+            $case->setStatus($status);
+
+            $token = $this->createToken($owner);
+
+            $this->assertSame(
+                VoterInterface::ACCESS_GRANTED,
+                $this->voter->vote($token, $case, [CaseVoter::DEADLINE_MANAGE]),
+                sprintf('Owner trebuie să poată gestiona termene în status %s', $status->value)
+            );
+        }
+    }
+
+    public function testOtherUserCannotManageDeadlines(): void
+    {
+        $owner = new User();
+        $other = new User();
+        $case = new LegalCase();
+        $case->setUser($owner);
+        $case->setStatus(CaseStatus::AMIABIL);
+
+        $token = $this->createToken($other);
+
+        $this->assertSame(
+            VoterInterface::ACCESS_DENIED,
+            $this->voter->vote($token, $case, [CaseVoter::DEADLINE_MANAGE])
+        );
+    }
 }

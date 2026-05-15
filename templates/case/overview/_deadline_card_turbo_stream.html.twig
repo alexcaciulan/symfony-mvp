@@ -1,0 +1,8 @@
+{# Pas 4.3 — Turbo Stream response pentru `CaseDeadlineController::complete`.
+   Înlocuiește în-place cardul cu varianta completed (line-through + opacity-60).
+   Targetul `deadline-card-{id}` e setat ca id pe wrapper-ul din `_deadline_card`. #}
+<turbo-stream action="replace" target="deadline-card-{{ deadline.id }}">
+    <template>
+        {{ include('case/overview/_deadline_card.html.twig', { deadline: deadline }) }}
+    </template>
+</turbo-stream>

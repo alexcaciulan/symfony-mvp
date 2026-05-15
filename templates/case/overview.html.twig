@@ -24,6 +24,7 @@
   {% endif %}
 
   {{ include('case/overview/_summons_communication_alert.html.twig') }}
+  {{ include('case/overview/_ruling_communication_date_alert.html.twig') }}
   {{ include('case/overview/_hero.html.twig') }}
   {{ include('case/overview/_kpi_grid.html.twig') }}
   {{ include('case/overview/_pipeline.html.twig') }}
@@ -56,4 +57,6 @@
   {{ include('case/overview/_modal_close_case.html.twig') }}
   {{ include('case/overview/_modal_generate_op.html.twig') }}
   {{ include('case/overview/_modal_c4_summons_communication.html.twig') }}
+  {{ include('case/overview/_modal_add_deadline.html.twig') }}
+  {{ include('case/overview/_modal_set_ruling_communication_date.html.twig') }}
 {% endblock %}

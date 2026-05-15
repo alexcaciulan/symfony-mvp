@@ -836,6 +836,36 @@ case_overview:
         calendar_in_days: 'în %days% zile · %priority%'
         alerts_card_title: 'Alerte automate'
         alerts_card_body: 'Email la 7/3/1 zile înainte + alertă „expirat". Nu pierzi termene chiar dacă nu deschizi aplicația.'
+        mark_complete_aria: 'Marchează termenul ca îndeplinit'
+        modal_add:
+            title: 'Adaugă termen de judecată'
+            intro: 'Termenul fixat de instanță pentru ședință. Va apărea pe tab Termene cu prioritate medie.'
+            field_date_label: 'Data ședinței'
+            field_date_required: 'Selectați o dată.'
+            field_date_must_be_future: 'Data nu poate fi în trecut.'
+            field_description_label: 'Descriere (opțional)'
+            field_description_placeholder: 'ex: Sala C2, complet C12, ora 11:00'
+            field_description_too_long: 'Descrierea depășește 255 caractere.'
+            cancel: 'Renunță'
+            submit: 'Adaugă termen'
+        modal_ruling_date:
+            title: 'Data comunicării ordonanței'
+            intro: 'De la această dată curge termenul de 10 zile pentru cererea în anulare (CPC art. 1024 alin. 1).'
+            hint: 'Folosiți data de pe procesul-verbal al executorului sau de pe recipisa Poștei (R+CD+AR). NU data pronunțării.'
+            idempotency_note: 'Atenție: după salvare, termenul cererii în anulare se calculează pe data introdusă. Modificările ulterioare ale acestei date NU recalculează automat termenul existent.'
+            field_label: 'Data comunicării (recepție la debitor)'
+            field_required: 'Selectați o dată.'
+            field_cannot_be_future: 'Data comunicării nu poate fi în viitor.'
+            cancel: 'Renunță'
+            submit: 'Salvează și creează termenul'
+        alert_set_ruling_date_title: 'Confirmă data comunicării ordonanței'
+        alert_set_ruling_date_hint: 'Termenul de 10 zile pentru cererea în anulare (CPC art. 1024) începe să curgă după ce setați data comunicării.'
+        alert_set_ruling_date_cta: 'Setează data'
+        flash_marked_complete: 'Termenul a fost marcat ca îndeplinit.'
+        flash_added: 'Termenul a fost adăugat.'
+        flash_ruling_date_set: 'Data comunicării a fost salvată. Termenul cererii în anulare a fost creat automat.'
+        flash_error_csrf: 'Sesiunea a expirat. Reîncărcați pagina și reîncercați.'
+        flash_error_validation: 'Formularul conține erori. Verificați câmpurile și reîncercați.'
 
 # =============================================================================
 # PDF Templates (DomPDF — strict legal text, NU reformula fără confirmare juridică)
@@ -1232,6 +1262,9 @@ stimulus:
         error_network: 'Eroare de rețea. Încercați din nou.'
     optimistic:
         action_failed: 'Acțiunea a eșuat. Reîncearcă.'
+    deadline:
+        marked_complete: 'Termen marcat ca îndeplinit.'
+        error: 'Nu am putut marca termenul. Reîncercați.'
 
 # =============================================================================
 # Domain exceptions (services throw with these keys; controllers translate)

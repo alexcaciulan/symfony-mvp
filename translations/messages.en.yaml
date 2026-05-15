@@ -834,6 +834,36 @@ case_overview:
         calendar_in_days: 'in %days% days · %priority%'
         alerts_card_title: 'Automatic alerts'
         alerts_card_body: 'Email at 7/3/1 days before + "expired" alert. You will not miss deadlines even if you do not open the app.'
+        mark_complete_aria: 'Mark deadline as completed'
+        modal_add:
+            title: 'Add hearing deadline'
+            intro: 'A court hearing scheduled by the judge. It will appear on the Deadlines tab with medium priority.'
+            field_date_label: 'Hearing date'
+            field_date_required: 'Select a date.'
+            field_date_must_be_future: 'Date cannot be in the past.'
+            field_description_label: 'Description (optional)'
+            field_description_placeholder: 'e.g. Room C2, panel C12, 11:00'
+            field_description_too_long: 'Description exceeds 255 characters.'
+            cancel: 'Cancel'
+            submit: 'Add deadline'
+        modal_ruling_date:
+            title: 'Order communication date'
+            intro: 'The 10-day annulment-application window (CPC art. 1024 para. 1) runs from this date.'
+            hint: 'Use the date on the bailiff record or the Romanian Post receipt (R+CD+AR), not the date the order was issued.'
+            idempotency_note: 'Note: once saved, the annulment-application deadline is calculated from the date you enter. Later edits to this date do NOT automatically recalculate the existing deadline.'
+            field_label: 'Communication date (debtor receipt)'
+            field_required: 'Select a date.'
+            field_cannot_be_future: 'Communication date cannot be in the future.'
+            cancel: 'Cancel'
+            submit: 'Save and create deadline'
+        alert_set_ruling_date_title: 'Confirm the order communication date'
+        alert_set_ruling_date_hint: 'The 10-day deadline for the annulment application (CPC art. 1024) starts running once you set the communication date.'
+        alert_set_ruling_date_cta: 'Set date'
+        flash_marked_complete: 'Deadline marked as completed.'
+        flash_added: 'Deadline added.'
+        flash_ruling_date_set: 'Communication date saved. The annulment-application deadline has been created automatically.'
+        flash_error_csrf: 'Your session expired. Reload the page and try again.'
+        flash_error_validation: 'The form has errors. Check the fields and try again.'
 
 # =============================================================================
 # PDF Templates (DomPDF rendered, strictly legal wording)
@@ -1230,6 +1260,9 @@ stimulus:
         error_network: 'Network error. Please try again.'
     optimistic:
         action_failed: 'The action failed. Please retry.'
+    deadline:
+        marked_complete: 'Deadline marked as completed.'
+        error: 'Could not mark the deadline. Please retry.'
 
 # =============================================================================
 # Domain exceptions (services throw with these keys; controllers translate)

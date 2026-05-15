@@ -13,10 +13,8 @@
         </p>
     </div>
     <button type="button"
-            aria-disabled="true"
-            tabindex="-1"
-            title="{{ 'case_overview.tooltip.coming_soon_deadlines'|trans }}"
-            class="inline-flex items-center gap-1.5 py-2 px-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-medium opacity-60 cursor-not-allowed">
+            data-hs-overlay="#hs-modal-add-deadline"
+            class="inline-flex items-center gap-1.5 py-2 px-3 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition">
         {{ icon_plus('size-4 text-slate-500') }}
         {{ 'case_overview.deadlines.add_custom'|trans }}
     </button>

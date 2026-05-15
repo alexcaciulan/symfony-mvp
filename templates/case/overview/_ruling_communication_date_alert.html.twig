@@ -1,0 +1,26 @@
+{# Alert amber persistent pentru dosarele cu status >= ORDONANTA_EMISA care nu
+   au `rulingCommunicationDate` populată. Trigger pentru modal Preline care
+   setează data și creează automat termenul CERERE_IN_ANULARE (10 zile, CPC
+   art. 1024). Vezi Pas 4.3 + closes W1 legal Pas 4.2. #}
+{% from 'case/overview/_icons.html.twig' import icon_warning %}
+
+{% set status = case.status.value %}
+{% set is_ordonanta_phase = status in ['ORDONANTA_EMISA', 'IN_ANULARE'] %}
+{% set ruling_date_missing = case.rulingCommunicationDate is null %}
+
+{% if is_ordonanta_phase and ruling_date_missing %}
+    <div class="rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 mb-4 flex items-start gap-3">
+        <span class="inline-flex items-center justify-center size-8 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 shrink-0">
+            {{ icon_warning('size-4') }}
+        </span>
+        <div class="flex-1 min-w-0">
+            <div class="text-sm font-semibold text-amber-900 dark:text-amber-200">{{ 'case_overview.deadlines.alert_set_ruling_date_title'|trans }}</div>
+            <div class="text-xs text-amber-800 dark:text-amber-300/80 mt-0.5">{{ 'case_overview.deadlines.alert_set_ruling_date_hint'|trans }}</div>
+        </div>
+        <button type="button"
+                data-hs-overlay="#hs-modal-set-ruling-communication-date"
+                class="py-1.5 px-3 inline-flex items-center text-xs font-semibold rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition shrink-0">
+            {{ 'case_overview.deadlines.alert_set_ruling_date_cta'|trans }}
+        </button>
+    </div>
+{% endif %}

@@ -65,7 +65,7 @@
 {% set type_label = deadline.type.label()|trans %}
 {% set date_label = deadline.deadlineDate|date('d.m.Y') %}
 
-<section class="{{ v.card }} border rounded-2xl p-5 shadow-soft relative overflow-hidden">
+<section id="deadline-card-{{ deadline.id }}" class="{{ v.card }} border rounded-2xl p-5 shadow-soft relative overflow-hidden">
     {% if v.decoration %}
         <div class="absolute top-0 right-0 size-32 {{ v.decoration_classes }} rounded-full blur-2xl pointer-events-none" aria-hidden="true"></div>
     {% endif %}
@@ -113,12 +113,27 @@
             {% endif %}
         </div>
 
-        {# Completion toggle — visual-only at 4.0.5; Pas 4.3 will wire POST + Turbo Stream. #}
-        <label class="cursor-not-allowed">
-            <input type="checkbox" {% if deadline.completed %}checked{% endif %} aria-disabled="true" tabindex="-1" disabled class="sr-only peer">
-            <span class="inline-flex items-center justify-center size-6 rounded-full border-2 {% if deadline.completed %}bg-green-500 border-green-500 text-white{% else %}border-slate-300 dark:border-slate-600{% endif %} transition">
-                {% if deadline.completed %}{{ icon_check('size-3.5') }}{% endif %}
+        {# Pas 4.3 — Completion toggle wired la POST cu optimistic UI + Turbo Stream replace.
+           Când deja completat, butonul devine read-only (afișează doar bifa verde). #}
+        {% if deadline.completed %}
+            <span class="inline-flex items-center justify-center size-6 rounded-full border-2 bg-green-500 border-green-500 text-white" aria-label="{{ 'case_overview.deadlines.status_completed_badge'|trans }}">
+                {{ icon_check('size-3.5') }}
             </span>
-        </label>
+        {% else %}
+            <button type="button"
+                    data-controller="optimistic-action"
+                    data-action="click->optimistic-action#trigger"
+                    data-optimistic-action-url-value="{{ path('case_deadline_complete', {caseId: deadline.legalCase.id, deadlineId: deadline.id}) }}"
+                    data-optimistic-action-method-value="POST"
+                    data-optimistic-action-toggle-class-value="is-completing"
+                    data-optimistic-action-csrf-token-value="{{ csrf_token('complete_deadline_' ~ deadline.id) }}"
+                    data-optimistic-action-error-message-value="{{ 'stimulus.deadline.error'|trans }}"
+                    aria-label="{{ 'case_overview.deadlines.mark_complete_aria'|trans }}"
+                    class="inline-flex items-center justify-center size-6 rounded-full border-2 border-slate-300 dark:border-slate-600 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-950/40 cursor-pointer transition group">
+                <span class="opacity-0 group-hover:opacity-100 transition text-green-600 dark:text-green-400">
+                    {{ icon_check('size-3.5') }}
+                </span>
+            </button>
+        {% endif %}
     </div>
 </section>
