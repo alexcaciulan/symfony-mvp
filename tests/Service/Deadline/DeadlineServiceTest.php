@@ -218,8 +218,11 @@ final class DeadlineServiceTest extends KernelTestCase
 
     public function testMultipleDeadlinesCoexistOnSameCase(): void
     {
+        // PRESCRIPTIE e deja creată automat de DeadlineCreationSubscriber pe
+        // postPersist LegalCase (Pas 4.2) — folosim service-ul direct pentru a
+        // crea un al doilea tip distinct (RASPUNS_SOMATIE). Verificăm că ambele
+        // tipuri coexistă pe același dosar.
         $this->service->createPaymentNoticeDeadline($this->case, new \DateTimeImmutable('2026-02-02'));
-        $this->service->createPrescriptionDeadline($this->case);
 
         $deadlines = $this->em->getRepository(LegalDeadline::class)->findBy(['legalCase' => $this->case->getId()]);
         $types = array_map(static fn (LegalDeadline $d): DeadlineType => $d->getType(), $deadlines);

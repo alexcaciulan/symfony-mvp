@@ -68,10 +68,14 @@ final class DeadlineService
     }
 
     /**
-     * Termen prescripție: dueDate + 3 ani (NCC art. 2517), prorogat la prima zi
-     * lucrătoare. Prioritate CRITICAL. Aruncă InvalidArgumentException dacă
-     * dosarul nu are dueDate setat — termenul de prescripție nu poate fi
-     * calculat fără data scadenței creanței.
+     * Termen prescripție: dueDate + 3 ani (NCC art. 2517). Prioritate CRITICAL.
+     * Aruncă InvalidArgumentException dacă dosarul nu are dueDate setat.
+     *
+     * **NU se prorogă la prima zi lucrătoare**: prescripția e termen de DREPT
+     * MATERIAL (NCC art. 2539-2541), nu termen procedural (CPC art. 181 alin. 2
+     * se aplică doar termenelor procedurale). Data se afișează exact —
+     * prorogarea ar produce dată mai târzie decât realitatea legală și ar putea
+     * face avocatul să depună cererea după implinire reală.
      */
     public function createPrescriptionDeadline(LegalCase $legalCase): LegalDeadline
     {
@@ -84,15 +88,14 @@ final class DeadlineService
         }
 
         $baseDate = \DateTimeImmutable::createFromInterface($dueDate);
-        $rawDeadline = $baseDate->modify(self::PRESCRIPTION_INTERVAL);
-        $deadlineDate = $this->workingDayResolver->nextWorkingDay($rawDeadline);
+        $deadlineDate = $baseDate->modify(self::PRESCRIPTION_INTERVAL);
 
         return $this->persistDeadline(
             $legalCase,
             DeadlineType::PRESCRIPTIE,
             $deadlineDate,
             baseDate: $baseDate,
-            rawDeadline: $rawDeadline,
+            rawDeadline: $deadlineDate,
         );
     }
 

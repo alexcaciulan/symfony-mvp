@@ -1,10 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Repository;
 
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Entity\User;
+use App\Enum\DeadlineType;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -25,6 +28,19 @@ class LegalDeadlineRepository extends ServiceEntityRepository
             ->orderBy('d.deadlineDate', 'ASC')
             ->getQuery()
             ->getResult();
+    }
+
+    /** Idempotency lookup pentru DeadlineCreationSubscriber: termenele automate sunt unice per (dosar, tip). */
+    public function findOneByCaseAndType(LegalCase $case, DeadlineType $type): ?LegalDeadline
+    {
+        return $this->createQueryBuilder('d')
+            ->andWhere('d.legalCase = :case')
+            ->andWhere('d.type = :type')
+            ->setParameter('case', $case)
+            ->setParameter('type', $type)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
     }
 
     /** @return LegalDeadline[] */

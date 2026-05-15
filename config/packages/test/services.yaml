@@ -23,3 +23,8 @@ services:
     test.public.deadline_service:
         alias: App\Service\Deadline\DeadlineService
         public: true
+
+    # Pas 4.2 — subscriber e auto-tagged via #[AsDoctrineListener] + #[AsEventListener]
+    # dar nu are caller direct; test idempotency-ului apelează manual `onSomatieTrimisa`.
+    App\EventSubscriber\DeadlineCreationSubscriber:
+        public: true
