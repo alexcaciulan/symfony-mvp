@@ -800,16 +800,18 @@ final class CaseOverviewControllerTest extends WebTestCase
         self::assertSelectorTextContains('#hs-modal-cerere-op', $this->case->getCourt()->getName());
     }
 
-    public function testModalGenerateOpConfirmButtonIsAriaDisabled(): void
+    public function testModalGenerateOpConfirmButtonSubmitsForm(): void
     {
+        // Pas 5.2 — modalul are acum form POST cu submit button (NU mai aria-disabled).
         $this->client->loginUser($this->user);
         $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
-        $confirm = $crawler->filter('#hs-modal-cerere-op button[aria-disabled="true"]')->reduce(static function ($node) {
-            return str_contains($node->text(), 'Generează & descarcă ZIP');
-        });
-        self::assertGreaterThan(0, $confirm->count(), 'Generate-OP confirm must be aria-disabled until Faza 6 ships');
+        $form = $crawler->filter('#hs-modal-cerere-op form[action$="/payment-order/generate"]');
+        self::assertGreaterThan(0, $form->count(), 'Pas 5.2: modalul cerere OP trebuie să aibă form POST către case_payment_order_generate.');
+
+        $submit = $crawler->filter('#hs-modal-cerere-op button[type="submit"]');
+        self::assertGreaterThan(0, $submit->count(), 'Submit button trebuie să fie funcțional (NU aria-disabled).');
     }
 
     public function testHeroGenerateOpCtaTriggersModalViaDataHsOverlay(): void

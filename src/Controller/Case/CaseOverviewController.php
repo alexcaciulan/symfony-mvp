@@ -10,7 +10,6 @@ use App\Entity\LegalDeadline;
 use App\Enum\DocumentType;
 use App\Repository\AuditLogRepository;
 use App\Repository\CourtPortalEventRepository;
-use App\Repository\DocumentRepository;
 use App\Repository\LegalCaseRepository;
 use App\Repository\LegalDeadlineRepository;
 use App\Security\Voter\CaseVoter;
@@ -39,7 +38,6 @@ final class CaseOverviewController extends AbstractController
         private readonly LegalDeadlineRepository $deadlines,
         private readonly AuditLogRepository $auditLogs,
         private readonly CourtPortalEventRepository $portalEvents,
-        private readonly DocumentRepository $documents,
         private readonly InterestCalculatorService $interestService,
     ) {}
 
@@ -55,7 +53,6 @@ final class CaseOverviewController extends AbstractController
 
         $deadlines = $this->deadlines->findByCase($case);
         [$interestBreakdown, $breakdownError] = $this->computeBreakdown($case);
-        $documents = $this->documents->findByCase($case);
 
         // One-time „Următorul pas" badge pe CTA „Generează cerere OP" din hero,
         // emis de CaseWizardController la submit. Flash bag e read-and-consume,
@@ -71,8 +68,7 @@ final class CaseOverviewController extends AbstractController
             'portalEvents' => $this->portalEvents->findByLegalCase($case),
             'interest_breakdown' => $interestBreakdown,
             'breakdown_error' => $breakdownError,
-            'documents' => $documents,
-            'has_communication_proof' => $this->hasCommunicationProof($documents),
+            'has_communication_proof' => $this->hasCommunicationProof($case),
             'just_created' => $justCreated,
         ]);
     }
@@ -136,17 +132,15 @@ final class CaseOverviewController extends AbstractController
      * Whether the case already has a `DOVADA_COMUNICARE` document attached. Drives the
      * Tab Documente sidebar warning ("Lipsește dovada comunicării") on the overview page.
      *
-     * @param Document[] $documents
+     * Folosește `$case->getDocuments()->exists()` care hidratează colecția
+     * EXTRA_LAZY o singură dată — toate templates din pagină vor reutiliza
+     * aceeași colecție in-memory (1 query total pe `document`).
      */
-    private function hasCommunicationProof(array $documents): bool
+    private function hasCommunicationProof(LegalCase $case): bool
     {
-        foreach ($documents as $document) {
-            if ($document->getDocumentType() === DocumentType::DOVADA_COMUNICARE) {
-                return true;
-            }
-        }
-
-        return false;
+        return $case->getDocuments()->exists(
+            static fn (int $_key, Document $doc): bool => $doc->getDocumentType() === DocumentType::DOVADA_COMUNICARE,
+        );
     }
 
     /**

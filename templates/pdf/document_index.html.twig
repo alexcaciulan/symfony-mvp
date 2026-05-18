@@ -1,0 +1,89 @@
+{# Opis documente — anexă obligatorie a cererii OP (CPC art. 1016 alin. 1 lit. f).
+   Sortare: SOMATIE → DOVADA_COMUNICARE → restul (vezi OpisGeneratorService::templateContext). #}
+{% set creditor = case.creditor %}
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ 'pdf.document_index.heading'|trans }} {{ case.caseNumber }}</title>
+    <style>
+        @page { margin: 2cm 2.2cm; }
+        body { font-family: 'DejaVu Sans', sans-serif; font-size: 11pt; color: #111827; line-height: 1.45; }
+        h1 { font-size: 16pt; text-align: center; margin: 0 0 4pt 0; letter-spacing: 1pt; }
+        .subheading { text-align: center; font-size: 10pt; color: #4b5563; margin: 0 0 14pt 0; }
+        .meta { font-size: 9pt; color: #6b7280; }
+        .caseref { text-align: right; font-size: 9pt; color: #6b7280; margin-bottom: 6pt; }
+        .header-info { margin-bottom: 14pt; font-size: 10pt; }
+        .header-info .row { margin: 3pt 0; }
+        .header-info .label { font-weight: bold; display: inline-block; min-width: 100pt; color: #374151; }
+        table.opis { width: 100%; border-collapse: collapse; margin: 8pt 0; }
+        table.opis th, table.opis td { border: 1px solid #d1d5db; padding: 5pt 8pt; font-size: 10pt; text-align: left; vertical-align: top; }
+        table.opis th { background: #f3f4f6; font-weight: bold; text-transform: uppercase; font-size: 9pt; letter-spacing: 0.3pt; color: #374151; }
+        table.opis td.nr { text-align: center; width: 32pt; font-weight: bold; }
+        table.opis td.type { font-size: 9pt; color: #6b7280; text-transform: uppercase; }
+        table.opis td.date { font-size: 9pt; color: #6b7280; white-space: nowrap; width: 80pt; }
+        .empty-state { padding: 20pt; text-align: center; font-style: italic; color: #9ca3af; border: 1px dashed #d1d5db; margin: 8pt 0; }
+        .total { margin-top: 10pt; font-size: 10pt; font-weight: bold; color: #1f2937; }
+        .signature { margin-top: 28pt; text-align: right; font-size: 10pt; }
+        .signature .line { display: block; border-top: 1px solid #9ca3af; width: 180pt; margin: 24pt 0 4pt auto; }
+        .footer { margin-top: 20pt; padding-top: 8pt; border-top: 1px dotted #d1d5db; font-size: 8.5pt; color: #6b7280; text-align: center; }
+    </style>
+</head>
+<body>
+
+<div class="caseref">{{ 'pdf.document_index.case_reference'|trans }}: <strong>{{ case.caseNumber }}</strong></div>
+
+<h1>{{ 'pdf.document_index.heading'|trans }}</h1>
+<p class="subheading">{{ 'pdf.document_index.subheading'|trans }}</p>
+
+<div class="header-info">
+    {% if creditor %}
+        <div class="row"><span class="label">{{ 'pdf.document_index.creditor_label'|trans }}:</span> {{ creditor.name }}</div>
+    {% endif %}
+    <div class="row"><span class="label">{{ 'pdf.document_index.issued_label'|trans }}:</span> {{ today|date('d.m.Y') }}</div>
+</div>
+
+{% if documents|length == 0 %}
+    <div class="empty-state">{{ 'pdf.document_index.empty'|trans }}</div>
+{% else %}
+    <table class="opis">
+        <thead>
+            <tr>
+                <th>{{ 'pdf.document_index.column_nr'|trans }}</th>
+                <th>{{ 'pdf.document_index.column_name'|trans }}</th>
+                <th>{{ 'pdf.document_index.column_type'|trans }}</th>
+                <th>{{ 'pdf.document_index.column_date'|trans }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for doc in documents %}
+                <tr>
+                    <td class="nr">{{ loop.index }}</td>
+                    <td>{{ doc.originalFilename }}</td>
+                    <td class="type">{{ doc.documentType.label()|trans }}</td>
+                    <td class="date">{{ doc.createdAt|date('d.m.Y') }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <p class="total">{{ 'pdf.document_index.total'|trans({'%count%': documents|length}) }}</p>
+{% endif %}
+
+<div class="signature">
+    <span class="line"></span>
+    {% if user and user.fullName %}
+        <div><strong>{{ user.fullName }}</strong></div>
+    {% endif %}
+    {% if user and user.barNumber %}
+        <div class="meta">{{ 'pdf.document_index.bar_number'|trans({'%number%': user.barNumber}) }}</div>
+    {% endif %}
+    <div class="meta">{{ 'pdf.document_index.signature_label'|trans }}</div>
+</div>
+
+<div class="footer">
+    {{ 'pdf.document_index.footer_disclaimer'|trans }}
+</div>
+
+</body>
+</html>

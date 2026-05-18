@@ -1,0 +1,176 @@
+{# CPC art. 1014-1024: cerere de ordonanță de plată. Conținut obligatoriu per art. 1016: instanță competentă, părți, fapte, sume cerute, temei juridic, anexe. NU modifica fără confirmare juridică. #}
+{% set creditor = case.creditor %}
+{% set debtors = case.debtors %}
+{% set principal = case.amount|default('0') %}
+{% set interest = case.calculatedInterest|default('0') %}
+{% set stampDuty = case.stampDuty|default('0') %}
+{% set currency = case.currency|default('RON') %}
+{# Taxa de timbru e fixă în RON (OUG 80/2013 art. 6 alin. 2), indiferent de moneda creanței.
+   Totalul în moneda creanței = principal + dobândă; taxa timbru afișată separat în RON. #}
+{% set total_claim = (principal ?: 0) + (interest ?: 0) %}
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ 'pdf.payment_order.heading'|trans }} {{ case.caseNumber }}</title>
+    <style>
+        @page { margin: 2cm 2.2cm; }
+        body { font-family: 'DejaVu Sans', sans-serif; font-size: 11pt; color: #111827; line-height: 1.45; }
+        h1 { font-size: 16pt; text-align: center; margin: 0 0 4pt 0; letter-spacing: 1pt; }
+        h2 { font-size: 11pt; margin: 16pt 0 4pt 0; text-transform: uppercase; letter-spacing: 0.5pt; color: #1f2937; border-bottom: 1px solid #d1d5db; padding-bottom: 2pt; }
+        .subheading { text-align: center; font-size: 10pt; color: #4b5563; margin: 0 0 10pt 0; }
+        .legal-basis { text-align: center; font-style: italic; font-size: 9pt; color: #6b7280; margin: 0 0 14pt 0; }
+        .meta { font-size: 9pt; color: #6b7280; }
+        .block { margin: 6pt 0; }
+        .block .label { font-weight: bold; display: inline-block; min-width: 110pt; color: #374151; }
+        .block .value { color: #111827; }
+        table.amounts { width: 100%; border-collapse: collapse; margin: 8pt 0; }
+        table.amounts th, table.amounts td { border: 1px solid #d1d5db; padding: 6pt 8pt; font-size: 10pt; }
+        table.amounts th { background: #f3f4f6; text-align: left; font-weight: bold; }
+        table.amounts td.amount { text-align: right; font-variant-numeric: tabular-nums; }
+        table.amounts tr.total td { font-weight: bold; background: #f9fafb; }
+        ol.annexes { padding-left: 16pt; margin: 6pt 0; }
+        ol.annexes li { margin: 2pt 0; font-size: 10pt; }
+        .signature { margin-top: 28pt; text-align: right; font-size: 10pt; }
+        .signature .line { display: block; border-top: 1px solid #9ca3af; width: 180pt; margin: 24pt 0 4pt auto; }
+        .footer { margin-top: 20pt; padding-top: 8pt; border-top: 1px dotted #d1d5db; font-size: 8.5pt; color: #6b7280; text-align: center; }
+        .caseref { text-align: right; font-size: 9pt; color: #6b7280; margin-bottom: 6pt; }
+        .court-block { background: #f9fafb; border-left: 3pt solid #1f2937; padding: 8pt 10pt; margin: 8pt 0; }
+        .court-block .label { font-weight: bold; text-transform: uppercase; font-size: 9pt; color: #6b7280; margin-bottom: 2pt; }
+        .court-block .name { font-size: 12pt; font-weight: bold; color: #111827; }
+    </style>
+</head>
+<body>
+
+<div class="caseref">{{ 'pdf.payment_order.case_reference'|trans }}: <strong>{{ case.caseNumber }}</strong></div>
+
+<h1>{{ 'pdf.payment_order.heading'|trans }}</h1>
+<p class="subheading">{{ 'pdf.payment_order.subheading'|trans }}</p>
+<p class="legal-basis">{{ 'pdf.payment_order.legal_basis_short'|trans }}</p>
+
+<div class="court-block">
+    <div class="label">{{ 'pdf.payment_order.court_block_title'|trans }}</div>
+    {% if case.court %}
+        <div class="name">{{ case.court.name }}</div>
+        {% if case.court.county %}
+            <div class="meta">{{ 'pdf.payment_order.court_county'|trans({'%county%': case.court.county}) }}</div>
+        {% endif %}
+    {% else %}
+        <div class="meta">{{ 'pdf.payment_order.court_missing'|trans }}</div>
+    {% endif %}
+</div>
+
+<h2>{{ 'pdf.payment_order.creditor_block_title'|trans }}</h2>
+{% if creditor %}
+    <div class="block"><span class="label">{{ 'pdf.payment_order.field_name'|trans }}:</span> <span class="value">{{ creditor.name }}</span></div>
+    {% if creditor.cui %}
+        <div class="block"><span class="label">{{ 'pdf.payment_order.field_cui'|trans }}:</span> <span class="value">{{ creditor.cui }}</span></div>
+    {% endif %}
+    {% if creditor.onrcNumber %}
+        <div class="block"><span class="label">{{ 'pdf.payment_order.field_onrc'|trans }}:</span> <span class="value">{{ creditor.onrcNumber }}</span></div>
+    {% endif %}
+    <div class="block"><span class="label">{{ 'pdf.payment_order.field_address'|trans }}:</span> <span class="value">{{ creditor.address }}</span></div>
+    {% if creditor.email %}
+        <div class="block"><span class="label">{{ 'pdf.payment_order.field_email'|trans }}:</span> <span class="value">{{ creditor.email }}</span></div>
+    {% endif %}
+    {% if creditor.phone %}
+        <div class="block"><span class="label">{{ 'pdf.payment_order.field_phone'|trans }}:</span> <span class="value">{{ creditor.phone }}</span></div>
+    {% endif %}
+    {% if creditor.iban %}
+        <div class="block"><span class="label">{{ 'pdf.payment_order.field_iban'|trans }}:</span> <span class="value">{{ creditor.iban }}</span></div>
+    {% endif %}
+{% else %}
+    <div class="block"><span class="value">{{ 'pdf.payment_order.creditor_missing'|trans }}</span></div>
+{% endif %}
+
+<h2>{{ 'pdf.payment_order.debtor_block_title'|trans }}</h2>
+{% if debtors|length == 0 %}
+    <div class="block"><span class="value">{{ 'pdf.payment_order.debtor_missing'|trans }}</span></div>
+{% else %}
+    {% for debtor in debtors %}
+        {% if debtors|length > 1 %}
+            <div class="meta" style="font-weight: bold; margin-top: 8pt;">{{ 'pdf.payment_order.debtor_numbered'|trans({'%index%': loop.index, '%total%': debtors|length}) }}</div>
+        {% endif %}
+        <div class="block"><span class="label">{{ 'pdf.payment_order.field_name'|trans }}:</span> <span class="value">{{ debtor.name }}</span></div>
+        {% if debtor.cui %}
+            <div class="block"><span class="label">{{ 'pdf.payment_order.field_cui'|trans }}:</span> <span class="value">{{ debtor.cui }}</span></div>
+        {% endif %}
+        {% if debtor.onrcNumber %}
+            <div class="block"><span class="label">{{ 'pdf.payment_order.field_onrc'|trans }}:</span> <span class="value">{{ debtor.onrcNumber }}</span></div>
+        {% endif %}
+        <div class="block"><span class="label">{{ 'pdf.payment_order.field_address'|trans }}:</span> <span class="value">{{ debtor.address }}</span></div>
+    {% endfor %}
+{% endif %}
+
+{% set debtor_names = debtors|map(d => d.name)|join(', ') %}
+
+<h2>{{ 'pdf.payment_order.claim_block_title'|trans }}</h2>
+<p>{{ 'pdf.payment_order.claim_intro'|trans({
+    '%creditor%': creditor ? creditor.name : '—',
+    '%debtor%': debtor_names ?: '—',
+}) }}</p>
+
+<h2>{{ 'pdf.payment_order.facts_title'|trans }}</h2>
+<p>{{ 'pdf.payment_order.facts_body'|trans({
+    '%due_date%': case.dueDate ? case.dueDate|date('d.m.Y') : '—',
+    '%notice_date%': case.paymentNoticeDate ? case.paymentNoticeDate|date('d.m.Y') : '—',
+    '%amount%': principal|number_format(2, ',', '.'),
+    '%currency%': currency,
+}) }}</p>
+
+<h2>{{ 'pdf.payment_order.amounts_table_title'|trans }}</h2>
+<table class="amounts">
+    <thead>
+        <tr>
+            <th>{{ 'pdf.payment_order.amount_label'|trans }}</th>
+            <th style="text-align:right">{{ 'pdf.payment_order.amount_value'|trans }}</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>{{ 'pdf.payment_order.amount_principal'|trans }}</td>
+            <td class="amount">{{ principal|number_format(2, ',', '.') }} {{ currency }}</td>
+        </tr>
+        {% if interest and interest != '0' and interest != '0.00' %}
+        <tr>
+            <td>{{ 'pdf.payment_order.amount_interest'|trans }}</td>
+            <td class="amount">{{ interest|number_format(2, ',', '.') }} {{ currency }}</td>
+        </tr>
+        {% endif %}
+        <tr class="total">
+            <td>{{ 'pdf.payment_order.amount_total'|trans }}</td>
+            <td class="amount">{{ total_claim|number_format(2, ',', '.') }} {{ currency }}</td>
+        </tr>
+        {% if stampDuty and stampDuty != '0' and stampDuty != '0.00' %}
+        <tr>
+            <td>{{ 'pdf.payment_order.amount_stamp_duty'|trans }}</td>
+            <td class="amount">{{ stampDuty|number_format(2, ',', '.') }} RON</td>
+        </tr>
+        {% endif %}
+    </tbody>
+</table>
+
+<h2>{{ 'pdf.payment_order.legal_basis_title'|trans }}</h2>
+<p>{{ 'pdf.payment_order.legal_basis_body'|trans }}</p>
+
+<h2>{{ 'pdf.payment_order.annexes_title'|trans }}</h2>
+<p class="meta">{{ 'pdf.payment_order.annexes_body'|trans }}</p>
+
+<div class="signature">
+    <div>{{ 'pdf.payment_order.issued_on'|trans({'%date%': today|date('d.m.Y')}) }}</div>
+    <span class="line"></span>
+    {% if user and user.fullName %}
+        <div><strong>{{ user.fullName }}</strong></div>
+    {% endif %}
+    {% if user and user.barNumber %}
+        <div class="meta">{{ 'pdf.payment_order.bar_number'|trans({'%number%': user.barNumber}) }}</div>
+    {% endif %}
+    <div class="meta">{{ 'pdf.payment_order.signature_label'|trans }}</div>
+</div>
+
+<div class="footer">
+    {{ 'pdf.payment_order.footer_disclaimer'|trans }}
+</div>
+
+</body>
+</html>

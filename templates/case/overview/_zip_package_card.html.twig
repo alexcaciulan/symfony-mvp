@@ -1,8 +1,9 @@
-{# Pas 4.0.4 — Sidebar ZIP package card. Reflectă mockup linii 733-751. CTA aria-disabled (Faza 6 PDF generation). #}
+{# Pas 5.2 — Sidebar ZIP package. CTA: dacă cerere OP încă negenerată → deschide modal generate; dacă există → link direct la GET download. #}
 {% from 'case/overview/_icons.html.twig' import icon_check, icon_download, icon_document %}
 
 {% set intro_key = case.court ? 'case_overview.zip_package.intro' : 'case_overview.zip_package.intro_no_court' %}
 {% set intro_params = case.court ? {'%court%': case.court.name} : {} %}
+{% set payment_order_doc = case.documents|filter(d => d.documentType.value == 'cerere_op')|first %}
 
 <section class="bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white rounded-2xl shadow-card overflow-hidden">
     <div class="p-5">
@@ -29,11 +30,19 @@
                 {{ 'case_overview.zip_package.item_evidence'|trans }}
             </li>
         </ul>
-        <button type="button"
-                data-hs-overlay="#hs-modal-cerere-op"
-                class="mt-4 w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-bold rounded-lg bg-white text-lex-navy hover:bg-blue-50 transition shadow-lg">
-            {{ icon_download('size-4') }}
-            {{ 'case_overview.zip_package.cta'|trans }}
-        </button>
+        {% if payment_order_doc %}
+            <a href="{{ path('case_zip_package_download', {id: case.id}) }}"
+               class="mt-4 w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-bold rounded-lg bg-white text-lex-navy hover:bg-blue-50 transition shadow-lg">
+                {{ icon_download('size-4') }}
+                {{ 'case_overview.zip_package.cta_download'|trans }}
+            </a>
+        {% else %}
+            <button type="button"
+                    data-hs-overlay="#hs-modal-cerere-op"
+                    class="mt-4 w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-bold rounded-lg bg-white text-lex-navy hover:bg-blue-50 transition shadow-lg">
+                {{ icon_download('size-4') }}
+                {{ 'case_overview.zip_package.cta'|trans }}
+            </button>
+        {% endif %}
     </div>
 </section>

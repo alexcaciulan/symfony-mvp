@@ -56,6 +56,15 @@ class AuditLogService
      */
     public const CATEGORY_DEADLINE_COMPLETED = 'DEADLINE_COMPLETED';
 
+    /**
+     * Audit category for the payment-order request package generation (Pas 5.2
+     * CasePaymentOrderController). `newData` records `caseNumber`,
+     * `paymentOrderDocumentId` and `opisDocumentId`. Marchează momentul în care
+     * cererea de OP, opisul și tranziția workflow `depune_cerere` au fost
+     * aplicate atomic.
+     */
+    public const CATEGORY_PAYMENT_ORDER_GENERATED = 'PAYMENT_ORDER_GENERATED';
+
     public function __construct(
         private EntityManagerInterface $em,
         private Security $security,

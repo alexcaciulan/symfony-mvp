@@ -24,6 +24,10 @@ framework:
             policy: sliding_window
             limit: 20
             interval: '1 hour'
+        payment_order_generation:
+            policy: sliding_window
+            limit: 20
+            interval: '1 hour'
         # AI extraction limiters — per-user (consumed by Pas 2.5.7 OcrTextStrategy
         # + Pas 2.5.8 AiVisionStrategy, NOT by AnthropicApiClient itself).
         # Daily windows reflect typical lawyer-volume + Anthropic pricing tiers.
@@ -50,6 +54,8 @@ when@test:
             company_lookup:
                 policy: no_limit
             summons_generation:
+                policy: no_limit
+            payment_order_generation:
                 policy: no_limit
             extraction_ai_text:
                 policy: no_limit
