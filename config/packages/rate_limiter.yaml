@@ -28,6 +28,12 @@ framework:
             policy: sliding_window
             limit: 20
             interval: '1 hour'
+        # Manual portal.just.ro check (Pas 6.1 CasePortalController::checkNow) —
+        # SOAP I/O extern la cerere; limitează abuzul de butonul „Verifică acum".
+        portal_check:
+            policy: sliding_window
+            limit: 10
+            interval: '1 hour'
         # AI extraction limiters — per-user (consumed by Pas 2.5.7 OcrTextStrategy
         # + Pas 2.5.8 AiVisionStrategy, NOT by AnthropicApiClient itself).
         # Daily windows reflect typical lawyer-volume + Anthropic pricing tiers.
@@ -56,6 +62,8 @@ when@test:
             summons_generation:
                 policy: no_limit
             payment_order_generation:
+                policy: no_limit
+            portal_check:
                 policy: no_limit
             extraction_ai_text:
                 policy: no_limit

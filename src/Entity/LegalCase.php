@@ -100,6 +100,16 @@ class LegalCase
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $lastPortalCheckAt = null;
 
+    /**
+     * Flag de activare a monitorizării zilnice portal.just.ro (Pas 6.1). Setat
+     * `true` când avocatul introduce numărul de dosar al instanței și pornește
+     * monitorizarea. Distinct de `courtCaseNumber`: permite oprirea/repornirea
+     * monitorizării fără a șterge numărul de dosar. Filtru în
+     * {@see \App\Repository\LegalCaseRepository::findActiveForMonitoring()}.
+     */
+    #[ORM\Column(options: ['default' => false])]
+    private bool $portalMonitoringActive = false;
+
     /** @var Collection<int, Document> */
     #[ORM\OneToMany(targetEntity: Document::class, mappedBy: 'legalCase', fetch: 'EXTRA_LAZY')]
     private Collection $documents;
@@ -423,6 +433,18 @@ class LegalCase
     public function setLastPortalCheckAt(?\DateTimeImmutable $lastPortalCheckAt): static
     {
         $this->lastPortalCheckAt = $lastPortalCheckAt;
+
+        return $this;
+    }
+
+    public function isPortalMonitoringActive(): bool
+    {
+        return $this->portalMonitoringActive;
+    }
+
+    public function setPortalMonitoringActive(bool $portalMonitoringActive): static
+    {
+        $this->portalMonitoringActive = $portalMonitoringActive;
 
         return $this;
     }

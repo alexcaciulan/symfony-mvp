@@ -789,7 +789,8 @@ case_overview:
         config_placeholder: 'ex: 4521/302/2026'
         config_format: 'format Ecris'
         config_activate: 'Activează monitorizare'
-        config_disclaimer: 'Monitorizarea va rula zilnic la 08:00, va detecta termen de judecată / soluții / contestații și va aplica tranziții automate.'
+        config_update: 'Actualizează'
+        config_disclaimer: 'Monitorizarea rulează zilnic la 08:00 și detectează: termene fixate, soluții pronunțate, cereri în anulare. Tranzițiile pentru soluții și hotărâri sunt propuse avocatului, nu se aplică automat.'
         timeline_title: 'Timeline portal.just.ro'
         timeline_check_now: 'Verifică acum'
         empty_title: 'Niciun eveniment monitorizat încă'
@@ -807,8 +808,8 @@ case_overview:
         preview_event_3_body: 'Nr. dosar atribuit · status DOSAR_ÎNREGISTRAT.'
         how_title: 'Cum funcționează'
         how_step_1: 'Cron rulează zilnic la 08:00. Interogare SOAP la portal.just.ro'
-        how_step_2: 'Detectare evenimente noi: termen, soluție, contestație, comunicări'
-        how_step_3: 'Tranziții automate aplicate (TERMEN_FIXAT, ORDONANTA_EMISA, etc.)'
+        how_step_2: 'Detectare evenimente noi: termen, soluție, cerere în anulare, comunicări'
+        how_step_3: 'Tranziții automate aplicate (TERMEN_FIXAT, IN_ANULARE). Soluțiile se confirmă manual de avocat.'
         how_step_4: 'Email + notificare in-app la fiecare schimbare'
         how_source: 'Sursă: portalquery.just.ro/query.asmx (gratuit, public, oficial).'
         sync_title: 'Status sincronizare'
@@ -817,6 +818,15 @@ case_overview:
         sync_total_events: 'Evenimente totale'
         sync_not_started: '(încă nepornită)'
         sync_not_scheduled: '—'
+        sync_next_daily: 'zilnic, 08:00'
+        flash_activated: 'Monitorizarea portal a fost activată. Dosarul va fi verificat zilnic.'
+        flash_activate_error: 'Numărul de dosar nu este valid. Folosește formatul Ecris (ex: 4521/302/2026).'
+        flash_check_done: 'Verificare finalizată. Evenimentele noi apar în timeline.'
+        flash_check_error: 'Verificarea portalului a eșuat. Reîncearcă mai târziu.'
+        flash_not_active: 'Activează mai întâi monitorizarea pentru acest dosar.'
+        court_case_number_required: 'Introdu numărul de dosar al instanței.'
+        court_case_number_invalid_format: 'Numărul de dosar trebuie să respecte formatul Ecris (ex: 4521/302/2026).'
+        court_case_number_too_long: 'Numărul de dosar este prea lung (maxim 50 de caractere).'
     deadlines:
         title: 'Termene dosar'
         counter: '%active% active · %expired% expirate · %completed% completat'
@@ -1164,6 +1174,7 @@ rate_limit:
     company_lookup: 'Prea multe căutări CUI pe oră. Reîncercați mai târziu.'
     summons_generation: 'Ați atins limita de somații generate pe oră. Reîncercați mai târziu.'
     payment_order_generation: 'Ați atins limita de cereri OP generate pe oră. Reîncercați mai târziu.'
+    portal_check: 'Ați atins limita de verificări portal pe oră. Reîncercați mai târziu.'
 
 # =============================================================================
 # Enums (label() returns these keys; consumers apply |trans)
@@ -1302,7 +1313,7 @@ home:
         step_4:
             label: 'Pasul 4'
             title: 'Monitorizăm dosarul'
-            description: 'Sincronizare cu portal.just.ro: alertă pe termene, contestații, soluții.'
+            description: 'Sincronizare cu portal.just.ro: alertă pe termene, cereri în anulare, soluții.'
     benefits:
         title: 'De ce LexRecovery'
         rapid:

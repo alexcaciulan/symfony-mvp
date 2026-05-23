@@ -672,18 +672,19 @@ final class CaseOverviewControllerTest extends WebTestCase
         self::assertSelectorTextContains('#panel-portal', 'NEACTIVATĂ');
     }
 
-    public function testPortalConfigInputAndButtonAreDisabled(): void
+    public function testPortalConfigRendersActivationForm(): void
     {
+        // Pas 6.1 — config card wired: form POST către case_portal_activate cu
+        // input editabil + token CSRF + buton submit (NU mai e shell aria-disabled).
         $this->client->loginUser($this->user);
         $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
-        // Input + activate button both must carry aria-disabled until Faza 5 ships.
-        self::assertGreaterThan(0, $crawler->filter('#panel-portal input[aria-disabled="true"]')->count());
-        $activateBtn = $crawler->filter('#panel-portal button[aria-disabled="true"]')->reduce(static function ($node) {
-            return str_contains($node->text(), 'Activează monitorizare');
-        });
-        self::assertGreaterThan(0, $activateBtn->count(), 'Activate button must be aria-disabled');
+        $form = $crawler->filter('#panel-portal form[action$="/portal/activate"]');
+        self::assertGreaterThan(0, $form->count(), 'Activation form must be present');
+        self::assertGreaterThan(0, $form->filter('input[name="portal_activate[courtCaseNumber]"]')->count());
+        self::assertGreaterThan(0, $form->filter('input[name="portal_activate[_token]"]')->count());
+        self::assertSame(0, $crawler->filter('#panel-portal input[aria-disabled="true"]')->count());
     }
 
     public function testPortalTimelineEmptyStateWhenNoEvents(): void
@@ -718,11 +719,12 @@ final class CaseOverviewControllerTest extends WebTestCase
         self::assertSelectorTextContains('#panel-portal', 'încă nepornită');
     }
 
-    public function testPortalConfigRendersActiveBadgeWhenCourtCaseNumberSet(): void
+    public function testPortalConfigRendersActiveBadgeWhenMonitoringActive(): void
     {
-        // Proxy „monitoring active" = courtCaseNumber !== null. Flip the proxy and assert
-        // the badge crosses over to green ACTIVĂ — covers the other side of the W1 branch.
+        // Pas 6.1 — badge „ACTIVĂ" derivat din portalMonitoringActive (NU din
+        // courtCaseNumber). Activăm monitorizarea și verificăm trecerea pe verde.
         $this->case->setCourtCaseNumber('4521/302/2026');
+        $this->case->setPortalMonitoringActive(true);
         $this->em->flush();
 
         $this->client->loginUser($this->user);

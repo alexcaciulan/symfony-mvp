@@ -6,6 +6,7 @@ use App\Entity\Court;
 use App\Entity\CourtPortalEvent;
 use App\Entity\LegalCase;
 use App\Entity\User;
+use App\Enum\CaseStatus;
 use App\Enum\CourtType;
 use App\Enum\PortalEventType;
 use App\Service\Portal\PortalEventDetector;
@@ -50,9 +51,8 @@ class PortalEventDetectorTest extends KernelTestCase
         $case = new LegalCase();
         $case->setUser($this->user);
         $case->setCourt($this->court);
-        $case->setStatus('submitted_to_court');
-        $case->setCaseNumber('100/211/2026');
-        $case->setCurrentStep(6);
+        $case->setStatus(CaseStatus::DOSAR_INREGISTRAT);
+        $case->setCourtCaseNumber('100/211/2026');
         $this->em->persist($case);
         $this->em->flush();
 

@@ -173,12 +173,45 @@ class LegalCaseRepository extends ServiceEntityRepository
     }
 
     /**
-     * Find cases eligible for portal.just.ro monitoring.
-     * Cases must have a caseNumber, be in an active status, and have a court with portalCode.
+     * Find cases eligible for daily portal.just.ro monitoring (Pas 6.1).
+     * Eligibilitate (spec ANALIZA-FLUXURI secțiunea 10): monitorizare activată
+     * explicit (`portalMonitoringActive`), număr de dosar instanță completat
+     * (`courtCaseNumber`), status în setul activ pe portal
+     * ({@see CaseStatus::isActiveOnPortal()}: DOSAR_INREGISTRAT, TERMEN_FIXAT,
+     * ORDONANTA_EMISA, IN_ANULARE), instanță cu cod portal, dosar nesoftșters.
+     * Ordonat după `lastPortalCheckAt ASC` (cele mai vechi verificate primele).
      *
+     * @return LegalCase[]
+     */
+    public function findActiveForMonitoring(): array
+    {
+        $activeStatuses = array_values(array_filter(
+            CaseStatus::cases(),
+            static fn (CaseStatus $s): bool => $s->isActiveOnPortal(),
+        ));
+
+        return $this->createQueryBuilder('lc')
+            ->join('lc.court', 'c')
+            ->where('lc.portalMonitoringActive = true')
+            ->andWhere('lc.courtCaseNumber IS NOT NULL')
+            ->andWhere('lc.deletedAt IS NULL')
+            ->andWhere('lc.status IN (:activeStatuses)')
+            ->andWhere('c.portalCode IS NOT NULL')
+            ->setParameter('activeStatuses', $activeStatuses)
+            ->orderBy('lc.lastPortalCheckAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * @param string[] $statuses
      *
      * @return LegalCase[]
+     *
+     * @deprecated Pas 6.1 — folosește {@see self::findActiveForMonitoring()}.
+     *             Filtrul pe `caseNumber` (numărul intern, mereu non-null) era
+     *             greșit, iar statusurile string legacy nu mai există în enum.
+     *             Eliminare la Pas 6.2 (rename comandă `app:portal-check-all`).
      */
     public function findMonitorableCases(array $statuses): array
     {

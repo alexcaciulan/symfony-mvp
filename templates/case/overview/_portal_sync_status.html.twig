@@ -13,7 +13,11 @@
         </div>
         <div class="flex justify-between">
             <dt class="text-slate-500">{{ 'case_overview.portal.sync_next_check'|trans }}</dt>
-            <dd class="text-slate-400 italic">{{ 'case_overview.portal.sync_not_scheduled'|trans }}</dd>
+            {% if case.portalMonitoringActive %}
+                <dd class="font-medium">{{ 'case_overview.portal.sync_next_daily'|trans }}</dd>
+            {% else %}
+                <dd class="text-slate-400 italic">{{ 'case_overview.portal.sync_not_scheduled'|trans }}</dd>
+            {% endif %}
         </div>
         <div class="flex justify-between">
             <dt class="text-slate-500">{{ 'case_overview.portal.sync_total_events'|trans }}</dt>

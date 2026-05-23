@@ -2,8 +2,11 @@
 
 namespace App\Tests\Repository;
 
+use App\Entity\Court;
 use App\Entity\LegalCase;
 use App\Entity\User;
+use App\Enum\CaseStatus;
+use App\Enum\CourtType;
 use App\Repository\LegalCaseRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -32,18 +35,31 @@ class LegalCaseRepositoryTest extends KernelTestCase
         $this->em->flush();
     }
 
-    private function createCase(string $status = 'draft', bool $deleted = false): LegalCase
+    private function createCase(CaseStatus $status = CaseStatus::AMIABIL, bool $deleted = false): LegalCase
     {
         $case = new LegalCase();
         $case->setUser($this->user);
         $case->setStatus($status);
-        $case->setCurrentStep(1);
         if ($deleted) {
             $case->setDeletedAt(new \DateTimeImmutable());
         }
         $this->em->persist($case);
 
         return $case;
+    }
+
+    private function createCourt(bool $withPortalCode = true): Court
+    {
+        $court = new Court();
+        $court->setName('Repo Court ' . $this->testPrefix . '-' . uniqid());
+        $court->setCounty('CJ');
+        $court->setType(CourtType::JUDECATORIE);
+        if ($withPortalCode) {
+            $court->setPortalCode('RepoCourt' . uniqid());
+        }
+        $this->em->persist($court);
+
+        return $court;
     }
 
     public function testFindByUserReturnsOnlyUserCases(): void
@@ -61,8 +77,7 @@ class LegalCaseRepositoryTest extends KernelTestCase
 
         $otherCase = new LegalCase();
         $otherCase->setUser($other);
-        $otherCase->setStatus('draft');
-        $otherCase->setCurrentStep(1);
+        $otherCase->setStatus(CaseStatus::AMIABIL);
         $this->em->persist($otherCase);
         $this->em->flush();
 
@@ -75,8 +90,8 @@ class LegalCaseRepositoryTest extends KernelTestCase
 
     public function testFindByUserExcludesSoftDeleted(): void
     {
-        $this->createCase('draft', false);
-        $this->createCase('draft', true);
+        $this->createCase(CaseStatus::AMIABIL, false);
+        $this->createCase(CaseStatus::AMIABIL, true);
         $this->em->flush();
 
         $result = $this->repo->findByUser($this->user);
@@ -85,13 +100,13 @@ class LegalCaseRepositoryTest extends KernelTestCase
 
     public function testFindByUserOrdersByCreatedAtDesc(): void
     {
-        $case1 = $this->createCase();
+        $this->createCase();
         $this->em->flush();
 
         // Small delay to ensure different timestamps
         usleep(10000);
 
-        $case2 = $this->createCase();
+        $this->createCase();
         $this->em->flush();
 
         $result = $this->repo->findByUser($this->user);
@@ -105,8 +120,8 @@ class LegalCaseRepositoryTest extends KernelTestCase
     public function testCountAllExcludesSoftDeleted(): void
     {
         $countBefore = $this->repo->countAll();
-        $this->createCase('draft', false);
-        $this->createCase('draft', true);
+        $this->createCase(CaseStatus::AMIABIL, false);
+        $this->createCase(CaseStatus::AMIABIL, true);
         $this->em->flush();
 
         $this->assertSame($countBefore + 1, $this->repo->countAll());
@@ -114,16 +129,68 @@ class LegalCaseRepositoryTest extends KernelTestCase
 
     public function testCountByStatusFiltersByStatusAndExcludesSoftDeleted(): void
     {
-        $draftsBefore = $this->repo->countByStatus('draft');
-        $paidBefore = $this->repo->countByStatus('paid');
+        $amiabilBefore = $this->repo->countByStatus(CaseStatus::AMIABIL->value);
+        $depusaBefore = $this->repo->countByStatus(CaseStatus::CERERE_DEPUSA->value);
 
-        $this->createCase('draft');
-        $this->createCase('draft', true); // soft-deleted draft
-        $this->createCase('paid');
+        $this->createCase(CaseStatus::AMIABIL);
+        $this->createCase(CaseStatus::AMIABIL, true); // soft-deleted
+        $this->createCase(CaseStatus::CERERE_DEPUSA);
         $this->em->flush();
 
-        $this->assertSame($draftsBefore + 1, $this->repo->countByStatus('draft'));
-        $this->assertSame($paidBefore + 1, $this->repo->countByStatus('paid'));
+        $this->assertSame($amiabilBefore + 1, $this->repo->countByStatus(CaseStatus::AMIABIL->value));
+        $this->assertSame($depusaBefore + 1, $this->repo->countByStatus(CaseStatus::CERERE_DEPUSA->value));
+    }
+
+    public function testFindActiveForMonitoringIncludesOnlyEligibleCases(): void
+    {
+        $courtWithCode = $this->createCourt(true);
+        $courtWithoutCode = $this->createCourt(false);
+
+        // Eligibil: activ + courtCaseNumber + status pe portal + instanță cu cod.
+        $eligible = $this->createCase(CaseStatus::DOSAR_INREGISTRAT);
+        $eligible->setCourt($courtWithCode);
+        $eligible->setCourtCaseNumber('111/211/2026');
+        $eligible->setPortalMonitoringActive(true);
+
+        // Inactiv (portalMonitoringActive = false).
+        $inactive = $this->createCase(CaseStatus::DOSAR_INREGISTRAT);
+        $inactive->setCourt($courtWithCode);
+        $inactive->setCourtCaseNumber('222/211/2026');
+
+        // Fără courtCaseNumber.
+        $noNumber = $this->createCase(CaseStatus::DOSAR_INREGISTRAT);
+        $noNumber->setCourt($courtWithCode);
+        $noNumber->setPortalMonitoringActive(true);
+
+        // Status terminal (nu e activ pe portal).
+        $terminal = $this->createCase(CaseStatus::DEFINITIVA);
+        $terminal->setCourt($courtWithCode);
+        $terminal->setCourtCaseNumber('333/211/2026');
+        $terminal->setPortalMonitoringActive(true);
+
+        // Instanță fără cod portal.
+        $noPortalCode = $this->createCase(CaseStatus::DOSAR_INREGISTRAT);
+        $noPortalCode->setCourt($courtWithoutCode);
+        $noPortalCode->setCourtCaseNumber('444/211/2026');
+        $noPortalCode->setPortalMonitoringActive(true);
+
+        // Soft-deleted eligibil.
+        $deleted = $this->createCase(CaseStatus::DOSAR_INREGISTRAT, true);
+        $deleted->setCourt($courtWithCode);
+        $deleted->setCourtCaseNumber('555/211/2026');
+        $deleted->setPortalMonitoringActive(true);
+
+        $this->em->flush();
+
+        $result = $this->repo->findActiveForMonitoring();
+        $ids = array_map(static fn (LegalCase $c): int => $c->getId(), $result);
+
+        $this->assertContains($eligible->getId(), $ids);
+        $this->assertNotContains($inactive->getId(), $ids);
+        $this->assertNotContains($noNumber->getId(), $ids);
+        $this->assertNotContains($terminal->getId(), $ids);
+        $this->assertNotContains($noPortalCode->getId(), $ids);
+        $this->assertNotContains($deleted->getId(), $ids);
     }
 
     protected function tearDown(): void
@@ -134,6 +201,7 @@ class LegalCaseRepositoryTest extends KernelTestCase
             [$this->testPrefix . '%']
         );
         $conn->executeStatement("DELETE FROM user WHERE email LIKE ?", [$this->testPrefix . '%']);
+        $conn->executeStatement("DELETE FROM court WHERE name LIKE ?", ['Repo Court ' . $this->testPrefix . '%']);
         parent::tearDown();
     }
 }

@@ -43,6 +43,26 @@ class LegalDeadlineRepository extends ServiceEntityRepository
             ->getOneOrNullResult();
     }
 
+    /**
+     * Idempotency lookup pentru termenele detectate din portal (Pas 6.1
+     * MonitoringEventApplier): un termen JUDECATA poate exista de mai multe ori
+     * pe un dosar (ședințe multiple), deci dedup-ul se face pe (dosar, tip, dată),
+     * NU doar pe (dosar, tip) ca {@see self::findOneByCaseAndType()}.
+     */
+    public function findOneByCaseTypeAndDate(LegalCase $case, DeadlineType $type, \DateTimeInterface $date): ?LegalDeadline
+    {
+        return $this->createQueryBuilder('d')
+            ->andWhere('d.legalCase = :case')
+            ->andWhere('d.type = :type')
+            ->andWhere('d.deadlineDate = :date')
+            ->setParameter('case', $case)
+            ->setParameter('type', $type)
+            ->setParameter('date', $date->format('Y-m-d'))
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
+
     /** @return LegalDeadline[] */
     public function findUpcomingByUser(User $user, int $days = 30, ?int $limit = null): array
     {

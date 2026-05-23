@@ -787,7 +787,8 @@ case_overview:
         config_placeholder: 'e.g. 4521/302/2026'
         config_format: 'Ecris format'
         config_activate: 'Activate monitoring'
-        config_disclaimer: 'Monitoring runs daily at 08:00. Detects hearings / rulings / appeals and applies automatic transitions.'
+        config_update: 'Update'
+        config_disclaimer: 'Monitoring runs daily at 08:00 and detects: scheduled hearings, rulings, annulment applications. Transitions for rulings are proposed to the lawyer, not applied automatically.'
         timeline_title: 'Timeline portal.just.ro'
         timeline_check_now: 'Check now'
         empty_title: 'No events monitored yet'
@@ -805,8 +806,8 @@ case_overview:
         preview_event_3_body: 'Case number assigned · status DOSAR_ÎNREGISTRAT.'
         how_title: 'How it works'
         how_step_1: 'Cron runs daily at 08:00. SOAP query against portal.just.ro'
-        how_step_2: 'Detects new events: hearings, rulings, appeals, communications'
-        how_step_3: 'Automatic transitions applied (TERMEN_FIXAT, ORDONANTA_EMISA, etc.)'
+        how_step_2: 'Detects new events: hearings, rulings, annulment applications, communications'
+        how_step_3: 'Automatic transitions applied (TERMEN_FIXAT, IN_ANULARE). Rulings require manual confirmation by the lawyer.'
         how_step_4: 'Email + in-app notification on every change'
         how_source: 'Source: portalquery.just.ro/query.asmx (free, public, official).'
         sync_title: 'Sync status'
@@ -815,6 +816,15 @@ case_overview:
         sync_total_events: 'Total events'
         sync_not_started: '(not started yet)'
         sync_not_scheduled: '—'
+        sync_next_daily: 'daily, 08:00'
+        flash_activated: 'Portal monitoring activated. The case will be checked daily.'
+        flash_activate_error: 'The case number is not valid. Use the Ecris format (e.g. 4521/302/2026).'
+        flash_check_done: 'Check complete. New events appear in the timeline.'
+        flash_check_error: 'The portal check failed. Try again later.'
+        flash_not_active: 'Activate monitoring for this case first.'
+        court_case_number_required: 'Enter the court case number.'
+        court_case_number_invalid_format: 'The case number must follow the Ecris format (e.g. 4521/302/2026).'
+        court_case_number_too_long: 'The case number is too long (50 characters maximum).'
     deadlines:
         title: 'Case deadlines'
         counter: '%active% active · %expired% expired · %completed% completed'
@@ -1162,6 +1172,7 @@ rate_limit:
     company_lookup: 'Too many CUI lookups this hour. Please try again later.'
     summons_generation: 'You have reached the hourly limit for generated payment notices. Please try again later.'
     payment_order_generation: 'You have reached the hourly limit for generated payment-order petitions. Please try again later.'
+    portal_check: 'You have reached the hourly limit for portal checks. Please try again later.'
 
 # =============================================================================
 # Enums (label() returns these keys; consumers apply |trans)
@@ -1300,7 +1311,7 @@ home:
         step_4:
             label: 'Step 4'
             title: 'We monitor the case'
-            description: 'Sync with portal.just.ro: alerts on hearings, contestations, rulings.'
+            description: 'Sync with portal.just.ro: alerts on hearings, annulment applications, rulings.'
     benefits:
         title: 'Why LexRecovery'
         rapid:

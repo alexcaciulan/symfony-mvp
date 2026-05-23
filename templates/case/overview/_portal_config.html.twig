@@ -1,8 +1,8 @@
-{# Pas 4.0.6 — Config monitorizare card. Reflectă mockup linii 883-906.
-   Badge stare derivat din `case.courtCaseNumber !== null` (Faza 5 va wire-ui flag dedicat). #}
+{# Pas 6.1 — Config monitorizare card (wired). Badge stare din
+   `case.portalMonitoringActive`. Form POST către `case_portal_activate`. #}
 {% from 'case/overview/_icons.html.twig' import icon_chevron_right %}
 
-{% set monitoring_active = case.courtCaseNumber is not null %}
+{% set monitoring_active = case.portalMonitoringActive %}
 
 <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft overflow-hidden">
     <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-800">
@@ -23,27 +23,22 @@
             {% endif %}
         </div>
 
-        <div class="mt-4 flex items-center gap-2">
+        <form method="post" action="{{ path('case_portal_activate', { id: case.id }) }}" class="mt-4 flex items-center gap-2">
+            <input type="hidden" name="portal_activate[_token]" value="{{ csrf_token('portal_activate') }}">
             <div class="flex-1 relative">
                 <input type="text"
-                       readonly
-                       aria-disabled="true"
-                       tabindex="-1"
+                       name="portal_activate[courtCaseNumber]"
                        value="{{ case.courtCaseNumber|default('') }}"
                        placeholder="{{ 'case_overview.portal.config_placeholder'|trans }}"
-                       title="{{ 'case_overview.tooltip.coming_soon_portal'|trans }}"
-                       class="w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 font-mono text-sm opacity-70 cursor-not-allowed">
+                       class="w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/60 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-lex-navy/40">
                 <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">{{ 'case_overview.portal.config_format'|trans }}</span>
             </div>
-            <button type="button"
-                    aria-disabled="true"
-                    tabindex="-1"
-                    title="{{ 'case_overview.tooltip.coming_soon_portal'|trans }}"
-                    class="py-2.5 px-4 inline-flex items-center gap-1.5 text-sm font-semibold rounded-lg bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white shadow-sm opacity-70 cursor-not-allowed">
+            <button type="submit"
+                    class="py-2.5 px-4 inline-flex items-center gap-1.5 text-sm font-semibold rounded-lg bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white shadow-sm hover:opacity-90 transition-opacity">
                 {{ icon_chevron_right('size-4') }}
-                {{ 'case_overview.portal.config_activate'|trans }}
+                {{ monitoring_active ? 'case_overview.portal.config_update'|trans : 'case_overview.portal.config_activate'|trans }}
             </button>
-        </div>
+        </form>
         <p class="mt-2 text-[11px] text-slate-500">{{ 'case_overview.portal.config_disclaimer'|trans }}</p>
     </div>
 </section>

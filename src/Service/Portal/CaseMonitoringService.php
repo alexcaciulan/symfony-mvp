@@ -15,6 +15,7 @@ class CaseMonitoringService
     public function __construct(
         private PortalJustClient $portalClient,
         private PortalEventDetector $eventDetector,
+        private MonitoringEventApplier $eventApplier,
         private EntityManagerInterface $em,
         private AuditLogService $auditLogService,
         private LoggerInterface $logger,
@@ -36,8 +37,8 @@ class CaseMonitoringService
             return 0;
         }
 
-        if ($case->getCaseNumber() === null) {
-            $this->logger->warning('Case #{id} has no case number, skipping', [
+        if ($case->getCourtCaseNumber() === null) {
+            $this->logger->warning('Case #{id} has no court case number, skipping', [
                 'id' => $case->getId(),
             ]);
 
@@ -46,7 +47,7 @@ class CaseMonitoringService
 
         try {
             $dosarList = $this->portalClient->searchByCaseNumber(
-                $case->getCaseNumber(),
+                $case->getCourtCaseNumber(),
                 $court->getPortalCode(),
             );
         } catch (PortalJustException $e) {
@@ -78,6 +79,8 @@ class CaseMonitoringService
         $dosarData = $dosarList[0];
         $newEvents = $this->eventDetector->detectNewEvents($case, $dosarData);
 
+        /** @var CourtPortalEvent[] $persistedEvents */
+        $persistedEvents = [];
         foreach ($newEvents as $eventData) {
             $event = new CourtPortalEvent();
             $event->setLegalCase($case);
@@ -89,6 +92,7 @@ class CaseMonitoringService
             $event->setRawData($eventData['rawData']);
             $event->setNotified(true);
             $this->em->persist($event);
+            $persistedEvents[] = $event;
 
             $this->createNotification($case, $event);
 
@@ -108,6 +112,12 @@ class CaseMonitoringService
         $case->setLastPortalCheckAt(new \DateTimeImmutable());
         $this->em->flush();
 
+        // Propagă evenimentele în workflow (Pas 6.1): tranziții AUTO sigure +
+        // propuneri pentru cele sensibile. Rulează DUPĂ flush (applier-ul are
+        // nevoie de evenimente persistate) și își face propriul flush per
+        // tranziție/termen.
+        $this->eventApplier->applyEvents($case, $persistedEvents);
+
         return count($newEvents);
     }
 
@@ -120,7 +130,7 @@ class CaseMonitoringService
         $notification->setChannel(NotificationChannel::IN_APP);
         $notification->setTitle(sprintf(
             'Actualizare dosar %s: %s',
-            $case->getCaseNumber(),
+            $case->getCourtCaseNumber() ?? $case->getCaseNumber(),
             $event->getEventType()->label(),
         ));
         $notification->setMessage($event->getDescription());

@@ -65,6 +65,16 @@ class AuditLogService
      */
     public const CATEGORY_PAYMENT_ORDER_GENERATED = 'PAYMENT_ORDER_GENERATED';
 
+    /**
+     * Audit category for portal.just.ro monitoring (Pas 6.1). Acoperă activarea
+     * monitorizării (`portal_activated`), tranzițiile workflow aplicate automat
+     * pe baza evenimentelor portal (`portal_transition_applied`) și propunerile
+     * de tranziții sensibile care necesită confirmarea avocatului
+     * (`portal_transition_proposed`). Permite reconstrucția deciziilor automate
+     * vs manuale luate pe baza datelor externe din portal.
+     */
+    public const CATEGORY_PORTAL_MONITORING = 'PORTAL_MONITORING';
+
     public function __construct(
         private EntityManagerInterface $em,
         private Security $security,

@@ -8,6 +8,7 @@ use App\Entity\CourtPortalEvent;
 use App\Entity\LegalCase;
 use App\Entity\Notification;
 use App\Entity\User;
+use App\Enum\CaseStatus;
 use App\Enum\CourtType;
 use App\Enum\PortalEventType;
 use App\Service\Portal\CaseMonitoringService;
@@ -68,9 +69,9 @@ class CaseMonitoringServiceTest extends KernelTestCase
         $case = new LegalCase();
         $case->setUser($this->user);
         $case->setCourt($this->court);
-        $case->setStatus('submitted_to_court');
-        $case->setCaseNumber('200/211/2026');
-        $case->setCurrentStep(6);
+        $case->setStatus(CaseStatus::DOSAR_INREGISTRAT);
+        $case->setCourtCaseNumber('200/211/2026');
+        $case->setPortalMonitoringActive(true);
         $this->em->persist($case);
         $this->em->flush();
 
@@ -138,9 +139,8 @@ class CaseMonitoringServiceTest extends KernelTestCase
     {
         $case = new LegalCase();
         $case->setUser($this->user);
-        $case->setStatus('submitted_to_court');
-        $case->setCaseNumber('300/2026');
-        $case->setCurrentStep(6);
+        $case->setStatus(CaseStatus::DOSAR_INREGISTRAT);
+        $case->setCourtCaseNumber('300/2026');
         $this->em->persist($case);
         $this->em->flush();
 
@@ -148,6 +148,37 @@ class CaseMonitoringServiceTest extends KernelTestCase
         $newCount = $service->monitorCase($case);
 
         $this->assertSame(0, $newCount);
+    }
+
+    public function testMonitorCasePassesCourtCaseNumberToPortal(): void
+    {
+        $case = $this->createSubmittedCase();
+
+        $mockClient = $this->createMock(PortalJustClient::class);
+        $mockClient->expects($this->once())
+            ->method('searchByCaseNumber')
+            ->with('200/211/2026', $this->court->getPortalCode())
+            ->willReturn([]);
+
+        $service = static::getContainer()->get(CaseMonitoringService::class);
+        (new \ReflectionClass($service))->getProperty('portalClient')->setValue($service, $mockClient);
+
+        $service->monitorCase($case);
+    }
+
+    public function testMonitorCaseSkipsCaseWithoutCourtCaseNumber(): void
+    {
+        $case = new LegalCase();
+        $case->setUser($this->user);
+        $case->setCourt($this->court);
+        $case->setStatus(CaseStatus::DOSAR_INREGISTRAT);
+        $case->setPortalMonitoringActive(true);
+        $this->em->persist($case);
+        $this->em->flush();
+
+        $service = static::getContainer()->get(CaseMonitoringService::class);
+
+        $this->assertSame(0, $service->monitorCase($case));
     }
 
     public function testMonitorCaseSkipsCaseWithoutPortalCode(): void
@@ -161,9 +192,9 @@ class CaseMonitoringServiceTest extends KernelTestCase
         $case = new LegalCase();
         $case->setUser($this->user);
         $case->setCourt($courtNoCode);
-        $case->setStatus('submitted_to_court');
-        $case->setCaseNumber('400/2026');
-        $case->setCurrentStep(6);
+        $case->setStatus(CaseStatus::DOSAR_INREGISTRAT);
+        $case->setCourtCaseNumber('400/2026');
+        $case->setPortalMonitoringActive(true);
         $this->em->persist($case);
         $this->em->flush();
 
@@ -213,7 +244,15 @@ class CaseMonitoringServiceTest extends KernelTestCase
             [$this->testPrefix . '%'],
         );
         $conn->executeStatement(
+            "DELETE al FROM audit_log al JOIN legal_deadline ld ON al.entity_id = ld.id AND al.entity_type = 'App\\\\Entity\\\\LegalDeadline' JOIN legal_case lc ON ld.legal_case_id = lc.id JOIN user u ON lc.user_id = u.id WHERE u.email LIKE ?",
+            [$this->testPrefix . '%'],
+        );
+        $conn->executeStatement(
             "DELETE n FROM notification n JOIN user u ON n.user_id = u.id WHERE u.email LIKE ?",
+            [$this->testPrefix . '%'],
+        );
+        $conn->executeStatement(
+            "DELETE ld FROM legal_deadline ld JOIN legal_case lc ON ld.legal_case_id = lc.id JOIN user u ON lc.user_id = u.id WHERE u.email LIKE ?",
             [$this->testPrefix . '%'],
         );
         $conn->executeStatement(

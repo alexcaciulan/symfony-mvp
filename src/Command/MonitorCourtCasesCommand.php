@@ -18,12 +18,6 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 )]
 class MonitorCourtCasesCommand extends Command
 {
-    private const MONITORED_STATUSES = [
-        'submitted_to_court',
-        'under_review',
-        'additional_info_requested',
-    ];
-
     public function __construct(
         private LegalCaseRepository $caseRepository,
         private CaseMonitoringService $monitoringService,
@@ -49,7 +43,7 @@ class MonitorCourtCasesCommand extends Command
             $case = $this->caseRepository->find((int) $specificCaseId);
             $cases = $case !== null ? [$case] : [];
         } else {
-            $cases = $this->caseRepository->findMonitorableCases(self::MONITORED_STATUSES);
+            $cases = $this->caseRepository->findActiveForMonitoring();
         }
 
         $io->info(sprintf('Found %d case(s) to monitor.', count($cases)));
@@ -59,8 +53,8 @@ class MonitorCourtCasesCommand extends Command
         $isFirst = true;
 
         foreach ($cases as $case) {
-            if ($case->getCaseNumber() === null) {
-                $io->note(sprintf('Case #%d has no case number, skipping.', $case->getId()));
+            if ($case->getCourtCaseNumber() === null) {
+                $io->note(sprintf('Case #%d has no court case number, skipping.', $case->getId()));
                 continue;
             }
 
@@ -78,14 +72,14 @@ class MonitorCourtCasesCommand extends Command
                     $io->success(sprintf(
                         'Case #%d (%s): %d new event(s) detected.',
                         $case->getId(),
-                        $case->getCaseNumber(),
+                        $case->getCourtCaseNumber(),
                         $newCount,
                     ));
                 } else {
                     $io->text(sprintf(
                         'Case #%d (%s): no new events.',
                         $case->getId(),
-                        $case->getCaseNumber(),
+                        $case->getCourtCaseNumber(),
                     ));
                 }
             } catch (\Throwable $e) {
@@ -98,7 +92,7 @@ class MonitorCourtCasesCommand extends Command
                 $io->error(sprintf(
                     'Case #%d (%s): ERROR - %s',
                     $case->getId(),
-                    $case->getCaseNumber(),
+                    $case->getCourtCaseNumber(),
                     $e->getMessage(),
                 ));
             }
