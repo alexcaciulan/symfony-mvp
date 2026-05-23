@@ -336,6 +336,47 @@ class DataExtractionServiceTest extends TestCase
         $this->assertSame(0.0, $result->globalConfidence);
     }
 
+    public function testForceStrategyKeyBypassesSupportsForMatchedTier(): void
+    {
+        // Regression — observed in dev 2026-05-18 with EXTRACTION_FORCE_STRATEGY=ocr_text
+        // on a PDF that had a text layer (`contract-multipage.pdf`). OcrText's
+        // `supports()` returned false (its "PDF without text layer?" check is a
+        // cascade-ordering optimization that defers to PdfParser), so the
+        // cascade fell through to Stub and persisted FAILED. The force knob
+        // existing for dev tier-isolation must override that optimization —
+        // otherwise the knob is useless on exactly the documents you'd want to
+        // test AI strategies against.
+        $ocrText = new class implements ExtractionStrategyInterface {
+            public const STRATEGY_KEY = 'ocr_text';
+            public function supports(Document $document): bool { return false; }
+            public function priority(): int { return 70; }
+            public function isAiBacked(): bool { return true; }
+            public function extract(Document $document): ExtractedDocumentData
+            {
+                return new ExtractedDocumentData(
+                    sourceDocumentId: (int) $document->getId(),
+                    strategy: self::STRATEGY_KEY,
+                    globalConfidence: 0.85,
+                    extractedAt: new \DateTimeImmutable(),
+                );
+            }
+        };
+
+        $service = new DataExtractionService(
+            strategies: [
+                $this->makeKeyedFake('pdf_parser', priority: 100, confidence: 0.95),
+                $ocrText,
+                new StubExtractionStrategy(),
+            ],
+            forceStrategyKey: 'ocr_text',
+        );
+
+        $result = $service->extract($this->makeDocument(userMode: ExtractionMode::BALANCED));
+
+        $this->assertSame('ocr_text', $result->strategy, 'Force knob must run the tier even when supports() returns false');
+        $this->assertSame(0.85, $result->globalConfidence);
+    }
+
     public function testAnonymousStrategiesWithoutStrategyKeyConstantAreUnaffectedByDevKnobs(): void
     {
         // The defensive `defined(::STRATEGY_KEY)` check in the orchestrator

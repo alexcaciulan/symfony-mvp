@@ -151,8 +151,11 @@ class DataExtractionService
             // document that would naturally bypass the higher-priority tiers.
             // NEVER set this in production — it disables the priority-based
             // short-circuit and degrades extraction quality.
+            $isForceMatched = $this->forceStrategyKey !== null
+                && $this->forceStrategyKey !== ''
+                && $strategyKey === $this->forceStrategyKey;
             if ($this->forceStrategyKey !== null && $this->forceStrategyKey !== ''
-                && $strategyKey !== $this->forceStrategyKey) {
+                && !$isForceMatched) {
                 continue;
             }
 
@@ -171,8 +174,21 @@ class DataExtractionService
                 continue;
             }
 
-            if (!$strategy->supports($document)) {
+            // When force-matched, bypass `supports()` — its main role is a
+            // cascade-ordering optimization (e.g. OcrText defers to PdfParser
+            // on PDFs that have a text layer). The force knob explicitly
+            // overrides ordering, so the optimization is exactly what we want
+            // to ignore. Any genuine incompatibility (wrong mime, missing
+            // OCR binary, …) still surfaces via the strategy's own throws,
+            // caught by the defensive `\Throwable` handler below.
+            if (!$isForceMatched && !$strategy->supports($document)) {
                 continue;
+            }
+            if ($isForceMatched && !$strategy->supports($document)) {
+                $this->logger->info('extraction.force_bypass_supports', [
+                    'documentId' => $document->getId(),
+                    'strategy' => $strategyKey,
+                ]);
             }
 
             // Defense-in-depth: each strategy declares LlmException / OcrException
