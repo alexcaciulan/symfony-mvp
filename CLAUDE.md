@@ -293,6 +293,14 @@ class PaymentProcessingService
 - Same rule applies in both `ro` and `en` locales. Keep RO/EN keys in lockstep when adding new strings.
 - Run `php bin/console lint:yaml translations/` after edits to confirm valid syntax.
 
+### Code Comments and CLI Strings (English only)
+- **Code comments are English and concise.** Write comments in English, only where they add value (the "why", not the "what"). Avoid over-commenting obvious code.
+- **No plan/step references in code comments.** Never write development-plan or step bookkeeping in docblocks or inline comments (e.g. `// Pas 6.2 — ...`, `// revizia C5`, `// Redenumire din ...`, `@note livrat la Pas X.Y`). That tracking belongs in the plan doc and memory files, not in source. Comments should explain the code as it stands now, independent of when or how it was built.
+- **No hardcoded Romanian in code.** CLI command output (`$io->title()`, `$io->section()`, success/error lines), `addOption()`/`addArgument()` descriptions, and command `description:` attributes are **English literal** (CLI is an operator/cron surface, like log messages). Examples:
+  - Bad: `$io->title('Verificare termene ' . $date);` → Good: `$io->title('Deadline check ' . $date);`
+  - Bad: `$this->addOption('case-id', null, VALUE_OPTIONAL, 'Dispecerizează un singur dosar după ID');` → Good: `... 'Dispatch a single case by ID');`
+- **End-user strings still go through the translator** (see Translation Conventions). This rule is about code-level/operator-facing text only; lawyer-facing UI copy stays Romanian via translation keys.
+
 ## Before Editing Code
 
 1. **Read related files first**: Controller + Form + Entity for the feature area
