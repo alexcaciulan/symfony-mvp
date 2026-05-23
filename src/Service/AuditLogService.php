@@ -75,6 +75,15 @@ class AuditLogService
      */
     public const CATEGORY_PORTAL_MONITORING = 'PORTAL_MONITORING';
 
+    /**
+     * Audit category for the automatic transition to DEFINITIVA (CaseAutoFinalizer).
+     * Recorded when the `app:check-deadlines` cron applies `marcheaza_definitiva`
+     * after the annulment-request window lapses (CPC art. 1024), prorogated per CPC
+     * art. 181 para. 2 plus a buffer. `newData` keeps `rulingCommunicationDate`, the
+     * computed `deadlineDate` and `bufferDays` to reconstruct the automated decision.
+     */
+    public const CATEGORY_AUTO_FINALIZED = 'AUTO_FINALIZED';
+
     public function __construct(
         private EntityManagerInterface $em,
         private Security $security,

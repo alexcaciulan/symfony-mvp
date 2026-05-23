@@ -30,6 +30,24 @@ class LegalDeadlineRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+    /**
+     * All incomplete deadlines (global, not scoped per user) for the alert cron
+     * (DeadlineAlertService). Excludes deadlines on soft-deleted cases. Ordered
+     * chronologically for deterministic output.
+     *
+     * @return LegalDeadline[]
+     */
+    public function findIncomplete(): array
+    {
+        return $this->createQueryBuilder('d')
+            ->join('d.legalCase', 'lc')
+            ->andWhere('d.completed = false')
+            ->andWhere('lc.deletedAt IS NULL')
+            ->orderBy('d.deadlineDate', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
     /** Idempotency lookup pentru DeadlineCreationSubscriber: termenele automate sunt unice per (dosar, tip). */
     public function findOneByCaseAndType(LegalCase $case, DeadlineType $type): ?LegalDeadline
     {

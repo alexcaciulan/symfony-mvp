@@ -204,25 +204,18 @@ class LegalCaseRepository extends ServiceEntityRepository
     }
 
     /**
-     * @param string[] $statuses
+     * Non-soft-deleted cases with a given status. Used by the auto-finalization
+     * cron (CaseAutoFinalizer) to iterate cases in ORDONANTA_EMISA.
      *
      * @return LegalCase[]
-     *
-     * @deprecated Pas 6.1 — folosește {@see self::findActiveForMonitoring()}.
-     *             Filtrul pe `caseNumber` (numărul intern, mereu non-null) era
-     *             greșit, iar statusurile string legacy nu mai există în enum.
-     *             Eliminare la Pas 6.2 (rename comandă `app:portal-check-all`).
      */
-    public function findMonitorableCases(array $statuses): array
+    public function findByStatus(CaseStatus $status): array
     {
         return $this->createQueryBuilder('lc')
-            ->join('lc.court', 'c')
-            ->where('lc.status IN (:statuses)')
-            ->andWhere('lc.caseNumber IS NOT NULL')
+            ->where('lc.status = :status')
             ->andWhere('lc.deletedAt IS NULL')
-            ->andWhere('c.portalCode IS NOT NULL')
-            ->setParameter('statuses', $statuses)
-            ->orderBy('lc.lastPortalCheckAt', 'ASC')
+            ->setParameter('status', $status)
+            ->orderBy('lc.updatedAt', 'ASC')
             ->getQuery()
             ->getResult();
     }

@@ -114,5 +114,10 @@ chown -R www-data:www-data /var/www/html/var
 
 echo "Application is ready!"
 
+# NOTE: cron jobs are NOT started here. `app:check-deadlines` (07:00) and
+# `app:portal-check-all` (08:00) are registered as scheduled jobs in Coolify.
+# The Messenger worker (compose `worker`) consumes the `CheckCasePortalMessage`
+# items dispatched by `app:portal-check-all`.
+
 # Execute the main command
 exec "$@"

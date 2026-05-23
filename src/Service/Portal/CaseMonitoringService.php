@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Service\Portal;
 
 use App\Entity\CourtPortalEvent;
@@ -65,7 +67,10 @@ class CaseMonitoringService
             );
             $this->em->flush();
 
-            return 0;
+            // Propagate so the async handler can retry. Synchronous callers
+            // (CasePortalController activate/check-now) already catch \Throwable,
+            // so there is no regression.
+            throw $e;
         }
 
         if (empty($dosarList)) {

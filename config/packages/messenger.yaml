@@ -29,3 +29,8 @@ framework:
             # Handler at App\MessageHandler\ExtractDataMessageHandler invokes the
             # 4-tier cascade in a worker process; HTTP request returns ~50ms.
             App\Message\ExtractDataMessage: async
+
+            # Per-case portal.just.ro check, staggered from `app:portal-check-all`.
+            # Async so a transient SOAP failure is retried (retry_strategy above:
+            # max 3, x2 backoff).
+            App\Message\CheckCasePortalMessage: async

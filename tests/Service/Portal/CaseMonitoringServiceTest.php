@@ -13,6 +13,7 @@ use App\Enum\CourtType;
 use App\Enum\PortalEventType;
 use App\Service\Portal\CaseMonitoringService;
 use App\Service\Portal\PortalJustClient;
+use App\Service\Portal\PortalJustException;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
@@ -120,6 +121,22 @@ class CaseMonitoringServiceTest extends KernelTestCase
         // Verify lastPortalCheckAt was updated
         $this->em->refresh($case);
         $this->assertNotNull($case->getLastPortalCheckAt());
+    }
+
+    public function testMonitorCaseRethrowsOnPortalFailure(): void
+    {
+        // monitorCase propagates PortalJustException (for async retry); synchronous
+        // callers catch it in a try/catch.
+        $case = $this->createSubmittedCase();
+
+        $mockClient = $this->createStub(PortalJustClient::class);
+        $mockClient->method('searchByCaseNumber')->willThrowException(new PortalJustException('SOAP down'));
+
+        $service = static::getContainer()->get(CaseMonitoringService::class);
+        (new \ReflectionClass($service))->getProperty('portalClient')->setValue($service, $mockClient);
+
+        $this->expectException(PortalJustException::class);
+        $service->monitorCase($case);
     }
 
     public function testMonitorCaseReturnsZeroWhenNoNewEvents(): void

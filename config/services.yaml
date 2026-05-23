@@ -7,6 +7,10 @@ parameters:
     app.mailer_from: '%env(MAILER_FROM)%'
     app.taxa_timbru_op.fixed: 200.0
     app.taxa_timbru_op.law_version: 'OUG 80/2013 art. 6 alin. 2 — text aplicabil 2026-05-01'
+    # Extra buffer before auto-finalizing to DEFINITIVA, on top of the CPC art. 181
+    # para. 2 prorogation. A 1-day delay is preferable to a premature mark that would
+    # block a valid annulment request. Override for testing/preprod.
+    app.legal_deadlines.auto_final_buffer_days: 1
 
 services:
     # default configuration for services in *this* file
@@ -22,6 +26,8 @@ services:
             # via constructor `?float $confidenceThreshold = null` to override the
             # internal DEFAULT_CONFIDENCE_THRESHOLD constant without redeploy.
             $confidenceThreshold: '%env(float:EXTRACTION_CONFIDENCE_THRESHOLD)%'
+            # Auto-finalization buffer, injected into CaseAutoFinalizer.
+            $autoFinalBufferDays: '%app.legal_deadlines.auto_final_buffer_days%'
 
     # interface-based auto-tagging (Strategy + Tagged Iterator pattern)
     _instanceof:
