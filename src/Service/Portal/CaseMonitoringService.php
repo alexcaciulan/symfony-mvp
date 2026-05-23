@@ -8,8 +8,10 @@ use App\Entity\CourtPortalEvent;
 use App\Entity\LegalCase;
 use App\Entity\Notification;
 use App\Enum\NotificationChannel;
+use App\Event\PortalEventDetectedEvent;
 use App\Service\AuditLogService;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 
 class CaseMonitoringService
@@ -20,6 +22,7 @@ class CaseMonitoringService
         private MonitoringEventApplier $eventApplier,
         private EntityManagerInterface $em,
         private AuditLogService $auditLogService,
+        private EventDispatcherInterface $eventDispatcher,
         private LoggerInterface $logger,
     ) {}
 
@@ -117,10 +120,16 @@ class CaseMonitoringService
         $case->setLastPortalCheckAt(new \DateTimeImmutable());
         $this->em->flush();
 
-        // Propagă evenimentele în workflow (Pas 6.1): tranziții AUTO sigure +
-        // propuneri pentru cele sensibile. Rulează DUPĂ flush (applier-ul are
-        // nevoie de evenimente persistate) și își face propriul flush per
-        // tranziție/termen.
+        // Notify the lawyer (email + toast) per persisted event. Dispatched after
+        // flush so each CourtPortalEvent has an id; the in-app notification was
+        // already created above, so the listener does not persist a second one.
+        foreach ($persistedEvents as $portalEvent) {
+            $this->eventDispatcher->dispatch(new PortalEventDetectedEvent($case, $portalEvent));
+        }
+
+        // Propagate events into the workflow: safe AUTO transitions + proposals
+        // for sensitive ones. Runs after flush (the applier needs persisted
+        // events) and flushes itself per transition/deadline.
         $this->eventApplier->applyEvents($case, $persistedEvents);
 
         return count($newEvents);

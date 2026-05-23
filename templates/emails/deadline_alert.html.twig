@@ -1,0 +1,29 @@
+{% extends 'emails/_layout.html.twig' %}
+
+{% block content %}
+    <h2 style="color:{{ isExpired ? '#b91c1c' : '#b45309' }};margin-bottom:16px;">{{ heading }}</h2>
+
+    <p style="font-size:15px;line-height:1.6;">{{ message }}</p>
+
+    <table style="width:100%;border-collapse:collapse;margin:20px 0;font-size:14px;">
+        <tr>
+            <td style="padding:8px 0;color:#64748b;">{{ 'email.deadline_alert.field_type'|trans }}</td>
+            <td style="padding:8px 0;font-weight:bold;text-align:right;">{{ deadlineType }}</td>
+        </tr>
+        <tr>
+            <td style="padding:8px 0;color:#64748b;">{{ 'email.deadline_alert.field_date'|trans }}</td>
+            <td style="padding:8px 0;font-weight:bold;text-align:right;">{{ deadlineDate|date('d.m.Y') }}</td>
+        </tr>
+    </table>
+
+    <p style="font-size:13px;line-height:1.5;color:#475569;background:#f1f5f9;border-radius:6px;padding:12px 16px;">
+        {{ disclaimer }}
+    </p>
+
+    <p style="text-align:center;margin:32px 0;">
+        <a href="{{ caseUrl }}"
+           style="display:inline-block;padding:14px 28px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:6px;font-size:16px;font-weight:bold;">
+            {{ 'email.cta.view_case'|trans }}
+        </a>
+    </p>
+{% endblock %}

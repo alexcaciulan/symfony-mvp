@@ -1388,3 +1388,89 @@ validation:
         OP_INSOLVENCY_NOT_VERIFIED: 'Verify the debtor''s insolvency status on bpi.just.ro and confirm in the UI before filing (attach the BPI proof PDF).'
         OP_INSOLVENCY_STALE: 'The BPI (insolvency) check is older than 7 days. Re-verify on bpi.just.ro and update the proof; insolvency status changes rapidly.'
         OP_PF_BIPF_MANUAL_CHECK: 'Individual debtor: manually verify BIPF (Personal Insolvency Bulletin, Law 151/2015) on bpi.just.ro before filing.'
+
+# =============================================================================
+# Email notifications (EmailNotificationSubscriber + templates/emails/)
+# =============================================================================
+email:
+    sender_name: 'LexRecovery'
+    footer_disclaimer: 'This message is informational and does not constitute legal advice. Always verify deadlines and rulings directly on the court portal.'
+    cta:
+        view_case: 'Open case'
+    case_status:
+        somatie_trimisa:
+            subject: 'Payment notice generated for case %case%'
+            heading: 'The payment notice has been generated'
+            body: 'The payment notice for case %case% has been generated. Serve it to the debtor and upload the proof of service. The 15-day term to pay or oppose runs from the debtor receiving the notice (CPC art. 1015 para. 1).'
+        cerere_depusa:
+            subject: 'The payment order petition is ready for case %case%'
+            heading: 'The payment order petition is ready'
+            body: 'The payment order petition package for case %case% is ready. Download the archive and file the petition with the court.'
+        ordonanta_emisa:
+            subject: 'Payment order issued for case %case%'
+            heading: 'The court issued the payment order'
+            body: 'A payment order was issued for case %case%. The annulment request term is 10 days and runs from the date the order is served to the debtor (CPC art. 1024 para. 1). Enter the service date in the case to start the term.'
+        definitiva:
+            subject: 'Enforceable title obtained for case %case%'
+            heading: 'The payment order is now final'
+            body: 'The payment order for case %case% is now final and constitutes an enforceable title. You can proceed to enforcement.'
+        respinsa:
+            subject: 'Unfavourable ruling on case %case%'
+            heading: 'Unfavourable ruling on the case'
+            body: 'On case %case% the court issued an unfavourable ruling (payment order petition rejected or annulment request admitted). Check the court ruling and the applicable deadlines.'
+    deadline_alert:
+        field_type: 'Deadline type'
+        field_date: 'Due date'
+        procedural:
+            subject: '%type% deadline on case %case%: %days% days left'
+            disclaimer: 'Procedural deadline. For the annulment request, the 10 days run from the date the order is served to the debtor (CPC art. 1024 para. 1). If the date falls on a non-working day, the deadline extends to the next working day (CPC art. 181).'
+        prescriptie:
+            subject: 'Prescription deadline on case %case%: %days% days left'
+            disclaimer: 'Material-law term, non-prorogable (NCC art. 2517). Reaching it extinguishes the substantive right of action.'
+    portal_event:
+        field_type: 'Event type'
+        field_date: 'Date'
+        field_solution: 'Ruling'
+        subject: 'New portal activity for case %case%'
+        heading: 'New activity on the court portal'
+        body: 'New activity was detected on portal.just.ro for case %case%.'
+    missing_communication_date:
+        subject: 'Enter the service date for case %case%'
+        heading: 'Enter the payment order service date'
+        body: 'To start the 10-day annulment request term (CPC art. 1024 para. 1), enter the date the order was served to the debtor on case %case%. Without this date, the case cannot be finalized automatically.'
+
+# =============================================================================
+# In-app notifications + Mercure toast text (NotificationDispatcher)
+# =============================================================================
+notification:
+    deadline_alert:
+        procedural:
+            title: '%type% deadline on case %case%'
+            upcoming: '%days% days left until the %type% deadline (%date%).'
+            expired: 'The %type% deadline (%date%) expired %days% days ago.'
+        prescriptie:
+            title: 'Prescription on case %case%'
+            upcoming: '%days% days left until the prescription term (%date%). Non-prorogable term (NCC art. 2517).'
+            expired: 'The prescription term (%date%) was reached %days% days ago (NCC art. 2517).'
+    case_status:
+        somatie_trimisa:
+            title: 'Payment notice generated: %case%'
+            message: 'The payment notice for case %case% has been generated. The 15-day term runs from the debtor receiving it (CPC art. 1015 para. 1).'
+        cerere_depusa:
+            title: 'Payment order ready: %case%'
+            message: 'The payment order petition package for case %case% is ready.'
+        ordonanta_emisa:
+            title: 'Order issued: %case%'
+            message: 'A payment order was issued for case %case%. The annulment request term is 10 days from service.'
+        definitiva:
+            title: 'Enforceable title: %case%'
+            message: 'The payment order for case %case% is now final.'
+        respinsa:
+            title: 'Unfavourable ruling: %case%'
+            message: 'On case %case% the court issued an unfavourable ruling.'
+    portal_event:
+        title: 'Portal activity: %case%'
+        message: 'New portal activity for case %case%.'
+    missing_communication_date:
+        title: 'Enter service date: %case%'
+        message: 'Enter the payment order service date on case %case% to start the annulment request term.'

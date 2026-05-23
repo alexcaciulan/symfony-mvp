@@ -85,6 +85,7 @@ final class CaseSummonsControllerTest extends WebTestCase
         $conn->executeStatement('DELETE FROM legal_deadline WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM case_status_history WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
+        $conn->executeStatement('DELETE FROM notification WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM legal_case WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM creditor WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM `user` WHERE id = :id', ['id' => $userId]);

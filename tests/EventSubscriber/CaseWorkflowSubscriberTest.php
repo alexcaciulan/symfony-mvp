@@ -167,6 +167,10 @@ class CaseWorkflowSubscriberTest extends KernelTestCase
                 [$this->testPrefix . '%']
             );
             $conn->executeStatement(
+                "DELETE n FROM notification n JOIN user u ON n.user_id = u.id WHERE u.email LIKE ?",
+                [$this->testPrefix . '%']
+            );
+            $conn->executeStatement(
                 "DELETE lc FROM legal_case lc JOIN user u ON lc.user_id = u.id WHERE u.email LIKE ?",
                 [$this->testPrefix . '%']
             );

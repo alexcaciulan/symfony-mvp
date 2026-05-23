@@ -1390,3 +1390,89 @@ validation:
         OP_INSOLVENCY_NOT_VERIFIED: 'Verifică statusul de insolvență al debitorului pe bpi.just.ro și confirmă în UI înainte de depunere (atașează PDF dovadă BPI).'
         OP_INSOLVENCY_STALE: 'Verificarea BPI (insolvență) este mai veche de 7 zile. Reverifică pe bpi.just.ro și actualizează dovada; insolvența se schimbă rapid.'
         OP_PF_BIPF_MANUAL_CHECK: 'Debitor persoană fizică: verifică manual BIPF (Buletinul Insolvenței Persoanelor Fizice, Legea 151/2015) pe bpi.just.ro înainte de depunere.'
+
+# =============================================================================
+# Email notifications (EmailNotificationSubscriber + templates/emails/)
+# =============================================================================
+email:
+    sender_name: 'LexRecovery'
+    footer_disclaimer: 'Acest mesaj este informativ și nu constituie consultanță juridică. Verificați termenele și soluțiile direct pe portalul instanței.'
+    cta:
+        view_case: 'Deschide dosarul'
+    case_status:
+        somatie_trimisa:
+            subject: 'Somație generată pentru dosarul %case%'
+            heading: 'Somația de plată a fost generată'
+            body: 'Somația de plată pentru dosarul %case% a fost generată. Comunic-o debitorului și încarcă dovada comunicării. Termenul de 15 zile pentru plată sau opoziție curge de la primirea somației de către debitor (CPC art. 1015 alin. 1).'
+        cerere_depusa:
+            subject: 'Cererea de ordonanță de plată este gata pentru dosarul %case%'
+            heading: 'Cererea de ordonanță de plată este gata'
+            body: 'Pachetul cererii de ordonanță de plată pentru dosarul %case% este pregătit. Descarcă arhiva și depune cererea la instanță.'
+        ordonanta_emisa:
+            subject: 'Ordonanță de plată emisă pe dosarul %case%'
+            heading: 'Instanța a emis ordonanța de plată'
+            body: 'Pe dosarul %case% a fost emisă ordonanța de plată. Termenul cererii în anulare este de 10 zile și curge de la data comunicării ordonanței către debitor (CPC art. 1024 alin. 1). Completează data comunicării în dosar pentru a porni termenul.'
+        definitiva:
+            subject: 'Titlu executoriu obținut pe dosarul %case%'
+            heading: 'Ordonanța de plată a rămas definitivă'
+            body: 'Ordonanța de plată pe dosarul %case% a rămas definitivă și constituie titlu executoriu. Poți trece la executarea silită.'
+        respinsa:
+            subject: 'Soluție nefavorabilă pe dosarul %case%'
+            heading: 'Soluție nefavorabilă pe dosar'
+            body: 'Pe dosarul %case% instanța a pronunțat o soluție nefavorabilă (cerere de ordonanță de plată respinsă sau cerere în anulare admisă). Verifică soluția instanței și termenele aplicabile.'
+    deadline_alert:
+        field_type: 'Tip termen'
+        field_date: 'Data limită'
+        procedural:
+            subject: 'Termen %type% pe dosarul %case%: %days% zile rămase'
+            disclaimer: 'Termen procedural. Pentru cererea în anulare, cele 10 zile curg de la data comunicării ordonanței către debitor (CPC art. 1024 alin. 1). Dacă data cade într-o zi nelucrătoare, termenul se prorogă la prima zi lucrătoare (CPC art. 181).'
+        prescriptie:
+            subject: 'Termen de prescripție pe dosarul %case%: %days% zile rămase'
+            disclaimer: 'Termen de drept material, neprorogabil (NCC art. 2517). Împlinirea lui stinge dreptul material la acțiune.'
+    portal_event:
+        field_type: 'Tip eveniment'
+        field_date: 'Data'
+        field_solution: 'Soluție'
+        subject: 'Activitate nouă pe portal pentru dosarul %case%'
+        heading: 'Activitate nouă pe portalul instanței'
+        body: 'Pe dosarul %case% a fost detectată o activitate nouă pe portal.just.ro.'
+    missing_communication_date:
+        subject: 'Completează data comunicării pentru dosarul %case%'
+        heading: 'Completează data comunicării ordonanței'
+        body: 'Pentru a porni termenul de 10 zile al cererii în anulare (CPC art. 1024 alin. 1), introdu în dosarul %case% data comunicării ordonanței către debitor. Fără această dată, dosarul nu poate fi marcat definitiv automat.'
+
+# =============================================================================
+# In-app notifications + Mercure toast text (NotificationDispatcher)
+# =============================================================================
+notification:
+    deadline_alert:
+        procedural:
+            title: 'Termen %type% pe dosarul %case%'
+            upcoming: 'Mai ai %days% zile până la termenul %type% (%date%).'
+            expired: 'Termenul %type% (%date%) a expirat de %days% zile.'
+        prescriptie:
+            title: 'Prescripție pe dosarul %case%'
+            upcoming: 'Mai ai %days% zile până la împlinirea termenului de prescripție (%date%). Termen neprorogabil (NCC art. 2517).'
+            expired: 'Termenul de prescripție (%date%) s-a împlinit de %days% zile (NCC art. 2517).'
+    case_status:
+        somatie_trimisa:
+            title: 'Somație generată: %case%'
+            message: 'Somația de plată pentru dosarul %case% a fost generată. Termenul de 15 zile curge de la primirea de către debitor (CPC art. 1015 alin. 1).'
+        cerere_depusa:
+            title: 'Cerere de OP gata: %case%'
+            message: 'Pachetul cererii de ordonanță de plată pentru dosarul %case% este pregătit.'
+        ordonanta_emisa:
+            title: 'Ordonanță emisă: %case%'
+            message: 'Pe dosarul %case% a fost emisă ordonanța de plată. Termenul cererii în anulare este de 10 zile de la comunicare.'
+        definitiva:
+            title: 'Titlu executoriu: %case%'
+            message: 'Ordonanța de plată pe dosarul %case% a rămas definitivă.'
+        respinsa:
+            title: 'Soluție nefavorabilă: %case%'
+            message: 'Pe dosarul %case% instanța a pronunțat o soluție nefavorabilă.'
+    portal_event:
+        title: 'Activitate portal: %case%'
+        message: 'Activitate nouă pe portal pentru dosarul %case%.'
+    missing_communication_date:
+        title: 'Completează data comunicării: %case%'
+        message: 'Introdu data comunicării ordonanței pe dosarul %case% pentru a porni termenul cererii în anulare.'

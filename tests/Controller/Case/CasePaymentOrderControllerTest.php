@@ -115,6 +115,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
         $conn->executeStatement('DELETE FROM document WHERE uploaded_by_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM case_status_history WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = ?)', [$userId]);
         $conn->executeStatement('DELETE FROM debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = ?)', [$userId]);
+        $conn->executeStatement('DELETE FROM notification WHERE user_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM legal_case WHERE user_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM creditor WHERE user_id = ?', [$userId]);
         $conn->executeStatement("DELETE FROM court WHERE name LIKE 'Judecătoria Test Ctrl %'");

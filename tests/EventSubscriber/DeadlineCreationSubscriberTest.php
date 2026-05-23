@@ -77,6 +77,7 @@ final class DeadlineCreationSubscriberTest extends KernelTestCase
             'DELETE csh FROM case_status_history csh JOIN legal_case lc ON csh.legal_case_id = lc.id WHERE lc.user_id = ?',
             [$userId]
         );
+        $conn->executeStatement('DELETE FROM notification WHERE user_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM legal_case WHERE user_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM user WHERE id = ?', [$userId]);
 

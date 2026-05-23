@@ -11,6 +11,7 @@ use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\CourtType;
 use App\Enum\PortalEventType;
+use App\Event\PortalEventDetectedEvent;
 use App\Service\Portal\CaseMonitoringService;
 use App\Service\Portal\PortalJustClient;
 use App\Service\Portal\PortalJustException;
@@ -137,6 +138,49 @@ class CaseMonitoringServiceTest extends KernelTestCase
 
         $this->expectException(PortalJustException::class);
         $service->monitorCase($case);
+    }
+
+    public function testMonitorCaseDispatchesPortalEventWithoutDoubleNotification(): void
+    {
+        $case = $this->createSubmittedCase();
+
+        $captured = [];
+        static::getContainer()->get('event_dispatcher')->addListener(
+            PortalEventDetectedEvent::class,
+            static function (PortalEventDetectedEvent $event) use (&$captured): void {
+                $captured[] = $event;
+            },
+        );
+
+        $service = $this->createServiceWithMockClient([
+            [
+                'numar' => '200/211/2026',
+                'institutie' => 'Test',
+                'departament' => null,
+                'categorieCaz' => null,
+                'stadiuProcesual' => null,
+                'obiect' => null,
+                'dataModificare' => null,
+                'parti' => [],
+                'sedinte' => [
+                    ['data' => '28.03.2026', 'complet' => 'C2', 'ora' => '11:00', 'solutie' => null, 'solutieSumar' => null, 'dataPronuntare' => null],
+                ],
+                'caiAtac' => [],
+            ],
+        ]);
+
+        $service->monitorCase($case);
+
+        self::assertCount(1, $captured);
+        self::assertSame($case->getId(), $captured[0]->case->getId());
+
+        // CaseMonitoringService still owns the single in-app row; the subscriber
+        // does not persist a second one for the dispatched event.
+        $notifications = $this->em->getRepository(Notification::class)->findBy([
+            'legalCase' => $case,
+            'type' => 'portal_update',
+        ]);
+        $this->assertCount(1, $notifications);
     }
 
     public function testMonitorCaseReturnsZeroWhenNoNewEvents(): void

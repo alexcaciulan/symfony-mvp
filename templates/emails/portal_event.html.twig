@@ -1,0 +1,37 @@
+{% extends 'emails/_layout.html.twig' %}
+
+{% block content %}
+    <h2 style="color:#1e293b;margin-bottom:16px;">{{ heading }}</h2>
+
+    <p style="font-size:15px;line-height:1.6;">{{ body }}</p>
+
+    <table style="width:100%;border-collapse:collapse;margin:20px 0;font-size:14px;">
+        <tr>
+            <td style="padding:8px 0;color:#64748b;">{{ 'email.portal_event.field_type'|trans }}</td>
+            <td style="padding:8px 0;font-weight:bold;text-align:right;">{{ eventType }}</td>
+        </tr>
+        {% if eventDate %}
+            <tr>
+                <td style="padding:8px 0;color:#64748b;">{{ 'email.portal_event.field_date'|trans }}</td>
+                <td style="padding:8px 0;font-weight:bold;text-align:right;">{{ eventDate|date('d.m.Y') }}</td>
+            </tr>
+        {% endif %}
+    </table>
+
+    {% if description %}
+        <p style="font-size:14px;line-height:1.6;color:#475569;">{{ description }}</p>
+    {% endif %}
+
+    {% if solutie %}
+        <p style="font-size:14px;line-height:1.6;color:#475569;">
+            <strong>{{ 'email.portal_event.field_solution'|trans }}:</strong> {{ solutie }}
+        </p>
+    {% endif %}
+
+    <p style="text-align:center;margin:32px 0;">
+        <a href="{{ caseUrl }}"
+           style="display:inline-block;padding:14px 28px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:6px;font-size:16px;font-weight:bold;">
+            {{ 'email.cta.view_case'|trans }}
+        </a>
+    </p>
+{% endblock %}

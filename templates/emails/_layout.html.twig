@@ -1,0 +1,13 @@
+<div style="max-width:600px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;color:#333;">
+    <div style="padding:16px 0;border-bottom:2px solid #1e293b;">
+        <span style="font-size:18px;font-weight:bold;color:#1e293b;">{{ 'email.sender_name'|trans }}</span>
+    </div>
+
+    <div style="padding:24px 0;">
+        {% block content %}{% endblock %}
+    </div>
+
+    <div style="border-top:1px solid #e2e8f0;padding-top:16px;font-size:12px;color:#94a3b8;line-height:1.5;">
+        {{ 'email.footer_disclaimer'|trans }}
+    </div>
+</div>
