@@ -1094,8 +1094,11 @@ dashboard:
             deadlines_hint: '≤ 7 zile rămase'
             amount_active: 'În recuperare'
             amount_active_hint: 'portofoliu activ'
-            portal_events: 'Evenimente portal'
-            portal_events_hint: 'noutăți portal.just.ro'
+            overdue: 'Termene depășite'
+            overdue_hint: 'necompletate, peste termen'
+    recent:
+        heading: 'Dosare recente'
+        view_all: 'Vezi toate dosarele'
 
 # =============================================================================
 # Reset Password (reset_password/*.html.twig)

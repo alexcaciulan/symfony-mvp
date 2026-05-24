@@ -77,6 +77,27 @@ class LegalDeadlineRepositoryTest extends KernelTestCase
         return $deadline;
     }
 
+    public function testCountOverdueByUserExcludesCompletedFutureAndTerminalCases(): void
+    {
+        $activeCase = $this->createCase();
+        $this->createDeadline($activeCase, new \DateTimeImmutable('-3 days')); // overdue, counts
+
+        // Future deadline does not count.
+        $this->createDeadline($activeCase, new \DateTimeImmutable('+3 days'));
+
+        // Completed overdue deadline does not count.
+        $this->createDeadline($activeCase, new \DateTimeImmutable('-5 days'))->setCompleted(true);
+
+        // Overdue deadline on a terminal-status case does not count.
+        $closedCase = $this->createCase();
+        $closedCase->setStatus(CaseStatus::INCHIS_SUCCES);
+        $this->createDeadline($closedCase, new \DateTimeImmutable('-2 days'));
+
+        $this->em->flush();
+
+        self::assertSame(1, $this->repo->countOverdueByUser($this->user));
+    }
+
     public function testFindByCaseReturnsOnlyForCase(): void
     {
         $case1 = $this->createCase();

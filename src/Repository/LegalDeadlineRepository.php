@@ -7,6 +7,7 @@ namespace App\Repository;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Entity\User;
+use App\Enum\CaseStatus;
 use App\Enum\DeadlineType;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -120,6 +121,33 @@ class LegalDeadlineRepository extends ServiceEntityRepository
             ->andWhere('d.deadlineDate <= :cutoff')
             ->setParameter('user', $user)
             ->setParameter('cutoff', $cutoff)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    /**
+     * Count overdue (past-due, not completed) deadlines for a user. Deadlines on
+     * terminal-status cases are excluded so a closed case never inflates the count.
+     */
+    public function countOverdueByUser(User $user): int
+    {
+        $today = (new \DateTimeImmutable())->setTime(0, 0);
+        $terminal = array_filter(
+            CaseStatus::cases(),
+            static fn (CaseStatus $s): bool => $s->isTerminal(),
+        );
+
+        return (int) $this->createQueryBuilder('d')
+            ->select('COUNT(d.id)')
+            ->join('d.legalCase', 'lc')
+            ->where('lc.user = :user')
+            ->andWhere('lc.deletedAt IS NULL')
+            ->andWhere('lc.status NOT IN (:terminal)')
+            ->andWhere('d.completed = false')
+            ->andWhere('d.deadlineDate < :today')
+            ->setParameter('user', $user)
+            ->setParameter('terminal', $terminal)
+            ->setParameter('today', $today)
             ->getQuery()
             ->getSingleScalarResult();
     }

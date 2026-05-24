@@ -81,8 +81,9 @@
 | 6.1 | Monitorizare | `PortalMonitoringSubscriber` + adaptare `CaseMonitoringService`/`PortalEventDetector` | 0.5z | 1.1, 1.3 | 95% | ✅ DONE 2026-05-23 — `MonitoringEventApplier` (politică CONSERVATOARE: AUTO doar `fixeaza_termen`+`formuleaza_cerere_anulare`; `emite_ordonanta`/`respinge` = propuneri) + fix `CaseMonitoringService` (courtCaseNumber) + `findActiveForMonitoring` + `CasePortalController` activate/check-now + UI wired + `portalMonitoringActive` + 50 teste verzi (3 niveluri); reviews legal+code → fix-uit (BLOCKER .env, i18n „contestații"→„cerere în anulare", rate limiter portal_check, DEFAULT 0) |
 | 6.2 | Monitorizare | `DeadlineAlertService` + `app:check-deadlines` + `app:portal-check-all` | 0.75z | 4.1, 6.1 | 70% | ✅ DONE 2026-05-24 — `DeadlineAlertService` (alerte 7/3/1/expirat via `DeadlineAlertEvent` + flag dedup) + `CaseAutoFinalizer` (C5: prorogare CPC 181 + buffer 1z + missing-date guard) + `CheckDeadlinesCommand` (07:00, ClockInterface, --format=json) + `PortalCheckAllCommand` async cu retry Messenger (`CheckCasePortalMessage` + DelayStamp) + `monitorCase` rethrow; 73 teste verzi (4 teste C5); reviews legal CLEAN + code → fix-uit (strict_types ×4, rename TermenAlertEvent→DeadlineAlertEvent, constante praguri, test deleted-case). Cron real + Mercure/email = Pas 6.3/9.1 |
 | 6.3 | Monitorizare | `EmailNotificationSubscriber` + templates email | 0.75z | 1.3, 4.1 | 30% | ✅ DONE 2026-05-24 — `EmailNotificationSubscriber` (8 listeneri) + `NotificationDispatcher` (fan-out 3 canale fault-isolated, headless-safe) + `PortalEventDetectedEvent` + 5 template-uri email + i18n RO/EN; toast real-time prin wiring existent (zero FE); bell counter/pagină notificări/live-tab amânate la Pas 7.x; 17 teste noi, suită 908/12/2 IDENTIC baseline; reviews legal CLEAN + code COMMIT-READY → 4 W minore fix-uite (rută via UrlGenerator, copy somație 15z CPC 1015, prorogare CPC 181 în alerte) |
-| 7.1 | UI | Dashboard avocat (filtre, urgențe, search) | 1z | 1.1, 4.1 | 50% | ⏳ |
-| 7.2 | UI | View dosar cu tab-uri (Detalii / Documente / Termene / Activitate Portal / Audit) | 0.75z | 7.1, 4.3 | 40% | ⏳ |
+| 7.1 | UI | Dashboard avocat OVERVIEW (KPI + termene urgente + preview dosare recente + empty state) | 1z | 1.1, 4.1 | 50% | ✅ DONE 2026-05-24 — rută `dashboard_cases`→`app_dashboard` (`/dashboard`), `index.html.twig` overview, preview „Dosare recente" top 5 cu link `case_overview`, KPI `overdue` (înlocuiește placeholder mort), `findRecentByUser`+`countOverdueByUser`; **lista filtrabilă amânată la Pas 7.1.1** (decizie user); fix bug latent `DeadlineList` (`{% props %}` lipsă) + 3 link-uri rupte + `DashboardControllerTest` (setStatus enum); 910/9/2 (−3 erori baseline) |
+| 7.1.1 | UI | **Listă dosare filtrabilă (pagină distinctă `/dosare`)** — `DosareListLiveComponent` (status[]/search/sortBy/page) + `findActiveByUserPaginated` + `countByStatus(User)` + skeleton + empty „fără rezultate"; wire „Dosare"/„Vezi toate" de la placeholder | 0.75z | 7.1 | 30% | ⏳ |
+| 7.2 | UI | View dosar cu tab-uri (Detalii / Documente / Termene / Activitate Portal / Audit) | 0.75z | 7.1, 4.3 | 40% | ⏳ (parțial acoperit de `case_overview` Pas 4.0) |
 | 7.3 | UI | EasyAdmin: rename + CRUDs noi (Plan, Subscription, Invoice, InterestRateConfig) | 0.25z | 1.1 | 100% (pattern) | ⏳ |
 | 8.1 | Monetizare | `SubscriptionService` + `InvoicingService` (logica de consum) | 1z | 1.1 | 30% | ⏳ |
 | 8.2 | Monetizare | `PaymentGatewayInterface` + stub + UI `/abonament`, `/facturile-mele` | 0.5z | 8.1 | 0% | ⏳ |
@@ -2260,9 +2261,17 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 
 ## Faza 7: Dashboard + View Dosar + Admin
 
-### PASUL 7.1 | Dashboard avocat (cu Live Component filtre + empty state + skeleton) | 1 zi | 50% reutilizare
+### PASUL 7.1 | Dashboard avocat OVERVIEW (KPI + termene urgente + preview dosare recente) | 1 zi | 50% reutilizare ✅ DONE 2026-05-24
 
-**Rezultat**: _(va fi completat la marcarea ca DONE)_
+**Rezultat** (DONE 2026-05-24):
+- **Decizie user**: lista de dosare cu filtre devine pagină distinctă, **amânată la Pas 7.1.1**. Pas 7.1 = doar overview-ul.
+- Rută `dashboard_cases` (`/dashboard/cases`) → **`app_dashboard` (`/dashboard`)**, `DashboardController::index()` randează nou `templates/dashboard/index.html.twig`.
+- Overview: 4 KPI (`active`, `deadlines_7d`, **`overdue`** nou care înlocuiește placeholder-ul mort `portal_events=0`, `amount_active`) + widget `DeadlineList` (`findUpcomingByUser(30,10)`) + secțiune **„Dosare recente"** (top 5 via nou `LegalCaseRepository::findRecentByUser`, link-uri `case_overview`) + buton „Vezi toate dosarele" placeholder aria-disabled + empty state `HeroEmptyState` + how-it-works (CTA → `case_wizard_start`).
+- Metode noi: `LegalCaseRepository::findRecentByUser(User,limit=5)`, `LegalDeadlineRepository::countOverdueByUser(User)`.
+- **Bug-uri reparate**: `DeadlineList` folosea `{# @var #}` în loc de `{% props %}` (crăpa la randare reală, niciodată prins fiindcă dashboard-ul nu era randat cu succes în teste); link-uri tabel + CTA empty state + link `DeadlineList` care pointau greșit la `dashboard_cases`; `DashboardControllerTest` pica pe `setStatus('draft')` string + `setCurrentStep`/`setClaimantData` inexistente.
+- Referințe `dashboard_cases` actualizate în 6 fișiere (sidebar logo+nav, topbar logo+nav, breadcrumb overview+wizard). „Dosare" în sidebar = placeholder „în curând" până la 7.1.1.
+- i18n RO/EN: `dashboard.recent.{heading,view_all}` + `dashboard.cases.kpi.overdue{,_hint}`.
+- **Teste**: `DashboardControllerTest` rescris (6 teste verzi); suită **910/9/2** vs baseline 908/12/2 (+2 teste, **−3 erori** = setStatus reparate, 0 regresii noi). Memorie: `project_lexrecovery_pas_7_1.md`.
 
 **Mock-up-uri de referință** (sugestive):
 - [`docs/LexRecovery/mockups/v2/02-dashboard/empty.html`](./mockups/v2/02-dashboard/empty.html) — direcție pentru starea fără dosare (`EmptyState` cu CTA primar "Începe primul dosar")
@@ -2299,6 +2308,38 @@ Twig template-ul randat de `DashboardController` se inspiră din mock-up-uri (ce
 > Teste funcționale: `tests/Controller/DashboardControllerTest.php`.
 >
 > Commit: `feat(dashboard): avocat dashboard with filters and urgent deadlines widget`.
+
+---
+
+### PASUL 7.1.1 | Listă dosare filtrabilă (pagină distinctă `/dosare`) | 0.75 zi | 30% reutilizare
+
+**Context**: extras din Pas 7.1 prin decizia user (2026-05-24) ca lista de dosare să fie o pagină separată de overview. Pas 7.1 a livrat overview-ul (`/dashboard`) cu un preview „Dosare recente" (top 5) și a lăsat link-urile „Dosare" / „Vezi toate dosarele" ca placeholder „în curând". Acest pas livrează pagina de listă completă, filtrabilă.
+
+**Rezultat**: _(va fi completat la marcarea ca DONE)_
+
+**PROMPT**:
+> 1. Rută nouă `GET /dosare` (name `app_cases`) în `DashboardController` (sau `CasesController` dedicat) — listă paginată de dosare ale avocatului.
+>
+> 2. **Filtre via Symfony UX Live Component** `DosareListLiveComponent` (pattern din `Step3ClaimLiveComponent`/`Step2DebtorsLiveComponent`, Pas 3.3):
+>    - LiveProps writable: `status` (multi-select `CaseStatus[]`), `search` (string, după nr. dosar intern / nr. instanță / nume creditor-debitor), `sortBy`, `page`.
+>    - Re-render server instant la fiecare schimbare de filtru, fără reload.
+>    - Template-ul componentei extinde `templates/dashboard/dosare.html.twig`.
+>
+> 3. Query-uri noi `LegalCaseRepository`:
+>    - `findActiveByUserPaginated(User $user, array $filters, int $page = 1, int $perPage = 20)` (scoped pe user, `deletedAt IS NULL`, aplică filtrele).
+>    - `countByStatus(User $user): array<string,int>` (per-user, pentru chip-urile de filtrare cu badge count). **Atenție**: există deja `countByStatus(string): int` GLOBAL — fie redenumește, fie semnătură nouă clară, ca să nu se confunde.
+>
+> 4. **Empty states** (reutilizează `EmptyState`/`HeroEmptyState`):
+>    - Avocat fără dosare → CTA „Dosar nou".
+>    - Filtre fără rezultate → „Niciun dosar pentru filtrele alese" + „Resetează filtrele".
+>
+> 5. **Skeleton loading** la încărcarea lazy a tabelului via Turbo Frame (reutilizează `Skeleton.html.twig`).
+>
+> 6. **Wire navigarea de la placeholder la `app_cases`**: „Dosare" în `_sidebar.html.twig` + butonul „Vezi toate dosarele" din `templates/dashboard/index.html.twig` (acum aria-disabled „în curând") → `path('app_cases')`. Breadcrumb-urile „Dosare" din `case/overview.html.twig` + `case/wizard.html.twig` (acum spre `app_dashboard`) → `app_cases`.
+>
+> Teste: `tests/Controller/CasesControllerTest.php` (listă + izolare per-user + soft-delete) + `tests/Twig/Components/DosareListLiveComponentTest.php` (filtrare status/search, paginare) + repo tests pentru `findActiveByUserPaginated`/`countByStatus`.
+>
+> Commit: `feat(dosare): filterable cases list page with Live Component filters`.
 
 ---
 

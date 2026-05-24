@@ -49,6 +49,23 @@ class LegalCaseRepository extends ServiceEntityRepository
     }
 
     /**
+     * Most recent cases for a user, capped at $limit.
+     *
+     * @return LegalCase[]
+     */
+    public function findRecentByUser(User $user, int $limit = 5): array
+    {
+        return $this->createQueryBuilder('lc')
+            ->where('lc.user = :user')
+            ->andWhere('lc.deletedAt IS NULL')
+            ->setParameter('user', $user)
+            ->orderBy('lc.createdAt', 'DESC')
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * Find non-terminal cases for a user, ordered by recency.
      *
      * @return LegalCase[]

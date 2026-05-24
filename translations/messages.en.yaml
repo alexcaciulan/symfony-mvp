@@ -1092,8 +1092,11 @@ dashboard:
             deadlines_hint: '≤ 7 days remaining'
             amount_active: 'In recovery'
             amount_active_hint: 'active portfolio'
-            portal_events: 'Portal events'
-            portal_events_hint: 'portal.just.ro updates'
+            overdue: 'Overdue deadlines'
+            overdue_hint: 'incomplete, past due'
+    recent:
+        heading: 'Recent cases'
+        view_all: 'View all cases'
 
 # =============================================================================
 # Reset Password (reset_password/*.html.twig)

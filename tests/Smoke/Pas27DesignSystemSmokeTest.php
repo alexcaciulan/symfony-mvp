@@ -65,7 +65,7 @@ final class Pas27DesignSystemSmokeTest extends WebTestCase
         }
 
         $this->client->loginUser($user);
-        $this->client->request('GET', '/dashboard/cases');
+        $this->client->request('GET', '/dashboard');
         $this->assertResponseIsSuccessful();
         $body = $this->client->getResponse()->getContent();
 

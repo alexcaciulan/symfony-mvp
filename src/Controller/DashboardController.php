@@ -11,29 +11,29 @@ use Symfony\Component\Routing\Attribute\Route;
 
 class DashboardController extends AbstractController
 {
-    #[Route('/dashboard/cases', name: 'dashboard_cases')]
-    public function cases(
+    #[Route('/dashboard', name: 'app_dashboard')]
+    public function index(
         LegalCaseRepository $legalCaseRepository,
         LegalDeadlineRepository $legalDeadlineRepository,
     ): Response {
         /** @var User $user */
         $user = $this->getUser();
 
-        $cases = $legalCaseRepository->findByUser($user);
+        $activeCount = $legalCaseRepository->countActiveByUser($user);
+        $recentCases = $legalCaseRepository->findRecentByUser($user, 5);
         $kpis = [
-            'active_count' => $legalCaseRepository->countActiveByUser($user),
+            'active_count' => $activeCount,
             'deadlines_7d' => $legalDeadlineRepository->countUpcomingByUser($user, 7),
+            'overdue' => $legalDeadlineRepository->countOverdueByUser($user),
             'amount_active' => $legalCaseRepository->sumActiveAmountByUser($user),
-            'portal_events' => 0, // placeholder — wired at Pas 6.x portal monitoring
         ];
-        $upcomingDeadlines = $legalDeadlineRepository->findUpcomingByUser($user, 7, 5);
+        $upcomingDeadlines = $legalDeadlineRepository->findUpcomingByUser($user, 7, 10);
 
-        return $this->render('dashboard/cases.html.twig', [
-            'cases' => $cases,
+        return $this->render('dashboard/index.html.twig', [
+            'recent_cases' => $recentCases,
+            'has_cases' => $recentCases !== [],
             'kpis' => $kpis,
             'upcoming_deadlines' => $upcomingDeadlines,
-            'sidebar_cases_count' => count($cases),
-            'sidebar_deadlines_count' => $kpis['deadlines_7d'],
         ]);
     }
 }

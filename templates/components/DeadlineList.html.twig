@@ -1,10 +1,10 @@
+{% props items = [], title = null, subtitle = null, live = false, empty_label = null %}
 {# @var items iterable        Array of LegalDeadline entities (or any object with: title, deadlineDate (\DateTimeInterface), priority (DeadlinePriority enum), legalCase, type (DeadlineType enum)). #}
 {# @var title string|null      Section title. Default "Termene în 7 zile" (i18n). #}
 {# @var subtitle string|null   Right-aligned subtitle (e.g. count). #}
 {# @var live bool|null         Show "live" indicator with green pulsing dot. Default false. #}
 {# @var empty_label string|null  Text shown when items is empty. Default "Niciun termen apropiat" (i18n). #}
 
-{% set live = live|default(false) %}
 {% set today = date('today') %}
 {# Use DateInterval.days for DST-safe calendar-day counts (timestamp/86400 produces off-by-one across DST transitions). #}
 
@@ -54,7 +54,7 @@
                             <span class="text-[10px] uppercase tracking-wide font-bold {{ p.badge_text }} {{ p.badge_bg }} px-1.5 py-0.5 rounded">{{ ('enum.deadline_priority.' ~ priority_value)|trans }}</span>
                             <span class="text-xs text-slate-500 dark:text-slate-400">{{ ('enum.deadline_type.' ~ item.type.value)|trans }}</span>
                         </div>
-                        <a href="{{ path('dashboard_cases') }}#case-{{ item.legalCase.id }}" class="block text-sm font-semibold hover:underline no-underline">{{ item.description ?? '#' ~ item.legalCase.id }}</a>
+                        <a href="{{ path('case_overview', {id: item.legalCase.id}) }}" class="block text-sm font-semibold hover:underline no-underline">{{ item.description ?? '#' ~ item.legalCase.id }}</a>
                         <div class="mt-1 text-xs text-slate-500 dark:text-slate-400">
                             {{ 'component.deadline_list.due_at'|trans }}: {{ item.deadlineDate|date('d.m.Y') }}
                             {% if days_to >= 0 %}
