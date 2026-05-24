@@ -82,7 +82,8 @@
 | 6.2 | Monitorizare | `DeadlineAlertService` + `app:check-deadlines` + `app:portal-check-all` | 0.75z | 4.1, 6.1 | 70% | ✅ DONE 2026-05-24 — `DeadlineAlertService` (alerte 7/3/1/expirat via `DeadlineAlertEvent` + flag dedup) + `CaseAutoFinalizer` (C5: prorogare CPC 181 + buffer 1z + missing-date guard) + `CheckDeadlinesCommand` (07:00, ClockInterface, --format=json) + `PortalCheckAllCommand` async cu retry Messenger (`CheckCasePortalMessage` + DelayStamp) + `monitorCase` rethrow; 73 teste verzi (4 teste C5); reviews legal CLEAN + code → fix-uit (strict_types ×4, rename TermenAlertEvent→DeadlineAlertEvent, constante praguri, test deleted-case). Cron real + Mercure/email = Pas 6.3/9.1 |
 | 6.3 | Monitorizare | `EmailNotificationSubscriber` + templates email | 0.75z | 1.3, 4.1 | 30% | ✅ DONE 2026-05-24 — `EmailNotificationSubscriber` (8 listeneri) + `NotificationDispatcher` (fan-out 3 canale fault-isolated, headless-safe) + `PortalEventDetectedEvent` + 5 template-uri email + i18n RO/EN; toast real-time prin wiring existent (zero FE); bell counter/pagină notificări/live-tab amânate la Pas 7.x; 17 teste noi, suită 908/12/2 IDENTIC baseline; reviews legal CLEAN + code COMMIT-READY → 4 W minore fix-uite (rută via UrlGenerator, copy somație 15z CPC 1015, prorogare CPC 181 în alerte) |
 | 7.1 | UI | Dashboard avocat OVERVIEW (KPI + termene urgente + preview dosare recente + empty state) | 1z | 1.1, 4.1 | 50% | ✅ DONE 2026-05-24 — rută `dashboard_cases`→`app_dashboard` (`/dashboard`), `index.html.twig` overview, preview „Dosare recente" top 5 cu link `case_overview`, KPI `overdue` (înlocuiește placeholder mort), `findRecentByUser`+`countOverdueByUser`; **lista filtrabilă amânată la Pas 7.1.1** (decizie user); fix bug latent `DeadlineList` (`{% props %}` lipsă) + 3 link-uri rupte + `DashboardControllerTest` (setStatus enum); 910/9/2 (−3 erori baseline) |
-| 7.1.1 | UI | **Listă dosare filtrabilă (pagină distinctă `/dosare`)** — `DosareListLiveComponent` (status[]/search/sortBy/page) + `findActiveByUserPaginated` + `countByStatus(User)` + skeleton + empty „fără rezultate"; wire „Dosare"/„Vezi toate" de la placeholder | 0.75z | 7.1 | 30% | ⏳ |
+| 7.1.0 | UI infra | **Fundație tabele reutilizabile (Tabulator)** + tabel referință Notificări — nucleu agnostic (`TableDefinitionInterface`/`TableRegistry`/`TableDataService` tagged-iterator + DTO) + adaptor Tabulator + endpoint generic `/api/table/{key}` + `<twig:DataTable key>` + controller Stimulus + formatter-e reutilizabile; paginare/sort/filtru server-side; export = doar seam | 1.5z | 1.1 | 30% | ✅ DONE 2026-05-24 — 24 fișiere noi, 22 teste, 933/9/2 (zero regresii); reviews legal CLEAN + code COMMIT-READY → 7 W fix-uite (LIKE escaping, assert→throw, height config, bool i18n, error handler, 2 teste); pagina `/notifications` livrată + sidebar wired |
+| 7.1.1 | UI | **Listă dosare filtrabilă (pagină distinctă `/cases`)** — pe fundația Tabulator din 7.1.0: `LegalCaseTableDefinition` + `<twig:DataTable key="cases">` + scoping/filtre/sortare; wire „Dosare"/„Vezi toate" de la placeholder | 0.75z | 7.1.0 | 70% | ⏳ |
 | 7.2 | UI | View dosar cu tab-uri (Detalii / Documente / Termene / Activitate Portal / Audit) | 0.75z | 7.1, 4.3 | 40% | ⏳ (parțial acoperit de `case_overview` Pas 4.0) |
 | 7.3 | UI | EasyAdmin: rename + CRUDs noi (Plan, Subscription, Invoice, InterestRateConfig) | 0.25z | 1.1 | 100% (pattern) | ⏳ |
 | 8.1 | Monetizare | `SubscriptionService` + `InvoicingService` (logica de consum) | 1z | 1.1 | 30% | ⏳ |
@@ -2219,7 +2220,7 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 - **`PortalEventDetectedEvent`** nou + dispatch din `CaseMonitoringService` (după flush, înainte de `applyEvents`); listener-ul portal face DOAR email + toast (`persistInApp: false`), in-app rămâne creat de `CaseMonitoringService` (zero dublură).
 - **Toast real-time** prin payload `{type:'toast',variant,message}` pe `user/{id}/notification`, consumat de wiring-ul existent din `base.html.twig` (zero modificări frontend).
 - **5 template-uri email** (`templates/emails/_layout` + case_status + deadline_alert + portal_event + missing_communication_date) + i18n RO/EN (`email.*` + `notification.*`, copy juridic validat).
-- **Amânat la Pas 7.x (UI)**: bell counter, pagină `/notificari`, update live tab Portal, publish pe topicele `case/{id}/status-change` + `case/{id}/portal-event`.
+- **Amânat la Pas 7.x (UI)**: bell counter, pagină `/notifications`, update live tab Portal, publish pe topicele `case/{id}/status-change` + `case/{id}/portal-event`.
 - **Config**: `app.base_url` (env `APP_BASE_URL`), `.env.test` `MAILER_DSN=null://null`.
 - **Teste** (17 noi): `NotificationDispatcherTest` (6, SpyHub+SpyMailer, fault isolation), `EmailNotificationSubscriberTest` (7, spy dispatcher), `EmailNotificationSubscriberIntegrationTest` (3, `MailerAssertionsTrait` + template real), extindere `CaseMonitoringServiceTest` (no-double-notification) + cleanup `notification` în 6 tearDown-uri. Suită completă **908/12/2 IDENTIC baseline** (cele 12 erori + 2 eșecuri sunt pre-existente).
 - **Reviews**: legal `LEGAL-CLEAN` (3 W) + code `COMMIT-READY` (4 W) → fix-uite: rută via `UrlGeneratorInterface` (nu path hardcodat), copy somație „15 zile de la primire" (CPC art. 1015), notă prorogare zi lucrătoare (CPC art. 181) în alertele procedurale, cleanup `notification` defensiv. Memorie: `project_lexrecovery_pas_6_3.md`.
@@ -2311,35 +2312,40 @@ Twig template-ul randat de `DashboardController` se inspiră din mock-up-uri (ce
 
 ---
 
-### PASUL 7.1.1 | Listă dosare filtrabilă (pagină distinctă `/dosare`) | 0.75 zi | 30% reutilizare
+### PASUL 7.1.0 | Fundație tabele reutilizabile (Tabulator) + tabel Notificări | 1.5 zile | 30% reutilizare ✅ DONE 2026-05-24
 
-**Context**: extras din Pas 7.1 prin decizia user (2026-05-24) ca lista de dosare să fie o pagină separată de overview. Pas 7.1 a livrat overview-ul (`/dashboard`) cu un preview „Dosare recente" (top 5) și a lăsat link-urile „Dosare" / „Vezi toate dosarele" ca placeholder „în curând". Acest pas livrează pagina de listă completă, filtrabilă.
+**Context**: aplicația va avea multe tabele (entități diverse), posibil nested tables + rapoarte. După analiză (Live Component vs DataTables vs Grid.js vs Tabulator) s-a ales **Tabulator** (vanilla, fără jQuery, MIT, paginare server-side, reorder/freeze/visibility/grouping/nested native). Acest pas livrează fundația decuplată + un tabel de referință (Notificări), prerechizit pentru 7.1.1 + toate tabelele viitoare.
+
+**Rezultat** (DONE 2026-05-24):
+- **Nucleu agnostic de bibliotecă** (`src/Service/Table/`): DTO `TableQuery`/`TableResult`/`Column`, `TableDefinitionInterface` + `TableRegistry` (tagged-iterator `app.table_definition`, pattern identic cu extraction strategies), `TableDataService` (engine: whitelist sort/filtre anti-injection + clamp pageSize `{10,25,50,100}` + Doctrine `Paginator`; `applyCriteria` privat = seam export).
+- **Adaptor Tabulator** (SINGURUL strat cuplat): `TabulatorRequestParser` + `TabulatorResponseFactory`. Schimbarea bibliotecii atinge doar aceste 2 clase + controller-ul JS.
+- **HTTP**: endpoint generic `/api/table/{key}` (`TableController`, `IsGranted` + rate limiter `table_data`) servește toate tabelele.
+- **Twig**: `<twig:DataTable key>` (anonim) + `TableExtension::table_config(key)` (coloane DRY din definiție, labels traduse). API: `<twig:DataTable key="X" height="..." />`.
+- **Frontend**: `tabulator_controller.js` (lazy, paginare remote + selector perPage + dataLoadError handler) + `tabulator_formatters.js` (formatter-e reutilizabile localizate) + `tabulator-theme.css` (design tokens) + importmap `tabulator-tables@6.4.0`.
+- **Referință Notificări**: `NotificationTableDefinition` + `NotificationsController` (`/notifications`) + `<twig:DataTable key="notifications">`; sidebar „Notificări" wired de la placeholder.
+- **Extensibilitate**: tabel nou = 1 `TableDefinition` (auto-tag) + `<twig:DataTable key>`. Zero infrastructură. Nested/grouping/export se adaugă peste.
+- **Teste** (22): unit (parser/factory/result), KernelTestCase (engine: paginare/scoping/whitelist/clamp/filtre/sortare + registry), WebTestCase (endpoint + 404 + auth + pagina). Suită 933/9/2 (zero regresii). Memorie: `project_lexrecovery_pas_7_1_0.md`.
+- **Reviews**: legal `LEGAL-CLEAN` (GDPR: scoping inevitabil, `message` omis, whitelist) + code `COMMIT-READY` → 7 W fix-uite (LIKE escaping `%_\`, assert→throw, height configurabil, bool i18n, route regex cifre, error handler JS, 2 teste filtru/sort).
+
+---
+
+### PASUL 7.1.1 | Listă dosare filtrabilă (pagină distinctă `/cases`) | 0.75 zi | 70% reutilizare
+
+**Context**: pe **fundația Tabulator din Pas 7.1.0**. Pas 7.1 a livrat overview-ul (`/dashboard`) cu preview „Dosare recente" (top 5) și a lăsat „Dosare" / „Vezi toate dosarele" ca placeholder. Acest pas livrează pagina de listă completă, filtrabilă, ca prim consumator „real" al fundației după Notificări. **Tot aici se construiește fundația de „toolbar de filtre decuplate de coloane"** (decizie user 2026-05-24): Pas 7.1.0 are doar header-filters per coloană (cuplate de coloana afișată); dosarele cer filtre care NU sunt coloane (status multi-select, search pe mai multe câmpuri, eventual interval date).
 
 **Rezultat**: _(va fi completat la marcarea ca DONE)_
 
 **PROMPT**:
-> 1. Rută nouă `GET /dosare` (name `app_cases`) în `DashboardController` (sau `CasesController` dedicat) — listă paginată de dosare ale avocatului.
+> 1. `LegalCaseTableDefinition implements TableDefinitionInterface` (key `cases`): coloane (nr. dosar, instanță, sumă, status cu formatter `status_badge`, dată), `createScopedQueryBuilder` scoped pe user + `deletedAt IS NULL`, `serializeRow` (status → `{value,label,color}` din `CaseStatus`). Auto-înregistrat prin tag.
+> 2. Rută `GET /cases` (name `app_cases`, `CasesController`) → template cu `<twig:DataTable key="cases" />`. Paginare/sortare/filtrare server-side vin GRATIS din fundație.
+> 3. **Fundație filtre decuplate de coloane** (extinde fundația 7.1.0): adaugă `getFilters(): Filter[]` pe `TableDefinitionInterface` (definiții de filtre independente de `getColumns()`: field, tip text/enum/bool/date-range, opțiuni) + include-le în whitelist-ul din `TableDataService` (acum doar coloanele `filterable`); randează un **toolbar extern** deasupra tabelului (status multi-select chips + search), care apelează `table.setFilter()` / actualizează `ajaxParams`. Backend-ul (`TableQuery.filters` generic) e deja pregătit. Filtre: status (enum), search (text pe nr. dosar/instanță). Dacă e nevoie de chip-uri cu count, adaugă `LegalCaseRepository::countByStatus(User): array` (**atenție**: există `countByStatus(string): int` GLOBAL — semnătură/nume distinct).
+> 4. Formatter `status_badge` deja există în `tabulator_formatters.js`; mapează culorile din `CaseStatus::color()` în `serializeRow`.
+> 5. **Wire navigarea**: „Dosare" în `_sidebar.html.twig` + „Vezi toate dosarele" din `dashboard/index.html.twig` (placeholder) → `app_cases`; breadcrumb-urile „Dosare" din `case/overview.html.twig` + `case/wizard.html.twig` → `app_cases`.
+> 6. (opțional) Empty state „fără dosare" / „fără rezultate" prin `placeholder`-ul tabelului.
 >
-> 2. **Filtre via Symfony UX Live Component** `DosareListLiveComponent` (pattern din `Step3ClaimLiveComponent`/`Step2DebtorsLiveComponent`, Pas 3.3):
->    - LiveProps writable: `status` (multi-select `CaseStatus[]`), `search` (string, după nr. dosar intern / nr. instanță / nume creditor-debitor), `sortBy`, `page`.
->    - Re-render server instant la fiecare schimbare de filtru, fără reload.
->    - Template-ul componentei extinde `templates/dashboard/dosare.html.twig`.
+> Teste: `LegalCaseTableDefinition` (KernelTestCase prin `TableDataService`: scoping/filtre/sortare) + `CasesControllerTest` (WebTestCase: pagina randează `<twig:DataTable key="cases">` + `/api/table/cases` întoarce dosarele user-ului).
 >
-> 3. Query-uri noi `LegalCaseRepository`:
->    - `findActiveByUserPaginated(User $user, array $filters, int $page = 1, int $perPage = 20)` (scoped pe user, `deletedAt IS NULL`, aplică filtrele).
->    - `countByStatus(User $user): array<string,int>` (per-user, pentru chip-urile de filtrare cu badge count). **Atenție**: există deja `countByStatus(string): int` GLOBAL — fie redenumește, fie semnătură nouă clară, ca să nu se confunde.
->
-> 4. **Empty states** (reutilizează `EmptyState`/`HeroEmptyState`):
->    - Avocat fără dosare → CTA „Dosar nou".
->    - Filtre fără rezultate → „Niciun dosar pentru filtrele alese" + „Resetează filtrele".
->
-> 5. **Skeleton loading** la încărcarea lazy a tabelului via Turbo Frame (reutilizează `Skeleton.html.twig`).
->
-> 6. **Wire navigarea de la placeholder la `app_cases`**: „Dosare" în `_sidebar.html.twig` + butonul „Vezi toate dosarele" din `templates/dashboard/index.html.twig` (acum aria-disabled „în curând") → `path('app_cases')`. Breadcrumb-urile „Dosare" din `case/overview.html.twig` + `case/wizard.html.twig` (acum spre `app_dashboard`) → `app_cases`.
->
-> Teste: `tests/Controller/CasesControllerTest.php` (listă + izolare per-user + soft-delete) + `tests/Twig/Components/DosareListLiveComponentTest.php` (filtrare status/search, paginare) + repo tests pentru `findActiveByUserPaginated`/`countByStatus`.
->
-> Commit: `feat(dosare): filterable cases list page with Live Component filters`.
+> Commit: `feat(dosare): filterable cases list on the Tabulator table foundation`.
 
 ---
 

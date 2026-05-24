@@ -85,6 +85,20 @@ component:
         due_at: 'Termen'
         in_x_days: 'în %days% zile'
         overdue: 'depășit'
+    data_table:
+        empty: 'Nu există date.'
+        error: 'Nu am putut încărca datele. Reîncearcă.'
+        yes: 'Da'
+        no: 'Nu'
+        first: 'Prima'
+        prev: 'Anterioară'
+        next: 'Următoarea'
+        last: 'Ultima'
+        page_size: 'Rânduri'
+        showing: 'Afișez'
+        of: 'din'
+        rows: 'rânduri'
+        pages: 'pagini'
 
 # =============================================================================
 # Login (security/login.html.twig)
@@ -1479,3 +1493,25 @@ notification:
     missing_communication_date:
         title: 'Completează data comunicării: %case%'
         message: 'Introdu data comunicării ordonanței pe dosarul %case% pentru a porni termenul cererii în anulare.'
+
+# =============================================================================
+# Notifications page (notifications/index.html.twig)
+# =============================================================================
+notifications:
+    title: 'Notificări'
+    heading: 'Notificări'
+    subtitle: 'Toate notificările contului tău, cu filtrare și sortare.'
+
+# =============================================================================
+# Tables (server-side data grids — column headers per table key)
+# =============================================================================
+table:
+    error:
+        unknown: 'Tabel necunoscut.'
+        rate_limited: 'Prea multe cereri. Încearcă din nou mai târziu.'
+    notifications:
+        columns:
+            created_at: 'Data'
+            type: 'Tip'
+            title: 'Titlu'
+            read: 'Citită'

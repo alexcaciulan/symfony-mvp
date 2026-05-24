@@ -56,4 +56,11 @@ return [
     'preline' => [
         'version' => '4.1.3',
     ],
+    'tabulator-tables' => [
+        'version' => '6.4.0',
+    ],
+    'tabulator-tables/dist/css/tabulator.min.css' => [
+        'version' => '6.4.0',
+        'type' => 'css',
+    ],
 ];

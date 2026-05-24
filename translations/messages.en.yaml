@@ -85,6 +85,20 @@ component:
         due_at: 'Due'
         in_x_days: 'in %days% days'
         overdue: 'overdue'
+    data_table:
+        empty: 'No data.'
+        error: 'Could not load data. Please retry.'
+        yes: 'Yes'
+        no: 'No'
+        first: 'First'
+        prev: 'Prev'
+        next: 'Next'
+        last: 'Last'
+        page_size: 'Rows'
+        showing: 'Showing'
+        of: 'of'
+        rows: 'rows'
+        pages: 'pages'
 
 # =============================================================================
 # Login (security/login.html.twig)
@@ -1477,3 +1491,25 @@ notification:
     missing_communication_date:
         title: 'Enter service date: %case%'
         message: 'Enter the payment order service date on case %case% to start the annulment request term.'
+
+# =============================================================================
+# Notifications page (notifications/index.html.twig)
+# =============================================================================
+notifications:
+    title: 'Notifications'
+    heading: 'Notifications'
+    subtitle: 'All your account notifications, with filtering and sorting.'
+
+# =============================================================================
+# Tables (server-side data grids — column headers per table key)
+# =============================================================================
+table:
+    error:
+        unknown: 'Unknown table.'
+        rate_limited: 'Too many requests. Please try again later.'
+    notifications:
+        columns:
+            created_at: 'Date'
+            type: 'Type'
+            title: 'Title'
+            read: 'Read'

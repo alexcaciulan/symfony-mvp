@@ -45,6 +45,12 @@ framework:
             policy: sliding_window
             limit: 50
             interval: '1 day'
+        # Server-side table data endpoint (TableController). Generous per-user
+        # window: filtering/sorting/paging fire one request each.
+        table_data:
+            policy: sliding_window
+            limit: 600
+            interval: '1 hour'
 
 when@test:
     framework:
@@ -68,4 +74,6 @@ when@test:
             extraction_ai_text:
                 policy: no_limit
             extraction_ai_vision:
+                policy: no_limit
+            table_data:
                 policy: no_limit

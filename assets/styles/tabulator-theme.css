@@ -1,0 +1,191 @@
+/* Tabulator theme aligned with the LexRecovery design system (slate palette +
+   lex-navy + Inter + soft cards). Loaded lazily with the tabulator controller.
+   Uses Tabulator 6 CSS variables for broad strokes + targeted overrides for the
+   header typography, pagination buttons and spacing. */
+
+.tabulator {
+    --tabulator-background-color: transparent;
+    --tabulator-border-color: #e2e8f0;          /* slate-200 */
+    --tabulator-text-size: 0.875rem;            /* text-sm */
+    --tabulator-header-background-color: #e9eef4; /* distinct header band */
+    --tabulator-header-text-color: #334155;     /* slate-700 */
+    --tabulator-header-border-color: #cbd5e1;
+    --tabulator-header-separator-color: transparent;
+    --tabulator-sort-arrow-active: #475569;     /* slate-600 */
+    --tabulator-sort-arrow-inactive: #cbd5e1;   /* slate-300 */
+    --tabulator-row-background-color: transparent;
+    --tabulator-row-alt-background-color: transparent;
+    --tabulator-row-border-color: #f1f5f9;      /* slate-100 */
+    --tabulator-row-text-color: #334155;        /* slate-700 */
+    --tabulator-row-hover-background: #eef2f8;   /* a touch darker than slate-100 for a visible hover */
+    --tabulator-row-selected-background: rgba(30, 58, 95, 0.06);
+    --tabulator-edit-box-color: #1e3a5f;        /* lex-navy */
+    --tabulator-footer-background-color: transparent;
+    --tabulator-footer-text-color: #64748b;
+    --tabulator-footer-border-color: #f1f5f9;
+    --tabulator-footer-active-color: #1e3a5f;
+    --tabulator-footer-separator-color: #e2e8f0;
+
+    border: none;
+    background: transparent;
+    font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+}
+
+/* Header: small uppercase eyebrow text, like the app's native tables. */
+.tabulator .tabulator-header {
+    border-top: none;
+    border-bottom: 1px solid #cbd5e1; /* slate-300, defined separation */
+    background: #e9eef4;
+}
+
+.tabulator .tabulator-header .tabulator-col {
+    background: transparent;
+    border-right: none;
+}
+
+.tabulator .tabulator-header .tabulator-col .tabulator-col-content {
+    padding: 0.75rem 1.25rem;
+}
+
+.tabulator .tabulator-header .tabulator-col .tabulator-col-title {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #334155; /* slate-700, darker so the header reads clearly */
+}
+
+/* Header filters: compact inputs matching app form controls. */
+.tabulator .tabulator-header .tabulator-header-filter input,
+.tabulator .tabulator-header .tabulator-header-filter select {
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    background: #fff;
+}
+
+/* Transparent table/rows so the wrapper card shows through (works in both
+   themes). Base tabulator.min.css forces white here; override explicitly,
+   not just via CSS variables (those don't win against the base rules). */
+.tabulator .tabulator-tableholder,
+.tabulator .tabulator-tableholder .tabulator-table {
+    background-color: transparent;
+}
+
+/* Rows + cells. */
+.tabulator .tabulator-row,
+.tabulator .tabulator-row.tabulator-row-even {
+    background-color: transparent;
+    border-bottom: 1px solid #f1f5f9;
+    min-height: 0;
+}
+
+.tabulator .tabulator-row .tabulator-cell {
+    padding: 0.75rem 1.25rem;
+    border-right: none;
+    font-size: 0.875rem;
+    color: #334155;
+}
+
+.tabulator .tabulator-row:hover {
+    background: #eef2f8;
+}
+
+.tabulator .tabulator-placeholder .tabulator-placeholder-contents {
+    color: #94a3b8;
+    font-size: 0.875rem;
+    font-weight: 400;
+}
+
+/* Footer + pagination styled like the app's buttons. */
+.tabulator .tabulator-footer {
+    border-top: 1px solid #f1f5f9;
+    background: transparent;
+    padding: 0.5rem 1rem;
+}
+
+.tabulator .tabulator-footer .tabulator-paginator {
+    color: #64748b;
+    font-size: 0.8rem;
+}
+
+.tabulator .tabulator-footer .tabulator-page,
+.tabulator .tabulator-footer .tabulator-page-size {
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    padding: 0.25rem 0.65rem;
+    margin: 0 0.1rem;
+    background: #fff;
+    color: #475569;
+    font-size: 0.8rem;
+}
+
+.tabulator .tabulator-footer .tabulator-page:not(.disabled):hover {
+    background: #f1f5f9;
+    color: #1e293b;
+}
+
+.tabulator .tabulator-footer .tabulator-page.active {
+    background: #1e3a5f; /* lex-navy */
+    border-color: #1e3a5f;
+    color: #fff;
+}
+
+.tabulator .tabulator-footer .tabulator-page.disabled {
+    opacity: 0.5;
+}
+
+/* ===== Dark mode ===== */
+.dark .tabulator {
+    --tabulator-border-color: #1e293b;          /* slate-800 */
+    --tabulator-header-background-color: #1e293b; /* slate-800, stands out from the slate-900 card */
+    --tabulator-header-text-color: #cbd5e1;     /* slate-300 */
+    --tabulator-header-border-color: #334155;
+    --tabulator-row-border-color: #1e293b;
+    --tabulator-row-text-color: #e2e8f0;
+    --tabulator-row-hover-background: rgba(30, 41, 59, 0.4);
+    --tabulator-footer-text-color: #94a3b8;
+    --tabulator-footer-border-color: #1e293b;
+}
+
+.dark .tabulator .tabulator-header {
+    background: #1e293b;
+    border-bottom-color: #334155;
+}
+
+.dark .tabulator .tabulator-header .tabulator-col .tabulator-col-title {
+    color: #cbd5e1;
+}
+
+.dark .tabulator .tabulator-row {
+    border-bottom-color: #1e293b;
+}
+
+.dark .tabulator .tabulator-row .tabulator-cell {
+    color: #e2e8f0;
+}
+
+.dark .tabulator .tabulator-row:hover {
+    background: rgba(30, 41, 59, 0.4);
+}
+
+.dark .tabulator .tabulator-header .tabulator-header-filter input,
+.dark .tabulator .tabulator-header .tabulator-header-filter select {
+    background: #1e293b;
+    border-color: #334155;
+    color: #e2e8f0;
+}
+
+.dark .tabulator .tabulator-footer .tabulator-page,
+.dark .tabulator .tabulator-footer .tabulator-page-size {
+    background: #1e293b;
+    border-color: #334155;
+    color: #cbd5e1;
+}
+
+.dark .tabulator .tabulator-footer .tabulator-page.active {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: #fff;
+}
