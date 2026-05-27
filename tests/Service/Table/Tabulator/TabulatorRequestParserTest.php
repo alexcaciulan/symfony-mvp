@@ -47,4 +47,15 @@ final class TabulatorRequestParserTest extends TestCase
 
         self::assertSame(1, $query->page);
     }
+
+    public function testParsesMultiValueFilter(): void
+    {
+        $request = Request::create('/api/table/cases', 'GET', [
+            'filter' => [['field' => 'status', 'value' => ['AMIABIL', 'RESPINSA']]],
+        ]);
+
+        $query = (new TabulatorRequestParser())->parse($request);
+
+        self::assertSame(['status' => ['AMIABIL', 'RESPINSA']], $query->filters);
+    }
 }

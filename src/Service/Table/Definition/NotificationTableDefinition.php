@@ -34,6 +34,11 @@ final class NotificationTableDefinition implements TableDefinitionInterface
         ];
     }
 
+    public function getFilters(): array
+    {
+        return [];
+    }
+
     public function createScopedQueryBuilder(User $user): QueryBuilder
     {
         return $this->repository->createQueryBuilder('t')

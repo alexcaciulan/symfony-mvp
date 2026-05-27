@@ -21,6 +21,14 @@ interface TableDefinitionInterface
     public function getColumns(): array;
 
     /**
+     * Toolbar filters decoupled from columns (status, search, ...). Return an
+     * empty array to rely solely on per-column header filters.
+     *
+     * @return Filter[]
+     */
+    public function getFilters(): array;
+
+    /**
      * Base query already scoped to the current user (and any soft-delete filter).
      * Must use the root alias `t` so the engine can apply sort/filter on `t.<field>`.
      */

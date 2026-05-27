@@ -51,9 +51,27 @@ final class TableExtension extends AbstractExtension
             ];
         }
 
+        $filters = [];
+        foreach ($definition->getFilters() as $filter) {
+            $options = [];
+            foreach ($filter->options as $option) {
+                $options[] = ['value' => $option['value'], 'label' => $this->translator->trans($option['labelKey'])];
+            }
+            $filters[] = [
+                'key' => $filter->key,
+                'label' => $this->translator->trans($filter->labelKey),
+                'type' => $filter->type,
+                'multiple' => $filter->multiple,
+                'placeholder' => $filter->placeholderKey !== null ? $this->translator->trans($filter->placeholderKey) : '',
+                'options' => $options,
+            ];
+        }
+
         return [
             'url' => $this->urlGenerator->generate('api_table_data', ['key' => $key]),
             'columns' => $columns,
+            'filters' => $filters,
+            'clearLabel' => $this->translator->trans('component.data_table.filter.clear'),
             'pageSize' => TableDataService::DEFAULT_PAGE_SIZE,
             'pageSizes' => TableDataService::PAGE_SIZES,
             'placeholder' => $this->translator->trans('component.data_table.empty'),

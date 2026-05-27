@@ -99,6 +99,12 @@ component:
         of: 'of'
         rows: 'rows'
         pages: 'pages'
+        filter:
+            status_label: 'Status'
+            status_placeholder: 'All statuses'
+            search_label: 'Search'
+            search_placeholder: 'Search by case number...'
+            clear: 'Clear filters'
 
 # =============================================================================
 # Login (security/login.html.twig)
@@ -1501,6 +1507,14 @@ notifications:
     subtitle: 'All your account notifications, with filtering and sorting.'
 
 # =============================================================================
+# Cases list page (cases/index.html.twig)
+# =============================================================================
+cases:
+    title: 'Cases'
+    heading: 'Cases'
+    subtitle: 'All your cases, with status filtering, search and sorting.'
+
+# =============================================================================
 # Tables (server-side data grids — column headers per table key)
 # =============================================================================
 table:
@@ -1513,3 +1527,10 @@ table:
             type: 'Type'
             title: 'Title'
             read: 'Read'
+    cases:
+        columns:
+            number: 'Case no.'
+            court: 'Court'
+            amount: 'Amount'
+            status: 'Status'
+            date: 'Created'

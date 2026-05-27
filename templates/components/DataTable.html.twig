@@ -4,8 +4,43 @@
 
 {% set config = table_config(key)|merge({ height: height }) %}
 
-<div
-    data-controller="tabulator"
-    data-tabulator-config-value="{{ config|json_encode|e('html_attr') }}"
-    class="bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 overflow-hidden"
-></div>
+<div data-controller="tabulator" data-tabulator-config-value="{{ config|json_encode|e('html_attr') }}">
+
+    {% if config.filters is not empty %}
+        {# Decoupled filter toolbar (above the grid), built from the table definition's getFilters(). #}
+        <div class="mb-3 flex flex-wrap items-center gap-2">
+            {% for f in config.filters %}
+                {% if f.type == 'search' %}
+                    <input type="search"
+                           data-tabulator-target="filter"
+                           data-filter-key="{{ f.key }}"
+                           data-filter-type="search"
+                           placeholder="{{ f.placeholder }}"
+                           aria-label="{{ f.label }}"
+                           class="w-full sm:w-64 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-lex-navy/30">
+                {% elseif f.type == 'enum' %}
+                    {# Visual styling lives in tomselect-theme.css — Tom Select replaces this
+                       <select> with its own .ts-wrapper / .ts-control after mount. #}
+                    <select data-tabulator-target="filter"
+                            data-filter-key="{{ f.key }}"
+                            data-filter-type="enum"
+                            {{ f.multiple ? 'multiple' }}
+                            placeholder="{{ f.placeholder }}"
+                            aria-label="{{ f.label }}">
+                        {% for opt in f.options %}
+                            <option value="{{ opt.value }}">{{ opt.label }}</option>
+                        {% endfor %}
+                    </select>
+                {% endif %}
+            {% endfor %}
+            <button type="button"
+                    data-tabulator-target="clear"
+                    class="rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+                {{ config.clearLabel }}
+            </button>
+        </div>
+    {% endif %}
+
+    <div data-tabulator-target="table"
+         class="bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 overflow-hidden"></div>
+</div>

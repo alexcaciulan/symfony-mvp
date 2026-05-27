@@ -1,18 +1,25 @@
 /* stimulusFetch: 'lazy' */
 import { Controller } from '@hotwired/stimulus';
 import { TabulatorFull } from 'tabulator-tables';
+import TomSelect from 'tom-select';
+import 'tom-select/dist/css/tom-select.default.css';
+import '../styles/tomselect-theme.css';
 import 'tabulator-tables/dist/css/tabulator.min.css';
 import '../styles/tabulator-theme.css';
 import { resolveFormatter } from '../tabulator_formatters.js';
 
 // Generic, config-driven Tabulator wrapper. All table specifics (columns, data
-// URL, page size) arrive as JSON via the `config` value, built server-side from
-// the table definition. Server-side pagination/sort/filter (remote mode).
+// URL, page size, toolbar filters) arrive as JSON via the `config` value, built
+// server-side from the table definition. Server-side pagination/sort/filter.
 export default class extends Controller {
+    static targets = ['table', 'filter', 'clear'];
     static values = { config: Object };
 
     connect() {
         const cfg = this.configValue;
+        const mount = this.hasTableTarget ? this.tableTarget : this.element;
+        this._tomSelects = [];
+        this._searchTimer = null;
 
         const labels = cfg.labels || {};
         const columns = (cfg.columns || []).map((c) => {
@@ -20,7 +27,6 @@ export default class extends Controller {
             if (c.width) column.width = c.width;
             if (c.filterable) {
                 if (c.filterType === 'bool') {
-                    // Tristate so the default (indeterminate) state applies no filter.
                     column.headerFilter = 'tickCross';
                     column.headerFilterParams = { tristate: true };
                     column.headerFilterEmptyCheck = (value) => value === null;
@@ -49,27 +55,83 @@ export default class extends Controller {
             langs: { default: cfg.langs || {} },
             movableColumns: false,
             selectableRows: false,
-            // Disable the loading overlay (shadow box + spinner) on each remote
-            // page/sort/filter request; local responses are fast enough.
+            // Disable the loading overlay (shadow box + spinner) on each remote request.
             dataLoader: false,
         };
-        // Auto-height (grows with the page's rows) unless an explicit height is set.
         if (cfg.height) {
             options.height = cfg.height;
         }
 
-        this.table = new TabulatorFull(this.element, options);
+        this.table = new TabulatorFull(mount, options);
 
-        // Surface a clear message instead of an endless loader on ajax failure.
         this.table.on('dataLoadError', () => {
-            const placeholder = this.element.querySelector('.tabulator-placeholder-contents');
+            const placeholder = mount.querySelector('.tabulator-placeholder-contents');
             if (placeholder && cfg.errorMessage) {
                 placeholder.textContent = cfg.errorMessage;
             }
         });
+
+        this.table.on('tableBuilt', () => this._wireToolbar());
+
+        if (this.hasClearTarget) {
+            this.clearTarget.addEventListener('click', () => this._clearFilters());
+        }
+    }
+
+    // Wire external toolbar controls to remote filtering (decoupled from columns).
+    _wireToolbar() {
+        if (!this.hasFilterTarget) {
+            return;
+        }
+        this.filterTargets.forEach((el) => {
+            if (el.dataset.filterType === 'enum') {
+                this._tomSelects.push(
+                    new TomSelect(el, {
+                        plugins: el.multiple ? ['remove_button'] : [],
+                        placeholder: el.getAttribute('placeholder') || '',
+                        onChange: () => this._applyFilters(),
+                    }),
+                );
+            } else if (el.dataset.filterType === 'search') {
+                el.addEventListener('input', () => {
+                    clearTimeout(this._searchTimer);
+                    this._searchTimer = setTimeout(() => this._applyFilters(), 300);
+                });
+            }
+        });
+    }
+
+    _applyFilters() {
+        const filters = [];
+        this.filterTargets.forEach((el) => {
+            const key = el.dataset.filterKey;
+            let value;
+            if (el.multiple) {
+                value = Array.from(el.selectedOptions).map((o) => o.value);
+                if (value.length === 0) return;
+            } else {
+                value = (el.value || '').trim();
+                if (value === '') return;
+            }
+            // `type` is ignored server-side (derived from the table definition).
+            filters.push({ field: key, type: 'like', value });
+        });
+        this.table.setFilter(filters);
+    }
+
+    _clearFilters() {
+        this._tomSelects.forEach((ts) => ts.clear(true));
+        this.filterTargets.forEach((el) => {
+            if (el.dataset.filterType === 'search') {
+                el.value = '';
+            }
+        });
+        this._applyFilters();
     }
 
     disconnect() {
+        this._tomSelects.forEach((ts) => ts.destroy());
+        this._tomSelects = [];
         if (this.table) {
             this.table.destroy();
             this.table = null;

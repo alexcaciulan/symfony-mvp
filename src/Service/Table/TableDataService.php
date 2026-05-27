@@ -27,7 +27,7 @@ final class TableDataService
     {
         $columns = $this->indexColumns($definition);
         $qb = $definition->createScopedQueryBuilder($user);
-        $this->applyCriteria($qb, $columns, $query);
+        $this->applyCriteria($qb, $columns, $this->buildFilterSpecs($definition, $columns), $query);
 
         $page = max(1, $query->page);
         $pageSize = in_array($query->pageSize, self::PAGE_SIZES, true) ? $query->pageSize : self::DEFAULT_PAGE_SIZE;
@@ -49,9 +49,10 @@ final class TableDataService
      * Applies whitelisted sorting + filtering on root alias `t`. Shared seam for
      * pagination and (future) full export.
      *
-     * @param array<string, Column> $columns
+     * @param array<string, Column>                                                          $columns
+     * @param array<string, array{type: string, field: string, searchFields: list<string>}> $filterSpecs
      */
-    private function applyCriteria(QueryBuilder $qb, array $columns, TableQuery $query): void
+    private function applyCriteria(QueryBuilder $qb, array $columns, array $filterSpecs, TableQuery $query): void
     {
         if ($query->sortField !== null
             && isset($columns[$query->sortField])
@@ -62,19 +63,66 @@ final class TableDataService
         }
 
         $i = 0;
-        foreach ($query->filters as $field => $value) {
-            if (!isset($columns[$field]) || !$columns[$field]->filterable || $value === null || $value === '') {
+        foreach ($query->filters as $key => $value) {
+            if (!isset($filterSpecs[$key]) || $value === null || $value === '' || $value === []) {
                 continue;
             }
 
+            $spec = $filterSpecs[$key];
             $param = 'tf' . $i++;
-            match ($columns[$field]->filterType) {
-                // Escape LIKE metacharacters (\ % _) so user input matches literally.
-                'text' => $qb->andWhere("t.$field LIKE :$param")->setParameter($param, '%' . addcslashes((string) $value, '\\%_') . '%'),
-                'bool' => $qb->andWhere("t.$field = :$param")->setParameter($param, filter_var($value, \FILTER_VALIDATE_BOOLEAN)),
-                default => $qb->andWhere("t.$field = :$param")->setParameter($param, $value),
-            };
+            $field = $spec['field'];
+
+            switch ($spec['type']) {
+                case 'text':
+                    // Escape LIKE metacharacters (\ % _) so user input matches literally.
+                    $qb->andWhere("t.$field LIKE :$param")->setParameter($param, '%' . addcslashes((string) $value, '\\%_') . '%');
+                    break;
+                case 'bool':
+                    $qb->andWhere("t.$field = :$param")->setParameter($param, filter_var($value, \FILTER_VALIDATE_BOOLEAN));
+                    break;
+                case 'enum':
+                    $qb->andWhere("t.$field IN (:$param)")->setParameter($param, (array) $value);
+                    break;
+                case 'search':
+                    $term = '%' . addcslashes((string) (\is_array($value) ? reset($value) : $value), '\\%_') . '%';
+                    $orParts = array_map(static fn (string $f): string => "t.$f LIKE :$param", $spec['searchFields']);
+                    if ($orParts !== []) {
+                        $qb->andWhere('(' . implode(' OR ', $orParts) . ')')->setParameter($param, $term);
+                    }
+                    break;
+                default:
+                    $qb->andWhere("t.$field = :$param")->setParameter($param, $value);
+            }
         }
+    }
+
+    /**
+     * Whitelist of filterable keys: filterable columns (header filters) plus
+     * toolbar filters declared in {@see TableDefinitionInterface::getFilters()}.
+     *
+     * @param array<string, Column> $columns
+     *
+     * @return array<string, array{type: string, field: string, searchFields: list<string>}>
+     */
+    private function buildFilterSpecs(TableDefinitionInterface $definition, array $columns): array
+    {
+        $specs = [];
+
+        foreach ($columns as $column) {
+            if ($column->filterable && $column->filterType !== null) {
+                $specs[$column->name] = ['type' => $column->filterType, 'field' => $column->name, 'searchFields' => []];
+            }
+        }
+
+        foreach ($definition->getFilters() as $filter) {
+            $specs[$filter->key] = [
+                'type' => $filter->type,
+                'field' => $filter->resolvedField(),
+                'searchFields' => $filter->searchFields,
+            ];
+        }
+
+        return $specs;
     }
 
     /**
