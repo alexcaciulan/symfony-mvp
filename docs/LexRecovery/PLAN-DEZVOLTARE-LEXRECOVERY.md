@@ -84,7 +84,7 @@
 | 7.1 | UI | Dashboard avocat OVERVIEW (KPI + termene urgente + preview dosare recente + empty state) | 1z | 1.1, 4.1 | 50% | ✅ DONE 2026-05-24 — rută `dashboard_cases`→`app_dashboard` (`/dashboard`), `index.html.twig` overview, preview „Dosare recente" top 5 cu link `case_overview`, KPI `overdue` (înlocuiește placeholder mort), `findRecentByUser`+`countOverdueByUser`; **lista filtrabilă amânată la Pas 7.1.1** (decizie user); fix bug latent `DeadlineList` (`{% props %}` lipsă) + 3 link-uri rupte + `DashboardControllerTest` (setStatus enum); 910/9/2 (−3 erori baseline) |
 | 7.1.0 | UI infra | **Fundație tabele reutilizabile (Tabulator)** + tabel referință Notificări — nucleu agnostic (`TableDefinitionInterface`/`TableRegistry`/`TableDataService` tagged-iterator + DTO) + adaptor Tabulator + endpoint generic `/api/table/{key}` + `<twig:DataTable key>` + controller Stimulus + formatter-e reutilizabile; paginare/sort/filtru server-side; export = doar seam | 1.5z | 1.1 | 30% | ✅ DONE 2026-05-24 — 24 fișiere noi, 22 teste, 933/9/2 (zero regresii); reviews legal CLEAN + code COMMIT-READY → 7 W fix-uite (LIKE escaping, assert→throw, height config, bool i18n, error handler, 2 teste); pagina `/notifications` livrată + sidebar wired |
 | 7.1.1 | UI | **Listă dosare filtrabilă (pagină distinctă `/cases`)** — pe fundația Tabulator din 7.1.0: `LegalCaseTableDefinition` + `<twig:DataTable key="cases">` + scoping/filtre/sortare; wire „Dosare"/„Vezi toate" de la placeholder | 0.75z | 7.1.0 | 70% | ✅ DONE 2026-05-24 — `/cases` (`app_cases`) + fundație **filtre decuplate de coloane** (`Filter` DTO + `getFilters()` + toolbar tom-select status multi-select chips + search `caseNumber`/`courtCaseNumber`); `STATUS_PALETTE` 14 tokenuri; navigare wired; 10 teste, 943/9/2 (zero regresii); reviews legal CLEAN + code COMMIT-READY (2 W fix: link `UrlGenerator`, CSS tom-select) |
-| 7.2 | UI | View dosar cu tab-uri (Detalii / Documente / Termene / Activitate Portal / Audit) | 0.75z | 7.1, 4.3 | 40% | ⏳ (parțial acoperit de `case_overview` Pas 4.0) |
+| 7.2 | UI | View dosar cu tab-uri (Detalii / Documente / Termene / Activitate Portal / Audit) + **5 tranziții workflow manuale** (`inregistreaza_dosar`, `emite_ordonanta`, `respinge`/`admite_cerere_anulare`, `inchide_succes`, `inchide_insolvabil`) via Turbo Stream multi-fragment (zero Mercure per decizia user) | 0.75z | 7.1, 4.3 | 40% | ✅ DONE 2026-05-27 (`7b5458d`) — `CaseTransitionController` cu 4 acțiuni + 4 Form types (auto-CSRF) + 2 enum-uri (`RejectReason` 2 cazuri, `CloseReason` 4 cazuri cu `targetTransition()` dispatch) + 3 modale Preline noi + re-enable `_modal_close_case` + hero CTA-uri status-driven + tab Audit funcțional (înlocuiește placeholder Pas 4.0) + `OverviewContextBuilder` service extras + `PiiMasker::maskCnpInArray` defense-in-depth pe `reject`/`close.details` + ~70 chei i18n RO/EN; 20 teste verzi (15 happy/edge + 2 close dispatch PARTIAL/ABANDONED + 4 voter denial DataProvider), suite 967/9/2/7 IDENTIC baseline 947/9/2/7 (+20 teste, zero regresii); reviews legal **LEGAL-CLEAN** + code **COMMIT-READY** după runda 2 fix-uri (BLOCKER L1: `PARTIAL_ADMISSION` eliminat — admiterea parțială CPC art. 1022 → ORDONANTA_EMISA, nu RESPINSA; BLOCKER C1: extras `OverviewContextBuilder` din Controller-in-Controller; BLOCKER C2: drop import mort `EntityType`; W1-W4 legal: titlu condițional IN_ANULARE, courtCaseNumber în audit ruling, PiiMasker pe details, ruling_hint clarifică termenul 10z CPC art. 1024) |
 | 7.3 | UI | EasyAdmin: rename + CRUDs noi (Plan, Subscription, Invoice, InterestRateConfig) | 0.25z | 1.1 | 100% (pattern) | ⏳ |
 | 8.1 | Monetizare | `SubscriptionService` + `InvoicingService` (logica de consum) | 1z | 1.1 | 30% | ⏳ |
 | 8.2 | Monetizare | `PaymentGatewayInterface` + stub + UI `/abonament`, `/facturile-mele` | 0.5z | 8.1 | 0% | ⏳ |
@@ -2349,9 +2349,68 @@ Twig template-ul randat de `DashboardController` se inspiră din mock-up-uri (ce
 
 ---
 
-### PASUL 7.2 | View dosar cu tab-uri (lazy load + view transitions + Mercure live) | 0.75 zi | 40% reutilizare
+### PASUL 7.2 | View dosar — tranziții workflow manuale + tab Audit (Turbo Stream, fără Mercure) | 0.75 zi | 40% reutilizare ✅ DONE 2026-05-27
 
-**Rezultat**: _(va fi completat la marcarea ca DONE)_
+**Rezultat livrat 2026-05-27** (`7b5458d`):
+
+Scope-ul original (lazy load + view transitions + Mercure live) a fost restrâns la **tranziții workflow + tab Audit**, în baza deciziilor utilizator:
+- **NU Mercure** — Turbo Stream multi-fragment response acoperă update-urile UI după acțiuni user-driven; cron updates rămân pe F5 manual (trade-off MVP acceptat).
+- **NU view transitions pe tab switch** + **NU URL hash sync** — deferred (UX nice-to-have, nu critic).
+- **NU tranziții cale de atac** (`formuleaza_cerere_anulare`, `marcheaza_definitiva`, `*_cerere_anulare`) — rămân pe AUTO portal (Pas 6.1) sau admin manual (`/admin/case/{id}/change-status`).
+- Tab-urile Detalii / Documente / Termene / Activitate Portal au fost livrate complet în Pas 4.0; Pas 7.2 a adăugat doar **tab Audit funcțional** (înlocuiește placeholder Pas 4.0).
+
+**Tranziții workflow cablate manual:**
+
+| Tranziție | From → To | Date capturate | Rută |
+|---|---|---|---|
+| `inregistreaza_dosar` | CERERE_DEPUSA → DOSAR_INREGISTRAT | `courtCaseNumber` ECRIS (regex `\d+/\d+/\d{4}`) | `POST /case/{id}/transition/register` |
+| `emite_ordonanta` | TERMEN_FIXAT → ORDONANTA_EMISA | `rulingDate` (≤ today, DateTimeImmutable→DateTime conversion pentru DATE_MUTABLE) | `POST /case/{id}/transition/issue-ruling` |
+| `respinge` / `admite_cerere_anulare` | TERMEN_FIXAT → RESPINSA sau IN_ANULARE → RESPINSA | `reason` (NO_PROOF/INADMISSIBLE) + `details` opt 500ch | `POST /case/{id}/transition/reject` |
+| `inchide_succes` / `inchide_insolvabil` | DEFINITIVA → INCHIS_SUCCES sau INCHIS_PARTIAL_INSOLVABIL | `reason` (PAID/PARTIAL/INSOLVENT/ABANDONED) + `details` opt — dispatch via `CloseReason::targetTransition()` | `POST /case/{id}/transition/close` |
+
+**Arhitectură:**
+- `CaseTransitionController` — 4 acțiuni publice, pattern strict identic cu `CasePaymentOrderController` (voter `CaseVoter::TRANSITION` → form auto-CSRF → status guard → `wrapInTransaction` { flush → workflow.apply → audit → flush } → Turbo Stream OR redirect).
+- `OverviewContextBuilder` service nou — extras din `CaseOverviewController` ca să nu mai injectez un controller în alt controller. Build-uiește contextul Twig identic pentru initial GET și pentru Turbo Stream response.
+- 4 FormTypes (`Register/IssueRuling/Reject/CloseCaseType`) cu Symfony Form auto-CSRF (csrf_token_id = block prefix) + validare server-side (`Regex`/`LessThanOrEqual('today')`/`Length(max=500)`).
+- 2 enum-uri noi: `RejectReason` (2 cazuri — `PARTIAL_ADMISSION` deliberat exclus per CPC art. 1022 alin. 1 deoarece admiterea parțială produce ordonanță pe suma admisă, nu respingere) + `CloseReason` (4 cazuri cu method `targetTransition()` care dispatch-ează la `inchide_succes` vs `inchide_insolvabil`).
+- 4 categorii audit log noi: `CASE_REGISTERED`, `RULING_ISSUED`, `CASE_REJECTED`, `CASE_CLOSED`.
+- `PiiMasker::maskCnpInArray()` defense-in-depth pe `details` în `reject()` și `close()` (free-text 500ch poate conține CNP din copy-paste hotărâre).
+
+**Turbo Stream multi-fragment** (`_transition_turbo_stream.html.twig`): 5 fragmente `<turbo-stream action="replace">` într-un singur response → `case-status-badge` + `case-pipeline` + `case-hero-actions` (extras în `_hero_actions.html.twig` ca să fie reutilizabil) + `case-tabs-nav` + `case-recommended-actions`. Detectare prin `Accept: text/vnd.turbo-stream.html`; fallback redirect + flash.
+
+**UI:**
+- 3 modale Preline noi (`_modal_register_case_number`, `_modal_issue_ruling`, `_modal_reject`).
+- `_modal_close_case` re-enable (era `coming_soon` cu `aria-disabled`).
+- Hero CTA-uri colorate condiționate pe status (indigo „Înregistrează dosar" / violet „Emite ordonanța" / emerald „Închide dosar" / red „Marchează respinsă" pentru TERMEN_FIXAT).
+- Recommended-actions sidecard extins cu 4 acțiuni status-driven.
+- `_modal_reject` cu titlu/intro condiționate pe status (IN_ANULARE = „Admite cererea în anulare" + intro despre anularea ordonanței; TERMEN_FIXAT = „Marchează respinsă").
+- Tab Audit funcțional: listă cronologică DESC max 50 entries cu badge color enum-mapped pe 12 categorii + `<details>` collapsed cu `newData` JSON pretty-printed pentru forensic.
+
+**i18n:** ~70 chei noi RO + EN (`case_overview.modal.*`, `transition.*`, `audit.*`, `cta.register_case/issue_ruling/close_case_definitiva`, `recommended_actions.*`, `enum.reject_reason.*`, `enum.close_reason.*`). Em-dash check clean.
+
+**Reviews & coverage:**
+- Runda 1: legal `LEGAL-NEEDS-FIX` (1 BLOCKER `PARTIAL_ADMISSION` + 4 WARNINGS) + code `NEEDS-FIX` (2 BLOCKERS: Controller-in-Controller, import mort `EntityType` + 3 WARNINGS).
+- Runda 2 după fix-uri: legal `LEGAL-CLEAN` + code `COMMIT-READY` — zero warnings reziduale.
+- Test coverage: 20 teste în `CaseTransitionControllerTest` (15 happy/edge + 2 close dispatch PARTIAL/ABANDONED + 4 voter denial via `#[DataProvider('voterDenialCases')]` cu 4 cazuri). Suite full 967/9/2/7 vs baseline 947/9/2/7 (+20 teste, **zero regresii**).
+
+**Decizii consemnate pentru pași viitori:**
+- Admiterea parțială a cererii de OP (instanța admite parțial, emite ordonanță pe suma admisă) — necesită flux dedicat (`emite_ordonanta` cu câmp `approvedAmount` opt). Backlog post-MVP.
+- Tranzițiile cale de atac manuale (`formuleaza_cerere_anulare`, `marcheaza_definitiva`, `respinge_cerere_anulare`) — disponibile via AUTO portal (Pas 6.1) sau `/admin/case/{id}/change-status`. UI manual deferrat dacă apare nevoie.
+- Mercure pentru `case/{id}/status-change` și `case/{id}/portal-event` — topicuri declarate în `MercureTokenService` dar fără publishers; deferrat (cu Turbo Stream avocatul vede update-urile la următoarea acțiune; cron updates = F5 manual).
+- View transitions pe tab switch + URL hash — deferrat la Pas 7.3+ dacă devine nevoie UX.
+
+**Detalii implementare**: `~/.claude/projects/-Users-alexc-Downloads-myprojects-symfony-mvp/memory/project_lexrecovery_pas_7_2.md` (TBD memory entry).
+
+---
+
+**Scope inițial planificat (arhivă — restrâns la livrare):**
+
+Specificația originală cerea lazy load Turbo Frames pe tab-uri, view transitions pe tab switch, URL hash sync, Mercure live update pentru status badge + portal timeline, și un set complet de tranziții (inclusiv `trimite_somatie` / `depune_cerere`). La livrare:
+- Tab-urile Detalii / Documente / Termene / Activitate Portal erau deja livrate în Pas 4.0 (server-rendered fără lazy load — UX considerat suficient pentru MVP).
+- `trimite_somatie` (Pas 5.1) și `depune_cerere` (Pas 5.2) erau deja cablate.
+- Mercure / view transitions / URL hash sync = deferred per decizia user (vezi „Decizii consemnate" mai sus).
+
+Prompt-ul original păstrat ca referință:
 
 **Mock-up de referință** (sugestiv): [`docs/LexRecovery/mockups/v2/04-dosar/overview.html`](./mockups/v2/04-dosar/overview.html) — direcție pentru header dosar (caseNumber, status badge, sume), zona acțiuni (butoane tranziții workflow), structura tab-urilor.
 
