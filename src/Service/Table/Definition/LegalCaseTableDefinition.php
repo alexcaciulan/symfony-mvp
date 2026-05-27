@@ -61,6 +61,14 @@ final class LegalCaseTableDefinition implements TableDefinitionInterface
                 placeholderKey: 'component.data_table.filter.status_placeholder',
             ),
             new Filter(
+                key: 'court',
+                labelKey: 'table.cases.columns.court',
+                type: 'autocomplete',
+                field: 'court',
+                placeholderKey: 'component.data_table.filter.court_placeholder',
+                remoteRoute: 'api_courts_lookup',
+            ),
+            new Filter(
                 key: 'search',
                 labelKey: 'component.data_table.filter.search_label',
                 type: 'search',

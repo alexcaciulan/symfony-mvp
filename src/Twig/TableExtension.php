@@ -64,6 +64,7 @@ final class TableExtension extends AbstractExtension
                 'multiple' => $filter->multiple,
                 'placeholder' => $filter->placeholderKey !== null ? $this->translator->trans($filter->placeholderKey) : '',
                 'options' => $options,
+                'remoteUrl' => $filter->remoteRoute !== null ? $this->urlGenerator->generate($filter->remoteRoute) : null,
             ];
         }
 
@@ -79,6 +80,8 @@ final class TableExtension extends AbstractExtension
             'labels' => [
                 'yes' => $this->translator->trans('component.data_table.yes'),
                 'no' => $this->translator->trans('component.data_table.no'),
+                'autocomplete_hint' => $this->translator->trans('component.data_table.filter.autocomplete_hint'),
+                'autocomplete_no_results' => $this->translator->trans('component.data_table.filter.autocomplete_no_results'),
             ],
             'langs' => [
                 'pagination' => [

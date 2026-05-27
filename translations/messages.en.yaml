@@ -102,9 +102,12 @@ component:
         filter:
             status_label: 'Status'
             status_placeholder: 'All statuses'
+            court_placeholder: 'Search court...'
             search_label: 'Search'
             search_placeholder: 'Search by case number...'
             clear: 'Clear filters'
+            autocomplete_hint: 'Type at least 2 characters'
+            autocomplete_no_results: 'No results'
 
 # =============================================================================
 # Login (security/login.html.twig)

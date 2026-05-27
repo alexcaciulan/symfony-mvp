@@ -102,9 +102,12 @@ component:
         filter:
             status_label: 'Status'
             status_placeholder: 'Toate statusurile'
+            court_placeholder: 'Caută instanța...'
             search_label: 'Căutare'
             search_placeholder: 'Caută după nr. dosar...'
             clear: 'Șterge filtre'
+            autocomplete_hint: 'Tastează cel puțin 2 caractere'
+            autocomplete_no_results: 'Niciun rezultat'
 
 # =============================================================================
 # Login (security/login.html.twig)

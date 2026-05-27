@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Tests\Service\Table\Definition;
 
+use App\Entity\Court;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\CaseStatus;
+use App\Enum\CourtType;
 use App\Service\Table\TableDataService;
 use App\Service\Table\TableDefinitionInterface;
 use App\Service\Table\TableQuery;
@@ -87,6 +89,22 @@ final class LegalCaseTableDefinitionTest extends KernelTestCase
         self::assertSame('violet', $row['status']['color']);
     }
 
+    public function testAutocompleteFilterMatchesByCourtId(): void
+    {
+        $courtA = $this->makeCourt('Judecătoria ' . $this->prefix . '-A');
+        $courtB = $this->makeCourt('Judecătoria ' . $this->prefix . '-B');
+        $this->em->flush();
+
+        $this->makeCase($this->user, CaseStatus::AMIABIL, court: $courtA);
+        $this->makeCase($this->user, CaseStatus::AMIABIL, court: $courtA);
+        $this->makeCase($this->user, CaseStatus::AMIABIL, court: $courtB);
+        $this->em->flush();
+
+        $result = $this->service->query($this->definition, $this->user, new TableQuery(filters: ['court' => $courtA->getId()]));
+
+        self::assertSame(2, $result->total);
+    }
+
     public function testSortByAmountIsNumericOnDecimalColumn(): void
     {
         $this->makeCase($this->user, CaseStatus::AMIABIL, amount: '200.00');
@@ -128,7 +146,7 @@ final class LegalCaseTableDefinitionTest extends KernelTestCase
         return $user;
     }
 
-    private function makeCase(User $user, CaseStatus $status, ?string $courtCaseNumber = null, string $amount = '1000.00'): void
+    private function makeCase(User $user, CaseStatus $status, ?string $courtCaseNumber = null, string $amount = '1000.00', ?Court $court = null): void
     {
         $case = new LegalCase();
         $case->setUser($user);
@@ -137,7 +155,22 @@ final class LegalCaseTableDefinitionTest extends KernelTestCase
         $case->setCourtCaseNumber($courtCaseNumber);
         $case->setAmount($amount);
         $case->setCurrency('RON');
+        if ($court !== null) {
+            $case->setCourt($court);
+        }
         $this->em->persist($case);
+    }
+
+    private function makeCourt(string $name): Court
+    {
+        $court = new Court();
+        $court->setName($name);
+        $court->setCounty('Ilfov');
+        $court->setType(CourtType::JUDECATORIE);
+        $court->setActive(true);
+        $this->em->persist($court);
+
+        return $court;
     }
 
     protected function tearDown(): void
@@ -145,6 +178,7 @@ final class LegalCaseTableDefinitionTest extends KernelTestCase
         $conn = $this->em->getConnection();
         $conn->executeStatement("DELETE lc FROM legal_case lc JOIN user u ON lc.user_id = u.id WHERE u.email LIKE ?", [$this->prefix . '%']);
         $conn->executeStatement("DELETE FROM user WHERE email LIKE ?", [$this->prefix . '%']);
+        $conn->executeStatement("DELETE FROM court WHERE name LIKE ?", ['%' . $this->prefix . '%']);
         parent::tearDown();
     }
 }

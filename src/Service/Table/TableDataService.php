@@ -83,6 +83,10 @@ final class TableDataService
                 case 'enum':
                     $qb->andWhere("t.$field IN (:$param)")->setParameter($param, (array) $value);
                     break;
+                case 'autocomplete':
+                    // Single exact match by FK id — value is the picked entity id.
+                    $qb->andWhere("t.$field = :$param")->setParameter($param, $value);
+                    break;
                 case 'search':
                     $term = '%' . addcslashes((string) (\is_array($value) ? reset($value) : $value), '\\%_') . '%';
                     $orParts = array_map(static fn (string $f): string => "t.$f LIKE :$param", $spec['searchFields']);

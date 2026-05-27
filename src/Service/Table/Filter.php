@@ -13,9 +13,10 @@ namespace App\Service\Table;
 final readonly class Filter
 {
     /**
-     * @param 'search'|'enum'|'text'|'bool'        $type
-     * @param list<string>                         $searchFields entity fields OR-ed for `search`
-     * @param list<array{value: string, labelKey: string}> $options for `enum`
+     * @param 'search'|'enum'|'text'|'bool'|'autocomplete' $type
+     * @param list<string>                                 $searchFields entity fields OR-ed for `search`
+     * @param list<array{value: string, labelKey: string}> $options      for `enum`
+     * @param ?string                                      $remoteRoute  route name for `autocomplete` (resolved to URL in {@see TableExtension})
      */
     public function __construct(
         public string $key,
@@ -26,6 +27,7 @@ final readonly class Filter
         public array $options = [],
         public bool $multiple = false,
         public ?string $placeholderKey = null,
+        public ?string $remoteRoute = null,
     ) {}
 
     public function resolvedField(): string

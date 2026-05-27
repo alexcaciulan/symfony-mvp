@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller\Api;
 
+use App\Entity\Court;
+use App\Entity\LegalCase;
 use App\Entity\User;
+use App\Enum\CaseStatus;
+use App\Enum\CourtType;
 use App\Service\Company\AnafLookupException;
 use App\Service\Company\AnafLookupService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -175,12 +179,95 @@ final class LookupControllerTest extends WebTestCase
         self::assertStringContainsString('/login', $this->client->getResponse()->headers->get('Location') ?? '');
     }
 
+    public function testCourtsLookupReturnsOnlyCourtsFromOwnCases(): void
+    {
+        $hasher = static::getContainer()->get(UserPasswordHasherInterface::class);
+        $other = new User();
+        $other->setEmail($this->testPrefix . '-other@test.com');
+        $other->setPassword($hasher->hashPassword($other, 'password'));
+        $other->setIsVerified(true);
+        $this->em->persist($other);
+
+        $mine = $this->makeCourt('Judecătoria ' . $this->testPrefix . '-mine');
+        $theirs = $this->makeCourt('Judecătoria ' . $this->testPrefix . '-theirs');
+        $this->em->flush();
+
+        $this->makeCaseWithCourt($this->user, $mine);
+        $this->makeCaseWithCourt($other, $theirs);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/api/courts-lookup');
+
+        self::assertResponseIsSuccessful();
+        $payload = json_decode($this->client->getResponse()->getContent(), true);
+        $labels = array_column($payload, 'label');
+        self::assertContains($mine->getName(), $labels);
+        self::assertNotContains($theirs->getName(), $labels);
+    }
+
+    public function testCourtsLookupFiltersByQuery(): void
+    {
+        $apel = $this->makeCourt('Curtea de Apel ' . $this->testPrefix);
+        $jud = $this->makeCourt('Judecătoria ' . $this->testPrefix);
+        $this->em->flush();
+
+        $this->makeCaseWithCourt($this->user, $apel);
+        $this->makeCaseWithCourt($this->user, $jud);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/api/courts-lookup', ['q' => 'apel']);
+
+        self::assertResponseIsSuccessful();
+        $payload = json_decode($this->client->getResponse()->getContent(), true);
+        $labels = array_column($payload, 'label');
+        self::assertContains($apel->getName(), $labels);
+        self::assertNotContains($jud->getName(), $labels);
+    }
+
+    public function testCourtsLookupRequiresAuthentication(): void
+    {
+        $this->client->getCookieJar()->clear();
+        $this->client->request('GET', '/api/courts-lookup');
+
+        self::assertResponseStatusCodeSame(302);
+        self::assertStringContainsString('/login', $this->client->getResponse()->headers->get('Location') ?? '');
+    }
+
+    private function makeCourt(string $name): Court
+    {
+        $court = new Court();
+        $court->setName($name);
+        $court->setCounty('Ilfov');
+        $court->setType(CourtType::JUDECATORIE);
+        $court->setActive(true);
+        $this->em->persist($court);
+
+        return $court;
+    }
+
+    private function makeCaseWithCourt(User $user, Court $court): void
+    {
+        $case = new LegalCase();
+        $case->setUser($user);
+        $case->setStatus(CaseStatus::AMIABIL);
+        $case->setCaseNumber('LR-' . uniqid());
+        $case->setAmount('1000.00');
+        $case->setCurrency('RON');
+        $case->setCourt($court);
+        $this->em->persist($case);
+    }
+
     protected function tearDown(): void
     {
-        $this->em->getConnection()->executeStatement(
-            'DELETE FROM user WHERE email LIKE ?',
+        $conn = $this->em->getConnection();
+        $conn->executeStatement(
+            'DELETE lc FROM legal_case lc JOIN user u ON lc.user_id = u.id WHERE u.email LIKE ?',
             [$this->testPrefix . '%'],
         );
+        $conn->executeStatement('DELETE FROM court WHERE name LIKE ?', ['%' . $this->testPrefix . '%']);
+        $conn->executeStatement('DELETE FROM user WHERE email LIKE ?', [$this->testPrefix . '%']);
         parent::tearDown();
     }
 }

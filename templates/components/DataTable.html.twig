@@ -31,6 +31,14 @@
                             <option value="{{ opt.value }}">{{ opt.label }}</option>
                         {% endfor %}
                     </select>
+                {% elseif f.type == 'autocomplete' %}
+                    {# Empty <select>: Tom Select fetches options from `remoteUrl` on type. #}
+                    <select data-tabulator-target="filter"
+                            data-filter-key="{{ f.key }}"
+                            data-filter-type="autocomplete"
+                            data-filter-remote-url="{{ f.remoteUrl }}"
+                            placeholder="{{ f.placeholder }}"
+                            aria-label="{{ f.label }}"></select>
                 {% endif %}
             {% endfor %}
             <button type="button"

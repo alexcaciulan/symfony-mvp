@@ -92,6 +92,36 @@ export default class extends Controller {
                         onChange: () => this._applyFilters(),
                     }),
                 );
+            } else if (el.dataset.filterType === 'autocomplete') {
+                const remoteUrl = el.dataset.filterRemoteUrl;
+                const hint = (this.configValue.labels && this.configValue.labels.autocomplete_hint) || '';
+                const noResults = (this.configValue.labels && this.configValue.labels.autocomplete_no_results) || '';
+                this._tomSelects.push(
+                    new TomSelect(el, {
+                        plugins: ['clear_button'],
+                        valueField: 'value',
+                        labelField: 'label',
+                        searchField: 'label',
+                        placeholder: el.getAttribute('placeholder') || '',
+                        preload: false,
+                        loadThrottle: 300,
+                        maxOptions: 50,
+                        shouldLoad: (query) => query.length >= 2,
+                        load: (query, callback) => {
+                            fetch(remoteUrl + '?q=' + encodeURIComponent(query), { headers: { Accept: 'application/json' } })
+                                .then((r) => (r.ok ? r.json() : []))
+                                .then(callback)
+                                .catch(() => callback());
+                        },
+                        render: {
+                            no_results: (data, escape) => {
+                                const msg = data.input.length < 2 ? hint : noResults;
+                                return msg ? `<div class="no-results">${escape(msg)}</div>` : '';
+                            },
+                        },
+                        onChange: () => this._applyFilters(),
+                    }),
+                );
             } else if (el.dataset.filterType === 'search') {
                 el.addEventListener('input', () => {
                     clearTimeout(this._searchTimer);

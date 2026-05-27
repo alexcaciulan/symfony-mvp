@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace App\Controller\Api;
 
 use App\Entity\User;
+use App\Repository\CourtRepository;
 use App\Service\Company\AnafLookupException;
 use App\Service\Company\AnafLookupService;
 use App\Util\PiiMasker;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
@@ -87,6 +89,23 @@ final class LookupController extends AbstractController
             'anafStatus' => $data['stare'],
             'anafCheckedAt' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
         ]);
+    }
+
+    /**
+     * Remote source for the cases-list court filter (Tom Select `load` callback).
+     * Scoped to courts the current user has cases in, so the dropdown never lists
+     * courts that would produce zero filter hits. The `q` query is matched against
+     * the court name (case-insensitive LIKE), capped at 20 results.
+     */
+    #[Route('/courts-lookup', name: 'courts_lookup', methods: ['GET'])]
+    public function courtsLookup(
+        Request $request,
+        #[CurrentUser] User $user,
+        CourtRepository $courtRepository,
+    ): JsonResponse {
+        $query = trim((string) $request->query->get('q', ''));
+
+        return new JsonResponse($courtRepository->findForUserAutocomplete($user, $query));
     }
 
     /**
