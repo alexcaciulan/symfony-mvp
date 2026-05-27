@@ -1,5 +1,7 @@
-{# Pas 4.0.7 — Modal Preline „Confirmă închiderea dosarului". Reflectă mockup linii 1116-1133.
-   Trigger din hero dropdown („Închide dosar"). Confirm-button aria-disabled — workflow ARHIVAT vine la Faza 4.x. #}
+{# Modal Preline „Confirmă închiderea dosarului". Reflectă mockup linii 1116-1133.
+   Trigger din hero dropdown („Închide dosar"). Submit la `case_transition_close`
+   care dispatch la `inchide_succes` / `inchide_insolvabil` pe baza reason-ului.
+   Form auto-CSRF prin CloseCaseType (csrf_token_id: close_case). #}
 {% from 'case/overview/_icons.html.twig' import icon_warning %}
 
 <div id="hs-modal-close-case"
@@ -8,7 +10,9 @@
      tabindex="-1"
      aria-labelledby="hs-modal-close-case-title">
     <div class="hs-overlay-open:mt-7 hs-overlay-open:opacity-100 hs-overlay-open:duration-500 mt-0 opacity-0 ease-out transition-all sm:max-w-lg sm:w-full m-3 sm:mx-auto">
-        <div class="flex flex-col bg-white border border-slate-200 shadow-lg rounded-2xl pointer-events-auto dark:bg-slate-900 dark:border-slate-800">
+        <form method="post" action="{{ path('case_transition_close', {id: case.id}) }}" class="flex flex-col bg-white border border-slate-200 shadow-lg rounded-2xl pointer-events-auto dark:bg-slate-900 dark:border-slate-800">
+            <input type="hidden" name="close_case[_token]" value="{{ csrf_token('close_case') }}">
+
             <div class="flex justify-between items-center py-4 px-5 border-b border-slate-100 dark:border-slate-800">
                 <div class="flex items-center gap-3">
                     <span class="inline-flex items-center justify-center size-9 rounded-lg bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400">
@@ -31,15 +35,26 @@
                     {{ 'case_overview.modal.close_case_body_suffix'|trans }}
                 </p>
                 <div>
-                    <label for="hs-modal-close-case-reason" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'case_overview.modal.close_case_reason'|trans }}</label>
-                    <select id="hs-modal-close-case-reason"
+                    <label for="close_case_reason_field" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'case_overview.modal.close_case_reason'|trans }}</label>
+                    <select id="close_case_reason_field"
+                            name="close_case[reason]"
+                            required
                             class="w-full py-2 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                         <option value="">{{ 'case_overview.modal.close_case_reason_placeholder'|trans }}</option>
-                        <option value="paid">{{ 'case_overview.modal.close_case_reason_paid'|trans }}</option>
-                        <option value="partial">{{ 'case_overview.modal.close_case_reason_partial'|trans }}</option>
-                        <option value="insolvent">{{ 'case_overview.modal.close_case_reason_insolvent'|trans }}</option>
-                        <option value="abandoned">{{ 'case_overview.modal.close_case_reason_abandoned'|trans }}</option>
+                        <option value="PAID">{{ 'enum.close_reason.PAID'|trans }}</option>
+                        <option value="PARTIAL">{{ 'enum.close_reason.PARTIAL'|trans }}</option>
+                        <option value="INSOLVENT">{{ 'enum.close_reason.INSOLVENT'|trans }}</option>
+                        <option value="ABANDONED">{{ 'enum.close_reason.ABANDONED'|trans }}</option>
                     </select>
+                </div>
+                <div>
+                    <label for="close_case_details_field" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'case_overview.modal.close_case_details_label'|trans }}</label>
+                    <textarea id="close_case_details_field"
+                              name="close_case[details]"
+                              rows="3"
+                              maxlength="500"
+                              placeholder="{{ 'case_overview.modal.close_case_details_placeholder'|trans }}"
+                              class="w-full py-2 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"></textarea>
                 </div>
             </div>
 
@@ -49,14 +64,11 @@
                         data-hs-overlay="#hs-modal-close-case">
                     {{ 'case_overview.modal.close_case_cancel'|trans }}
                 </button>
-                <button type="button"
-                        aria-disabled="true"
-                        tabindex="-1"
-                        title="{{ 'case_overview.tooltip.coming_soon_close'|trans }}"
-                        class="py-2 px-3 inline-flex items-center text-sm font-semibold rounded-lg bg-red-600 text-white opacity-70 cursor-not-allowed">
+                <button type="submit"
+                        class="py-2 px-3 inline-flex items-center text-sm font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700 transition">
                     {{ 'case_overview.modal.close_case_confirm'|trans }}
                 </button>
             </div>
-        </div>
+        </form>
     </div>
 </div>

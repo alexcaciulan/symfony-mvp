@@ -1,0 +1,25 @@
+{# Multi-fragment Turbo Stream response sent after a workflow transition.
+   Re-renders the five UI regions whose contents depend on case status:
+   hero (status badge + status-dependent CTAs), pipeline, tab counters,
+   recommended actions and the audit tab content. Each `<turbo-stream
+   action="replace">` targets an ID set in the base partial. #}
+
+<turbo-stream action="replace" target="case-status-badge">
+    <template><span id="case-status-badge"><twig:StatusBadge :status="case.status" :pulse="not case.status.isTerminal()" /></span></template>
+</turbo-stream>
+
+<turbo-stream action="replace" target="case-hero-actions">
+    <template>{{ include('case/overview/_hero_actions.html.twig') }}</template>
+</turbo-stream>
+
+<turbo-stream action="replace" target="case-pipeline">
+    <template>{{ include('case/overview/_pipeline.html.twig') }}</template>
+</turbo-stream>
+
+<turbo-stream action="replace" target="case-tabs-nav">
+    <template>{{ include('case/overview/_tabs_nav.html.twig') }}</template>
+</turbo-stream>
+
+<turbo-stream action="replace" target="case-recommended-actions">
+    <template>{{ include('case/overview/_recommended_actions.html.twig') }}</template>
+</turbo-stream>

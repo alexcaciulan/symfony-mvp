@@ -1,5 +1,5 @@
 {# Pas 4.0.2 — Hero header pentru pagina overview dosar. Reflectă mockup 04-dosar/overview.html linii 270-360. #}
-{% from 'case/overview/_icons.html.twig' import icon_calendar, icon_building, icon_document, icon_dots, icon_edit, icon_share, icon_copy, icon_trash %}
+{% from 'case/overview/_icons.html.twig' import icon_calendar, icon_building %}
 
 {% set creditor_name = case.creditor ? case.creditor.name : ('case_overview.header.no_creditor'|trans) %}
 {% set debtor_name = case.debtors|first ? case.debtors|first.name : ('case_overview.header.no_debtor'|trans) %}
@@ -24,7 +24,7 @@
                     <span class="block md:inline">{{ debtor_name }}</span>
                 </h1>
                 <div class="mt-3 flex flex-wrap items-center gap-3">
-                    <twig:StatusBadge :status="case.status" :pulse="pulse_status" />
+                    <span id="case-status-badge"><twig:StatusBadge :status="case.status" :pulse="pulse_status" /></span>
                     <span class="inline-flex items-center gap-x-1 text-xs text-slate-500 dark:text-slate-400">
                         {{ icon_calendar('size-3.5') }}
                         {{ 'case_overview.header.created_on'|trans({'%date%': case.createdAt|date('d.m.Y')}) }}
@@ -36,73 +36,7 @@
                 </div>
             </div>
 
-            <div class="flex items-center gap-2 self-start">
-                <div class="relative">
-                    <button type="button"
-                            data-hs-overlay="#hs-modal-cerere-op"
-                            class="py-2 px-3.5 inline-flex items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 transition shadow-sm
-                                   {% if just_created|default(false) %}ring-2 ring-offset-2 ring-emerald-400 dark:ring-offset-slate-900 soft-pulse-once{% endif %}">
-                        {{ icon_document('size-4') }}
-                        {{ 'case_overview.cta.generate_op'|trans }}
-                    </button>
-                    {% if just_created|default(false) %}
-                        {# One-time hint emis de wizard submit. Flash bag `case_just_created`
-                           e consumat la primul GET pe overview, deci la F5 dispare. #}
-                        <span class="absolute -top-2 -right-2 inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-emerald-500 text-white rounded-full shadow-md">
-                            <svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5-5 5M6 12h12"/>
-                            </svg>
-                            {{ 'case_overview.hero.next_step_badge'|trans }}
-                        </span>
-                    {% endif %}
-                </div>
-
-                <div class="hs-dropdown relative inline-flex">
-                    <button id="hs-case-actions-dropdown"
-                            type="button"
-                            class="hs-dropdown-toggle p-2 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-                            aria-haspopup="menu"
-                            aria-expanded="false"
-                            aria-label="{{ 'case_overview.cta.actions_menu'|trans }}">
-                        {{ icon_dots('size-4') }}
-                    </button>
-                    <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-56 bg-white shadow-card rounded-xl border border-slate-200 dark:bg-slate-900 dark:border-slate-800 mt-2 p-1.5 z-40 right-0"
-                         role="menu"
-                         aria-labelledby="hs-case-actions-dropdown">
-                        <a href="#"
-                           aria-disabled="true"
-                           tabindex="-1"
-                           title="{{ 'case_overview.tooltip.coming_soon_edit'|trans }}"
-                           class="flex items-center gap-x-3 py-2 px-3 rounded-lg text-sm text-slate-800 dark:text-slate-300 opacity-60 cursor-not-allowed pointer-events-none">
-                            {{ icon_edit('size-4 text-slate-400') }}
-                            {{ 'case_overview.cta.edit_details'|trans }}
-                        </a>
-                        <a href="#"
-                           aria-disabled="true"
-                           tabindex="-1"
-                           title="{{ 'case_overview.tooltip.coming_soon_share'|trans }}"
-                           class="flex items-center gap-x-3 py-2 px-3 rounded-lg text-sm text-slate-800 dark:text-slate-300 opacity-60 cursor-not-allowed pointer-events-none">
-                            {{ icon_share('size-4 text-slate-400') }}
-                            {{ 'case_overview.cta.share'|trans }}
-                        </a>
-                        <a href="#"
-                           aria-disabled="true"
-                           tabindex="-1"
-                           title="{{ 'case_overview.tooltip.coming_soon_edit'|trans }}"
-                           class="flex items-center gap-x-3 py-2 px-3 rounded-lg text-sm text-slate-800 dark:text-slate-300 opacity-60 cursor-not-allowed pointer-events-none">
-                            {{ icon_copy('size-4 text-slate-400') }}
-                            {{ 'case_overview.cta.duplicate'|trans }}
-                        </a>
-                        <hr class="my-1 border-slate-100 dark:border-slate-800">
-                        <button type="button"
-                                data-hs-overlay="#hs-modal-close-case"
-                                class="flex w-full items-center gap-x-3 py-2 px-3 rounded-lg text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30">
-                            {{ icon_trash('size-4') }}
-                            {{ 'case_overview.cta.close_case'|trans }}
-                        </button>
-                    </div>
-                </div>
-            </div>
+            {{ include('case/overview/_hero_actions.html.twig') }}
         </div>
     </div>
 </section>

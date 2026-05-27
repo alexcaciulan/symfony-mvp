@@ -764,20 +764,26 @@ final class CaseOverviewControllerTest extends WebTestCase
         $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
-        // 4 real options + 1 placeholder = 5 <option> tags.
-        self::assertCount(5, $crawler->filter('#hs-modal-close-case-reason option'));
+        // 4 real options + 1 placeholder = 5 <option> tags. Pas 7.2 promoted the
+        // select from a coming-soon placeholder to a real CloseCaseType form,
+        // so the field id changed from `hs-modal-close-case-reason` to
+        // `close_case_reason_field` and the option values are now uppercase
+        // (PAID, PARTIAL, INSOLVENT, ABANDONED — matching the CloseReason enum).
+        self::assertCount(5, $crawler->filter('#close_case_reason_field option'));
     }
 
-    public function testModalCloseCaseConfirmButtonIsAriaDisabled(): void
+    public function testModalCloseCaseConfirmButtonIsActive(): void
     {
         $this->client->loginUser($this->user);
         $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
-        $confirm = $crawler->filter('#hs-modal-close-case button[aria-disabled="true"]')->reduce(static function ($node) {
-            return str_contains($node->text(), 'Închide dosar');
-        });
-        self::assertGreaterThan(0, $confirm->count(), 'Close-case confirm must be aria-disabled until Faza 4.x ships');
+        // Pas 7.2 wired the close-case modal to a real backend (`case_transition_close`),
+        // so the previously aria-disabled submit is now a functional `type="submit"`.
+        $form = $crawler->filter('#hs-modal-close-case form[action*="/transition/close"]');
+        self::assertGreaterThan(0, $form->count(), 'Close-case modal must POST to case_transition_close.');
+        $submit = $crawler->filter('#hs-modal-close-case button[type="submit"]');
+        self::assertGreaterThan(0, $submit->count(), 'Close-case confirm button must be an active submit.');
     }
 
     public function testModalGenerateOpPresentInDom(): void

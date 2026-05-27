@@ -1,0 +1,81 @@
+{# Tab Audit — chronological DESC list of audit-log entries for this case.
+   Per entry: category badge (color-mapped) + timestamp + actor + collapsed
+   `<details>` with the pretty-printed `newData` JSON for forensic reconstruction. #}
+
+{% set category_palette = {
+    'SUMMONS_GENERATED':         {color: 'indigo',  label: 'enum.case_status.SOMATIE_TRIMISA'},
+    'PAYMENT_ORDER_GENERATED':   {color: 'amber',   label: 'enum.case_status.CERERE_DEPUSA'},
+    'CASE_REGISTERED':           {color: 'blue',    label: 'enum.case_status.DOSAR_INREGISTRAT'},
+    'RULING_ISSUED':             {color: 'violet',  label: 'enum.case_status.ORDONANTA_EMISA'},
+    'CASE_REJECTED':             {color: 'red',     label: 'enum.case_status.RESPINSA'},
+    'CASE_CLOSED':               {color: 'emerald', label: 'enum.case_status.INCHIS_SUCCES'},
+    'AUTO_FINALIZED':            {color: 'teal',    label: 'enum.case_status.DEFINITIVA'},
+    'PORTAL_MONITORING':         {color: 'sky',     label: 'case_overview.audit.legend_portal'},
+    'DEADLINE_CREATED':          {color: 'slate',   label: 'case_overview.audit.legend_deadline'},
+    'DEADLINE_COMPLETED':        {color: 'green',   label: 'case_overview.audit.legend_deadline'},
+    'AI_EXTRACTION':             {color: 'fuchsia', label: 'case_overview.audit.legend_ai'},
+    'WIZARD_SUBMIT':             {color: 'cyan',    label: 'case_overview.audit.legend_wizard'},
+} %}
+{% set palette_color_map = {
+    'indigo':  'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300',
+    'amber':   'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
+    'blue':    'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
+    'violet':  'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300',
+    'red':     'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300',
+    'emerald': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+    'teal':    'bg-teal-100 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300',
+    'sky':     'bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300',
+    'slate':   'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+    'green':   'bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-300',
+    'fuchsia': 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-950/40 dark:text-fuchsia-300',
+    'cyan':    'bg-cyan-100 text-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-300',
+} %}
+
+<div class="bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 p-6">
+    <header class="flex items-center justify-between mb-4">
+        <div>
+            <h3 class="text-base font-semibold text-slate-900 dark:text-white">{{ 'case_overview.audit.title'|trans }}</h3>
+            <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{{ 'case_overview.audit.subtitle'|trans({'%count%': auditLogs|length}) }}</p>
+        </div>
+    </header>
+
+    {% if auditLogs|length == 0 %}
+        <div class="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-8 text-center text-sm text-slate-400 dark:text-slate-500">
+            <p class="font-medium text-slate-600 dark:text-slate-300">{{ 'case_overview.audit.empty_title'|trans }}</p>
+            <p class="mt-1 text-xs">{{ 'case_overview.audit.empty_body'|trans }}</p>
+        </div>
+    {% else %}
+        <ul class="space-y-2">
+            {% for entry in auditLogs %}
+                {% set cat = entry.category ?? '' %}
+                {% set palette = category_palette[cat]|default({color: 'slate', label: null}) %}
+                {% set badge_class = palette_color_map[palette.color] %}
+                <li class="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40">
+                    <details class="group">
+                        <summary class="flex items-center gap-3 px-4 py-3 cursor-pointer list-none">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide {{ badge_class }}">
+                                {{ cat ? cat|lower|replace({'_': ' '}) : 'case_overview.audit.legend_other'|trans }}
+                            </span>
+                            <div class="flex-1 min-w-0">
+                                <div class="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{{ entry.action|replace({'_': ' '})|title }}</div>
+                                <div class="text-[11px] text-slate-500 dark:text-slate-400 tnum">
+                                    {{ entry.createdAt|date('d.m.Y H:i') }}
+                                    <span class="mx-1 text-slate-300 dark:text-slate-700">•</span>
+                                    {{ entry.user ? entry.user.email : 'case_overview.audit.user_system'|trans }}
+                                </div>
+                            </div>
+                            <svg class="size-4 text-slate-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </summary>
+                        {% if entry.newData %}
+                            <div class="px-4 pb-3">
+                                <pre class="text-[11px] leading-relaxed text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-950 rounded-lg p-3 overflow-x-auto"><code>{{ entry.newData|json_encode(constant('JSON_PRETTY_PRINT') b-or constant('JSON_UNESCAPED_UNICODE')) }}</code></pre>
+                            </div>
+                        {% endif %}
+                    </details>
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+</div>

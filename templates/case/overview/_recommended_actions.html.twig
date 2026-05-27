@@ -9,7 +9,7 @@
 {% set summons_match = case.statusHistory|filter(e => e.newStatus == 'SOMATIE_TRIMISA')|first %}
 {% set summons_date = summons_match ? summons_match.createdAt : null %}
 
-<section class="bg-white dark:bg-slate-900 rounded-2xl shadow-card border border-slate-200 dark:border-slate-800 overflow-hidden">
+<section id="case-recommended-actions" class="bg-white dark:bg-slate-900 rounded-2xl shadow-card border border-slate-200 dark:border-slate-800 overflow-hidden">
     <header class="px-5 py-4 bg-gradient-to-br from-lex-navy via-lex-navy to-lex-navy-dark text-white">
         <h3 class="text-sm font-semibold">{{ 'case_overview.recommended_actions.title'|trans }}</h3>
         <p class="mt-0.5 text-[11px] text-blue-100/80">{{ 'case_overview.recommended_actions.subtitle'|trans }}</p>
@@ -80,6 +80,72 @@
                 <div class="text-[11px] text-slate-500 mt-0.5">{{ 'case_overview.recommended_actions.mark_paid_hint'|trans }}</div>
             </div>
         </button>
+
+        {# Status-driven transitions exposed inline as secondary CTAs. Each opens the matching
+           Preline modal; the controller validates and applies the workflow transition. #}
+        {% if case.status.value == 'CERERE_DEPUSA' %}
+            <button type="button"
+                    data-hs-overlay="#hs-modal-register-case-number"
+                    class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg bg-gradient-to-r from-indigo-50 to-indigo-50/50 dark:from-indigo-950/40 dark:to-indigo-950/20 border border-indigo-200/60 dark:border-indigo-900/40 hover:from-indigo-100 dark:hover:from-indigo-950/60 transition group">
+                <div class="size-9 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 flex items-center justify-center shrink-0">
+                    {{ icon_document('size-4') }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-semibold text-indigo-900 dark:text-indigo-100">{{ 'case_overview.recommended_actions.register_case'|trans }}</div>
+                    <div class="text-[11px] text-indigo-700/80 dark:text-indigo-300/80 mt-0.5">{{ 'case_overview.recommended_actions.register_case_hint'|trans }}</div>
+                </div>
+                {{ icon_chevron_right('size-4 text-indigo-600 dark:text-indigo-400 shrink-0') }}
+            </button>
+        {% elseif case.status.value == 'TERMEN_FIXAT' %}
+            <button type="button"
+                    data-hs-overlay="#hs-modal-issue-ruling"
+                    class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg bg-gradient-to-r from-violet-50 to-violet-50/50 dark:from-violet-950/40 dark:to-violet-950/20 border border-violet-200/60 dark:border-violet-900/40 hover:from-violet-100 dark:hover:from-violet-950/60 transition group">
+                <div class="size-9 rounded-lg bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 flex items-center justify-center shrink-0">
+                    {{ icon_check('size-4') }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-semibold text-violet-900 dark:text-violet-100">{{ 'case_overview.recommended_actions.issue_ruling'|trans }}</div>
+                    <div class="text-[11px] text-violet-700/80 dark:text-violet-300/80 mt-0.5">{{ 'case_overview.recommended_actions.issue_ruling_hint'|trans }}</div>
+                </div>
+                {{ icon_chevron_right('size-4 text-violet-600 dark:text-violet-400 shrink-0') }}
+            </button>
+            <button type="button"
+                    data-hs-overlay="#hs-modal-reject"
+                    class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 transition">
+                <div class="size-9 rounded-lg bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
+                    {{ icon_document('size-4') }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium text-red-700 dark:text-red-300">{{ 'case_overview.recommended_actions.reject_case'|trans }}</div>
+                    <div class="text-[11px] text-red-600/80 dark:text-red-400/80 mt-0.5">{{ 'case_overview.recommended_actions.reject_case_hint'|trans }}</div>
+                </div>
+            </button>
+        {% elseif case.status.value == 'IN_ANULARE' %}
+            <button type="button"
+                    data-hs-overlay="#hs-modal-reject"
+                    class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 transition">
+                <div class="size-9 rounded-lg bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
+                    {{ icon_document('size-4') }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium text-red-700 dark:text-red-300">{{ 'case_overview.recommended_actions.reject_case'|trans }}</div>
+                    <div class="text-[11px] text-red-600/80 dark:text-red-400/80 mt-0.5">{{ 'case_overview.recommended_actions.reject_case_hint_in_anulare'|trans }}</div>
+                </div>
+            </button>
+        {% elseif case.status.value == 'DEFINITIVA' %}
+            <button type="button"
+                    data-hs-overlay="#hs-modal-close-case"
+                    class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg bg-gradient-to-r from-emerald-50 to-emerald-50/50 dark:from-emerald-950/40 dark:to-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/40 hover:from-emerald-100 dark:hover:from-emerald-950/60 transition group">
+                <div class="size-9 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0">
+                    {{ icon_money('size-4') }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-semibold text-emerald-900 dark:text-emerald-100">{{ 'case_overview.recommended_actions.close_case_definitiva'|trans }}</div>
+                    <div class="text-[11px] text-emerald-700/80 dark:text-emerald-300/80 mt-0.5">{{ 'case_overview.recommended_actions.close_case_definitiva_hint'|trans }}</div>
+                </div>
+                {{ icon_chevron_right('size-4 text-emerald-600 dark:text-emerald-400 shrink-0') }}
+            </button>
+        {% endif %}
 
         {# 4. Add document — aria-disabled cu tooltip post-MVP. #}
         <button type="button"

@@ -46,17 +46,19 @@
       {{ include('case/overview/_tab_portal.html.twig') }}
     </div>
     <div id="panel-audit" class="hidden" role="tabpanel" aria-labelledby="tab-audit">
-      <div class="rounded-xl border border-dashed border-slate-200 dark:border-slate-800 p-8 text-center text-sm text-slate-400 dark:text-slate-500">
-        {{ 'case_overview.placeholder.tab.audit'|trans }}
-      </div>
+      {{ include('case/overview/_tab_audit.html.twig') }}
     </div>
   </div>
 
-  {# Pas 4.0.7 — Preline modals rendered once per request, triggered via data-hs-overlay from hero CTA,
-     hero dropdown „Închide dosar", ZIP package card, Cerere OP „Generează acum", Recommended Actions. #}
+  {# Preline modals rendered once per request, triggered via data-hs-overlay from hero CTA,
+     hero dropdown, ZIP package card, Cerere OP „Generează acum", Recommended Actions, and
+     the Pas 7.2 status-driven transition CTAs. #}
   {{ include('case/overview/_modal_close_case.html.twig') }}
   {{ include('case/overview/_modal_generate_op.html.twig') }}
   {{ include('case/overview/_modal_c4_summons_communication.html.twig') }}
   {{ include('case/overview/_modal_add_deadline.html.twig') }}
   {{ include('case/overview/_modal_set_ruling_communication_date.html.twig') }}
+  {{ include('case/overview/_modal_register_case_number.html.twig') }}
+  {{ include('case/overview/_modal_issue_ruling.html.twig') }}
+  {{ include('case/overview/_modal_reject.html.twig') }}
 {% endblock %}
