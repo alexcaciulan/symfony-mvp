@@ -2,11 +2,7 @@
 
 namespace App\Controller\Admin;
 
-use App\Entity\AuditLog;
-use App\Entity\Court;
-use App\Entity\CourtPortalEvent;
-use App\Entity\LegalCase;
-use App\Entity\User;
+use App\Repository\InvoiceRepository;
 use App\Repository\LegalCaseRepository;
 use App\Repository\UserRepository;
 use EasyCorp\Bundle\EasyAdminBundle\Attribute\AdminDashboard;
@@ -22,6 +18,7 @@ class DashboardController extends AbstractDashboardController
     public function __construct(
         private UserRepository $userRepository,
         private LegalCaseRepository $legalCaseRepository,
+        private InvoiceRepository $invoiceRepository,
     ) {
     }
 
@@ -33,6 +30,9 @@ class DashboardController extends AbstractDashboardController
             'unverifiedUsers' => $this->userRepository->countUnverified(),
             'adminUsers' => $this->userRepository->countAdmins(),
             'totalCases' => $this->legalCaseRepository->countAll(),
+            'activeCases' => $this->legalCaseRepository->countActive(),
+            'rulingsIssuedThisMonth' => $this->legalCaseRepository->countRulingsIssuedThisMonth(),
+            'pendingInvoices' => $this->invoiceRepository->countPending(),
         ]);
     }
 
@@ -48,10 +48,18 @@ class DashboardController extends AbstractDashboardController
         yield MenuItem::linkToDashboard('Dashboard', 'fa fa-home');
         yield MenuItem::section('Dosare');
         yield MenuItem::linkTo(LegalCaseCrudController::class, 'Dosare', 'fas fa-folder-open')->setAction(Action::INDEX);
+        yield MenuItem::linkTo(CreditorCrudController::class, 'Creditori', 'fas fa-hand-holding-usd')->setAction(Action::INDEX);
+        yield MenuItem::linkTo(DebtorCrudController::class, 'Debitori', 'fas fa-user-tag')->setAction(Action::INDEX);
+        yield MenuItem::linkTo(LegalDeadlineCrudController::class, 'Termene', 'fas fa-calendar-day')->setAction(Action::INDEX);
+        yield MenuItem::section('Monetizare');
+        yield MenuItem::linkTo(PlanCrudController::class, 'Planuri', 'fas fa-layer-group')->setAction(Action::INDEX);
+        yield MenuItem::linkTo(SubscriptionCrudController::class, 'Abonamente', 'fas fa-id-card')->setAction(Action::INDEX);
+        yield MenuItem::linkTo(InvoiceCrudController::class, 'Facturi', 'fas fa-file-invoice-dollar')->setAction(Action::INDEX);
         yield MenuItem::section('Administrare');
         yield MenuItem::linkTo(UserCrudController::class, 'Utilizatori', 'fas fa-users')->setAction(Action::INDEX);
         yield MenuItem::linkTo(CourtCrudController::class, 'Instanțe', 'fas fa-landmark')->setAction(Action::INDEX);
         yield MenuItem::linkTo(CourtPortalEventCrudController::class, 'Evenimente portal', 'fas fa-satellite-dish')->setAction(Action::INDEX);
+        yield MenuItem::linkTo(InterestRateConfigCrudController::class, 'Rate dobândă', 'fas fa-percent')->setAction(Action::INDEX);
         yield MenuItem::linkTo(AuditLogCrudController::class, 'Jurnal audit', 'fas fa-clipboard-list')->setAction(Action::INDEX);
     }
 }

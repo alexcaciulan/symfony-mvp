@@ -147,6 +147,41 @@ class LegalCaseRepository extends ServiceEntityRepository
             ->getSingleScalarResult();
     }
 
+    public function countActive(): int
+    {
+        $terminal = array_filter(
+            CaseStatus::cases(),
+            static fn (CaseStatus $s): bool => $s->isTerminal()
+        );
+
+        return (int) $this->createQueryBuilder('lc')
+            ->select('COUNT(lc.id)')
+            ->where('lc.deletedAt IS NULL')
+            ->andWhere('lc.status NOT IN (:terminal)')
+            ->setParameter('terminal', $terminal)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    /**
+     * Count payment orders issued (finalRulingDate set at the `emite_ordonanta`
+     * transition) since the first day of the current month. This is the ruling
+     * issuance date (CPC art. 1021), not the date the order becomes final.
+     * Used by the admin dashboard KPI.
+     */
+    public function countRulingsIssuedThisMonth(): int
+    {
+        $start = new \DateTimeImmutable('first day of this month 00:00');
+
+        return (int) $this->createQueryBuilder('lc')
+            ->select('COUNT(lc.id)')
+            ->where('lc.deletedAt IS NULL')
+            ->andWhere('lc.finalRulingDate >= :start')
+            ->setParameter('start', $start)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
     public function countActiveByUser(User $user): int
     {
         $terminal = array_filter(

@@ -8,6 +8,7 @@ use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\CourtType;
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
@@ -189,6 +190,50 @@ class AdminAccessTest extends WebTestCase
         $this->client->request('GET', '/admin/case/' . $caseId . '/change-status');
 
         $this->assertResponseStatusCodeSame(403);
+    }
+
+    /**
+     * @return iterable<string, array{string}> EasyAdmin generated CRUD index paths
+     */
+    public static function crudControllerProvider(): iterable
+    {
+        yield 'Creditor' => ['/admin/creditor'];
+        yield 'Debtor' => ['/admin/debtor'];
+        yield 'LegalDeadline' => ['/admin/legal-deadline'];
+        yield 'Plan' => ['/admin/plan'];
+        yield 'Subscription' => ['/admin/subscription'];
+        yield 'Invoice' => ['/admin/invoice'];
+        yield 'InterestRateConfig' => ['/admin/interest-rate-config'];
+    }
+
+    #[DataProvider('crudControllerProvider')]
+    public function testCrudIndexAccessibleByAdmin(string $indexPath): void
+    {
+        $this->client->loginUser($this->admin);
+        $this->client->request('GET', $indexPath);
+
+        $this->assertResponseIsSuccessful();
+    }
+
+    #[DataProvider('crudControllerProvider')]
+    public function testCrudIndexForbiddenForRegularUser(string $indexPath): void
+    {
+        $this->client->loginUser($this->regularUser);
+        $this->client->request('GET', $indexPath);
+
+        $this->assertResponseStatusCodeSame(403);
+    }
+
+    public function testDashboardShowsBillingKpi(): void
+    {
+        $this->client->loginUser($this->admin);
+        $this->client->request('GET', '/admin');
+
+        $this->assertResponseIsSuccessful();
+        $content = $this->client->getResponse()->getContent();
+        $this->assertStringContainsString('Facturi în așteptare', $content);
+        $this->assertStringContainsString('Ordonanțe emise luna curentă', $content);
+        $this->assertStringContainsString('Monetizare', $content);
     }
 
     private function createTestCase(string $status): LegalCase

@@ -25,4 +25,14 @@ class InvoiceRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    public function countPending(): int
+    {
+        return (int) $this->createQueryBuilder('i')
+            ->select('COUNT(i.id)')
+            ->where('i.status = :status')
+            ->setParameter('status', 'pending')
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
 }
