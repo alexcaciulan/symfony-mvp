@@ -47,6 +47,9 @@ class AuditLogService
     /** Manual `inchide_succes` / `inchide_insolvabil` from DEFINITIVA. */
     public const CATEGORY_CASE_CLOSED = 'CASE_CLOSED';
 
+    /** Billing events: slot consumption, invoice creation, payment, trial, renew/cancel. */
+    public const CATEGORY_BILLING = 'BILLING';
+
     public function __construct(
         private EntityManagerInterface $em,
         private Security $security,

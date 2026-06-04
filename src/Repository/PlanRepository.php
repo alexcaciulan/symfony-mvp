@@ -23,4 +23,14 @@ class PlanRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    public function findTrialPlan(): ?Plan
+    {
+        return $this->createQueryBuilder('p')
+            ->where('p.isTrial = true')
+            ->andWhere('p.isActive = true')
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
 }

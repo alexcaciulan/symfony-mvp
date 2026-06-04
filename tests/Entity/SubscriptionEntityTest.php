@@ -5,6 +5,7 @@ namespace App\Tests\Entity;
 use App\Entity\Plan;
 use App\Entity\Subscription;
 use App\Entity\User;
+use App\Enum\SubscriptionStatus;
 use PHPUnit\Framework\TestCase;
 
 class SubscriptionEntityTest extends TestCase
@@ -13,7 +14,7 @@ class SubscriptionEntityTest extends TestCase
     {
         $sub = new Subscription();
 
-        $this->assertSame('active', $sub->getStatus());
+        $this->assertSame(SubscriptionStatus::ACTIVE, $sub->getStatus());
         $this->assertSame(0, $sub->getCasesConsumed());
         $this->assertNull($sub->getExternalId());
     }
@@ -28,7 +29,7 @@ class SubscriptionEntityTest extends TestCase
 
         $sub->setUser($user);
         $sub->setPlan($plan);
-        $sub->setStatus('past_due');
+        $sub->setStatus(SubscriptionStatus::PAST_DUE);
         $sub->setCurrentPeriodStart($start);
         $sub->setCurrentPeriodEnd($end);
         $sub->setCasesConsumed(5);
@@ -36,7 +37,7 @@ class SubscriptionEntityTest extends TestCase
 
         $this->assertSame($user, $sub->getUser());
         $this->assertSame($plan, $sub->getPlan());
-        $this->assertSame('past_due', $sub->getStatus());
+        $this->assertSame(SubscriptionStatus::PAST_DUE, $sub->getStatus());
         $this->assertSame($start, $sub->getCurrentPeriodStart());
         $this->assertSame($end, $sub->getCurrentPeriodEnd());
         $this->assertSame(5, $sub->getCasesConsumed());

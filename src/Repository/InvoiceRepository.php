@@ -4,6 +4,7 @@ namespace App\Repository;
 
 use App\Entity\Invoice;
 use App\Entity\User;
+use App\Enum\InvoiceStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -31,7 +32,7 @@ class InvoiceRepository extends ServiceEntityRepository
         return (int) $this->createQueryBuilder('i')
             ->select('COUNT(i.id)')
             ->where('i.status = :status')
-            ->setParameter('status', 'pending')
+            ->setParameter('status', InvoiceStatus::PENDING)
             ->getQuery()
             ->getSingleScalarResult();
     }

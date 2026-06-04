@@ -1274,6 +1274,25 @@ enum:
     issue_severity:
         ERROR: 'Error'
         WARNING: 'Warning'
+    subscription_status:
+        active: 'Active'
+        trial: 'Trial'
+        past_due: 'Past due'
+        suspended: 'Suspended'
+        canceled: 'Canceled'
+    invoice_status:
+        pending: 'Pending'
+        paid: 'Paid'
+        canceled: 'Canceled'
+    invoice_type:
+        subscription: 'Subscription'
+        case_extra: 'Extra case'
+    subscription_slot_consumption_outcome:
+        consumed_from_plan: 'Included in plan'
+        trial_consumed: 'Included in trial'
+        overage_invoice_created: 'Extra case billed'
+        trial_exhausted: 'Trial exhausted'
+        no_active_subscription: 'No active subscription'
     case_status:
         AMIABIL: 'Amicable'
         SOMATIE_TRIMISA: 'Notice sent'

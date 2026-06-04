@@ -12,16 +12,25 @@ class PlanFixtures extends Fixture implements FixtureGroupInterface
 {
     private const PLANS = [
         [
+            'name' => 'Trial',
+            'priceMonthly' => '0.00',
+            'includedCases' => 2,
+            'pricePerExtra' => '0.00',
+            'isTrial' => true,
+        ],
+        [
             'name' => 'Starter',
             'priceMonthly' => '99.00',
             'includedCases' => 5,
             'pricePerExtra' => '25.00',
+            'isTrial' => false,
         ],
         [
             'name' => 'Pro',
             'priceMonthly' => '299.00',
             'includedCases' => 25,
             'pricePerExtra' => '15.00',
+            'isTrial' => false,
         ],
     ];
 
@@ -47,6 +56,7 @@ class PlanFixtures extends Fixture implements FixtureGroupInterface
             $plan->setIncludedCases($row['includedCases']);
             $plan->setPricePerExtra($row['pricePerExtra']);
             $plan->setIsActive(true);
+            $plan->setIsTrial($row['isTrial']);
             $manager->persist($plan);
         }
 

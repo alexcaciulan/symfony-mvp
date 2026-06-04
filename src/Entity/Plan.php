@@ -30,6 +30,9 @@ class Plan
     #[ORM\Column]
     private bool $isActive = true;
 
+    #[ORM\Column(options: ['default' => false])]
+    private bool $isTrial = false;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
@@ -109,6 +112,18 @@ class Plan
     public function setIsActive(bool $isActive): static
     {
         $this->isActive = $isActive;
+
+        return $this;
+    }
+
+    public function isTrial(): bool
+    {
+        return $this->isTrial;
+    }
+
+    public function setIsTrial(bool $isTrial): static
+    {
+        $this->isTrial = $isTrial;
 
         return $this;
     }

@@ -85,8 +85,8 @@
 | 7.1.0 | UI infra | **Fundație tabele reutilizabile (Tabulator)** + tabel referință Notificări — nucleu agnostic (`TableDefinitionInterface`/`TableRegistry`/`TableDataService` tagged-iterator + DTO) + adaptor Tabulator + endpoint generic `/api/table/{key}` + `<twig:DataTable key>` + controller Stimulus + formatter-e reutilizabile; paginare/sort/filtru server-side; export = doar seam | 1.5z | 1.1 | 30% | ✅ DONE 2026-05-24 — 24 fișiere noi, 22 teste, 933/9/2 (zero regresii); reviews legal CLEAN + code COMMIT-READY → 7 W fix-uite (LIKE escaping, assert→throw, height config, bool i18n, error handler, 2 teste); pagina `/notifications` livrată + sidebar wired |
 | 7.1.1 | UI | **Listă dosare filtrabilă (pagină distinctă `/cases`)** — pe fundația Tabulator din 7.1.0: `LegalCaseTableDefinition` + `<twig:DataTable key="cases">` + scoping/filtre/sortare; wire „Dosare"/„Vezi toate" de la placeholder | 0.75z | 7.1.0 | 70% | ✅ DONE 2026-05-24 — `/cases` (`app_cases`) + fundație **filtre decuplate de coloane** (`Filter` DTO + `getFilters()` + toolbar tom-select status multi-select chips + search `caseNumber`/`courtCaseNumber`); `STATUS_PALETTE` 14 tokenuri; navigare wired; 10 teste, 943/9/2 (zero regresii); reviews legal CLEAN + code COMMIT-READY (2 W fix: link `UrlGenerator`, CSS tom-select) |
 | 7.2 | UI | View dosar cu tab-uri (Detalii / Documente / Termene / Activitate Portal / Audit) + **5 tranziții workflow manuale** (`inregistreaza_dosar`, `emite_ordonanta`, `respinge`/`admite_cerere_anulare`, `inchide_succes`, `inchide_insolvabil`) via Turbo Stream multi-fragment (zero Mercure per decizia user) | 0.75z | 7.1, 4.3 | 40% | ✅ DONE 2026-05-27 (`7b5458d`) — `CaseTransitionController` cu 4 acțiuni + 4 Form types (auto-CSRF) + 2 enum-uri (`RejectReason` 2 cazuri, `CloseReason` 4 cazuri cu `targetTransition()` dispatch) + 3 modale Preline noi + re-enable `_modal_close_case` + hero CTA-uri status-driven + tab Audit funcțional (înlocuiește placeholder Pas 4.0) + `OverviewContextBuilder` service extras + `PiiMasker::maskCnpInArray` defense-in-depth pe `reject`/`close.details` + ~70 chei i18n RO/EN; 20 teste verzi (15 happy/edge + 2 close dispatch PARTIAL/ABANDONED + 4 voter denial DataProvider), suite 967/9/2/7 IDENTIC baseline 947/9/2/7 (+20 teste, zero regresii); reviews legal **LEGAL-CLEAN** + code **COMMIT-READY** după runda 2 fix-uri (BLOCKER L1: `PARTIAL_ADMISSION` eliminat — admiterea parțială CPC art. 1022 → ORDONANTA_EMISA, nu RESPINSA; BLOCKER C1: extras `OverviewContextBuilder` din Controller-in-Controller; BLOCKER C2: drop import mort `EntityType`; W1-W4 legal: titlu condițional IN_ANULARE, courtCaseNumber în audit ruling, PiiMasker pe details, ruling_hint clarifică termenul 10z CPC art. 1024) |
-| 7.3 | UI | EasyAdmin: rename + CRUDs noi (Plan, Subscription, Invoice, InterestRateConfig) | 0.25z | 1.1 | 100% (pattern) | ⏳ |
-| 8.1 | Monetizare | `SubscriptionService` + `InvoicingService` (logica de consum) | 1z | 1.1 | 30% | ⏳ |
+| 7.3 | UI | EasyAdmin: rename + CRUDs noi (Plan, Subscription, Invoice, InterestRateConfig) | 0.25z | 1.1 | 100% (pattern) | ✅ DONE 2026-06-03 (`fe7f9a1`) |
+| 8.1 | Monetizare | `SubscriptionService` + `InvoicingService` (logica de consum) | 1z | 1.1 | 30% | ✅ |
 | 8.2 | Monetizare | `PaymentGatewayInterface` + stub + UI `/abonament`, `/facturile-mele` | 0.5z | 8.1 | 0% | ⏳ |
 | 9.1 | Deploy | Coolify staging + cron setup | 1z | 8.x | 80% | ⏳ |
 
@@ -2448,9 +2448,9 @@ Prompt-ul original păstrat ca referință:
 
 ---
 
-### PASUL 7.3 | EasyAdmin: rename + CRUDs noi | 0.25 zi | 100% reutilizare pattern
+### PASUL 7.3 | EasyAdmin: rename + CRUDs noi | 0.25 zi | 100% reutilizare pattern ✅ DONE 2026-06-03 (`fe7f9a1`)
 
-**Rezultat**: _(va fi completat la marcarea ca DONE)_
+**Rezultat**: 7 CRUD-uri EasyAdmin noi (Creditor, Debtor, LegalDeadline = Detail+Edit fără New/Delete; Plan/Subscription/Invoice = CRUD complet, Plan fără Delete pentru protecție FK; InterestRateConfig = editabil DAR auditat via `persistEntity`/`updateEntity` + Delete dezactivat, fiindcă rata BNR alimentează `InterestCalculatorService`). Dashboard admin refăcut: meniu pe 3 secțiuni (Dosare/Monetizare/Administrare) + KPI noi (`countActive`, `countRulingsIssuedThisMonth`, `countPending`). Decizii: NU s-a redenumit `LegalCaseCrudController` (consistent cu entitatea, deja aliniat); nume clase EN aliniate la entități (`DebtorCrudController`, `LegalDeadlineCrudController`, nu RO din prompt). Reviews: legal NEEDS-FIX→CLEAN (BLOCKER audit rată rezolvat + KPI „Definitive"→„Ordonanțe emise" semantic corect CPC 1021) + code NEEDS-FIX→READY (rename metodă, DateTimeField, disable Plan delete; `DateFilter` inexistent în EA 4.29). Suită 982/9/2/7 = baseline + 15 teste, zero regresii. Memorie: `~/.claude/projects/-Users-alexc-Downloads-myprojects-symfony-mvp/memory/project_lexrecovery_pas_7_3.md`.
 
 **PROMPT**:
 > În `src/Controller/Admin/`:
@@ -2469,7 +2469,11 @@ Prompt-ul original păstrat ca referință:
 
 ### PASUL 8.1 | `SubscriptionService` + `InvoicingService` | 1 zi | 30% reutilizare
 
-**Rezultat**: _(va fi completat la marcarea ca DONE)_
+**Rezultat**: ✅ DONE 2026-06-03 — livrat DOAR stratul de servicii (wiring în fluxul de dosar + UI/checkout = Pas 8.2). Două devieri agreate față de promptul inițial:
+- **Contorizare la `trimite_somatie`, NU la creare dosar.** Draft-urile (AMIABIL) sunt gratis; slotul se consumă la primul document cu efect extern. `consumeCaseSlot()` (redenumit din `consumeDosarSlot` pentru identificatori EN) se va apela din `CaseSummonsController` (Pas 8.2), nu din wizard Step 4.
+- **Trial implementat** ca `Subscription` cu `status='trial'` pe un `Plan` cu `isTrial=true` (decizia „fără abonament" rezolvată via funnel trial apoi plan sau pay-per-case).
+- Livrat: `SubscriptionService` (getCurrentSubscription, consumeCaseSlot cu 5 outcome-uri + wrapInTransaction, startTrial, cancelSubscription, renewSubscription, recommendUpgrade) + `InvoicingService` (createSubscriptionInvoice, createCaseExtraInvoice, markPaid, getInvoicesByUser) + 4 enum-uri (status/type pe `enumType`) + DTO `SubscriptionSlotConsumption` + enum `SubscriptionSlotConsumptionOutcome` + `Plan.isTrial` (migrare) + 27 teste verzi. Reviews: legal CONFORM CU OBSERVAȚII, code COMMIT-READY după 2 fix-uri migrare.
+- Follow-ups pre-launch (NU blochează): factură fiscală reală + clauză ToS (Cod Fiscal art. 319); anti-abuz trial (`User.hadTrial`); decizie produs CANCELED + overage; tranziție către `PAST_DUE`/`SUSPENDED` (cron Faza 9).
 
 **PROMPT**:
 > 1. `src/Service/Billing/SubscriptionService.php`:

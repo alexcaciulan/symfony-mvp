@@ -53,6 +53,7 @@ class PlanCrudController extends AbstractCrudController
             ->setCurrency('RON')
             ->setStoredAsCents(false);
         yield BooleanField::new('isActive', 'Activ');
+        yield BooleanField::new('isTrial', 'Plan de probă');
         yield DateTimeField::new('createdAt', 'Creat la')->onlyOnDetail();
         yield DateTimeField::new('updatedAt', 'Actualizat la')->onlyOnDetail();
     }

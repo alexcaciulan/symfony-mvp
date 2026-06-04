@@ -3,6 +3,8 @@
 namespace App\Controller\Admin;
 
 use App\Entity\Invoice;
+use App\Enum\InvoiceStatus;
+use App\Enum\InvoiceType;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Crud;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Filters;
 use EasyCorp\Bundle\EasyAdminBundle\Controller\AbstractCrudController;
@@ -19,18 +21,24 @@ use EasyCorp\Bundle\EasyAdminBundle\Filter\NumericFilter;
 
 class InvoiceCrudController extends AbstractCrudController
 {
-    /** @var array<string, string> label => stored value */
-    private const STATUS_CHOICES = [
-        'În așteptare' => 'pending',
-        'Plătită' => 'paid',
-        'Eșuată' => 'failed',
-    ];
+    /** @return array<string, InvoiceStatus> label => enum case */
+    private static function statusChoices(): array
+    {
+        return [
+            'În așteptare' => InvoiceStatus::PENDING,
+            'Plătită' => InvoiceStatus::PAID,
+            'Anulată' => InvoiceStatus::CANCELED,
+        ];
+    }
 
-    /** @var array<string, string> label => stored value */
-    private const TYPE_CHOICES = [
-        'Abonament' => 'subscription',
-        'Dosar suplimentar' => 'case_extra',
-    ];
+    /** @return array<string, InvoiceType> label => enum case */
+    private static function typeChoices(): array
+    {
+        return [
+            'Abonament' => InvoiceType::SUBSCRIPTION,
+            'Dosar suplimentar' => InvoiceType::CASE_EXTRA,
+        ];
+    }
 
     public static function getEntityFqcn(): string
     {
@@ -53,8 +61,8 @@ class InvoiceCrudController extends AbstractCrudController
         yield MoneyField::new('amount', 'Sumă')
             ->setCurrency('RON')
             ->setStoredAsCents(false);
-        yield ChoiceField::new('type', 'Tip')->setChoices(self::TYPE_CHOICES);
-        yield ChoiceField::new('status', 'Status')->setChoices(self::STATUS_CHOICES);
+        yield ChoiceField::new('type', 'Tip')->setChoices(self::typeChoices());
+        yield ChoiceField::new('status', 'Status')->setChoices(self::statusChoices());
         yield AssociationField::new('subscription', 'Abonament')->onlyOnDetail();
         yield AssociationField::new('legalCase', 'Dosar')->onlyOnDetail();
         yield DateTimeField::new('paidAt', 'Plătită la');
@@ -65,8 +73,8 @@ class InvoiceCrudController extends AbstractCrudController
     public function configureFilters(Filters $filters): Filters
     {
         return $filters
-            ->add(ChoiceFilter::new('status', 'Status')->setChoices(self::STATUS_CHOICES))
-            ->add(ChoiceFilter::new('type', 'Tip')->setChoices(self::TYPE_CHOICES))
+            ->add(ChoiceFilter::new('status', 'Status')->setChoices(self::statusChoices()))
+            ->add(ChoiceFilter::new('type', 'Tip')->setChoices(self::typeChoices()))
             ->add(EntityFilter::new('user', 'Utilizator'))
             ->add(NumericFilter::new('amount', 'Sumă'))
             ->add(DateTimeFilter::new('createdAt', 'Data creării'));

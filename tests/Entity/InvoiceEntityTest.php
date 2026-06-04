@@ -6,6 +6,8 @@ use App\Entity\Invoice;
 use App\Entity\LegalCase;
 use App\Entity\Subscription;
 use App\Entity\User;
+use App\Enum\InvoiceStatus;
+use App\Enum\InvoiceType;
 use PHPUnit\Framework\TestCase;
 
 class InvoiceEntityTest extends TestCase
@@ -14,7 +16,7 @@ class InvoiceEntityTest extends TestCase
     {
         $invoice = new Invoice();
 
-        $this->assertSame('pending', $invoice->getStatus());
+        $this->assertSame(InvoiceStatus::PENDING, $invoice->getStatus());
         $this->assertNull($invoice->getPaidAt());
         $this->assertNull($invoice->getSubscription());
         $this->assertNull($invoice->getLegalCase());
@@ -32,16 +34,16 @@ class InvoiceEntityTest extends TestCase
         $invoice->setSubscription($subscription);
         $invoice->setLegalCase($case);
         $invoice->setAmount('99.00');
-        $invoice->setType('case_extra');
-        $invoice->setStatus('failed');
+        $invoice->setType(InvoiceType::CASE_EXTRA);
+        $invoice->setStatus(InvoiceStatus::CANCELED);
         $invoice->setExternalId('in_xyz');
 
         $this->assertSame($user, $invoice->getUser());
         $this->assertSame($subscription, $invoice->getSubscription());
         $this->assertSame($case, $invoice->getLegalCase());
         $this->assertSame('99.00', $invoice->getAmount());
-        $this->assertSame('case_extra', $invoice->getType());
-        $this->assertSame('failed', $invoice->getStatus());
+        $this->assertSame(InvoiceType::CASE_EXTRA, $invoice->getType());
+        $this->assertSame(InvoiceStatus::CANCELED, $invoice->getStatus());
         $this->assertSame('in_xyz', $invoice->getExternalId());
     }
 
@@ -51,7 +53,7 @@ class InvoiceEntityTest extends TestCase
 
         $invoice->markPaid();
 
-        $this->assertSame('paid', $invoice->getStatus());
+        $this->assertSame(InvoiceStatus::PAID, $invoice->getStatus());
         $this->assertInstanceOf(\DateTimeImmutable::class, $invoice->getPaidAt());
     }
 }

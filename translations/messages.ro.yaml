@@ -1276,6 +1276,25 @@ enum:
     issue_severity:
         ERROR: 'Eroare'
         WARNING: 'Avertisment'
+    subscription_status:
+        active: 'Activ'
+        trial: 'Perioadă de probă'
+        past_due: 'Plată restantă'
+        suspended: 'Suspendat'
+        canceled: 'Anulat'
+    invoice_status:
+        pending: 'În așteptare'
+        paid: 'Plătită'
+        canceled: 'Anulată'
+    invoice_type:
+        subscription: 'Abonament'
+        case_extra: 'Dosar suplimentar'
+    subscription_slot_consumption_outcome:
+        consumed_from_plan: 'Inclus în abonament'
+        trial_consumed: 'Inclus în perioada de probă'
+        overage_invoice_created: 'Dosar suplimentar facturat'
+        trial_exhausted: 'Perioadă de probă epuizată'
+        no_active_subscription: 'Fără abonament activ'
     case_status:
         AMIABIL: 'Amiabil'
         SOMATIE_TRIMISA: 'Somație trimisă'

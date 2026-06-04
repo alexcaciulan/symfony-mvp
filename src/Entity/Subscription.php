@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\Enum\SubscriptionStatus;
 use App\Repository\SubscriptionRepository;
 use Doctrine\ORM\Mapping as ORM;
 
@@ -22,8 +23,8 @@ class Subscription
     #[ORM\JoinColumn(nullable: false)]
     private Plan $plan;
 
-    #[ORM\Column(length: 20)]
-    private string $status = 'active';
+    #[ORM\Column(length: 20, enumType: SubscriptionStatus::class)]
+    private SubscriptionStatus $status = SubscriptionStatus::ACTIVE;
 
     #[ORM\Column]
     private \DateTimeImmutable $currentPeriodStart;
@@ -84,12 +85,12 @@ class Subscription
         return $this;
     }
 
-    public function getStatus(): string
+    public function getStatus(): SubscriptionStatus
     {
         return $this->status;
     }
 
-    public function setStatus(string $status): static
+    public function setStatus(SubscriptionStatus $status): static
     {
         $this->status = $status;
 

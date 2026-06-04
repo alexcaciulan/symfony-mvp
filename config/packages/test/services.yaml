@@ -28,3 +28,14 @@ services:
     # dar nu are caller direct; test idempotency-ului apelează manual `onSomatieTrimisa`.
     App\EventSubscriber\DeadlineCreationSubscriber:
         public: true
+
+    # TODO(Pas 8.2): drop after CaseSummonsController injects SubscriptionService
+    # (consumeDosarSlot at trimite_somatie) and RegistrationController calls startTrial.
+    test.public.subscription_service:
+        alias: App\Service\Billing\SubscriptionService
+        public: true
+
+    # TODO(Pas 8.2): drop after SubscriptionController + checkout inject InvoicingService.
+    test.public.invoicing_service:
+        alias: App\Service\Billing\InvoicingService
+        public: true

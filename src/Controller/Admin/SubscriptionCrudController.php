@@ -3,6 +3,7 @@
 namespace App\Controller\Admin;
 
 use App\Entity\Subscription;
+use App\Enum\SubscriptionStatus;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Crud;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Filters;
 use EasyCorp\Bundle\EasyAdminBundle\Controller\AbstractCrudController;
@@ -17,12 +18,17 @@ use EasyCorp\Bundle\EasyAdminBundle\Filter\EntityFilter;
 
 class SubscriptionCrudController extends AbstractCrudController
 {
-    /** @var array<string, string> label => stored value */
-    private const STATUS_CHOICES = [
-        'Activ' => 'active',
-        'Anulat' => 'cancelled',
-        'Expirat' => 'expired',
-    ];
+    /** @return array<string, SubscriptionStatus> label => enum case */
+    private static function statusChoices(): array
+    {
+        return [
+            'Activ' => SubscriptionStatus::ACTIVE,
+            'Perioadă de probă' => SubscriptionStatus::TRIAL,
+            'Plată restantă' => SubscriptionStatus::PAST_DUE,
+            'Suspendat' => SubscriptionStatus::SUSPENDED,
+            'Anulat' => SubscriptionStatus::CANCELED,
+        ];
+    }
 
     public static function getEntityFqcn(): string
     {
@@ -43,7 +49,7 @@ class SubscriptionCrudController extends AbstractCrudController
         yield IdField::new('id', 'Nr.')->onlyOnIndex();
         yield AssociationField::new('user', 'Utilizator');
         yield AssociationField::new('plan', 'Plan');
-        yield ChoiceField::new('status', 'Status')->setChoices(self::STATUS_CHOICES);
+        yield ChoiceField::new('status', 'Status')->setChoices(self::statusChoices());
         yield DateTimeField::new('currentPeriodStart', 'Început perioadă');
         yield DateTimeField::new('currentPeriodEnd', 'Sfârșit perioadă');
         yield IntegerField::new('casesConsumed', 'Dosare consumate');
@@ -54,7 +60,7 @@ class SubscriptionCrudController extends AbstractCrudController
     public function configureFilters(Filters $filters): Filters
     {
         return $filters
-            ->add(ChoiceFilter::new('status', 'Status')->setChoices(self::STATUS_CHOICES))
+            ->add(ChoiceFilter::new('status', 'Status')->setChoices(self::statusChoices()))
             ->add(EntityFilter::new('user', 'Utilizator'))
             ->add(EntityFilter::new('plan', 'Plan'));
     }

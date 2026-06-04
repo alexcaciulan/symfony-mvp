@@ -2,6 +2,8 @@
 
 namespace App\Entity;
 
+use App\Enum\InvoiceStatus;
+use App\Enum\InvoiceType;
 use App\Repository\InvoiceRepository;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
@@ -30,11 +32,11 @@ class Invoice
     #[ORM\Column(type: Types::DECIMAL, precision: 8, scale: 2)]
     private string $amount;
 
-    #[ORM\Column(length: 30)]
-    private string $type;
+    #[ORM\Column(length: 30, enumType: InvoiceType::class)]
+    private InvoiceType $type;
 
-    #[ORM\Column(length: 20)]
-    private string $status = 'pending';
+    #[ORM\Column(length: 20, enumType: InvoiceStatus::class)]
+    private InvoiceStatus $status = InvoiceStatus::PENDING;
 
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $paidAt = null;
@@ -113,24 +115,24 @@ class Invoice
         return $this;
     }
 
-    public function getType(): string
+    public function getType(): InvoiceType
     {
         return $this->type;
     }
 
-    public function setType(string $type): static
+    public function setType(InvoiceType $type): static
     {
         $this->type = $type;
 
         return $this;
     }
 
-    public function getStatus(): string
+    public function getStatus(): InvoiceStatus
     {
         return $this->status;
     }
 
-    public function setStatus(string $status): static
+    public function setStatus(InvoiceStatus $status): static
     {
         $this->status = $status;
 
@@ -151,7 +153,7 @@ class Invoice
 
     public function markPaid(): static
     {
-        $this->status = 'paid';
+        $this->status = InvoiceStatus::PAID;
         $this->paidAt = new \DateTimeImmutable();
 
         return $this;
