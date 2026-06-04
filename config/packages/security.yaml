@@ -42,6 +42,7 @@ security:
         - { path: '^/case', roles: IS_AUTHENTICATED_FULLY }
         - { path: '^/dashboard', roles: IS_AUTHENTICATED_FULLY }
         - { path: '^/profile', roles: IS_AUTHENTICATED_FULLY }
+        - { path: '^/subscription', roles: IS_AUTHENTICATED_FULLY }
 
 when@test:
     security:

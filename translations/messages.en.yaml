@@ -1262,6 +1262,53 @@ rate_limit:
     summons_generation: 'You have reached the hourly limit for generated payment notices. Please try again later.'
     payment_order_generation: 'You have reached the hourly limit for generated payment-order petitions. Please try again later.'
     portal_check: 'You have reached the hourly limit for portal checks. Please try again later.'
+    subscription_checkout: 'Too many payment actions this hour. Please try again later.'
+
+subscription:
+    title: 'Billing'
+    heading: 'My subscription'
+    invoices_link: 'View invoices'
+    upgrade_nudge: 'You have used up your monthly plan. The %plan% plan (%cases% included cases) may be cheaper than the per-extra-case rate.'
+    current:
+        plan: 'Current plan'
+        cases: 'Cases used'
+        period_end: 'Valid until'
+        price_per_extra: 'Extra case rate'
+        none: 'You have no active subscription. Choose a plan below to activate new cases.'
+    plans:
+        heading: 'Choose a plan'
+        month: 'month'
+        included_cases: '%count% cases included per month'
+        extra_case: '%price% RON per extra case'
+        choose: 'Choose plan'
+    invoices:
+        title: 'My invoices'
+        back: 'Back to subscription'
+        empty: 'No invoices yet.'
+        fiscal_disclaimer: 'These are internal payment confirmations, not fiscal invoices. A fiscal invoice will be issued separately.'
+        date: 'Date'
+        type: 'Type'
+        amount: 'Amount'
+        status: 'Status'
+        action: 'Action'
+        pay: 'Pay'
+    checkout:
+        title: 'Checkout'
+        type: 'Type'
+        amount: 'Amount'
+        status: 'Status'
+        stub_notice: 'Test environment: this is not a real payment. Click the button to mark the invoice as paid.'
+        mark_paid: 'Mark as paid'
+        already_paid: 'This invoice is already paid.'
+        back: 'Back to invoices'
+    paywall:
+        blocked: 'Sending the payment notice requires an active subscription. Choose a plan to continue. The case deadlines keep running regardless of subscription status.'
+        overage: 'You exceeded your monthly plan. An invoice was issued for the extra case; find it under Invoices.'
+    flash:
+        csrf: 'Session expired. Please try again.'
+        already_subscribed: 'You already have an active subscription. Changing plans will be available soon.'
+        paid: 'Payment recorded successfully.'
+        already_paid: 'This invoice is already paid.'
 
 # =============================================================================
 # Enums (label() returns these keys; consumers apply |trans)

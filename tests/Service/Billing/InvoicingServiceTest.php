@@ -29,7 +29,7 @@ class InvoicingServiceTest extends KernelTestCase
     {
         self::bootKernel();
         $this->em = static::getContainer()->get(EntityManagerInterface::class);
-        $this->service = static::getContainer()->get('test.public.invoicing_service');
+        $this->service = static::getContainer()->get(InvoicingService::class);
         $this->testPrefix = 'billing-inv-' . uniqid();
 
         $hasher = static::getContainer()->get(UserPasswordHasherInterface::class);

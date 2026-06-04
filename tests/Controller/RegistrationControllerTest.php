@@ -2,7 +2,10 @@
 
 namespace App\Tests\Controller;
 
+use App\Entity\Plan;
+use App\Entity\Subscription;
 use App\Entity\User;
+use App\Enum\SubscriptionStatus;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
@@ -33,7 +36,13 @@ class RegistrationControllerTest extends WebTestCase
     private function cleanupTestUsers(EntityManagerInterface $em): void
     {
         $conn = $em->getConnection();
-        $conn->executeStatement("DELETE FROM user WHERE email LIKE 'register-test%' OR email LIKE 'new-user%'");
+        // Registration now starts a trial subscription, so delete billing rows
+        // (FK to user) before the users themselves.
+        $like = "(u.email LIKE 'register-test%' OR u.email LIKE 'new-user%')";
+        $conn->executeStatement("DELETE i FROM invoice i JOIN `user` u ON i.user_id = u.id WHERE $like");
+        $conn->executeStatement("DELETE s FROM subscription s JOIN `user` u ON s.user_id = u.id WHERE $like");
+        $conn->executeStatement("DELETE a FROM audit_log a JOIN `user` u ON a.user_id = u.id WHERE $like");
+        $conn->executeStatement("DELETE FROM `user` WHERE email LIKE 'register-test%' OR email LIKE 'new-user%'");
     }
 
     public function testRegisterPageLoads(): void
@@ -50,12 +59,8 @@ class RegistrationControllerTest extends WebTestCase
         $client = static::createClient();
         $em = $client->getContainer()->get('doctrine.orm.entity_manager');
 
-        // Cleanup any previous test user
-        $existing = $em->getRepository(User::class)->findOneBy(['email' => 'new-user-reg@example.com']);
-        if ($existing) {
-            $em->remove($existing);
-            $em->flush();
-        }
+        // Cleanup any previous test user (+ its billing rows, FK first).
+        $this->cleanupTestUsers($em);
 
         $crawler = $client->request('GET', '/register');
         $form = $crawler->filter('form button[type="submit"]')->form([
@@ -77,9 +82,48 @@ class RegistrationControllerTest extends WebTestCase
         // Verify password is hashed (not plaintext)
         $this->assertNotSame('securepass123', $user->getPassword());
 
-        // Cleanup
-        $em->remove($user);
+        // Cleanup (registration may have started a trial subscription → FK rows first).
+        $this->cleanupTestUsers($em);
+    }
+
+    public function testRegisterStartsTrialSubscription(): void
+    {
+        $client = static::createClient();
+        $em = $client->getContainer()->get('doctrine.orm.entity_manager');
+
+        $trialPlan = new Plan();
+        $trialPlan->setName('reg-trial-plan-' . uniqid());
+        $trialPlan->setPriceMonthly('0.00');
+        $trialPlan->setIncludedCases(2);
+        $trialPlan->setPricePerExtra('0.00');
+        $trialPlan->setIsActive(true);
+        $trialPlan->setIsTrial(true);
+        $em->persist($trialPlan);
         $em->flush();
+
+        $email = 'new-user-trial-' . uniqid() . '@example.com';
+        $crawler = $client->request('GET', '/register');
+        $form = $crawler->filter('form button[type="submit"]')->form([
+            'registration_form[email]' => $email,
+            'registration_form[agreeTerms]' => true,
+            'registration_form[plainPassword][first]' => 'securepass123',
+            'registration_form[plainPassword][second]' => 'securepass123',
+        ]);
+        $client->submit($form);
+        $this->assertResponseRedirects('/register/check-email');
+
+        $em->clear();
+        $user = $em->getRepository(User::class)->findOneBy(['email' => $email]);
+        $this->assertNotNull($user);
+        $sub = $em->getRepository(Subscription::class)->findOneBy(['user' => $user->getId()]);
+        $this->assertNotNull($sub, 'A trial subscription must be created on registration.');
+        $this->assertSame(SubscriptionStatus::TRIAL, $sub->getStatus());
+
+        $conn = $em->getConnection();
+        $conn->executeStatement('DELETE s FROM subscription s JOIN `user` u ON s.user_id = u.id WHERE u.email = ?', [$email]);
+        $conn->executeStatement('DELETE a FROM audit_log a JOIN `user` u ON a.user_id = u.id WHERE u.email = ?', [$email]);
+        $conn->executeStatement('DELETE FROM `user` WHERE email = ?', [$email]);
+        $conn->executeStatement('DELETE FROM plan WHERE id = ?', [$trialPlan->getId()]);
     }
 
     public function testRegisterWithDuplicateEmail(): void

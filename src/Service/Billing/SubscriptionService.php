@@ -27,6 +27,9 @@ final class SubscriptionService
     /** Trial length in days. Placeholder for go-live; confirm with product. */
     public const TRIAL_DAYS = 30;
 
+    /** Paid billing-period length (DateTime modifier). */
+    private const SUBSCRIPTION_PERIOD = '+1 month';
+
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly SubscriptionRepository $subscriptions,
@@ -130,6 +133,54 @@ final class SubscriptionService
     }
 
     /**
+     * Subscribes a user to a paid plan: creates an ACTIVE monthly subscription
+     * and its pending invoice. Converts an existing trial (cancels it). Refuses
+     * if the user already has a paid subscription within its period (changing
+     * plans, with proration, is a separate upgrade flow).
+     *
+     * @throws \DomainException when the user already has a paid subscription
+     */
+    public function subscribeToPlan(User $user, Plan $plan): Subscription
+    {
+        $current = $this->getCurrentSubscription($user);
+        if (null !== $current && !$current->getPlan()->isTrial()) {
+            throw new \DomainException('User already has a paid subscription.');
+        }
+
+        return $this->em->wrapInTransaction(function () use ($user, $plan, $current): Subscription {
+            if (null !== $current) {
+                // Convert from trial: end it now, the paid subscription takes over.
+                $current->setStatus(SubscriptionStatus::CANCELED);
+            }
+
+            $now = new \DateTimeImmutable();
+            $subscription = (new Subscription())
+                ->setUser($user)
+                ->setPlan($plan)
+                ->setStatus(SubscriptionStatus::ACTIVE)
+                ->setCurrentPeriodStart($now)
+                ->setCurrentPeriodEnd($now->modify(self::SUBSCRIPTION_PERIOD))
+                ->setCasesConsumed(0);
+
+            $this->em->persist($subscription);
+            $this->em->flush();
+
+            $this->invoicing->createSubscriptionInvoice($subscription);
+
+            $this->auditLog->log(
+                action: 'subscription_created',
+                entityType: 'Subscription',
+                entityId: (string) $subscription->getId(),
+                newData: ['plan' => $plan->getName(), 'convertedFromTrial' => null !== $current],
+                category: AuditLogService::CATEGORY_BILLING,
+            );
+            $this->em->flush();
+
+            return $subscription;
+        });
+    }
+
+    /**
      * Voluntary cancellation. The subscription stays usable until
      * currentPeriodEnd (enforced by the date guard in findCurrentForUser);
      * it simply will not renew.
@@ -162,7 +213,7 @@ final class SubscriptionService
             $subscription
                 ->setStatus(SubscriptionStatus::ACTIVE)
                 ->setCurrentPeriodStart($newStart)
-                ->setCurrentPeriodEnd($newStart->modify('+1 month'))
+                ->setCurrentPeriodEnd($newStart->modify(self::SUBSCRIPTION_PERIOD))
                 ->setCasesConsumed(0);
 
             $this->auditLog->log(

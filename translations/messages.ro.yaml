@@ -1264,6 +1264,53 @@ rate_limit:
     summons_generation: 'Ați atins limita de somații generate pe oră. Reîncercați mai târziu.'
     payment_order_generation: 'Ați atins limita de cereri OP generate pe oră. Reîncercați mai târziu.'
     portal_check: 'Ați atins limita de verificări portal pe oră. Reîncercați mai târziu.'
+    subscription_checkout: 'Prea multe acțiuni de plată pe oră. Reîncercați mai târziu.'
+
+subscription:
+    title: 'Abonament'
+    heading: 'Abonamentul meu'
+    invoices_link: 'Vezi facturile'
+    upgrade_nudge: 'Ți-ai consumat pachetul lunar. Planul %plan% (%cases% dosare incluse) îți poate ieși mai avantajos decât tariful per dosar suplimentar.'
+    current:
+        plan: 'Plan curent'
+        cases: 'Dosare consumate'
+        period_end: 'Valabil până la'
+        price_per_extra: 'Tarif dosar suplimentar'
+        none: 'Nu ai un abonament activ. Alege un plan mai jos pentru a activa dosare noi.'
+    plans:
+        heading: 'Alege un plan'
+        month: 'lună'
+        included_cases: '%count% dosare incluse pe lună'
+        extra_case: '%price% RON pentru fiecare dosar suplimentar'
+        choose: 'Alege planul'
+    invoices:
+        title: 'Facturile mele'
+        back: 'Înapoi la abonament'
+        empty: 'Nu ai facturi încă.'
+        fiscal_disclaimer: 'Acestea sunt confirmări interne de plată, nu facturi fiscale. Factura fiscală va fi emisă separat.'
+        date: 'Dată'
+        type: 'Tip'
+        amount: 'Sumă'
+        status: 'Status'
+        action: 'Acțiune'
+        pay: 'Plătește'
+    checkout:
+        title: 'Finalizare plată'
+        type: 'Tip'
+        amount: 'Sumă'
+        status: 'Status'
+        stub_notice: 'Mediu de test: plata nu este reală. Apasă butonul pentru a marca factura drept plătită.'
+        mark_paid: 'Marchează ca plătită'
+        already_paid: 'Această factură este deja plătită.'
+        back: 'Înapoi la facturi'
+    paywall:
+        blocked: 'Pentru a trimite somația ai nevoie de un abonament activ. Alege un plan pentru a continua. Termenele dosarului continuă să curgă indiferent de statusul abonamentului.'
+        overage: 'Ai depășit pachetul lunar. S-a emis o factură pentru dosarul suplimentar, o găsești la Facturi.'
+    flash:
+        csrf: 'Sesiune expirată. Reîncearcă.'
+        already_subscribed: 'Ai deja un abonament activ. Schimbarea planului va fi disponibilă în curând.'
+        paid: 'Plata a fost înregistrată cu succes.'
+        already_paid: 'Această factură este deja plătită.'
 
 # =============================================================================
 # Enums (label() returns these keys; consumers apply |trans)

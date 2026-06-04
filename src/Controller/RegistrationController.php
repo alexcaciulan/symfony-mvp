@@ -5,7 +5,9 @@ namespace App\Controller;
 use App\Entity\User;
 use App\Form\RegistrationFormType;
 use App\Security\EmailVerifier;
+use App\Service\Billing\SubscriptionService;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Bundle\SecurityBundle\Security;
@@ -26,6 +28,8 @@ class RegistrationController extends AbstractController
         #[Autowire('%app.mailer_from%')]
         private string $mailerFrom,
         private TranslatorInterface $translator,
+        private SubscriptionService $subscriptionService,
+        private LoggerInterface $logger,
     ) {
     }
 
@@ -53,6 +57,14 @@ class RegistrationController extends AbstractController
 
             $entityManager->persist($user);
             $entityManager->flush();
+
+            // Start the trial subscription. A billing misconfiguration must not
+            // break registration, so failures are logged and swallowed.
+            try {
+                $this->subscriptionService->startTrial($user);
+            } catch (\Throwable $e) {
+                $this->logger->error('Trial start failed at registration: ' . $e->getMessage());
+            }
 
             $this->sendVerificationEmail($user);
 

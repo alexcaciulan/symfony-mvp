@@ -29,7 +29,7 @@ class SubscriptionServiceTest extends KernelTestCase
     {
         self::bootKernel();
         $this->em = static::getContainer()->get(EntityManagerInterface::class);
-        $this->service = static::getContainer()->get('test.public.subscription_service');
+        $this->service = static::getContainer()->get(SubscriptionService::class);
         $this->testPrefix = 'billing-sub-' . uniqid();
 
         $hasher = static::getContainer()->get(UserPasswordHasherInterface::class);
@@ -205,6 +205,47 @@ class SubscriptionServiceTest extends KernelTestCase
         $this->assertTrue($sub->getPlan()->isTrial());
         $this->assertSame(0, $sub->getCasesConsumed());
         $this->assertGreaterThan($sub->getCurrentPeriodStart(), $sub->getCurrentPeriodEnd());
+    }
+
+    public function testSubscribeToPlanCreatesActiveSubscriptionAndInvoice(): void
+    {
+        $plan = $this->createPlan(includedCases: 5, priceMonthly: '99.00');
+        $this->em->flush();
+
+        $sub = $this->service->subscribeToPlan($this->user, $plan);
+
+        $this->assertSame(SubscriptionStatus::ACTIVE, $sub->getStatus());
+        $this->assertSame($plan->getId(), $sub->getPlan()->getId());
+        $this->assertSame(0, $sub->getCasesConsumed());
+
+        $invoices = $this->em->getRepository(\App\Entity\Invoice::class)->findByUser($this->user);
+        $this->assertCount(1, $invoices);
+        $this->assertSame(InvoiceType::SUBSCRIPTION, $invoices[0]->getType());
+        $this->assertSame('99.00', $invoices[0]->getAmount());
+    }
+
+    public function testSubscribeToPlanConvertsTrial(): void
+    {
+        $trialPlan = $this->createPlan(includedCases: 2, isTrial: true, priceMonthly: '0.00', pricePerExtra: '0.00');
+        $trial = $this->createSubscription($trialPlan, SubscriptionStatus::TRIAL, casesConsumed: 1);
+        $paidPlan = $this->createPlan(includedCases: 5, priceMonthly: '99.00');
+        $this->em->flush();
+
+        $sub = $this->service->subscribeToPlan($this->user, $paidPlan);
+
+        $this->assertSame(SubscriptionStatus::ACTIVE, $sub->getStatus());
+        $this->assertSame(SubscriptionStatus::CANCELED, $trial->getStatus(), 'Trial must be canceled on conversion.');
+    }
+
+    public function testSubscribeToPlanRejectsWhenAlreadyPaid(): void
+    {
+        $current = $this->createPlan(includedCases: 5, priceMonthly: '99.00');
+        $this->createSubscription($current, SubscriptionStatus::ACTIVE, casesConsumed: 0);
+        $other = $this->createPlan(includedCases: 25, priceMonthly: '299.00');
+        $this->em->flush();
+
+        $this->expectException(\DomainException::class);
+        $this->service->subscribeToPlan($this->user, $other);
     }
 
     public function testCancelSubscriptionSetsCanceledStatus(): void

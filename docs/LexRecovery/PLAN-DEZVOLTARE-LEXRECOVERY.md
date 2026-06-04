@@ -87,7 +87,7 @@
 | 7.2 | UI | View dosar cu tab-uri (Detalii / Documente / Termene / Activitate Portal / Audit) + **5 tranziții workflow manuale** (`inregistreaza_dosar`, `emite_ordonanta`, `respinge`/`admite_cerere_anulare`, `inchide_succes`, `inchide_insolvabil`) via Turbo Stream multi-fragment (zero Mercure per decizia user) | 0.75z | 7.1, 4.3 | 40% | ✅ DONE 2026-05-27 (`7b5458d`) — `CaseTransitionController` cu 4 acțiuni + 4 Form types (auto-CSRF) + 2 enum-uri (`RejectReason` 2 cazuri, `CloseReason` 4 cazuri cu `targetTransition()` dispatch) + 3 modale Preline noi + re-enable `_modal_close_case` + hero CTA-uri status-driven + tab Audit funcțional (înlocuiește placeholder Pas 4.0) + `OverviewContextBuilder` service extras + `PiiMasker::maskCnpInArray` defense-in-depth pe `reject`/`close.details` + ~70 chei i18n RO/EN; 20 teste verzi (15 happy/edge + 2 close dispatch PARTIAL/ABANDONED + 4 voter denial DataProvider), suite 967/9/2/7 IDENTIC baseline 947/9/2/7 (+20 teste, zero regresii); reviews legal **LEGAL-CLEAN** + code **COMMIT-READY** după runda 2 fix-uri (BLOCKER L1: `PARTIAL_ADMISSION` eliminat — admiterea parțială CPC art. 1022 → ORDONANTA_EMISA, nu RESPINSA; BLOCKER C1: extras `OverviewContextBuilder` din Controller-in-Controller; BLOCKER C2: drop import mort `EntityType`; W1-W4 legal: titlu condițional IN_ANULARE, courtCaseNumber în audit ruling, PiiMasker pe details, ruling_hint clarifică termenul 10z CPC art. 1024) |
 | 7.3 | UI | EasyAdmin: rename + CRUDs noi (Plan, Subscription, Invoice, InterestRateConfig) | 0.25z | 1.1 | 100% (pattern) | ✅ DONE 2026-06-03 (`fe7f9a1`) |
 | 8.1 | Monetizare | `SubscriptionService` + `InvoicingService` (logica de consum) | 1z | 1.1 | 30% | ✅ |
-| 8.2 | Monetizare | `PaymentGatewayInterface` + stub + UI `/abonament`, `/facturile-mele` | 0.5z | 8.1 | 0% | ⏳ |
+| 8.2 | Monetizare | `PaymentGatewayInterface` + stub + UI `/subscription` + paywall wiring | 0.5z | 8.1 | 0% | ✅ |
 | 9.1 | Deploy | Coolify staging + cron setup | 1z | 8.x | 80% | ⏳ |
 
 > **Pași marcați ca paralelizabili**: 1.1 ‖ 1.2; 2.1 ‖ 2.2 ‖ 2.3 ‖ 2.4; 2.5.5 ‖ 2.5.6 (după 2.5.4); **Faza 5 ‖ Faza 6 după Faza 4**; 7.3 ‖ Faza 8.
@@ -2499,7 +2499,11 @@ Prompt-ul original păstrat ca referință:
 
 ### PASUL 8.2 | Gateway stub + UI subscription/facturi | 0.5 zi | 0% reutilizare
 
-**Rezultat**: _(va fi completat la marcarea ca DONE)_
+**Rezultat**: ✅ DONE 2026-06-04 — gateway stub + UI + wiring-ul amânat din 8.1. Devieri/decizii agreate:
+- Rute `/subscription` (EN, nu `/abonament`); facturi doar vizualizare (fără PDF, factura fiscală reală = follow-up); **self-service subscribe basic** (alege plan → Subscription ACTIVE + factură → checkout stub), upgrade cu proration rămâne V2.
+- Livrat: `PaymentGatewayInterface` + `StubPaymentGateway` (NON-prod, mark-paid manual) + DTOs `CheckoutSession`/`WebhookResult`; `SubscriptionController` (index/invoices/subscribe/checkout GET+POST, CSRF + ownership 403 + rate limiter `subscription_checkout`) + 3 template-uri + link sidebar; `SubscriptionService::subscribeToPlan`; **paywall în `CaseSummonsController`** (consumeCaseSlot la `trimite_somatie`: blocant → redirect `/subscription`, overage → somația trece + nudge); **`startTrial` la `RegistrationController`** (try/catch); i18n RO+EN; ~14 teste noi; suită 1014 cu 9E/2F IDENTIC baseline.
+- Reviews: legal CONFORM CU OBSERVAȚII, code COMMIT-READY; fix-uri aplicate (disclaimer fiscal facturi, „termenele curg" în mesajul paywall, flash already_paid, const perioadă).
+- ⚠️ Follow-up pre-prod **M1**: `StubPaymentGateway` e singura implementare fără gardă de mediu (stub-ul e mecanismul MVP/staging intenționat). Înainte de plăți reale: gateway real (Netopia) bound la interfață.
 
 **PROMPT**:
 > 1. Creează `src/Service/Billing/PaymentGatewayInterface.php`:

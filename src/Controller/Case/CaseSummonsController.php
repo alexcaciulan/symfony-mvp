@@ -7,9 +7,11 @@ namespace App\Controller\Case;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\CaseStatus;
+use App\Enum\SubscriptionSlotConsumptionOutcome;
 use App\Repository\LegalCaseRepository;
 use App\Security\Voter\CaseVoter;
 use App\Service\AuditLogService;
+use App\Service\Billing\SubscriptionService;
 use App\Service\Case\CaseWorkflowService;
 use App\Service\Document\PaymentNoticeGeneratorService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -26,6 +28,7 @@ final class CaseSummonsController extends AbstractController
         private PaymentNoticeGeneratorService $paymentNoticeGenerator,
         private CaseWorkflowService $workflowService,
         private AuditLogService $auditLogService,
+        private SubscriptionService $subscriptionService,
         private EntityManagerInterface $em,
     ) {}
 
@@ -68,6 +71,16 @@ final class CaseSummonsController extends AbstractController
             }
         }
 
+        // Paywall: activating a case (trimite_somatie) consumes a subscription
+        // slot. Blocking outcomes (no/expired/exhausted-trial subscription) are
+        // side-effect-free; route the lawyer to the subscription page instead.
+        $consumption = $this->subscriptionService->consumeCaseSlot($case);
+        if (!$consumption->allowsCaseActivation) {
+            $this->addFlash('warning', 'subscription.paywall.blocked');
+
+            return $this->redirectToRoute('app_subscription');
+        }
+
         $this->em->wrapInTransaction(function () use ($case): void {
             $document = $this->paymentNoticeGenerator->generate($case);
 
@@ -91,6 +104,10 @@ final class CaseSummonsController extends AbstractController
 
         $this->addFlash('success', 'case_overview.summons.flash_success');
         $this->addFlash('show_c4_modal', '1');
+
+        if (SubscriptionSlotConsumptionOutcome::OVERAGE_INVOICE_CREATED === $consumption->outcome) {
+            $this->addFlash('warning', 'subscription.paywall.overage');
+        }
 
         return $this->redirectToRoute('case_overview', ['id' => $id]);
     }

@@ -51,6 +51,12 @@ framework:
             policy: sliding_window
             limit: 600
             interval: '1 hour'
+        # Subscribe + checkout POSTs (SubscriptionController) — per user; prevents
+        # spamming pending invoices / mark-paid actions.
+        subscription_checkout:
+            policy: sliding_window
+            limit: 10
+            interval: '1 hour'
 
 when@test:
     framework:
@@ -76,4 +82,6 @@ when@test:
             extraction_ai_vision:
                 policy: no_limit
             table_data:
+                policy: no_limit
+            subscription_checkout:
                 policy: no_limit

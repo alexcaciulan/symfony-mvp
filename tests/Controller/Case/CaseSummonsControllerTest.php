@@ -9,10 +9,13 @@ use App\Entity\Creditor;
 use App\Entity\Debtor;
 use App\Entity\Document;
 use App\Entity\LegalCase;
+use App\Entity\Plan;
+use App\Entity\Subscription;
 use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\DocumentType;
 use App\Enum\PersonType;
+use App\Enum\SubscriptionStatus;
 use App\Service\AuditLogService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
@@ -73,6 +76,25 @@ final class CaseSummonsControllerTest extends WebTestCase
         $this->em->persist($debtor);
         $this->case->addDebtor($debtor);
 
+        // Active subscription with free slots so the paywall lets the summons through.
+        $plan = new Plan();
+        $plan->setName('Summons Test Plan ' . uniqid());
+        $plan->setPriceMonthly('99.00');
+        $plan->setIncludedCases(10);
+        $plan->setPricePerExtra('25.00');
+        $plan->setIsActive(true);
+        $plan->setIsTrial(false);
+        $this->em->persist($plan);
+
+        $subscription = new Subscription();
+        $subscription->setUser($this->user);
+        $subscription->setPlan($plan);
+        $subscription->setStatus(SubscriptionStatus::ACTIVE);
+        $subscription->setCurrentPeriodStart(new \DateTimeImmutable('-1 day'));
+        $subscription->setCurrentPeriodEnd(new \DateTimeImmutable('+30 days'));
+        $subscription->setCasesConsumed(0);
+        $this->em->persist($subscription);
+
         $this->em->flush();
     }
 
@@ -80,6 +102,8 @@ final class CaseSummonsControllerTest extends WebTestCase
     {
         $userId = $this->user->getId();
         $conn = $this->em->getConnection();
+        $conn->executeStatement('DELETE FROM invoice WHERE user_id = :id', ['id' => $userId]);
+        $conn->executeStatement('DELETE FROM subscription WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM audit_log WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM document WHERE uploaded_by_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM legal_deadline WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
@@ -89,6 +113,7 @@ final class CaseSummonsControllerTest extends WebTestCase
         $conn->executeStatement('DELETE FROM legal_case WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM creditor WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM `user` WHERE id = :id', ['id' => $userId]);
+        $conn->executeStatement("DELETE FROM plan WHERE name LIKE 'Summons Test Plan %'");
         parent::tearDown();
     }
 
@@ -197,6 +222,31 @@ final class CaseSummonsControllerTest extends WebTestCase
         $documents = $this->em->getRepository(Document::class)->findBy(['legalCase' => $refreshed->getId()]);
         $somatieDocs = array_filter($documents, fn (Document $d): bool => $d->getDocumentType() === DocumentType::SOMATIE);
         self::assertCount(0, $somatieDocs, 'No SOMATIE document should be created when status guard rejects.');
+    }
+
+    public function testGenerateSummonsBlockedWithoutActiveSubscription(): void
+    {
+        $this->client->loginUser($this->user);
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+
+        // Suspend the subscription so the paywall blocks activation.
+        $sub = $this->em->getRepository(Subscription::class)->findOneBy(['user' => $this->user]);
+        $sub->setStatus(SubscriptionStatus::SUSPENDED);
+        $this->em->flush();
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/summons/generate', [
+            '_token' => $token,
+        ]);
+
+        self::assertResponseRedirects('/subscription');
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame(CaseStatus::AMIABIL, $refreshed->getStatus(), 'Status must remain AMIABIL when paywall blocks activation.');
+
+        $documents = $this->em->getRepository(Document::class)->findBy(['legalCase' => $refreshed->getId()]);
+        $somatieDocs = array_filter($documents, fn (Document $d): bool => $d->getDocumentType() === DocumentType::SOMATIE);
+        self::assertCount(0, $somatieDocs, 'No SOMATIE document when the paywall blocks.');
     }
 
     public function testGenerateSummonsRejectsInvalidCsrf(): void
