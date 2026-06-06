@@ -18,8 +18,8 @@ layout:
         contact: 'Contact'
     sidebar:
         cabinet_default: 'My practice'
-        plan_starter: 'Starter plan · 0/5 cases'
-        plan_label_starter: 'Starter'
+        plan_summary: '%plan% · %consumed%/%included% cases'
+        no_plan: 'No subscription'
         current_cabinet: 'Current practice'
         coming_soon: 'Coming soon'
         nav:

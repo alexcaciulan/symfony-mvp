@@ -58,17 +58,18 @@ class RegistrationController extends AbstractController
             $entityManager->persist($user);
             $entityManager->flush();
 
-            // Start the trial subscription. A billing misconfiguration must not
-            // break registration, so failures are logged and swallowed.
+            $this->sendVerificationEmail($user);
+
+            $security->login($user, 'form_login', 'main');
+
+            // Start the trial subscription after login so the audit entry is
+            // attributed to the user. A billing misconfiguration must not break
+            // registration, so failures are logged and swallowed.
             try {
                 $this->subscriptionService->startTrial($user);
             } catch (\Throwable $e) {
                 $this->logger->error('Trial start failed at registration: ' . $e->getMessage());
             }
-
-            $this->sendVerificationEmail($user);
-
-            $security->login($user, 'form_login', 'main');
 
             return $this->redirectToRoute('app_check_email');
         }

@@ -18,8 +18,8 @@ layout:
         contact: 'Contact'
     sidebar:
         cabinet_default: 'Cabinetul meu'
-        plan_starter: 'Plan Starter · 0/5 dosare'
-        plan_label_starter: 'Starter'
+        plan_summary: '%plan% · %consumed%/%included% dosare'
+        no_plan: 'Fără abonament'
         current_cabinet: 'Cabinet curent'
         coming_soon: 'În curând'
         nav:
