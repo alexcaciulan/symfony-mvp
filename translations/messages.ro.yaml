@@ -88,6 +88,7 @@ component:
     data_table:
         empty: 'Nu există date.'
         error: 'Nu am putut încărca datele. Reîncearcă.'
+        open: 'Deschide'
         yes: 'Da'
         no: 'Nu'
         first: 'Prima'
@@ -1676,3 +1677,4 @@ table:
             amount: 'Sumă'
             status: 'Status'
             date: 'Creat'
+            actions: 'Acțiuni'

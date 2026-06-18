@@ -88,6 +88,15 @@
     color: #334155;
 }
 
+/* Action cells (e.g. the "open" button): no text truncation, tighter padding,
+   centered so the button isn't clipped by the default cell ellipsis. */
+.tabulator .tabulator-row .tabulator-cell.tabulator-action-cell {
+    padding: 0.5rem 0.5rem;
+    overflow: visible;
+    text-overflow: clip;
+    text-align: center;
+}
+
 .tabulator .tabulator-row:hover {
     background: #eef2f8;
 }

@@ -40,6 +40,7 @@ final class LegalCaseTableDefinition implements TableDefinitionInterface
             new Column('amount', 'table.cases.columns.amount', sortable: true, width: 150),
             new Column('status', 'table.cases.columns.status', sortable: true, formatter: 'status_badge', width: 150),
             new Column('createdAt', 'table.cases.columns.date', sortable: true, formatter: 'datetime', width: 130),
+            new Column('actions', 'table.cases.columns.actions', formatter: 'open_link', width: 120),
         ];
     }
 

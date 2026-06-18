@@ -88,6 +88,7 @@ component:
     data_table:
         empty: 'No data.'
         error: 'Could not load data. Please retry.'
+        open: 'Open'
         yes: 'Yes'
         no: 'No'
         first: 'First'
@@ -1674,3 +1675,4 @@ table:
             amount: 'Amount'
             status: 'Status'
             date: 'Created'
+            actions: 'Actions'

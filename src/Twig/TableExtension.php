@@ -78,6 +78,7 @@ final class TableExtension extends AbstractExtension
             'placeholder' => $this->translator->trans('component.data_table.empty'),
             'errorMessage' => $this->translator->trans('component.data_table.error'),
             'labels' => [
+                'open' => $this->translator->trans('component.data_table.open'),
                 'yes' => $this->translator->trans('component.data_table.yes'),
                 'no' => $this->translator->trans('component.data_table.no'),
                 'autocomplete_hint' => $this->translator->trans('component.data_table.filter.autocomplete_hint'),

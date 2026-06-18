@@ -36,6 +36,13 @@ export default class extends Controller {
             }
             const formatter = resolveFormatter(c.formatter, labels);
             if (formatter) column.formatter = formatter;
+            // Action columns render a button: center it and opt out of the
+            // default cell ellipsis so the label is never clipped.
+            if (c.formatter === 'open_link') {
+                column.hozAlign = 'center';
+                column.headerHozAlign = 'center';
+                column.cssClass = 'tabulator-action-cell';
+            }
             return column;
         });
 

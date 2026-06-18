@@ -51,6 +51,13 @@ const FORMATTERS = {
         const v = cell.getValue() || {};
         return badge(v.label ?? '', v.color ?? 'slate');
     },
+    // Renders an "open" link button pointing at the row's `link` field.
+    open_link: (labels) => (cell) => {
+        const href = cell.getRow().getData().link;
+        if (!href) return '';
+        const label = labels.open || 'Open';
+        return `<a href="${escapeHtml(href)}" class="inline-flex items-center gap-1 rounded-lg bg-lex-navy px-2.5 py-1 text-xs font-semibold text-white no-underline hover:bg-lex-navy-dark transition">${escapeHtml(label)}</a>`;
+    },
 };
 
 export function resolveFormatter(name, labels = {}) {
