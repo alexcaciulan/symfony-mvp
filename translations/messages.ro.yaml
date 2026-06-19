@@ -606,6 +606,7 @@ case_overview:
     hero:
         next_step_badge: 'Următorul pas'
     cta:
+        send_summons: 'Trimite somație'
         generate_op: 'Generează cerere OP'
         actions_menu: 'Acțiuni'
         edit_details: 'Editează detalii'

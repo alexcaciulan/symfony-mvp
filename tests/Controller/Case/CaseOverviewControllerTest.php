@@ -824,6 +824,11 @@ final class CaseOverviewControllerTest extends WebTestCase
 
     public function testHeroGenerateOpCtaTriggersModalViaDataHsOverlay(): void
     {
+        // The hero primary CTA is status-driven: "Generează cerere OP" (modal trigger)
+        // appears only once the summons has been sent (status SOMATIE_TRIMISA).
+        $this->case->setStatus(CaseStatus::SOMATIE_TRIMISA);
+        $this->em->flush();
+
         $this->client->loginUser($this->user);
         $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
 
@@ -834,4 +839,23 @@ final class CaseOverviewControllerTest extends WebTestCase
         });
         self::assertGreaterThan(0, $cta->count(), 'Hero CTA must trigger modal via data-hs-overlay');
     }
+
+    public function testHeroPrimaryCtaIsSendSummonsWhenStatusAmiabil(): void
+    {
+        // Base setup case is AMIABIL — the next workflow action is sending the summons,
+        // exposed as a POST form (NOT the payment-order modal).
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $summonsSubmit = $crawler->filter('#case-hero-actions form[action$="/summons/generate"] button[type="submit"]');
+        self::assertGreaterThan(0, $summonsSubmit->count(), 'AMIABIL hero CTA must be the summons submit form');
+        self::assertSelectorTextContains('#case-hero-actions form[action$="/summons/generate"]', 'Trimite somație');
+
+        // The payment-order modal trigger must NOT be present in the hero while AMIABIL.
+        $opCta = $crawler->filter('#case-hero-actions button[data-hs-overlay="#hs-modal-cerere-op"]');
+        self::assertSame(0, $opCta->count(), 'OP modal trigger must not appear in hero before the summons is sent');
+    }
+
+
 }

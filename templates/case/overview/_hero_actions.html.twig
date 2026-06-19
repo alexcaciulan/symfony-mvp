@@ -1,51 +1,65 @@
-{# Hero action cluster: status-dependent primary CTA + „Generează cerere OP" + actions dropdown.
-   Extracted as a partial so the same fragment is rendered both by `_hero.html.twig` on
-   initial page load and by the Turbo Stream response after a transition. The outer
-   wrapper `<div id="case-hero-actions">` is rendered here so Turbo Stream `action=replace`
-   can target it directly. #}
-{% from 'case/overview/_icons.html.twig' import icon_document, icon_dots, icon_edit, icon_share, icon_copy, icon_trash %}
+{# Hero action cluster: a single status-driven primary CTA (the next workflow action for the
+   current status) + actions dropdown. Extracted as a partial so the same fragment is rendered
+   both by `_hero.html.twig` on initial page load and by the Turbo Stream response after a
+   transition. The outer wrapper `<div id="case-hero-actions">` is rendered here so Turbo Stream
+   `action=replace` can target it directly. #}
+{% from 'case/overview/_icons.html.twig' import icon_dots, icon_edit, icon_share, icon_copy, icon_trash %}
+
+{# Render the primary-CTA icon by name so the keyed map below can carry a distinct glyph per status. #}
+{% macro cta_icon(name) %}
+    {% from 'case/overview/_icons.html.twig' import icon_document, icon_warning, icon_building, icon_check, icon_money %}
+    {%- if name == 'warning' -%}{{ icon_warning('size-4') }}
+    {%- elseif name == 'building' -%}{{ icon_building('size-4') }}
+    {%- elseif name == 'check' -%}{{ icon_check('size-4') }}
+    {%- elseif name == 'money' -%}{{ icon_money('size-4') }}
+    {%- else -%}{{ icon_document('size-4') }}{%- endif -%}
+{% endmacro %}
+
+{# Base button shape; per-status color + icon are applied below. `whitespace-nowrap` keeps the label on one line. #}
+{% set base_cta_class = 'py-2 px-3.5 inline-flex items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent transition shadow-sm whitespace-nowrap' %}
+
+{# Modal-triggered primary CTAs keyed by status, each with a distinct color + icon.
+   AMIABIL (send summons) is handled separately below as a POST form. #}
+{% set primary_modal = {
+    'SOMATIE_TRIMISA': {target: '#hs-modal-cerere-op', label: 'case_overview.cta.generate_op', color: 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100', icon: 'document'},
+    'CERERE_DEPUSA': {target: '#hs-modal-register-case-number', label: 'case_overview.cta.register_case', color: 'bg-indigo-600 text-white hover:bg-indigo-700', icon: 'building'},
+    'TERMEN_FIXAT': {target: '#hs-modal-issue-ruling', label: 'case_overview.cta.issue_ruling', color: 'bg-violet-600 text-white hover:bg-violet-700', icon: 'check'},
+    'DEFINITIVA': {target: '#hs-modal-close-case', label: 'case_overview.cta.close_case_definitiva', color: 'bg-emerald-600 text-white hover:bg-emerald-700', icon: 'money'},
+} %}
+{% set primary = primary_modal[case.status.value] ?? null %}
 
 <div id="case-hero-actions" class="flex items-center gap-2 self-start">
-    {% if case.status.value == 'CERERE_DEPUSA' %}
-        <button type="button"
-                data-hs-overlay="#hs-modal-register-case-number"
-                class="py-2 px-3.5 inline-flex items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-indigo-600 text-white hover:bg-indigo-700 transition shadow-sm">
-            {{ icon_document('size-4') }}
-            {{ 'case_overview.cta.register_case'|trans }}
-        </button>
-    {% elseif case.status.value == 'TERMEN_FIXAT' %}
-        <button type="button"
-                data-hs-overlay="#hs-modal-issue-ruling"
-                class="py-2 px-3.5 inline-flex items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-violet-600 text-white hover:bg-violet-700 transition shadow-sm">
-            {{ icon_document('size-4') }}
-            {{ 'case_overview.cta.issue_ruling'|trans }}
-        </button>
-    {% elseif case.status.value == 'DEFINITIVA' %}
-        <button type="button"
-                data-hs-overlay="#hs-modal-close-case"
-                class="py-2 px-3.5 inline-flex items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-emerald-600 text-white hover:bg-emerald-700 transition shadow-sm">
-            {{ icon_document('size-4') }}
-            {{ 'case_overview.cta.close_case_definitiva'|trans }}
-        </button>
+    {% if case.status.value == 'AMIABIL' or primary %}
+        <div class="relative">
+            {% if case.status.value == 'AMIABIL' %}
+                <form method="post" action="{{ path('case_summons_generate', {id: case.id}) }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token('generate_summons_' ~ case.id) }}">
+                    <button type="submit"
+                            class="{{ base_cta_class }} bg-amber-500 text-white hover:bg-amber-600
+                                   {% if just_created|default(false) %}ring-2 ring-offset-2 ring-emerald-400 dark:ring-offset-slate-900 soft-pulse-once{% endif %}">
+                        {{ _self.cta_icon('warning') }}
+                        {{ 'case_overview.cta.send_summons'|trans }}
+                    </button>
+                </form>
+            {% else %}
+                <button type="button"
+                        data-hs-overlay="{{ primary.target }}"
+                        class="{{ base_cta_class }} {{ primary.color }}
+                               {% if just_created|default(false) %}ring-2 ring-offset-2 ring-emerald-400 dark:ring-offset-slate-900 soft-pulse-once{% endif %}">
+                    {{ _self.cta_icon(primary.icon) }}
+                    {{ primary.label|trans }}
+                </button>
+            {% endif %}
+            {% if just_created|default(false) %}
+                <span class="absolute -top-2 -right-2 inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-emerald-500 text-white rounded-full shadow-md">
+                    <svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5-5 5M6 12h12"/>
+                    </svg>
+                    {{ 'case_overview.hero.next_step_badge'|trans }}
+                </span>
+            {% endif %}
+        </div>
     {% endif %}
-
-    <div class="relative">
-        <button type="button"
-                data-hs-overlay="#hs-modal-cerere-op"
-                class="py-2 px-3.5 inline-flex items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 transition shadow-sm
-                       {% if just_created|default(false) %}ring-2 ring-offset-2 ring-emerald-400 dark:ring-offset-slate-900 soft-pulse-once{% endif %}">
-            {{ icon_document('size-4') }}
-            {{ 'case_overview.cta.generate_op'|trans }}
-        </button>
-        {% if just_created|default(false) %}
-            <span class="absolute -top-2 -right-2 inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-emerald-500 text-white rounded-full shadow-md">
-                <svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5-5 5M6 12h12"/>
-                </svg>
-                {{ 'case_overview.hero.next_step_badge'|trans }}
-            </span>
-        {% endif %}
-    </div>
 
     <div class="hs-dropdown relative inline-flex">
         <button id="hs-case-actions-dropdown"

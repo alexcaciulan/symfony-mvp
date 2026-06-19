@@ -604,6 +604,7 @@ case_overview:
     hero:
         next_step_badge: 'Next step'
     cta:
+        send_summons: 'Send notice'
         generate_op: 'Generate payment order'
         actions_menu: 'Actions'
         edit_details: 'Edit details'

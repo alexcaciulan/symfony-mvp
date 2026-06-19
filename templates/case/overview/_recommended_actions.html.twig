@@ -49,22 +49,25 @@
             </form>
         {% endif %}
 
-        {# 2. Generate payment order — RECOMMENDED, opens modal cerere-op (Pas 5.2 wired POST). #}
-        <button type="button"
-                data-hs-overlay="#hs-modal-cerere-op"
-                class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg bg-gradient-to-r from-blue-50 to-blue-50/50 dark:from-blue-950/40 dark:to-blue-950/20 border border-blue-200/60 dark:border-blue-900/40 ring-1 ring-blue-100 dark:ring-blue-950/50 hover:from-blue-100 dark:hover:from-blue-950/60 transition group">
-            <div class="size-9 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-blue-500/30">
-                {{ icon_document('size-4') }}
-            </div>
-            <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-1.5">
-                    <span class="text-sm font-bold text-blue-900 dark:text-blue-100">{{ 'case_overview.recommended_actions.generate_op'|trans }}</span>
-                    <span class="text-[9px] font-bold uppercase tracking-wide text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-950/60 px-1.5 py-0.5 rounded">{{ 'case_overview.recommended_actions.recommended_badge'|trans }}</span>
+        {# 2. Generate payment order — RECOMMENDED, opens modal cerere-op (Pas 5.2 wired POST).
+           Only available once the summons has been sent (status SOMATIE_TRIMISA), matching the hero CTA. #}
+        {% if case.status.value == 'SOMATIE_TRIMISA' %}
+            <button type="button"
+                    data-hs-overlay="#hs-modal-cerere-op"
+                    class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg bg-gradient-to-r from-blue-50 to-blue-50/50 dark:from-blue-950/40 dark:to-blue-950/20 border border-blue-200/60 dark:border-blue-900/40 ring-1 ring-blue-100 dark:ring-blue-950/50 hover:from-blue-100 dark:hover:from-blue-950/60 transition group">
+                <div class="size-9 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-blue-500/30">
+                    {{ icon_document('size-4') }}
                 </div>
-                <div class="text-[11px] text-blue-700/80 dark:text-blue-300/80 mt-0.5">{{ 'case_overview.recommended_actions.generate_op_hint'|trans }}</div>
-            </div>
-            {{ icon_chevron_right('size-4 text-blue-600 dark:text-blue-400 shrink-0') }}
-        </button>
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-sm font-bold text-blue-900 dark:text-blue-100">{{ 'case_overview.recommended_actions.generate_op'|trans }}</span>
+                        <span class="text-[9px] font-bold uppercase tracking-wide text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-950/60 px-1.5 py-0.5 rounded">{{ 'case_overview.recommended_actions.recommended_badge'|trans }}</span>
+                    </div>
+                    <div class="text-[11px] text-blue-700/80 dark:text-blue-300/80 mt-0.5">{{ 'case_overview.recommended_actions.generate_op_hint'|trans }}</div>
+                </div>
+                {{ icon_chevron_right('size-4 text-blue-600 dark:text-blue-400 shrink-0') }}
+            </button>
+        {% endif %}
 
         {# 3. Mark amicable payment — aria-disabled cu tooltip Faza 4.x. #}
         <button type="button"
