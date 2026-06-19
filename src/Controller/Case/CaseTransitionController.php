@@ -16,7 +16,6 @@ use App\Repository\LegalCaseRepository;
 use App\Security\Voter\CaseVoter;
 use App\Service\AuditLogService;
 use App\Service\Case\CaseWorkflowService;
-use App\Service\Case\OverviewContextBuilder;
 use App\Util\PiiMasker;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -28,7 +27,7 @@ use Symfony\Component\Routing\Attribute\Route;
  * Manual workflow transitions invoked from the case overview hero,
  * dropdown and recommended actions. Mirrors the established pattern
  * (CasePaymentOrderController): voter, form-validated CSRF, status
- * guard, transactional apply+audit, Turbo Stream or redirect.
+ * guard, transactional apply+audit, then redirect with a flash.
  */
 final class CaseTransitionController extends AbstractController
 {
@@ -36,7 +35,6 @@ final class CaseTransitionController extends AbstractController
         private readonly LegalCaseRepository $cases,
         private readonly CaseWorkflowService $workflowService,
         private readonly AuditLogService $auditLogService,
-        private readonly OverviewContextBuilder $contextBuilder,
         private readonly EntityManagerInterface $em,
     ) {}
 
@@ -84,9 +82,7 @@ final class CaseTransitionController extends AbstractController
             $this->em->flush();
         });
 
-        $this->addFlash('success', 'case_overview.transition.flash_success_register');
-
-        return $this->respondAfterTransition($request, $case);
+        return $this->respondAfterTransition($case, 'case_overview.transition.flash_success_register');
     }
 
     #[Route('/case/{id}/transition/issue-ruling', name: 'case_transition_issue_ruling', requirements: ['id' => '\d+'], methods: ['POST'])]
@@ -144,9 +140,7 @@ final class CaseTransitionController extends AbstractController
             $this->em->flush();
         });
 
-        $this->addFlash('success', 'case_overview.transition.flash_success_ruling');
-
-        return $this->respondAfterTransition($request, $case);
+        return $this->respondAfterTransition($case, 'case_overview.transition.flash_success_ruling');
     }
 
     #[Route('/case/{id}/transition/reject', name: 'case_transition_reject', requirements: ['id' => '\d+'], methods: ['POST'])]
@@ -212,9 +206,7 @@ final class CaseTransitionController extends AbstractController
             $this->em->flush();
         });
 
-        $this->addFlash('success', 'case_overview.transition.flash_success_reject');
-
-        return $this->respondAfterTransition($request, $case);
+        return $this->respondAfterTransition($case, 'case_overview.transition.flash_success_reject');
     }
 
     #[Route('/case/{id}/transition/close', name: 'case_transition_close', requirements: ['id' => '\d+'], methods: ['POST'])]
@@ -273,9 +265,7 @@ final class CaseTransitionController extends AbstractController
             $this->em->flush();
         });
 
-        $this->addFlash('success', 'case_overview.transition.flash_success_close');
-
-        return $this->respondAfterTransition($request, $case);
+        return $this->respondAfterTransition($case, 'case_overview.transition.flash_success_close');
     }
 
     private function findOrThrow(int $id): LegalCase
@@ -293,17 +283,14 @@ final class CaseTransitionController extends AbstractController
      * redirect based on the Accept header. Mirrors the detection logic
      * from {@see \App\Controller\Case\CaseDeadlineController::complete}.
      */
-    private function respondAfterTransition(Request $request, LegalCase $case): Response
+    private function respondAfterTransition(LegalCase $case, string $successKey): Response
     {
-        $acceptHeader = (string) $request->headers->get('Accept', '');
-        if (str_contains($acceptHeader, 'text/vnd.turbo-stream.html')) {
-            $context = $this->contextBuilder->build($case);
-            $stream = $this->renderView('case/overview/_transition_turbo_stream.html.twig', $context);
-
-            return new Response($stream, Response::HTTP_OK, [
-                'Content-Type' => 'text/vnd.turbo-stream.html; charset=utf-8',
-            ]);
-        }
+        // Always redirect. Turbo Drive follows the redirect and re-renders the
+        // page, so the Preline modal the form was submitted from is gone and the
+        // success flash shows exactly once. A Turbo Stream response (replacing
+        // fragments in place) would leave the modal open and the unconsumed flash
+        // would leak onto the next full page load.
+        $this->addFlash('success', $successKey);
 
         return $this->redirectToRoute('case_overview', ['id' => $case->getId()]);
     }

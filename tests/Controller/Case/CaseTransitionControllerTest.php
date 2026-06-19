@@ -400,8 +400,12 @@ final class CaseTransitionControllerTest extends WebTestCase
         self::assertSame(CaseStatus::AMIABIL, $refreshed->getStatus());
     }
 
-    public function testRegisterRespondsWithTurboStreamWhenAccepted(): void
+    public function testRegisterRedirectsEvenWhenTurboStreamAccepted(): void
     {
+        // Transitions always redirect (no Turbo Stream): Turbo Drive follows the
+        // redirect and re-renders the page, so the Preline modal the form was
+        // submitted from is gone. A stream response would leave it open, and the
+        // double-submit would then hit "Tranziția nu este permisă" (the reported bug).
         $this->client->loginUser($this->user);
         $case = $this->createCase(CaseStatus::CERERE_DEPUSA);
 
@@ -415,13 +419,10 @@ final class CaseTransitionControllerTest extends WebTestCase
             ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html, text/html'],
         );
 
-        self::assertResponseStatusCodeSame(Response::HTTP_OK);
-        self::assertStringContainsString(
-            'text/vnd.turbo-stream.html',
-            (string) $this->client->getResponse()->headers->get('Content-Type'),
-        );
-        self::assertStringContainsString('case-status-badge', (string) $this->client->getResponse()->getContent());
-        self::assertStringContainsString('case-pipeline', (string) $this->client->getResponse()->getContent());
+        self::assertResponseRedirects('/case/' . $case->getId());
+        // Exactly one success flash is queued (consumed once on the redirected page).
+        $flashes = $this->client->getRequest()->getSession()->getFlashBag()->peekAll();
+        self::assertSame(['case_overview.transition.flash_success_register'], $flashes['success'] ?? []);
     }
 
     public function testCsrfMissingRejected(): void
