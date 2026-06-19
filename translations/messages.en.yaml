@@ -1371,6 +1371,11 @@ enum:
     court_type:
         judecatorie: 'Local court'
         tribunal: 'Tribunal'
+    uat_type:
+        municipiu: 'Municipality'
+        oras: 'Town'
+        comuna: 'Commune'
+        sector: 'Sector'
     deadline_priority:
         LOW: 'Low'
         MEDIUM: 'Medium'

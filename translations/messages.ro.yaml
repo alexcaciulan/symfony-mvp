@@ -1373,6 +1373,11 @@ enum:
     court_type:
         judecatorie: 'Judecătorie'
         tribunal: 'Tribunal'
+    uat_type:
+        municipiu: 'Municipiu'
+        oras: 'Oraș'
+        comuna: 'Comună'
+        sector: 'Sector'
     deadline_priority:
         LOW: 'Scăzută'
         MEDIUM: 'Medie'
