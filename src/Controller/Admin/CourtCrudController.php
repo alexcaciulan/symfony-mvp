@@ -9,6 +9,7 @@ use EasyCorp\Bundle\EasyAdminBundle\Config\Actions;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Crud;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Filters;
 use EasyCorp\Bundle\EasyAdminBundle\Controller\AbstractCrudController;
+use EasyCorp\Bundle\EasyAdminBundle\Field\AssociationField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\BooleanField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\ChoiceField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\EmailField;
@@ -17,7 +18,7 @@ use EasyCorp\Bundle\EasyAdminBundle\Field\TelephoneField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\TextField;
 use EasyCorp\Bundle\EasyAdminBundle\Filter\BooleanFilter;
 use EasyCorp\Bundle\EasyAdminBundle\Filter\ChoiceFilter;
-use EasyCorp\Bundle\EasyAdminBundle\Filter\TextFilter;
+use EasyCorp\Bundle\EasyAdminBundle\Filter\EntityFilter;
 
 class CourtCrudController extends AbstractCrudController
 {
@@ -31,9 +32,9 @@ class CourtCrudController extends AbstractCrudController
         return $crud
             ->setEntityLabelInSingular('Instanță')
             ->setEntityLabelInPlural('Instanțe')
-            ->setDefaultSort(['county' => 'ASC', 'name' => 'ASC'])
+            ->setDefaultSort(['county.name' => 'ASC', 'name' => 'ASC'])
             ->setPaginatorPageSize(30)
-            ->setSearchFields(['name', 'county']);
+            ->setSearchFields(['name', 'county.name']);
     }
 
     public function configureActions(Actions $actions): Actions
@@ -46,7 +47,7 @@ class CourtCrudController extends AbstractCrudController
     {
         yield IdField::new('id')->onlyOnIndex();
         yield TextField::new('name', 'Nume');
-        yield TextField::new('county', 'Județ');
+        yield AssociationField::new('county', 'Județ');
         yield ChoiceField::new('type', 'Tip')
             ->setChoices([
                 'Judecătorie' => CourtType::JUDECATORIE,
@@ -61,7 +62,7 @@ class CourtCrudController extends AbstractCrudController
     public function configureFilters(Filters $filters): Filters
     {
         return $filters
-            ->add(TextFilter::new('county', 'Județ'))
+            ->add(EntityFilter::new('county', 'Județ'))
             ->add(ChoiceFilter::new('type', 'Tip')->setChoices([
                 'Judecătorie' => 'judecatorie',
                 'Tribunal' => 'tribunal',

@@ -8,12 +8,15 @@ use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\CourtType;
 use App\Repository\LegalCaseRepository;
+use App\Tests\Support\CountyFixtureTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 class LegalCaseRepositoryTest extends KernelTestCase
 {
+    use CountyFixtureTrait;
+
     private EntityManagerInterface $em;
     private LegalCaseRepository $repo;
     private User $user;
@@ -52,7 +55,7 @@ class LegalCaseRepositoryTest extends KernelTestCase
     {
         $court = new Court();
         $court->setName('Repo Court ' . $this->testPrefix . '-' . uniqid());
-        $court->setCounty('CJ');
+        $court->setCounty($this->createCounty($this->em, 'CJ'));
         $court->setType(CourtType::JUDECATORIE);
         if ($withPortalCode) {
             $court->setPortalCode('RepoCourt' . uniqid());

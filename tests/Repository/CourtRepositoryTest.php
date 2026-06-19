@@ -5,11 +5,14 @@ namespace App\Tests\Repository;
 use App\Entity\Court;
 use App\Enum\CourtType;
 use App\Repository\CourtRepository;
+use App\Tests\Support\CountyFixtureTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 class CourtRepositoryTest extends KernelTestCase
 {
+    use CountyFixtureTrait;
+
     private EntityManagerInterface $em;
     private CourtRepository $repo;
     private string $testCounty;
@@ -26,7 +29,7 @@ class CourtRepositoryTest extends KernelTestCase
     {
         $court = new Court();
         $court->setName($name);
-        $court->setCounty($county ?? $this->testCounty);
+        $court->setCounty($this->createCounty($this->em, $county ?? $this->testCounty));
         $court->setType(CourtType::JUDECATORIE);
         $court->setActive($active);
         $this->em->persist($court);
@@ -46,7 +49,7 @@ class CourtRepositoryTest extends KernelTestCase
         $this->assertCount(2, $result);
         foreach ($result as $court) {
             $this->assertTrue($court->isActive());
-            $this->assertSame($this->testCounty, $court->getCounty());
+            $this->assertSame($this->testCounty, $court->getCounty()->getName());
         }
     }
 
@@ -94,7 +97,15 @@ class CourtRepositoryTest extends KernelTestCase
     protected function tearDown(): void
     {
         $conn = $this->em->getConnection();
-        $conn->executeStatement("DELETE FROM court WHERE county LIKE 'TestCounty-%' OR county LIKE 'DistinctTest-%' OR county LIKE 'InactiveOnly-%' OR county LIKE 'InactiveCounty-%' OR county LIKE 'AltJudet-%'");
+        $likePatterns = "co.name LIKE 'TestCounty-%' OR co.name LIKE 'DistinctTest-%' "
+            . "OR co.name LIKE 'InactiveOnly-%' OR co.name LIKE 'InactiveCounty-%' OR co.name LIKE 'AltJudet-%'";
+        $conn->executeStatement(
+            "DELETE c FROM court c JOIN county co ON c.county_id = co.id WHERE " . $likePatterns
+        );
+        $conn->executeStatement(
+            "DELETE co FROM county co WHERE co.name LIKE 'TestCounty-%' OR co.name LIKE 'DistinctTest-%' "
+            . "OR co.name LIKE 'InactiveOnly-%' OR co.name LIKE 'InactiveCounty-%' OR co.name LIKE 'AltJudet-%'"
+        );
         parent::tearDown();
     }
 }

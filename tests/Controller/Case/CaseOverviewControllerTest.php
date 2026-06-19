@@ -23,6 +23,7 @@ use App\Enum\ExtractionStatus;
 use App\Enum\PersonType;
 use App\Enum\PortalEventType;
 use App\Enum\RelationshipType;
+use App\Tests\Support\CountyFixtureTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -39,6 +40,8 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
  */
 final class CaseOverviewControllerTest extends WebTestCase
 {
+    use CountyFixtureTrait;
+
     private KernelBrowser $client;
     private EntityManagerInterface $em;
     private User $user;
@@ -175,7 +178,7 @@ final class CaseOverviewControllerTest extends WebTestCase
 
         $court = new Court();
         $court->setName('Test Court ' . uniqid());
-        $court->setCounty('București');
+        $court->setCounty($this->createCounty($this->em, 'București'));
         $court->setType(CourtType::JUDECATORIE);
         $this->em->persist($court);
 

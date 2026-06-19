@@ -14,6 +14,7 @@ use App\Enum\CourtType;
 use App\Enum\DocumentType;
 use App\Enum\PersonType;
 use App\Service\Document\PaymentOrderRequestGeneratorService;
+use App\Tests\Support\CountyFixtureTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
@@ -27,6 +28,8 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
  */
 final class PaymentOrderRequestGeneratorServiceTest extends KernelTestCase
 {
+    use CountyFixtureTrait;
+
     private EntityManagerInterface $em;
     private PaymentOrderRequestGeneratorService $service;
     private User $user;
@@ -60,7 +63,7 @@ final class PaymentOrderRequestGeneratorServiceTest extends KernelTestCase
 
         $court = new Court();
         $court->setName('Judecătoria Sector 1 București');
-        $court->setCounty('București');
+        $court->setCounty($this->createCounty($this->em, 'București'));
         $court->setType(CourtType::JUDECATORIE);
         $court->setActive(true);
         $this->em->persist($court);

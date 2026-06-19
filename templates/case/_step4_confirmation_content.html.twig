@@ -272,7 +272,7 @@
             <span>
                 {{ 'wizard.step3.sidebar.court_label'|trans }}:
                 <strong class="text-white">
-                    {% if court is null or court.court is null %}{{ 'wizard.step3.sidebar.court_placeholder'|trans }}{% else %}{{ court.court.name }} · {{ court.court.county }}{% endif %}
+                    {% if court is null or court.court is null %}{{ 'wizard.step3.sidebar.court_placeholder'|trans }}{% else %}{{ court.court.name }} · {{ court.court.county.name }}{% endif %}
                 </strong>
             </span>
         </div>

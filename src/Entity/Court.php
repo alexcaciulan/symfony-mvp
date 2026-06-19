@@ -22,8 +22,12 @@ class Court
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $address = null;
 
-    #[ORM\Column(length: 50)]
-    private string $county;
+    // DB column is NOT NULL; the property is nullable so a freshly constructed
+    // Court (e.g. an EasyAdmin "new" form before the county is picked) is valid
+    // in memory until setCounty() runs prior to flush.
+    #[ORM\ManyToOne(targetEntity: County::class)]
+    #[ORM\JoinColumn(nullable: false)]
+    private ?County $county = null;
 
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $email = null;
@@ -40,9 +44,10 @@ class Court
     #[ORM\Column(length: 100, nullable: true, unique: true)]
     private ?string $portalCode = null;
 
-    /** @var list<string>|null */
-    #[ORM\Column(type: 'json', nullable: true)]
-    private ?array $coveredLocalities = null;
+    /** @var Collection<int, City> */
+    #[ORM\ManyToMany(targetEntity: City::class)]
+    #[ORM\JoinTable(name: 'court_covered_city')]
+    private Collection $coveredCities;
 
     /** @var Collection<int, LegalCase> */
     #[ORM\OneToMany(targetEntity: LegalCase::class, mappedBy: 'court')]
@@ -50,6 +55,7 @@ class Court
 
     public function __construct()
     {
+        $this->coveredCities = new ArrayCollection();
         $this->legalCases = new ArrayCollection();
     }
 
@@ -82,12 +88,12 @@ class Court
         return $this;
     }
 
-    public function getCounty(): string
+    public function getCounty(): ?County
     {
         return $this->county;
     }
 
-    public function setCounty(string $county): static
+    public function setCounty(County $county): static
     {
         $this->county = $county;
 
@@ -154,18 +160,39 @@ class Court
         return $this;
     }
 
-    /** @return list<string>|null */
-    public function getCoveredLocalities(): ?array
+    /** @return Collection<int, City> */
+    public function getCoveredCities(): Collection
     {
-        return $this->coveredLocalities;
+        return $this->coveredCities;
     }
 
-    /** @param list<string>|null $coveredLocalities */
-    public function setCoveredLocalities(?array $coveredLocalities): static
+    public function addCoveredCity(City $city): static
     {
-        $this->coveredLocalities = $coveredLocalities;
+        if (!$this->coveredCities->contains($city)) {
+            $this->coveredCities->add($city);
+        }
 
         return $this;
+    }
+
+    public function removeCoveredCity(City $city): static
+    {
+        $this->coveredCities->removeElement($city);
+
+        return $this;
+    }
+
+    public function clearCoveredCities(): static
+    {
+        $this->coveredCities->clear();
+
+        return $this;
+    }
+
+    /** @return list<string> */
+    public function getCoveredCityNames(): array
+    {
+        return array_values($this->coveredCities->map(fn(City $c) => $c->getName())->toArray());
     }
 
     /** @return Collection<int, LegalCase> */

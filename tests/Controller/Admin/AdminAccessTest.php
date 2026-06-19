@@ -7,6 +7,7 @@ use App\Entity\Court;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\CourtType;
+use App\Tests\Support\CountyFixtureTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
@@ -15,6 +16,8 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 class AdminAccessTest extends WebTestCase
 {
+    use CountyFixtureTrait;
+
     private KernelBrowser $client;
     private EntityManagerInterface $em;
     private User $admin;
@@ -240,7 +243,7 @@ class AdminAccessTest extends WebTestCase
     {
         $court = new Court();
         $court->setName('Judecătoria Admin ' . uniqid());
-        $court->setCounty('AdminTest');
+        $court->setCounty($this->createCounty($this->em, 'AdminTest'));
         $court->setType(CourtType::JUDECATORIE);
         $court->setActive(true);
         $this->em->persist($court);

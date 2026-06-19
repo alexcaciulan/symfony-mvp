@@ -53,7 +53,7 @@
     {% if case.court %}
         <div class="name">{{ case.court.name }}</div>
         {% if case.court.county %}
-            <div class="meta">{{ 'pdf.payment_order.court_county'|trans({'%county%': case.court.county}) }}</div>
+            <div class="meta">{{ 'pdf.payment_order.court_county'|trans({'%county%': case.court.county.name}) }}</div>
         {% endif %}
     {% else %}
         <div class="meta">{{ 'pdf.payment_order.court_missing'|trans }}</div>

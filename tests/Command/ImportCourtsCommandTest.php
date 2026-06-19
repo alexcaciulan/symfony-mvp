@@ -9,10 +9,17 @@ use Symfony\Component\Console\Tester\CommandTester;
 
 class ImportCourtsCommandTest extends KernelTestCase
 {
+    private function seedCities(Application $application): void
+    {
+        // Courts now reference county + city by FK, so the nomenclature must exist first.
+        (new CommandTester($application->find('app:import-cities')))->execute([]);
+    }
+
     public function testImportCreatesCourts(): void
     {
         self::bootKernel();
         $application = new Application(self::$kernel);
+        $this->seedCities($application);
 
         $command = $application->find('app:import-courts');
         $commandTester = new CommandTester($command);
@@ -30,6 +37,7 @@ class ImportCourtsCommandTest extends KernelTestCase
     {
         self::bootKernel();
         $application = new Application(self::$kernel);
+        $this->seedCities($application);
 
         $command = $application->find('app:import-courts');
 
@@ -57,6 +65,7 @@ class ImportCourtsCommandTest extends KernelTestCase
     {
         self::bootKernel();
         $application = new Application(self::$kernel);
+        $this->seedCities($application);
 
         $command = $application->find('app:import-courts');
         $commandTester = new CommandTester($command);

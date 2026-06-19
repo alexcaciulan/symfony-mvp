@@ -17,6 +17,7 @@ use App\Enum\DeadlineType;
 use App\Repository\LegalDeadlineRepository;
 use App\Service\Portal\CaseMonitoringService;
 use App\Service\Portal\PortalJustClient;
+use App\Tests\Support\CountyFixtureTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
@@ -28,6 +29,8 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
  */
 class PortalMonitoringCascadeTest extends KernelTestCase
 {
+    use CountyFixtureTrait;
+
     private EntityManagerInterface $em;
     private LegalDeadlineRepository $deadlines;
     private User $user;
@@ -50,7 +53,7 @@ class PortalMonitoringCascadeTest extends KernelTestCase
 
         $this->court = new Court();
         $this->court->setName('Cascade Court ' . $this->testPrefix);
-        $this->court->setCounty('CJ');
+        $this->court->setCounty($this->createCounty($this->em, 'CJ'));
         $this->court->setType(CourtType::JUDECATORIE);
         $this->court->setPortalCode('CascadeCourt' . uniqid());
         $this->em->persist($this->court);

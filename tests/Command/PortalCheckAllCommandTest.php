@@ -10,6 +10,7 @@ use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\CourtType;
 use App\Message\CheckCasePortalMessage;
+use App\Tests\Support\CountyFixtureTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Console\Application;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -19,6 +20,8 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 class PortalCheckAllCommandTest extends KernelTestCase
 {
+    use CountyFixtureTrait;
+
     private EntityManagerInterface $em;
     private string $testPrefix;
 
@@ -57,7 +60,7 @@ class PortalCheckAllCommandTest extends KernelTestCase
 
         $court = new Court();
         $court->setName('Cmd Court ' . $this->testPrefix . '-' . uniqid());
-        $court->setCounty('CJ');
+        $court->setCounty($this->createCounty($this->em, 'CJ'));
         $court->setType(CourtType::JUDECATORIE);
         $court->setPortalCode('CmdCourt' . uniqid());
         $this->em->persist($court);

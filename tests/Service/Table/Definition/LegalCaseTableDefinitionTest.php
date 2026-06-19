@@ -13,12 +13,15 @@ use App\Service\Table\TableDataService;
 use App\Service\Table\TableDefinitionInterface;
 use App\Service\Table\TableQuery;
 use App\Service\Table\TableRegistry;
+use App\Tests\Support\CountyFixtureTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 final class LegalCaseTableDefinitionTest extends KernelTestCase
 {
+    use CountyFixtureTrait;
+
     private EntityManagerInterface $em;
     private TableDataService $service;
     private TableDefinitionInterface $definition;
@@ -165,7 +168,7 @@ final class LegalCaseTableDefinitionTest extends KernelTestCase
     {
         $court = new Court();
         $court->setName($name);
-        $court->setCounty('Ilfov');
+        $court->setCounty($this->createCounty($this->em, 'Ilfov'));
         $court->setType(CourtType::JUDECATORIE);
         $court->setActive(true);
         $this->em->persist($court);

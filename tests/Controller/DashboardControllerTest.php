@@ -7,6 +7,7 @@ use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\CourtType;
+use App\Tests\Support\CountyFixtureTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -14,6 +15,8 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 class DashboardControllerTest extends WebTestCase
 {
+    use CountyFixtureTrait;
+
     private KernelBrowser $client;
     private EntityManagerInterface $em;
     private User $user;
@@ -50,7 +53,7 @@ class DashboardControllerTest extends WebTestCase
     {
         $court = new Court();
         $court->setName($courtName);
-        $court->setCounty('CJ');
+        $court->setCounty($this->createCounty($this->em, 'CJ'));
         $court->setType(CourtType::JUDECATORIE);
         $this->em->persist($court);
 

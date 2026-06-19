@@ -22,7 +22,7 @@
             <div class="flex-1 min-w-0">
                 <div class="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-0.5">{{ 'case_overview.court.title'|trans }}</div>
                 <div class="font-semibold text-slate-900 dark:text-white">{{ case.court.name }}</div>
-                <div class="text-xs text-slate-500 mt-0.5">{{ 'case_overview.court.rule_hint'|trans({'%county%': case.court.county}) }}</div>
+                <div class="text-xs text-slate-500 mt-0.5">{{ 'case_overview.court.rule_hint'|trans({'%county%': case.court.county.name}) }}</div>
             </div>
             <div class="text-right">
                 <div class="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">{{ 'case_overview.court.case_number'|trans }}</div>

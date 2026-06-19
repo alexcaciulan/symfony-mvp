@@ -15,12 +15,15 @@ use App\Event\PortalEventDetectedEvent;
 use App\Service\Portal\CaseMonitoringService;
 use App\Service\Portal\PortalJustClient;
 use App\Service\Portal\PortalJustException;
+use App\Tests\Support\CountyFixtureTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 class CaseMonitoringServiceTest extends KernelTestCase
 {
+    use CountyFixtureTrait;
+
     private EntityManagerInterface $em;
     private CaseMonitoringService $service;
     private User $user;
@@ -42,7 +45,7 @@ class CaseMonitoringServiceTest extends KernelTestCase
 
         $this->court = new Court();
         $this->court->setName('Monitor Court ' . $this->testPrefix);
-        $this->court->setCounty('CJ');
+        $this->court->setCounty($this->createCounty($this->em, 'CJ'));
         $this->court->setType(CourtType::JUDECATORIE);
         $this->court->setPortalCode('MonitorCourt' . uniqid());
         $this->em->persist($this->court);
@@ -246,7 +249,7 @@ class CaseMonitoringServiceTest extends KernelTestCase
     {
         $courtNoCode = new Court();
         $courtNoCode->setName('No Portal ' . $this->testPrefix);
-        $courtNoCode->setCounty('CJ');
+        $courtNoCode->setCounty($this->createCounty($this->em, 'CJ'));
         $courtNoCode->setType(CourtType::JUDECATORIE);
         $this->em->persist($courtNoCode);
 

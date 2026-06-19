@@ -117,8 +117,8 @@ final class CompetentCourtResolver
 
     private function courtCoversLocality(Court $court, string $normalizedLocality): bool
     {
-        $covered = $court->getCoveredLocalities();
-        if ($covered === null || $covered === []) {
+        $covered = $court->getCoveredCityNames();
+        if ($covered === []) {
             return false;
         }
 

@@ -2,9 +2,13 @@
 
 namespace App\Command;
 
+use App\Entity\County;
 use App\Entity\Court;
 use App\Enum\CourtType;
+use App\Repository\CityRepository;
+use App\Repository\CountyRepository;
 use App\Repository\CourtRepository;
+use App\Service\Court\LocalityNormalizer;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
@@ -23,6 +27,8 @@ class ImportCourtsCommand extends Command
     public function __construct(
         private EntityManagerInterface $em,
         private CourtRepository $courtRepository,
+        private CountyRepository $countyRepository,
+        private CityRepository $cityRepository,
         #[Autowire('%kernel.project_dir%')]
         private string $projectDir,
     ) {
@@ -35,7 +41,7 @@ class ImportCourtsCommand extends Command
             'update',
             null,
             InputOption::VALUE_NONE,
-            'Update existing courts (refresh coveredLocalities / address / email / phone) instead of skipping them.',
+            'Update existing courts (refresh covered cities / address / email / phone) instead of skipping them.',
         );
     }
 
@@ -61,6 +67,22 @@ class ImportCourtsCommand extends Command
         $skipped = 0;
 
         foreach ($data as $entry) {
+            $countyNormalized = LocalityNormalizer::normalize(
+                isset($entry['county']) ? (string) $entry['county'] : null,
+            );
+            $county = $countyNormalized !== null
+                ? $this->countyRepository->findOneByNormalizedName($countyNormalized)
+                : null;
+            if ($county === null) {
+                $io->warning(sprintf(
+                    'County "%s" not found, skipping court "%s". Run app:import-cities first.',
+                    $entry['county'] ?? '',
+                    $entry['name'] ?? '',
+                ));
+                $skipped++;
+                continue;
+            }
+
             $existing = $this->courtRepository->findOneBy(['name' => $entry['name']]);
 
             if ($existing !== null) {
@@ -68,17 +90,18 @@ class ImportCourtsCommand extends Command
                     $skipped++;
                     continue;
                 }
-                $this->applyEntry($existing, $entry);
+                $existing->setCounty($county);
+                $this->applyEntry($existing, $entry, $county, $io);
                 $updated++;
                 continue;
             }
 
             $court = new Court();
             $court->setName($entry['name']);
-            $court->setCounty($entry['county']);
+            $court->setCounty($county);
             $court->setType(CourtType::from($entry['type']));
             $court->setActive(true);
-            $this->applyEntry($court, $entry);
+            $this->applyEntry($court, $entry, $county, $io);
 
             $this->em->persist($court);
             $created++;
@@ -97,10 +120,26 @@ class ImportCourtsCommand extends Command
     }
 
     /** @param array<string, mixed> $entry */
-    private function applyEntry(Court $court, array $entry): void
+    private function applyEntry(Court $court, array $entry, County $county, SymfonyStyle $io): void
     {
         if (isset($entry['coveredLocalities']) && is_array($entry['coveredLocalities'])) {
-            $court->setCoveredLocalities(array_values(array_map('strval', $entry['coveredLocalities'])));
+            $court->clearCoveredCities();
+            foreach ($entry['coveredLocalities'] as $localityName) {
+                $cityNormalized = LocalityNormalizer::normalize((string) $localityName);
+                $city = $cityNormalized !== null
+                    ? $this->cityRepository->findOneByCountyAndNormalizedName($county, $cityNormalized)
+                    : null;
+                if ($city === null) {
+                    $io->warning(sprintf(
+                        'City "%s" (county %s) not found, skipping coverage for court "%s".',
+                        (string) $localityName,
+                        $county->getName(),
+                        $court->getName(),
+                    ));
+                    continue;
+                }
+                $court->addCoveredCity($city);
+            }
         }
         if (isset($entry['address']) && is_string($entry['address'])) {
             $court->setAddress($entry['address']);

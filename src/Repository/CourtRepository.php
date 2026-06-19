@@ -6,6 +6,7 @@ use App\Entity\Court;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\CourtType;
+use App\Service\Court\LocalityNormalizer;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -21,9 +22,12 @@ class CourtRepository extends ServiceEntityRepository
     public function findActiveByCounty(string $county): array
     {
         return $this->createQueryBuilder('c')
-            ->where('c.county = :county')
+            ->join('c.county', 'co')
+            ->leftJoin('c.coveredCities', 'cc')
+            ->addSelect('cc')
+            ->where('co.normalizedName = :county')
             ->andWhere('c.active = true')
-            ->setParameter('county', $county)
+            ->setParameter('county', LocalityNormalizer::normalize($county))
             ->orderBy('c.name', 'ASC')
             ->getQuery()
             ->getResult();
@@ -33,11 +37,14 @@ class CourtRepository extends ServiceEntityRepository
     public function findActiveByTypeAndCounty(CourtType $type, string $county): array
     {
         return $this->createQueryBuilder('c')
+            ->join('c.county', 'co')
+            ->leftJoin('c.coveredCities', 'cc')
+            ->addSelect('cc')
             ->where('c.type = :type')
-            ->andWhere('c.county = :county')
+            ->andWhere('co.normalizedName = :county')
             ->andWhere('c.active = true')
             ->setParameter('type', $type)
-            ->setParameter('county', $county)
+            ->setParameter('county', LocalityNormalizer::normalize($county))
             ->orderBy('c.name', 'ASC')
             ->getQuery()
             ->getResult();
@@ -76,12 +83,13 @@ class CourtRepository extends ServiceEntityRepository
     {
         return array_column(
             $this->createQueryBuilder('c')
-                ->select('DISTINCT c.county')
+                ->select('DISTINCT co.name AS name')
+                ->join('c.county', 'co')
                 ->where('c.active = true')
-                ->orderBy('c.county', 'ASC')
+                ->orderBy('co.name', 'ASC')
                 ->getQuery()
                 ->getScalarResult(),
-            'county'
+            'name'
         );
     }
 }

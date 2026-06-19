@@ -2,9 +2,12 @@
 
 namespace App\Tests\Service\Court;
 
+use App\Entity\City;
+use App\Entity\County;
 use App\Entity\Court;
 use App\Entity\InterestRateConfig;
 use App\Enum\CourtType;
+use App\Service\Court\LocalityNormalizer;
 use App\Enum\RelationshipType;
 use App\Repository\CourtRepository;
 use App\Repository\InterestRateConfigRepository;
@@ -316,15 +319,37 @@ class CompetentCourtResolverTest extends TestCase
         ];
     }
 
+    /** @var array<string, County> */
+    private array $countyCache = [];
+
+    private function county(string $name): County
+    {
+        return $this->countyCache[$name] ??= (new County())
+            ->setName($name)
+            ->setNormalizedName(LocalityNormalizer::normalize($name) ?? $name);
+    }
+
+    private function city(string $county, string $name): City
+    {
+        $city = new City();
+        $city->setCounty($this->county($county));
+        $city->setName($name);
+        $city->setNormalizedName(LocalityNormalizer::normalize($name) ?? $name);
+
+        return $city;
+    }
+
     /** @param list<string> $coveredLocalities */
     private function makeJudecatorie(string $name, string $county, array $coveredLocalities): Court
     {
         $court = new Court();
         $court->setName($name);
-        $court->setCounty($county);
+        $court->setCounty($this->county($county));
         $court->setType(CourtType::JUDECATORIE);
         $court->setActive(true);
-        $court->setCoveredLocalities($coveredLocalities);
+        foreach ($coveredLocalities as $cityName) {
+            $court->addCoveredCity($this->city($county, $cityName));
+        }
 
         return $court;
     }
@@ -333,7 +358,7 @@ class CompetentCourtResolverTest extends TestCase
     {
         $court = new Court();
         $court->setName($name);
-        $court->setCounty($county);
+        $court->setCounty($this->county($county));
         $court->setType(CourtType::TRIBUNAL);
         $court->setActive(true);
 
@@ -364,7 +389,7 @@ class CompetentCourtResolverTest extends TestCase
                 return array_values(array_filter(
                     $this->courts,
                     fn(Court $c) => $c->getType() === $type
-                        && $c->getCounty() === $county
+                        && $c->getCounty()->getName() === $county
                         && $c->isActive(),
                 ));
             }

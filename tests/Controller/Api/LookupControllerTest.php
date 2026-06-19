@@ -11,6 +11,7 @@ use App\Enum\CaseStatus;
 use App\Enum\CourtType;
 use App\Service\Company\AnafLookupException;
 use App\Service\Company\AnafLookupService;
+use App\Tests\Support\CountyFixtureTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\MockObject\MockObject;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
@@ -32,6 +33,8 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 final class LookupControllerTest extends WebTestCase
 {
     private KernelBrowser $client;
+    use CountyFixtureTrait;
+
     private EntityManagerInterface $em;
     private User $user;
     private string $testPrefix;
@@ -239,7 +242,7 @@ final class LookupControllerTest extends WebTestCase
     {
         $court = new Court();
         $court->setName($name);
-        $court->setCounty('Ilfov');
+        $court->setCounty($this->createCounty($this->em, 'Ilfov'));
         $court->setType(CourtType::JUDECATORIE);
         $court->setActive(true);
         $this->em->persist($court);

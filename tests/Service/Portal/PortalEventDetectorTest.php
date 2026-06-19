@@ -10,12 +10,15 @@ use App\Enum\CaseStatus;
 use App\Enum\CourtType;
 use App\Enum\PortalEventType;
 use App\Service\Portal\PortalEventDetector;
+use App\Tests\Support\CountyFixtureTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 class PortalEventDetectorTest extends KernelTestCase
 {
+    use CountyFixtureTrait;
+
     private EntityManagerInterface $em;
     private PortalEventDetector $detector;
     private User $user;
@@ -38,7 +41,7 @@ class PortalEventDetectorTest extends KernelTestCase
 
         $this->court = new Court();
         $this->court->setName('Test Court ' . $this->testPrefix);
-        $this->court->setCounty('CJ');
+        $this->court->setCounty($this->createCounty($this->em, 'CJ'));
         $this->court->setType(CourtType::JUDECATORIE);
         $this->court->setPortalCode('TestCourt' . uniqid());
         $this->em->persist($this->court);
