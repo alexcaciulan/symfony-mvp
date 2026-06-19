@@ -10,7 +10,9 @@ use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\DocumentType;
+use App\Enum\PenaltyType;
 use App\Enum\PersonType;
+use App\Enum\RelationshipType;
 use App\Service\Document\PaymentNoticeGeneratorService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -56,6 +58,8 @@ final class PaymentNoticeGeneratorServiceTest extends KernelTestCase
         $creditor->setName('SC Test Creditor SRL');
         $creditor->setAddress('Str. Test 1, București');
         $creditor->setCui('RO99999111');
+        $creditor->setIban('RO49AAAA1B31007593840000');
+        $creditor->setBankName('Banca Transilvania');
         $this->em->persist($creditor);
 
         $this->case = new LegalCase();
@@ -63,6 +67,7 @@ final class PaymentNoticeGeneratorServiceTest extends KernelTestCase
         $this->case->setCreditor($creditor);
         $this->case->setAmount('5000.00');
         $this->case->setCurrency('RON');
+        $this->case->setRelationshipType(RelationshipType::COMERCIAL);
         $this->case->setCalculatedInterest('312.50');
         $this->em->persist($this->case);
 
@@ -138,11 +143,80 @@ final class PaymentNoticeGeneratorServiceTest extends KernelTestCase
     public function testRenderHtmlHandlesNullInterestWithoutCrashing(): void
     {
         $this->case->setCalculatedInterest(null);
+        $this->case->setDueDate(null);
         $this->em->flush();
 
         $html = $this->service->renderHtml($this->case);
 
         self::assertStringContainsString('15 zile', $html);
         self::assertStringContainsString('5.000,00', $html, 'Cu interest=null, totalul rămâne principalul (fără crash pe + null).');
+    }
+
+    public function testRenderHtmlContainsAllStructuralSections(): void
+    {
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString('Către', $html, 'Antetul „Către" (debitor) trebuie prezent.');
+        self::assertStringContainsString('De la', $html, 'Antetul „De la" (creditor) trebuie prezent.');
+        self::assertStringContainsString('* * *', $html, 'Separatorul „* * *" trebuie prezent.');
+        self::assertStringContainsString('1014', $html, 'Temeiul CPC art. 1014 (procedura OP) trebuie citat.');
+        self::assertStringContainsString('1522', $html, 'Temeiul CC art. 1522 (punere în întârziere) trebuie citat.');
+        self::assertStringContainsString('Banca Transilvania', $html, 'Banca creditorului trebuie inclusă în identificare.');
+    }
+
+    public function testLegalPenaltyRendersInterestBreakdownTable(): void
+    {
+        // Test-DB rate fixtures: 6,50% valid from 2025-01-01 (no change until 2025-08-01),
+        // so the period 2025-01-01..2025-04-01 is a single 14,50% (BNR 6,5 + 8) block.
+        $this->case->setPenaltyType(PenaltyType::LEGAL_PENALIZATOARE);
+        $this->case->setAmount('100000.00');
+        $this->case->setDueDate(new \DateTime('2025-01-01'));
+        $this->case->setPaymentNoticeDate(new \DateTime('2025-04-01')); // 90 days, rate 14.5%
+        $this->em->flush();
+
+        $html = $this->service->renderHtml($this->case);
+
+        // 100000 * 14.5% * 90 / 365 = 3575.34
+        self::assertStringContainsString('Nr. zile', $html, 'Tabelul de dobândă trebuie să aibă coloana „Nr. zile".');
+        self::assertStringContainsString('14,50%', $html, 'Rata aplicabilă (BNR 6,5 + 8 = 14,5%) trebuie afișată.');
+        self::assertStringContainsString('3.575,34', $html, 'Totalul dobânzii legale trebuie calculat corect.');
+        self::assertStringContainsString('OG 13/2011', $html, 'Temeiul OG 13/2011 trebuie citat pe ramura legală.');
+    }
+
+    public function testContractualPenaltyRendersDailyRateLine(): void
+    {
+        $this->case->setPenaltyType(PenaltyType::CONTRACTUAL);
+        $this->case->setAmount('175525.00');
+        $this->case->setContractualPenaltyRate('0.100');
+        $this->case->setContractReference('art. 3 din Contract');
+        $due = new \DateTime('2025-02-18');
+        $this->case->setDueDate($due);
+        $this->case->setPaymentNoticeDate((clone $due)->modify('+51 days'));
+        $this->em->flush();
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString('8.951,78', $html, 'Penalitatea contractuală (0,10%/zi x 51 zile) trebuie să fie 8.951,78.');
+        self::assertStringContainsString('art. 1538', $html, 'Clauza penală trebuie citată (CC art. 1538).');
+        self::assertStringContainsString('art. 3 din Contract', $html, 'Referința contractuală trebuie afișată.');
+        self::assertStringNotContainsString('OG 13/2011', $html, 'Ramura contractuală NU trebuie să citeze OG 13/2011.');
+    }
+
+    public function testContractualPenaltyRendersLegalCostsSection(): void
+    {
+        $this->case->setPenaltyType(PenaltyType::CONTRACTUAL);
+        $this->case->setContractualPenaltyRate('0.100');
+        $this->case->setDueDate(new \DateTime('2025-02-18'));
+        $this->case->setPaymentNoticeDate(new \DateTime('2025-04-10'));
+        $this->case->setLegalCostsFixed('250.00');
+        $this->case->setLegalCostsCurrency('EUR');
+        $this->case->setLegalCostsSuccessPercent('5.00');
+        $this->em->flush();
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString('1531', $html, 'Secțiunea cheltuieli trebuie să citeze CC art. 1531.');
+        self::assertStringContainsString('250,00 EUR', $html, 'Onorariul fix trebuie afișat.');
+        self::assertStringContainsString('5,00%', $html, 'Onorariul de succes (procent) trebuie afișat.');
     }
 }

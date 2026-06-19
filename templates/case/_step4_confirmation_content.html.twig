@@ -256,11 +256,11 @@
             </div>
             <div>
                 <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.interest_label'|trans }}</div>
-                <div class="mt-1 text-lg font-bold tnum text-amber-300">{{ interest is null ? '—' : '+ ' ~ interest.total|number_format(2, '.', ',') }}</div>
+                <div class="mt-1 text-lg font-bold tnum text-amber-300">{{ accessory_total > 0 ? '+ ' ~ accessory_total|number_format(2, '.', ',') : '—' }}</div>
             </div>
             <div>
                 <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.total_label'|trans }}</div>
-                <div class="mt-1 text-lg font-bold tnum text-green-300">{{ (interest is null or claim.amount is null) ? '—' : (claim.amount + interest.total)|number_format(2, '.', ',') }}</div>
+                <div class="mt-1 text-lg font-bold tnum text-green-300">{{ claim.amount is null ? '—' : (claim.amount + accessory_total)|number_format(2, '.', ',') }}</div>
             </div>
             <div>
                 <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.stamp_duty_label'|trans }}</div>

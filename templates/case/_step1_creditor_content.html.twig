@@ -139,6 +139,12 @@
                 {{ f.field_errors(form.iban) }}
             </div>
 
+            <div class="md:col-span-2">
+                {{ f.field_label(form.bankName, 'wizard.step1.field.bank_name', true) }}
+                {{ form_widget(form.bankName, { attr: { class: f.input_classes(form.bankName)|trim, placeholder: 'Banca Transilvania' }}) }}
+                {{ f.field_errors(form.bankName) }}
+            </div>
+
             <div>
                 {{ f.field_label(form.email, 'wizard.step1.field.email', true) }}
                 {{ form_widget(form.email, { attr: { class: f.input_classes(form.email)|trim }}) }}

@@ -58,6 +58,12 @@ wizard:
             due_date_required: 'Enter the due date.'
             due_date_not_future: 'Due date cannot be in the future; the claim is not yet enforceable (CPC art. 1014).'
             relationship_required: 'Select the legal relationship type.'
+            penalty_type_required: 'Select how accessories are computed.'
+            penalty_rate_required: 'Enter the daily rate of the contractual penalty.'
+            penalty_rate_positive: 'The penalty rate must be strictly greater than 0.'
+            penalty_rate_too_high: 'The daily rate seems too high (max 5%/day). Check the value in the contract.'
+            legal_costs_fixed_positive: 'The fixed fee cannot be negative.'
+            legal_costs_percent_range: 'The success fee percentage must be between 0 and 100.'
     step4:
         error:
             must_accept_terms: 'You must accept the terms of use to continue.'

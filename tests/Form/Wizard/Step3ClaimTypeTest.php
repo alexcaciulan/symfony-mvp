@@ -6,6 +6,7 @@ namespace App\Tests\Form\Wizard;
 
 use App\DTO\Wizard\Step3ClaimData;
 use App\Enum\LegalGroundCategory;
+use App\Enum\PenaltyType;
 use App\Enum\RelationshipType;
 use App\Form\Wizard\Step3ClaimType;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -32,6 +33,7 @@ final class Step3ClaimTypeTest extends KernelTestCase
             'relationshipType' => 'COMERCIAL',
             'legalGround' => 'CONTRACT_PRESTARI_SERVICII',
             'description' => 'Factura 1234',
+            'penaltyType' => 'LEGAL_PENALIZATOARE',
         ]);
 
         self::assertTrue($form->isValid(), (string) $form->getErrors(true));
@@ -40,6 +42,7 @@ final class Step3ClaimTypeTest extends KernelTestCase
         self::assertSame(1500.0, $dto->amount);
         self::assertSame(RelationshipType::COMERCIAL, $dto->relationshipType);
         self::assertSame(LegalGroundCategory::CONTRACT_PRESTARI_SERVICII, $dto->legalGround);
+        self::assertSame(PenaltyType::LEGAL_PENALIZATOARE, $dto->penaltyType);
     }
 
     public function testFutureDueDateIsInvalid(): void

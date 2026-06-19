@@ -121,6 +121,101 @@
                     {{ f.field_errors(form.description) }}
                 </div>
             </section>
+
+            <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-5 shadow-soft">
+                <div>
+                    <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">{{ 'wizard.step3.section.accessories'|trans }}</h3>
+                    <p class="mt-1 text-[11px] text-slate-500">{{ 'wizard.step3.help.accessories'|trans }}</p>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="sm:col-span-2">
+                        {{ f.field_label(form.penaltyType, 'wizard.step3.field.penalty_type', false, true) }}
+                        {{ form_widget(form.penaltyType, { attr: { class: f.input_classes(form.penaltyType)|trim }}) }}
+                        {{ f.field_errors(form.penaltyType) }}
+                    </div>
+
+                    <div>
+                        {{ f.field_label(form.contractualPenaltyRate, 'wizard.step3.field.contractual_penalty_rate', true) }}
+                        {{ form_widget(form.contractualPenaltyRate, { attr: {
+                            class: f.input_classes(form.contractualPenaltyRate)|trim,
+                            inputmode: 'decimal',
+                            placeholder: '0.10',
+                        }}) }}
+                        <p class="mt-1 text-[11px] text-slate-500">{{ 'wizard.step3.help.contractual_penalty_rate'|trans }}</p>
+                        {{ f.field_errors(form.contractualPenaltyRate) }}
+                    </div>
+
+                    <div>
+                        {{ f.field_label(form.contractReference, 'wizard.step3.field.contract_reference', true) }}
+                        {{ form_widget(form.contractReference, { attr: {
+                            class: f.input_classes(form.contractReference)|trim,
+                            placeholder: 'art. 3 din Contract',
+                        }}) }}
+                        {{ f.field_errors(form.contractReference) }}
+                    </div>
+                </div>
+            </section>
+
+            <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-5 shadow-soft">
+                <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">{{ 'wizard.step3.section.invoice_contract'|trans }}</h3>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        {{ f.field_label(form.invoiceNumber, 'wizard.step3.field.invoice_number', true) }}
+                        {{ form_widget(form.invoiceNumber, { attr: { class: f.input_classes(form.invoiceNumber)|trim }}) }}
+                        {{ f.field_errors(form.invoiceNumber) }}
+                    </div>
+                    <div>
+                        {{ f.field_label(form.invoiceDate, 'wizard.step3.field.invoice_date', true) }}
+                        {{ form_widget(form.invoiceDate, { attr: { class: f.input_classes(form.invoiceDate)|trim }}) }}
+                        {{ f.field_errors(form.invoiceDate) }}
+                    </div>
+                    <div>
+                        {{ f.field_label(form.contractNumber, 'wizard.step3.field.contract_number', true) }}
+                        {{ form_widget(form.contractNumber, { attr: { class: f.input_classes(form.contractNumber)|trim }}) }}
+                        {{ f.field_errors(form.contractNumber) }}
+                    </div>
+                    <div>
+                        {{ f.field_label(form.contractDate, 'wizard.step3.field.contract_date', true) }}
+                        {{ form_widget(form.contractDate, { attr: { class: f.input_classes(form.contractDate)|trim }}) }}
+                        {{ f.field_errors(form.contractDate) }}
+                    </div>
+                </div>
+            </section>
+
+            <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-5 shadow-soft">
+                <div>
+                    <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">{{ 'wizard.step3.section.legal_costs'|trans }}</h3>
+                    <p class="mt-1 text-[11px] text-slate-500">{{ 'wizard.step3.help.legal_costs'|trans }}</p>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-start">
+                    <div>
+                        {{ f.field_label(form.legalCostsFixed, 'wizard.step3.field.legal_costs_fixed') }}
+                        {{ form_widget(form.legalCostsFixed, { attr: {
+                            class: f.input_classes(form.legalCostsFixed)|trim,
+                            inputmode: 'decimal',
+                            placeholder: '250.00',
+                        }}) }}
+                        {{ f.field_errors(form.legalCostsFixed) }}
+                    </div>
+                    <div>
+                        {{ f.field_label(form.legalCostsCurrency, 'wizard.step3.field.legal_costs_currency') }}
+                        {{ form_widget(form.legalCostsCurrency, { attr: { class: f.input_classes(form.legalCostsCurrency)|trim }}) }}
+                        {{ f.field_errors(form.legalCostsCurrency) }}
+                    </div>
+                    <div>
+                        {{ f.field_label(form.legalCostsSuccessPercent, 'wizard.step3.field.legal_costs_success_percent') }}
+                        {{ form_widget(form.legalCostsSuccessPercent, { attr: {
+                            class: f.input_classes(form.legalCostsSuccessPercent)|trim,
+                            inputmode: 'decimal',
+                            placeholder: '5.00',
+                        }}) }}
+                        {{ f.field_errors(form.legalCostsSuccessPercent) }}
+                    </div>
+                </div>
+            </section>
         {{ form_end(form) }}
     </div>
 

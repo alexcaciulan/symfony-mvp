@@ -67,6 +67,7 @@ class Step1CreditorData
             message: 'validation.iban.invalid_format',
         )]
         public ?string $iban = null,
+        public ?string $bankName = null,
         public ?string $legalRepresentative = null,
         public array $autoFilled = [],
     ) {}

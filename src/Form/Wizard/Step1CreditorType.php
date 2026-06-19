@@ -96,6 +96,10 @@ final class Step1CreditorType extends AbstractType
                 'label' => 'wizard.step1.field.iban',
                 'required' => false,
             ])
+            ->add('bankName', TextType::class, [
+                'label' => 'wizard.step1.field.bank_name',
+                'required' => false,
+            ])
             ->add('legalRepresentative', TextType::class, [
                 'label' => 'wizard.step1.field.legal_representative',
                 'required' => false,

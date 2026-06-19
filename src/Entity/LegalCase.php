@@ -4,6 +4,7 @@ namespace App\Entity;
 
 use App\Enum\CaseStatus;
 use App\Enum\ExtractionMode;
+use App\Enum\PenaltyType;
 use App\Enum\RelationshipType;
 use App\Repository\LegalCaseRepository;
 use Doctrine\Common\Collections\ArrayCollection;
@@ -59,6 +60,44 @@ class LegalCase
 
     #[ORM\Column(type: Types::DECIMAL, precision: 8, scale: 2, nullable: true)]
     private ?string $stampDuty = null;
+
+    /**
+     * Modul de calcul al accesoriilor pentru somație. Fallback la render:
+     * {@see PenaltyType::LEGAL_PENALIZATOARE} (dobândă legală BNR + 8).
+     */
+    #[ORM\Column(length: 30, nullable: true, enumType: PenaltyType::class)]
+    private ?PenaltyType $penaltyType = null;
+
+    /** Rată zilnică a clauzei penale (ex. 0.100 pentru 0,10%/zi), doar când penaltyType = CONTRACTUAL. */
+    #[ORM\Column(type: Types::DECIMAL, precision: 5, scale: 3, nullable: true)]
+    private ?string $contractualPenaltyRate = null;
+
+    /** Referința clauzei penale din contract (ex. „art. 3 din Contract"). */
+    #[ORM\Column(length: 100, nullable: true)]
+    private ?string $contractReference = null;
+
+    #[ORM\Column(length: 100, nullable: true)]
+    private ?string $invoiceNumber = null;
+
+    #[ORM\Column(type: Types::DATE_MUTABLE, nullable: true)]
+    private ?\DateTimeInterface $invoiceDate = null;
+
+    #[ORM\Column(length: 100, nullable: true)]
+    private ?string $contractNumber = null;
+
+    #[ORM\Column(type: Types::DATE_MUTABLE, nullable: true)]
+    private ?\DateTimeInterface $contractDate = null;
+
+    /** Onorariu fix avocațial (cheltuieli de recuperare, Cod civil art. 1531). */
+    #[ORM\Column(type: Types::DECIMAL, precision: 10, scale: 2, nullable: true)]
+    private ?string $legalCostsFixed = null;
+
+    #[ORM\Column(length: 3, nullable: true)]
+    private ?string $legalCostsCurrency = 'EUR';
+
+    /** Onorariu de succes ca procent aplicat sumelor recuperate. */
+    #[ORM\Column(type: Types::DECIMAL, precision: 5, scale: 2, nullable: true)]
+    private ?string $legalCostsSuccessPercent = null;
 
     #[ORM\Column(type: Types::DATE_MUTABLE, nullable: true)]
     private ?\DateTimeInterface $dueDate = null;
@@ -303,6 +342,126 @@ class LegalCase
     public function setStampDuty(?string $stampDuty): static
     {
         $this->stampDuty = $stampDuty;
+
+        return $this;
+    }
+
+    public function getPenaltyType(): ?PenaltyType
+    {
+        return $this->penaltyType;
+    }
+
+    public function setPenaltyType(?PenaltyType $penaltyType): static
+    {
+        $this->penaltyType = $penaltyType;
+
+        return $this;
+    }
+
+    public function getContractualPenaltyRate(): ?string
+    {
+        return $this->contractualPenaltyRate;
+    }
+
+    public function setContractualPenaltyRate(?string $contractualPenaltyRate): static
+    {
+        $this->contractualPenaltyRate = $contractualPenaltyRate;
+
+        return $this;
+    }
+
+    public function getContractReference(): ?string
+    {
+        return $this->contractReference;
+    }
+
+    public function setContractReference(?string $contractReference): static
+    {
+        $this->contractReference = $contractReference;
+
+        return $this;
+    }
+
+    public function getInvoiceNumber(): ?string
+    {
+        return $this->invoiceNumber;
+    }
+
+    public function setInvoiceNumber(?string $invoiceNumber): static
+    {
+        $this->invoiceNumber = $invoiceNumber;
+
+        return $this;
+    }
+
+    public function getInvoiceDate(): ?\DateTimeInterface
+    {
+        return $this->invoiceDate;
+    }
+
+    public function setInvoiceDate(?\DateTimeInterface $invoiceDate): static
+    {
+        $this->invoiceDate = $invoiceDate;
+
+        return $this;
+    }
+
+    public function getContractNumber(): ?string
+    {
+        return $this->contractNumber;
+    }
+
+    public function setContractNumber(?string $contractNumber): static
+    {
+        $this->contractNumber = $contractNumber;
+
+        return $this;
+    }
+
+    public function getContractDate(): ?\DateTimeInterface
+    {
+        return $this->contractDate;
+    }
+
+    public function setContractDate(?\DateTimeInterface $contractDate): static
+    {
+        $this->contractDate = $contractDate;
+
+        return $this;
+    }
+
+    public function getLegalCostsFixed(): ?string
+    {
+        return $this->legalCostsFixed;
+    }
+
+    public function setLegalCostsFixed(?string $legalCostsFixed): static
+    {
+        $this->legalCostsFixed = $legalCostsFixed;
+
+        return $this;
+    }
+
+    public function getLegalCostsCurrency(): ?string
+    {
+        return $this->legalCostsCurrency;
+    }
+
+    public function setLegalCostsCurrency(?string $legalCostsCurrency): static
+    {
+        $this->legalCostsCurrency = $legalCostsCurrency;
+
+        return $this;
+    }
+
+    public function getLegalCostsSuccessPercent(): ?string
+    {
+        return $this->legalCostsSuccessPercent;
+    }
+
+    public function setLegalCostsSuccessPercent(?string $legalCostsSuccessPercent): static
+    {
+        $this->legalCostsSuccessPercent = $legalCostsSuccessPercent;
 
         return $this;
     }

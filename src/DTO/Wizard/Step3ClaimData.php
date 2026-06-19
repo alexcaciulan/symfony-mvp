@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\DTO\Wizard;
 
 use App\Enum\LegalGroundCategory;
+use App\Enum\PenaltyType;
 use App\Enum\RelationshipType;
 use Symfony\Component\Validator\Constraints as Assert;
 
@@ -49,6 +50,38 @@ class Step3ClaimData
         public ?RelationshipType $relationshipType = RelationshipType::COMERCIAL,
         public ?LegalGroundCategory $legalGround = null,
         public ?string $description = null,
+        #[Assert\NotNull(message: 'wizard.step3.error.penalty_type_required')]
+        public ?PenaltyType $penaltyType = PenaltyType::LEGAL_PENALIZATOARE,
+        #[Assert\When(
+            expression: 'this.penaltyType === enum("App\\\\Enum\\\\PenaltyType::CONTRACTUAL")',
+            constraints: [
+                new Assert\NotNull(message: 'wizard.step3.error.penalty_rate_required'),
+                new Assert\Positive(message: 'wizard.step3.error.penalty_rate_positive'),
+                new Assert\LessThanOrEqual(
+                    value: 5,
+                    message: 'wizard.step3.error.penalty_rate_too_high',
+                ),
+            ],
+        )]
+        public ?float $contractualPenaltyRate = null,
+        public ?string $contractReference = null,
+        public ?string $invoiceNumber = null,
+        public ?\DateTimeImmutable $invoiceDate = null,
+        public ?string $contractNumber = null,
+        public ?\DateTimeImmutable $contractDate = null,
+        #[Assert\PositiveOrZero(message: 'wizard.step3.error.legal_costs_fixed_positive')]
+        public ?float $legalCostsFixed = null,
+        #[Assert\Choice(
+            choices: ['RON', 'EUR'],
+            message: 'wizard.step3.error.invalid_currency',
+        )]
+        public ?string $legalCostsCurrency = 'EUR',
+        #[Assert\Range(
+            min: 0,
+            max: 100,
+            notInRangeMessage: 'wizard.step3.error.legal_costs_percent_range',
+        )]
+        public ?float $legalCostsSuccessPercent = null,
         public array $autoFilled = [],
     ) {}
 }

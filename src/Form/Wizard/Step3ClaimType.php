@@ -6,6 +6,7 @@ namespace App\Form\Wizard;
 
 use App\DTO\Wizard\Step3ClaimData;
 use App\Enum\LegalGroundCategory;
+use App\Enum\PenaltyType;
 use App\Enum\RelationshipType;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
@@ -13,6 +14,7 @@ use Symfony\Component\Form\Extension\Core\Type\DateType;
 use Symfony\Component\Form\Extension\Core\Type\EnumType;
 use Symfony\Component\Form\Extension\Core\Type\NumberType;
 use Symfony\Component\Form\Extension\Core\Type\TextareaType;
+use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\Form\FormInterface;
 use Symfony\Component\Form\FormView;
@@ -72,6 +74,60 @@ final class Step3ClaimType extends AbstractType
             ])
             ->add('description', TextareaType::class, [
                 'label' => 'wizard.step3.field.description',
+                'required' => false,
+            ])
+            ->add('penaltyType', EnumType::class, [
+                'class' => PenaltyType::class,
+                'label' => 'wizard.step3.field.penalty_type',
+                'choice_label' => fn (PenaltyType $t) => $t->label(),
+                'required' => true,
+            ])
+            ->add('contractualPenaltyRate', NumberType::class, [
+                'label' => 'wizard.step3.field.contractual_penalty_rate',
+                'help' => 'wizard.step3.help.contractual_penalty_rate',
+                'scale' => 3,
+                'required' => false,
+            ])
+            ->add('contractReference', TextType::class, [
+                'label' => 'wizard.step3.field.contract_reference',
+                'required' => false,
+            ])
+            ->add('invoiceNumber', TextType::class, [
+                'label' => 'wizard.step3.field.invoice_number',
+                'required' => false,
+            ])
+            ->add('invoiceDate', DateType::class, [
+                'label' => 'wizard.step3.field.invoice_date',
+                'widget' => 'single_text',
+                'input' => 'datetime_immutable',
+                'required' => false,
+            ])
+            ->add('contractNumber', TextType::class, [
+                'label' => 'wizard.step3.field.contract_number',
+                'required' => false,
+            ])
+            ->add('contractDate', DateType::class, [
+                'label' => 'wizard.step3.field.contract_date',
+                'widget' => 'single_text',
+                'input' => 'datetime_immutable',
+                'required' => false,
+            ])
+            ->add('legalCostsFixed', NumberType::class, [
+                'label' => 'wizard.step3.field.legal_costs_fixed',
+                'scale' => 2,
+                'required' => false,
+            ])
+            ->add('legalCostsCurrency', ChoiceType::class, [
+                'label' => 'wizard.step3.field.legal_costs_currency',
+                'choices' => [
+                    'enum.currency.EUR' => 'EUR',
+                    'enum.currency.RON' => 'RON',
+                ],
+                'required' => false,
+            ])
+            ->add('legalCostsSuccessPercent', NumberType::class, [
+                'label' => 'wizard.step3.field.legal_costs_success_percent',
+                'scale' => 2,
                 'required' => false,
             ])
         ;

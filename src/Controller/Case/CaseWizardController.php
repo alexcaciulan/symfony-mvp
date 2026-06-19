@@ -21,6 +21,7 @@ use App\Entity\User;
 use App\Enum\DocumentType;
 use App\Enum\ExtractionStatus;
 use App\Enum\IssueSeverity;
+use App\Enum\PenaltyType;
 use App\Form\Wizard\Step0DocumentsType;
 use App\Form\Wizard\Step1CreditorType;
 use App\Form\Wizard\Step2DebtorsType;
@@ -30,6 +31,7 @@ use App\Message\ExtractDataMessage;
 use App\Repository\CreditorRepository;
 use App\Repository\DocumentRepository;
 use App\Service\AuditLogService;
+use App\Service\Calculation\ContractualPenaltyCalculator;
 use App\Service\Calculation\InterestCalculatorService;
 use App\Service\Calculation\StampDutyCalculator;
 use App\Service\Court\CompetentCourtResolver;
@@ -80,6 +82,7 @@ final class CaseWizardController extends AbstractController
         private readonly EntityManagerInterface $em,
         private readonly OpAdmissibilityValidator $admissibility,
         private readonly InterestCalculatorService $interestCalculator,
+        private readonly ContractualPenaltyCalculator $penaltyCalculator,
         private readonly StampDutyCalculator $stampDutyCalculator,
         private readonly CompetentCourtResolver $courtResolver,
         private readonly AuditLogService $auditLog,
@@ -435,7 +438,7 @@ final class CaseWizardController extends AbstractController
             // injectat (OUG 80/2013 art. 6 alin 2 — 200 RON fix); evită magic
             // numbers in cod cand cleanest source-of-truth e DI param-ul.
             $totalAmount = (float) $persisted->getAmount()
-                + ($calculations['interest']?->total ?? 0.0)
+                + ($calculations['accessoryTotal'] ?? 0.0)
                 + ($calculations['stampDuty']?->amount ?? $this->stampDutyCalculator->calculate()->amount);
 
             $this->addFlash('toast.success', [
@@ -457,7 +460,7 @@ final class CaseWizardController extends AbstractController
     }
 
     /**
-     * @param array{interest: ?InterestResult, stampDuty: ?StampDutyResult, court: ?CourtResolveResult} $calculations
+     * @param array{interest: ?InterestResult, penalty: ?PenaltyResult, accessoryTotal: float, stampDuty: ?StampDutyResult, court: ?CourtResolveResult} $calculations
      * @param list<AdmissibilityIssue> $errors
      * @param list<AdmissibilityIssue> $warnings
      * @param array{auto: list<string>, manual: list<string>} $autoFilledIndex
@@ -486,6 +489,8 @@ final class CaseWizardController extends AbstractController
             'has_errors' => $errors !== [],
             'has_warnings' => $warnings !== [],
             'interest' => $calculations['interest'],
+            'penalty' => $calculations['penalty'],
+            'accessory_total' => $calculations['accessoryTotal'] ?? 0.0,
             'stamp_duty' => $calculations['stampDuty'],
             'court' => $calculations['court'],
             'auto_filled' => $autoFilledIndex,
@@ -494,7 +499,7 @@ final class CaseWizardController extends AbstractController
 
     /**
      * @param list<int> $documentIds
-     * @param array{interest: ?InterestResult, stampDuty: ?StampDutyResult, court: ?CourtResolveResult} $calculations
+     * @param array{interest: ?InterestResult, penalty: ?PenaltyResult, accessoryTotal: float, stampDuty: ?StampDutyResult, court: ?CourtResolveResult} $calculations
      * @param array{auto: list<string>, manual: list<string>} $autoFilledIndex
      * @param list<AdmissibilityIssue> $warnings
      */
@@ -532,9 +537,10 @@ final class CaseWizardController extends AbstractController
             // at the persistence boundary.
             $case->setDueDate($claimDto->dueDate !== null ? \DateTime::createFromImmutable($claimDto->dueDate) : null);
             $case->setRelationshipType($claimDto->relationshipType);
+            $this->applyAccessoryFields($case, $claimDto);
 
-            if ($calculations['interest'] !== null) {
-                $case->setCalculatedInterest(sprintf('%.2f', $calculations['interest']->total));
+            if (($calculations['accessoryTotal'] ?? 0.0) > 0.0) {
+                $case->setCalculatedInterest(sprintf('%.2f', $calculations['accessoryTotal']));
             }
             if ($calculations['stampDuty'] !== null) {
                 $case->setStampDuty(sprintf('%.2f', $calculations['stampDuty']->amount));
@@ -616,6 +622,7 @@ final class CaseWizardController extends AbstractController
         $creditor->setEmail($dto->email);
         $creditor->setPhone($dto->phone);
         $creditor->setIban($dto->iban);
+        $creditor->setBankName($dto->bankName);
         $creditor->setLegalRepresentative($dto->legalRepresentative);
 
         $this->em->persist($creditor);
@@ -646,6 +653,29 @@ final class CaseWizardController extends AbstractController
         return $debtor;
     }
 
+    /**
+     * Copy the summons accessory configuration (penalty type, contractual rate,
+     * invoice/contract metadata, legal costs) from the claim DTO onto the case.
+     * The document recomputes the actual accessory amounts from these at render.
+     */
+    private function applyAccessoryFields(LegalCase $case, Step3ClaimData $claimDto): void
+    {
+        $case->setPenaltyType($claimDto->penaltyType ?? PenaltyType::LEGAL_PENALIZATOARE);
+        $case->setContractualPenaltyRate(
+            $claimDto->contractualPenaltyRate !== null ? sprintf('%.3f', $claimDto->contractualPenaltyRate) : null
+        );
+        $case->setContractReference($claimDto->contractReference);
+        $case->setInvoiceNumber($claimDto->invoiceNumber);
+        $case->setInvoiceDate($claimDto->invoiceDate !== null ? \DateTime::createFromImmutable($claimDto->invoiceDate) : null);
+        $case->setContractNumber($claimDto->contractNumber);
+        $case->setContractDate($claimDto->contractDate !== null ? \DateTime::createFromImmutable($claimDto->contractDate) : null);
+        $case->setLegalCostsFixed($claimDto->legalCostsFixed !== null ? sprintf('%.2f', $claimDto->legalCostsFixed) : null);
+        $case->setLegalCostsCurrency($claimDto->legalCostsCurrency);
+        $case->setLegalCostsSuccessPercent(
+            $claimDto->legalCostsSuccessPercent !== null ? sprintf('%.2f', $claimDto->legalCostsSuccessPercent) : null
+        );
+    }
+
     private function buildLegalCaseSkeleton(
         User $user,
         Step1CreditorData $creditorDto,
@@ -658,6 +688,7 @@ final class CaseWizardController extends AbstractController
         $case->setCurrency($claimDto->currency);
         $case->setDueDate($claimDto->dueDate !== null ? \DateTime::createFromImmutable($claimDto->dueDate) : null);
         $case->setRelationshipType($claimDto->relationshipType);
+        $this->applyAccessoryFields($case, $claimDto);
 
         // We attach the creditor only when picked from the catalog — the
         // skeleton is for OpAdmissibilityValidator which only looks at debtors,
@@ -708,26 +739,44 @@ final class CaseWizardController extends AbstractController
      * template renders placeholders instead of crashing the page when the
      * user is on step 3/4 with incomplete data.
      *
-     * @return array{interest: ?InterestResult, stampDuty: ?StampDutyResult, court: ?CourtResolveResult}
+     * @return array{interest: ?InterestResult, penalty: ?PenaltyResult, accessoryTotal: float, stampDuty: ?StampDutyResult, court: ?CourtResolveResult}
      */
     private function safeComputeForSidebar(Step3ClaimData $claim, ?Step2DebtorEntry $primaryDebtor): array
     {
         if ($claim->amount === null || $claim->amount <= 0.0 || $claim->dueDate === null || $claim->relationshipType === null) {
-            return ['interest' => null, 'stampDuty' => $this->safeStampDuty(), 'court' => null];
+            return ['interest' => null, 'penalty' => null, 'accessoryTotal' => 0.0, 'stampDuty' => $this->safeStampDuty(), 'court' => null];
         }
 
         $now = new \DateTimeImmutable();
 
-        try {
-            $interest = $this->interestCalculator->calculate(
+        // Accessory routing: contractual penalty (daily rate) vs. legal penalty
+        // interest (OG 13/2011, BNR + 8). Both feed the same `calculatedInterest`
+        // slot at persist; the document recomputes from penaltyType at render.
+        $interest = null;
+        $penalty = null;
+        $accessoryTotal = 0.0;
+
+        if ($claim->penaltyType === PenaltyType::CONTRACTUAL && $claim->contractualPenaltyRate !== null) {
+            $penalty = $this->penaltyCalculator->calculate(
                 $claim->amount,
+                $claim->contractualPenaltyRate,
                 $claim->dueDate,
                 $now,
-                $claim->relationshipType,
             );
-        } catch (\DomainException|\RuntimeException $e) {
-            $this->logger->info('wizard.calc.interest_failed', ['reason' => $e->getMessage()]);
-            $interest = null;
+            $accessoryTotal = $penalty->total;
+        } else {
+            try {
+                $interest = $this->interestCalculator->calculate(
+                    $claim->amount,
+                    $claim->dueDate,
+                    $now,
+                    $claim->relationshipType,
+                );
+                $accessoryTotal = $interest->total;
+            } catch (\DomainException|\RuntimeException $e) {
+                $this->logger->info('wizard.calc.interest_failed', ['reason' => $e->getMessage()]);
+                $interest = null;
+            }
         }
 
         // County extraction from unstructured Debtor.address is out of scope
@@ -749,7 +798,7 @@ final class CaseWizardController extends AbstractController
             $court = null;
         }
 
-        return ['interest' => $interest, 'stampDuty' => $this->safeStampDuty(), 'court' => $court];
+        return ['interest' => $interest, 'penalty' => $penalty, 'accessoryTotal' => $accessoryTotal, 'stampDuty' => $this->safeStampDuty(), 'court' => $court];
     }
 
     private function safeStampDuty(): ?StampDutyResult

@@ -58,6 +58,12 @@ wizard:
             due_date_required: 'Introdu data scadenței.'
             due_date_not_future: 'Scadența nu poate fi în viitor; creanța nu e încă exigibilă (CPC art. 1014).'
             relationship_required: 'Selectează tipul raportului juridic.'
+            penalty_type_required: 'Selectează modul de calcul al accesoriilor.'
+            penalty_rate_required: 'Introdu rata zilnică a penalității contractuale.'
+            penalty_rate_positive: 'Rata penalității trebuie să fie strict mai mare decât 0.'
+            penalty_rate_too_high: 'Rata zilnică pare prea mare (maxim 5%/zi). Verifică valoarea din contract.'
+            legal_costs_fixed_positive: 'Onorariul fix nu poate fi negativ.'
+            legal_costs_percent_range: 'Procentul onorariului de succes trebuie să fie între 0 și 100.'
     step4:
         error:
             must_accept_terms: 'Trebuie să accepți termenii de utilizare pentru a continua.'

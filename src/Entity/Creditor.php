@@ -50,6 +50,9 @@ class Creditor
     #[ORM\Column(length: 34, nullable: true)]
     private ?string $iban = null;
 
+    #[ORM\Column(length: 120, nullable: true)]
+    private ?string $bankName = null;
+
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $legalRepresentative = null;
 
@@ -197,6 +200,18 @@ class Creditor
     public function setIban(?string $iban): static
     {
         $this->iban = $iban;
+
+        return $this;
+    }
+
+    public function getBankName(): ?string
+    {
+        return $this->bankName;
+    }
+
+    public function setBankName(?string $bankName): static
+    {
+        $this->bankName = $bankName;
 
         return $this;
     }
