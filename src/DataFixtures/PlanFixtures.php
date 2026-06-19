@@ -14,7 +14,7 @@ class PlanFixtures extends Fixture implements FixtureGroupInterface
         [
             'name' => 'Trial',
             'priceMonthly' => '0.00',
-            'includedCases' => 2,
+            'includedCases' => 1,
             'pricePerExtra' => '0.00',
             'isTrial' => true,
         ],
