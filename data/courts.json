@@ -95,6 +95,11 @@
         "type": "tribunal"
     },
     {
+        "name": "Tribunalul Specializat Argeș",
+        "county": "Argeș",
+        "type": "tribunal_specializat"
+    },
+    {
         "name": "Judecătoria Pitești",
         "county": "Argeș",
         "type": "judecatorie",
@@ -524,6 +529,11 @@
         "name": "Tribunalul Cluj",
         "county": "Cluj",
         "type": "tribunal"
+    },
+    {
+        "name": "Tribunalul Specializat Cluj",
+        "county": "Cluj",
+        "type": "tribunal_specializat"
     },
     {
         "name": "Judecătoria Cluj-Napoca",
@@ -1079,6 +1089,11 @@
         "name": "Tribunalul Mureș",
         "county": "Mureș",
         "type": "tribunal"
+    },
+    {
+        "name": "Tribunalul Specializat Mureș",
+        "county": "Mureș",
+        "type": "tribunal_specializat"
     },
     {
         "name": "Judecătoria Târgu Mureș",

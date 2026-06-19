@@ -27,8 +27,14 @@ final class CompetentCourtResolver
     ) {}
 
     /**
+     * @param bool $computeLegalInterest When true (default) the threshold value
+     *        includes legal interest (OG 13/2011) computed internally. Set false
+     *        when the claim's accessory is a contractual penalty (passed via
+     *        $scadentPenalties) so the two accessories are not double-counted:
+     *        a contractual penalty clause stands in lieu of legal interest.
+     *
      * @throws \DomainException Propagat din InterestCalculatorService când relationshipType=CIVIL
-     *                          (B2B-only MVP per Pas 2.1 revizie C3 — fail-fast intentionat).
+     *                          (B2B-only MVP per Pas 2.1 revizie C3, fail-fast intentionat).
      * @throws \RuntimeException Când nu există configurație BNR pentru data scadenței
      *                           (`exception.calculation.interest_rate_missing`).
      */
@@ -41,6 +47,7 @@ final class CompetentCourtResolver
         ?string $debtorLocality = null,
         float $scadentPenalties = 0.0,
         InterestKind $interestKind = InterestKind::PENALIZATOARE,
+        bool $computeLegalInterest = true,
     ): CourtResolveResult {
         if ($principal < 0.0) {
             return $this->emptyResult($principal, 0.0, 0.0, 'court.resolver.invalid_amount_negative');
@@ -49,16 +56,20 @@ final class CompetentCourtResolver
             return $this->emptyResult($principal, 0.0, $scadentPenalties, 'court.resolver.invalid_amount_zero');
         }
         if ($debtorCounty === null || trim($debtorCounty) === '') {
-            $accruedInterest = $this->interestCalculator
-                ->calculate($principal, $dueDate, $referenceDate, $relationshipType, $interestKind)
-                ->total;
+            $accruedInterest = $computeLegalInterest
+                ? $this->interestCalculator
+                    ->calculate($principal, $dueDate, $referenceDate, $relationshipType, $interestKind)
+                    ->total
+                : 0.0;
 
             return $this->emptyResult($principal, $accruedInterest, $scadentPenalties, 'court.resolver.county_unknown');
         }
 
-        $accruedInterest = $this->interestCalculator
-            ->calculate($principal, $dueDate, $referenceDate, $relationshipType, $interestKind)
-            ->total;
+        $accruedInterest = $computeLegalInterest
+            ? $this->interestCalculator
+                ->calculate($principal, $dueDate, $referenceDate, $relationshipType, $interestKind)
+                ->total
+            : 0.0;
 
         $total = $principal + $accruedInterest + $scadentPenalties;
         $breakdown = new ClaimValueBreakdown($principal, $accruedInterest, $scadentPenalties, $total);
@@ -72,6 +83,17 @@ final class CompetentCourtResolver
 
     private function resolveTribunal(string $county, ClaimValueBreakdown $breakdown): CourtResolveResult
     {
+        // Specialized commercial tribunals (Cluj/Mureș/Argeș, Legea 304/2022 art. 41)
+        // take priority over the common tribunal in their county. Data-driven
+        // (query specialized first) so a future one needs only a master-data entry.
+        $specialized = $this->courtRepository->findActiveByTypeAndCounty(CourtType::TRIBUNAL_SPECIALIZAT, $county);
+        if (count($specialized) === 1) {
+            return new CourtResolveResult($specialized[0], [], 'court.resolver.matched_tribunal_specializat', $breakdown);
+        }
+        if (count($specialized) > 1) {
+            return new CourtResolveResult(null, array_values($specialized), 'court.resolver.tribunal_ambiguous', $breakdown);
+        }
+
         $candidates = $this->courtRepository->findActiveByTypeAndCounty(CourtType::TRIBUNAL, $county);
 
         if (count($candidates) === 0) {

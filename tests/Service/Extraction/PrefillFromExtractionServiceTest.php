@@ -228,6 +228,8 @@ final class PrefillFromExtractionServiceTest extends TestCase
                 'cui' => '87654321',
                 'onrcNumber' => 'J12/5678/2020',
                 'address' => 'Str. Datornic 5, Cluj-Napoca',
+                'county' => 'Cluj',
+                'locality' => 'Cluj-Napoca',
                 'email' => 'office@datornic.ro',
                 'phone' => '+40722000111',
                 // Real checksum-valid IBAN (mod-97 = 1) to avoid misleading
@@ -242,6 +244,8 @@ final class PrefillFromExtractionServiceTest extends TestCase
                     'cui' => 0.99,
                     'onrcNumber' => 0.90,
                     'address' => 0.85,
+                    'county' => 0.93,
+                    'locality' => 0.90,
                     'email' => 0.88,
                     'phone' => 0.82,
                     'iban' => 0.91,
@@ -272,12 +276,14 @@ final class PrefillFromExtractionServiceTest extends TestCase
         self::assertSame('87654321', $debtor->cui);
         self::assertSame('J12/5678/2020', $debtor->onrcNumber);
         self::assertSame('Str. Datornic 5, Cluj-Napoca', $debtor->address);
+        self::assertSame('Cluj', $debtor->addressCounty);
+        self::assertSame('Cluj-Napoca', $debtor->addressLocality);
         self::assertSame('office@datornic.ro', $debtor->email);
         self::assertSame('+40722000111', $debtor->phone);
         self::assertSame('RO49AAAA1B31007593840000', $debtor->iban);
         self::assertSame('Ionescu Maria', $debtor->administrator);
         self::assertEqualsCanonicalizing(
-            ['personType', 'name', 'cui', 'onrcNumber', 'address', 'email', 'phone', 'iban', 'administrator'],
+            ['personType', 'name', 'cui', 'onrcNumber', 'address', 'addressCounty', 'addressLocality', 'email', 'phone', 'iban', 'administrator'],
             $debtor->autoFilled,
         );
     }

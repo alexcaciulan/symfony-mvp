@@ -149,6 +149,90 @@ class CompetentCourtResolverTest extends TestCase
         $this->assertSame(300_000.0, $result->claimValue->total);
     }
 
+    public function testSpecializedTribunalCountyRoutesToSpecializedTribunal(): void
+    {
+        // B2B claim > 200k with debtor seat in Cluj (a specialized-tribunal
+        // county per Legea 304/2022 art. 41) routes to the specialized tribunal,
+        // not the common county tribunal. Routing is data-driven: the specialized
+        // entry exists in the fixtures for Cluj.
+        $courts = $this->clujCourts();
+        $courts[] = $this->makeSpecializedTribunal('Tribunalul Specializat Cluj', 'Cluj');
+
+        $resolver = $this->makeResolver(
+            courts: $courts,
+            rates: [$this->makeRateConfig('2024-01-01', '6.00')],
+        );
+
+        $sameDate = new \DateTimeImmutable('2024-06-01');
+        $result = $resolver->resolve(
+            principal: 300_000.0,
+            dueDate: $sameDate,
+            referenceDate: $sameDate,
+            relationshipType: RelationshipType::COMERCIAL,
+            debtorCounty: 'Cluj',
+            debtorLocality: 'Cluj-Napoca',
+        );
+
+        $this->assertNotNull($result->court);
+        $this->assertSame('Tribunalul Specializat Cluj', $result->court->getName());
+        $this->assertSame(CourtType::TRIBUNAL_SPECIALIZAT, $result->court->getType());
+        $this->assertSame('court.resolver.matched_tribunal_specializat', $result->explanationKey);
+    }
+
+    public function testTwoSpecializedTribunalsInSameCountyReturnsTribunalAmbiguous(): void
+    {
+        // Defensive guard for invalid master data: two active specialized
+        // tribunals in one county → null court + both alternatives for manual pick.
+        $courts = [
+            $this->makeSpecializedTribunal('Tribunalul Specializat Cluj A', 'Cluj'),
+            $this->makeSpecializedTribunal('Tribunalul Specializat Cluj B', 'Cluj'),
+        ];
+
+        $resolver = $this->makeResolver(
+            courts: $courts,
+            rates: [$this->makeRateConfig('2024-01-01', '6.00')],
+        );
+
+        $sameDate = new \DateTimeImmutable('2024-06-01');
+        $result = $resolver->resolve(
+            principal: 300_000.0,
+            dueDate: $sameDate,
+            referenceDate: $sameDate,
+            relationshipType: RelationshipType::COMERCIAL,
+            debtorCounty: 'Cluj',
+            debtorLocality: 'Cluj-Napoca',
+        );
+
+        $this->assertNull($result->court);
+        $this->assertCount(2, $result->alternatives);
+        $this->assertSame('court.resolver.tribunal_ambiguous', $result->explanationKey);
+    }
+
+    public function testTribunalCountyWithoutSpecializedFallsBackToCommonTribunal(): void
+    {
+        // A county without a specialized tribunal (Iași) routes a > 200k claim to
+        // the common county tribunal. Guards the data-driven fallback branch.
+        $resolver = $this->makeResolver(
+            courts: [$this->makeTribunal('Tribunalul Iași', 'Iași')],
+            rates: [$this->makeRateConfig('2024-01-01', '6.00')],
+        );
+
+        $sameDate = new \DateTimeImmutable('2024-06-01');
+        $result = $resolver->resolve(
+            principal: 300_000.0,
+            dueDate: $sameDate,
+            referenceDate: $sameDate,
+            relationshipType: RelationshipType::COMERCIAL,
+            debtorCounty: 'Iași',
+            debtorLocality: 'Iași',
+        );
+
+        $this->assertNotNull($result->court);
+        $this->assertSame('Tribunalul Iași', $result->court->getName());
+        $this->assertSame(CourtType::TRIBUNAL, $result->court->getType());
+        $this->assertSame('court.resolver.matched_tribunal', $result->explanationKey);
+    }
+
     public function testZeroPrincipalReturnsInvalidAmountZero(): void
     {
         $resolver = $this->makeResolver(
@@ -226,6 +310,36 @@ class CompetentCourtResolverTest extends TestCase
         $this->assertSame(0.0, $result->claimValue->accruedInterest);
         $this->assertSame(2_000.0, $result->claimValue->scadentPenalties);
         $this->assertSame(201_000.0, $result->claimValue->total);
+    }
+
+    public function testComputeLegalInterestFalseSuppressesInterestForContractualPenalty(): void
+    {
+        // A claim with a contractual penalty must NOT also accrue legal interest
+        // (double accessory). A full year at BNR 7% + 8 = 15% would add ~28.5k,
+        // pushing 190k over the 200k threshold; suppression keeps the total at
+        // principal + scadent penalties = 192k → judecătorie.
+        $resolver = $this->makeResolver(
+            courts: $this->clujCourts(),
+            rates: [$this->makeRateConfig('2024-01-01', '7.00')],
+        );
+
+        $result = $resolver->resolve(
+            principal: 190_000.0,
+            dueDate: new \DateTimeImmutable('2024-01-01'),
+            referenceDate: new \DateTimeImmutable('2025-01-01'),
+            relationshipType: RelationshipType::COMERCIAL,
+            debtorCounty: 'Cluj',
+            debtorLocality: 'Cluj-Napoca',
+            scadentPenalties: 2_000.0,
+            computeLegalInterest: false,
+        );
+
+        $this->assertNotNull($result->court, 'With interest suppressed the total stays under 200k → judecătorie');
+        $this->assertSame('Judecătoria Cluj-Napoca', $result->court->getName());
+        $this->assertSame('court.resolver.matched_judecatorie', $result->explanationKey);
+        $this->assertSame(0.0, $result->claimValue->accruedInterest, 'Legal interest must be suppressed');
+        $this->assertSame(2_000.0, $result->claimValue->scadentPenalties);
+        $this->assertSame(192_000.0, $result->claimValue->total);
     }
 
     public function testNegativePrincipalReturnsInvalidAmountNegative(): void
@@ -360,6 +474,17 @@ class CompetentCourtResolverTest extends TestCase
         $court->setName($name);
         $court->setCounty($this->county($county));
         $court->setType(CourtType::TRIBUNAL);
+        $court->setActive(true);
+
+        return $court;
+    }
+
+    private function makeSpecializedTribunal(string $name, string $county): Court
+    {
+        $court = new Court();
+        $court->setName($name);
+        $court->setCounty($this->county($county));
+        $court->setType(CourtType::TRIBUNAL_SPECIALIZAT);
         $court->setActive(true);
 
         return $court;

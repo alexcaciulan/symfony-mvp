@@ -86,6 +86,11 @@ final class LookupController extends AbstractController
             'companyName' => $data['companyName'],
             'cui' => $data['cui'],
             'address' => self::composeAddress($data),
+            // Structured county + locality feed the competent-court resolver at
+            // step 4 (judecatorie/tribunal teritorial). Kept separate from the
+            // composed `address` string, which stays the human-readable display.
+            'county' => $data['county'],
+            'locality' => $data['city'],
             'anafStatus' => $data['stare'],
             'anafCheckedAt' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
         ]);
@@ -106,6 +111,22 @@ final class LookupController extends AbstractController
         $query = trim((string) $request->query->get('q', ''));
 
         return new JsonResponse($courtRepository->findForUserAutocomplete($user, $query));
+    }
+
+    /**
+     * Remote source for the wizard step-4 competent-court picker (Tom Select
+     * `load` callback). Searches ALL active courts by name (NOT scoped to the
+     * user's cases): a brand-new case may need any court. The `q` query is
+     * matched case-insensitively, capped at 20 results.
+     */
+    #[Route('/courts-all-lookup', name: 'courts_all_lookup', methods: ['GET'])]
+    public function courtsAllLookup(
+        Request $request,
+        CourtRepository $courtRepository,
+    ): JsonResponse {
+        $query = trim((string) $request->query->get('q', ''));
+
+        return new JsonResponse($courtRepository->searchActiveByName($query));
     }
 
     /**

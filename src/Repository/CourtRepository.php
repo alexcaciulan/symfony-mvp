@@ -18,6 +18,37 @@ class CourtRepository extends ServiceEntityRepository
         parent::__construct($registry, Court::class);
     }
 
+    /**
+     * Search ALL active courts by name (load-on-type source for the step-4
+     * competent-court Tom Select). Unlike {@see findForUserAutocomplete()} it is
+     * NOT scoped to the user's existing cases: a brand-new case may need any
+     * court in the country. Label carries the county for disambiguation.
+     *
+     * @return list<array{value: int, label: string}>
+     */
+    public function searchActiveByName(string $query, int $limit = 20): array
+    {
+        $qb = $this->createQueryBuilder('c')
+            ->select('c.id AS value', 'c.name AS name', 'co.name AS county')
+            ->join('c.county', 'co')
+            ->where('c.active = true')
+            ->orderBy('c.name', 'ASC')
+            ->setMaxResults($limit);
+
+        if ($query !== '') {
+            $qb->andWhere('LOWER(c.name) LIKE :q')
+                ->setParameter('q', '%' . addcslashes(mb_strtolower($query), '\\%_') . '%');
+        }
+
+        /** @var list<array{value: int, name: string, county: string}> $rows */
+        $rows = $qb->getQuery()->getArrayResult();
+
+        return array_map(
+            static fn (array $r): array => ['value' => $r['value'], 'label' => $r['name'] . ' · ' . $r['county']],
+            $rows,
+        );
+    }
+
     /** @return Court[] */
     public function findActiveByCounty(string $county): array
     {

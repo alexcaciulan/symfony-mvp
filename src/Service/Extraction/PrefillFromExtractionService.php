@@ -136,7 +136,7 @@ final class PrefillFromExtractionService
                 continue;
             }
             $confidence = is_array($debtor['confidencePerField'] ?? null) ? $debtor['confidencePerField'] : [];
-            foreach (['personType', 'name', 'cui', 'personalId', 'onrcNumber', 'address', 'email', 'phone', 'iban', 'administrator'] as $field) {
+            foreach (['personType', 'name', 'cui', 'personalId', 'onrcNumber', 'address', 'county', 'locality', 'email', 'phone', 'iban', 'administrator'] as $field) {
                 $this->captureCandidate($bag, $field, $debtor[$field] ?? null, $confidence[$field] ?? null);
             }
         }
@@ -239,6 +239,15 @@ final class PrefillFromExtractionService
         $picked = $this->pickBest($candidates);
         $v = $picked['values'];
 
+        // Extraction emits `county`/`locality`; the form fields are
+        // `addressCounty`/`addressLocality`. Remap so the ⚡ auto-filled badge
+        // lands on the right inputs (AutoFilledMarker matches by field name).
+        $autoFilled = array_map(static fn (string $f): string => match ($f) {
+            'county' => 'addressCounty',
+            'locality' => 'addressLocality',
+            default => $f,
+        }, $picked['autoFilled']);
+
         return new Step2DebtorEntry(
             personType: $this->toPersonType($v['personType'] ?? null),
             name: $this->toStringOrNull($v['name'] ?? null),
@@ -246,11 +255,13 @@ final class PrefillFromExtractionService
             personalId: $this->toStringOrNull($v['personalId'] ?? null),
             onrcNumber: $this->toStringOrNull($v['onrcNumber'] ?? null),
             address: $this->toStringOrNull($v['address'] ?? null),
+            addressCounty: $this->toStringOrNull($v['county'] ?? null),
+            addressLocality: $this->toStringOrNull($v['locality'] ?? null),
             email: $this->toStringOrNull($v['email'] ?? null),
             phone: $this->toStringOrNull($v['phone'] ?? null),
             iban: $this->toStringOrNull($v['iban'] ?? null),
             administrator: $this->toStringOrNull($v['administrator'] ?? null),
-            autoFilled: $picked['autoFilled'],
+            autoFilled: $autoFilled,
         );
     }
 

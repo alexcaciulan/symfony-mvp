@@ -118,6 +118,43 @@ final class Step2DebtorEntryTypeTest extends KernelTestCase
         self::assertSame('14186770', $dto->cui);
     }
 
+    public function testSubmitBindsCountyAndLocality(): void
+    {
+        $form = $this->buildForm();
+        $form->submit([
+            'personType' => 'PJ',
+            'name' => 'SC Bar SRL',
+            'cui' => '14186770',
+            'onrcNumber' => 'J40/8765/2019',
+            'address' => 'Bd. Test 2',
+            'addressCounty' => 'Cluj',
+            'addressLocality' => 'Cluj-Napoca',
+        ]);
+
+        self::assertTrue($form->isValid(), (string) $form->getErrors(true));
+        $dto = $form->getData();
+        self::assertSame('Cluj', $dto->addressCounty);
+        self::assertSame('Cluj-Napoca', $dto->addressLocality);
+    }
+
+    public function testCountyAndLocalityAreOptional(): void
+    {
+        $form = $this->buildForm();
+        $form->submit([
+            'personType' => 'PJ',
+            'name' => 'SC Bar SRL',
+            'cui' => '14186770',
+            'onrcNumber' => 'J40/8765/2019',
+            'address' => 'Bd. Test 2',
+            // addressCounty + addressLocality omitted
+        ]);
+
+        self::assertTrue($form->isValid(), (string) $form->getErrors(true));
+        $dto = $form->getData();
+        self::assertNull($dto->addressCounty);
+        self::assertNull($dto->addressLocality);
+    }
+
     public function testAutoFilledFieldsCarryDataAttribute(): void
     {
         $dto = new Step2DebtorEntry(

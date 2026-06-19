@@ -9,17 +9,23 @@ use App\DTO\Wizard\Step2DebtorEntry;
 use App\DTO\Wizard\Step2DebtorsData;
 use App\DTO\Wizard\Step3ClaimData;
 use App\Entity\AuditLog;
+use App\Entity\City;
+use App\Entity\Court;
 use App\Entity\Creditor;
 use App\Entity\Debtor;
 use App\Entity\Document;
+use App\Entity\InterestRateConfig;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\AnafStatus;
+use App\Enum\CourtType;
 use App\Enum\DocumentType;
 use App\Enum\ExtractionStatus;
 use App\Enum\PersonType;
 use App\Enum\RelationshipType;
 use App\Service\AuditLogService;
+use App\Service\Court\LocalityNormalizer;
+use App\Tests\Support\CountyFixtureTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -37,6 +43,8 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
  */
 final class CaseWizardControllerStep1To4Test extends WebTestCase
 {
+    use CountyFixtureTrait;
+
     private const SESSION_KEY = 'case_wizard_data';
 
     private KernelBrowser $client;
@@ -74,6 +82,15 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         $conn->executeStatement('DELETE FROM legal_case WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM creditor WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM `user` WHERE id = :id', ['id' => $userId]);
+
+        // Court / city / county fixtures seeded for competent-court resolution.
+        // legal_case (which FKs court_id) is already gone above.
+        $conn->executeStatement('DELETE ccc FROM court_covered_city ccc JOIN court c ON ccc.court_id = c.id WHERE c.name LIKE ?', ['Wiztest%']);
+        $conn->executeStatement('DELETE FROM court WHERE name LIKE ?', ['Wiztest%']);
+        $conn->executeStatement('DELETE FROM city WHERE name LIKE ?', ['Wiztest%']);
+        $conn->executeStatement('DELETE FROM county WHERE name LIKE ?', ['Wiztest%']);
+        // Sentinel BNR rate seeded by ensureBnrRate() (this date is used nowhere else).
+        $conn->executeStatement("DELETE FROM interest_rate_config WHERE valid_from = '2000-01-01'");
 
         parent::tearDown();
     }
@@ -459,6 +476,257 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         self::assertResponseRedirects('/case/' . $fresh->getLegalCase()->getId());
     }
 
+    public function testConfirmationSubmitResolvesAndPersistsCompetentCourt(): void
+    {
+        $this->ensureBnrRate();
+        $token = (string) uniqid();
+        $county = 'Wiztestjud' . $token;
+        $locality = 'Wiztestloc' . $token;
+        $court = $this->seedJudecatorie($county, $locality);
+
+        $this->primeSessionForStep4(
+            personType: PersonType::PJ,
+            anafStatus: AnafStatus::ACTIV,
+            anafCheckedAt: new \DateTimeImmutable('-1 day'),
+            insolvencyCheckedAt: new \DateTimeImmutable('-1 day'),
+            addressCounty: $county,
+            addressLocality: $locality,
+        );
+
+        $crawler = $this->client->request('GET', '/case/new/confirmation');
+        $tokenField = $crawler->filter('form input[name="step4_confirmation[_token]"]')->first()->attr('value');
+
+        $this->client->request('POST', '/case/new/confirmation', [
+            'step4_confirmation' => [
+                '_token' => $tokenField,
+                'acceptTerms' => '1',
+                'acceptDataAccuracy' => '1',
+            ],
+        ]);
+
+        $this->em->clear();
+        $cases = $this->em->getRepository(LegalCase::class)->findBy(['user' => $this->user]);
+        self::assertCount(1, $cases);
+        self::assertNotNull($cases[0]->getCourt(), 'Competent court must be auto-resolved and persisted');
+        self::assertSame($court->getId(), $cases[0]->getCourt()->getId());
+
+        $audit = $this->em->getRepository(AuditLog::class)->findOneBy([
+            'category' => AuditLogService::CATEGORY_WIZARD_SUBMIT,
+            'user' => $this->user,
+        ]);
+        self::assertSame('auto', $audit->getNewData()['court_resolution']);
+        self::assertSame($court->getId(), $audit->getNewData()['court_id']);
+    }
+
+    public function testConfirmationSubmitLeavesCourtNullWhenLocalityUnmatched(): void
+    {
+        $this->ensureBnrRate();
+        $token = (string) uniqid();
+        $county = 'Wiztestjud' . $token;
+        // Seed a judecătorie in the county but covering a DIFFERENT locality, so
+        // the debtor's locality finds no match → resolver returns court=null,
+        // submit still proceeds (per spec C5).
+        $this->seedJudecatorie($county, 'Wiztestloc' . $token);
+
+        $this->primeSessionForStep4(
+            personType: PersonType::PJ,
+            anafStatus: AnafStatus::ACTIV,
+            anafCheckedAt: new \DateTimeImmutable('-1 day'),
+            insolvencyCheckedAt: new \DateTimeImmutable('-1 day'),
+            addressCounty: $county,
+            addressLocality: 'Wiztest Localitate Fara Acoperire',
+        );
+
+        $crawler = $this->client->request('GET', '/case/new/confirmation');
+        $tokenField = $crawler->filter('form input[name="step4_confirmation[_token]"]')->first()->attr('value');
+
+        $this->client->request('POST', '/case/new/confirmation', [
+            'step4_confirmation' => [
+                '_token' => $tokenField,
+                'acceptTerms' => '1',
+                'acceptDataAccuracy' => '1',
+            ],
+        ]);
+
+        $this->em->clear();
+        $cases = $this->em->getRepository(LegalCase::class)->findBy(['user' => $this->user]);
+        self::assertCount(1, $cases, 'Case must still persist when court is undetermined');
+        self::assertNull($cases[0]->getCourt(), 'Court must remain null when locality is unmatched');
+
+        $audit = $this->em->getRepository(AuditLog::class)->findOneBy([
+            'category' => AuditLogService::CATEGORY_WIZARD_SUBMIT,
+            'user' => $this->user,
+        ]);
+        self::assertSame('none', $audit->getNewData()['court_resolution']);
+        self::assertNull($audit->getNewData()['court_id']);
+    }
+
+    public function testConfirmationSubmitIgnoresInactiveCourtId(): void
+    {
+        // The court id is a free hidden value fed by the Tom Select picker; the
+        // controller loads it and rejects a non-active court (defends against a
+        // tampered id). With no county the case is filed with court undetermined.
+        $token = (string) uniqid();
+        $county = $this->createCounty($this->em, 'Wiztestjud' . $token);
+        $inactive = new Court();
+        $inactive->setName('Wiztest Judecătoria Inactiva ' . $token);
+        $inactive->setCounty($county);
+        $inactive->setType(CourtType::JUDECATORIE);
+        $inactive->setActive(false);
+        $this->em->persist($inactive);
+        $this->em->flush();
+        $inactiveId = $inactive->getId();
+
+        $this->primeSessionForStep4(
+            personType: PersonType::PJ,
+            anafStatus: AnafStatus::ACTIV,
+            anafCheckedAt: new \DateTimeImmutable('-1 day'),
+            insolvencyCheckedAt: new \DateTimeImmutable('-1 day'),
+        );
+
+        $crawler = $this->client->request('GET', '/case/new/confirmation');
+        $tokenField = $crawler->filter('form input[name="step4_confirmation[_token]"]')->first()->attr('value');
+
+        $this->client->request('POST', '/case/new/confirmation', [
+            'step4_confirmation' => [
+                '_token' => $tokenField,
+                'acceptTerms' => '1',
+                'acceptDataAccuracy' => '1',
+                'court' => (string) $inactiveId,
+            ],
+        ]);
+
+        // Case is filed (hidden court id is optional), but the inactive court is
+        // rejected server-side → not persisted on the case.
+        $this->em->clear();
+        $cases = $this->em->getRepository(LegalCase::class)->findBy(['user' => $this->user]);
+        self::assertCount(1, $cases, 'Case still persists');
+        self::assertNull($cases[0]->getCourt(), 'Inactive court id must not be persisted');
+    }
+
+    public function testConfirmationSubmitPersistsManuallyPickedCourtWhenAutoUnresolved(): void
+    {
+        $token = (string) uniqid();
+        $court = $this->seedJudecatorie('Wiztestjud' . $token, 'Wiztestloc' . $token);
+
+        // No addressCounty → auto resolution yields county_unknown (court=null);
+        // the user picks the court manually via the step-4 autocomplete.
+        $this->primeSessionForStep4(
+            personType: PersonType::PJ,
+            anafStatus: AnafStatus::ACTIV,
+            anafCheckedAt: new \DateTimeImmutable('-1 day'),
+            insolvencyCheckedAt: new \DateTimeImmutable('-1 day'),
+        );
+
+        $crawler = $this->client->request('GET', '/case/new/confirmation');
+        $tokenField = $crawler->filter('form input[name="step4_confirmation[_token]"]')->first()->attr('value');
+
+        $this->client->request('POST', '/case/new/confirmation', [
+            'step4_confirmation' => [
+                '_token' => $tokenField,
+                'acceptTerms' => '1',
+                'acceptDataAccuracy' => '1',
+                'court' => (string) $court->getId(),
+            ],
+        ]);
+
+        $this->em->clear();
+        $cases = $this->em->getRepository(LegalCase::class)->findBy(['user' => $this->user]);
+        self::assertCount(1, $cases);
+        self::assertNotNull($cases[0]->getCourt(), 'Manually picked court must be persisted');
+        self::assertSame($court->getId(), $cases[0]->getCourt()->getId());
+
+        $audit = $this->em->getRepository(AuditLog::class)->findOneBy([
+            'category' => AuditLogService::CATEGORY_WIZARD_SUBMIT,
+            'user' => $this->user,
+        ]);
+        self::assertSame('manual', $audit->getNewData()['court_resolution']);
+        self::assertSame($court->getId(), $audit->getNewData()['court_id']);
+    }
+
+    public function testConfirmationSubmitManualCourtOverridesAutoResolution(): void
+    {
+        $this->ensureBnrRate();
+        $token = (string) uniqid();
+        $county = 'Wiztestjud' . $token;
+        $locality = 'Wiztestloc' . $token;
+        $this->seedJudecatorie($county, $locality);                  // auto-resolves to this
+        $override = $this->seedJudecatorie('Wiztestjudb' . $token, 'Wiztestlocb' . $token);
+
+        $this->primeSessionForStep4(
+            personType: PersonType::PJ,
+            anafStatus: AnafStatus::ACTIV,
+            anafCheckedAt: new \DateTimeImmutable('-1 day'),
+            insolvencyCheckedAt: new \DateTimeImmutable('-1 day'),
+            addressCounty: $county,
+            addressLocality: $locality,
+        );
+
+        $crawler = $this->client->request('GET', '/case/new/confirmation');
+        $tokenField = $crawler->filter('form input[name="step4_confirmation[_token]"]')->first()->attr('value');
+
+        $this->client->request('POST', '/case/new/confirmation', [
+            'step4_confirmation' => [
+                '_token' => $tokenField,
+                'acceptTerms' => '1',
+                'acceptDataAccuracy' => '1',
+                'court' => (string) $override->getId(),
+            ],
+        ]);
+
+        $this->em->clear();
+        $cases = $this->em->getRepository(LegalCase::class)->findBy(['user' => $this->user]);
+        self::assertCount(1, $cases);
+        self::assertSame($override->getId(), $cases[0]->getCourt()->getId(), 'Manual override must beat auto resolution');
+
+        $audit = $this->em->getRepository(AuditLog::class)->findOneBy([
+            'category' => AuditLogService::CATEGORY_WIZARD_SUBMIT,
+            'user' => $this->user,
+        ]);
+        self::assertSame('manual', $audit->getNewData()['court_resolution']);
+    }
+
+    private function seedJudecatorie(string $countyName, string $cityName): Court
+    {
+        $county = $this->createCounty($this->em, $countyName);
+
+        $city = new City();
+        $city->setCounty($county);
+        $city->setName($cityName);
+        $city->setNormalizedName(LocalityNormalizer::normalize($cityName) ?? $cityName);
+        $this->em->persist($city);
+
+        $court = new Court();
+        $court->setName('Wiztest Judecătoria ' . $cityName);
+        $court->setCounty($county);
+        $court->setType(CourtType::JUDECATORIE);
+        $court->setActive(true);
+        $court->addCoveredCity($city);
+        $this->em->persist($court);
+        $this->em->flush();
+
+        return $court;
+    }
+
+    /**
+     * Ensure a BNR reference rate exists for the (-30 days) due date so the
+     * resolver's internal interest calc does not throw. Find-or-create avoids
+     * the unique(validFrom) collision across runs (tearDown keeps rate data).
+     */
+    private function ensureBnrRate(): void
+    {
+        $repo = $this->em->getRepository(InterestRateConfig::class);
+        if ($repo->findRateValidAt(new \DateTimeImmutable('-30 days')) !== null) {
+            return;
+        }
+
+        $config = new InterestRateConfig();
+        $config->setValidFrom(new \DateTimeImmutable('2000-01-01'));
+        $config->setReferenceRate('7.00');
+        $this->em->persist($config);
+        $this->em->flush();
+    }
+
     /**
      * @param list<int> $documentIds
      */
@@ -468,6 +736,8 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         ?\DateTimeImmutable $anafCheckedAt = null,
         ?\DateTimeImmutable $insolvencyCheckedAt = null,
         array $documentIds = [],
+        ?string $addressCounty = null,
+        ?string $addressLocality = null,
     ): void {
         $anafCheckedAt ??= new \DateTimeImmutable('-1 day');
 
@@ -483,6 +753,8 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
             name: 'Acme Debtor SRL',
             cui: 'RO14186770',
             address: 'Str. Debitor nr. 2, Cluj-Napoca',
+            addressCounty: $addressCounty,
+            addressLocality: $addressLocality,
             anafStatus: $anafStatus,
             anafCheckedAt: $anafCheckedAt,
             insolvencyCheckedAt: $insolvencyCheckedAt,

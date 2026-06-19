@@ -52,6 +52,7 @@ class CourtCrudController extends AbstractCrudController
             ->setChoices([
                 'Judecătorie' => CourtType::JUDECATORIE,
                 'Tribunal' => CourtType::TRIBUNAL,
+                'Tribunal specializat' => CourtType::TRIBUNAL_SPECIALIZAT,
             ]);
         yield TextField::new('address', 'Adresă')->hideOnIndex();
         yield EmailField::new('email', 'Email')->hideOnIndex();
@@ -66,6 +67,7 @@ class CourtCrudController extends AbstractCrudController
             ->add(ChoiceFilter::new('type', 'Tip')->setChoices([
                 'Judecătorie' => 'judecatorie',
                 'Tribunal' => 'tribunal',
+                'Tribunal specializat' => 'tribunal_specializat',
             ]))
             ->add(BooleanFilter::new('active', 'Activ'));
     }

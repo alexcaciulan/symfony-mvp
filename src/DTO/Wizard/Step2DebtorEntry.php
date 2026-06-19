@@ -39,6 +39,11 @@ class Step2DebtorEntry
         public ?string $onrcNumber = null,
         #[Assert\NotBlank(message: 'wizard.step2.error.address_required')]
         public ?string $address = null,
+        // County + locality drive competent-court resolution. Optional: when
+        // missing the resolver returns court=null (manual pick at step 4).
+        // Populated by the ANAF lookup, AI extraction, or manually.
+        public ?string $addressCounty = null,
+        public ?string $addressLocality = null,
         #[Assert\Email(message: 'validation.email.invalid')]
         public ?string $email = null,
         public ?string $phone = null,

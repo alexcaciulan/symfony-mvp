@@ -13,6 +13,8 @@ import { Controller } from '@hotwired/stimulus';
  * On success the controller writes:
  *   - companyName  → the [name] target
  *   - composed address (street + nr + city + county) → the [address] target
+ *   - county / locality → the [addressCounty] / [addressLocality] targets
+ *     (structured, feed the competent-court resolver at step 4)
  *   - anafStatus value (`ACTIV`/`INACTIV`/`RADIAT`) → the hidden [anafStatus]
  *   - ISO8601 timestamp → the hidden [anafCheckedAt]
  *   - the emerald "ANAF verificat" badge is unhidden
@@ -21,7 +23,7 @@ import { Controller } from '@hotwired/stimulus';
  * existing toast_controller.js picks them up.
  */
 export default class extends Controller {
-    static targets = ['cui', 'name', 'address', 'anafStatus', 'anafCheckedAt', 'badge', 'spinner'];
+    static targets = ['cui', 'name', 'address', 'addressCounty', 'addressLocality', 'anafStatus', 'anafCheckedAt', 'badge', 'spinner'];
     static values = {
         url: String,
         // English fallbacks — actual user-facing text vine via template:
@@ -76,6 +78,12 @@ export default class extends Controller {
         }
         if (this.hasAddressTarget && data.address) {
             this.setFieldValue(this.addressTarget, data.address);
+        }
+        if (this.hasAddressCountyTarget && data.county) {
+            this.setFieldValue(this.addressCountyTarget, data.county);
+        }
+        if (this.hasAddressLocalityTarget && data.locality) {
+            this.setFieldValue(this.addressLocalityTarget, data.locality);
         }
         if (this.hasAnafStatusTarget && data.anafStatus) {
             this.anafStatusTarget.value = data.anafStatus;

@@ -301,6 +301,8 @@ wizard:
             personal_id: 'Personal ID (CNP)'
             onrc_number: 'Trade registry number'
             address: 'Address'
+            address_county: 'County'
+            address_locality: 'Locality'
             email: 'Email'
             phone: 'Phone'
             iban: 'IBAN'
@@ -431,6 +433,13 @@ wizard:
                 total: 'Total claim: %total% RON'
         final_calculations:
             title: 'Final calculations'
+        court:
+            label: 'Competent court'
+            help_auto: 'Determined automatically from the claim value and the debtor seat. You can change it.'
+            help_manual: 'The court could not be determined automatically. Please pick the competent court from the list.'
+            pick_placeholder: 'Search the court...'
+            search_hint: 'Type at least 2 letters to search.'
+            no_results: 'No court found.'
         button:
             submit: 'Save case'
             back: 'Edit (back to step 3)'
@@ -1434,6 +1443,7 @@ enum:
     court_type:
         judecatorie: 'Local court'
         tribunal: 'Tribunal'
+        tribunal_specializat: 'Specialized tribunal'
     uat_type:
         municipiu: 'Municipality'
         oras: 'Town'
@@ -1607,6 +1617,7 @@ court:
         locality_ambiguous: 'The locality matches multiple local courts. Please pick the correct one manually.'
         matched_judecatorie: 'Local court (judecătorie) competent per CPC art. 94 + 107 (territorial jurisdiction).'
         matched_tribunal: 'Tribunal competent per CPC art. 95 (above 200,000 RON threshold on the total claim value with accessories, CPC art. 98).'
+        matched_tribunal_specializat: 'Specialized tribunal competent for litigation between professionals (Law 304/2022 art. 41). Verify the court practice before filing.'
         tribunal_missing: 'No active tribunal in %county%. Please contact the administrator.'
         tribunal_ambiguous: 'Multiple active tribunals in %county%. Please verify the configuration data.'
 

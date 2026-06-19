@@ -301,6 +301,8 @@ wizard:
             personal_id: 'CNP'
             onrc_number: 'Număr Reg. Comerțului'
             address: 'Adresă'
+            address_county: 'Județ'
+            address_locality: 'Localitate'
             email: 'Email'
             phone: 'Telefon'
             iban: 'IBAN'
@@ -431,6 +433,13 @@ wizard:
                 total: 'Total cerere: %total% RON'
         final_calculations:
             title: 'Calcule finale'
+        court:
+            label: 'Instanța competentă'
+            help_auto: 'Determinată automat din valoarea cererii și sediul debitorului. O poți schimba.'
+            help_manual: 'Nu am putut determina automat instanța. Alege instanța competentă din listă.'
+            pick_placeholder: 'Caută instanța...'
+            search_hint: 'Tastează cel puțin 2 litere pentru a căuta.'
+            no_results: 'Nicio instanță găsită.'
         button:
             submit: 'Salvează dosar'
             back: 'Editează (înapoi pas 3)'
@@ -1436,6 +1445,7 @@ enum:
     court_type:
         judecatorie: 'Judecătorie'
         tribunal: 'Tribunal'
+        tribunal_specializat: 'Tribunal specializat'
     uat_type:
         municipiu: 'Municipiu'
         oras: 'Oraș'
@@ -1609,6 +1619,7 @@ court:
         locality_ambiguous: 'Localitatea se potrivește cu mai multe judecătorii. Alege manual instanța corectă.'
         matched_judecatorie: 'Judecătorie competentă conform CPC art. 94 + 107 (raza teritorială).'
         matched_tribunal: 'Tribunal competent conform CPC art. 95 (peste pragul 200.000 RON, valoare totală cu accesorii, CPC art. 98).'
+        matched_tribunal_specializat: 'Tribunal specializat competent pentru litigii între profesioniști (Legea 304/2022 art. 41). Verifică practica instanței înainte de depunere.'
         tribunal_missing: 'Niciun tribunal activ în județul %county%. Contactează administratorul.'
         tribunal_ambiguous: 'Mai multe tribunale active în județul %county%. Verifică datele de configurare.'
 

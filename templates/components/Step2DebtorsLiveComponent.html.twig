@@ -164,6 +164,26 @@
                             {{ f.field_errors(entry.address) }}
                         </div>
 
+                        {# County + locality drive competent-court resolution at step 4.
+                           Auto-filled by the ANAF lookup; editable as manual fallback. #}
+                        <div>
+                            {{ f.field_label(entry.addressCounty, 'wizard.step2.field.address_county', true) }}
+                            {{ form_widget(entry.addressCounty, { attr: {
+                                class: f.input_classes(entry.addressCounty)|trim,
+                                'data-debtor-anaf-lookup-target': 'addressCounty',
+                            }}) }}
+                            {{ f.field_errors(entry.addressCounty) }}
+                        </div>
+
+                        <div>
+                            {{ f.field_label(entry.addressLocality, 'wizard.step2.field.address_locality', true) }}
+                            {{ form_widget(entry.addressLocality, { attr: {
+                                class: f.input_classes(entry.addressLocality)|trim,
+                                'data-debtor-anaf-lookup-target': 'addressLocality',
+                            }}) }}
+                            {{ f.field_errors(entry.addressLocality) }}
+                        </div>
+
                         <div class="md:col-span-2" data-person-type-toggle-target="pjOnly">
                             {{ f.field_label(entry.administrator, 'wizard.step2.field.administrator', true) }}
                             {{ form_widget(entry.administrator, { attr: { class: f.input_classes(entry.administrator)|trim }}) }}

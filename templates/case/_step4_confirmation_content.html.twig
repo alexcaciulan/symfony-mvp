@@ -274,6 +274,7 @@
                 <strong class="text-white">
                     {% if court is null or court.court is null %}{{ 'wizard.step3.sidebar.court_placeholder'|trans }}{% else %}{{ court.court.name }} · {{ court.court.county.name }}{% endif %}
                 </strong>
+                {% if court is not null %}<span class="text-white/50">· {{ court.explanationKey|trans }}</span>{% endif %}
             </span>
         </div>
     </section>
@@ -293,6 +294,26 @@
        /dashboard/cases. That route doesn't have <turbo-frame id="wizard-frame">,
        so we tell Turbo to break out of the frame and replace the whole page. #}
     {{ form_start(form, { attr: { 'id': 'step4-confirmation-form', 'class': 'space-y-4', 'novalidate': 'novalidate', 'data-turbo-frame': '_top' }}) }}
+        {# Competent court picker — preselected with the auto-resolved court, editable.
+           When resolution is ambiguous / county-unknown the user picks manually. #}
+        <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft p-5">
+            <label class="block text-sm font-semibold text-slate-800 dark:text-slate-200 mb-1">{{ 'wizard.step4.court.label'|trans }}</label>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">
+                {% if court is not null and court.court is not null %}{{ 'wizard.step4.court.help_auto'|trans }}{% else %}{{ 'wizard.step4.court.help_manual'|trans }}{% endif %}
+            </p>
+            <div data-controller="court-autocomplete"
+                 data-court-autocomplete-url-value="{{ path('api_courts_all_lookup') }}"
+                 data-court-autocomplete-hint-msg-value="{{ 'wizard.step4.court.search_hint'|trans }}"
+                 data-court-autocomplete-no-results-msg-value="{{ 'wizard.step4.court.no_results'|trans }}"
+                 {% if preselected_court is not null %}data-court-autocomplete-selected-value="{{ { value: preselected_court.id, label: preselected_court.name ~ ' · ' ~ preselected_court.county.name }|json_encode }}"{% endif %}>
+                <select data-court-autocomplete-target="select"
+                        placeholder="{{ 'wizard.step4.court.pick_placeholder'|trans }}"
+                        aria-label="{{ 'wizard.step4.court.label'|trans }}"></select>
+                {{ form_widget(form.court, { attr: { 'data-court-autocomplete-target': 'hidden' }}) }}
+            </div>
+            {{ f.field_errors(form.court) }}
+        </div>
+
         <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft p-5 space-y-3">
             <div>
                 <label class="flex items-start gap-2 cursor-pointer">

@@ -97,6 +97,9 @@ final class LookupControllerTest extends WebTestCase
         // address must be the composed string, not a structured object.
         self::assertStringContainsString('Str. Test', $data['address']);
         self::assertStringContainsString('București', $data['address']);
+        // structured county + locality feed the competent-court resolver.
+        self::assertSame('BUCUREȘTI', $data['county']);
+        self::assertSame('București', $data['locality']);
     }
 
     public function testHappyPathAcceptsRoPrefix(): void
@@ -227,6 +230,24 @@ final class LookupControllerTest extends WebTestCase
         $labels = array_column($payload, 'label');
         self::assertContains($apel->getName(), $labels);
         self::assertNotContains($jud->getName(), $labels);
+    }
+
+    public function testCourtsAllLookupReturnsAnyActiveCourtNotScopedToUser(): void
+    {
+        // Unlike /courts-lookup, the wizard endpoint must return courts the user
+        // has NO cases in (a brand-new case may need any court).
+        $match = $this->makeCourt('Judecătoria ' . $this->testPrefix . '-allmatch');
+        $other = $this->makeCourt('Tribunalul ' . $this->testPrefix . '-allother');
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/api/courts-all-lookup', ['q' => 'allmatch']);
+
+        self::assertResponseIsSuccessful();
+        $payload = json_decode($this->client->getResponse()->getContent(), true);
+        $labels = array_column($payload, 'label');
+        self::assertContains($match->getName() . ' · ' . $match->getCounty()->getName(), $labels);
+        self::assertNotContains($other->getName() . ' · ' . $other->getCounty()->getName(), $labels);
     }
 
     public function testCourtsLookupRequiresAuthentication(): void

@@ -39,6 +39,12 @@ class Debtor
     #[ORM\Column(type: Types::TEXT)]
     private string $address;
 
+    #[ORM\Column(length: 100, nullable: true)]
+    private ?string $addressCounty = null;
+
+    #[ORM\Column(length: 150, nullable: true)]
+    private ?string $addressLocality = null;
+
     #[ORM\Column(length: 180, nullable: true)]
     private ?string $email = null;
 
@@ -173,6 +179,30 @@ class Debtor
     public function setAddress(string $address): static
     {
         $this->address = $address;
+
+        return $this;
+    }
+
+    public function getAddressCounty(): ?string
+    {
+        return $this->addressCounty;
+    }
+
+    public function setAddressCounty(?string $addressCounty): static
+    {
+        $this->addressCounty = $addressCounty;
+
+        return $this;
+    }
+
+    public function getAddressLocality(): ?string
+    {
+        return $this->addressLocality;
+    }
+
+    public function setAddressLocality(?string $addressLocality): static
+    {
+        $this->addressLocality = $addressLocality;
 
         return $this;
     }

@@ -7,6 +7,7 @@ namespace App\Form\Wizard;
 use App\DTO\Wizard\Step4ConfirmationData;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
+use Symfony\Component\Form\Extension\Core\Type\HiddenType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
@@ -35,6 +36,14 @@ final class Step4ConfirmationType extends AbstractType
             ])
             ->add('acknowledgedWarnings', CheckboxType::class, [
                 'label' => 'wizard.step4.field.acknowledged_warnings',
+                'required' => false,
+            ])
+            // Competent court id — unmapped hidden value, fed by the Tom Select
+            // picker (court-autocomplete Stimulus controller, load-on-type). The
+            // controller validates the id is an active court at submit, so a free
+            // string here is safe. Preselected with the auto-resolved court.
+            ->add('court', HiddenType::class, [
+                'mapped' => false,
                 'required' => false,
             ])
         ;

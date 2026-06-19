@@ -30,8 +30,11 @@
 }
 
 .ts-wrapper .ts-control > input {
-    font-size: inherit;
+    font-size: 0.875rem;         /* text-sm — match the selected item */
+    line-height: 1.25rem;
     color: inherit;
+    vertical-align: middle;
+    margin: 0;
 }
 
 .ts-wrapper .ts-control > input::placeholder {
@@ -40,6 +43,16 @@
 
 .ts-wrapper.single .ts-control {
     background-image: none;
+    /* Keep the selected item and the search input on one baseline so typing
+       next to a preselected value (wizard court picker) stays aligned. */
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+}
+
+.ts-wrapper.single .ts-control > .item {
+    font-size: 0.875rem;         /* text-sm */
+    line-height: 1.25rem;
 }
 
 /* Chip-styled selected items for multi mode (status filter). */

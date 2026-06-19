@@ -13,6 +13,7 @@ use App\DTO\Wizard\Step2DebtorEntry;
 use App\DTO\Wizard\Step2DebtorsData;
 use App\DTO\Wizard\Step3ClaimData;
 use App\DTO\Wizard\Step4ConfirmationData;
+use App\Entity\Court;
 use App\Entity\Creditor;
 use App\Entity\Debtor;
 use App\Entity\Document;
@@ -28,6 +29,7 @@ use App\Form\Wizard\Step2DebtorsType;
 use App\Form\Wizard\Step3ClaimType;
 use App\Form\Wizard\Step4ConfirmationType;
 use App\Message\ExtractDataMessage;
+use App\Repository\CourtRepository;
 use App\Repository\CreditorRepository;
 use App\Repository\DocumentRepository;
 use App\Service\AuditLogService;
@@ -79,6 +81,7 @@ final class CaseWizardController extends AbstractController
         private readonly PrefillFromExtractionService $prefill,
         private readonly DocumentRepository $documents,
         private readonly CreditorRepository $creditors,
+        private readonly CourtRepository $courts,
         private readonly EntityManagerInterface $em,
         private readonly OpAdmissibilityValidator $admissibility,
         private readonly InterestCalculatorService $interestCalculator,
@@ -391,7 +394,24 @@ final class CaseWizardController extends AbstractController
         $form = $this->createForm(Step4ConfirmationType::class, $confirmation, [
             'validation_groups' => $hasWarnings ? ['Default', 'with_warnings'] : ['Default'],
         ]);
+        // Preselect the auto-resolved court id; the user may override it (or pick
+        // one when resolution is ambiguous / county-unknown). On POST handleRequest
+        // replaces this with the submitted id.
+        $resolvedCourt = $calculations['court']?->court;
+        if ($resolvedCourt !== null) {
+            $form->get('court')->setData((string) $resolvedCourt->getId());
+        }
         $form->handleRequest($request);
+
+        // Court shown in the picker on (re)render: the submitted/preselected id if
+        // it loads to an active court, else the auto-resolved one.
+        $courtIdData = $form->get('court')->getData();
+        $preselectedCourt = (is_string($courtIdData) && $courtIdData !== '')
+            ? $this->courts->find($courtIdData)
+            : null;
+        if ($preselectedCourt === null || !$preselectedCourt->isActive()) {
+            $preselectedCourt = $resolvedCourt;
+        }
 
         $autoFilledIndex = $this->aggregateAutoFilledFields($creditorDto, $debtorsDto, $claimDto);
 
@@ -399,19 +419,37 @@ final class CaseWizardController extends AbstractController
             if ($hasErrors) {
                 $this->addFlash('error', 'wizard.step4.flash.errors_blocking');
 
-                return $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex, $sessionDocuments);
+                return $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex, $sessionDocuments, $preselectedCourt);
             }
 
             if (!$form->isValid()) {
-                return $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex, $sessionDocuments);
+                return $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex, $sessionDocuments, $preselectedCourt);
             }
 
             $limiter = $caseCreationLimiter->create($user->getUserIdentifier());
             if (!$limiter->consume(1)->isAccepted()) {
                 $this->addFlash('warning', 'rate_limit.case_creation');
 
-                return $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex, $sessionDocuments);
+                return $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex, $sessionDocuments, $preselectedCourt);
             }
+
+            // Court precedence: the submitted id (auto-resolved preselection kept,
+            // or manual override) wins when it loads to an active court; otherwise
+            // fall back to the auto-resolved court. Loading + active check guards
+            // against a tampered hidden id.
+            $selectedId = $form->get('court')->getData();
+            $selectedCourt = (is_string($selectedId) && $selectedId !== '')
+                ? $this->courts->find($selectedId)
+                : null;
+            if ($selectedCourt !== null && !$selectedCourt->isActive()) {
+                $selectedCourt = null;
+            }
+            $chosenCourt = $selectedCourt ?? $resolvedCourt;
+            $courtResolution = match (true) {
+                $chosenCourt === null => 'none',
+                $resolvedCourt !== null && $chosenCourt->getId() === $resolvedCourt->getId() => 'auto',
+                default => 'manual',
+            };
 
             $creditorOutcome = ['wasReused' => false];
             $persisted = $this->persistWizard(
@@ -424,6 +462,8 @@ final class CaseWizardController extends AbstractController
                 $autoFilledIndex,
                 $warnings,
                 $creditorOutcome,
+                $chosenCourt,
+                $courtResolution,
             );
 
             $session->set(self::SESSION_KEY, $this->emptyBag());
@@ -456,7 +496,7 @@ final class CaseWizardController extends AbstractController
             return $this->redirectToRoute('case_overview', ['id' => $persisted->getId()]);
         }
 
-        return $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex, $sessionDocuments);
+        return $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex, $sessionDocuments, $preselectedCourt);
     }
 
     /**
@@ -476,10 +516,12 @@ final class CaseWizardController extends AbstractController
         array $calculations,
         array $autoFilledIndex,
         array $sessionDocuments = [],
+        ?Court $preselectedCourt = null,
     ): Response {
         return $this->render('case/_step4_confirmation_content.html.twig', [
             'current_step' => 4,
             'form' => $form,
+            'preselected_court' => $preselectedCourt,
             'creditor' => $creditor,
             'debtors' => $debtors,
             'claim' => $claim,
@@ -513,6 +555,8 @@ final class CaseWizardController extends AbstractController
         array $autoFilledIndex,
         array $warnings,
         array &$creditorOutcome,
+        ?Court $court,
+        string $courtResolution,
     ): LegalCase {
         return $this->em->wrapInTransaction(function () use (
             $user,
@@ -524,6 +568,8 @@ final class CaseWizardController extends AbstractController
             $autoFilledIndex,
             $warnings,
             &$creditorOutcome,
+            $court,
+            $courtResolution,
         ): LegalCase {
             $creditor = $this->reuseOrCreateCreditor($user, $creditorDto, $creditorOutcome);
 
@@ -545,8 +591,8 @@ final class CaseWizardController extends AbstractController
             if ($calculations['stampDuty'] !== null) {
                 $case->setStampDuty(sprintf('%.2f', $calculations['stampDuty']->amount));
             }
-            if ($calculations['court'] !== null && $calculations['court']->court !== null) {
-                $case->setCourt($calculations['court']->court);
+            if ($court !== null) {
+                $case->setCourt($court);
             }
 
             foreach ($debtorsDto->debtors as $entry) {
@@ -571,6 +617,8 @@ final class CaseWizardController extends AbstractController
                     'fields_manual' => $autoFilledIndex['manual'],
                     'extractedDocIds' => $documentIds,
                     'admissibility_warnings' => array_map(static fn (AdmissibilityIssue $i) => $i->code, $warnings),
+                    'court_resolution' => $courtResolution,
+                    'court_id' => $court?->getId(),
                 ],
                 category: AuditLogService::CATEGORY_WIZARD_SUBMIT,
             );
@@ -638,6 +686,8 @@ final class CaseWizardController extends AbstractController
         $debtor->setPersonType($entry->personType);
         $debtor->setName($entry->name);
         $debtor->setAddress($entry->address);
+        $debtor->setAddressCounty($entry->addressCounty);
+        $debtor->setAddressLocality($entry->addressLocality);
         $debtor->setCui($entry->cui);
         $debtor->setPersonalId($entry->personalId);
         $debtor->setOnrcNumber($entry->onrcNumber);
@@ -779,19 +829,26 @@ final class CaseWizardController extends AbstractController
             }
         }
 
-        // County extraction from unstructured Debtor.address is out of scope
-        // for Pas 3.2 — Pas 3.3 ANAF lookup populates a structured county
-        // field on the entry. Until then we pass null and let the resolver
-        // return court=null with `court.resolver.county_unknown` (per spec C5,
-        // submit can still proceed; template shows "Instanță needeterminată").
+        // County + locality come from the (structured) primary debtor entry —
+        // ANAF lookup, AI extraction, or manual. When absent the resolver
+        // returns court=null with `court.resolver.county_unknown` and the user
+        // picks the court manually at step 4 (per spec C5, submit still proceeds).
+        //
+        // Threshold value (CPC art. 98) = principal + accrued accessory. For a
+        // contractual penalty the accessory is the precomputed $accessoryTotal
+        // (passed as scadentPenalties, legal interest suppressed); for legal
+        // interest the resolver computes it internally.
+        $isContractual = $claim->penaltyType === PenaltyType::CONTRACTUAL;
         try {
             $court = $this->courtResolver->resolve(
                 $claim->amount,
                 $claim->dueDate,
                 $now,
                 $claim->relationshipType,
-                debtorCounty: null,
-                debtorLocality: null,
+                debtorCounty: $primaryDebtor?->addressCounty,
+                debtorLocality: $primaryDebtor?->addressLocality,
+                scadentPenalties: $isContractual ? $accessoryTotal : 0.0,
+                computeLegalInterest: !$isContractual,
             );
         } catch (\DomainException|\RuntimeException $e) {
             $this->logger->info('wizard.calc.court_failed', ['reason' => $e->getMessage()]);

@@ -73,6 +73,17 @@ final class Step2DebtorEntryType extends AbstractType
                 'label' => 'wizard.step2.field.address',
                 'required' => true,
             ])
+            // County + locality feed CompetentCourtResolver. Auto-filled by the
+            // ANAF lookup (sdenumire_Judet / sdenumire_Localitate) or AI
+            // extraction; editable as manual fallback.
+            ->add('addressCounty', TextType::class, [
+                'label' => 'wizard.step2.field.address_county',
+                'required' => false,
+            ])
+            ->add('addressLocality', TextType::class, [
+                'label' => 'wizard.step2.field.address_locality',
+                'required' => false,
+            ])
             ->add('email', EmailType::class, [
                 'label' => 'wizard.step2.field.email',
                 'required' => false,

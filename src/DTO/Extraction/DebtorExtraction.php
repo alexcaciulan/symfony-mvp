@@ -20,6 +20,11 @@ final readonly class DebtorExtraction
         public ?string $personalId = null,
         public ?string $onrcNumber = null,
         public ?string $address = null,
+        // County + locality drive competent-court resolution. Plain strings,
+        // not resolved to the County/City nomenclature (the resolver matches
+        // normalized strings). Null when the document does not carry them.
+        public ?string $county = null,
+        public ?string $locality = null,
         public ?string $email = null,
         public ?string $phone = null,
         public ?string $iban = null,
