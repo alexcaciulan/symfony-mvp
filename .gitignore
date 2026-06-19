@@ -34,3 +34,6 @@ bin/.phpunit.result.cache
 
 # Microsoft Office lock files (created when .docx/.xlsx is open)
 ~$*
+
+# Playwright MCP session data
+/.playwright-mcp/
