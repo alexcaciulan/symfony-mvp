@@ -26,13 +26,13 @@ class CourtPortalEvent
     #[ORM\Column(type: Types::DATE_MUTABLE, nullable: true)]
     private ?\DateTimeInterface $eventDate = null;
 
-    #[ORM\Column(length: 1000)]
+    #[ORM\Column(type: Types::TEXT)]
     private string $description;
 
     #[ORM\Column(length: 500, nullable: true)]
     private ?string $solutie = null;
 
-    #[ORM\Column(length: 255, nullable: true)]
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
     private ?string $solutieSumar = null;
 
     #[ORM\Column(type: Types::JSON, nullable: true)]

@@ -71,7 +71,7 @@ class MonitoringEventApplierTest extends KernelTestCase
         return $case;
     }
 
-    private function event(LegalCase $case, PortalEventType $type, ?\DateTimeInterface $date, ?string $solutie = null): CourtPortalEvent
+    private function event(LegalCase $case, PortalEventType $type, ?\DateTimeInterface $date, ?string $solutie = null, ?string $solutieSumar = null): CourtPortalEvent
     {
         $event = new CourtPortalEvent();
         $event->setLegalCase($case);
@@ -79,7 +79,9 @@ class MonitoringEventApplierTest extends KernelTestCase
         $event->setEventDate($date);
         $event->setDescription('test event ' . $type->value);
         $event->setSolutie($solutie);
-        $event->setSolutieSumar($solutie);
+        // Mirror the portal shape: when no explicit summary is given, reuse the
+        // tip. Pass a distinct $solutieSumar to exercise the free-text body.
+        $event->setSolutieSumar($solutieSumar ?? $solutie);
         $this->em->persist($event);
         $this->em->flush();
 
@@ -150,6 +152,119 @@ class MonitoringEventApplierTest extends KernelTestCase
         $this->assertNotEmpty($proposals);
         $this->assertSame(
             CaseTransition::RESPINGE->value,
+            $proposals[0]->getNewData()['suggestedTransition'],
+        );
+    }
+
+    public function testRejectionMentioningOrdonantaSuggestsRespingeNotEmite(): void
+    {
+        // Real portal.just.ro text (dosar 2001/300/2026): a rejection whose
+        // wording contains "ordonanței de plată" (the object of every OP case).
+        // The suggestion must be RESPINGE, never EMITE_ORDONANTA.
+        $case = $this->createCase(CaseStatus::DOSAR_INREGISTRAT);
+        $event = $this->event(
+            $case,
+            PortalEventType::HEARING_COMPLETED,
+            new \DateTime('2026-05-28'),
+            'Respinge cererea de emitere a ordonanței de plată, ca neîntemeiată.',
+        );
+
+        $this->applier->applyEvents($case, [$event]);
+
+        $this->assertSame(CaseStatus::DOSAR_INREGISTRAT, $case->getStatus());
+
+        $proposals = $this->em->getRepository(AuditLog::class)->findBy([
+            'entityType' => LegalCase::class,
+            'entityId' => (string) $case->getId(),
+            'action' => 'portal_transition_proposed',
+        ]);
+        $this->assertNotEmpty($proposals);
+        $this->assertSame(
+            CaseTransition::RESPINGE->value,
+            $proposals[0]->getNewData()['suggestedTransition'],
+        );
+    }
+
+    public function testAdmissionWithSecondaryRespingeInBodySuggestsEmiteNotRespinge(): void
+    {
+        // Real portal.just.ro shape (dosar 11671/300/2024): the "tip soluție"
+        // field reads "Admite cererea", but the free-text body rejects an
+        // ancillary request ("Respinge cererea pârâtului de eșalonare..."). The
+        // suggestion must follow the controlled tip (EMITE_ORDONANTA), not the
+        // secondary "respinge" buried in the body.
+        $case = $this->createCase(CaseStatus::DOSAR_INREGISTRAT);
+        $event = $this->event(
+            $case,
+            PortalEventType::HEARING_COMPLETED,
+            new \DateTime('2024-11-15'),
+            'Admite cererea',
+            'Admite cererea de chemare în judecată. Obligă pârâtul la plata sumei de '
+                . '143.718 lei. Respinge cererea pârâtului de eșalonare a debitului, ca neîntemeiată.',
+        );
+
+        $this->applier->applyEvents($case, [$event]);
+
+        $this->assertSame(CaseStatus::DOSAR_INREGISTRAT, $case->getStatus());
+
+        $proposals = $this->em->getRepository(AuditLog::class)->findBy([
+            'entityType' => LegalCase::class,
+            'entityId' => (string) $case->getId(),
+            'action' => 'portal_transition_proposed',
+        ]);
+        $this->assertNotEmpty($proposals);
+        $this->assertSame(
+            CaseTransition::EMITE_ORDONANTA->value,
+            $proposals[0]->getNewData()['suggestedTransition'],
+        );
+    }
+
+    public function testInAnulareAnuleazaSuggestsAdmiteCerereAnulareNotRespinge(): void
+    {
+        // In IN_ANULARE, "Anulează ordonanța de plată" = cererea în anulare
+        // ADMITED (OP dissolved). Must suggest ADMITE_CERERE_ANULARE, never the
+        // rejection branch (CPC art. 1024).
+        $case = $this->createCase(CaseStatus::IN_ANULARE);
+        $event = $this->event(
+            $case,
+            PortalEventType::HEARING_COMPLETED,
+            new \DateTime('2026-07-10'),
+            'Admite cererea în anulare. Anulează ordonanța de plată nr. 8730/2026.',
+        );
+
+        $this->applier->applyEvents($case, [$event]);
+
+        $proposals = $this->em->getRepository(AuditLog::class)->findBy([
+            'entityType' => LegalCase::class,
+            'entityId' => (string) $case->getId(),
+            'action' => 'portal_transition_proposed',
+        ]);
+        $this->assertNotEmpty($proposals);
+        $this->assertSame(
+            CaseTransition::ADMITE_CERERE_ANULARE->value,
+            $proposals[0]->getNewData()['suggestedTransition'],
+        );
+    }
+
+    public function testInAnulareRespingereSuggestsRespingeCerereAnulare(): void
+    {
+        $case = $this->createCase(CaseStatus::IN_ANULARE);
+        $event = $this->event(
+            $case,
+            PortalEventType::HEARING_COMPLETED,
+            new \DateTime('2026-07-11'),
+            'Respinge cererea în anulare, ca neîntemeiată.',
+        );
+
+        $this->applier->applyEvents($case, [$event]);
+
+        $proposals = $this->em->getRepository(AuditLog::class)->findBy([
+            'entityType' => LegalCase::class,
+            'entityId' => (string) $case->getId(),
+            'action' => 'portal_transition_proposed',
+        ]);
+        $this->assertNotEmpty($proposals);
+        $this->assertSame(
+            CaseTransition::RESPINGE_CERERE_ANULARE->value,
             $proposals[0]->getNewData()['suggestedTransition'],
         );
     }
