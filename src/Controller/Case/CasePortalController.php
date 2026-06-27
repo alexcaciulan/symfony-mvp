@@ -52,8 +52,12 @@ final class CasePortalController extends AbstractController
         $form->handleRequest($request);
 
         if (!$form->isSubmitted() || !$form->isValid()) {
-            $firstError = $form->getErrors(true)->current();
-            $toastKey = $firstError !== false ? $firstError->getMessage() : 'case_overview.portal.flash_activate_error';
+            $firstError = null;
+            foreach ($form->getErrors(true) as $error) {
+                $firstError = $error;
+                break;
+            }
+            $toastKey = $firstError?->getMessage() ?? 'case_overview.portal.flash_activate_error';
 
             return $this->respondPortal($request, $case, false, 'error', $toastKey);
         }

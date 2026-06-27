@@ -12,10 +12,10 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints as Assert;
 
 /**
- * Form for a manual custom deadline (type OTHER, set in the controller). Asks
- * only for the date + an optional description.
+ * Form for editing an existing deadline (date + description). Unlike adding, the
+ * date may be in the past: the lawyer can correct a deadline that already passed.
  */
-final class AddDeadlineType extends AbstractType
+final class EditDeadlineType extends AbstractType
 {
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
@@ -23,22 +23,18 @@ final class AddDeadlineType extends AbstractType
             ->add('deadlineDate', DateType::class, [
                 'widget' => 'single_text',
                 'input' => 'datetime_immutable',
-                'label' => 'case_overview.deadlines.modal_add.field_date_label',
+                'label' => 'case_overview.deadlines.modal_edit.field_date_label',
                 'constraints' => [
-                    new Assert\NotBlank(message: 'case_overview.deadlines.modal_add.field_date_required'),
-                    new Assert\GreaterThanOrEqual(
-                        value: 'today',
-                        message: 'case_overview.deadlines.modal_add.field_date_must_be_future',
-                    ),
+                    new Assert\NotBlank(message: 'case_overview.deadlines.modal_edit.field_date_required'),
                 ],
             ])
             ->add('description', TextType::class, [
                 'required' => false,
-                'label' => 'case_overview.deadlines.modal_add.field_description_label',
+                'label' => 'case_overview.deadlines.modal_edit.field_description_label',
                 'constraints' => [
                     new Assert\Length(
                         max: 255,
-                        maxMessage: 'case_overview.deadlines.modal_add.field_description_too_long',
+                        maxMessage: 'case_overview.deadlines.modal_edit.field_description_too_long',
                     ),
                 ],
             ]);
@@ -49,7 +45,7 @@ final class AddDeadlineType extends AbstractType
         $resolver->setDefaults([
             'csrf_protection' => true,
             'csrf_field_name' => '_token',
-            'csrf_token_id' => 'add_deadline',
+            'csrf_token_id' => 'edit_deadline',
         ]);
     }
 }

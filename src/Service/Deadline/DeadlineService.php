@@ -13,7 +13,7 @@ use Doctrine\ORM\EntityManagerInterface;
 
 /**
  * Creează termene procedurale (LegalDeadline) cu date prorogate per CPC art. 181
- * alin. (2). Apelat fie direct de avocat (createHearingDeadline), fie de un
+ * alin. (4). Apelat fie direct de avocat (createHearingDeadline), fie de un
  * subscriber (Pas 4.2) la tranziții workflow. Audit log obligatoriu pe fiecare
  * operațiune.
  */
@@ -112,6 +112,22 @@ final class DeadlineService
             $legalCase,
             DeadlineType::JUDECATA,
             $deadlineDate,
+            baseDate: $date,
+            rawDeadline: $date,
+            description: $description,
+        );
+    }
+
+    /**
+     * Manual deadline (type OTHER). No working-day prorogation: the lawyer's exact
+     * date is kept (a manual reminder is not necessarily a procedural term).
+     */
+    public function createCustomDeadline(LegalCase $legalCase, \DateTimeImmutable $date, ?string $description = null): LegalDeadline
+    {
+        return $this->persistDeadline(
+            $legalCase,
+            DeadlineType::OTHER,
+            $date,
             baseDate: $date,
             rawDeadline: $date,
             description: $description,

@@ -20,7 +20,7 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
  * Pas 4.3 — Tests for CaseDeadlineController (3 POST routes).
  *
  * Mark complete: happy + idempotent + 403 + CSRF reject + Turbo Stream response
- * Add deadline: happy JUDECATA persistat + flash + redirect
+ * Add deadline: happy OTHER persistat (custom, fără prorogare) + Turbo Stream + redirect
  * Set rulingCommunicationDate: happy trigger CERERE_IN_ANULARE + skip pre-ordonanta + idempotent
  */
 final class CaseDeadlineControllerTest extends WebTestCase
@@ -93,7 +93,7 @@ final class CaseDeadlineControllerTest extends WebTestCase
      * SessionNotFoundException la apel direct la CsrfTokenManager între requests.
      * Returnează un array indexed cu cele 3 tokens necesare în teste.
      *
-     * @return array{complete: array<int, string>, add: string, set_ruling: string}
+     * @return array{complete: array<int, string>, add: string, set_ruling: string, edit: string, delete: array<int, string>}
      */
     private function tokensFromOverview(): array
     {
@@ -111,7 +111,90 @@ final class CaseDeadlineControllerTest extends WebTestCase
         $add = (string) $crawler->filter('input[name="add_deadline[_token]"]')->first()->attr('value');
         $setRuling = (string) $crawler->filter('input[name="ruling_communication_date[_token]"]')->first()->attr('value');
 
-        return ['complete' => $complete, 'add' => $add, 'set_ruling' => $setRuling];
+        $editNodes = $crawler->filter('input[name="edit_deadline[_token]"]');
+        $edit = $editNodes->count() > 0 ? (string) $editNodes->first()->attr('value') : '';
+
+        $delete = [];
+        $crawler->filter('form[action*="/delete"]')->each(function ($form) use (&$delete) {
+            if (preg_match('#/deadline/(\d+)/delete#', (string) $form->attr('action'), $m)) {
+                $delete[(int) $m[1]] = (string) $form->filter('input[name="_token"]')->attr('value');
+            }
+        });
+
+        return ['complete' => $complete, 'add' => $add, 'set_ruling' => $setRuling, 'edit' => $edit, 'delete' => $delete];
+    }
+
+    public function testEditDeadlineHappyPathUpdatesDateAndDescription(): void
+    {
+        $this->client->loginUser($this->user);
+        $deadline = $this->createDeadline(DeadlineType::OTHER, new \DateTimeImmutable('2026-12-31'));
+        $tokens = $this->tokensFromOverview();
+
+        $this->client->request('POST', sprintf('/case/%d/deadline/%d/edit', $this->case->getId(), $deadline->getId()), [
+            'edit_deadline' => [
+                '_token' => $tokens['edit'],
+                'deadlineDate' => '2027-01-15',
+                'description' => 'Descriere actualizată',
+            ],
+        ]);
+
+        self::assertResponseRedirects('/case/' . $this->case->getId() . '?tab=termene');
+
+        $this->em->clear();
+        $updated = $this->em->getRepository(LegalDeadline::class)->find($deadline->getId());
+        self::assertSame('2027-01-15', $updated->getDeadlineDate()->format('Y-m-d'));
+        self::assertSame('Descriere actualizată', $updated->getDescription());
+    }
+
+    public function testEditDeadlineReturnsTurboStreamWhenRequested(): void
+    {
+        $this->client->loginUser($this->user);
+        $deadline = $this->createDeadline(DeadlineType::OTHER, new \DateTimeImmutable('2026-12-31'));
+        $tokens = $this->tokensFromOverview();
+
+        $this->client->request(
+            'POST',
+            sprintf('/case/%d/deadline/%d/edit', $this->case->getId(), $deadline->getId()),
+            ['edit_deadline' => ['_token' => $tokens['edit'], 'deadlineDate' => '2027-02-01', 'description' => 'x']],
+            [],
+            ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html'],
+        );
+
+        self::assertResponseIsSuccessful();
+        $body = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('target="panel-termene"', $body);
+        self::assertStringContainsString('close-modal', $body);
+    }
+
+    public function testDeleteDeadlineHappyPathRemovesIt(): void
+    {
+        $this->client->loginUser($this->user);
+        $deadline = $this->createDeadline(DeadlineType::OTHER);
+        $tokens = $this->tokensFromOverview();
+
+        $this->client->request('POST', sprintf('/case/%d/deadline/%d/delete', $this->case->getId(), $deadline->getId()), [
+            '_token' => $tokens['delete'][$deadline->getId()],
+        ]);
+
+        self::assertResponseRedirects('/case/' . $this->case->getId() . '?tab=termene');
+
+        $this->em->clear();
+        self::assertNull($this->em->getRepository(LegalDeadline::class)->find($deadline->getId()));
+    }
+
+    public function testDeleteDeadlineRejectsInvalidCsrf(): void
+    {
+        $this->client->loginUser($this->user);
+        $deadline = $this->createDeadline(DeadlineType::OTHER);
+
+        $this->client->request('POST', sprintf('/case/%d/deadline/%d/delete', $this->case->getId(), $deadline->getId()), [
+            '_token' => 'invalid-token',
+        ]);
+
+        self::assertResponseRedirects('/case/' . $this->case->getId() . '?tab=termene');
+
+        $this->em->clear();
+        self::assertNotNull($this->em->getRepository(LegalDeadline::class)->find($deadline->getId()));
     }
 
     // ===== complete =====================================================
@@ -131,7 +214,7 @@ final class CaseDeadlineControllerTest extends WebTestCase
             '_token' => $token,
         ]);
 
-        self::assertResponseRedirects('/case/' . $this->case->getId());
+        self::assertResponseRedirects('/case/' . $this->case->getId() . '?tab=termene');
 
         $this->em->clear();
         $refreshed = $this->em->getRepository(LegalDeadline::class)->find($existing->getId());
@@ -195,7 +278,7 @@ final class CaseDeadlineControllerTest extends WebTestCase
             '_token' => 'fake-token',
         ]);
 
-        self::assertResponseRedirects('/case/' . $this->case->getId());
+        self::assertResponseRedirects('/case/' . $this->case->getId() . '?tab=termene');
 
         $this->em->clear();
         $refreshed = $this->em->getRepository(LegalDeadline::class)->find($existing->getId());
@@ -229,6 +312,74 @@ final class CaseDeadlineControllerTest extends WebTestCase
         }
     }
 
+    public function testEditDeadlineForbiddenForOtherUser(): void
+    {
+        $hasher = static::getContainer()->get(UserPasswordHasherInterface::class);
+        $intruder = new User();
+        $intruder->setEmail('intruder-' . uniqid() . '@test.com');
+        $intruder->setPassword($hasher->hashPassword($intruder, 'password'));
+        $intruder->setIsVerified(true);
+        $this->em->persist($intruder);
+        $this->em->flush();
+
+        $deadline = $this->createDeadline(DeadlineType::OTHER);
+
+        try {
+            $this->client->loginUser($intruder);
+            $this->client->request('POST', sprintf('/case/%d/deadline/%d/edit', $this->case->getId(), $deadline->getId()), [
+                'edit_deadline' => ['_token' => 'any', 'deadlineDate' => '2027-01-01'],
+            ]);
+            self::assertResponseStatusCodeSame(Response::HTTP_FORBIDDEN);
+        } finally {
+            $this->em->getConnection()->executeStatement('DELETE FROM `user` WHERE id = ?', [$intruder->getId()]);
+        }
+    }
+
+    public function testDeleteDeadlineForbiddenForOtherUser(): void
+    {
+        $hasher = static::getContainer()->get(UserPasswordHasherInterface::class);
+        $intruder = new User();
+        $intruder->setEmail('intruder-' . uniqid() . '@test.com');
+        $intruder->setPassword($hasher->hashPassword($intruder, 'password'));
+        $intruder->setIsVerified(true);
+        $this->em->persist($intruder);
+        $this->em->flush();
+
+        $deadline = $this->createDeadline(DeadlineType::OTHER);
+
+        try {
+            $this->client->loginUser($intruder);
+            $this->client->request('POST', sprintf('/case/%d/deadline/%d/delete', $this->case->getId(), $deadline->getId()), [
+                '_token' => 'any',
+            ]);
+            self::assertResponseStatusCodeSame(Response::HTTP_FORBIDDEN);
+        } finally {
+            $this->em->getConnection()->executeStatement('DELETE FROM `user` WHERE id = ?', [$intruder->getId()]);
+        }
+    }
+
+    public function testEditCriticalDeadlineResetsAlertFlagsOnDateChange(): void
+    {
+        $this->client->loginUser($this->user);
+        $deadline = $this->createDeadline(DeadlineType::CERERE_IN_ANULARE, new \DateTimeImmutable('2026-07-11'));
+        $deadline->setAlertSent7(true);
+        $deadline->setAlertSent3(true);
+        $this->em->flush();
+
+        $tokens = $this->tokensFromOverview();
+        $this->client->request('POST', sprintf('/case/%d/deadline/%d/edit', $this->case->getId(), $deadline->getId()), [
+            'edit_deadline' => ['_token' => $tokens['edit'], 'deadlineDate' => '2026-07-13', 'description' => ''],
+        ]);
+
+        self::assertResponseRedirects('/case/' . $this->case->getId() . '?tab=termene');
+
+        $this->em->clear();
+        $updated = $this->em->getRepository(LegalDeadline::class)->find($deadline->getId());
+        self::assertSame('2026-07-13', $updated->getDeadlineDate()->format('Y-m-d'));
+        self::assertFalse($updated->isAlertSent7(), 'Alert flags must reset when the date changes.');
+        self::assertFalse($updated->isAlertSent3());
+    }
+
     // ===== add ==========================================================
 
     public function testAddHearingDeadlineHappyPath(): void
@@ -244,15 +395,68 @@ final class CaseDeadlineControllerTest extends WebTestCase
             ],
         ]);
 
-        self::assertResponseRedirects('/case/' . $this->case->getId());
+        self::assertResponseRedirects('/case/' . $this->case->getId() . '?tab=termene');
 
         $this->em->clear();
         $deadlines = $this->em->getRepository(LegalDeadline::class)->findBy([
             'legalCase' => $this->case->getId(),
-            'type' => DeadlineType::JUDECATA,
+            'type' => DeadlineType::OTHER,
         ]);
         self::assertCount(1, $deadlines);
         self::assertSame('Sala C2, ora 11:00', $deadlines[0]->getDescription());
+    }
+
+    public function testAddDeadlineReturnsTurboStreamWhenRequested(): void
+    {
+        $this->client->loginUser($this->user);
+        $tokens = $this->tokensFromOverview();
+
+        $this->client->request(
+            'POST',
+            sprintf('/case/%d/deadline/add', $this->case->getId()),
+            ['add_deadline' => [
+                '_token' => $tokens['add'],
+                'deadlineDate' => (new \DateTime('+30 days'))->format('Y-m-d'),
+                'description' => 'Custom',
+            ]],
+            [],
+            ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html'],
+        );
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString(
+            'text/vnd.turbo-stream.html',
+            (string) $this->client->getResponse()->headers->get('Content-Type'),
+        );
+        $body = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('target="panel-termene"', $body);
+        self::assertStringContainsString('close-modal', $body);
+        self::assertStringContainsString('target="toasts"', $body);
+    }
+
+    public function testAddDeadlineErrorReturnsToastStreamWhenRequested(): void
+    {
+        $this->client->loginUser($this->user);
+        $tokens = $this->tokensFromOverview();
+
+        $this->client->request(
+            'POST',
+            sprintf('/case/%d/deadline/add', $this->case->getId()),
+            ['add_deadline' => [
+                '_token' => $tokens['add'],
+                'deadlineDate' => (new \DateTime('-30 days'))->format('Y-m-d'),
+                'description' => 'In trecut',
+            ]],
+            [],
+            ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html'],
+        );
+
+        self::assertResponseIsSuccessful();
+        $body = (string) $this->client->getResponse()->getContent();
+        // Error path: only a toast, no region update and no modal close (stays open to fix).
+        self::assertStringContainsString('target="toasts"', $body);
+        self::assertStringNotContainsString('target="panel-termene"', $body);
+        self::assertStringNotContainsString('close-modal', $body);
     }
 
     public function testAddDeadlineRejectsPastDate(): void
@@ -268,12 +472,12 @@ final class CaseDeadlineControllerTest extends WebTestCase
             ],
         ]);
 
-        self::assertResponseRedirects('/case/' . $this->case->getId());
+        self::assertResponseRedirects('/case/' . $this->case->getId() . '?tab=termene');
 
         $this->em->clear();
         $deadlines = $this->em->getRepository(LegalDeadline::class)->findBy([
             'legalCase' => $this->case->getId(),
-            'type' => DeadlineType::JUDECATA,
+            'type' => DeadlineType::OTHER,
         ]);
         self::assertCount(0, $deadlines, 'Data în trecut trebuie respinsă de validator.');
     }
@@ -295,7 +499,7 @@ final class CaseDeadlineControllerTest extends WebTestCase
             ],
         ]);
 
-        self::assertResponseRedirects('/case/' . $this->case->getId());
+        self::assertResponseRedirects('/case/' . $this->case->getId() . '?tab=termene');
 
         $this->em->clear();
         $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
@@ -323,7 +527,7 @@ final class CaseDeadlineControllerTest extends WebTestCase
             ],
         ]);
 
-        self::assertResponseRedirects('/case/' . $this->case->getId());
+        self::assertResponseRedirects('/case/' . $this->case->getId() . '?tab=termene');
 
         $this->em->clear();
         $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
@@ -376,12 +580,12 @@ final class CaseDeadlineControllerTest extends WebTestCase
             ],
         ]);
 
-        self::assertResponseRedirects('/case/' . $this->case->getId());
+        self::assertResponseRedirects('/case/' . $this->case->getId() . '?tab=termene');
 
         $this->em->clear();
         $deadlines = $this->em->getRepository(LegalDeadline::class)->findBy([
             'legalCase' => $this->case->getId(),
-            'type' => DeadlineType::JUDECATA,
+            'type' => DeadlineType::OTHER,
         ]);
         self::assertCount(0, $deadlines, 'CSRF invalid → form invalid → no deadline created.');
     }
@@ -424,7 +628,7 @@ final class CaseDeadlineControllerTest extends WebTestCase
             ],
         ]);
 
-        self::assertResponseRedirects('/case/' . $this->case->getId());
+        self::assertResponseRedirects('/case/' . $this->case->getId() . '?tab=termene');
 
         $this->em->clear();
         $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());

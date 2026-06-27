@@ -193,6 +193,21 @@ class LegalDeadline
     }
 
     /**
+     * Clears the alert-sent flags so the alerting job re-sends reminders. Call
+     * after the deadline date changes, otherwise a "3 days left" already sent for
+     * the old date would suppress the reminders for the new one.
+     */
+    public function resetAlertFlags(): static
+    {
+        $this->alertSent7 = false;
+        $this->alertSent3 = false;
+        $this->alertSent1 = false;
+        $this->alertSentExpired = false;
+
+        return $this;
+    }
+
+    /**
      * Deadline-in-the-past predicate: true when the deadline date has passed AND the
      * deadline is still open (not completed). Used by the overview Tab Termene counter
      * and by future alerting jobs.

@@ -26,6 +26,12 @@ class AuditLogService
     /** Manual completion of a procedural deadline. */
     public const CATEGORY_DEADLINE_COMPLETED = 'DEADLINE_COMPLETED';
 
+    /** Manual edit of a deadline (date/description) by the lawyer. */
+    public const CATEGORY_DEADLINE_EDITED = 'DEADLINE_EDITED';
+
+    /** Manual deletion of a deadline by the lawyer. */
+    public const CATEGORY_DEADLINE_DELETED = 'DEADLINE_DELETED';
+
     /** Payment-order petition + opis generation (SOMATIE_TRIMISA → CERERE_DEPUSA). */
     public const CATEGORY_PAYMENT_ORDER_GENERATED = 'PAYMENT_ORDER_GENERATED';
 

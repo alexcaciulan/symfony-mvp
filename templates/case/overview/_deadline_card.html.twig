@@ -1,9 +1,10 @@
 {# Pas 4.0.5 — Card pentru o singură LegalDeadline. Variant computed din state (completed) sau priority.
    Reflectă mockup linii 781-845. Variantele: completed / critical / high (with blur + large icon + pulse)
    / medium / low. Caller passes `deadline: LegalDeadline` via include. #}
-{% from 'case/overview/_icons.html.twig' import icon_check, icon_clock, icon_warning, icon_document %}
+{% from 'case/overview/_icons.html.twig' import icon_check, icon_clock, icon_warning, icon_document, icon_edit, icon_trash %}
 
 {% set variant_key = deadline.completed ? 'completed' : deadline.priority.value|lower %}
+{% set is_critical = deadline.priority.value == 'CRITICAL' %}
 
 {# Single source of truth for the visual styling of each variant. Keep all variant-dependent
    classes here so a future redesign / palette tweak stays in one place. #}
@@ -113,27 +114,51 @@
             {% endif %}
         </div>
 
-        {# Pas 4.3 — Completion toggle wired la POST cu optimistic UI + Turbo Stream replace.
-           Când deja completat, butonul devine read-only (afișează doar bifa verde). #}
-        {% if deadline.completed %}
-            <span class="inline-flex items-center justify-center size-6 rounded-full border-2 bg-green-500 border-green-500 text-white" aria-label="{{ 'case_overview.deadlines.status_completed_badge'|trans }}">
-                {{ icon_check('size-3.5') }}
-            </span>
-        {% else %}
-            <button type="button"
-                    data-controller="optimistic-action"
-                    data-action="click->optimistic-action#trigger"
-                    data-optimistic-action-url-value="{{ path('case_deadline_complete', {caseId: deadline.legalCase.id, deadlineId: deadline.id}) }}"
-                    data-optimistic-action-method-value="POST"
-                    data-optimistic-action-toggle-class-value="is-completing"
-                    data-optimistic-action-csrf-token-value="{{ csrf_token('complete_deadline_' ~ deadline.id) }}"
-                    data-optimistic-action-error-message-value="{{ 'stimulus.deadline.error'|trans }}"
-                    aria-label="{{ 'case_overview.deadlines.mark_complete_aria'|trans }}"
-                    class="inline-flex items-center justify-center size-6 rounded-full border-2 border-slate-300 dark:border-slate-600 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-950/40 cursor-pointer transition group">
-                <span class="opacity-0 group-hover:opacity-100 transition text-green-600 dark:text-green-400">
+        {# Completion toggle (optimistic UI + Turbo Stream) + edit + delete. #}
+        <div class="shrink-0 flex flex-col items-center gap-2">
+            {% if deadline.completed %}
+                <span class="inline-flex items-center justify-center size-6 rounded-full border-2 bg-green-500 border-green-500 text-white" aria-label="{{ 'case_overview.deadlines.status_completed_badge'|trans }}">
                     {{ icon_check('size-3.5') }}
                 </span>
+            {% else %}
+                <button type="button"
+                        data-controller="optimistic-action"
+                        data-action="click->optimistic-action#trigger"
+                        data-optimistic-action-url-value="{{ path('case_deadline_complete', {caseId: deadline.legalCase.id, deadlineId: deadline.id}) }}"
+                        data-optimistic-action-method-value="POST"
+                        data-optimistic-action-toggle-class-value="is-completing"
+                        data-optimistic-action-csrf-token-value="{{ csrf_token('complete_deadline_' ~ deadline.id) }}"
+                        data-optimistic-action-error-message-value="{{ 'stimulus.deadline.error'|trans }}"
+                        aria-label="{{ 'case_overview.deadlines.mark_complete_aria'|trans }}"
+                        class="inline-flex items-center justify-center size-6 rounded-full border-2 border-slate-300 dark:border-slate-600 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-950/40 cursor-pointer transition group">
+                    <span class="opacity-0 group-hover:opacity-100 transition text-green-600 dark:text-green-400">
+                        {{ icon_check('size-3.5') }}
+                    </span>
+                </button>
+            {% endif %}
+
+            <button type="button"
+                    data-hs-overlay="#hs-modal-edit-deadline"
+                    data-deadline-edit-url="{{ path('case_deadline_edit', {caseId: deadline.legalCase.id, deadlineId: deadline.id}) }}"
+                    data-deadline-edit-date="{{ deadline.deadlineDate|date('Y-m-d') }}"
+                    data-deadline-edit-description="{{ deadline.description }}"
+                    data-deadline-edit-critical="{{ is_critical ? '1' : '0' }}"
+                    aria-label="{{ 'case_overview.deadlines.edit_aria'|trans }}"
+                    class="inline-flex items-center justify-center size-6 rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+                {{ icon_edit('size-3.5') }}
             </button>
-        {% endif %}
+
+            <form method="post"
+                  action="{{ path('case_deadline_delete', {caseId: deadline.legalCase.id, deadlineId: deadline.id}) }}"
+                  data-turbo-frame="_top"
+                  data-turbo-confirm="{{ (is_critical ? 'case_overview.deadlines.delete_confirm_critical' : 'case_overview.deadlines.delete_confirm')|trans }}">
+                <input type="hidden" name="_token" value="{{ csrf_token('delete_deadline_' ~ deadline.id) }}">
+                <button type="submit"
+                        aria-label="{{ 'case_overview.deadlines.delete_aria'|trans }}"
+                        class="inline-flex items-center justify-center size-6 rounded-full text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition">
+                    {{ icon_trash('size-3.5') }}
+                </button>
+            </form>
+        </div>
     </div>
 </section>
