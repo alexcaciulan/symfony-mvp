@@ -1,0 +1,133 @@
+{# Auto-descoperire dosar pe portal.just.ro. Turbo Frame auto-conținut: butonul de
+   căutare + rezultate/mesaje în funcție de `state`. Inclus inițial cu state='initial'
+   din _portal_config.html.twig; reîntors de CasePortalController::discover cu starea reală.
+
+   Stări: initial | ok | empty | no_portal_code | locked | rate_limited | error #}
+{% from 'case/overview/_icons.html.twig' import icon_search, icon_check, icon_warning, icon_chevron_right, icon_lightning, icon_lock %}
+
+{% set has_results = state == 'ok' and suggestions|length > 0 %}
+
+<turbo-frame id="portal-discover">
+    <div class="space-y-4">
+        <div class="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+                <div class="text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 mb-1">{{ 'case_overview.portal.discover_label'|trans }}</div>
+                <p class="text-xs text-slate-500 max-w-md">{{ 'case_overview.portal.discover_hint'|trans }}</p>
+            </div>
+            {% if state != 'locked' %}
+                <form method="post" action="{{ path('case_portal_discover', { id: case.id }) }}" data-turbo-frame="portal-discover">
+                    <input type="hidden" name="_token" value="{{ csrf_token('portal_discover_' ~ case.id) }}">
+                    <button type="submit"
+                            class="py-2.5 px-4 inline-flex items-center gap-1.5 text-sm font-semibold rounded-lg border border-lex-navy/30 text-lex-navy dark:text-white dark:border-slate-700 bg-white dark:bg-slate-800/60 hover:bg-lex-navy/5 transition-colors"
+                            data-turbo-submits-with="{{ 'case_overview.portal.discover_searching'|trans }}">
+                        {{ icon_search('size-4') }}
+                        {{ has_results ? 'case_overview.portal.discover_button_again'|trans : 'case_overview.portal.discover_button'|trans }}
+                    </button>
+                </form>
+            {% endif %}
+        </div>
+
+        {% if has_results %}
+            <div>
+                <h4 class="text-sm font-semibold">{{ 'case_overview.portal.discover_results_title'|trans }}</h4>
+                <p class="text-xs text-slate-500 mt-0.5">{{ 'case_overview.portal.discover_results_hint'|trans }}</p>
+            </div>
+
+            <ul class="space-y-3">
+                {% for s in suggestions %}
+                    <li class="rounded-xl border {{ s.isHighConfidence ? 'border-green-300 dark:border-green-800 bg-green-50/40 dark:bg-green-950/20' : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900' }} p-4">
+                        <div class="flex items-start justify-between gap-4 flex-wrap">
+                            <div class="min-w-0">
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <span class="font-mono text-sm font-semibold">{{ s.numar }}</span>
+                                    {% if s.isHighConfidence %}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300">
+                                            {{ icon_lightning('size-3') }}{{ 'case_overview.portal.discover_high_confidence'|trans }}
+                                        </span>
+                                    {% endif %}
+                                    {% if s.matchedPartyNames|length > 0 %}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                                            {{ icon_check('size-3') }}{{ s.matchedPartyNames|length }} {{ 'case_overview.portal.discover_matched_badge'|trans }}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                                {% if s.institutie %}
+                                    <div class="text-xs text-slate-500 mt-1">{{ s.institutie }}</div>
+                                {% endif %}
+                            </div>
+
+                            <form method="post" action="{{ path('case_portal_activate', { id: case.id }) }}" data-turbo-frame="_top">
+                                <input type="hidden" name="portal_activate[_token]" value="{{ csrf_token('portal_activate') }}">
+                                <input type="hidden" name="portal_activate[courtCaseNumber]" value="{{ s.numar }}">
+                                <button type="submit"
+                                        class="py-2 px-3 inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white shadow-sm hover:opacity-90 transition-opacity">
+                                    {{ icon_chevron_right('size-3.5') }}
+                                    {{ 'case_overview.portal.discover_activate'|trans }}
+                                </button>
+                            </form>
+                        </div>
+
+                        <dl class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                            {% if s.obiect %}
+                                <div>
+                                    <dt class="text-slate-400 uppercase tracking-wide text-[10px] font-bold">{{ 'case_overview.portal.discover_object'|trans }}</dt>
+                                    <dd class="text-slate-700 dark:text-slate-300">{{ s.obiect }}</dd>
+                                </div>
+                            {% endif %}
+                            {% if s.stadiuProcesual %}
+                                <div>
+                                    <dt class="text-slate-400 uppercase tracking-wide text-[10px] font-bold">{{ 'case_overview.portal.discover_stage'|trans }}</dt>
+                                    <dd class="text-slate-700 dark:text-slate-300">{{ s.stadiuProcesual }}</dd>
+                                </div>
+                            {% endif %}
+                            {% if s.parti|length > 0 %}
+                                <div class="sm:col-span-3">
+                                    <dt class="text-slate-400 uppercase tracking-wide text-[10px] font-bold">{{ 'case_overview.portal.discover_parties'|trans }}</dt>
+                                    <dd class="text-slate-700 dark:text-slate-300">
+                                        {% for p in s.parti %}
+                                            <span class="inline-block mr-2">{{ p.nume }}{% if p.calitateParte %} <span class="text-slate-400">({{ p.calitateParte }})</span>{% endif %}{% if not loop.last %},{% endif %}</span>
+                                        {% endfor %}
+                                    </dd>
+                                </div>
+                            {% endif %}
+                        </dl>
+                    </li>
+                {% endfor %}
+            </ul>
+
+            <p class="text-[11px] text-slate-500">{{ 'case_overview.portal.discover_disclaimer'|trans }}</p>
+
+        {% elseif state == 'empty' %}
+            <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-4">
+                <div class="text-sm font-semibold">{{ 'case_overview.portal.discover_empty_title'|trans }}</div>
+                <p class="text-xs text-slate-500 mt-1">{{ 'case_overview.portal.discover_empty_body'|trans }}</p>
+            </div>
+
+        {% elseif state == 'no_portal_code' %}
+            <div class="rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-4">
+                <div class="flex items-center gap-1.5 text-sm font-semibold text-amber-800 dark:text-amber-300">
+                    {{ icon_warning('size-4') }}{{ 'case_overview.portal.discover_no_portal_code_title'|trans }}
+                </div>
+                <p class="text-xs text-amber-700 dark:text-amber-400 mt-1">{{ 'case_overview.portal.discover_no_portal_code_body'|trans }}</p>
+            </div>
+
+        {% elseif state == 'locked' %}
+            <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-4">
+                <div class="flex items-center gap-1.5 text-sm font-semibold">
+                    {{ icon_lock('size-4') }}{{ 'case_overview.portal.discover_locked_title'|trans }}
+                </div>
+                <p class="text-xs text-slate-500 mt-1">{{ 'case_overview.portal.discover_locked_body'|trans }}</p>
+            </div>
+
+        {% elseif state == 'rate_limited' %}
+            <div class="rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-3 text-xs text-amber-700 dark:text-amber-400">
+                {{ 'case_overview.portal.discover_rate_limited'|trans }}
+            </div>
+
+        {% elseif state == 'error' %}
+            <div class="rounded-xl border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/20 p-3 text-xs text-red-700 dark:text-red-400">
+                {{ 'case_overview.portal.discover_error'|trans }}
+            </div>
+        {% endif %}
+    </div>
+</turbo-frame>

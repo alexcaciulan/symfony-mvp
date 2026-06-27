@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Tests\Service\Portal;
 
 use App\Service\Portal\PortalJustClient;
@@ -241,6 +243,63 @@ class PortalJustClientTest extends TestCase
         $this->assertSame('Admite cererea. Obligă pârâtul la plata sumei.', $sedinta['solutie']);
         $this->assertSame('Admite cererea', $sedinta['solutieSumar']);
         $this->assertSame('10.02.2026', $sedinta['dataPronuntare']);
+    }
+
+    public function testSearchByPartyPassesPartyAndDateParams(): void
+    {
+        $stub = $this->createCapturingStub((object) ['CautareDosare2Result' => null]);
+
+        $this->client->setClient($stub);
+        $this->client->searchByParty(
+            'SC ACME SRL',
+            'JudecatoriaCLUJNAPOCA',
+            new \DateTimeImmutable('2026-01-01 00:00:00'),
+            new \DateTimeImmutable('2026-06-01 00:00:00'),
+        );
+
+        $params = $stub->lastArgs[0];
+        $this->assertSame('SC ACME SRL', $params['numeParte']);
+        $this->assertSame('', $params['numarDosar']);
+        $this->assertSame('JudecatoriaCLUJNAPOCA', $params['institutie']);
+        $this->assertSame('2026-01-01T00:00:00', $params['dataStart']);
+        $this->assertSame('2026-06-01T00:00:00', $params['dataStop']);
+    }
+
+    public function testSearchByPartyOmitsDateParamsWhenNotProvided(): void
+    {
+        $stub = $this->createCapturingStub((object) ['CautareDosare2Result' => null]);
+
+        $this->client->setClient($stub);
+        $this->client->searchByParty('SC ACME SRL', 'JudecatoriaCLUJNAPOCA');
+
+        $params = $stub->lastArgs[0];
+        $this->assertSame('SC ACME SRL', $params['numeParte']);
+        $this->assertArrayNotHasKey('dataStart', $params);
+        $this->assertArrayNotHasKey('dataStop', $params);
+    }
+
+    private function createCapturingStub(mixed $returnValue): \SoapClient
+    {
+        return new class($returnValue) extends \SoapClient {
+            /** @var array<int, mixed> */
+            public array $lastArgs = [];
+
+            public function __construct(private mixed $returnValue)
+            {
+            }
+
+            public function __doRequest(string $request, string $location, string $action, int $version, bool $oneWay = false): ?string
+            {
+                return '';
+            }
+
+            public function __call(string $name, array $args): mixed
+            {
+                $this->lastArgs = $args;
+
+                return $this->returnValue;
+            }
+        };
     }
 
     public function testSearchParsesCaleAtac(): void

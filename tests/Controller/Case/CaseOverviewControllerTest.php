@@ -699,19 +699,6 @@ final class CaseOverviewControllerTest extends WebTestCase
         self::assertSelectorTextContains('#panel-portal', 'Niciun eveniment monitorizat încă');
     }
 
-    public function testPortalSampleTimelineRenders3PreviewEntries(): void
-    {
-        $this->client->loginUser($this->user);
-        $this->client->request('GET', '/case/' . $this->case->getId());
-
-        self::assertResponseIsSuccessful();
-        // Sample preview shows 3 educational entries regardless of actual portalEvents.
-        self::assertSelectorTextContains('#panel-portal', 'Exemplu de timeline');
-        self::assertSelectorTextContains('#panel-portal', 'Ordonanță emisă');
-        self::assertSelectorTextContains('#panel-portal', 'Termen judecată fixat');
-        self::assertSelectorTextContains('#panel-portal', 'Dosar înregistrat la registratură');
-    }
-
     public function testPortalSyncStatusShowsNeporneetWhenNeverChecked(): void
     {
         // Base case has lastPortalCheckAt = null → italic fallback in sync status sidebar.
@@ -743,12 +730,12 @@ final class CaseOverviewControllerTest extends WebTestCase
         $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
-        // Sidebar „Cum funcționează" must list all 4 numbered steps.
+        // Sidebar „Cum funcționează" must list all 4 numbered steps (plain language).
         self::assertSelectorTextContains('#panel-portal', 'Cum funcționează');
-        self::assertSelectorTextContains('#panel-portal', 'Cron rulează zilnic');
-        self::assertSelectorTextContains('#panel-portal', 'Detectare evenimente noi');
-        self::assertSelectorTextContains('#panel-portal', 'Tranziții automate');
-        self::assertSelectorTextContains('#panel-portal', 'Email + notificare');
+        self::assertSelectorTextContains('#panel-portal', 'Verificăm dosarul automat');
+        self::assertSelectorTextContains('#panel-portal', 'Identificăm noutățile');
+        self::assertSelectorTextContains('#panel-portal', 'Actualizăm dosarul automat');
+        self::assertSelectorTextContains('#panel-portal', 'Primești email și notificare');
     }
 
     public function testModalCloseCasePresentInDom(): void

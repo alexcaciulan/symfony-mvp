@@ -34,6 +34,13 @@ framework:
             policy: sliding_window
             limit: 10
             interval: '1 hour'
+        # Auto-discovery search on portal.just.ro (CasePortalController::discover) —
+        # SOAP party search to find a case before its ECRIS number is known. One
+        # search may fan out to several SOAP calls (one per debtor), so keep it tight.
+        portal_search:
+            policy: sliding_window
+            limit: 10
+            interval: '1 hour'
         # AI extraction limiters — per-user (consumed by Pas 2.5.7 OcrTextStrategy
         # + Pas 2.5.8 AiVisionStrategy, NOT by AnthropicApiClient itself).
         # Daily windows reflect typical lawyer-volume + Anthropic pricing tiers.
@@ -76,6 +83,8 @@ when@test:
             payment_order_generation:
                 policy: no_limit
             portal_check:
+                policy: no_limit
+            portal_search:
                 policy: no_limit
             extraction_ai_text:
                 policy: no_limit

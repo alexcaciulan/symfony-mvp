@@ -71,10 +71,13 @@ class PortalEventDetector
                 $newEvents[] = [
                     'type' => PortalEventType::APPEAL_FILED,
                     'eventDate' => $appealDate,
+                    // "Cale de atac" (feminine) is the grammatical head, so
+                    // "declarată" agrees regardless of the appeal type (Apel,
+                    // Recurs, Cerere în anulare); the type stays parenthetical.
                     'description' => sprintf(
-                        '%s declarată de %s',
-                        $caleAtac['tipCaleAtac'] ?? 'Cale de atac',
-                        $caleAtac['parteDeclaratoare'] ?? 'necunoscut',
+                        'Cale de atac (%s) declarată de %s',
+                        $caleAtac['tipCaleAtac'] ?? 'tip necunoscut',
+                        $caleAtac['parteDeclaratoare'] ?? 'parte necunoscută',
                     ),
                     'solutie' => null,
                     'solutieSumar' => null,
@@ -132,9 +135,16 @@ class PortalEventDetector
             }
         }
 
-        $solutieSumar = $sedinta['solutieSumar'] ?? null;
-        if ($solutieSumar !== null) {
-            $parts[] = $solutieSumar;
+        // Use the short ruling type (solutie) for the headline; the full text
+        // lives in the dedicated solutieSumar field (shown separately in the
+        // timeline and email). Fall back to solutieSumar only if the type is
+        // missing, so the description never loses the ruling entirely.
+        $ruling = $sedinta['solutie'] ?? null;
+        if ($ruling === null || $ruling === '') {
+            $ruling = $sedinta['solutieSumar'] ?? null;
+        }
+        if ($ruling !== null && $ruling !== '') {
+            $parts[] = $ruling;
         }
 
         return implode('. ', $parts);

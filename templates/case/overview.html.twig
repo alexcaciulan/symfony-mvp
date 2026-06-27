@@ -28,24 +28,31 @@
   {{ include('case/overview/_hero.html.twig') }}
   {{ include('case/overview/_kpi_grid.html.twig') }}
   {{ include('case/overview/_pipeline.html.twig') }}
-  {{ include('case/overview/_tabs_nav.html.twig') }}
+  {# Server-side active tab from `?tab=`, so portal actions (which redirect back)
+     keep the user on the tab they acted from instead of resetting to Detalii. #}
+  {% set active_tab = app.request.query.get('tab')|default('detalii') %}
+  {% if active_tab not in ['detalii', 'documente', 'termene', 'portal', 'audit'] %}
+    {% set active_tab = 'detalii' %}
+  {% endif %}
 
-  {# Tabs panels — populate la 4.0.3 (Detalii) / 4.0.4 (Documente) / 4.0.5 (Termene) / 4.0.6 (Portal) / 4.0.7 (Audit + Modale).
-     Default active panel: detalii (no `hidden`). Preline `data-hs-tab` din _tabs_nav.html.twig comută clasele. #}
+  {{ include('case/overview/_tabs_nav.html.twig', { active_tab: active_tab }) }}
+
+  {# Tabs panels. Active panel rendered without `hidden`; Preline `data-hs-tab`
+     toggles `hidden` on click. Initial active state is driven server-side. #}
   <div>
-    <div id="panel-detalii" role="tabpanel" aria-labelledby="tab-detalii">
+    <div id="panel-detalii" class="{{ active_tab == 'detalii' ? '' : 'hidden' }}" role="tabpanel" aria-labelledby="tab-detalii">
       {{ include('case/overview/_tab_detalii.html.twig') }}
     </div>
-    <div id="panel-documente" class="hidden" role="tabpanel" aria-labelledby="tab-documente">
+    <div id="panel-documente" class="{{ active_tab == 'documente' ? '' : 'hidden' }}" role="tabpanel" aria-labelledby="tab-documente">
       {{ include('case/overview/_tab_documente.html.twig') }}
     </div>
-    <div id="panel-termene" class="hidden" role="tabpanel" aria-labelledby="tab-termene">
+    <div id="panel-termene" class="{{ active_tab == 'termene' ? '' : 'hidden' }}" role="tabpanel" aria-labelledby="tab-termene">
       {{ include('case/overview/_tab_termene.html.twig') }}
     </div>
-    <div id="panel-portal" class="hidden" role="tabpanel" aria-labelledby="tab-portal">
+    <div id="panel-portal" class="{{ active_tab == 'portal' ? '' : 'hidden' }}" role="tabpanel" aria-labelledby="tab-portal">
       {{ include('case/overview/_tab_portal.html.twig') }}
     </div>
-    <div id="panel-audit" class="hidden" role="tabpanel" aria-labelledby="tab-audit">
+    <div id="panel-audit" class="{{ active_tab == 'audit' ? '' : 'hidden' }}" role="tabpanel" aria-labelledby="tab-audit">
       {{ include('case/overview/_tab_audit.html.twig') }}
     </div>
   </div>

@@ -1,11 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Service\Portal;
 
 use Psr\Log\LoggerInterface;
 
 class PortalJustClient
 {
+    // The official courts portal only serves this endpoint over HTTP (HTTPS is
+    // not offered). Party names are redacted from logs; no PII is sent in query
+    // strings, but responses are not transport-encrypted.
     private const WSDL_URL = 'http://portalquery.just.ro/query.asmx?WSDL';
 
     private ?\SoapClient $client = null;
@@ -40,22 +45,70 @@ class PortalJustClient
      */
     public function searchByCaseNumber(string $caseNumber, string $institutionCode): array
     {
-        try {
-            $client = $this->getClient();
+        return $this->search([
+            'numarDosar' => $caseNumber,
+            'obiectDosar' => '',
+            'numeParte' => '',
+            'institutie' => $institutionCode,
+        ]);
+    }
 
-            $response = $client->CautareDosare2([
-                'numarDosar' => $caseNumber,
-                'obiectDosar' => '',
-                'numeParte' => '',
-                'institutie' => $institutionCode,
-            ]);
+    /**
+     * Search by party name within an institution, optionally bounded by a date
+     * window. Used by auto-discovery before the ECRIS number is known: `numeParte`
+     * does a partial match, `institutie` narrows to one court.
+     *
+     * @return array<int, array<string, mixed>> Same shape as {@see searchByCaseNumber()}
+     *
+     * @throws PortalJustException
+     */
+    public function searchByParty(
+        string $partyName,
+        string $institutionCode,
+        ?\DateTimeInterface $from = null,
+        ?\DateTimeInterface $to = null,
+    ): array {
+        $params = [
+            'numarDosar' => '',
+            'obiectDosar' => '',
+            'numeParte' => $partyName,
+            'institutie' => $institutionCode,
+        ];
+
+        // dataStart/dataStop are xsd:dateTime on CautareDosare2; omit when absent.
+        if ($from !== null) {
+            $params['dataStart'] = $from->format('Y-m-d\TH:i:s');
+        }
+        if ($to !== null) {
+            $params['dataStop'] = $to->format('Y-m-d\TH:i:s');
+        }
+
+        return $this->search($params);
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     *
+     * @return array<int, array<string, mixed>>
+     *
+     * @throws PortalJustException
+     */
+    private function search(array $params): array
+    {
+        try {
+            $response = $this->getClient()->CautareDosare2($params);
 
             return $this->parseResponse($response);
         } catch (\SoapFault $e) {
+            // Redact numeParte: it may carry a natural-person name (GDPR art. 5(1)(f)).
+            $logParams = $params;
+            if (isset($logParams['numeParte']) && $logParams['numeParte'] !== '') {
+                $logParams['numeParte'] = '[redacted]';
+            }
+
             $this->logger->error('Portal SOAP fault: {message}', [
                 'message' => $e->getMessage(),
-                'caseNumber' => $caseNumber,
-                'institutionCode' => $institutionCode,
+                'params' => $logParams,
             ]);
 
             throw new PortalJustException('SOAP fault: ' . $e->getMessage(), 0, $e);

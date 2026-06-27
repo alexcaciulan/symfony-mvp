@@ -168,6 +168,7 @@ final class EmailNotificationSubscriber
                 'eventDate' => $portalEvent->getEventDate(),
                 'description' => $portalEvent->getDescription(),
                 'solutie' => $portalEvent->getSolutie(),
+                'solutieSumar' => $portalEvent->getSolutieSumar(),
                 'heading' => $this->translator->trans('email.portal_event.heading', $params),
                 'body' => $this->translator->trans('email.portal_event.body', $params),
             ],

@@ -1,0 +1,24 @@
+{# Turbo Stream response for CasePortalController activate / check-now, so portal
+   actions update the page in place (no full reload, no redirect, tab preserved).
+   `update_regions` is false for pure error/warning toasts (nothing changed).
+   Preline re-inits via preline-init_controller MutationObserver after the swap. #}
+{% if update_regions %}
+    <turbo-stream action="replace" target="case-hero">
+        <template>{{ include('case/overview/_hero.html.twig') }}</template>
+    </turbo-stream>
+    <turbo-stream action="replace" target="case-pipeline">
+        <template>{{ include('case/overview/_pipeline.html.twig') }}</template>
+    </turbo-stream>
+    <turbo-stream action="replace" target="case-tabs-nav">
+        <template>{{ include('case/overview/_tabs_nav.html.twig', { active_tab: 'portal' }) }}</template>
+    </turbo-stream>
+    <turbo-stream action="update" target="panel-portal">
+        <template>{{ include('case/overview/_tab_portal.html.twig') }}</template>
+    </turbo-stream>
+{% endif %}
+
+<turbo-stream action="append" target="toasts">
+    <template>
+        {% include 'components/Toast.html.twig' with { message: toast_key|trans, variant: toast_variant, details: [] } only %}
+    </template>
+</turbo-stream>

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Tests\Service\Portal;
 
 use App\Entity\Court;
@@ -105,6 +107,33 @@ class PortalEventDetectorTest extends KernelTestCase
         $this->assertSame(PortalEventType::HEARING_COMPLETED, $events[0]['type']);
         $this->assertSame('Admite cererea', $events[0]['solutie']);
         $this->assertSame('Admis', $events[0]['solutieSumar']);
+    }
+
+    public function testHearingCompletedDescriptionUsesShortSolutieNotLongText(): void
+    {
+        $case = $this->createCase();
+
+        $longText = 'Amână pronunţarea în cauză la data de 21.05.2026. Pronunţată prin punerea soluţiei la dispoziţia părţilor prin mijlocirea grefei.';
+        $dosarData = [
+            'sedinte' => [
+                [
+                    'data' => '06.05.2026',
+                    'solutie' => 'Amână pronunţarea',
+                    'solutieSumar' => $longText,
+                    'dataPronuntare' => '06.05.2026',
+                ],
+            ],
+            'caiAtac' => [],
+        ];
+
+        $events = $this->detector->detectNewEvents($case, $dosarData);
+
+        // Description is the concise headline + short ruling type; the full text
+        // stays only in solutieSumar (no duplication in the stored description).
+        $this->assertStringContainsString('Ședință finalizată din 06.05.2026', $events[0]['description']);
+        $this->assertStringContainsString('Amână pronunţarea', $events[0]['description']);
+        $this->assertStringNotContainsString('mijlocirea grefei', $events[0]['description']);
+        $this->assertSame($longText, $events[0]['solutieSumar']);
     }
 
     public function testDetectsAppealFiled(): void

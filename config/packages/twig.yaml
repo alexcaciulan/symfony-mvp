@@ -1,5 +1,9 @@
 twig:
     file_name_pattern: '*.twig'
+    # Storage stays UTC (PHP + Doctrine run on UTC); only the display is converted
+    # to Romanian local time for the `|date` filter / `date()` function.
+    date:
+        timezone: Europe/Bucharest
 
 when@test:
     twig:

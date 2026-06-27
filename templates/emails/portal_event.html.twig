@@ -18,13 +18,22 @@
         {% endif %}
     </table>
 
-    {% if description %}
+    {# For rulings the type/date table + solutie + solutieSumar already cover it,
+       so description (which repeats them) is shown only for events without a
+       ruling: termen fixat, cale de atac, info actualizare. #}
+    {% if description and not solutie %}
         <p style="font-size:14px;line-height:1.6;color:#475569;">{{ description }}</p>
     {% endif %}
 
     {% if solutie %}
         <p style="font-size:14px;line-height:1.6;color:#475569;">
             <strong>{{ 'email.portal_event.field_solution'|trans }}:</strong> {{ solutie }}
+        </p>
+    {% endif %}
+
+    {% if solutieSumar %}
+        <p style="font-size:13px;line-height:1.6;color:#64748b;">
+            <strong>{{ 'email.portal_event.field_ruling_text'|trans }}:</strong><br>{{ solutieSumar|nl2br }}
         </p>
     {% endif %}
 
