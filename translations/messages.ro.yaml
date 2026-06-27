@@ -1035,6 +1035,7 @@ case_overview:
         flash_ruling_date_set: 'Data comunicării a fost salvată. Termenul cererii în anulare a fost creat automat.'
         flash_error_csrf: 'Sesiunea a expirat. Reîncărcați pagina și reîncercați.'
         flash_error_validation: 'Formularul conține erori. Verificați câmpurile și reîncercați.'
+        flash_error_completed_no_edit: 'Un termen completat nu mai poate fi editat.'
 
 # =============================================================================
 # PDF Templates (DomPDF — strict legal text, NU reformula fără confirmare juridică)

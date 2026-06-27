@@ -312,6 +312,25 @@ final class CaseDeadlineControllerTest extends WebTestCase
         }
     }
 
+    public function testEditCompletedDeadlineIsRejected(): void
+    {
+        $this->client->loginUser($this->user);
+        $deadline = $this->createDeadline(DeadlineType::OTHER, new \DateTimeImmutable('2026-12-31'));
+        $deadline->markCompleted($this->user);
+        $this->em->flush();
+
+        $tokens = $this->tokensFromOverview();
+        $this->client->request('POST', sprintf('/case/%d/deadline/%d/edit', $this->case->getId(), $deadline->getId()), [
+            'edit_deadline' => ['_token' => $tokens['edit'], 'deadlineDate' => '2027-03-03', 'description' => 'x'],
+        ]);
+
+        self::assertResponseRedirects('/case/' . $this->case->getId() . '?tab=termene');
+
+        $this->em->clear();
+        $unchanged = $this->em->getRepository(LegalDeadline::class)->find($deadline->getId());
+        self::assertSame('2026-12-31', $unchanged->getDeadlineDate()->format('Y-m-d'), 'A completed deadline must not be editable.');
+    }
+
     public function testEditDeadlineForbiddenForOtherUser(): void
     {
         $hasher = static::getContainer()->get(UserPasswordHasherInterface::class);

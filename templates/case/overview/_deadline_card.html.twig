@@ -137,16 +137,20 @@
                 </button>
             {% endif %}
 
-            <button type="button"
-                    data-hs-overlay="#hs-modal-edit-deadline"
-                    data-deadline-edit-url="{{ path('case_deadline_edit', {caseId: deadline.legalCase.id, deadlineId: deadline.id}) }}"
-                    data-deadline-edit-date="{{ deadline.deadlineDate|date('Y-m-d') }}"
-                    data-deadline-edit-description="{{ deadline.description }}"
-                    data-deadline-edit-critical="{{ is_critical ? '1' : '0' }}"
-                    aria-label="{{ 'case_overview.deadlines.edit_aria'|trans }}"
-                    class="inline-flex items-center justify-center size-6 rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-                {{ icon_edit('size-3.5') }}
-            </button>
+            {# Edit is meaningless once a deadline is completed; delete stays as the
+               escape hatch for a mistaken completion (no un-complete action). #}
+            {% if not deadline.completed %}
+                <button type="button"
+                        data-hs-overlay="#hs-modal-edit-deadline"
+                        data-deadline-edit-url="{{ path('case_deadline_edit', {caseId: deadline.legalCase.id, deadlineId: deadline.id}) }}"
+                        data-deadline-edit-date="{{ deadline.deadlineDate|date('Y-m-d') }}"
+                        data-deadline-edit-description="{{ deadline.description }}"
+                        data-deadline-edit-critical="{{ is_critical ? '1' : '0' }}"
+                        aria-label="{{ 'case_overview.deadlines.edit_aria'|trans }}"
+                        class="inline-flex items-center justify-center size-6 rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+                    {{ icon_edit('size-3.5') }}
+                </button>
+            {% endif %}
 
             <form method="post"
                   action="{{ path('case_deadline_delete', {caseId: deadline.legalCase.id, deadlineId: deadline.id}) }}"

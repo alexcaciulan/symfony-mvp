@@ -166,6 +166,11 @@ final class CaseDeadlineController extends AbstractController
         $this->denyAccessUnlessGranted(CaseVoter::DEADLINE_MANAGE, $case);
         $deadline = $this->findDeadlineOrThrow($case, $deadlineId);
 
+        // A completed deadline is a closed record: editing it is meaningless.
+        if ($deadline->isCompleted()) {
+            return $this->respondDeadline($request, $case, false, 'error', 'case_overview.deadlines.flash_error_completed_no_edit', null);
+        }
+
         $form = $this->createForm(EditDeadlineType::class);
         $form->handleRequest($request);
 

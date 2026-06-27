@@ -1033,6 +1033,7 @@ case_overview:
         flash_ruling_date_set: 'Communication date saved. The annulment-application deadline has been created automatically.'
         flash_error_csrf: 'Your session expired. Reload the page and try again.'
         flash_error_validation: 'The form has errors. Check the fields and try again.'
+        flash_error_completed_no_edit: 'A completed deadline can no longer be edited.'
 
 # =============================================================================
 # PDF Templates (DomPDF rendered, strictly legal wording)
