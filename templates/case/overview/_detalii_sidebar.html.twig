@@ -1,0 +1,5 @@
+{# Detalii sidebar content (active deadline ring + recommended actions), kept in a
+   dedicated partial so Turbo Streams can refresh just this region in place when an
+   action in another tab changes the active deadline or the case status. #}
+{{ include('case/overview/_active_deadline_ring.html.twig') }}
+{{ include('case/overview/_recommended_actions.html.twig') }}

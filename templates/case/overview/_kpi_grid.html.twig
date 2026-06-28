@@ -7,10 +7,11 @@
 {% set stamp_duty = case.stampDuty|default(0)|number_format(2, ',', '.') %}
 {% set due_date_label = case.dueDate ? case.dueDate|date('d.m.Y') : ('case_overview.kpi.no_due_date'|trans) %}
 
-{# Interest days span: from dueDate to today (matches the commercial interest period under OG 13/2011). #}
+{# Interest days span: from dueDate to the case creation date, matching the reference
+   date of the stored `calculatedInterest` shown in this card (OG 13/2011). #}
 {% set interest_days = 0 %}
 {% if case.dueDate %}
-    {% set diff_seconds = ("now"|date('U') - case.dueDate|date('U')) %}
+    {% set diff_seconds = (case.createdAt|date('U') - case.dueDate|date('U')) %}
     {% set interest_days = (diff_seconds / 86400)|round(0, 'floor') %}
     {% if interest_days < 0 %}{% set interest_days = 0 %}{% endif %}
 {% endif %}
@@ -29,7 +30,7 @@
     {% set deadline_expires_label = active_deadline.deadlineDate|date('d.m.Y') %}
 {% endif %}
 
-<section class="grid grid-cols-2 lg:grid-cols-4 gap-px bg-slate-100 dark:bg-slate-800 rounded-2xl overflow-hidden shadow-soft border border-slate-200 dark:border-slate-800 mb-6">
+<section id="case-kpi-grid" class="grid grid-cols-2 lg:grid-cols-4 gap-px bg-slate-100 dark:bg-slate-800 rounded-2xl overflow-hidden shadow-soft border border-slate-200 dark:border-slate-800 mb-6">
     <div class="bg-white dark:bg-slate-900 px-6 py-4 lg:px-8">
         <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ 'case_overview.kpi.principal'|trans }}</div>
         <div class="mt-1.5 text-2xl font-bold tnum text-slate-900 dark:text-white">{{ principal }}<span class="text-base font-medium text-slate-400 ml-1">{{ case.currency }}</span></div>

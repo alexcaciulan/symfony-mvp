@@ -220,6 +220,9 @@ final class CasePaymentOrderControllerTest extends WebTestCase
         self::assertStringContainsString('target="case-pipeline"', $body);
         self::assertStringContainsString('target="panel-documente"', $body);
         self::assertStringContainsString('target="toasts"', $body);
+        // Status change refreshes the recommended actions + active deadline regions.
+        self::assertStringContainsString('target="case-kpi-grid"', $body);
+        self::assertStringContainsString('target="case-detalii-sidebar"', $body);
         // The originating „Generează cerere OP" modal closes after the swap.
         self::assertStringContainsString('close-modal', $body);
         self::assertStringContainsString('hs-modal-cerere-op', $body);

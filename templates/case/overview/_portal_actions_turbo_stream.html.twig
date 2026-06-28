@@ -15,6 +15,14 @@
     <turbo-stream action="update" target="panel-portal">
         <template>{{ include('case/overview/_tab_portal.html.twig') }}</template>
     </turbo-stream>
+    {# A portal event can advance the status and add a deadline, so refresh the
+       top KPI card and the Detalii sidebar (recommended actions + deadline ring). #}
+    <turbo-stream action="replace" target="case-kpi-grid">
+        <template>{{ include('case/overview/_kpi_grid.html.twig') }}</template>
+    </turbo-stream>
+    <turbo-stream action="update" target="case-detalii-sidebar">
+        <template>{{ include('case/overview/_detalii_sidebar.html.twig') }}</template>
+    </turbo-stream>
 {% endif %}
 
 <turbo-stream action="append" target="toasts">

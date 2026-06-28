@@ -451,6 +451,9 @@ final class CaseDeadlineControllerTest extends WebTestCase
         self::assertStringContainsString('target="panel-termene"', $body);
         self::assertStringContainsString('close-modal', $body);
         self::assertStringContainsString('target="toasts"', $body);
+        // The active deadline drives the top KPI card and the Detalii sidebar ring.
+        self::assertStringContainsString('target="case-kpi-grid"', $body);
+        self::assertStringContainsString('target="case-detalii-sidebar"', $body);
     }
 
     public function testAddDeadlineErrorReturnsToastStreamWhenRequested(): void

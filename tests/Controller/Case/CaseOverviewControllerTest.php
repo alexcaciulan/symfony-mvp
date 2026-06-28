@@ -497,7 +497,7 @@ final class CaseOverviewControllerTest extends WebTestCase
         $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
-        self::assertSelectorTextContains('#panel-detalii', 'calculul indisponibil');
+        self::assertSelectorTextContains('#panel-detalii', 'Defalcarea pe perioade nu poate fi recalculată');
     }
 
     public function testDocumenteGeneratedRenders3RowsAlways(): void

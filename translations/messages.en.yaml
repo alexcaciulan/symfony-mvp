@@ -610,7 +610,6 @@ case_overview:
         coming_soon_export: 'CSV export (post-MVP)'
         coming_soon_share: 'Share & collaborators (post-MVP)'
         coming_soon_edit: 'Edit details (post-MVP)'
-        coming_soon_doc_upload: 'Available once in-case document reupload ships (post-MVP)'
         coming_soon_mark_paid: 'Mark amicable payment (available once Close Case Workflow ships, Phase 4.x)'
     placeholder:
         tab:
@@ -697,7 +696,7 @@ case_overview:
         breakdown_days: 'Days'
         breakdown_interest: 'Interest'
         breakdown_total: 'Total accrued interest'
-        breakdown_error: '(calculation unavailable; check due date and report type)'
+        breakdown_error: 'The per-period breakdown cannot be recomputed right now. The interest amount above is the one calculated at filing.'
         breakdown_zero: 'No interest has accrued yet (due date is in the future).'
     court:
         title: 'COMPETENT COURT'
@@ -709,9 +708,10 @@ case_overview:
         label: 'ACTIVE DEADLINE'
         expires_on: 'Expires'
         next_alert: 'Next alert'
-        next_alert_pending: '—'
-        then: 'Then'
-        auto_transition: 'automatic transition'
+        next_alert_all_sent: 'all sent'
+        next_alert_imminent: 'soon'
+        next_alert_days_before: '%days% days before'
+        next_alert_at_expiry: 'at expiry'
         empty_title: 'No active deadline'
         empty_body: 'The nearest deadline to track appears here.'
     recommended_actions:
@@ -734,8 +734,6 @@ case_overview:
         reject_case_hint_in_anulare: 'Grant the debtor''s annulment request'
         close_case_definitiva: 'Close case (final)'
         close_case_definitiva_hint: 'Payment confirmed, debtor insolvent or abandoned'
-        add_document: 'Add document'
-        add_document_hint: 'Notice proof, other evidence'
     summons:
         action_generate: 'Generate the payment notice'
         flash_success: 'The payment notice has been generated. Download the PDF from the Documents tab.'

@@ -21,6 +21,13 @@
     <turbo-stream action="update" target="summons-communication-alert">
         <template>{{ include('case/overview/_summons_communication_alert.html.twig') }}</template>
     </turbo-stream>
+    {# Status change drives the recommended actions; a new deadline may also appear. #}
+    <turbo-stream action="replace" target="case-kpi-grid">
+        <template>{{ include('case/overview/_kpi_grid.html.twig') }}</template>
+    </turbo-stream>
+    <turbo-stream action="update" target="case-detalii-sidebar">
+        <template>{{ include('case/overview/_detalii_sidebar.html.twig') }}</template>
+    </turbo-stream>
 {% endif %}
 
 {% if close_modal_id is defined and close_modal_id %}

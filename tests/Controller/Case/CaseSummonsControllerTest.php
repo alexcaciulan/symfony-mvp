@@ -192,6 +192,9 @@ final class CaseSummonsControllerTest extends WebTestCase
         self::assertStringContainsString('target="case-pipeline"', $body);
         self::assertStringContainsString('target="panel-documente"', $body);
         self::assertStringContainsString('target="toasts"', $body);
+        // Status change refreshes the recommended actions + active deadline regions.
+        self::assertStringContainsString('target="case-kpi-grid"', $body);
+        self::assertStringContainsString('target="case-detalii-sidebar"', $body);
         // The C4 communication memento modal opens after the summons.
         self::assertStringContainsString('auto-modal', $body);
         self::assertStringContainsString('hs-modal-c4-summons', $body);

@@ -66,6 +66,26 @@
                 </div>
             </div>
 
+            {# Next reminder = the soonest unsent threshold (7 / 3 / 1 days before, then expiry).
+               Alert flags cascade (sending the 1-day sets 7+3+1), so the first unsent in
+               this order is the next one the daily `app:check-deadlines` run will dispatch. #}
+            {% set next_alert_date = null %}
+            {% set next_alert_offset = null %}
+            {% if not active_deadline.alertSent7 %}
+                {% set next_alert_date = active_deadline.deadlineDate|date_modify('-7 days') %}
+                {% set next_alert_offset = 7 %}
+            {% elseif not active_deadline.alertSent3 %}
+                {% set next_alert_date = active_deadline.deadlineDate|date_modify('-3 days') %}
+                {% set next_alert_offset = 3 %}
+            {% elseif not active_deadline.alertSent1 %}
+                {% set next_alert_date = active_deadline.deadlineDate|date_modify('-1 days') %}
+                {% set next_alert_offset = 1 %}
+            {% elseif not active_deadline.alertSentExpired %}
+                {% set next_alert_date = active_deadline.deadlineDate %}
+                {% set next_alert_offset = 0 %}
+            {% endif %}
+            {% set next_alert_imminent = next_alert_date is not null and (next_alert_date|date('U') - "now"|date('U')) < 0 %}
+
             <div class="flex-1 min-w-0 space-y-1.5">
                 <div class="text-xs">
                     <span class="text-amber-800/70 dark:text-amber-300/70">{{ 'case_overview.active_deadline_card.expires_on'|trans }}</span>
@@ -73,11 +93,14 @@
                 </div>
                 <div class="text-xs">
                     <span class="text-amber-800/70 dark:text-amber-300/70">{{ 'case_overview.active_deadline_card.next_alert'|trans }}</span>
-                    <span class="font-semibold text-amber-900 dark:text-amber-100">{{ 'case_overview.active_deadline_card.next_alert_pending'|trans }}</span>
-                </div>
-                <div class="text-xs">
-                    <span class="text-amber-800/70 dark:text-amber-300/70">{{ 'case_overview.active_deadline_card.then'|trans }}</span>
-                    <span class="font-semibold text-amber-900 dark:text-amber-100">{{ 'case_overview.active_deadline_card.auto_transition'|trans }}</span>
+                    {% if next_alert_date is null %}
+                        <span class="font-semibold text-amber-900 dark:text-amber-100">{{ 'case_overview.active_deadline_card.next_alert_all_sent'|trans }}</span>
+                    {% elseif next_alert_imminent %}
+                        <span class="font-semibold text-amber-900 dark:text-amber-100">{{ 'case_overview.active_deadline_card.next_alert_imminent'|trans }}</span>
+                    {% else %}
+                        <span class="font-semibold text-amber-900 dark:text-amber-100 tnum">{{ next_alert_date|date('d.m.Y') }}</span>
+                        <span class="text-amber-800/60 dark:text-amber-300/60">{{ (next_alert_offset == 0 ? 'case_overview.active_deadline_card.next_alert_at_expiry' : 'case_overview.active_deadline_card.next_alert_days_before')|trans({'%days%': next_alert_offset}) }}</span>
+                    {% endif %}
                 </div>
             </div>
         </div>

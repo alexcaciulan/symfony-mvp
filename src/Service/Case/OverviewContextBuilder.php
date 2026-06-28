@@ -78,6 +78,11 @@ final class OverviewContextBuilder
      * Returns `[breakdown[], errorFlag]`. The breakdown is not persisted — only used
      * to drive the per-period table render.
      *
+     * The reference date is the case creation date (not "now"): the stored
+     * `calculatedInterest` was computed up to that date in the wizard, so using
+     * it keeps the per-period rows, the table total and the stat in agreement
+     * instead of drifting as interest accrues day by day.
+     *
      * @return array{0: ?array, 1: bool}
      */
     private function computeBreakdown(LegalCase $case): array
@@ -90,7 +95,7 @@ final class OverviewContextBuilder
             $result = $this->interestService->calculate(
                 (float) $case->getAmount(),
                 \DateTimeImmutable::createFromInterface($case->getDueDate()),
-                new \DateTimeImmutable(),
+                $case->getCreatedAt(),
                 $case->getRelationshipType(),
             );
 

@@ -9,9 +9,11 @@
 {% set principal_pct = total_value > 0 ? (principal / total_value * 100) : 0 %}
 {% set interest_pct = total_value > 0 ? (interest / total_value * 100) : 0 %}
 
+{# Interest span uses the case creation date (the reference date of the stored
+   `calculatedInterest`), so the day count matches the per-period breakdown total. #}
 {% set interest_days = 0 %}
 {% if case.dueDate %}
-    {% set diff_seconds = ("now"|date('U') - case.dueDate|date('U')) %}
+    {% set diff_seconds = (case.createdAt|date('U') - case.dueDate|date('U')) %}
     {% set interest_days = (diff_seconds / 86400)|round(0, 'floor') %}
     {% if interest_days < 0 %}{% set interest_days = 0 %}{% endif %}
 {% endif %}
