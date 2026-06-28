@@ -577,7 +577,7 @@ wizard:
         skipped: 'Ai sărit peste extracția documentelor. Completează manual.'
 
 # =============================================================================
-# Case View (read-only) — legacy stub, will be replaced by case_overview at Pas 4.0
+# Case View (read-only) — legacy stub, replaced by case_overview.
 # =============================================================================
 case_view:
     title: 'Dosar #%id%'
@@ -590,9 +590,7 @@ case_view:
     no_documents: 'Nu sunt documente.'
 
 # =============================================================================
-# Case Overview (Pas 4.0 — pagina overview dosar post-wizard, 5 tab-uri)
-# Sub-pas 4.0.1: foundation keys (title, breadcrumb, tab labels, coming-soon, placeholders)
-# Sub-pas 4.0.2: hero + KPI + pipeline (header, cta, kpi, pipeline)
+# Case Overview (pagina overview dosar post-wizard, 5 tab-uri)
 # 4.0.3-4.0.7 vor extinde catalog.
 # =============================================================================
 case_overview:
@@ -606,19 +604,10 @@ case_overview:
         portal: 'Activitate Portal'
         audit: 'Audit'
     tooltip:
-        coming_soon_op: 'Disponibil la livrarea Generare PDF (Faza 6)'
-        coming_soon_portal: 'Disponibil la livrarea Monitorizare Portal (Faza 5)'
-        coming_soon_close: 'Disponibil la livrarea Workflow Închidere (Faza 4.x)'
-        coming_soon_export: 'Export CSV (post-MVP)'
-        coming_soon_share: 'Share & colaboratori (post-MVP)'
-        coming_soon_edit: 'Editare detalii (post-MVP)'
-        coming_soon_mark_paid: 'Marchează plată amiabilă (disponibil la livrarea Workflow Închidere, Faza 4.x)'
-    placeholder:
-        tab:
-            details: 'Conținutul tab-ului Detalii va fi populat la Pas 4.0.3'
-            documents: 'Conținutul tab-ului Documente va fi populat la Pas 4.0.4'
-            portal: 'Conținutul tab-ului Activitate Portal va fi populat la Pas 4.0.6'
-            audit: 'Audit log: vizibil în versiunea post-MVP. Datele se persistă deja la fiecare acțiune.'
+        coming_soon_share: 'Partajare și colaboratori (în curând)'
+        coming_soon_edit: 'Editare detalii (în curând)'
+        coming_soon_duplicate: 'Duplică dosar (în curând)'
+        coming_soon_mark_paid: 'Marchează plată amiabilă (în curând)'
     header:
         type_op: 'Ordonanță de plată'
         vs: 'vs'

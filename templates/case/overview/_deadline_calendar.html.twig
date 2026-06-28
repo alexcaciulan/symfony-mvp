@@ -1,4 +1,4 @@
-{# Pas 4.0.5 — Sidebar Calendar termene · următoarele 30 zile. Filtre: non-completed + daysRemaining ∈ (0, 30].
+{# Sidebar Calendar termene · următoarele 30 zile. Filtre: non-completed + daysRemaining ∈ (0, 30].
    Listează maxim 5 entries. Reflectă mockup linii 850-865. #}
 
 {% set upcoming = deadlines|filter(d => not d.completed and d.daysRemaining > 0 and d.daysRemaining <= 30)|slice(0, 5) %}

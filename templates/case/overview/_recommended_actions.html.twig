@@ -1,4 +1,4 @@
-{# Pas 4.0.3 — Sidebar Acțiuni recomandate cu 4 buttons enum-mapped pe CaseStatus. Reflectă mockup linii 600-624. #}
+{# Sidebar Acțiuni recomandate cu 4 buttons enum-mapped pe CaseStatus. Reflectă mockup linii 600-624. #}
 {% from 'case/overview/_icons.html.twig' import icon_check, icon_document, icon_money, icon_chevron_right %}
 
 {# A case has its summons sent (or beyond) when its status is past AMIABIL in the pipeline. #}
@@ -50,7 +50,7 @@
             </form>
         {% endif %}
 
-        {# 2. Generate payment order — RECOMMENDED, opens modal cerere-op (Pas 5.2 wired POST).
+        {# 2. Generate payment order — RECOMMENDED, opens modal cerere-op.
            Only available once the summons has been sent (status SOMATIE_TRIMISA), matching the hero CTA. #}
         {% if case.status.value == 'SOMATIE_TRIMISA' %}
             <button type="button"
@@ -70,10 +70,9 @@
             </button>
         {% endif %}
 
-        {# 3. Mark amicable payment — aria-disabled cu tooltip Faza 4.x. #}
+        {# 3. Mark amicable payment — disabled (coming soon). #}
         <button type="button"
                 aria-disabled="true"
-                tabindex="-1"
                 title="{{ 'case_overview.tooltip.coming_soon_mark_paid'|trans }}"
                 class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg opacity-60 cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
             <div class="size-9 rounded-lg bg-green-100 dark:bg-green-950/40 text-green-600 dark:text-green-400 flex items-center justify-center shrink-0">

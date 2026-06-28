@@ -454,6 +454,8 @@ final class CaseDeadlineControllerTest extends WebTestCase
         // The active deadline drives the top KPI card and the Detalii sidebar ring.
         self::assertStringContainsString('target="case-kpi-grid"', $body);
         self::assertStringContainsString('target="case-detalii-sidebar"', $body);
+        // The tab nav must refresh so the deadline count badge is not stale.
+        self::assertStringContainsString('target="case-tabs-nav"', $body);
     }
 
     public function testAddDeadlineErrorReturnsToastStreamWhenRequested(): void

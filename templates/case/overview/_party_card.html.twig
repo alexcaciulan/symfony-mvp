@@ -1,4 +1,4 @@
-{# Pas 4.0.3 — Card Părți (Creditor + Debtor side-by-side cu accent bars + badge ANAF). Reflectă mockup linii 447-482. #}
+{# Card Părți (Creditor + Debtor side-by-side cu accent bars + badge ANAF). Reflectă mockup linii 447-482. #}
 {% from 'case/overview/_icons.html.twig' import icon_eye, icon_edit %}
 
 {% set creditor = case.creditor %}
@@ -23,7 +23,6 @@
         </div>
         <button type="button"
                 aria-disabled="true"
-                tabindex="-1"
                 title="{{ 'case_overview.tooltip.coming_soon_edit'|trans }}"
                 class="text-xs font-medium text-blue-600 dark:text-blue-400 opacity-60 cursor-not-allowed">
             {{ 'case_overview.parties.edit'|trans }}

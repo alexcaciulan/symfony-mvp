@@ -1,5 +1,4 @@
-{# Pas 4.0.4 — Section Documente generate. Row 1 (Somație) wired la Pas 5.1.
-   Row 2 (Cerere OP) + Row 3 (Opis) rămân stub până la Pas 5.2. #}
+{# Section Documente generate (Somație / Cerere OP / Opis), status-driven per row. #}
 {% from 'case/overview/_icons.html.twig' import icon_document, icon_chevron_right %}
 
 {% set summons_doc = case.documents|filter(d => d.documentType.value == 'somatie')|first %}
@@ -20,7 +19,7 @@
 
     <div class="divide-y divide-slate-100 dark:divide-slate-800">
 
-        {# Row 1 — Somație de plată. Wired la Pas 5.1: download dacă există Document SOMATIE,
+        {# Row 1 — Somație de plată.: download dacă există Document SOMATIE,
            altfel CTA inline POST către case_summons_generate cu CSRF. #}
         {% if summons_doc %}
             <div class="px-6 py-4 flex items-center gap-4">
@@ -69,7 +68,7 @@
             </div>
         {% endif %}
 
-        {# Row 2 — Cerere OP. Wired Pas 5.2: download dacă există, CTA modal dacă SOMATIE_TRIMISA, missing altfel. #}
+        {# Row 2 — Cerere OP.: download dacă există, CTA modal dacă SOMATIE_TRIMISA, missing altfel. #}
         {% if cerere_op_doc %}
             <div class="px-6 py-4 flex items-center gap-4">
                 <div class="size-11 rounded-lg bg-gradient-to-br from-green-500 to-green-600 text-white flex items-center justify-center shrink-0 font-bold text-[10px] shadow-md shadow-green-500/20">PDF</div>
@@ -116,7 +115,7 @@
             </div>
         {% endif %}
 
-        {# Row 3 — Opis documente. Wired Pas 5.2: generat odată cu cerere OP. #}
+        {# Row 3 — Opis documente.: generat odată cu cerere OP. #}
         {% if opis_doc %}
             <div class="px-6 py-4 flex items-center gap-4">
                 <div class="size-11 rounded-lg bg-gradient-to-br from-green-500 to-green-600 text-white flex items-center justify-center shrink-0 font-bold text-[10px] shadow-md shadow-green-500/20">PDF</div>

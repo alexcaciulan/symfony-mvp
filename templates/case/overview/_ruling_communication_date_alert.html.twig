@@ -1,7 +1,7 @@
 {# Alert amber persistent pentru dosarele cu status >= ORDONANTA_EMISA care nu
    au `rulingCommunicationDate` populată. Trigger pentru modal Preline care
    setează data și creează automat termenul CERERE_IN_ANULARE (10 zile, CPC
-   art. 1024). Vezi Pas 4.3 + closes W1 legal Pas 4.2. #}
+   art. 1024). #}
 {% from 'case/overview/_icons.html.twig' import icon_warning %}
 
 {% set status = case.status.value %}

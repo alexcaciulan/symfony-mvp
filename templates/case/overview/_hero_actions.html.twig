@@ -84,37 +84,38 @@
         <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-56 bg-white shadow-card rounded-xl border border-slate-200 dark:bg-slate-900 dark:border-slate-800 mt-2 p-1.5 z-40 right-0"
              role="menu"
              aria-labelledby="hs-case-actions-dropdown">
-            <a href="#"
-               aria-disabled="true"
-               tabindex="-1"
-               title="{{ 'case_overview.tooltip.coming_soon_edit'|trans }}"
-               class="flex items-center gap-x-3 py-2 px-3 rounded-lg text-sm text-slate-800 dark:text-slate-300 opacity-60 cursor-not-allowed pointer-events-none">
+            <span role="menuitem"
+                  aria-disabled="true"
+                  title="{{ 'case_overview.tooltip.coming_soon_edit'|trans }}"
+                  class="flex items-center gap-x-3 py-2 px-3 rounded-lg text-sm text-slate-800 dark:text-slate-300 opacity-60 cursor-not-allowed">
                 {{ icon_edit('size-4 text-slate-400') }}
                 {{ 'case_overview.cta.edit_details'|trans }}
-            </a>
-            <a href="#"
-               aria-disabled="true"
-               tabindex="-1"
-               title="{{ 'case_overview.tooltip.coming_soon_share'|trans }}"
-               class="flex items-center gap-x-3 py-2 px-3 rounded-lg text-sm text-slate-800 dark:text-slate-300 opacity-60 cursor-not-allowed pointer-events-none">
+            </span>
+            <span role="menuitem"
+                  aria-disabled="true"
+                  title="{{ 'case_overview.tooltip.coming_soon_share'|trans }}"
+                  class="flex items-center gap-x-3 py-2 px-3 rounded-lg text-sm text-slate-800 dark:text-slate-300 opacity-60 cursor-not-allowed">
                 {{ icon_share('size-4 text-slate-400') }}
                 {{ 'case_overview.cta.share'|trans }}
-            </a>
-            <a href="#"
-               aria-disabled="true"
-               tabindex="-1"
-               title="{{ 'case_overview.tooltip.coming_soon_edit'|trans }}"
-               class="flex items-center gap-x-3 py-2 px-3 rounded-lg text-sm text-slate-800 dark:text-slate-300 opacity-60 cursor-not-allowed pointer-events-none">
+            </span>
+            <span role="menuitem"
+                  aria-disabled="true"
+                  title="{{ 'case_overview.tooltip.coming_soon_duplicate'|trans }}"
+                  class="flex items-center gap-x-3 py-2 px-3 rounded-lg text-sm text-slate-800 dark:text-slate-300 opacity-60 cursor-not-allowed">
                 {{ icon_copy('size-4 text-slate-400') }}
                 {{ 'case_overview.cta.duplicate'|trans }}
-            </a>
-            <hr class="my-1 border-slate-100 dark:border-slate-800">
-            <button type="button"
-                    data-hs-overlay="#hs-modal-close-case"
-                    class="flex w-full items-center gap-x-3 py-2 px-3 rounded-lg text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30">
-                {{ icon_trash('size-4') }}
-                {{ 'case_overview.cta.close_case'|trans }}
-            </button>
+            </span>
+            {# Close case only applies from DEFINITIVA (the only status the close
+               transition accepts), so the action is hidden otherwise. #}
+            {% if case.status.value == 'DEFINITIVA' %}
+                <hr class="my-1 border-slate-100 dark:border-slate-800">
+                <button type="button"
+                        data-hs-overlay="#hs-modal-close-case"
+                        class="flex w-full items-center gap-x-3 py-2 px-3 rounded-lg text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30">
+                    {{ icon_trash('size-4') }}
+                    {{ 'case_overview.cta.close_case'|trans }}
+                </button>
+            {% endif %}
         </div>
     </div>
 </div>

@@ -9,6 +9,10 @@
     <turbo-stream action="update" target="ruling-communication-alert">
         <template>{{ include('case/overview/_ruling_communication_date_alert.html.twig') }}</template>
     </turbo-stream>
+    {# Refresh the tab nav so the deadline count badge reflects add / delete. #}
+    <turbo-stream action="replace" target="case-tabs-nav">
+        <template>{{ include('case/overview/_tabs_nav.html.twig', { active_tab: 'termene' }) }}</template>
+    </turbo-stream>
     {# The active deadline drives the top KPI card and the Detalii sidebar ring. #}
     <turbo-stream action="replace" target="case-kpi-grid">
         <template>{{ include('case/overview/_kpi_grid.html.twig') }}</template>

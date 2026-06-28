@@ -577,7 +577,7 @@ wizard:
         skipped: 'You skipped document extraction. Please fill in the forms manually.'
 
 # =============================================================================
-# Case View (read-only) — legacy stub, will be replaced by case_overview at Pas 4.0
+# Case View (read-only) — legacy stub, replaced by case_overview.
 # =============================================================================
 case_view:
     title: 'Case #%id%'
@@ -590,8 +590,7 @@ case_view:
     no_documents: 'No documents.'
 
 # =============================================================================
-# Case Overview (Pas 4.0 — post-wizard case overview page, 5 tabs)
-# Sub-pas 4.0.1: foundation keys only.
+# Case Overview (post-wizard case overview page, 5 tabs)
 # =============================================================================
 case_overview:
     title: 'Case %reference%'
@@ -604,19 +603,10 @@ case_overview:
         portal: 'Portal activity'
         audit: 'Audit'
     tooltip:
-        coming_soon_op: 'Available once PDF generation ships (Phase 6)'
-        coming_soon_portal: 'Available once Portal Monitoring ships (Phase 5)'
-        coming_soon_close: 'Available once Close Case Workflow ships (Phase 4.x)'
-        coming_soon_export: 'CSV export (post-MVP)'
-        coming_soon_share: 'Share & collaborators (post-MVP)'
-        coming_soon_edit: 'Edit details (post-MVP)'
-        coming_soon_mark_paid: 'Mark amicable payment (available once Close Case Workflow ships, Phase 4.x)'
-    placeholder:
-        tab:
-            details: 'Details tab content will be populated at Step 4.0.3'
-            documents: 'Documents tab content will be populated at Step 4.0.4'
-            portal: 'Portal Activity tab content will be populated at Step 4.0.6'
-            audit: 'Audit log: available in a post-MVP release. Entries are already being persisted on every action.'
+        coming_soon_share: 'Sharing and collaborators (coming soon)'
+        coming_soon_edit: 'Edit details (coming soon)'
+        coming_soon_duplicate: 'Duplicate case (coming soon)'
+        coming_soon_mark_paid: 'Mark amicable payment (coming soon)'
     header:
         type_op: 'Payment order'
         vs: 'vs'
