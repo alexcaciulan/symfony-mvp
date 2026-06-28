@@ -728,7 +728,7 @@ case_overview:
         mark_paid: 'Marchează plată amiabilă'
         mark_paid_hint: 'Achitat înainte de instanță'
         register_case: 'Înregistrează dosar la instanță'
-        register_case_hint: 'Introdu numărul ECRIS primit de la registratură'
+        register_case_hint: 'Caută dosarul pe portal după debitor și înregistrează automat'
         issue_ruling: 'Confirmă emiterea ordonanței'
         issue_ruling_hint: 'Setează data hotărârii (CPC art. 1022)'
         reject_case: 'Marchează respinsă'

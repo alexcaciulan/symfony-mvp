@@ -19,17 +19,17 @@
 {% set base_cta_class = 'py-2 px-3.5 inline-flex items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent transition shadow-sm whitespace-nowrap' %}
 
 {# Modal-triggered primary CTAs keyed by status, each with a distinct color + icon.
-   AMIABIL (send summons) is handled separately below as a POST form. #}
+   AMIABIL (send summons) and CERERE_DEPUSA (register via portal) are handled
+   separately below. #}
 {% set primary_modal = {
     'SOMATIE_TRIMISA': {target: '#hs-modal-cerere-op', label: 'case_overview.cta.generate_op', color: 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100', icon: 'document'},
-    'CERERE_DEPUSA': {target: '#hs-modal-register-case-number', label: 'case_overview.cta.register_case', color: 'bg-indigo-600 text-white hover:bg-indigo-700', icon: 'building'},
     'TERMEN_FIXAT': {target: '#hs-modal-issue-ruling', label: 'case_overview.cta.issue_ruling', color: 'bg-violet-600 text-white hover:bg-violet-700', icon: 'check'},
     'DEFINITIVA': {target: '#hs-modal-close-case', label: 'case_overview.cta.close_case_definitiva', color: 'bg-emerald-600 text-white hover:bg-emerald-700', icon: 'money'},
 } %}
 {% set primary = primary_modal[case.status.value] ?? null %}
 
 <div id="case-hero-actions" class="flex items-center gap-2 self-start">
-    {% if case.status.value == 'AMIABIL' or primary %}
+    {% if case.status.value == 'AMIABIL' or case.status.value == 'CERERE_DEPUSA' or primary %}
         <div class="relative">
             {% if case.status.value == 'AMIABIL' %}
                 <form method="post" action="{{ path('case_summons_generate', {id: case.id}) }}" data-turbo-frame="_top">
@@ -41,6 +41,17 @@
                         {{ 'case_overview.cta.send_summons'|trans }}
                     </button>
                 </form>
+            {% elseif case.status.value == 'CERERE_DEPUSA' %}
+                {# Register = find the case on the portal (auto-discover), which also activates
+                   monitoring. The CTA jumps to the portal tab and highlights the search. #}
+                <button type="button"
+                        data-controller="goto-portal-discover"
+                        data-action="goto-portal-discover#navigate"
+                        class="{{ base_cta_class }} bg-indigo-600 text-white hover:bg-indigo-700
+                               {% if just_created|default(false) %}ring-2 ring-offset-2 ring-emerald-400 dark:ring-offset-slate-900 soft-pulse-once{% endif %}">
+                    {{ _self.cta_icon('building') }}
+                    {{ 'case_overview.cta.register_case'|trans }}
+                </button>
             {% else %}
                 <button type="button"
                         data-hs-overlay="{{ primary.target }}"

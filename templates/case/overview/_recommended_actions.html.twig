@@ -89,7 +89,8 @@
            Preline modal; the controller validates and applies the workflow transition. #}
         {% if case.status.value == 'CERERE_DEPUSA' %}
             <button type="button"
-                    data-hs-overlay="#hs-modal-register-case-number"
+                    data-controller="goto-portal-discover"
+                    data-action="goto-portal-discover#navigate"
                     class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg bg-gradient-to-r from-indigo-50 to-indigo-50/50 dark:from-indigo-950/40 dark:to-indigo-950/20 border border-indigo-200/60 dark:border-indigo-900/40 hover:from-indigo-100 dark:hover:from-indigo-950/60 transition group">
                 <div class="size-9 rounded-lg bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 flex items-center justify-center shrink-0">
                     {{ icon_document('size-4') }}

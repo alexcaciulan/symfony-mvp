@@ -94,6 +94,18 @@ html.dark body {
     animation: soft-pulse 2.4s cubic-bezier(0.4, 0, 0.6, 1) 6;
 }
 
+/* Stronger one-shot "look here" highlight: an expanding purple ring (sonar) that
+   matches the portal auto-discover search button, used when a CTA jumps the lawyer
+   to it. Purple = discover/search, distinct from the navy activate (commit) button. */
+@keyframes attention-ring {
+    0%   { box-shadow: 0 0 0 0 rgba(147, 51, 234, 0.5); }
+    70%  { box-shadow: 0 0 0 12px rgba(147, 51, 234, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(147, 51, 234, 0); }
+}
+.attention-pulse {
+    animation: attention-ring 1.5s ease-out 4;
+}
+
 /* Ring-fill animation for SVG circle progress on Active Deadline card (Pas 4.0.3).
    Starts from full circumference (226 = 2 * PI * 36) and animates to the target offset
    passed via inline `style="--ring-target: <value>"`. The cubic-bezier produces a slight

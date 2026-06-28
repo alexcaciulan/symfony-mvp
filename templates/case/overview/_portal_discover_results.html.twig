@@ -18,7 +18,8 @@
                 <form method="post" action="{{ path('case_portal_discover', { id: case.id }) }}" data-turbo-frame="portal-discover">
                     <input type="hidden" name="_token" value="{{ csrf_token('portal_discover_' ~ case.id) }}">
                     <button type="submit"
-                            class="py-2.5 px-4 inline-flex items-center gap-1.5 text-sm font-semibold rounded-lg border border-lex-navy/30 text-lex-navy dark:text-white dark:border-slate-700 bg-white dark:bg-slate-800/60 hover:bg-lex-navy/5 transition-colors"
+                            data-portal-discover-search
+                            class="py-2.5 px-4 inline-flex items-center gap-1.5 text-sm font-semibold rounded-lg bg-purple-600 text-white shadow-sm hover:bg-purple-700 transition-colors"
                             data-turbo-submits-with="{{ 'case_overview.portal.discover_searching'|trans }}">
                         {{ icon_search('size-4') }}
                         {{ has_results ? 'case_overview.portal.discover_button_again'|trans : 'case_overview.portal.discover_button'|trans }}

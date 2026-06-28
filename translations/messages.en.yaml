@@ -726,7 +726,7 @@ case_overview:
         mark_paid: 'Mark amicable payment'
         mark_paid_hint: 'Settled before court'
         register_case: 'Register case with court'
-        register_case_hint: 'Enter the ECRIS case number from the registry'
+        register_case_hint: 'Find the case on the portal by debtor and register automatically'
         issue_ruling: 'Confirm ruling issued'
         issue_ruling_hint: 'Set the ruling date (CPC art. 1022)'
         reject_case: 'Mark rejected'
