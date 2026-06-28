@@ -1,0 +1,50 @@
+{# Turbo Stream response for document generation (summons / payment order), so the
+   generation updates the page in place (no full reload, tab preserved). These
+   actions change the case status, so they refresh the hero, pipeline, tabs nav,
+   the documents panel and the summons-communication alert. `update_regions` is
+   false for pure error/warning toasts (nothing changed). `close_modal_id` dismisses
+   the originating Preline modal; `open_modal_id` surfaces a follow-up modal
+   (e.g. the C4 communication memento after the summons). #}
+{% if update_regions %}
+    <turbo-stream action="replace" target="case-hero">
+        <template>{{ include('case/overview/_hero.html.twig') }}</template>
+    </turbo-stream>
+    <turbo-stream action="replace" target="case-pipeline">
+        <template>{{ include('case/overview/_pipeline.html.twig') }}</template>
+    </turbo-stream>
+    <turbo-stream action="replace" target="case-tabs-nav">
+        <template>{{ include('case/overview/_tabs_nav.html.twig', { active_tab: 'documente' }) }}</template>
+    </turbo-stream>
+    <turbo-stream action="update" target="panel-documente">
+        <template>{{ include('case/overview/_tab_documente.html.twig') }}</template>
+    </turbo-stream>
+    <turbo-stream action="update" target="summons-communication-alert">
+        <template>{{ include('case/overview/_summons_communication_alert.html.twig') }}</template>
+    </turbo-stream>
+{% endif %}
+
+{% if close_modal_id is defined and close_modal_id %}
+    <turbo-stream action="append" target="toasts">
+        <template><div data-controller="close-modal" data-close-modal-target-id-value="{{ close_modal_id }}"></div></template>
+    </turbo-stream>
+{% endif %}
+
+{% if open_modal_id is defined and open_modal_id %}
+    <turbo-stream action="append" target="toasts">
+        <template><div data-controller="auto-modal" data-auto-modal-target-id-value="{{ open_modal_id }}"></div></template>
+    </turbo-stream>
+{% endif %}
+
+<turbo-stream action="append" target="toasts">
+    <template>
+        {% include 'components/Toast.html.twig' with { message: toast_key|trans, variant: toast_variant, details: [] } only %}
+    </template>
+</turbo-stream>
+
+{% if extra_toast_key is defined and extra_toast_key %}
+    <turbo-stream action="append" target="toasts">
+        <template>
+            {% include 'components/Toast.html.twig' with { message: extra_toast_key|trans, variant: 'warning', details: [] } only %}
+        </template>
+    </turbo-stream>
+{% endif %}

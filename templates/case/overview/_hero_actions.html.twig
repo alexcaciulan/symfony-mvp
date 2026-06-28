@@ -32,7 +32,7 @@
     {% if case.status.value == 'AMIABIL' or primary %}
         <div class="relative">
             {% if case.status.value == 'AMIABIL' %}
-                <form method="post" action="{{ path('case_summons_generate', {id: case.id}) }}">
+                <form method="post" action="{{ path('case_summons_generate', {id: case.id}) }}" data-turbo-frame="_top">
                     <input type="hidden" name="_token" value="{{ csrf_token('generate_summons_' ~ case.id) }}">
                     <button type="submit"
                             class="{{ base_cta_class }} bg-amber-500 text-white hover:bg-amber-600

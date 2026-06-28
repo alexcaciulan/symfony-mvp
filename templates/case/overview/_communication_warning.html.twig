@@ -1,5 +1,6 @@
-{# Pas 4.0.4 — Sidebar amber warning condițional: afișat doar când lipsă document DOVADA_COMUNICARE.
-   Reflectă mockup linii 753-762. CTA aria-disabled (post-MVP). #}
+{# Sidebar amber warning condițional: afișat doar când lipsă document DOVADA_COMUNICARE.
+   CTA deschide modalul de upload cu tipul „Dovadă comunicare" preselectat
+   (controller Stimulus `document-upload-preset`). #}
 {% from 'case/overview/_icons.html.twig' import icon_warning %}
 
 <section class="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-xl p-4">
@@ -9,10 +10,9 @@
             <div class="font-bold">{{ 'case_overview.communication_warning.title'|trans }}</div>
             <p class="mt-0.5 text-amber-800 dark:text-amber-300/80">{{ 'case_overview.communication_warning.body'|trans }}</p>
             <button type="button"
-                    aria-disabled="true"
-                    tabindex="-1"
-                    title="{{ 'case_overview.tooltip.coming_soon_doc_upload'|trans }}"
-                    class="mt-2 text-xs font-semibold text-amber-700 opacity-60 cursor-not-allowed">
+                    data-hs-overlay="#hs-modal-upload-document"
+                    data-upload-preset-type="dovada_comunicare"
+                    class="mt-2 text-xs font-semibold text-amber-700 dark:text-amber-300 hover:text-amber-800 dark:hover:text-amber-200 transition">
                 {{ 'case_overview.communication_warning.cta'|trans }}
             </button>
         </div>

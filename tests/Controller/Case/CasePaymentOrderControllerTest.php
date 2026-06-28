@@ -25,7 +25,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 /**
- * Pas 5.2 — Tests for CasePaymentOrderController.
+ * Tests for CasePaymentOrderController.
  *
  * POST generate: happy path + status guard + court guard + idempotency + CSRF + 403 voter.
  * GET download: happy path BinaryFile + flash error if incomplete.
@@ -194,6 +194,53 @@ final class CasePaymentOrderControllerTest extends WebTestCase
         self::assertSame($refreshed->getCaseNumber(), $payload['caseNumber'] ?? null);
         self::assertNotNull($payload['paymentOrderDocumentId'] ?? null);
         self::assertNotNull($payload['opisDocumentId'] ?? null);
+    }
+
+    public function testGenerateRespondsWithTurboStream(): void
+    {
+        $this->attachSomatieFile();
+        $this->client->loginUser($this->user);
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+
+        $this->client->request(
+            'POST',
+            '/case/' . $this->case->getId() . '/payment-order/generate',
+            ['_token' => $token],
+            [],
+            ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html'],
+        );
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString(
+            'text/vnd.turbo-stream.html',
+            (string) $this->client->getResponse()->headers->get('Content-Type'),
+        );
+        $body = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('target="case-hero"', $body);
+        self::assertStringContainsString('target="case-pipeline"', $body);
+        self::assertStringContainsString('target="panel-documente"', $body);
+        self::assertStringContainsString('target="toasts"', $body);
+        // The originating „Generează cerere OP" modal closes after the swap.
+        self::assertStringContainsString('close-modal', $body);
+        self::assertStringContainsString('hs-modal-cerere-op', $body);
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame(CaseStatus::CERERE_DEPUSA, $refreshed->getStatus());
+
+        // The re-rendered "Documente generate" panel must reflect the freshly
+        // generated Cerere OP (regression: stale EXTRA_LAZY collection after the
+        // opis generator initialized it mid-transaction).
+        $cerere = $this->em->getRepository(Document::class)->findOneBy([
+            'legalCase' => $refreshed->getId(),
+            'documentType' => DocumentType::CERERE_OP,
+        ]);
+        self::assertNotNull($cerere);
+        self::assertStringContainsString(
+            sprintf('/case/%d/document/%d/download', $refreshed->getId(), $cerere->getId()),
+            $body,
+            'Generated Cerere OP must appear as a download link in the re-rendered panel.',
+        );
     }
 
     public function testGenerateBlockedFromWrongStatus(): void

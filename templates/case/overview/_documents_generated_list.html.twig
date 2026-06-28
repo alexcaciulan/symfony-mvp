@@ -48,7 +48,7 @@
                     </div>
                     <div class="text-xs text-slate-500 mt-0.5">{{ 'case_overview.documents.somatie_pending_hint'|trans }}</div>
                 </div>
-                <form method="post" action="{{ path('case_summons_generate', {id: case.id}) }}" class="shrink-0">
+                <form method="post" action="{{ path('case_summons_generate', {id: case.id}) }}" data-turbo-frame="_top" class="shrink-0">
                     <input type="hidden" name="_token" value="{{ csrf_token('generate_summons_' ~ case.id) }}">
                     <button type="submit" class="py-2 px-3 inline-flex items-center gap-1.5 text-xs font-bold rounded-lg bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-md shadow-amber-500/30 hover:shadow-lg hover:shadow-amber-500/40 transition">
                         {{ 'case_overview.documents.somatie_cta'|trans }}

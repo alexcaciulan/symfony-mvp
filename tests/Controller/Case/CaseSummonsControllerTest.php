@@ -24,7 +24,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 /**
- * Pas 5.1 — Tests for CaseSummonsController::generate.
+ * Tests for CaseSummonsController::generate.
  *
  * Verifies the full POST flow: voter → CSRF → status guard → rate limit →
  * transactional (PDF generation + paymentNoticeDate + workflow apply +
@@ -124,7 +124,7 @@ final class CaseSummonsControllerTest extends WebTestCase
         $this->client->request('GET', '/case/' . $caseId);
 
         $crawler = $this->client->getCrawler();
-        $input = $crawler->filter('input[name="_token"]')->first();
+        $input = $crawler->filter('form[action$="/summons/generate"] input[name="_token"]')->first();
 
         return $input->attr('value');
     }
@@ -167,6 +167,38 @@ final class CaseSummonsControllerTest extends WebTestCase
 
         $this->client->followRedirect();
         self::assertResponseStatusCodeSame(Response::HTTP_OK);
+    }
+
+    public function testGenerateSummonsRespondsWithTurboStream(): void
+    {
+        $this->client->loginUser($this->user);
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+
+        $this->client->request(
+            'POST',
+            '/case/' . $this->case->getId() . '/summons/generate',
+            ['_token' => $token],
+            [],
+            ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html'],
+        );
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString(
+            'text/vnd.turbo-stream.html',
+            (string) $this->client->getResponse()->headers->get('Content-Type'),
+        );
+        $body = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('target="case-hero"', $body);
+        self::assertStringContainsString('target="case-pipeline"', $body);
+        self::assertStringContainsString('target="panel-documente"', $body);
+        self::assertStringContainsString('target="toasts"', $body);
+        // The C4 communication memento modal opens after the summons.
+        self::assertStringContainsString('auto-modal', $body);
+        self::assertStringContainsString('hs-modal-c4-summons', $body);
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame(CaseStatus::SOMATIE_TRIMISA, $refreshed->getStatus());
     }
 
     public function testGenerateSummonsBlockedWhenDebtorMissing(): void

@@ -13,6 +13,7 @@ use App\Security\Voter\CaseVoter;
 use App\Service\AuditLogService;
 use App\Service\Billing\SubscriptionService;
 use App\Service\Case\CaseWorkflowService;
+use App\Service\Case\OverviewContextBuilder;
 use App\Service\Document\PaymentNoticeGeneratorService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -23,13 +24,16 @@ use Symfony\Component\Routing\Attribute\Route;
 
 final class CaseSummonsController extends AbstractController
 {
+    private const C4_MODAL_ID = 'hs-modal-c4-summons';
+
     public function __construct(
-        private LegalCaseRepository $legalCaseRepository,
-        private PaymentNoticeGeneratorService $paymentNoticeGenerator,
-        private CaseWorkflowService $workflowService,
-        private AuditLogService $auditLogService,
-        private SubscriptionService $subscriptionService,
-        private EntityManagerInterface $em,
+        private readonly LegalCaseRepository $legalCaseRepository,
+        private readonly PaymentNoticeGeneratorService $paymentNoticeGenerator,
+        private readonly CaseWorkflowService $workflowService,
+        private readonly AuditLogService $auditLogService,
+        private readonly SubscriptionService $subscriptionService,
+        private readonly OverviewContextBuilder $contextBuilder,
+        private readonly EntityManagerInterface $em,
     ) {}
 
     #[Route('/case/{id}/summons/generate', name: 'case_summons_generate', requirements: ['id' => '\d+'], methods: ['POST'])]
@@ -44,30 +48,22 @@ final class CaseSummonsController extends AbstractController
         $this->denyAccessUnlessGranted(CaseVoter::TRANSITION, $case);
 
         if (!$this->isCsrfTokenValid('generate_summons_' . $id, $request->getPayload()->getString('_token'))) {
-            $this->addFlash('error', 'case_overview.summons.flash_error_csrf');
-
-            return $this->redirectToRoute('case_overview', ['id' => $id]);
+            return $this->respond($request, $case, false, 'error', 'case_overview.summons.flash_error_csrf', null, null);
         }
 
         if ($case->getStatus() !== CaseStatus::AMIABIL) {
-            $this->addFlash('error', 'case_overview.summons.flash_error_wrong_status');
-
-            return $this->redirectToRoute('case_overview', ['id' => $id]);
+            return $this->respond($request, $case, false, 'error', 'case_overview.summons.flash_error_wrong_status', null, null);
         }
 
         if ($case->getDebtors()->isEmpty()) {
-            $this->addFlash('error', 'case_overview.summons.flash_error_no_debtor');
-
-            return $this->redirectToRoute('case_overview', ['id' => $id]);
+            return $this->respond($request, $case, false, 'error', 'case_overview.summons.flash_error_no_debtor', null, null);
         }
 
         $user = $this->getUser();
         if ($user instanceof User) {
             $limiter = $summonsGenerationLimiter->create($user->getUserIdentifier());
             if (!$limiter->consume()->isAccepted()) {
-                $this->addFlash('warning', 'rate_limit.summons_generation');
-
-                return $this->redirectToRoute('case_overview', ['id' => $id]);
+                return $this->respond($request, $case, false, 'warning', 'rate_limit.summons_generation', null, null);
             }
         }
 
@@ -102,13 +98,51 @@ final class CaseSummonsController extends AbstractController
             );
         });
 
-        $this->addFlash('success', 'case_overview.summons.flash_success');
-        $this->addFlash('show_c4_modal', '1');
+        $overageToast = SubscriptionSlotConsumptionOutcome::OVERAGE_INVOICE_CREATED === $consumption->outcome
+            ? 'subscription.paywall.overage'
+            : null;
 
-        if (SubscriptionSlotConsumptionOutcome::OVERAGE_INVOICE_CREATED === $consumption->outcome) {
-            $this->addFlash('warning', 'subscription.paywall.overage');
+        // Open the C4 communication memento modal right after the summons is generated.
+        return $this->respond($request, $case, true, 'success', 'case_overview.summons.flash_success', self::C4_MODAL_ID, $overageToast);
+    }
+
+    /**
+     * Turbo Stream (in-place, status regions refreshed) for Turbo clients, redirect
+     * + flash otherwise. `$openModalId` surfaces the C4 memento on success.
+     */
+    private function respond(
+        Request $request,
+        LegalCase $case,
+        bool $updateRegions,
+        string $toastVariant,
+        string $toastKey,
+        ?string $openModalId,
+        ?string $extraToastKey,
+    ): Response {
+        if (str_contains((string) $request->headers->get('Accept', ''), 'text/vnd.turbo-stream.html')) {
+            $context = $updateRegions ? $this->contextBuilder->build($case) : ['case' => $case];
+            $context['update_regions'] = $updateRegions;
+            $context['toast_variant'] = $toastVariant;
+            $context['toast_key'] = $toastKey;
+            $context['open_modal_id'] = $openModalId;
+            $context['close_modal_id'] = null;
+            $context['extra_toast_key'] = $extraToastKey;
+
+            return new Response(
+                $this->renderView('case/overview/_documents_generate_turbo_stream.html.twig', $context),
+                Response::HTTP_OK,
+                ['Content-Type' => 'text/vnd.turbo-stream.html; charset=utf-8'],
+            );
         }
 
-        return $this->redirectToRoute('case_overview', ['id' => $id]);
+        $this->addFlash($toastVariant, $toastKey);
+        if ($openModalId === self::C4_MODAL_ID) {
+            $this->addFlash('show_c4_modal', '1');
+        }
+        if ($extraToastKey !== null) {
+            $this->addFlash('warning', $extraToastKey);
+        }
+
+        return $this->redirectToRoute('case_overview', ['id' => $case->getId()]);
     }
 }

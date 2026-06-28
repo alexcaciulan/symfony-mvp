@@ -614,6 +614,21 @@ class LegalCase
         return $this->documents;
     }
 
+    /**
+     * Keeps the inverse side in sync so freshly generated documents are visible
+     * within the same request, even if the EXTRA_LAZY collection was already
+     * initialized (e.g. the opis generator reads it mid-transaction).
+     */
+    public function addDocument(Document $document): static
+    {
+        if (!$this->documents->contains($document)) {
+            $this->documents->add($document);
+            $document->setLegalCase($this);
+        }
+
+        return $this;
+    }
+
     /** @return Collection<int, CaseStatusHistory> */
     public function getStatusHistory(): Collection
     {

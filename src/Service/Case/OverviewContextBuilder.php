@@ -50,6 +50,7 @@ final class OverviewContextBuilder
             'interest_breakdown' => $interestBreakdown,
             'breakdown_error' => $breakdownError,
             'has_communication_proof' => $this->hasCommunicationProof($case),
+            'document_upload_types' => DocumentType::uploadableTypes(),
             'just_created' => false,
         ], $extra);
     }

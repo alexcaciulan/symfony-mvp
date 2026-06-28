@@ -784,9 +784,8 @@ case_overview:
         opis_pending_hint: 'Generat automat la pas „Generează cerere OP".'
         opis_generated_on: 'Generat %date%'
         opis_download: 'Descarcă PDF'
-        source_title: 'Documente sursă (uploadate)'
+        source_title: 'Documente sursă (atașamente)'
         source_add: '+ Adaugă document'
-        source_dropzone: 'Trage fișiere noi sau apasă aici'
         source_empty: 'Niciun document încărcat încă'
         extraction_hint_pct: '%type% · %size% · %date% · extracție %pct%%'
         extraction_hint_no_pct: '%type% · %size% · %date%'
@@ -794,6 +793,15 @@ case_overview:
         action_download: 'Descarcă'
         action_delete: 'Șterge'
         action_regenerate: 'Regenerează'
+        delete_confirm: 'Sigur ștergi acest document din dosar?'
+        modal_upload:
+            title: 'Adaugă document'
+            intro: 'Atașează o dovadă la dosar (contract, factură, dovada comunicării). Fișierul intră în pachetul de depunere la instanță.'
+            field_file_label: 'Fișier'
+            field_file_hint: 'PDF, JPG sau PNG. Maxim 10 MB.'
+            field_type_label: 'Tip document'
+            submit: 'Încarcă'
+            cancel: 'Anulează'
     zip_package:
         title: 'Pachet ZIP: depunere instanță'
         intro: 'Descarcă tot ce ai nevoie pentru a depune cererea OP la %court%:'
@@ -813,7 +821,7 @@ case_overview:
         flash_error_csrf: 'Sesiunea a expirat. Reîncărcați pagina și reîncercați.'
     communication_warning:
         title: 'Lipsește dovada comunicării'
-        body: 'Adaugă recipisa de la executor / confirmarea de primire a somației înainte de depunere.'
+        body: 'Adaugă recipisa executorului sau confirmarea de primire de pe scrisoarea recomandată cu conținut declarat, înainte de depunere.'
         cta: '+ Adaugă dovadă comunicare →'
     transition:
         flash_success_register: 'Dosar înregistrat cu succes. Monitorizarea automată portal.just.ro este activă.'
@@ -1182,7 +1190,8 @@ document:
         type_label: 'Tip document'
         submit: 'Încarcă'
         success: 'Documentul a fost încărcat cu succes.'
-        max_files_reached: 'Limita de 10 documente per dosar a fost atinsă.'
+        error: 'Documentul nu a putut fi încărcat. Verifică fișierul și încearcă din nou.'
+        max_files_reached: 'Limita de 10 atașamente per dosar a fost atinsă.'
         too_large: 'Fișierul depășește limita de 10MB.'
         invalid_type: 'Tip de fișier invalid. Doar PDF, JPG și PNG sunt acceptate.'
         file_required: 'Selectați un fișier.'
@@ -1195,9 +1204,12 @@ document:
         confirm: 'Sigur doriți să ștergeți acest document?'
         invalid_csrf: 'Token invalid. Reîncercați.'
     type:
+        dovada_comunicare: 'Dovadă comunicare'
+        act_constatator: 'Act constatator'
         dovada: 'Dovadă'
         contract: 'Contract'
         factura: 'Factură'
+        anexa: 'Anexă'
         bpi_proof: 'Dovadă BPI (Buletinul Procedurilor de Insolvență)'
         alt_document: 'Alt document'
 

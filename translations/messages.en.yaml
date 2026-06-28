@@ -782,9 +782,8 @@ case_overview:
         opis_pending_hint: 'Auto-generated on "Generate payment order".'
         opis_generated_on: 'Generated %date%'
         opis_download: 'Download PDF'
-        source_title: 'Source documents (uploaded)'
+        source_title: 'Source documents (attachments)'
         source_add: '+ Add document'
-        source_dropzone: 'Drop new files or click here'
         source_empty: 'No documents uploaded yet'
         extraction_hint_pct: '%type% · %size% · %date% · %pct%% extraction'
         extraction_hint_no_pct: '%type% · %size% · %date%'
@@ -792,6 +791,15 @@ case_overview:
         action_download: 'Download'
         action_delete: 'Delete'
         action_regenerate: 'Regenerate'
+        delete_confirm: 'Delete this document from the case?'
+        modal_upload:
+            title: 'Add document'
+            intro: 'Attach evidence to the case (contract, invoice, proof of communication). The file goes into the court filing pack.'
+            field_file_label: 'File'
+            field_file_hint: 'PDF, JPG or PNG. Max 10 MB.'
+            field_type_label: 'Document type'
+            submit: 'Upload'
+            cancel: 'Cancel'
     zip_package:
         title: 'ZIP pack: court filing'
         intro: 'Download everything you need to file the payment order petition at %court%:'
@@ -811,7 +819,7 @@ case_overview:
         flash_error_csrf: 'Your session expired. Reload the page and try again.'
     communication_warning:
         title: 'Notice delivery proof missing'
-        body: 'Add the bailiff receipt / acknowledgment of the notice before filing.'
+        body: 'Add the bailiff receipt or the acknowledgment of receipt for the registered letter with declared contents, before filing.'
         cta: '+ Add delivery proof →'
     transition:
         flash_success_register: 'Case registered successfully. Automatic portal.just.ro monitoring is now active.'
@@ -1180,7 +1188,8 @@ document:
         type_label: 'Document type'
         submit: 'Upload'
         success: 'Document uploaded successfully.'
-        max_files_reached: 'Maximum of 10 documents per case reached.'
+        error: 'The document could not be uploaded. Check the file and try again.'
+        max_files_reached: 'Maximum of 10 attachments per case reached.'
         too_large: 'File exceeds the 10MB limit.'
         invalid_type: 'Invalid file type. Only PDF, JPG and PNG are accepted.'
         file_required: 'Please select a file.'
@@ -1193,9 +1202,12 @@ document:
         confirm: 'Are you sure you want to delete this document?'
         invalid_csrf: 'Invalid token. Please try again.'
     type:
+        dovada_comunicare: 'Proof of communication'
+        act_constatator: 'Findings document'
         dovada: 'Evidence'
         contract: 'Contract'
         factura: 'Invoice'
+        anexa: 'Annex'
         bpi_proof: 'BPI proof (Insolvency Proceedings Bulletin)'
         alt_document: 'Other document'
 

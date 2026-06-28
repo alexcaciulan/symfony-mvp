@@ -12,6 +12,7 @@ use App\Repository\LegalCaseRepository;
 use App\Security\Voter\CaseVoter;
 use App\Service\AuditLogService;
 use App\Service\Case\CaseWorkflowService;
+use App\Service\Case\OverviewContextBuilder;
 use App\Service\Document\CaseFilesPackager;
 use App\Service\Document\OpisGeneratorService;
 use App\Service\Document\PaymentOrderRequestGeneratorService;
@@ -39,6 +40,7 @@ final class CasePaymentOrderController extends AbstractController
         private readonly CaseFilesPackager $caseFilesPackager,
         private readonly CaseWorkflowService $workflowService,
         private readonly AuditLogService $auditLogService,
+        private readonly OverviewContextBuilder $contextBuilder,
         private readonly EntityManagerInterface $em,
     ) {}
 
@@ -49,36 +51,26 @@ final class CasePaymentOrderController extends AbstractController
         $this->denyAccessUnlessGranted(CaseVoter::TRANSITION, $case);
 
         if (!$this->isCsrfTokenValid('generate_payment_order_' . $id, $request->getPayload()->getString('_token'))) {
-            $this->addFlash('error', 'case_overview.payment_order.flash_error_csrf');
-
-            return $this->redirectToRoute('case_overview', ['id' => $id]);
+            return $this->respond($request, $case, false, 'error', 'case_overview.payment_order.flash_error_csrf');
         }
 
         if ($case->getStatus() !== CaseStatus::SOMATIE_TRIMISA) {
-            $this->addFlash('error', 'case_overview.payment_order.flash_error_wrong_status');
-
-            return $this->redirectToRoute('case_overview', ['id' => $id]);
+            return $this->respond($request, $case, false, 'error', 'case_overview.payment_order.flash_error_wrong_status');
         }
 
         if ($case->getCourt() === null) {
-            $this->addFlash('error', 'case_overview.payment_order.flash_error_no_court');
-
-            return $this->redirectToRoute('case_overview', ['id' => $id]);
+            return $this->respond($request, $case, false, 'error', 'case_overview.payment_order.flash_error_no_court');
         }
 
         if ($this->hasDocument($case, DocumentType::CERERE_OP)) {
-            $this->addFlash('warning', 'case_overview.payment_order.flash_error_already_generated');
-
-            return $this->redirectToRoute('case_overview', ['id' => $id]);
+            return $this->respond($request, $case, false, 'warning', 'case_overview.payment_order.flash_error_already_generated');
         }
 
         $user = $this->getUser();
         if ($user !== null) {
             $limiter = $paymentOrderGenerationLimiter->create($user->getUserIdentifier());
             if (!$limiter->consume()->isAccepted()) {
-                $this->addFlash('warning', 'rate_limit.payment_order_generation');
-
-                return $this->redirectToRoute('case_overview', ['id' => $id]);
+                return $this->respond($request, $case, false, 'warning', 'rate_limit.payment_order_generation');
             }
         }
 
@@ -103,9 +95,40 @@ final class CasePaymentOrderController extends AbstractController
             $this->em->flush();
         });
 
-        $this->addFlash('success', 'case_overview.payment_order.flash_success');
+        // Close the originating „Generează cerere OP" modal after the in-place swap.
+        return $this->respond($request, $case, true, 'success', 'case_overview.payment_order.flash_success', 'hs-modal-cerere-op');
+    }
 
-        return $this->redirectToRoute('case_overview', ['id' => $id]);
+    /**
+     * Turbo Stream (in-place, status regions refreshed) for Turbo clients, redirect
+     * + flash otherwise. `$closeModalId` dismisses the originating modal on success.
+     */
+    private function respond(
+        Request $request,
+        LegalCase $case,
+        bool $updateRegions,
+        string $toastVariant,
+        string $toastKey,
+        ?string $closeModalId = null,
+    ): Response {
+        if (str_contains((string) $request->headers->get('Accept', ''), 'text/vnd.turbo-stream.html')) {
+            $context = $updateRegions ? $this->contextBuilder->build($case) : ['case' => $case];
+            $context['update_regions'] = $updateRegions;
+            $context['toast_variant'] = $toastVariant;
+            $context['toast_key'] = $toastKey;
+            $context['close_modal_id'] = $closeModalId;
+            $context['open_modal_id'] = null;
+
+            return new Response(
+                $this->renderView('case/overview/_documents_generate_turbo_stream.html.twig', $context),
+                Response::HTTP_OK,
+                ['Content-Type' => 'text/vnd.turbo-stream.html; charset=utf-8'],
+            );
+        }
+
+        $this->addFlash($toastVariant, $toastKey);
+
+        return $this->redirectToRoute('case_overview', ['id' => $case->getId()]);
     }
 
     #[Route('/case/{id}/zip-package/download', name: 'case_zip_package_download', requirements: ['id' => '\d+'], methods: ['GET'])]

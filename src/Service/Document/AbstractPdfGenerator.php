@@ -61,13 +61,15 @@ abstract class AbstractPdfGenerator
         }
 
         $document = new Document();
-        $document->setLegalCase($case);
         $document->setDocumentType($this->documentType());
         $document->setOriginalFilename($this->originalFilenameFor($case));
         $document->setStoredFilename('cases/' . $case->getId() . '/' . $storedFilename);
         $document->setFileSize(strlen($pdfContent));
         $document->setMimeType('application/pdf');
         $document->setUploadedBy($uploader);
+        // Sync both sides so the in-memory case collection reflects the new
+        // document immediately (the overview re-renders from it post-generation).
+        $case->addDocument($document);
 
         $this->em->persist($document);
 

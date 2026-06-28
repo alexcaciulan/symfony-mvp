@@ -10,7 +10,7 @@
      tabindex="-1"
      aria-labelledby="hs-modal-cerere-op-title">
     <div class="hs-overlay-open:mt-7 hs-overlay-open:opacity-100 hs-overlay-open:duration-500 mt-0 opacity-0 ease-out transition-all sm:max-w-lg sm:w-full m-3 sm:mx-auto">
-        <form method="post" action="{{ path('case_payment_order_generate', {id: case.id}) }}" class="flex flex-col bg-white border border-slate-200 shadow-lg rounded-2xl pointer-events-auto dark:bg-slate-900 dark:border-slate-800">
+        <form method="post" action="{{ path('case_payment_order_generate', {id: case.id}) }}" data-turbo-frame="_top" class="flex flex-col bg-white border border-slate-200 shadow-lg rounded-2xl pointer-events-auto dark:bg-slate-900 dark:border-slate-800">
             <input type="hidden" name="_token" value="{{ csrf_token('generate_payment_order_' ~ case.id) }}">
             <div class="flex justify-between items-center py-4 px-5 border-b border-slate-100 dark:border-slate-800">
                 <div class="flex items-center gap-3">
