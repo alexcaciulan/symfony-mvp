@@ -53,4 +53,49 @@ class SubscriptionEntityTest extends TestCase
 
         $this->assertSame(2, $sub->getCasesConsumed());
     }
+
+    public function testRecurringTokenGettersAndSetters(): void
+    {
+        $sub = new Subscription();
+        $expiry = new \DateTimeImmutable('2028-12-31');
+
+        $sub->setRecurringToken('tok-abc');
+        $sub->setRecurringTokenExpiresAt($expiry);
+        $sub->setCardMask('4111 **** 1111');
+
+        $this->assertSame('tok-abc', $sub->getRecurringToken());
+        $this->assertSame($expiry, $sub->getRecurringTokenExpiresAt());
+        $this->assertSame('4111 **** 1111', $sub->getCardMask());
+    }
+
+    public function testHasChargeableTokenFalseWithoutToken(): void
+    {
+        $this->assertFalse((new Subscription())->hasChargeableToken());
+    }
+
+    public function testHasChargeableTokenTrueWithTokenAndNoExpiry(): void
+    {
+        $sub = (new Subscription())->setRecurringToken('tok-abc');
+
+        // Null expiry means "no known horizon" and is still chargeable.
+        $this->assertTrue($sub->hasChargeableToken());
+    }
+
+    public function testHasChargeableTokenTrueWithFutureExpiry(): void
+    {
+        $sub = (new Subscription())
+            ->setRecurringToken('tok-abc')
+            ->setRecurringTokenExpiresAt(new \DateTimeImmutable('+1 year'));
+
+        $this->assertTrue($sub->hasChargeableToken());
+    }
+
+    public function testHasChargeableTokenFalseWithPastExpiry(): void
+    {
+        $sub = (new Subscription())
+            ->setRecurringToken('tok-abc')
+            ->setRecurringTokenExpiresAt(new \DateTimeImmutable('-1 day'));
+
+        $this->assertFalse($sub->hasChargeableToken());
+    }
 }

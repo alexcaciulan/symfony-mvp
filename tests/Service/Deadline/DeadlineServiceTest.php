@@ -8,6 +8,7 @@ use App\Entity\AuditLog;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Entity\User;
+use App\Enum\CaseStatus;
 use App\Enum\DeadlinePriority;
 use App\Enum\DeadlineType;
 use App\Service\AuditLogService;
@@ -79,6 +80,91 @@ final class DeadlineServiceTest extends KernelTestCase
 
         $this->assertSame('2026-02-17', $deadline->getDeadlineDate()->format('Y-m-d'));
         $this->assertSame(DeadlineType::RASPUNS_SOMATIE, $deadline->getType());
+    }
+
+    public function testRecalculatePaymentNoticeDeadlineUpdatesExistingAndClearsDisclaimer(): void
+    {
+        // Estimated deadline first (with a disclaimer, as the workflow subscriber sets it).
+        $estimated = $this->service->createPaymentNoticeDeadline($this->case, new \DateTimeImmutable('2026-02-02'));
+        $estimated->setDescription('Termen estimativ. ...');
+        $this->em->flush();
+
+        $real = new \DateTimeImmutable('2026-02-10'); // actual receipt date
+        $recomputed = $this->service->recalculatePaymentNoticeDeadline($this->case, $real);
+
+        // Same deadline row, moved to real date + 15 days, disclaimer cleared.
+        $this->assertSame($estimated->getId(), $recomputed->getId());
+        // 2026-02-10 (Tue) + 15 days = 2026-02-25 (Wed, working day → no prorogation)
+        $this->assertSame('2026-02-25', $recomputed->getDeadlineDate()->format('Y-m-d'));
+        $this->assertNull($recomputed->getDescription());
+    }
+
+    public function testRecalculatePaymentNoticeDeadlineCreatesWhenMissing(): void
+    {
+        $recomputed = $this->service->recalculatePaymentNoticeDeadline($this->case, new \DateTimeImmutable('2026-02-02'));
+
+        $this->assertSame(DeadlineType::RASPUNS_SOMATIE, $recomputed->getType());
+        $this->assertSame('2026-02-17', $recomputed->getDeadlineDate()->format('Y-m-d'));
+    }
+
+    public function testIsPaymentTermExpiredFalseWhenNoCommunicationDate(): void
+    {
+        // No communication date → term cannot be proven expired.
+        self::assertFalse($this->service->isPaymentTermExpired($this->case, new \DateTimeImmutable('2030-01-01')));
+    }
+
+    public function testIsPaymentTermExpiredFalseBeforeTermEnd(): void
+    {
+        $this->case->setPaymentNoticeCommunicationDate(new \DateTimeImmutable('2026-02-02')); // Mon, term end 2026-02-17
+        $this->em->flush();
+
+        self::assertFalse($this->service->isPaymentTermExpired($this->case, new \DateTimeImmutable('2026-02-10')));
+    }
+
+    public function testIsPaymentTermExpiredTrueAfterTermEnd(): void
+    {
+        $this->case->setPaymentNoticeCommunicationDate(new \DateTimeImmutable('2026-02-02'));
+        $this->em->flush();
+
+        self::assertTrue($this->service->isPaymentTermExpired($this->case, new \DateTimeImmutable('2026-03-01')));
+    }
+
+    public function testRecommendedExecutionDateNullWhenNotDefinitiva(): void
+    {
+        $this->case->setStatus(CaseStatus::ORDONANTA_EMISA);
+        $this->case->setRulingCommunicationDate(new \DateTimeImmutable('2026-02-02'));
+        $this->em->flush();
+
+        self::assertNull($this->service->recommendedExecutionDate($this->case));
+    }
+
+    public function testRecommendedExecutionDateNullWhenNoCommunicationDate(): void
+    {
+        $this->case->setStatus(CaseStatus::DEFINITIVA);
+        $this->em->flush();
+
+        self::assertNull($this->service->recommendedExecutionDate($this->case));
+    }
+
+    public function testRecommendedExecutionDateAdds40WorkingDaysFromCommunication(): void
+    {
+        $this->case->setStatus(CaseStatus::DEFINITIVA);
+        $this->case->setRulingCommunicationDate(new \DateTimeImmutable('2026-02-02'));
+        $this->em->flush();
+
+        // 2026-02-02 + 40 days = 2026-03-14 (Saturday) → next working day Mon 2026-03-16.
+        $recommended = $this->service->recommendedExecutionDate($this->case);
+        self::assertNotNull($recommended);
+        self::assertSame('2026-03-16', $recommended->format('Y-m-d'));
+    }
+
+    public function testCreateExecutionPrescriptionDeadlineUses3YearsFromDefinitiveDate(): void
+    {
+        // CPC art. 706: 3 years from the date the order became final, no prorogation.
+        $deadline = $this->service->createExecutionPrescriptionDeadline($this->case, new \DateTimeImmutable('2026-09-11'));
+
+        $this->assertSame(DeadlineType::PRESCRIPTIE_EXECUTARE, $deadline->getType());
+        $this->assertSame('2029-09-11', $deadline->getDeadlineDate()->format('Y-m-d'));
     }
 
     public function testCreatePaymentNoticeDeadlineProrogatesWhenLandsOnHoliday(): void

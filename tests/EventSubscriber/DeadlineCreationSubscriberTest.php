@@ -269,6 +269,58 @@ final class DeadlineCreationSubscriberTest extends KernelTestCase
         self::assertContains(DeadlineType::CERERE_IN_ANULARE, $types);
     }
 
+    public function testDefinitivaCreatesExecutionPrescriptionDeadline(): void
+    {
+        $case = $this->newCase(new \DateTime('2024-03-15'));
+        $case->setPaymentNoticeDate(new \DateTime('2024-04-01'));
+        $case->setRulingCommunicationDate(new \DateTimeImmutable('2026-09-01'));
+        $this->em->flush();
+
+        $this->workflowService->apply($case, 'trimite_somatie');
+        $this->workflowService->apply($case, 'depune_cerere');
+        $this->workflowService->apply($case, 'inregistreaza_dosar');
+        $this->workflowService->apply($case, 'fixeaza_termen');
+        $this->workflowService->apply($case, 'emite_ordonanta');
+        $this->workflowService->apply($case, 'marcheaza_definitiva');
+        $this->em->flush();
+
+        $deadlines = $this->em->getRepository(LegalDeadline::class)->findBy([
+            'legalCase' => $case->getId(),
+            'type' => DeadlineType::PRESCRIPTIE_EXECUTARE,
+        ]);
+
+        self::assertCount(1, $deadlines, 'marcheaza_definitiva must create a PRESCRIPTIE_EXECUTARE deadline (CPC art. 706).');
+        // Final the day after the 10-day annulment window, + 3 years, no working-day
+        // prorogation: 2026-09-01 + 11d = 2026-09-12 → 2029-09-12.
+        self::assertSame('2029-09-12', $deadlines[0]->getDeadlineDate()->format('Y-m-d'));
+    }
+
+    public function testExecutareCreatesExecutionPrescriptionDeadlineOnDirectPath(): void
+    {
+        // Enforcement started directly from ORDONANTA_EMISA (CPC art. 1021),
+        // bypassing DEFINITIVA: the PRESCRIPTIE_EXECUTARE deadline must still exist.
+        $case = $this->newCase(new \DateTime('2024-03-15'));
+        $case->setPaymentNoticeDate(new \DateTime('2024-04-01'));
+        $case->setRulingCommunicationDate(new \DateTimeImmutable('2026-09-01'));
+        $this->em->flush();
+
+        $this->workflowService->apply($case, 'trimite_somatie');
+        $this->workflowService->apply($case, 'depune_cerere');
+        $this->workflowService->apply($case, 'inregistreaza_dosar');
+        $this->workflowService->apply($case, 'fixeaza_termen');
+        $this->workflowService->apply($case, 'emite_ordonanta');
+        $this->workflowService->apply($case, 'trece_la_executare');
+        $this->em->flush();
+
+        $deadlines = $this->em->getRepository(LegalDeadline::class)->findBy([
+            'legalCase' => $case->getId(),
+            'type' => DeadlineType::PRESCRIPTIE_EXECUTARE,
+        ]);
+
+        self::assertCount(1, $deadlines, 'trece_la_executare must create a PRESCRIPTIE_EXECUTARE deadline even without DEFINITIVA (CPC art. 706).');
+        self::assertSame('2029-09-12', $deadlines[0]->getDeadlineDate()->format('Y-m-d'));
+    }
+
     public function testPrescriptionDeadlineUsesCaseStatusAmiabilAsDefault(): void
     {
         $case = $this->newCase(new \DateTime('2024-03-15'));

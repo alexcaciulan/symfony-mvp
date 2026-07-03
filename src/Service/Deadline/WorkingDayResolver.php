@@ -55,6 +55,17 @@ final class WorkingDayResolver
         return $current;
     }
 
+    /** Advances $from by $n working days (each weekend/holiday is skipped). Returns $from unchanged when $n <= 0. */
+    public function addWorkingDays(\DateTimeImmutable $from, int $n): \DateTimeImmutable
+    {
+        $current = $from;
+        for ($added = 0; $added < $n; ++$added) {
+            $current = $this->nextWorkingDay($current->modify('+1 day'));
+        }
+
+        return $current;
+    }
+
     public function isWorkingDay(\DateTimeImmutable $date): bool
     {
         $dayOfWeek = (int) $date->format('N'); // 1=Monday, 7=Sunday

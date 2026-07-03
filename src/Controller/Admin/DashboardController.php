@@ -55,7 +55,9 @@ class DashboardController extends AbstractDashboardController
         yield MenuItem::linkTo(PlanCrudController::class, 'Planuri', 'fas fa-layer-group')->setAction(Action::INDEX);
         yield MenuItem::linkTo(SubscriptionCrudController::class, 'Abonamente', 'fas fa-id-card')->setAction(Action::INDEX);
         yield MenuItem::linkTo(InvoiceCrudController::class, 'Facturi', 'fas fa-file-invoice-dollar')->setAction(Action::INDEX);
+        yield MenuItem::linkTo(FiscalInvoiceCrudController::class, 'Facturi fiscale', 'fas fa-file-invoice')->setAction(Action::INDEX);
         yield MenuItem::section('Administrare');
+        yield MenuItem::linkTo(AppSettingCrudController::class, 'Setări aplicație', 'fas fa-sliders-h')->setAction(Action::INDEX);
         yield MenuItem::linkTo(UserCrudController::class, 'Utilizatori', 'fas fa-users')->setAction(Action::INDEX);
         yield MenuItem::linkTo(CourtCrudController::class, 'Instanțe', 'fas fa-landmark')->setAction(Action::INDEX);
         yield MenuItem::linkTo(CourtPortalEventCrudController::class, 'Evenimente portal', 'fas fa-satellite-dish')->setAction(Action::INDEX);

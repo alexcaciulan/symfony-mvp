@@ -10,9 +10,9 @@ use PHPUnit\Framework\TestCase;
 
 class DeadlineTypeTest extends TestCase
 {
-    public function testHasSixCases(): void
+    public function testHasSevenCases(): void
     {
-        $this->assertCount(6, DeadlineType::cases());
+        $this->assertCount(7, DeadlineType::cases());
     }
 
     public function testAllCasesHaveLabels(): void
@@ -30,6 +30,7 @@ class DeadlineTypeTest extends TestCase
         // JUDECATA + OTHER => MEDIUM
         $this->assertSame(DeadlinePriority::CRITICAL, DeadlineType::CERERE_IN_ANULARE->defaultPriority());
         $this->assertSame(DeadlinePriority::CRITICAL, DeadlineType::PRESCRIPTIE->defaultPriority());
+        $this->assertSame(DeadlinePriority::CRITICAL, DeadlineType::PRESCRIPTIE_EXECUTARE->defaultPriority());
         $this->assertSame(DeadlinePriority::HIGH, DeadlineType::DEPUNERE_CERERE->defaultPriority());
         $this->assertSame(DeadlinePriority::HIGH, DeadlineType::RASPUNS_SOMATIE->defaultPriority());
         $this->assertSame(DeadlinePriority::MEDIUM, DeadlineType::JUDECATA->defaultPriority());

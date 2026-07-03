@@ -1,0 +1,63 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ 'fiscal_invoices.title'|trans }}{% endblock %}
+
+{% block body %}
+    <div class="max-w-5xl mx-auto">
+        <div class="flex items-center justify-between mb-6">
+            <h1 class="text-2xl font-bold text-gray-900">{{ 'fiscal_invoices.title'|trans }}</h1>
+            <a href="{{ path('app_subscription') }}" class="text-sm font-medium text-lex-navy hover:underline no-underline">
+                {{ 'fiscal_invoices.back'|trans }}
+            </a>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            {% if invoices is empty %}
+                <p class="p-6 text-gray-600 text-sm">{{ 'fiscal_invoices.empty'|trans }}</p>
+            {% else %}
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 text-gray-500 text-left">
+                        <tr>
+                            <th class="px-4 py-3 font-medium">{{ 'fiscal_invoices.number'|trans }}</th>
+                            <th class="px-4 py-3 font-medium">{{ 'fiscal_invoices.date'|trans }}</th>
+                            <th class="px-4 py-3 font-medium text-right">{{ 'fiscal_invoices.total'|trans }}</th>
+                            <th class="px-4 py-3 font-medium">{{ 'fiscal_invoices.einvoice_status'|trans }}</th>
+                            <th class="px-4 py-3 font-medium text-right">{{ 'fiscal_invoices.action'|trans }}</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        {% for invoice in invoices %}
+                            {% set badge = {
+                                'not_applicable': 'bg-gray-100 text-gray-600',
+                                'pending': 'bg-amber-100 text-amber-800',
+                                'sent': 'bg-blue-100 text-blue-800',
+                                'accepted': 'bg-green-100 text-green-800',
+                                'rejected': 'bg-red-100 text-red-800',
+                                'error': 'bg-red-100 text-red-800'
+                            } %}
+                            <tr>
+                                <td class="px-4 py-3 text-gray-900 font-medium">
+                                    <a href="{{ path('app_fiscal_invoice_show', {id: invoice.id}) }}" class="text-lex-navy hover:underline">
+                                        {{ invoice.formattedNumber ?? ('fiscal_invoices.draft'|trans) }}
+                                    </a>
+                                </td>
+                                <td class="px-4 py-3 text-gray-700">{{ invoice.issuedAt ? invoice.issuedAt|date('d.m.Y') : '—' }}</td>
+                                <td class="px-4 py-3 text-gray-900 font-medium text-right tabular-nums">{{ invoice.grossTotal|number_format(2, ',', '.') }} {{ invoice.currency }}</td>
+                                <td class="px-4 py-3">
+                                    <span class="inline-block px-2 py-0.5 text-xs font-medium rounded-full {{ badge[invoice.eInvoiceStatus.value] }}">
+                                        {{ invoice.eInvoiceStatus.label|trans }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-3 text-right">
+                                    <a href="{{ path('app_fiscal_invoice_pdf', {id: invoice.id}) }}" class="text-sm font-medium text-lex-navy hover:underline">
+                                        {{ 'fiscal_invoices.download'|trans }}
+                                    </a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}

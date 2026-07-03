@@ -36,4 +36,25 @@ class InvoiceRepository extends ServiceEntityRepository
             ->getQuery()
             ->getSingleScalarResult();
     }
+
+    /**
+     * PENDING invoices older than `$before` that already carry a gateway
+     * transaction reference (externalId = ntpID), i.e. a payment was started but
+     * never confirmed via IPN. These are the reconciliation candidates whose
+     * live status is re-queried from the gateway.
+     *
+     * @return Invoice[]
+     */
+    public function findStalePending(\DateTimeImmutable $before): array
+    {
+        return $this->createQueryBuilder('i')
+            ->where('i.status = :status')
+            ->andWhere('i.externalId IS NOT NULL')
+            ->andWhere('i.createdAt <= :before')
+            ->setParameter('status', InvoiceStatus::PENDING)
+            ->setParameter('before', $before)
+            ->orderBy('i.createdAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
 }

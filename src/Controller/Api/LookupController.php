@@ -6,6 +6,7 @@ namespace App\Controller\Api;
 
 use App\Entity\User;
 use App\Repository\CourtRepository;
+use App\Repository\CreditorRepository;
 use App\Service\Company\AnafLookupException;
 use App\Service\Company\AnafLookupService;
 use App\Util\PiiMasker;
@@ -111,6 +112,23 @@ final class LookupController extends AbstractController
         $query = trim((string) $request->query->get('q', ''));
 
         return new JsonResponse($courtRepository->findForUserAutocomplete($user, $query));
+    }
+
+    /**
+     * Remote source for the cases-list creditor filter (Tom Select `load`).
+     * Scoped to creditors the current user has cases with, so the dropdown never
+     * lists creditors that would yield zero filter hits. The `q` query is matched
+     * against the creditor name (case-insensitive LIKE), capped at 20 results.
+     */
+    #[Route('/creditors-lookup', name: 'creditors_lookup', methods: ['GET'])]
+    public function creditorsLookup(
+        Request $request,
+        #[CurrentUser] User $user,
+        CreditorRepository $creditorRepository,
+    ): JsonResponse {
+        $query = trim((string) $request->query->get('q', ''));
+
+        return new JsonResponse($creditorRepository->findForUserAutocomplete($user, $query));
     }
 
     /**

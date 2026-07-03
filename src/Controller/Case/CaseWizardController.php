@@ -834,10 +834,8 @@ final class CaseWizardController extends AbstractController
         // returns court=null with `court.resolver.county_unknown` and the user
         // picks the court manually at step 4 (per spec C5, submit still proceeds).
         //
-        // Threshold value (CPC art. 98) = principal + accrued accessory. For a
-        // contractual penalty the accessory is the precomputed $accessoryTotal
-        // (passed as scadentPenalties, legal interest suppressed); for legal
-        // interest the resolver computes it internally.
+        // Competence is decided on the principal alone (CPC art. 98 alin. 2, accessories
+        // excluded); the accessory amount below feeds only the displayed breakdown / petit.
         $isContractual = $claim->penaltyType === PenaltyType::CONTRACTUAL;
         try {
             $court = $this->courtResolver->resolve(

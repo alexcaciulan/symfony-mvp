@@ -40,6 +40,7 @@ final readonly class ExtractedDocumentData
                 'phone' => $this->creditor->phone,
                 'iban' => $this->creditor->iban,
                 'legalRepresentative' => $this->creditor->legalRepresentative,
+                'bankName' => $this->creditor->bankName,
                 'confidencePerField' => $this->creditor->confidencePerField,
             ] : null,
             'debtor' => $this->debtor !== null ? [
@@ -50,6 +51,10 @@ final readonly class ExtractedDocumentData
                 'personalId' => $this->debtor->personalId,
                 'onrcNumber' => $this->debtor->onrcNumber,
                 'address' => $this->debtor->address,
+                // county/locality drive competent-court resolution and are read
+                // back by PrefillFromExtractionService; they must round-trip here.
+                'county' => $this->debtor->county,
+                'locality' => $this->debtor->locality,
                 'email' => $this->debtor->email,
                 'phone' => $this->debtor->phone,
                 'iban' => $this->debtor->iban,
@@ -62,6 +67,13 @@ final readonly class ExtractedDocumentData
                 'dueDate' => $this->claim->dueDate?->format(\DateTimeInterface::ATOM),
                 'legalGround' => $this->claim->legalGround?->value,
                 'description' => $this->claim->description,
+                'invoiceNumber' => $this->claim->invoiceNumber,
+                'invoiceDate' => $this->claim->invoiceDate?->format(\DateTimeInterface::ATOM),
+                'contractNumber' => $this->claim->contractNumber,
+                'contractDate' => $this->claim->contractDate?->format(\DateTimeInterface::ATOM),
+                'contractReference' => $this->claim->contractReference,
+                'penaltyType' => $this->claim->penaltyType?->value,
+                'contractualPenaltyRate' => $this->claim->contractualPenaltyRate,
                 'confidencePerField' => $this->claim->confidencePerField,
             ] : null,
             'rawOcrText' => $this->rawOcrText,

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service\Billing;
 
 use App\DTO\Billing\SubscriptionSlotConsumption;
+use App\Entity\Invoice;
 use App\Entity\LegalCase;
 use App\Entity\Plan;
 use App\Entity\Subscription;
@@ -22,7 +23,8 @@ use Doctrine\ORM\EntityManagerInterface;
  * creation: drafts (AMIABIL) are free. The methods are self-contained; no
  * controller wires them into the case flow yet.
  */
-final class SubscriptionService
+// Not final: test double in SubscriptionRenewalServiceTest.
+class SubscriptionService
 {
     /** Trial length in days. Placeholder for go-live; confirm with product. */
     public const TRIAL_DAYS = 30;
@@ -202,12 +204,17 @@ final class SubscriptionService
     /**
      * Rolls the subscription into a new monthly period: issues the subscription
      * invoice, extends the period and resets the consumed-case counter, all in
-     * one transaction. Not yet wired (a renewal cron will invoke it).
+     * one transaction. Returns the pending renewal invoice so the caller can
+     * charge it. Wired by {@see SubscriptionRenewalService} (renewal cron).
+     *
+     * The period is rolled optimistically; if the subsequent charge fails, the
+     * caller flips the status to PAST_DUE, which gates access regardless of the
+     * (now rolled) period date. So a rolled-but-unpaid period never leaks access.
      */
-    public function renewSubscription(Subscription $subscription): void
+    public function renewSubscription(Subscription $subscription): Invoice
     {
-        $this->em->wrapInTransaction(function () use ($subscription): void {
-            $this->invoicing->createSubscriptionInvoice($subscription);
+        return $this->em->wrapInTransaction(function () use ($subscription): Invoice {
+            $invoice = $this->invoicing->createSubscriptionInvoice($subscription);
 
             $newStart = $subscription->getCurrentPeriodEnd();
             $subscription
@@ -225,7 +232,29 @@ final class SubscriptionService
             );
 
             $this->em->flush();
+
+            return $invoice;
         });
+    }
+
+    /**
+     * Marks a subscription PAST_DUE after a failed recurring charge or an expired
+     * token. PAST_DUE is not usable ({@see SubscriptionStatus::isUsable()}), so
+     * access is gated immediately regardless of the billing-period date.
+     */
+    public function markPastDue(Subscription $subscription, string $reason): void
+    {
+        $subscription->setStatus(SubscriptionStatus::PAST_DUE);
+
+        $this->auditLog->log(
+            action: 'subscription_past_due',
+            entityType: 'Subscription',
+            entityId: (string) $subscription->getId(),
+            newData: ['reason' => $reason],
+            category: AuditLogService::CATEGORY_BILLING,
+        );
+
+        $this->em->flush();
     }
 
     /**

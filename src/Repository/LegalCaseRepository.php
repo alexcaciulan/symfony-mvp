@@ -115,7 +115,7 @@ class LegalCaseRepository extends ServiceEntityRepository
             CaseStatus::DEFINITIVA->value,
             CaseStatus::EXECUTARE->value,
             CaseStatus::INCHIS_SUCCES->value,
-            CaseStatus::INCHIS_PARTIAL_INSOLVABIL->value,
+            CaseStatus::INCHIS_FARA_RECUPERARE->value,
             CaseStatus::RESPINSA->value,
         ];
 

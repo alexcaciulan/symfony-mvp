@@ -447,6 +447,95 @@ class AiVisionExtractionStrategyTest extends TestCase
         $this->assertStringNotContainsString('iVBORw0', $persisted);
     }
 
+    public function testExtractMapsNewInvoiceContractPenaltyAndBankFields(): void
+    {
+        $aiContent = json_encode([
+            'creditor' => [
+                'name' => 'SC Foo SRL',
+                'iban' => 'RO49AAAA1B31007593840000',
+                'bankName' => 'Banca Transilvania',
+                'confidencePerField' => ['name' => 0.95, 'bankName' => 0.9],
+            ],
+            'claim' => [
+                'amount' => 12000.0,
+                'currency' => 'RON',
+                'dueDate' => '2026-02-01',
+                'invoiceNumber' => 'MJ 2026-00042',
+                'invoiceDate' => '2026-01-10',
+                'contractNumber' => '45/2025',
+                'contractDate' => '2025-12-01',
+                'contractReference' => 'contract de prestări servicii',
+                'penaltyType' => 'CONTRACTUAL',
+                'contractualPenaltyRate' => 0.1,
+                'confidencePerField' => ['amount' => 0.99, 'invoiceNumber' => 0.95],
+            ],
+            'globalConfidence' => 0.9,
+        ]);
+        $strategy = $this->makeStrategy(llmClient: $this->fakeLlmClient($aiContent));
+
+        $result = $strategy->extract($this->makeDocument(id: 70));
+
+        $this->assertSame('Banca Transilvania', $result->creditor?->bankName);
+        $this->assertSame('MJ 2026-00042', $result->claim?->invoiceNumber);
+        $this->assertSame('2026-01-10', $result->claim?->invoiceDate?->format('Y-m-d'));
+        $this->assertSame('45/2025', $result->claim?->contractNumber);
+        $this->assertSame('2025-12-01', $result->claim?->contractDate?->format('Y-m-d'));
+        $this->assertSame('contract de prestări servicii', $result->claim?->contractReference);
+        $this->assertSame(\App\Enum\PenaltyType::CONTRACTUAL, $result->claim?->penaltyType);
+        $this->assertSame(0.1, $result->claim?->contractualPenaltyRate);
+
+        // Round-trip through the persisted JSON shape: the new keys must survive
+        // toArray() or they never reach the prefill read-back.
+        $array = $result->toArray();
+        $this->assertSame('Banca Transilvania', $array['creditor']['bankName']);
+        $this->assertSame('MJ 2026-00042', $array['claim']['invoiceNumber']);
+        $this->assertSame('CONTRACTUAL', $array['claim']['penaltyType']);
+        $this->assertSame(0.1, $array['claim']['contractualPenaltyRate']);
+        $this->assertStringStartsWith('2026-01-10', $array['claim']['invoiceDate']);
+    }
+
+    public function testInvalidPenaltyTypeFromAiBecomesNull(): void
+    {
+        // Mirror of testInvalidLegalGroundCategoryFromAiBecomesNull: an enum
+        // value outside PenaltyType degrades to null rather than raising.
+        $aiContent = json_encode([
+            'claim' => [
+                'amount' => 5000.0,
+                'penaltyType' => 'UNKNOWN_PENALTY',
+                'contractualPenaltyRate' => 0.1,
+                'confidencePerField' => ['amount' => 0.95],
+            ],
+            'globalConfidence' => 0.7,
+        ]);
+        $strategy = $this->makeStrategy(llmClient: $this->fakeLlmClient($aiContent));
+
+        $result = $strategy->extract($this->makeDocument(id: 72));
+
+        $this->assertNotNull($result->claim);
+        $this->assertNull($result->claim->penaltyType, 'Unknown enum value must NOT raise; degrades to null');
+        $this->assertSame(5000.0, $result->claim->amount);
+    }
+
+    public function testExtractLeavesPenaltyNullWhenAbsentFromVisionResponse(): void
+    {
+        // No penalty clause in the document → AI returns null/omits the fields.
+        // The strategy must NOT invent a penalty type; the wizard default applies.
+        $aiContent = json_encode([
+            'claim' => [
+                'amount' => 3000.0,
+                'currency' => 'RON',
+                'confidencePerField' => ['amount' => 0.95],
+            ],
+            'globalConfidence' => 0.6,
+        ]);
+        $strategy = $this->makeStrategy(llmClient: $this->fakeLlmClient($aiContent));
+
+        $result = $strategy->extract($this->makeDocument(id: 71));
+
+        $this->assertNull($result->claim?->penaltyType);
+        $this->assertNull($result->claim?->contractualPenaltyRate);
+    }
+
     // ---------- AI response edge cases (parser robustness) ----------
 
     public function testInvalidLegalGroundCategoryFromAiBecomesNull(): void

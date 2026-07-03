@@ -130,6 +130,28 @@ class InterestCalculatorServiceTest extends TestCase
 
         $this->assertSame(0.0, $result->total);
         $this->assertSame([], $result->breakdown);
+        // Inputs are echoed back for a self-contained audit trail.
+        $this->assertEquals($sameDate, $result->dueDate);
+        $this->assertEquals($sameDate, $result->referenceDate);
+        $this->assertNull($result->invoiceDate);
+    }
+
+    public function testResultEchoesInvoiceDateForAudit(): void
+    {
+        $service = new InterestCalculatorService($this->makeRepo([
+            $this->makeConfig('2024-01-01', '6.00'),
+        ]));
+
+        $result = $service->calculate(
+            amount: 10_000.0,
+            dueDate: new \DateTimeImmutable('2024-06-01'),
+            referenceDate: new \DateTimeImmutable('2024-08-30'),
+            relationshipType: RelationshipType::COMERCIAL,
+            invoiceDate: new \DateTimeImmutable('2024-05-15 14:30:00'),
+        );
+
+        // Normalized to midnight, like dueDate/referenceDate.
+        $this->assertEquals(new \DateTimeImmutable('2024-05-15'), $result->invoiceDate);
     }
 
     public function testDueDateAfterReferenceDateReturnsZero(): void

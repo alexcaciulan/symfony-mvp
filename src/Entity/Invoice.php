@@ -44,6 +44,9 @@ class Invoice
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $externalId = null;
 
+    #[ORM\OneToOne(mappedBy: 'invoice', targetEntity: FiscalInvoice::class)]
+    private ?FiscalInvoice $fiscalInvoice = null;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
@@ -169,6 +172,11 @@ class Invoice
         $this->externalId = $externalId;
 
         return $this;
+    }
+
+    public function getFiscalInvoice(): ?FiscalInvoice
+    {
+        return $this->fiscalInvoice;
     }
 
     public function getCreatedAt(): \DateTimeImmutable

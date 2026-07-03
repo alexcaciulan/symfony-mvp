@@ -3,7 +3,9 @@
 namespace App\Entity;
 
 use App\Enum\CaseStatus;
+use App\Enum\DebitAcknowledgedStatus;
 use App\Enum\ExtractionMode;
+use App\Enum\PaymentNoticeCommunicationMethod;
 use App\Enum\PenaltyType;
 use App\Enum\RelationshipType;
 use App\Repository\LegalCaseRepository;
@@ -117,12 +119,34 @@ class LegalCase
     /**
      * Data la care ordonanța de plată a fost COMUNICATĂ debitorului (NU data
      * pronunțării). De la această dată curge termenul de 10 zile pentru cererea
-     * în anulare (CPC art. 1024 alin. 1) și — după prorogare CPC art. 181 alin.
-     * 2 + buffer 1 zi — tranziția automată la `DEFINITIVA` (cron Pas 6.2).
-     * Populat manual de avocat sau extras din portal.just.ro.
+     * în anulare (CPC art. 1024 alin. 1) și, după prorogare CPC art. 181 alin.
+     * 2 + buffer de 5 zile lucrătoare, tranziția automată la `DEFINITIVA` (cron-ul de
+     * verificare a termenelor). Populat manual de avocat sau extras din portal.just.ro.
      */
     #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
     private ?\DateTimeImmutable $rulingCommunicationDate = null;
+
+    /**
+     * Data la care debitorul a PRIMIT somația (confirmată prin AR poștal sau
+     * proces-verbal de comunicare al executorului), NU data expedierii. De la
+     * această dată curge termenul de 15 zile pentru plată (CPC art. 1015 alin.
+     * 1). Folosită pentru recalculul termenului `RASPUNS_SOMATIE` și pentru
+     * guard-ul de generare a cererii OP.
+     */
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $paymentNoticeCommunicationDate = null;
+
+    /** Modalitatea de comunicare a somației (executor sau Poșta Română R+CD+AR). */
+    #[ORM\Column(length: 20, enumType: PaymentNoticeCommunicationMethod::class, nullable: true)]
+    private ?PaymentNoticeCommunicationMethod $paymentNoticeCommunicationMethod = null;
+
+    /** Acordul explicit al avocatului pentru generarea cererii de ordonanță de plată. */
+    #[ORM\Column(nullable: true)]
+    private ?bool $opGenerationConsent = null;
+
+    /** Statusul debitului confirmat de avocat înainte de generarea OP (parțial / neachitat). */
+    #[ORM\Column(length: 20, enumType: DebitAcknowledgedStatus::class, nullable: true)]
+    private ?DebitAcknowledgedStatus $debitAcknowledgedStatus = null;
 
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     private ?string $notes = null;
@@ -534,6 +558,54 @@ class LegalCase
     public function setRulingCommunicationDate(?\DateTimeImmutable $rulingCommunicationDate): static
     {
         $this->rulingCommunicationDate = $rulingCommunicationDate;
+
+        return $this;
+    }
+
+    public function getPaymentNoticeCommunicationDate(): ?\DateTimeImmutable
+    {
+        return $this->paymentNoticeCommunicationDate;
+    }
+
+    public function setPaymentNoticeCommunicationDate(?\DateTimeImmutable $paymentNoticeCommunicationDate): static
+    {
+        $this->paymentNoticeCommunicationDate = $paymentNoticeCommunicationDate;
+
+        return $this;
+    }
+
+    public function getPaymentNoticeCommunicationMethod(): ?PaymentNoticeCommunicationMethod
+    {
+        return $this->paymentNoticeCommunicationMethod;
+    }
+
+    public function setPaymentNoticeCommunicationMethod(?PaymentNoticeCommunicationMethod $paymentNoticeCommunicationMethod): static
+    {
+        $this->paymentNoticeCommunicationMethod = $paymentNoticeCommunicationMethod;
+
+        return $this;
+    }
+
+    public function getOpGenerationConsent(): ?bool
+    {
+        return $this->opGenerationConsent;
+    }
+
+    public function setOpGenerationConsent(?bool $opGenerationConsent): static
+    {
+        $this->opGenerationConsent = $opGenerationConsent;
+
+        return $this;
+    }
+
+    public function getDebitAcknowledgedStatus(): ?DebitAcknowledgedStatus
+    {
+        return $this->debitAcknowledgedStatus;
+    }
+
+    public function setDebitAcknowledgedStatus(?DebitAcknowledgedStatus $debitAcknowledgedStatus): static
+    {
+        $this->debitAcknowledgedStatus = $debitAcknowledgedStatus;
 
         return $this;
     }

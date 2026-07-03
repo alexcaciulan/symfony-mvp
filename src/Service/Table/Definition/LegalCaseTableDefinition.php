@@ -70,6 +70,14 @@ final class LegalCaseTableDefinition implements TableDefinitionInterface
                 remoteRoute: 'api_courts_lookup',
             ),
             new Filter(
+                key: 'creditor',
+                labelKey: 'table.cases.filter.creditor_label',
+                type: 'autocomplete',
+                field: 'creditor',
+                placeholderKey: 'component.data_table.filter.creditor_placeholder',
+                remoteRoute: 'api_creditors_lookup',
+            ),
+            new Filter(
                 key: 'search',
                 labelKey: 'component.data_table.filter.search_label',
                 type: 'search',

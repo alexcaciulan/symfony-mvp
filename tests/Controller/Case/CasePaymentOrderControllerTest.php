@@ -13,6 +13,7 @@ use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\CourtType;
+use App\Enum\DebitAcknowledgedStatus;
 use App\Enum\DocumentType;
 use App\Enum\ExtractionStatus;
 use App\Enum\PersonType;
@@ -171,6 +172,8 @@ final class CasePaymentOrderControllerTest extends WebTestCase
 
         $this->client->request('POST', '/case/' . $this->case->getId() . '/payment-order/generate', [
             '_token' => $token,
+            'debitAcknowledgedStatus' => 'UNPAID',
+            'opGenerationConsent' => '1',
         ]);
 
         self::assertResponseRedirects('/case/' . $this->case->getId());
@@ -178,6 +181,8 @@ final class CasePaymentOrderControllerTest extends WebTestCase
         $this->em->clear();
         $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
         self::assertSame(CaseStatus::CERERE_DEPUSA, $refreshed->getStatus(), 'Status must transition SOMATIE_TRIMISA → CERERE_DEPUSA.');
+        self::assertSame(DebitAcknowledgedStatus::UNPAID, $refreshed->getDebitAcknowledgedStatus());
+        self::assertTrue($refreshed->getOpGenerationConsent());
 
         $documents = $this->em->getRepository(Document::class)->findBy(['legalCase' => $refreshed->getId()]);
         $types = array_map(static fn (Document $d): DocumentType => $d->getDocumentType(), $documents);
@@ -194,6 +199,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
         self::assertSame($refreshed->getCaseNumber(), $payload['caseNumber'] ?? null);
         self::assertNotNull($payload['paymentOrderDocumentId'] ?? null);
         self::assertNotNull($payload['opisDocumentId'] ?? null);
+        self::assertSame('UNPAID', $payload['debitAcknowledgedStatus'] ?? null);
     }
 
     public function testGenerateRespondsWithTurboStream(): void
@@ -205,7 +211,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
         $this->client->request(
             'POST',
             '/case/' . $this->case->getId() . '/payment-order/generate',
-            ['_token' => $token],
+            ['_token' => $token, 'debitAcknowledgedStatus' => 'UNPAID', 'opGenerationConsent' => '1'],
             [],
             ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html'],
         );
@@ -294,6 +300,67 @@ final class CasePaymentOrderControllerTest extends WebTestCase
         self::assertCount(0, $cerereDocs, 'Fără court → CERERE_OP nu trebuie creat.');
     }
 
+    public function testGenerateBlockedWhenConsentMissing(): void
+    {
+        $this->attachSomatieFile();
+        $this->client->loginUser($this->user);
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/payment-order/generate', [
+            '_token' => $token,
+            'debitAcknowledgedStatus' => 'UNPAID',
+            // opGenerationConsent missing
+        ]);
+
+        self::assertResponseRedirects('/case/' . $this->case->getId());
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame(CaseStatus::SOMATIE_TRIMISA, $refreshed->getStatus(), 'Fără acord → OP nu se generează.');
+    }
+
+    public function testGenerateBlockedWhenDebitStatusMissing(): void
+    {
+        $this->attachSomatieFile();
+        $this->client->loginUser($this->user);
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/payment-order/generate', [
+            '_token' => $token,
+            'opGenerationConsent' => '1',
+            // debitAcknowledgedStatus missing
+        ]);
+
+        self::assertResponseRedirects('/case/' . $this->case->getId());
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame(CaseStatus::SOMATIE_TRIMISA, $refreshed->getStatus(), 'Fără status debit → OP nu se generează.');
+    }
+
+    public function testGenerateBlockedWhenTermNotExpired(): void
+    {
+        // Communication date set to today → 15-day term has NOT expired yet.
+        $this->case->setPaymentNoticeCommunicationDate(new \DateTimeImmutable('today'));
+        $this->em->flush();
+
+        $this->attachSomatieFile();
+        $this->client->loginUser($this->user);
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/payment-order/generate', [
+            '_token' => $token,
+            'debitAcknowledgedStatus' => 'UNPAID',
+            'opGenerationConsent' => '1',
+        ]);
+
+        self::assertResponseRedirects('/case/' . $this->case->getId());
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame(CaseStatus::SOMATIE_TRIMISA, $refreshed->getStatus(), 'Termen neexpirat → OP blocată.');
+    }
+
     public function testGenerateIdempotentWhenAlreadyExists(): void
     {
         $this->attachSomatieFile();
@@ -303,6 +370,8 @@ final class CasePaymentOrderControllerTest extends WebTestCase
         // Prima generare
         $this->client->request('POST', '/case/' . $this->case->getId() . '/payment-order/generate', [
             '_token' => $token,
+            'debitAcknowledgedStatus' => 'UNPAID',
+            'opGenerationConsent' => '1',
         ]);
 
         // A doua tentativă — trebuie respinsă cu flash error
@@ -367,6 +436,8 @@ final class CasePaymentOrderControllerTest extends WebTestCase
         $token = $this->csrfTokenFromOverview($this->case->getId());
         $this->client->request('POST', '/case/' . $this->case->getId() . '/payment-order/generate', [
             '_token' => $token,
+            'debitAcknowledgedStatus' => 'UNPAID',
+            'opGenerationConsent' => '1',
         ]);
 
         // Acum descărcăm ZIP

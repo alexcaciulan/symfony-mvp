@@ -2,16 +2,17 @@
 
 namespace App\Entity;
 
+use App\Entity\Concern\PartyContactInfoTrait;
 use App\Enum\AnafStatus;
-use App\Enum\PersonType;
 use App\Repository\DebtorRepository;
-use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: DebtorRepository::class)]
 #[ORM\HasLifecycleCallbacks]
 class Debtor
 {
+    use PartyContactInfoTrait;
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
@@ -21,38 +22,11 @@ class Debtor
     #[ORM\JoinColumn(nullable: false)]
     private LegalCase $legalCase;
 
-    #[ORM\Column(length: 10, enumType: PersonType::class)]
-    private PersonType $personType;
-
-    #[ORM\Column(length: 255)]
-    private string $name;
-
-    #[ORM\Column(length: 20, nullable: true)]
-    private ?string $cui = null;
-
-    #[ORM\Column(length: 13, nullable: true)]
-    private ?string $personalId = null;
-
-    #[ORM\Column(length: 50, nullable: true)]
-    private ?string $onrcNumber = null;
-
-    #[ORM\Column(type: Types::TEXT)]
-    private string $address;
-
     #[ORM\Column(length: 100, nullable: true)]
     private ?string $addressCounty = null;
 
     #[ORM\Column(length: 150, nullable: true)]
     private ?string $addressLocality = null;
-
-    #[ORM\Column(length: 180, nullable: true)]
-    private ?string $email = null;
-
-    #[ORM\Column(length: 30, nullable: true)]
-    private ?string $phone = null;
-
-    #[ORM\Column(length: 34, nullable: true)]
-    private ?string $iban = null;
 
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $administrator = null;
@@ -111,78 +85,6 @@ class Debtor
         return $this;
     }
 
-    public function getPersonType(): PersonType
-    {
-        return $this->personType;
-    }
-
-    public function setPersonType(PersonType $personType): static
-    {
-        $this->personType = $personType;
-
-        return $this;
-    }
-
-    public function getName(): string
-    {
-        return $this->name;
-    }
-
-    public function setName(string $name): static
-    {
-        $this->name = $name;
-
-        return $this;
-    }
-
-    public function getCui(): ?string
-    {
-        return $this->cui;
-    }
-
-    public function setCui(?string $cui): static
-    {
-        $this->cui = $cui;
-
-        return $this;
-    }
-
-    public function getPersonalId(): ?string
-    {
-        return $this->personalId;
-    }
-
-    public function setPersonalId(?string $personalId): static
-    {
-        $this->personalId = $personalId;
-
-        return $this;
-    }
-
-    public function getOnrcNumber(): ?string
-    {
-        return $this->onrcNumber;
-    }
-
-    public function setOnrcNumber(?string $onrcNumber): static
-    {
-        $this->onrcNumber = $onrcNumber;
-
-        return $this;
-    }
-
-    public function getAddress(): string
-    {
-        return $this->address;
-    }
-
-    public function setAddress(string $address): static
-    {
-        $this->address = $address;
-
-        return $this;
-    }
-
     public function getAddressCounty(): ?string
     {
         return $this->addressCounty;
@@ -203,42 +105,6 @@ class Debtor
     public function setAddressLocality(?string $addressLocality): static
     {
         $this->addressLocality = $addressLocality;
-
-        return $this;
-    }
-
-    public function getEmail(): ?string
-    {
-        return $this->email;
-    }
-
-    public function setEmail(?string $email): static
-    {
-        $this->email = $email;
-
-        return $this;
-    }
-
-    public function getPhone(): ?string
-    {
-        return $this->phone;
-    }
-
-    public function setPhone(?string $phone): static
-    {
-        $this->phone = $phone;
-
-        return $this;
-    }
-
-    public function getIban(): ?string
-    {
-        return $this->iban;
-    }
-
-    public function setIban(?string $iban): static
-    {
-        $this->iban = $iban;
 
         return $this;
     }
@@ -339,6 +205,6 @@ class Debtor
 
     public function __toString(): string
     {
-        return $this->name;
+        return $this->getName();
     }
 }

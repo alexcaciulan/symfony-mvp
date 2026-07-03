@@ -26,6 +26,16 @@ namespace App\Service\Extraction;
  * continues to the AI tier, which is the correct decision: the lawyer would
  * otherwise be left to fill 14+ empty fields manually, defeating the whole
  * "AI does the work, you verify" value proposition.
+ *
+ * Core-field allow-list: only the fields below count toward coverage. Optional
+ * secondary metadata a strategy may also extract (e.g. invoice/contract
+ * identifiers, bank name, penalty clause) is deliberately EXCLUDED so adding
+ * such fields never silently shifts the cascade threshold. A field must be
+ * added here explicitly to participate in the coverage score.
+ *
+ * The debtor allow-list carries 12 fields (county + locality beyond the
+ * sidecard's nominal 10), so all core fields at confidence 1.0 sum to 27 and
+ * the final score clamps to 1.0 — the denominator stays at 25 by design.
  */
 final class CoverageConfidenceCalculator
 {
@@ -42,6 +52,22 @@ final class CoverageConfidenceCalculator
         + self::EXPECTED_CLAIM_FIELDS;
 
     /**
+     * Fields that count toward coverage, mirroring the prefill aggregator's
+     * collect lists. New optional fields are intentionally absent here.
+     */
+    private const CORE_CREDITOR_FIELDS = [
+        'personType', 'name', 'cui', 'personalId', 'onrcNumber',
+        'address', 'email', 'phone', 'iban', 'legalRepresentative',
+    ];
+    private const CORE_DEBTOR_FIELDS = [
+        'personType', 'name', 'cui', 'personalId', 'onrcNumber', 'address',
+        'county', 'locality', 'email', 'phone', 'iban', 'administrator',
+    ];
+    private const CORE_CLAIM_FIELDS = [
+        'amount', 'currency', 'dueDate', 'legalGround', 'description',
+    ];
+
+    /**
      * @param array<string, float>|null $creditorConfidence  field name → 0..1
      * @param array<string, float>|null $debtorConfidence    field name → 0..1
      * @param array<string, float>|null $claimConfidence     field name → 0..1
@@ -53,11 +79,16 @@ final class CoverageConfidenceCalculator
     public static function compute(?array $creditorConfidence, ?array $debtorConfidence, ?array $claimConfidence): float
     {
         $sum = 0.0;
-        foreach ([$creditorConfidence, $debtorConfidence, $claimConfidence] as $bucket) {
+        foreach ([
+            [$creditorConfidence, self::CORE_CREDITOR_FIELDS],
+            [$debtorConfidence, self::CORE_DEBTOR_FIELDS],
+            [$claimConfidence, self::CORE_CLAIM_FIELDS],
+        ] as [$bucket, $coreFields]) {
             if ($bucket === null) {
                 continue;
             }
-            foreach ($bucket as $value) {
+            foreach ($coreFields as $field) {
+                $value = $bucket[$field] ?? null;
                 if (is_numeric($value) && $value > 0.0) {
                     $sum += (float) $value;
                 }

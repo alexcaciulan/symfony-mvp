@@ -24,7 +24,8 @@
 {% set primary_modal = {
     'SOMATIE_TRIMISA': {target: '#hs-modal-cerere-op', label: 'case_overview.cta.generate_op', color: 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100', icon: 'document'},
     'TERMEN_FIXAT': {target: '#hs-modal-issue-ruling', label: 'case_overview.cta.issue_ruling', color: 'bg-violet-600 text-white hover:bg-violet-700', icon: 'check'},
-    'DEFINITIVA': {target: '#hs-modal-close-case', label: 'case_overview.cta.close_case_definitiva', color: 'bg-emerald-600 text-white hover:bg-emerald-700', icon: 'money'},
+    'DEFINITIVA': {target: '#hs-modal-executare', label: 'case_overview.cta.start_execution', color: 'bg-teal-600 text-white hover:bg-teal-700', icon: 'money'},
+    'EXECUTARE': {target: '#hs-modal-close-case', label: 'case_overview.cta.close_case_executare', color: 'bg-emerald-600 text-white hover:bg-emerald-700', icon: 'money'},
 } %}
 {% set primary = primary_modal[case.status.value] ?? null %}
 
@@ -105,9 +106,9 @@
                 {{ icon_copy('size-4 text-slate-400') }}
                 {{ 'case_overview.cta.duplicate'|trans }}
             </span>
-            {# Close case only applies from DEFINITIVA (the only status the close
-               transition accepts), so the action is hidden otherwise. #}
-            {% if case.status.value == 'DEFINITIVA' %}
+            {# Close case applies from DEFINITIVA and EXECUTARE (the statuses the
+               close transitions accept), so the action is hidden otherwise. #}
+            {% if case.status.value == 'DEFINITIVA' or case.status.value == 'EXECUTARE' %}
                 <hr class="my-1 border-slate-100 dark:border-slate-800">
                 <button type="button"
                         data-hs-overlay="#hs-modal-close-case"

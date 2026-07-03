@@ -255,12 +255,13 @@ class CompetentCourtResolverTest extends TestCase
         $this->assertSame('court.resolver.invalid_amount_zero', $result->explanationKey);
     }
 
-    public function testThresholdAppliesOnTotalClaimValueIncludingAccessories(): void
+    public function testThresholdIgnoresAccruedInterestAndAppliesOnPrincipalOnly(): void
     {
-        // Revizia juridică N1 (2026-05-09): pragul 200k se aplică pe valoarea totală
-        // a cererii la data sesizării (CPC art. 98), NU pe principal singular.
-        // Principal 190k + dobândă acumulată ~28.5k peste 1 an la BNR 7%
-        // (COMERCIAL + PENALIZATOARE → BNR + 8 = 15%) → total ~218.5k → TRIBUNAL.
+        // CPC art. 98 alin. (2): accessories (interest, penalties) are excluded from
+        // the competence valuation "regardless of the due date". Principal 190k stays
+        // under 200k → JUDECĂTORIE, even though accrued interest (~28.5k over 1 year
+        // at BNR 7% + 8 = 15%) pushes the displayed total over 200k. The interest is
+        // still computed and surfaced in the breakdown, just not used for routing.
         $resolver = $this->makeResolver(
             courts: $this->clujCourts(),
             rates: [$this->makeRateConfig('2024-01-01', '7.00')],
@@ -275,19 +276,19 @@ class CompetentCourtResolverTest extends TestCase
             debtorLocality: 'Cluj-Napoca',
         );
 
-        $this->assertNotNull($result->court, 'Should route to tribunal because total > 200k');
-        $this->assertSame('Tribunalul Cluj', $result->court->getName());
-        $this->assertSame('court.resolver.matched_tribunal', $result->explanationKey);
+        $this->assertNotNull($result->court, 'Principal 190k < 200k → judecătorie, interest excluded (art. 98 alin. 2)');
+        $this->assertSame('Judecătoria Cluj-Napoca', $result->court->getName());
+        $this->assertSame('court.resolver.matched_judecatorie', $result->explanationKey);
         $this->assertSame(190_000.0, $result->claimValue->principal);
-        $this->assertGreaterThan(0.0, $result->claimValue->accruedInterest);
-        $this->assertGreaterThan(200_000.0, $result->claimValue->total);
+        $this->assertGreaterThan(0.0, $result->claimValue->accruedInterest, 'Interest is computed and shown in the breakdown');
+        $this->assertGreaterThan(200_000.0, $result->claimValue->total, 'Total exceeds 200k but does not drive competence');
     }
 
-    public function testThresholdAppliesOnPrincipalPlusScadentPenaltiesEvenWithoutInterest(): void
+    public function testThresholdIgnoresScadentPenaltiesAndAppliesOnPrincipalOnly(): void
     {
-        // Revizia juridică N1 (2026-05-09): chiar și fără dobândă, contribuția
-        // penalităților contractuale scadente împinge dosarul peste prag.
-        // Principal 199k + penalități 2k + dobândă 0 (dueDate==referenceDate) → 201k → TRIBUNAL.
+        // CPC art. 98 alin. (2): contractual penalties are accessories excluded from
+        // the competence valuation. Principal 199k + penalties 2k = 201k total, but
+        // competence follows the principal alone (199k < 200k) → JUDECĂTORIE.
         $resolver = $this->makeResolver(
             courts: $this->clujCourts(),
             rates: [$this->makeRateConfig('2024-01-01', '6.00')],
@@ -304,20 +305,73 @@ class CompetentCourtResolverTest extends TestCase
             scadentPenalties: 2_000.0,
         );
 
-        $this->assertNotNull($result->court, 'Pure principal would route to judecătorie; total with scadent penalties routes to tribunal');
-        $this->assertSame('Tribunalul Cluj', $result->court->getName());
-        $this->assertSame('court.resolver.matched_tribunal', $result->explanationKey);
+        $this->assertNotNull($result->court, 'Principal 199k < 200k → judecătorie, penalties excluded (art. 98 alin. 2)');
+        $this->assertSame('Judecătoria Cluj-Napoca', $result->court->getName());
+        $this->assertSame('court.resolver.matched_judecatorie', $result->explanationKey);
         $this->assertSame(0.0, $result->claimValue->accruedInterest);
         $this->assertSame(2_000.0, $result->claimValue->scadentPenalties);
-        $this->assertSame(201_000.0, $result->claimValue->total);
+        $this->assertSame(201_000.0, $result->claimValue->total, 'Total with penalties exceeds 200k but does not drive competence');
+    }
+
+    public function testPrincipalAboveThresholdRoutesToTribunalRegardlessOfAccessories(): void
+    {
+        // The mirror case: it is the principal crossing the threshold that sends the
+        // claim to the tribunal. Principal 201k > 200k → TRIBUNAL with zero accessories.
+        $resolver = $this->makeResolver(
+            courts: $this->clujCourts(),
+            rates: [$this->makeRateConfig('2024-01-01', '6.00')],
+        );
+
+        $sameDate = new \DateTimeImmutable('2024-06-01');
+        $result = $resolver->resolve(
+            principal: 201_000.0,
+            dueDate: $sameDate,
+            referenceDate: $sameDate,
+            relationshipType: RelationshipType::COMERCIAL,
+            debtorCounty: 'Cluj',
+            debtorLocality: 'Cluj-Napoca',
+        );
+
+        $this->assertNotNull($result->court, 'Principal 201k > 200k → tribunal');
+        $this->assertSame('Tribunalul Cluj', $result->court->getName());
+        $this->assertSame('court.resolver.matched_tribunal', $result->explanationKey);
+        $this->assertSame(201_000.0, $result->claimValue->principal);
+        $this->assertSame(0.0, $result->claimValue->accruedInterest);
+        $this->assertSame(201_000.0, $result->claimValue->total, 'Breakdown total equals principal with zero accessories');
+    }
+
+    public function testPrincipalExactlyAtThresholdRoutesToJudecatorie(): void
+    {
+        // Boundary: the threshold is strict ">" (CPC art. 94 pct. 1 lit. k — "până la
+        // 200.000 RON inclusiv"), so a principal of exactly 200.000 stays at judecătorie.
+        $resolver = $this->makeResolver(
+            courts: $this->clujCourts(),
+            rates: [$this->makeRateConfig('2024-01-01', '6.00')],
+        );
+
+        $sameDate = new \DateTimeImmutable('2024-06-01');
+        $result = $resolver->resolve(
+            principal: 200_000.0,
+            dueDate: $sameDate,
+            referenceDate: $sameDate,
+            relationshipType: RelationshipType::COMERCIAL,
+            debtorCounty: 'Cluj',
+            debtorLocality: 'Cluj-Napoca',
+        );
+
+        $this->assertNotNull($result->court, 'Principal exactly 200k ≤ 200k → judecătorie');
+        $this->assertSame('Judecătoria Cluj-Napoca', $result->court->getName());
+        $this->assertSame('court.resolver.matched_judecatorie', $result->explanationKey);
+        $this->assertSame(200_000.0, $result->claimValue->principal);
     }
 
     public function testComputeLegalInterestFalseSuppressesInterestForContractualPenalty(): void
     {
-        // A claim with a contractual penalty must NOT also accrue legal interest
-        // (double accessory). A full year at BNR 7% + 8 = 15% would add ~28.5k,
-        // pushing 190k over the 200k threshold; suppression keeps the total at
-        // principal + scadent penalties = 192k → judecătorie.
+        // A claim with a contractual penalty must NOT also accrue legal interest in
+        // the displayed total (double accessory): the penalty clause stands in lieu
+        // of legal interest. Competence here follows the principal alone (190k < 200k
+        // → judecătorie, per art. 98 alin. 2) independently of the suppression; the
+        // flag only governs whether interest shows up in the breakdown.
         $resolver = $this->makeResolver(
             courts: $this->clujCourts(),
             rates: [$this->makeRateConfig('2024-01-01', '7.00')],
@@ -334,10 +388,10 @@ class CompetentCourtResolverTest extends TestCase
             computeLegalInterest: false,
         );
 
-        $this->assertNotNull($result->court, 'With interest suppressed the total stays under 200k → judecătorie');
+        $this->assertNotNull($result->court, 'Principal 190k < 200k → judecătorie');
         $this->assertSame('Judecătoria Cluj-Napoca', $result->court->getName());
         $this->assertSame('court.resolver.matched_judecatorie', $result->explanationKey);
-        $this->assertSame(0.0, $result->claimValue->accruedInterest, 'Legal interest must be suppressed');
+        $this->assertSame(0.0, $result->claimValue->accruedInterest, 'Legal interest must be suppressed in the breakdown');
         $this->assertSame(2_000.0, $result->claimValue->scadentPenalties);
         $this->assertSame(192_000.0, $result->claimValue->total);
     }

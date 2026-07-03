@@ -24,6 +24,7 @@ final readonly class CreditorExtraction
         public ?string $phone = null,
         public ?string $iban = null,
         public ?string $legalRepresentative = null,
+        public ?string $bankName = null,
         public array $confidencePerField = [],
     ) {}
 }

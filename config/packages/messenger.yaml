@@ -34,3 +34,13 @@ framework:
             # Async so a transient SOAP failure is retried (retry_strategy above:
             # max 3, x2 backoff).
             App\Message\CheckCasePortalMessage: async
+
+            # Issue the fiscal invoice through the external provider (Oblio/SmartBill)
+            # after a payment, off the checkout request. Transient provider failures
+            # are retried; business failures are parked by the handler.
+            App\Message\IssueFiscalInvoiceMessage: async
+
+            # Settle a verified Netopia IPN off the webhook request. Idempotent
+            # handler (only settles a PENDING invoice), so the retry_strategy
+            # retries transient DB failures safely without double-settling.
+            App\Message\ProcessPaymentWebhookMessage: async

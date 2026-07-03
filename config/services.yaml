@@ -10,10 +10,32 @@ parameters:
     app.base_url: '%env(APP_BASE_URL)%'
     app.taxa_timbru_op.fixed: 200.0
     app.taxa_timbru_op.law_version: 'OUG 80/2013 art. 6 alin. 2 — text aplicabil 2026-05-01'
-    # Extra buffer before auto-finalizing to DEFINITIVA, on top of the CPC art. 181
-    # para. 2 prorogation. A 1-day delay is preferable to a premature mark that would
-    # block a valid annulment request. Override for testing/preprod.
-    app.legal_deadlines.auto_final_buffer_days: 1
+    # Extra buffer (in WORKING days) before auto-finalizing to DEFINITIVA, on top of
+    # the CPC art. 181 para. 2 prorogation. A few days late is preferable to a premature
+    # mark that would block a valid annulment request, and absorbs the lag between the
+    # real serving date and when it surfaces on the portal. Counted in working days so
+    # holiday clusters (Easter/Christmas) are absorbed automatically. Override for testing/preprod.
+    app.legal_deadlines.auto_final_buffer_days: 5
+    # Voluntary-payment window before enforcement is recommended, counted from the
+    # date the ruling was communicated to the lawyer (the debtor-side communication
+    # date is unknown). Advisory only: enforcement stays available immediately on a
+    # final order; this just surfaces a suggested "wait until" date. Override per env.
+    app.legal_deadlines.voluntary_payment_days: 40
+    # Fiscal invoicing (Faza F1). Supplier identity frozen onto each issued
+    # invoice as a snapshot. Placeholder values: real CUI/reg.com./IBAN to be
+    # supplied before issuing real invoices (fiscal consultant sign-off).
+    app.invoice.supplier:
+        name: 'TECHEDGE SOLUTIONS S.R.L'
+        cui: 'RO49932252'
+        onrcNumber: ''
+        address: 'București'
+        iban: ''
+    # Romanian standard VAT rate (matches the "Normala" rate on the Oblio account).
+    app.invoice.vat_rate: 21
+    # Invoice series (must pre-exist in the provider account; confirmed via app:oblio:ping).
+    app.invoice.series_subscription: 'TES'
+    app.invoice.series_case_extra: 'TES'
+    app.invoice.due_days: 15
 
 services:
     # default configuration for services in *this* file
@@ -31,6 +53,39 @@ services:
             $confidenceThreshold: '%env(float:EXTRACTION_CONFIDENCE_THRESHOLD)%'
             # Auto-finalization buffer, injected into CaseAutoFinalizer.
             $autoFinalBufferDays: '%app.legal_deadlines.auto_final_buffer_days%'
+            # Voluntary-payment window, injected into DeadlineService.
+            $voluntaryPaymentDays: '%app.legal_deadlines.voluntary_payment_days%'
+            # Fiscal invoicing, injected into FiscalInvoiceFactory.
+            $invoiceSupplier: '%app.invoice.supplier%'
+            $invoiceVatRate: '%app.invoice.vat_rate%'
+            $invoiceSeriesSubscription: '%app.invoice.series_subscription%'
+            $invoiceSeriesCaseExtra: '%app.invoice.series_case_extra%'
+            $invoiceDueDays: '%app.invoice.due_days%'
+            # Active e-invoicing provider default (overridden live by AppSetting).
+            $defaultProvider: '%env(EINVOICE_PROVIDER)%'
+            # App environment, used by StubEInvoicingProvider as a prod guard.
+            $appEnv: '%kernel.environment%'
+            # Oblio adapter credentials.
+            $oblioEmail: '%env(OBLIO_EMAIL)%'
+            $oblioSecret: '%env(OBLIO_SECRET)%'
+            $oblioCif: '%env(OBLIO_CIF)%'
+            $oblioEfacturaEnabled: '%env(bool:OBLIO_EFACTURA)%'
+            # SmartBill adapter credentials.
+            $smartbillEmail: '%env(SMARTBILL_EMAIL)%'
+            $smartbillToken: '%env(SMARTBILL_TOKEN)%'
+            $smartbillCif: '%env(SMARTBILL_CIF)%'
+            $smartbillEfacturaEnabled: '%env(bool:SMARTBILL_EFACTURA)%'
+            # Payment gateway (Netopia). Default toggle stub|netopia; NetopiaApiClient creds.
+            $paymentGatewayDefault: '%env(PAYMENT_GATEWAY)%'
+            # Dunning email sender + absolute base URL (renewal cron runs headless).
+            $mailerFrom: '%app.mailer_from%'
+            $appBaseUrl: '%app.base_url%'
+            $netopiaPosSignature: '%env(NETOPIA_POS_SIGNATURE)%'
+            $netopiaApiKey: '%env(NETOPIA_API_KEY)%'
+            $netopiaPublicKey: '%env(NETOPIA_PUBLIC_KEY)%'
+            $netopiaIsLive: '%env(bool:NETOPIA_IS_LIVE)%'
+            $netopiaNotifyUrl: '%env(NETOPIA_NOTIFY_URL)%'
+            $netopiaReturnUrl: '%env(NETOPIA_RETURN_URL)%'
 
     # interface-based auto-tagging (Strategy + Tagged Iterator pattern)
     _instanceof:
@@ -50,6 +105,16 @@ services:
     App\Service\Table\TableRegistry:
         arguments:
             $definitions: !tagged_iterator app.table_definition
+
+    # The app injects the e-invoicing interface; the resolver picks the active
+    # adapter (oblio/smartbill/stub) per call from the AppSetting toggle.
+    App\Service\Billing\EInvoicing\EInvoicingProviderInterface:
+        alias: App\Service\Billing\EInvoicing\EInvoicingProviderResolver
+
+    # The app injects the payment gateway interface; the resolver picks stub or
+    # netopia from the PAYMENT_GATEWAY env toggle (deploy-time, not runtime).
+    App\Service\Billing\PaymentGatewayInterface:
+        alias: App\Service\Billing\PaymentGatewayResolver
 
     App\Service\Extraction\DataExtractionService:
         arguments:

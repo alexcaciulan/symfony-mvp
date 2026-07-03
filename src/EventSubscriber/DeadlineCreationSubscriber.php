@@ -110,6 +110,61 @@ final class DeadlineCreationSubscriber
         }
     }
 
+    #[AsEventListener(event: 'workflow.legal_case.entered.DEFINITIVA')]
+    public function onDefinitiva(EnteredEvent $event): void
+    {
+        $case = $event->getSubject();
+        if (!$case instanceof LegalCase || $case->getId() === null) {
+            return;
+        }
+
+        $this->ensureExecutionPrescriptionDeadline($case);
+    }
+
+    /**
+     * Enforcement can also start directly from ORDONANTA_EMISA / IN_ANULARE (the
+     * order is enforceable from communication, CPC art. 1021), bypassing DEFINITIVA.
+     * Guarantee the PRESCRIPTIE_EXECUTARE deadline exists in that case too. Idempotent
+     * via hasDeadline(), so a case that reached EXECUTARE through DEFINITIVA (where
+     * onDefinitiva already created it) is a no-op here.
+     */
+    #[AsEventListener(event: 'workflow.legal_case.entered.EXECUTARE')]
+    public function onExecutare(EnteredEvent $event): void
+    {
+        $case = $event->getSubject();
+        if (!$case instanceof LegalCase || $case->getId() === null) {
+            return;
+        }
+
+        $this->ensureExecutionPrescriptionDeadline($case);
+    }
+
+    private function ensureExecutionPrescriptionDeadline(LegalCase $case): void
+    {
+        if ($this->hasDeadline($case, DeadlineType::PRESCRIPTIE_EXECUTARE)) {
+            return;
+        }
+
+        // Enforcement prescription (CPC art. 706) runs from when the order became
+        // enforceable. Derive it from the communication date when available (the day
+        // after the 10-day annulment window, CPC art. 1024); fall back to today when
+        // that date is unknown. Using today unconditionally would drift by the
+        // auto-finalization buffer.
+        $communicationDate = $case->getRulingCommunicationDate();
+        $definitiveDate = $communicationDate !== null
+            ? $communicationDate->modify('+11 days')
+            : new \DateTimeImmutable('today');
+
+        try {
+            $this->deadlineService->createExecutionPrescriptionDeadline($case, $definitiveDate);
+        } catch (\Throwable $e) {
+            $this->logger->error('Failed to create PRESCRIPTIE_EXECUTARE deadline', [
+                'caseNumber' => $case->getCaseNumber(),
+                'exception' => $e->getMessage(),
+            ]);
+        }
+    }
+
     public function postPersist(PostPersistEventArgs $args): void
     {
         $entity = $args->getObject();

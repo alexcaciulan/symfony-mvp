@@ -12,6 +12,8 @@ use App\Repository\AuditLogRepository;
 use App\Repository\CourtPortalEventRepository;
 use App\Repository\LegalDeadlineRepository;
 use App\Service\Calculation\InterestCalculatorService;
+use App\Service\Deadline\DeadlineService;
+use App\Service\Portal\RulingProposalResolver;
 
 /**
  * Builds the Twig context for the case overview page in a single place
@@ -26,6 +28,8 @@ final class OverviewContextBuilder
         private readonly AuditLogRepository $auditLogs,
         private readonly CourtPortalEventRepository $portalEvents,
         private readonly InterestCalculatorService $interestService,
+        private readonly DeadlineService $deadlineService,
+        private readonly RulingProposalResolver $rulingProposalResolver,
     ) {}
 
     /**
@@ -38,6 +42,7 @@ final class OverviewContextBuilder
     public function build(LegalCase $case, array $extra = []): array
     {
         $deadlines = $this->deadlines->findByCase($case);
+        $portalEvents = $this->portalEvents->findByLegalCase($case);
         [$interestBreakdown, $breakdownError] = $this->computeBreakdown($case);
 
         return array_merge([
@@ -46,10 +51,13 @@ final class OverviewContextBuilder
             'deadline_counters' => $this->countDeadlines($deadlines),
             'active_deadline' => $this->pickActiveDeadline($deadlines),
             'auditLogs' => $this->auditLogs->findByCase($case, 50),
-            'portalEvents' => $this->portalEvents->findByLegalCase($case),
+            'portalEvents' => $portalEvents,
+            'portal_ruling_proposal' => $this->rulingProposalResolver->actionableProposal($case, $portalEvents),
             'interest_breakdown' => $interestBreakdown,
             'breakdown_error' => $breakdownError,
             'has_communication_proof' => $this->hasCommunicationProof($case),
+            'payment_term_expired' => $this->deadlineService->isPaymentTermExpired($case, new \DateTimeImmutable('today')),
+            'execution_recommended_date' => $this->deadlineService->recommendedExecutionDate($case),
             'document_upload_types' => DocumentType::uploadableTypes(),
             'just_created' => false,
         ], $extra);

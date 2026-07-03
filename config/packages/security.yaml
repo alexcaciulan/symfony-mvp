@@ -37,6 +37,9 @@ security:
     # Easy way to control access for large sections of your site
     # Note: Only the *first* access control that matches will be used
     access_control:
+        # Public server-to-server IPN callback (no user session, no CSRF). Must
+        # come first: access_control uses the first matching rule.
+        - { path: '^/webhook', roles: PUBLIC_ACCESS }
         - { path: '^/admin', roles: ROLE_ADMIN }
         - { path: '^/api', roles: IS_AUTHENTICATED_FULLY }
         - { path: '^/case', roles: IS_AUTHENTICATED_FULLY }

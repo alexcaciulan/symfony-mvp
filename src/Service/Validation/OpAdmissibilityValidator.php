@@ -16,7 +16,10 @@ use App\Enum\PersonType;
  * Returnează lista de issue-uri (ERROR / WARNING) pe care wizard-ul (Pas 3.x)
  * și PDF generator-ul (Pas 5.x) le consumă pentru a bloca / preveni acțiuni inadmisibile.
  *
- * Regulile (post-N4 din 2026-05-09 — verificare BPI obligatorie):
+ * Regula la nivel de dosar (CPC art. 1013 — exigibilitate):
+ *   0. dueDate în viitor                  → ERROR  OP_DEBT_NOT_YET_DUE
+ *
+ * Regulile per debitor (post-N4 din 2026-05-09 — verificare BPI obligatorie):
  *   1. PJ + anafStatus = RADIAT          → ERROR  OP_BLOCKED_DEREGISTERED
  *   2. PJ + inInsolvency = true          → ERROR  OP_BLOCKED_INSOLVENCY        (fail-fast)
  *   3. PJ + anafStatus = INACTIV         → WARNING OP_DEFENDANT_FISCALLY_INACTIVE
@@ -52,6 +55,19 @@ final class OpAdmissibilityValidator
     {
         $now ??= new \DateTimeImmutable();
         $issues = [];
+
+        // CPC art. 1013: the claim must be certain, liquid and EXIGIBLE. A due
+        // date in the future means the debt is not yet payable, so the OP
+        // petition is inadmissible regardless of the debtor's standing.
+        $dueDate = $case->getDueDate();
+        if ($dueDate !== null
+            && \DateTimeImmutable::createFromInterface($dueDate)->setTime(0, 0, 0) > $now->setTime(0, 0, 0)) {
+            $issues[] = new AdmissibilityIssue(
+                IssueSeverity::ERROR,
+                'OP_DEBT_NOT_YET_DUE',
+                'validation.op_admissibility.OP_DEBT_NOT_YET_DUE',
+            );
+        }
 
         foreach ($case->getDebtors() as $debtor) {
             foreach ($this->validateDebtor($debtor, $now) as $issue) {

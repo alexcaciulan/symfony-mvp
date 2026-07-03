@@ -6,6 +6,7 @@ namespace App\Controller\Case;
 
 use App\Entity\LegalCase;
 use App\Enum\CaseStatus;
+use App\Enum\DebitAcknowledgedStatus;
 use App\Enum\DocumentType;
 use App\Repository\DocumentRepository;
 use App\Repository\LegalCaseRepository;
@@ -13,6 +14,7 @@ use App\Security\Voter\CaseVoter;
 use App\Service\AuditLogService;
 use App\Service\Case\CaseWorkflowService;
 use App\Service\Case\OverviewContextBuilder;
+use App\Service\Deadline\DeadlineService;
 use App\Service\Document\CaseFilesPackager;
 use App\Service\Document\OpisGeneratorService;
 use App\Service\Document\PaymentOrderRequestGeneratorService;
@@ -41,6 +43,7 @@ final class CasePaymentOrderController extends AbstractController
         private readonly CaseWorkflowService $workflowService,
         private readonly AuditLogService $auditLogService,
         private readonly OverviewContextBuilder $contextBuilder,
+        private readonly DeadlineService $deadlineService,
         private readonly EntityManagerInterface $em,
     ) {}
 
@@ -66,6 +69,24 @@ final class CasePaymentOrderController extends AbstractController
             return $this->respond($request, $case, false, 'warning', 'case_overview.payment_order.flash_error_already_generated');
         }
 
+        // Procedural prerequisite (CPC art. 1015-1016): the 15-day payment term
+        // must have expired. When the real communication date is known we block if
+        // it has not; otherwise the explicit consent below stands in for it.
+        $payload = $request->getPayload();
+        if ($case->getPaymentNoticeCommunicationDate() !== null
+            && !$this->deadlineService->isPaymentTermExpired($case, new \DateTimeImmutable('today'))) {
+            return $this->respond($request, $case, false, 'error', 'case_overview.payment_order.flash_error_term_not_expired');
+        }
+
+        $debitStatus = DebitAcknowledgedStatus::tryFrom($payload->getString('debitAcknowledgedStatus'));
+        if ($debitStatus === null) {
+            return $this->respond($request, $case, false, 'error', 'case_overview.payment_order.flash_error_debit_status_required');
+        }
+
+        if (!$payload->getBoolean('opGenerationConsent')) {
+            return $this->respond($request, $case, false, 'error', 'case_overview.payment_order.flash_error_consent_required');
+        }
+
         $user = $this->getUser();
         if ($user !== null) {
             $limiter = $paymentOrderGenerationLimiter->create($user->getUserIdentifier());
@@ -74,7 +95,10 @@ final class CasePaymentOrderController extends AbstractController
             }
         }
 
-        $this->em->wrapInTransaction(function () use ($case): void {
+        $this->em->wrapInTransaction(function () use ($case, $debitStatus): void {
+            $case->setDebitAcknowledgedStatus($debitStatus);
+            $case->setOpGenerationConsent(true);
+
             $paymentOrder = $this->paymentOrderGenerator->generate($case);
             $opis = $this->opisGenerator->generate($case);
             $this->em->flush();
@@ -89,6 +113,8 @@ final class CasePaymentOrderController extends AbstractController
                     'caseNumber' => $case->getCaseNumber(),
                     'paymentOrderDocumentId' => $paymentOrder->getId(),
                     'opisDocumentId' => $opis->getId(),
+                    'debitAcknowledgedStatus' => $debitStatus->value,
+                    'opGenerationConsent' => true,
                 ],
                 category: AuditLogService::CATEGORY_PAYMENT_ORDER_GENERATED,
             );

@@ -64,6 +64,7 @@ final class SummonsContextBuilder
             'accessoryTotal' => $accessoryTotal,
             'grandTotal' => $principal + $accessoryTotal,
             'refDate' => $refDate,
+            'invoiceDate' => $this->invoiceDate($case),
         ];
     }
 
@@ -87,6 +88,7 @@ final class SummonsContextBuilder
                 relationshipType: $relationshipType,
                 kind: InterestKind::PENALIZATOARE,
                 currency: $case->getCurrency(),
+                invoiceDate: $this->invoiceDate($case),
             );
         } catch (\DomainException | \RuntimeException | \InvalidArgumentException $e) {
             $this->logger->warning('Summons legal interest computation skipped: {reason}', [
@@ -151,5 +153,12 @@ final class SummonsContextBuilder
         $dueDate = $case->getDueDate();
 
         return $dueDate !== null ? \DateTimeImmutable::createFromInterface($dueDate) : null;
+    }
+
+    private function invoiceDate(LegalCase $case): ?\DateTimeImmutable
+    {
+        $invoiceDate = $case->getInvoiceDate();
+
+        return $invoiceDate !== null ? \DateTimeImmutable::createFromInterface($invoiceDate) : null;
     }
 }

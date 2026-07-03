@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Tests\Service;
 
 use App\Entity\LegalCase;
@@ -50,8 +52,15 @@ class CaseWorkflowServiceTest extends KernelTestCase
             'marcheaza_definitiva'      => [CaseStatus::ORDONANTA_EMISA, 'marcheaza_definitiva',      CaseStatus::DEFINITIVA],
             'respinge_cerere_anulare'   => [CaseStatus::IN_ANULARE,      'respinge_cerere_anulare',   CaseStatus::DEFINITIVA],
             'admite_cerere_anulare'     => [CaseStatus::IN_ANULARE,      'admite_cerere_anulare',     CaseStatus::RESPINSA],
+            'admite_cerere_anulare_din_executare' => [CaseStatus::EXECUTARE, 'admite_cerere_anulare', CaseStatus::RESPINSA],
+            'respinge_cerere_anulare_executare'   => [CaseStatus::EXECUTARE, 'respinge_cerere_anulare_executare', CaseStatus::EXECUTARE],
+            'trece_la_executare'   => [CaseStatus::DEFINITIVA,         'trece_la_executare',   CaseStatus::EXECUTARE],
+            'trece_la_executare_din_ordonanta' => [CaseStatus::ORDONANTA_EMISA, 'trece_la_executare', CaseStatus::EXECUTARE],
+            'trece_la_executare_din_anulare'   => [CaseStatus::IN_ANULARE,      'trece_la_executare', CaseStatus::EXECUTARE],
             'inchide_succes'       => [CaseStatus::DEFINITIVA,         'inchide_succes',       CaseStatus::INCHIS_SUCCES],
-            'inchide_insolvabil'   => [CaseStatus::DEFINITIVA,         'inchide_insolvabil',   CaseStatus::INCHIS_PARTIAL_INSOLVABIL],
+            'inchide_fara_recuperare_definitiva' => [CaseStatus::DEFINITIVA, 'inchide_fara_recuperare', CaseStatus::INCHIS_FARA_RECUPERARE],
+            'inchide_succes_executare'           => [CaseStatus::EXECUTARE,  'inchide_succes',          CaseStatus::INCHIS_SUCCES],
+            'inchide_fara_recuperare_executare'  => [CaseStatus::EXECUTARE,  'inchide_fara_recuperare', CaseStatus::INCHIS_FARA_RECUPERARE],
         ];
     }
 
@@ -69,7 +78,7 @@ class CaseWorkflowServiceTest extends KernelTestCase
 
         $transitions = $this->service->getAvailableTransitions($case);
         sort($transitions);
-        $this->assertSame(['admite_cerere_anulare', 'respinge_cerere_anulare'], $transitions);
+        $this->assertSame(['admite_cerere_anulare', 'respinge_cerere_anulare', 'trece_la_executare'], $transitions);
     }
 
     public function testGetAvailableTransitionsFromOrdonantaEmisa(): void
@@ -79,7 +88,27 @@ class CaseWorkflowServiceTest extends KernelTestCase
 
         $transitions = $this->service->getAvailableTransitions($case);
         sort($transitions);
-        $this->assertSame(['formuleaza_cerere_anulare', 'marcheaza_definitiva'], $transitions);
+        $this->assertSame(['formuleaza_cerere_anulare', 'marcheaza_definitiva', 'trece_la_executare'], $transitions);
+    }
+
+    public function testGetAvailableTransitionsFromDefinitiva(): void
+    {
+        $case = new LegalCase();
+        $case->setStatus(CaseStatus::DEFINITIVA);
+
+        $transitions = $this->service->getAvailableTransitions($case);
+        sort($transitions);
+        $this->assertSame(['inchide_fara_recuperare', 'inchide_succes', 'trece_la_executare'], $transitions);
+    }
+
+    public function testGetAvailableTransitionsFromExecutare(): void
+    {
+        $case = new LegalCase();
+        $case->setStatus(CaseStatus::EXECUTARE);
+
+        $transitions = $this->service->getAvailableTransitions($case);
+        sort($transitions);
+        $this->assertSame(['admite_cerere_anulare', 'inchide_fara_recuperare', 'inchide_succes', 'respinge_cerere_anulare_executare'], $transitions);
     }
 
     public function testCannotApplyTransitionFromWrongPlace(): void

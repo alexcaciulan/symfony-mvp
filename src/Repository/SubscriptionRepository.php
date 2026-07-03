@@ -29,6 +29,27 @@ class SubscriptionRepository extends ServiceEntityRepository
     }
 
     /**
+     * Active subscriptions whose billing period has ended by `$on` and that hold
+     * a saved recurring token, i.e. candidates for an off-session renewal charge.
+     * CANCELED is excluded (it must not renew); a null token is excluded (nothing
+     * to charge, the subscription simply lapses).
+     *
+     * @return Subscription[]
+     */
+    public function findDueForRenewal(\DateTimeImmutable $on): array
+    {
+        return $this->createQueryBuilder('s')
+            ->where('s.status = :status')
+            ->andWhere('s.currentPeriodEnd <= :on')
+            ->andWhere('s.recurringToken IS NOT NULL')
+            ->setParameter('status', SubscriptionStatus::ACTIVE)
+            ->setParameter('on', $on)
+            ->orderBy('s.currentPeriodEnd', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * The user's currently usable subscription: a status that entitles case
      * activation ({@see SubscriptionStatus::isUsable()}, i.e. ACTIVE/TRIAL/CANCELED)
      * AND still within its billing period. This is what gates `trimite_somatie`.

@@ -50,8 +50,18 @@ class AuditLogService
     /** Manual `respinge` / `admite_cerere_anulare`: both transitions land in RESPINSA. */
     public const CATEGORY_CASE_REJECTED = 'CASE_REJECTED';
 
-    /** Manual `inchide_succes` / `inchide_insolvabil` from DEFINITIVA. */
+    /**
+     * Manual `respinge_cerere_anulare` / `respinge_cerere_anulare_executare`: the
+     * annulment request was dismissed, so the order stands (lands in DEFINITIVA
+     * from IN_ANULARE, or stays in EXECUTARE). Opposite outcome to CASE_REJECTED.
+     */
+    public const CATEGORY_ANNULMENT_REJECTED = 'ANNULMENT_REJECTED';
+
+    /** Manual `inchide_succes` / `inchide_fara_recuperare` from DEFINITIVA or EXECUTARE. */
     public const CATEGORY_CASE_CLOSED = 'CASE_CLOSED';
+
+    /** Manual `trece_la_executare` from ORDONANTA_EMISA / IN_ANULARE / DEFINITIVA: enforcement phase started. */
+    public const CATEGORY_EXECUTION_STARTED = 'EXECUTION_STARTED';
 
     /** Billing events: slot consumption, invoice creation, payment, trial, renew/cancel. */
     public const CATEGORY_BILLING = 'BILLING';

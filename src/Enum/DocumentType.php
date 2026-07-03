@@ -9,6 +9,7 @@ enum DocumentType: string
     case SOMATIE = 'somatie';
     case CERERE_OP = 'cerere_op';
     case OPIS = 'opis';
+    case ORDONANTA_PLATA = 'ordonanta_plata';
     case DOVADA_COMUNICARE = 'dovada_comunicare';
     case ACT_CONSTATATOR = 'act_constatator';
     case ANEXA = 'anexa';

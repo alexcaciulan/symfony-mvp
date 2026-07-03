@@ -110,6 +110,66 @@ class ExtractedDocumentDataTest extends TestCase
         $this->assertSame($array, $decoded);
     }
 
+    public function testToArraySerializesNewClaimCreditorFieldsAndDebtorGeo(): void
+    {
+        $invoiceDate = new \DateTimeImmutable('2026-01-10 00:00:00+00:00');
+        $contractDate = new \DateTimeImmutable('2025-12-01 00:00:00+00:00');
+        $dto = new ExtractedDocumentData(
+            sourceDocumentId: 9,
+            strategy: 'ai_vision',
+            globalConfidence: 0.9,
+            extractedAt: new \DateTimeImmutable('2026-05-09 10:00:00+00:00'),
+            creditor: new CreditorExtraction(
+                name: 'SC Creditor SRL',
+                bankName: 'Banca Transilvania',
+            ),
+            debtor: new DebtorExtraction(
+                name: 'SC Debtor SRL',
+                county: 'Cluj',
+                locality: 'Cluj-Napoca',
+            ),
+            claim: new ClaimExtraction(
+                amount: 12000.0,
+                invoiceNumber: 'MJ 2026-00042',
+                invoiceDate: $invoiceDate,
+                contractNumber: '45/2025',
+                contractDate: $contractDate,
+                contractReference: 'contract de prestări servicii',
+                penaltyType: \App\Enum\PenaltyType::CONTRACTUAL,
+                contractualPenaltyRate: 0.1,
+            ),
+        );
+
+        $array = $dto->toArray();
+
+        // Creditor bankName.
+        $this->assertSame('Banca Transilvania', $array['creditor']['bankName']);
+        // Debtor county/locality (previously a latent serialization gap).
+        $this->assertSame('Cluj', $array['debtor']['county']);
+        $this->assertSame('Cluj-Napoca', $array['debtor']['locality']);
+        // Claim invoice/contract/penalty metadata.
+        $this->assertSame('MJ 2026-00042', $array['claim']['invoiceNumber']);
+        $this->assertSame($invoiceDate->format(\DateTimeInterface::ATOM), $array['claim']['invoiceDate']);
+        $this->assertSame('45/2025', $array['claim']['contractNumber']);
+        $this->assertSame($contractDate->format(\DateTimeInterface::ATOM), $array['claim']['contractDate']);
+        $this->assertSame('contract de prestări servicii', $array['claim']['contractReference']);
+        $this->assertSame('CONTRACTUAL', $array['claim']['penaltyType']);
+        $this->assertSame(0.1, $array['claim']['contractualPenaltyRate']);
+
+        // Null penalty/date fields serialize as null, not absent keys.
+        $emptyClaim = new ExtractedDocumentData(
+            sourceDocumentId: 10,
+            strategy: 'ai_vision',
+            globalConfidence: 0.0,
+            extractedAt: new \DateTimeImmutable('2026-05-09 10:00:00+00:00'),
+            claim: new ClaimExtraction(amount: 1.0),
+        );
+        $emptyArray = $emptyClaim->toArray();
+        $this->assertNull($emptyArray['claim']['invoiceDate']);
+        $this->assertNull($emptyArray['claim']['penaltyType']);
+        $this->assertNull($emptyArray['claim']['contractualPenaltyRate']);
+    }
+
     public function testToArrayHandlesAllNullSubDtos(): void
     {
         $dto = new ExtractedDocumentData(

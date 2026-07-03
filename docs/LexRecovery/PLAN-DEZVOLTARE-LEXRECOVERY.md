@@ -57,7 +57,7 @@
 | 1.5 | Domain | Foundație i18n + backfill (enum labels → trans keys, homepage, Stimulus messages, ANAF exceptions) | 1z | 1.4 | 30% | ✅ DONE + REVIZIE C2 |
 | 2.1 | Calcule | `InterestCalculatorService` (OG 13/2011) | 0.75z | 1.1 | 0% | ✅ DONE + REVIZIE C3 (Opțiunea a — B2B-only) |
 | 2.2 | Calcule | `StampDutyCalculator` (OUG 80/2013) | 0.25z | — | 0% | ✅ |
-| 2.3 | Calcule | `CompetentCourtResolver` | 0.5z | 1.1 | 30% | ✅ DONE 2026-05-09 (`8f44e05`) — N1 aplicat (prag 200k pe valoare totală) |
+| 2.3 | Calcule | `CompetentCourtResolver` | 0.5z | 1.1 | 30% | ✅ DONE 2026-05-09 (`8f44e05`); ⚠️ CORECTAT 2026-06-29 — prag 200k pe **principal** (art. 98 alin. 2 exclude accesoriile), nu pe valoare totală |
 | 2.4 | Calcule | `AnafLookupService` integration + `OpAdmissibilityValidator` (CPC art. 1014, L 85/2014) + Debitor ANAF/BPI fields + rename `taxId`→`cui` & `tradeRegistryNumber`→`onrcNumber` pe Creditor/Debtor | 0.5z | 1.1 | 80% | ✅ DONE 2026-05-09 (`6b9a815`) — N4 enforcement (BPI = ERROR), 27 teste noi |
 | 2.5.1 | Extracție | Pre-condiții: enum-uri (`ExtractionMode`, `LegalGroundCategory`) + entity fields (`Document.extractionStrategy`, `User.extractionMode`, `LegalCase.extractionModeOverride`) + migrare | 3h | 1.1 | 0% | ✅ DONE 2026-05-09 (`c9c455d`) |
 | 2.5.2 | Extracție | DTO `ExtractedDocumentData` (+ Creditor/Debtor/Claim) + `ExtractionStrategyInterface` + `StubExtractionStrategy` + `DataExtractionService` orchestrator (cu tagged iterator) | 4h | 2.5.1 | 0% | ✅ DONE 2026-05-09 (`a0fe48a`) |
@@ -828,7 +828,7 @@ Refactor enum la 3 valori distincte (ex: `B2B_PROFESIONAL`, `B2C_CONSUMER`, `NON
 
 ---
 
-### PASUL 2.3 | `CompetentCourtResolver` | 0.75 zi | 30% reutilizare ✅ DONE 2026-05-09 (`8f44e05`) — REVIZIE N1 (2026-05-09) aplicată: pragul 200k pe valoare totală (principal + dobândă acumulată + penalități scadente) per CPC art. 98, NU pe principal singular
+### PASUL 2.3 | `CompetentCourtResolver` | 0.75 zi | 30% reutilizare ✅ DONE 2026-05-09 (`8f44e05`) — ⚠️ CORECTAT 2026-06-29: pragul 200k se aplică pe **principal singular** (CPC art. 98 **alin. 2** exclude accesoriile „indiferent de data scadenței"). Revizia N1 din 2026-05-09 (prag pe valoare totală) a fost **GREȘITĂ** și inversată la validarea avocatului utilizator.
 
 **Rezultat**: ✅ DONE 2026-05-09 (commit `8f44e05`). Livrate: `src/Service/Court/CompetentCourtResolver.php` (signature extinsă per N1 — injectează `InterestCalculatorService`; calculează `total = principal + accruedInterest + scadentPenalties` ÎNAINTE de a aplica pragul 200k; locality matching cu alternatives + explanationKey i18n, niciodată "prima activă" silent), `src/Service/Court/LocalityNormalizer.php` (Normalizer::FORM_D + strip Mn + lowercase pentru matching diacritic-insensitive), DTOs readonly `src/DTO/Court/{ClaimValueBreakdown,CourtResolveResult}.php`, `Court::$coveredLocalities` JSON nullable + getter/setter, `CourtRepository::findActiveByTypeAndCounty(CourtType, county)`, migrare aditivă `Version20260509130308` (ADD covered_localities JSON), `ImportCourtsCommand --update` flag, `data/courts.json` extins cu `coveredLocalities` (HQ city per judecătorie + 6 sectoare București — 219 instanțe), 10 chei i18n RO/EN `court.resolver.*` cu placeholder `%county%`, `ext-intl` declarat în composer.json. **Tests**: 11 scenarii — 6 PROMPT + 2 N1 critice (`testThresholdAppliesOnTotalClaimValueIncludingAccessories`, `testThresholdAppliesOnPrincipalPlusScadentPenaltiesEvenWithoutInterest`) + 3 review gap-fixes (negative principal, county null, CIVIL → DomainException propagation). **Convenție identificatori**: redenumit `localitatiArondate`→`coveredLocalities` și `resolveJudecatorie()`→`resolveLocalCourt()` per regula "no Romanian identifiers"; enum cases `CourtType::JUDECATORIE/TRIBUNAL` rămân (exempte). **Out-of-scope (post-MVP)**: BucharestSectorParser (wizard step 3), tribunale specializate Cluj/Mureș/Argeș (opt-in L 304/2022), date arondate complete (suburbii/comune — admin task), `CourtCrudController` admin field. Review iterații: 4 (2 fix rounds + 2 rename rounds), verdict final LEGAL-CLEAN + COMMIT-READY.
 
@@ -840,9 +840,12 @@ Refactor enum la 3 valori distincte (ex: `B2B_PROFESIONAL`, `B2C_CONSUMER`, `NON
 > - **Domeniu service**: determină DOAR competența default (CPC art. 107 — domiciliu/sediu debitor). Competența alternativă (art. 113 — locul executării; art. 126 — clauză contractuală) se gestionează în wizard step 4 prin override manual cu câmp `motivareCompetenta`.
 > - Tribunale specializate (Cluj/Mureș/Argeș) — NU se aplică default; necesită opt-in explicit la wizard pentru raporturi între profesioniști. Post-MVP.
 
-> 🔴 **REVIZIE JURIDICĂ 2026-05-09 — N1: Calcul valoare cerere (CPC art. 98)** (ref: `ANALIZA-JURIDICA-PROCEDURA-OP-2026-05-08.md` N1)
+> ⚠️ **CORECȚIE 2026-06-29 (validare avocat utilizator) — REVIZIA N1 DE MAI JOS A FOST GREȘITĂ ȘI INVERSATĂ**
+> CPC art. 98 **alin. 2** exclude accesoriile (dobânzi, penalități, fructe, cheltuieli) din valoarea pentru competența materială, **„indiferent de data scadenței"**. Pragul de 200.000 RON se compară **doar cu principalul**. `CompetentCourtResolver` linia 77 a fost corectat (`$principal > THRESHOLD`), testele rescrise, i18n + `DETERMINARE-INSTANTA-COMPETENTA.md` aliniate. Tot ce urmează mai jos descrie abordarea greșită (păstrat pentru istoric).
 >
-> **Problemă**: pragul 200.000 RON între judecătorie și tribunal NU se aplică pe principal singular, ci pe **valoarea totală a cererii la data sesizării instanței** = principal + dobânzi acumulate la data sesizării + penalități contractuale scadente (CPC art. 98).
+> 🔴 ~~**REVIZIE JURIDICĂ 2026-05-09 — N1: Calcul valoare cerere (CPC art. 98)**~~ (ref: `ANALIZA-JURIDICA-PROCEDURA-OP-2026-05-08.md` N1)
+>
+> ~~**Problemă**: pragul 200.000 RON între judecătorie și tribunal NU se aplică pe principal singular, ci pe **valoarea totală a cererii la data sesizării instanței** = principal + dobânzi acumulate la data sesizării + penalități contractuale scadente (CPC art. 98).~~ **[GREȘIT — vezi corecția de mai sus]**
 >
 > **Exemplu critic**: principal 190.000 RON + dobânzi acumulate 15.000 RON la data sesizării = 205.000 RON → competent **tribunalul**, nu judecătoria. Dacă routing-ul se face doar pe principal, dosarul se depune la instanță greșită → necompetență materială ridicabilă din oficiu, dosar declinat, întârziere semnificativă.
 >
@@ -863,9 +866,10 @@ Refactor enum la 3 valori distincte (ex: `B2B_PROFESIONAL`, `B2C_CONSUMER`, `NON
 > Competentă: Tribunal (peste pragul 200.000 RON, CPC art. 95 pct. 1)
 > ```
 >
-> **Test critic adăugat** (în plus de cele 6 existente):
-> - `testThresholdAppliesOnTotalClaimValueIncludingAccessories`: principal 190k + dobândă 15k → tribunal (NU judecătorie).
-> - `testThresholdAppliesOnPrincipalAloneRejected`: confirmă că routing-ul nu mai se bazează pe principal singular.
+> **Teste (după corecția 2026-06-29)**:
+> - `testThresholdIgnoresAccruedInterestAndAppliesOnPrincipalOnly`: principal 190k + dobândă acumulată → **judecătorie** (accesoriile excluse, art. 98 alin. 2).
+> - `testThresholdIgnoresScadentPenaltiesAndAppliesOnPrincipalOnly`: principal 199k + penalități 2k → **judecătorie**.
+> - `testPrincipalAboveThresholdRoutesToTribunalRegardlessOfAccessories`: principal 201k → tribunal.
 
 **PROMPT**:
 > Implementează `src/Service/Court/CompetentCourtResolver.php`.
@@ -2193,13 +2197,13 @@ Câmpurile vizibile în mock-up-uri sunt un punct de plecare pentru DTO-uri/Form
 >
 > **Constanta buffer** în service:
 > ```php
-> private const AUTO_FINAL_BUFFER_DAYS = 1; // C5 — prorogare CPC art. 181 + safety
+> private const AUTO_FINAL_BUFFER_DAYS = 5; // C5 — prorogare CPC art. 181 + safety (R6: 1→5)
 > ```
 >
 > Configurabil prin `services.yaml` (override pentru testing/preprod):
 > ```yaml
 > parameters:
->   app.legal_deadlines.auto_final_buffer_days: 1
+>   app.legal_deadlines.auto_final_buffer_days: 5
 > ```
 >
 > **Test critic adăugat** (în plus de cele existente):

@@ -95,7 +95,8 @@ final class CaseOverviewControllerTest extends WebTestCase
         $event = new CourtPortalEvent();
         $event->setLegalCase($this->case);
         $event->setEventType($type);
-        $event->setEventDate($date);
+        // CourtPortalEvent.eventDate is mapped DATE_MUTABLE — store a mutable DateTime.
+        $event->setEventDate(\DateTime::createFromInterface($date));
         $event->setDescription($description);
         $this->em->persist($event);
         $this->em->flush();
@@ -738,6 +739,26 @@ final class CaseOverviewControllerTest extends WebTestCase
         self::assertSelectorTextContains('#panel-portal', 'Primești email și notificare');
     }
 
+    public function testPortalRulingProposalCardShownForDetectedSolution(): void
+    {
+        $this->case->setStatus(CaseStatus::TERMEN_FIXAT);
+        $event = $this->attachPortalEvent(PortalEventType::HEARING_COMPLETED, new \DateTimeImmutable('2026-03-10'));
+        $event->setSolutie('Admite cererea');
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorExists('#portal-ruling-proposal');
+        self::assertSelectorTextContains('#portal-ruling-proposal', 'Soluție detectată pe portal');
+        // The confirm CTA targets the issue-ruling modal (emite_ordonanta).
+        self::assertSame(
+            1,
+            $crawler->filter('#portal-ruling-proposal button[data-hs-overlay="#hs-modal-issue-ruling"]')->count(),
+        );
+    }
+
     public function testModalCloseCasePresentInDom(): void
     {
         $this->client->loginUser($this->user);
@@ -754,12 +775,10 @@ final class CaseOverviewControllerTest extends WebTestCase
         $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
-        // 4 real options + 1 placeholder = 5 <option> tags. Pas 7.2 promoted the
-        // select from a coming-soon placeholder to a real CloseCaseType form,
-        // so the field id changed from `hs-modal-close-case-reason` to
-        // `close_case_reason_field` and the option values are now uppercase
-        // (PAID, PARTIAL, INSOLVENT, ABANDONED — matching the CloseReason enum).
-        self::assertCount(5, $crawler->filter('#close_case_reason_field option'));
+        // From a non-EXECUTARE case (here AMIABIL): 3 real options + 1 placeholder
+        // = 4 <option> tags (PAID, PARTIAL, ABANDONED). INSOLVENT_EXECUTARE is
+        // status-gated and only appears from EXECUTARE (R1 workflow revision).
+        self::assertCount(4, $crawler->filter('#close_case_reason_field option'));
     }
 
     public function testModalCloseCaseConfirmButtonIsActive(): void

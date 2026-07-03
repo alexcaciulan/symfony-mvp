@@ -375,6 +375,32 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
+    /**
+     * Whether the account has the fiscal identity required to issue an invoice
+     * to this client. Lawyers and companies (AVOCAT/PJ) are identified by CIF
+     * (no trade-register number); natural persons by CNP. An address is always
+     * needed. Used to gate paid actions before a charge is issued.
+     */
+    public function hasCompleteFiscalData(): bool
+    {
+        if (null === $this->type) {
+            return false;
+        }
+
+        $hasAddress = '' !== trim((string) $this->street) && '' !== trim((string) $this->city);
+        if (!$hasAddress) {
+            return false;
+        }
+
+        if (in_array($this->type, [UserType::PJ, UserType::AVOCAT], true)) {
+            return '' !== trim((string) $this->cui) && '' !== trim((string) $this->companyName);
+        }
+
+        return '' !== trim((string) $this->cnp)
+            && '' !== trim((string) $this->firstName)
+            && '' !== trim((string) $this->lastName);
+    }
+
     public function getDeletedAt(): ?\DateTimeImmutable
     {
         return $this->deletedAt;

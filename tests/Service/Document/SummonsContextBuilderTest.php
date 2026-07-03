@@ -23,6 +23,7 @@ final class SummonsContextBuilderTest extends TestCase
         $case = $this->makeCase(PenaltyType::LEGAL_PENALIZATOARE);
         $case->setAmount('5000.00');
         $case->setDueDate(new \DateTime('2025-01-01'));
+        $case->setInvoiceDate(new \DateTime('2024-12-01'));
         $case->setPaymentNoticeDate(new \DateTime('2025-04-01')); // 90 days, rate 14.5%
 
         $ctx = $builder->build($case);
@@ -33,6 +34,9 @@ final class SummonsContextBuilderTest extends TestCase
         self::assertNull($ctx['penaltyResult']);
         self::assertEqualsWithDelta($expected, $ctx['accessoryTotal'], 0.01);
         self::assertEqualsWithDelta(5000.0 + $expected, $ctx['grandTotal'], 0.01);
+        // invoiceDate flows from the case into both the context and the audit result.
+        self::assertEquals(new \DateTimeImmutable('2024-12-01'), $ctx['invoiceDate']);
+        self::assertEquals(new \DateTimeImmutable('2024-12-01'), $ctx['interestResult']->invoiceDate);
     }
 
     public function testContractualBranchUsesPenaltyCalculator(): void

@@ -7,15 +7,18 @@ namespace App\Tests\Controller\Case;
 use App\Entity\AuditLog;
 use App\Entity\Creditor;
 use App\Entity\Debtor;
+use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\CaseStatus;
+use App\Enum\DocumentType;
 use App\Enum\PersonType;
 use App\Service\AuditLogService;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
@@ -61,6 +64,21 @@ final class CaseTransitionControllerTest extends WebTestCase
     {
         $userId = $this->user->getId();
         $conn = $this->em->getConnection();
+
+        // Remove physical files uploaded during transition tests (e.g. the issued
+        // ruling document) before dropping the legal_case rows.
+        $uploadsDir = static::getContainer()->getParameter('kernel.project_dir') . '/var/uploads';
+        $caseIds = $conn->fetchFirstColumn('SELECT id FROM legal_case WHERE user_id = :id', ['id' => $userId]);
+        foreach ($caseIds as $caseId) {
+            $caseDir = $uploadsDir . '/cases/' . $caseId;
+            if (is_dir($caseDir)) {
+                foreach (glob($caseDir . '/*') ?: [] as $file) {
+                    @unlink($file);
+                }
+                @rmdir($caseDir);
+            }
+        }
+
         $conn->executeStatement('DELETE FROM audit_log WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM document WHERE uploaded_by_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM legal_deadline WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
@@ -103,6 +121,33 @@ final class CaseTransitionControllerTest extends WebTestCase
 
         return (string) $this->client->getCrawler()
             ->filter('input[name="' . $formName . '[_token]"]')->first()->attr('value');
+    }
+
+    /** Attaches an ORDONANTA_PLATA document so `trece_la_executare` passes its guard. */
+    private function attachRulingDocument(LegalCase $case): void
+    {
+        $doc = new Document();
+        $doc->setLegalCase($case);
+        $doc->setDocumentType(DocumentType::ORDONANTA_PLATA);
+        $doc->setOriginalFilename('ordonanta.pdf');
+        $doc->setStoredFilename('stored-ordonanta.pdf');
+        $doc->setFileSize(100);
+        $doc->setMimeType('application/pdf');
+        $doc->setUploadedBy($this->user);
+        $this->em->persist($doc);
+        $case->addDocument($doc);
+        $this->em->flush();
+    }
+
+    /** Minimal valid PDF written to a temp file, wrapped as a test UploadedFile. */
+    private function makePdf(string $name = 'ordonanta.pdf'): UploadedFile
+    {
+        $path = tempnam(sys_get_temp_dir(), 'doc');
+        rename($path, $path . '.pdf');
+        $path .= '.pdf';
+        file_put_contents($path, "%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF");
+
+        return new UploadedFile($path, $name, 'application/pdf', null, true);
     }
 
     public function testRegisterHappyPathTransitionsToDosarInregistrat(): void
@@ -196,6 +241,34 @@ final class CaseTransitionControllerTest extends WebTestCase
             'entityId' => (string) $refreshed->getId(),
         ]);
         self::assertCount(1, $entries);
+    }
+
+    public function testIssueRulingWithDocumentAttachesOrdonanta(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::TERMEN_FIXAT);
+
+        $token = $this->csrfForForm($case, 'issue_ruling');
+        $today = (new \DateTimeImmutable())->format('Y-m-d');
+
+        $this->client->request(
+            'POST',
+            '/case/' . $case->getId() . '/transition/issue-ruling',
+            ['issue_ruling' => ['rulingDate' => $today, '_token' => $token]],
+            ['issue_ruling' => ['rulingDocument' => $this->makePdf()]],
+        );
+
+        self::assertResponseRedirects('/case/' . $case->getId());
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame(CaseStatus::ORDONANTA_EMISA, $refreshed->getStatus());
+
+        $documents = $this->em->getRepository(Document::class)->findBy([
+            'legalCase' => $refreshed->getId(),
+            'documentType' => DocumentType::ORDONANTA_PLATA,
+        ]);
+        self::assertCount(1, $documents, 'Issued ruling document must be persisted as an ORDONANTA_PLATA document.');
     }
 
     public function testIssueRulingRejectsFutureDate(): void
@@ -306,16 +379,18 @@ final class CaseTransitionControllerTest extends WebTestCase
         self::assertSame('PAID', $entries[0]->getNewData()['reason']);
     }
 
-    public function testCloseDispatchInsolventGoesToInchisPartialInsolvabil(): void
+    public function testCloseDispatchInsolventExecutareGoesToInchisFaraRecuperare(): void
     {
+        // Insolvency is recorded only as an enforcement-phase outcome: from
+        // EXECUTARE, INSOLVENT_EXECUTARE → inchide_fara_recuperare.
         $this->client->loginUser($this->user);
-        $case = $this->createCase(CaseStatus::DEFINITIVA);
+        $case = $this->createCase(CaseStatus::EXECUTARE);
 
         $token = $this->csrfForForm($case, 'close_case');
 
         $this->client->request('POST', '/case/' . $case->getId() . '/transition/close', [
             'close_case' => [
-                'reason' => 'INSOLVENT',
+                'reason' => 'INSOLVENT_EXECUTARE',
                 'details' => '',
                 '_token' => $token,
             ],
@@ -325,13 +400,13 @@ final class CaseTransitionControllerTest extends WebTestCase
 
         $this->em->clear();
         $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
-        self::assertSame(CaseStatus::INCHIS_PARTIAL_INSOLVABIL, $refreshed->getStatus());
+        self::assertSame(CaseStatus::INCHIS_FARA_RECUPERARE, $refreshed->getStatus());
 
         $entries = $this->em->getRepository(AuditLog::class)->findBy([
             'category' => AuditLogService::CATEGORY_CASE_CLOSED,
             'entityId' => (string) $refreshed->getId(),
         ]);
-        self::assertSame('inchide_insolvabil', $entries[0]->getNewData()['transition']);
+        self::assertSame('inchide_fara_recuperare', $entries[0]->getNewData()['transition']);
     }
 
     public function testCloseDispatchPartialGoesToInchisSucces(): void
@@ -359,10 +434,10 @@ final class CaseTransitionControllerTest extends WebTestCase
         self::assertSame('PARTIAL', $entries[0]->getNewData()['reason']);
     }
 
-    public function testCloseDispatchAbandonedGoesToInchisInsolvabil(): void
+    public function testCloseDispatchAbandonedGoesToInchisFaraRecuperare(): void
     {
-        // ABANDONED is the lawyer's decision to drop pursuit; treated as a
-        // partial-insolvent closure for archival purposes.
+        // ABANDONED is the lawyer's decision to drop pursuit; closes without
+        // recovery (never "success").
         $this->client->loginUser($this->user);
         $case = $this->createCase(CaseStatus::DEFINITIVA);
 
@@ -374,14 +449,191 @@ final class CaseTransitionControllerTest extends WebTestCase
 
         $this->em->clear();
         $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
-        self::assertSame(CaseStatus::INCHIS_PARTIAL_INSOLVABIL, $refreshed->getStatus());
+        self::assertSame(CaseStatus::INCHIS_FARA_RECUPERARE, $refreshed->getStatus());
 
         $entries = $this->em->getRepository(AuditLog::class)->findBy([
             'category' => AuditLogService::CATEGORY_CASE_CLOSED,
             'entityId' => (string) $refreshed->getId(),
         ]);
-        self::assertSame('inchide_insolvabil', $entries[0]->getNewData()['transition']);
+        self::assertSame('inchide_fara_recuperare', $entries[0]->getNewData()['transition']);
         self::assertSame('ABANDONED', $entries[0]->getNewData()['reason']);
+    }
+
+    public function testCloseRejectsInsolventExecutareFromDefinitiva(): void
+    {
+        // INSOLVENT_EXECUTARE is enforcement-only: posting it from DEFINITIVA
+        // (no enforcement started) must be rejected server-side.
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::DEFINITIVA);
+
+        $token = $this->csrfForForm($case, 'close_case');
+
+        $this->client->request('POST', '/case/' . $case->getId() . '/transition/close', [
+            'close_case' => ['reason' => 'INSOLVENT_EXECUTARE', 'details' => '', '_token' => $token],
+        ]);
+
+        self::assertResponseRedirects('/case/' . $case->getId());
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame(CaseStatus::DEFINITIVA, $refreshed->getStatus());
+    }
+
+    public function testTransitionToExecutionMovesDefinitivaToExecutare(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::DEFINITIVA);
+        $this->attachRulingDocument($case);
+
+        $this->client->request('GET', '/case/' . $case->getId());
+        $token = (string) $this->client->getCrawler()
+            ->filter('form[action$="/transition/executare"] input[name="_token"]')->first()->attr('value');
+
+        $this->client->request('POST', '/case/' . $case->getId() . '/transition/executare', [
+            '_token' => $token,
+        ]);
+
+        self::assertResponseRedirects('/case/' . $case->getId());
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame(CaseStatus::EXECUTARE, $refreshed->getStatus());
+
+        $entries = $this->em->getRepository(AuditLog::class)->findBy([
+            'category' => AuditLogService::CATEGORY_EXECUTION_STARTED,
+            'entityId' => (string) $refreshed->getId(),
+        ]);
+        self::assertCount(1, $entries);
+    }
+
+    public function testTransitionToExecutionBlockedWithoutRulingDocument(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::DEFINITIVA); // no ORDONANTA_PLATA document
+
+        $this->client->request('GET', '/case/' . $case->getId());
+        $token = (string) $this->client->getCrawler()
+            ->filter('form[action$="/transition/executare"] input[name="_token"]')->first()->attr('value');
+
+        $this->client->request('POST', '/case/' . $case->getId() . '/transition/executare', [
+            '_token' => $token,
+        ]);
+
+        self::assertResponseRedirects('/case/' . $case->getId());
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame(CaseStatus::DEFINITIVA, $refreshed->getStatus());
+    }
+
+    public function testTransitionToExecutionRejectsWrongStatus(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::AMIABIL);
+
+        // The executare modal is always rendered, so a valid CSRF token is
+        // available even from a status where the transition is not enabled.
+        $this->client->request('GET', '/case/' . $case->getId());
+        $token = (string) $this->client->getCrawler()
+            ->filter('form[action$="/transition/executare"] input[name="_token"]')->first()->attr('value');
+
+        $this->client->request('POST', '/case/' . $case->getId() . '/transition/executare', [
+            '_token' => $token,
+        ]);
+
+        self::assertResponseRedirects('/case/' . $case->getId());
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame(CaseStatus::AMIABIL, $refreshed->getStatus());
+    }
+
+    public function testTransitionToExecutionFromOrdonantaEmisaRequiresCommunicationDate(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::ORDONANTA_EMISA); // no rulingCommunicationDate
+
+        $this->client->request('GET', '/case/' . $case->getId());
+        $token = (string) $this->client->getCrawler()
+            ->filter('form[action$="/transition/executare"] input[name="_token"]')->first()->attr('value');
+
+        $this->client->request('POST', '/case/' . $case->getId() . '/transition/executare', ['_token' => $token]);
+
+        self::assertResponseRedirects('/case/' . $case->getId());
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame(CaseStatus::ORDONANTA_EMISA, $refreshed->getStatus());
+    }
+
+    public function testTransitionToExecutionFromOrdonantaEmisaWithCommunicationDate(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::ORDONANTA_EMISA);
+        $case->setRulingCommunicationDate(new \DateTimeImmutable('2026-09-01'));
+        $this->em->flush();
+        $this->attachRulingDocument($case);
+
+        $this->client->request('GET', '/case/' . $case->getId());
+        $token = (string) $this->client->getCrawler()
+            ->filter('form[action$="/transition/executare"] input[name="_token"]')->first()->attr('value');
+
+        $this->client->request('POST', '/case/' . $case->getId() . '/transition/executare', ['_token' => $token]);
+
+        self::assertResponseRedirects('/case/' . $case->getId());
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame(CaseStatus::EXECUTARE, $refreshed->getStatus());
+    }
+
+    public function testTransitionToExecutionFromInAnulareFlagsAnnulmentPending(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::IN_ANULARE);
+        $this->attachRulingDocument($case);
+
+        $this->client->request('GET', '/case/' . $case->getId());
+        $token = (string) $this->client->getCrawler()
+            ->filter('form[action$="/transition/executare"] input[name="_token"]')->first()->attr('value');
+
+        $this->client->request('POST', '/case/' . $case->getId() . '/transition/executare', ['_token' => $token]);
+
+        self::assertResponseRedirects('/case/' . $case->getId());
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame(CaseStatus::EXECUTARE, $refreshed->getStatus());
+
+        $entries = $this->em->getRepository(AuditLog::class)->findBy([
+            'category' => AuditLogService::CATEGORY_EXECUTION_STARTED,
+            'entityId' => (string) $refreshed->getId(),
+        ]);
+        self::assertTrue($entries[0]->getNewData()['annulmentPending']);
+    }
+
+    public function testRejectFromExecutareGrantsAnnulmentToRespinsa(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::EXECUTARE);
+
+        $token = $this->csrfForForm($case, 'reject_case');
+
+        $this->client->request('POST', '/case/' . $case->getId() . '/transition/reject', [
+            'reject_case' => ['reason' => 'INADMISSIBLE', 'details' => '', '_token' => $token],
+        ]);
+
+        self::assertResponseRedirects('/case/' . $case->getId());
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame(CaseStatus::RESPINSA, $refreshed->getStatus());
+
+        $entries = $this->em->getRepository(AuditLog::class)->findBy([
+            'category' => AuditLogService::CATEGORY_CASE_REJECTED,
+            'entityId' => (string) $refreshed->getId(),
+        ]);
+        self::assertSame('admite_cerere_anulare', $entries[0]->getNewData()['transition']);
     }
 
     public function testCloseRejectsWrongStatus(): void
@@ -536,5 +788,99 @@ final class CaseTransitionControllerTest extends WebTestCase
         // after `_` → space) plus the action label rendered as title-case ("Case Registered").
         self::assertStringContainsString('panel-audit', $html);
         self::assertStringContainsString('Case Registered', $html);
+    }
+
+    /** Reads the raw CSRF token from the annulment-rejected modal (rendered only on IN_ANULARE/EXECUTARE). */
+    private function annulmentRejectedToken(LegalCase $case): string
+    {
+        $this->client->request('GET', '/case/' . $case->getId());
+
+        return (string) $this->client->getCrawler()
+            ->filter('form[action$="/transition/annulment-rejected"] input[name="_token"]')->first()->attr('value');
+    }
+
+    public function testAnnulmentRejectedFromInAnulareGoesToDefinitiva(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::IN_ANULARE);
+
+        $token = $this->annulmentRejectedToken($case);
+        $this->client->request('POST', '/case/' . $case->getId() . '/transition/annulment-rejected', [
+            '_token' => $token,
+        ]);
+
+        self::assertResponseRedirects('/case/' . $case->getId());
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame(CaseStatus::DEFINITIVA, $refreshed->getStatus());
+
+        $entries = $this->em->getRepository(AuditLog::class)->findBy([
+            'category' => AuditLogService::CATEGORY_ANNULMENT_REJECTED,
+            'entityId' => (string) $refreshed->getId(),
+        ]);
+        self::assertCount(1, $entries);
+        self::assertSame('respinge_cerere_anulare', $entries[0]->getNewData()['transition']);
+    }
+
+    public function testAnnulmentRejectedFromExecutareStaysExecutare(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::EXECUTARE);
+
+        $token = $this->annulmentRejectedToken($case);
+        $this->client->request('POST', '/case/' . $case->getId() . '/transition/annulment-rejected', [
+            '_token' => $token,
+        ]);
+
+        self::assertResponseRedirects('/case/' . $case->getId());
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame(CaseStatus::EXECUTARE, $refreshed->getStatus());
+
+        $entries = $this->em->getRepository(AuditLog::class)->findBy([
+            'category' => AuditLogService::CATEGORY_ANNULMENT_REJECTED,
+            'entityId' => (string) $refreshed->getId(),
+        ]);
+        self::assertCount(1, $entries);
+        self::assertSame('respinge_cerere_anulare_executare', $entries[0]->getNewData()['transition']);
+    }
+
+    public function testAnnulmentRejectedRejectsWrongStatus(): void
+    {
+        $this->client->loginUser($this->user);
+        // Valid session token comes from a separate IN_ANULARE case (CSRF token is
+        // session-scoped, not per-case); the transition is posted to a DEFINITIVA
+        // case where neither annulment transition is enabled.
+        $tokenCase = $this->createCase(CaseStatus::IN_ANULARE);
+        $token = $this->annulmentRejectedToken($tokenCase);
+
+        $case = $this->createCase(CaseStatus::DEFINITIVA);
+        $this->client->request('POST', '/case/' . $case->getId() . '/transition/annulment-rejected', [
+            '_token' => $token,
+        ]);
+
+        self::assertResponseRedirects('/case/' . $case->getId());
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame(CaseStatus::DEFINITIVA, $refreshed->getStatus());
+    }
+
+    public function testAnnulmentRejectedCsrfMissingRejected(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::IN_ANULARE);
+
+        $this->client->request('POST', '/case/' . $case->getId() . '/transition/annulment-rejected', [
+            '_token' => 'fake-token',
+        ]);
+
+        self::assertResponseRedirects('/case/' . $case->getId());
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame(CaseStatus::IN_ANULARE, $refreshed->getStatus());
     }
 }

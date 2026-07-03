@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Tests\Controller\Api;
 
 use App\Entity\Court;
+use App\Entity\Creditor;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\CourtType;
+use App\Enum\PersonType;
 use App\Service\Company\AnafLookupException;
 use App\Service\Company\AnafLookupService;
 use App\Tests\Support\CountyFixtureTrait;
@@ -259,6 +261,57 @@ final class LookupControllerTest extends WebTestCase
         self::assertStringContainsString('/login', $this->client->getResponse()->headers->get('Location') ?? '');
     }
 
+    public function testCreditorsLookupReturnsOnlyCreditorsFromOwnCases(): void
+    {
+        $hasher = static::getContainer()->get(UserPasswordHasherInterface::class);
+        $other = new User();
+        $other->setEmail($this->testPrefix . '-other@test.com');
+        $other->setPassword($hasher->hashPassword($other, 'password'));
+        $other->setIsVerified(true);
+        $this->em->persist($other);
+
+        $mine = $this->makeCreditor($this->user, 'Creditor ' . $this->testPrefix . '-mine');
+        $unused = $this->makeCreditor($this->user, 'Creditor ' . $this->testPrefix . '-unused');
+        $theirs = $this->makeCreditor($other, 'Creditor ' . $this->testPrefix . '-theirs');
+        $this->em->flush();
+
+        $this->makeCaseWithCreditor($this->user, $mine);
+        $this->makeCaseWithCreditor($other, $theirs);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/api/creditors-lookup');
+
+        self::assertResponseIsSuccessful();
+        $payload = json_decode($this->client->getResponse()->getContent(), true);
+        $labels = array_column($payload, 'label');
+        self::assertContains($mine->getName(), $labels);
+        // A creditor without any case must not appear (zero-hit option).
+        self::assertNotContains($unused->getName(), $labels);
+        // A creditor from another user's case must never leak.
+        self::assertNotContains($theirs->getName(), $labels);
+    }
+
+    public function testCreditorsLookupFiltersByQuery(): void
+    {
+        $alpha = $this->makeCreditor($this->user, 'Alpha ' . $this->testPrefix);
+        $beta = $this->makeCreditor($this->user, 'Beta ' . $this->testPrefix);
+        $this->em->flush();
+
+        $this->makeCaseWithCreditor($this->user, $alpha);
+        $this->makeCaseWithCreditor($this->user, $beta);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/api/creditors-lookup', ['q' => 'alpha']);
+
+        self::assertResponseIsSuccessful();
+        $payload = json_decode($this->client->getResponse()->getContent(), true);
+        $labels = array_column($payload, 'label');
+        self::assertContains($alpha->getName(), $labels);
+        self::assertNotContains($beta->getName(), $labels);
+    }
+
     private function makeCourt(string $name): Court
     {
         $court = new Court();
@@ -283,11 +336,39 @@ final class LookupControllerTest extends WebTestCase
         $this->em->persist($case);
     }
 
+    private function makeCreditor(User $user, string $name): Creditor
+    {
+        $creditor = new Creditor();
+        $creditor->setUser($user);
+        $creditor->setPersonType(PersonType::PJ);
+        $creditor->setName($name);
+        $creditor->setAddress('Str. Test 1, București');
+        $this->em->persist($creditor);
+
+        return $creditor;
+    }
+
+    private function makeCaseWithCreditor(User $user, Creditor $creditor): void
+    {
+        $case = new LegalCase();
+        $case->setUser($user);
+        $case->setStatus(CaseStatus::AMIABIL);
+        $case->setCaseNumber('LR-' . uniqid());
+        $case->setAmount('1000.00');
+        $case->setCurrency('RON');
+        $case->setCreditor($creditor);
+        $this->em->persist($case);
+    }
+
     protected function tearDown(): void
     {
         $conn = $this->em->getConnection();
         $conn->executeStatement(
             'DELETE lc FROM legal_case lc JOIN user u ON lc.user_id = u.id WHERE u.email LIKE ?',
+            [$this->testPrefix . '%'],
+        );
+        $conn->executeStatement(
+            'DELETE cr FROM creditor cr JOIN user u ON cr.user_id = u.id WHERE u.email LIKE ?',
             [$this->testPrefix . '%'],
         );
         $conn->executeStatement('DELETE FROM court WHERE name LIKE ?', ['%' . $this->testPrefix . '%']);

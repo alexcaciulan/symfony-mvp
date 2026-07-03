@@ -94,6 +94,17 @@ final class TableDataService
                         $qb->andWhere('(' . implode(' OR ', $orParts) . ')')->setParameter($param, $term);
                     }
                     break;
+                case 'date_range':
+                    // Value is "from..to" (ISO dates, either bound optional). `to`
+                    // is exclusive on +1 day so the whole DATETIME day is included.
+                    [$from, $to] = array_pad(explode('..', (string) $value, 2), 2, '');
+                    if (($fromDate = $this->parseDate($from)) !== null) {
+                        $qb->andWhere("t.$field >= :{$param}_from")->setParameter("{$param}_from", $fromDate);
+                    }
+                    if (($toDate = $this->parseDate($to)) !== null) {
+                        $qb->andWhere("t.$field < :{$param}_to")->setParameter("{$param}_to", $toDate->modify('+1 day'));
+                    }
+                    break;
                 default:
                     $qb->andWhere("t.$field = :$param")->setParameter($param, $value);
             }
@@ -127,6 +138,18 @@ final class TableDataService
         }
 
         return $specs;
+    }
+
+    /** Parse a strict Y-m-d date; null if empty or malformed (defensive against injection). */
+    private function parseDate(string $value): ?\DateTimeImmutable
+    {
+        if ('' === $value) {
+            return null;
+        }
+
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+
+        return false !== $date && $date->format('Y-m-d') === $value ? $date : null;
     }
 
     /**

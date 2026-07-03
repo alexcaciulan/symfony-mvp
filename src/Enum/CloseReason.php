@@ -8,8 +8,8 @@ enum CloseReason: string
 {
     case PAID = 'PAID';
     case PARTIAL = 'PARTIAL';
-    case INSOLVENT = 'INSOLVENT';
     case ABANDONED = 'ABANDONED';
+    case INSOLVENT_EXECUTARE = 'INSOLVENT_EXECUTARE';
 
     public function label(): string
     {
@@ -18,13 +18,16 @@ enum CloseReason: string
 
     /**
      * Maps a close reason to its corresponding workflow transition name.
-     * PAID/PARTIAL → successful closure; INSOLVENT/ABANDONED → partial-insolvent closure.
+     * PAID/PARTIAL → successful closure; ABANDONED/INSOLVENT_EXECUTARE → closure
+     * without recovery. Insolvency is recorded only as an enforcement-phase
+     * outcome (CPC art. 781 et seq.), never as an OP closure (the OP itself
+     * produces a writ of execution, it cannot fail for debtor insolvency).
      */
     public function targetTransition(): string
     {
         return match ($this) {
             self::PAID, self::PARTIAL => 'inchide_succes',
-            self::INSOLVENT, self::ABANDONED => 'inchide_insolvabil',
+            self::ABANDONED, self::INSOLVENT_EXECUTARE => 'inchide_fara_recuperare',
         };
     }
 }

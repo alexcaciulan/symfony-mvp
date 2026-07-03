@@ -332,7 +332,7 @@ class SeedDemoCasesCommand extends Command
             CaseStatus::DEFINITIVA->value => 7,
             CaseStatus::EXECUTARE->value => 8,
             CaseStatus::INCHIS_SUCCES->value => 9,
-            CaseStatus::INCHIS_PARTIAL_INSOLVABIL->value => 10,
+            CaseStatus::INCHIS_FARA_RECUPERARE->value => 10,
             CaseStatus::RESPINSA->value => 11,
         ];
         return ($order[$status->value] ?? 0) >= ($order[$threshold->value] ?? 0);

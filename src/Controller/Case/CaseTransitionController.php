@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Controller\Case;
 
+use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Enum\CaseStatus;
 use App\Enum\CloseReason;
+use App\Enum\DocumentType;
 use App\Enum\RejectReason;
 use App\Form\Case\CloseCaseType;
 use App\Form\Case\IssueRulingType;
@@ -16,8 +18,10 @@ use App\Repository\LegalCaseRepository;
 use App\Security\Voter\CaseVoter;
 use App\Service\AuditLogService;
 use App\Service\Case\CaseWorkflowService;
+use App\Service\Document\DocumentUploadService;
 use App\Util\PiiMasker;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -35,6 +39,7 @@ final class CaseTransitionController extends AbstractController
         private readonly LegalCaseRepository $cases,
         private readonly CaseWorkflowService $workflowService,
         private readonly AuditLogService $auditLogService,
+        private readonly DocumentUploadService $documentUploadService,
         private readonly EntityManagerInterface $em,
     ) {}
 
@@ -140,6 +145,19 @@ final class CaseTransitionController extends AbstractController
             $this->em->flush();
         });
 
+        // Optionally attach the issued order document (CPC art. 1020). Best-effort
+        // after the transition: a failed upload (disk/IO) must not undo the issued
+        // ruling, which is already committed. The lawyer can attach it later.
+        $rulingDocument = $form->get('rulingDocument')->getData();
+        $user = $this->getUser();
+        if ($rulingDocument instanceof UploadedFile && $user !== null) {
+            try {
+                $this->documentUploadService->upload($case, $rulingDocument, DocumentType::ORDONANTA_PLATA, $user);
+            } catch (\Throwable) {
+                $this->addFlash('warning', 'case_overview.transition.flash_warning_ruling_document');
+            }
+        }
+
         return $this->respondAfterTransition($case, 'case_overview.transition.flash_success_ruling');
     }
 
@@ -160,7 +178,7 @@ final class CaseTransitionController extends AbstractController
 
         $transition = match ($case->getStatus()) {
             CaseStatus::TERMEN_FIXAT => 'respinge',
-            CaseStatus::IN_ANULARE => 'admite_cerere_anulare',
+            CaseStatus::IN_ANULARE, CaseStatus::EXECUTARE => 'admite_cerere_anulare',
             default => null,
         };
 
@@ -224,7 +242,7 @@ final class CaseTransitionController extends AbstractController
             return $this->redirectToRoute('case_overview', ['id' => $id]);
         }
 
-        if ($case->getStatus() !== CaseStatus::DEFINITIVA) {
+        if (!in_array($case->getStatus(), [CaseStatus::DEFINITIVA, CaseStatus::EXECUTARE], true)) {
             $this->addFlash('error', 'case_overview.transition.flash_error_wrong_status');
 
             return $this->redirectToRoute('case_overview', ['id' => $id]);
@@ -237,9 +255,23 @@ final class CaseTransitionController extends AbstractController
             return $this->redirectToRoute('case_overview', ['id' => $id]);
         }
 
+        // Insolvency is an enforcement-phase finding: this reason is only valid
+        // from EXECUTARE, never as a direct OP closure from DEFINITIVA.
+        if ($reason === CloseReason::INSOLVENT_EXECUTARE && $case->getStatus() !== CaseStatus::EXECUTARE) {
+            $this->addFlash('error', 'case_overview.transition.flash_error_wrong_status');
+
+            return $this->redirectToRoute('case_overview', ['id' => $id]);
+        }
+
         $details = (string) ($form->get('details')->getData() ?? '');
         $transition = $reason->targetTransition();
         $fromStatus = $case->getStatus()->value;
+
+        if (!$this->workflowService->can($case, $transition)) {
+            $this->addFlash('error', 'case_overview.transition.flash_error_wrong_status');
+
+            return $this->redirectToRoute('case_overview', ['id' => $id]);
+        }
 
         $this->em->wrapInTransaction(function () use ($case, $transition, $reason, $details, $fromStatus): void {
             $this->workflowService->apply($case, $transition);
@@ -266,6 +298,122 @@ final class CaseTransitionController extends AbstractController
         });
 
         return $this->respondAfterTransition($case, 'case_overview.transition.flash_success_close');
+    }
+
+    #[Route('/case/{id}/transition/executare', name: 'case_transition_executare', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function transitionToExecution(Request $request, int $id): Response
+    {
+        $case = $this->findOrThrow($id);
+        $this->denyAccessUnlessGranted(CaseVoter::TRANSITION, $case);
+
+        if (!$this->isCsrfTokenValid('transition_executare', (string) $request->request->get('_token'))) {
+            $this->addFlash('error', 'case_overview.transition.flash_error_validation');
+
+            return $this->redirectToRoute('case_overview', ['id' => $id]);
+        }
+
+        if (!$this->workflowService->can($case, 'trece_la_executare')) {
+            $this->addFlash('error', 'case_overview.transition.flash_error_wrong_status');
+
+            return $this->redirectToRoute('case_overview', ['id' => $id]);
+        }
+
+        // Starting enforcement from ORDONANTA_EMISA before the order has been
+        // communicated would make the 10-day annulment window ambiguous, so the
+        // communication date is required from that status.
+        if ($case->getStatus() === CaseStatus::ORDONANTA_EMISA && $case->getRulingCommunicationDate() === null) {
+            $this->addFlash('error', 'case_overview.transition.flash_error_needs_communication_date');
+
+            return $this->redirectToRoute('case_overview', ['id' => $id]);
+        }
+
+        // The bailiff needs the payment-order document to open enforcement, so it
+        // must be attached before entering the enforcement phase (lawyer requirement).
+        $hasRulingDocument = $case->getDocuments()->exists(
+            static fn (int $_key, Document $doc): bool => $doc->getDocumentType() === DocumentType::ORDONANTA_PLATA,
+        );
+        if (!$hasRulingDocument) {
+            $this->addFlash('error', 'case_overview.transition.flash_error_needs_ruling_document');
+
+            return $this->redirectToRoute('case_overview', ['id' => $id]);
+        }
+
+        $fromStatus = $case->getStatus()->value;
+        $annulmentPending = $case->getStatus() === CaseStatus::IN_ANULARE;
+
+        $this->em->wrapInTransaction(function () use ($case, $fromStatus, $annulmentPending): void {
+            $this->workflowService->apply($case, 'trece_la_executare');
+
+            $this->em->flush();
+
+            $this->auditLogService->log(
+                action: 'execution_started',
+                entityType: LegalCase::class,
+                entityId: (string) $case->getId(),
+                newData: [
+                    'caseNumber' => $case->getCaseNumber(),
+                    'courtCaseNumber' => $case->getCourtCaseNumber(),
+                    'fromStatus' => $fromStatus,
+                    'annulmentPending' => $annulmentPending,
+                ],
+                category: AuditLogService::CATEGORY_EXECUTION_STARTED,
+            );
+            $this->em->flush();
+        });
+
+        return $this->respondAfterTransition($case, 'case_overview.transition.flash_success_executare');
+    }
+
+    #[Route('/case/{id}/transition/annulment-rejected', name: 'case_transition_annulment_rejected', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function annulmentRejected(Request $request, int $id): Response
+    {
+        $case = $this->findOrThrow($id);
+        $this->denyAccessUnlessGranted(CaseVoter::TRANSITION, $case);
+
+        if (!$this->isCsrfTokenValid('transition_annulment_rejected', (string) $request->request->get('_token'))) {
+            $this->addFlash('error', 'case_overview.transition.flash_error_validation');
+
+            return $this->redirectToRoute('case_overview', ['id' => $id]);
+        }
+
+        // The annulment was dismissed, so the order stands. From IN_ANULARE the
+        // case becomes final (DEFINITIVA); from EXECUTARE enforcement was already
+        // running and continues (self-loop).
+        $transition = match ($case->getStatus()) {
+            CaseStatus::IN_ANULARE => 'respinge_cerere_anulare',
+            CaseStatus::EXECUTARE => 'respinge_cerere_anulare_executare',
+            default => null,
+        };
+
+        if ($transition === null || !$this->workflowService->can($case, $transition)) {
+            $this->addFlash('error', 'case_overview.transition.flash_error_wrong_status');
+
+            return $this->redirectToRoute('case_overview', ['id' => $id]);
+        }
+
+        $fromStatus = $case->getStatus()->value;
+
+        $this->em->wrapInTransaction(function () use ($case, $transition, $fromStatus): void {
+            $this->workflowService->apply($case, $transition);
+
+            $this->em->flush();
+
+            $this->auditLogService->log(
+                action: 'annulment_rejected',
+                entityType: LegalCase::class,
+                entityId: (string) $case->getId(),
+                newData: [
+                    'caseNumber' => $case->getCaseNumber(),
+                    'courtCaseNumber' => $case->getCourtCaseNumber(),
+                    'fromStatus' => $fromStatus,
+                    'transition' => $transition,
+                ],
+                category: AuditLogService::CATEGORY_ANNULMENT_REJECTED,
+            );
+            $this->em->flush();
+        });
+
+        return $this->respondAfterTransition($case, 'case_overview.transition.flash_success_annulment_rejected');
     }
 
     private function findOrThrow(int $id): LegalCase

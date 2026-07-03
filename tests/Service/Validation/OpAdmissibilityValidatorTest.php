@@ -235,6 +235,56 @@ class OpAdmissibilityValidatorTest extends TestCase
         $this->assertSame('OP_BLOCKED_DEREGISTERED', $issues[0]->code);
     }
 
+    public function testFutureDueDateBlocksWithError(): void
+    {
+        // Debtor is otherwise fully clean; the future due date alone is the blocker.
+        $case = $this->makeCaseWithDebtor($this->makeDebtor(
+            personType: PersonType::PJ,
+            anafStatus: AnafStatus::ACTIV,
+            anafCheckedAt: $this->daysAgo(3),
+            insolvencyCheckedAt: $this->daysAgo(3),
+        ));
+        $case->setDueDate($this->now()->modify('+10 days'));
+
+        $issues = (new OpAdmissibilityValidator())->validate($case, $this->now());
+
+        $this->assertCount(1, $issues);
+        $this->assertSame(IssueSeverity::ERROR, $issues[0]->severity);
+        $this->assertSame('OP_DEBT_NOT_YET_DUE', $issues[0]->code);
+        $this->assertSame('validation.op_admissibility.OP_DEBT_NOT_YET_DUE', $issues[0]->messageKey);
+    }
+
+    public function testDueDateTodayIsExigibleAndProducesNoIssue(): void
+    {
+        // Same calendar day as `now` (after midnight normalization) is exigible.
+        $case = $this->makeCaseWithDebtor($this->makeDebtor(
+            personType: PersonType::PJ,
+            anafStatus: AnafStatus::ACTIV,
+            anafCheckedAt: $this->daysAgo(3),
+            insolvencyCheckedAt: $this->daysAgo(3),
+        ));
+        $case->setDueDate($this->now());
+
+        $issues = (new OpAdmissibilityValidator())->validate($case, $this->now());
+
+        $this->assertSame([], $issues);
+    }
+
+    public function testPastDueDateProducesNoExigibilityIssue(): void
+    {
+        $case = $this->makeCaseWithDebtor($this->makeDebtor(
+            personType: PersonType::PJ,
+            anafStatus: AnafStatus::ACTIV,
+            anafCheckedAt: $this->daysAgo(3),
+            insolvencyCheckedAt: $this->daysAgo(3),
+        ));
+        $case->setDueDate($this->now()->modify('-30 days'));
+
+        $issues = (new OpAdmissibilityValidator())->validate($case, $this->now());
+
+        $this->assertSame([], $issues);
+    }
+
     private function makeCaseWithDebtor(Debtor $debtor): LegalCase
     {
         $case = new LegalCase();

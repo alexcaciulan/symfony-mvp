@@ -39,6 +39,25 @@
                             data-filter-remote-url="{{ f.remoteUrl }}"
                             placeholder="{{ f.placeholder }}"
                             aria-label="{{ f.label }}"></select>
+                {% elseif f.type == 'date_range' %}
+                    {# Two native date inputs (from / to) sharing one filter key. #}
+                    <div class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1">
+                        <input type="date"
+                               data-tabulator-target="filter"
+                               data-filter-key="{{ f.key }}"
+                               data-filter-type="date_range"
+                               data-filter-bound="from"
+                               aria-label="{{ f.label }} ({{ 'component.data_table.filter.date_from'|trans }})"
+                               class="bg-transparent text-sm text-slate-700 dark:text-slate-200 focus:outline-none">
+                        <span class="text-slate-400 text-sm">→</span>
+                        <input type="date"
+                               data-tabulator-target="filter"
+                               data-filter-key="{{ f.key }}"
+                               data-filter-type="date_range"
+                               data-filter-bound="to"
+                               aria-label="{{ f.label }} ({{ 'component.data_table.filter.date_to'|trans }})"
+                               class="bg-transparent text-sm text-slate-700 dark:text-slate-200 focus:outline-none">
+                    </div>
                 {% endif %}
             {% endfor %}
             <button type="button"

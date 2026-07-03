@@ -30,12 +30,13 @@ class CaseStatusTest extends TestCase
     {
         $this->assertTrue(CaseStatus::RESPINSA->isTerminal());
         $this->assertTrue(CaseStatus::INCHIS_SUCCES->isTerminal());
-        $this->assertTrue(CaseStatus::INCHIS_PARTIAL_INSOLVABIL->isTerminal());
+        $this->assertTrue(CaseStatus::INCHIS_FARA_RECUPERARE->isTerminal());
 
         $this->assertFalse(CaseStatus::AMIABIL->isTerminal());
         $this->assertFalse(CaseStatus::DOSAR_INREGISTRAT->isTerminal());
         $this->assertFalse(CaseStatus::ORDONANTA_EMISA->isTerminal());
         $this->assertFalse(CaseStatus::DEFINITIVA->isTerminal());
+        $this->assertFalse(CaseStatus::EXECUTARE->isTerminal());
     }
 
     public function testIsActiveOnPortal(): void

@@ -27,6 +27,7 @@ final class SubscriptionController extends AbstractController
         private readonly PlanRepository $planRepository,
         private readonly InvoiceRepository $invoiceRepository,
         private readonly PaymentGatewayInterface $paymentGateway,
+        private readonly string $paymentGatewayDefault,
     ) {}
 
     #[Route('', name: 'app_subscription', methods: ['GET'])]
@@ -59,12 +60,8 @@ final class SubscriptionController extends AbstractController
     #[Route('/invoices', name: 'app_subscription_invoices', methods: ['GET'])]
     public function invoices(): Response
     {
-        /** @var User $user */
-        $user = $this->getUser();
-
-        return $this->render('subscription/invoices.html.twig', [
-            'invoices' => $this->invoicingService->getInvoicesByUser($user),
-        ]);
+        // Invoices now live on the dedicated, filterable "Facturi" table page.
+        return $this->redirectToRoute('app_invoices');
     }
 
     #[Route('/subscribe/{planId}', name: 'app_subscription_subscribe', requirements: ['planId' => '\d+'], methods: ['POST'])]
@@ -83,6 +80,16 @@ final class SubscriptionController extends AbstractController
             $this->addFlash('warning', 'rate_limit.subscription_checkout');
 
             return $this->redirectToRoute('app_subscription');
+        }
+
+        // Fiscal-data gate BEFORE checkout: a webhook-confirmed payment reaches
+        // markPaid() without passing through pay(), so we must not let the user
+        // leave for the gateway without the identity needed to issue their
+        // invoice. Enforced here, not at pay() (which no longer runs on netopia).
+        if (!$user->hasCompleteFiscalData()) {
+            $this->addFlash('warning', 'subscription.flash.fiscal_data_required');
+
+            return $this->redirectToRoute('app_profile_edit');
         }
 
         $plan = $this->planRepository->find($planId);
@@ -104,10 +111,18 @@ final class SubscriptionController extends AbstractController
         ])[0] ?? null;
 
         if (null === $invoice) {
-            return $this->redirectToRoute('app_subscription_invoices');
+            return $this->redirectToRoute('app_invoices');
         }
 
-        return $this->redirect($this->paymentGateway->startCheckout($invoice)->url);
+        $session = $this->paymentGateway->startCheckout($invoice);
+
+        // Persist the gateway transaction ref up front so reconciliation can
+        // re-query this invoice's status if its IPN never arrives.
+        if (null !== $session->externalId) {
+            $this->invoicingService->setExternalReference($invoice, $session->externalId);
+        }
+
+        return $this->redirect($session->url);
     }
 
     #[Route('/checkout/{invoiceId}', name: 'app_subscription_checkout', requirements: ['invoiceId' => '\d+'], methods: ['GET'])]
@@ -120,6 +135,29 @@ final class SubscriptionController extends AbstractController
 
         return $this->render('subscription/checkout.html.twig', [
             'invoice' => $invoice,
+            // The manual "mark as paid" button exists only for the dev/test stub.
+            // On a real gateway the user is redirected to the processor instead.
+            'is_stub' => 'stub' === $this->paymentGatewayDefault,
+        ]);
+    }
+
+    /**
+     * Landing page after the browser returns from the gateway's hosted 3DS page.
+     * Purely informational: the invoice may still be PENDING here because the
+     * IPN (the source of truth) is processed asynchronously. Shows the current
+     * state, never confirms anything.
+     */
+    #[Route('/return', name: 'app_subscription_return', methods: ['GET'])]
+    public function return(): Response
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        $latestInvoice = $this->invoicingService->getInvoicesByUser($user)[0] ?? null;
+
+        return $this->render('subscription/return.html.twig', [
+            'invoice' => $latestInvoice,
+            'subscription' => $this->subscriptionService->getCurrentSubscription($user),
         ]);
     }
 
@@ -128,6 +166,15 @@ final class SubscriptionController extends AbstractController
     {
         /** @var User $user */
         $user = $this->getUser();
+
+        // Manual confirmation is a dev/test affordance of the stub gateway only.
+        // On a real gateway, payments are confirmed via webhook; refuse here so a
+        // hand-crafted POST can never mark an invoice paid without real money.
+        if ('stub' !== $this->paymentGatewayDefault) {
+            $this->addFlash('info', 'subscription.flash.payment_processing');
+
+            return $this->redirectToRoute('app_subscription_return');
+        }
 
         $invoice = $this->invoiceRepository->find($invoiceId);
         if (null === $invoice || $invoice->getUser() !== $user) {
@@ -146,6 +193,12 @@ final class SubscriptionController extends AbstractController
             return $this->redirectToRoute('app_subscription_checkout', ['invoiceId' => $invoiceId]);
         }
 
+        if (!$user->hasCompleteFiscalData()) {
+            $this->addFlash('warning', 'subscription.flash.fiscal_data_required');
+
+            return $this->redirectToRoute('app_profile_edit');
+        }
+
         if (InvoiceStatus::PENDING === $invoice->getStatus()) {
             $this->invoicingService->markPaid($invoice);
             $this->addFlash('success', 'subscription.flash.paid');
@@ -153,6 +206,6 @@ final class SubscriptionController extends AbstractController
             $this->addFlash('info', 'subscription.flash.already_paid');
         }
 
-        return $this->redirectToRoute('app_subscription_invoices');
+        return $this->redirectToRoute('app_invoices');
     }
 }

@@ -26,6 +26,35 @@ final class WorkingDayResolverTest extends TestCase
         $this->assertSame($monday->format('Y-m-d'), $resolver->nextWorkingDay($monday)->format('Y-m-d'));
     }
 
+    public function testAddWorkingDaysBasic(): void
+    {
+        $resolver = new WorkingDayResolver();
+        // Mon 2 Feb + 3 working days = Thu 5 Feb (no weekend in between).
+        $this->assertSame('2026-02-05', $resolver->addWorkingDays(new \DateTimeImmutable('2026-02-02'), 3)->format('Y-m-d'));
+    }
+
+    public function testAddWorkingDaysSkipsWeekend(): void
+    {
+        $resolver = new WorkingDayResolver();
+        // Thu 5 Feb + 2 working days = Mon 9 Feb (skips Saturday-Sunday).
+        $this->assertSame('2026-02-09', $resolver->addWorkingDays(new \DateTimeImmutable('2026-02-05'), 2)->format('Y-m-d'));
+    }
+
+    public function testAddWorkingDaysZeroReturnsUnchanged(): void
+    {
+        $resolver = new WorkingDayResolver();
+        $monday = new \DateTimeImmutable('2026-02-02');
+        $this->assertSame('2026-02-02', $resolver->addWorkingDays($monday, 0)->format('Y-m-d'));
+    }
+
+    public function testAddWorkingDaysAbsorbsChristmasCluster(): void
+    {
+        $resolver = new WorkingDayResolver();
+        // Wed 23 Dec + 5 working days = Thu 31 Dec: the 25-26 Dec holidays plus the
+        // weekend stretch the 5 working days over 8 calendar days.
+        $this->assertSame('2026-12-31', $resolver->addWorkingDays(new \DateTimeImmutable('2026-12-23'), 5)->format('Y-m-d'));
+    }
+
     public function testSkipsSaturdayToMonday(): void
     {
         $resolver = new WorkingDayResolver();

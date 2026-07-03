@@ -13,7 +13,7 @@ namespace App\Service\Table;
 final readonly class Filter
 {
     /**
-     * @param 'search'|'enum'|'text'|'bool'|'autocomplete' $type
+     * @param 'search'|'enum'|'text'|'bool'|'autocomplete'|'date_range' $type
      * @param list<string>                                 $searchFields entity fields OR-ed for `search`
      * @param list<array{value: string, labelKey: string}> $options      for `enum`
      * @param ?string                                      $remoteRoute  route name for `autocomplete` (resolved to URL in {@see TableExtension})

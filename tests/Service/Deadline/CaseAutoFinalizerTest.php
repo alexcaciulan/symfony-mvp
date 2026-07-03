@@ -23,6 +23,8 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
  */
 class CaseAutoFinalizerTest extends KernelTestCase
 {
+    // Isolated from config: the test supplies its own buffer to the constructor so
+    // it stays self-contained across config changes (production value is 5).
     private const BUFFER_DAYS = 1;
 
     private EntityManagerInterface $em;
@@ -86,14 +88,14 @@ class CaseAutoFinalizerTest extends KernelTestCase
         return $case;
     }
 
-    /** Finalization threshold (prorogated deadline + buffer) for a communication date. */
+    /** Finalization threshold (prorogated deadline + working-day buffer) for a communication date. */
     private function threshold(string $communicationDate): \DateTimeImmutable
     {
         $deadline = $this->workingDayResolver->nextWorkingDay(
             (new \DateTimeImmutable($communicationDate))->modify('+10 days'),
         );
 
-        return $deadline->modify('+' . self::BUFFER_DAYS . ' days');
+        return $this->workingDayResolver->addWorkingDays($deadline, self::BUFFER_DAYS);
     }
 
     public function testAutoMarkFinalSkipsWhenCommunicationDateMissing(): void
@@ -171,6 +173,13 @@ class CaseAutoFinalizerTest extends KernelTestCase
         );
         $conn->executeStatement(
             "DELETE n FROM notification n JOIN user u ON n.user_id = u.id WHERE u.email LIKE ?",
+            [$this->testPrefix . '%'],
+        );
+        // The entered.DEFINITIVA listener (R1) creates a PRESCRIPTIE_EXECUTARE
+        // deadline when the auto-finalizer marks a case final, so deadlines must
+        // be removed before the parent legal_case rows.
+        $conn->executeStatement(
+            "DELETE d FROM legal_deadline d JOIN legal_case lc ON d.legal_case_id = lc.id JOIN user u ON lc.user_id = u.id WHERE u.email LIKE ?",
             [$this->testPrefix . '%'],
         );
         $conn->executeStatement(

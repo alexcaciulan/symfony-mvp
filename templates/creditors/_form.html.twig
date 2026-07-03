@@ -1,0 +1,78 @@
+{# Shared creditor form body. Expects `form` and `submit_label`. #}
+{% set input_class = 'w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-lex-navy/40 focus:border-lex-navy transition' %}
+{% set label_class = 'block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1' %}
+
+{{ form_start(form, {'attr': {'novalidate': 'novalidate'}}) }}
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="sm:col-span-2">
+            {{ form_label(form.personType, null, {'label_attr': {'class': label_class}}) }}
+            {{ form_widget(form.personType, {'attr': {'class': input_class ~ ' wizard-select'}}) }}
+            {{ form_errors(form.personType) }}
+        </div>
+
+        <div class="sm:col-span-2">
+            {{ form_label(form.name, null, {'label_attr': {'class': label_class}}) }}
+            {{ form_widget(form.name, {'attr': {'class': input_class}}) }}
+            {{ form_errors(form.name) }}
+        </div>
+
+        <div>
+            {{ form_label(form.cui, null, {'label_attr': {'class': label_class}}) }}
+            {{ form_widget(form.cui, {'attr': {'class': input_class}}) }}
+            {{ form_errors(form.cui) }}
+        </div>
+
+        <div>
+            {{ form_label(form.onrcNumber, null, {'label_attr': {'class': label_class}}) }}
+            {{ form_widget(form.onrcNumber, {'attr': {'class': input_class}}) }}
+            {{ form_errors(form.onrcNumber) }}
+        </div>
+
+        <div class="sm:col-span-2">
+            {{ form_label(form.personalId, null, {'label_attr': {'class': label_class}}) }}
+            {{ form_widget(form.personalId, {'attr': {'class': input_class}}) }}
+            {{ form_errors(form.personalId) }}
+        </div>
+
+        <div class="sm:col-span-2">
+            {{ form_label(form.address, null, {'label_attr': {'class': label_class}}) }}
+            {{ form_widget(form.address, {'attr': {'class': input_class, 'rows': 2}}) }}
+            {{ form_errors(form.address) }}
+        </div>
+
+        <div>
+            {{ form_label(form.email, null, {'label_attr': {'class': label_class}}) }}
+            {{ form_widget(form.email, {'attr': {'class': input_class}}) }}
+            {{ form_errors(form.email) }}
+        </div>
+
+        <div>
+            {{ form_label(form.phone, null, {'label_attr': {'class': label_class}}) }}
+            {{ form_widget(form.phone, {'attr': {'class': input_class}}) }}
+            {{ form_errors(form.phone) }}
+        </div>
+
+        <div>
+            {{ form_label(form.iban, null, {'label_attr': {'class': label_class}}) }}
+            {{ form_widget(form.iban, {'attr': {'class': input_class}}) }}
+            {{ form_errors(form.iban) }}
+        </div>
+
+        <div>
+            {{ form_label(form.bankName, null, {'label_attr': {'class': label_class}}) }}
+            {{ form_widget(form.bankName, {'attr': {'class': input_class}}) }}
+            {{ form_errors(form.bankName) }}
+        </div>
+
+        <div class="sm:col-span-2">
+            {{ form_label(form.legalRepresentative, null, {'label_attr': {'class': label_class}}) }}
+            {{ form_widget(form.legalRepresentative, {'attr': {'class': input_class}}) }}
+            {{ form_errors(form.legalRepresentative) }}
+        </div>
+    </div>
+
+    <div class="mt-6 flex items-center justify-end gap-3">
+        <a href="{{ path('app_creditors') }}" class="py-2 px-4 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition no-underline">{{ 'library.creditors.form.cancel'|trans }}</a>
+        <button type="submit" class="py-2 px-4 rounded-lg bg-lex-navy hover:bg-lex-navy-dark text-white text-sm font-semibold transition">{{ submit_label|trans }}</button>
+    </div>
+{{ form_end(form) }}

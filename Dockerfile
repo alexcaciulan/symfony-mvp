@@ -47,7 +47,8 @@ RUN mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini"
 RUN echo "memory_limit=256M" >> $PHP_INI_DIR/conf.d/custom.ini && \
     echo "upload_max_filesize=20M" >> $PHP_INI_DIR/conf.d/custom.ini && \
     echo "post_max_size=20M" >> $PHP_INI_DIR/conf.d/custom.ini && \
-    echo "max_execution_time=300" >> $PHP_INI_DIR/conf.d/custom.ini
+    echo "max_execution_time=300" >> $PHP_INI_DIR/conf.d/custom.ini && \
+    echo "date.timezone=Europe/Bucharest" >> $PHP_INI_DIR/conf.d/custom.ini
 
 # OPcache configuration for production
 RUN echo "opcache.enable=1" >> $PHP_INI_DIR/conf.d/opcache.ini && \

@@ -54,5 +54,23 @@ class CaseWorkflowSubscriber implements EventSubscriberInterface
             ['status' => $oldStatus],
             ['status' => $newStatus],
         );
+
+        // Reset the flag here: the cron already skips non-monitorable statuses,
+        // but the overview UI reads this flag directly, so it must be turned off too.
+        if ($subject->isPortalMonitoringActive() && !$subject->getStatus()->isActiveOnPortal()) {
+            $subject->setPortalMonitoringActive(false);
+            $this->auditLogService->log(
+                action: 'portal_monitoring_auto_stopped',
+                entityType: 'LegalCase',
+                entityId: (string) $subject->getId(),
+                oldData: ['portalMonitoringActive' => true],
+                newData: [
+                    'portalMonitoringActive' => false,
+                    'status' => $newStatus,
+                    'reason' => 'status_left_monitorable_set',
+                ],
+                category: AuditLogService::CATEGORY_PORTAL_MONITORING,
+            );
+        }
     }
 }

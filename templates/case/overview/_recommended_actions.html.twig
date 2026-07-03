@@ -124,7 +124,32 @@
                     <div class="text-[11px] text-red-600/80 dark:text-red-400/80 mt-0.5">{{ 'case_overview.recommended_actions.reject_case_hint'|trans }}</div>
                 </div>
             </button>
+        {% elseif case.status.value == 'ORDONANTA_EMISA' and case.rulingCommunicationDate %}
+            <button type="button"
+                    data-hs-overlay="#hs-modal-executare"
+                    class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg bg-gradient-to-r from-teal-50 to-teal-50/50 dark:from-teal-950/40 dark:to-teal-950/20 border border-teal-200/60 dark:border-teal-900/40 hover:from-teal-100 dark:hover:from-teal-950/60 transition group">
+                <div class="size-9 rounded-lg bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 flex items-center justify-center shrink-0">
+                    {{ icon_money('size-4') }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-semibold text-teal-900 dark:text-teal-100">{{ 'case_overview.recommended_actions.start_execution'|trans }}</div>
+                    <div class="text-[11px] text-teal-700/80 dark:text-teal-300/80 mt-0.5">{{ 'case_overview.recommended_actions.start_execution_parallel_hint'|trans }}</div>
+                </div>
+                {{ icon_chevron_right('size-4 text-teal-600 dark:text-teal-400 shrink-0') }}
+            </button>
         {% elseif case.status.value == 'IN_ANULARE' %}
+            <button type="button"
+                    data-hs-overlay="#hs-modal-executare"
+                    class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg bg-gradient-to-r from-teal-50 to-teal-50/50 dark:from-teal-950/40 dark:to-teal-950/20 border border-teal-200/60 dark:border-teal-900/40 hover:from-teal-100 dark:hover:from-teal-950/60 transition group">
+                <div class="size-9 rounded-lg bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 flex items-center justify-center shrink-0">
+                    {{ icon_money('size-4') }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-semibold text-teal-900 dark:text-teal-100">{{ 'case_overview.recommended_actions.start_execution'|trans }}</div>
+                    <div class="text-[11px] text-teal-700/80 dark:text-teal-300/80 mt-0.5">{{ 'case_overview.recommended_actions.start_execution_parallel_hint'|trans }}</div>
+                </div>
+                {{ icon_chevron_right('size-4 text-teal-600 dark:text-teal-400 shrink-0') }}
+            </button>
             <button type="button"
                     data-hs-overlay="#hs-modal-reject"
                     class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 transition">
@@ -136,7 +161,30 @@
                     <div class="text-[11px] text-red-600/80 dark:text-red-400/80 mt-0.5">{{ 'case_overview.recommended_actions.reject_case_hint_in_anulare'|trans }}</div>
                 </div>
             </button>
+            <button type="button"
+                    data-hs-overlay="#hs-modal-annulment-rejected"
+                    class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition">
+                <div class="size-9 rounded-lg bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                    {{ icon_check('size-4') }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium text-emerald-700 dark:text-emerald-300">{{ 'case_overview.recommended_actions.annulment_rejected'|trans }}</div>
+                    <div class="text-[11px] text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">{{ 'case_overview.recommended_actions.annulment_rejected_hint_in_anulare'|trans }}</div>
+                </div>
+            </button>
         {% elseif case.status.value == 'DEFINITIVA' %}
+            <button type="button"
+                    data-hs-overlay="#hs-modal-executare"
+                    class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg bg-gradient-to-r from-teal-50 to-teal-50/50 dark:from-teal-950/40 dark:to-teal-950/20 border border-teal-200/60 dark:border-teal-900/40 hover:from-teal-100 dark:hover:from-teal-950/60 transition group">
+                <div class="size-9 rounded-lg bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 flex items-center justify-center shrink-0">
+                    {{ icon_money('size-4') }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-semibold text-teal-900 dark:text-teal-100">{{ 'case_overview.recommended_actions.start_execution'|trans }}</div>
+                    <div class="text-[11px] text-teal-700/80 dark:text-teal-300/80 mt-0.5">{{ 'case_overview.recommended_actions.start_execution_hint'|trans }}</div>
+                </div>
+                {{ icon_chevron_right('size-4 text-teal-600 dark:text-teal-400 shrink-0') }}
+            </button>
             <button type="button"
                     data-hs-overlay="#hs-modal-close-case"
                     class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg bg-gradient-to-r from-emerald-50 to-emerald-50/50 dark:from-emerald-950/40 dark:to-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/40 hover:from-emerald-100 dark:hover:from-emerald-950/60 transition group">
@@ -148,6 +196,41 @@
                     <div class="text-[11px] text-emerald-700/80 dark:text-emerald-300/80 mt-0.5">{{ 'case_overview.recommended_actions.close_case_definitiva_hint'|trans }}</div>
                 </div>
                 {{ icon_chevron_right('size-4 text-emerald-600 dark:text-emerald-400 shrink-0') }}
+            </button>
+        {% elseif case.status.value == 'EXECUTARE' %}
+            <button type="button"
+                    data-hs-overlay="#hs-modal-close-case"
+                    class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg bg-gradient-to-r from-emerald-50 to-emerald-50/50 dark:from-emerald-950/40 dark:to-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/40 hover:from-emerald-100 dark:hover:from-emerald-950/60 transition group">
+                <div class="size-9 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0">
+                    {{ icon_money('size-4') }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-semibold text-emerald-900 dark:text-emerald-100">{{ 'case_overview.recommended_actions.close_case_executare'|trans }}</div>
+                    <div class="text-[11px] text-emerald-700/80 dark:text-emerald-300/80 mt-0.5">{{ 'case_overview.recommended_actions.close_case_executare_hint'|trans }}</div>
+                </div>
+                {{ icon_chevron_right('size-4 text-emerald-600 dark:text-emerald-400 shrink-0') }}
+            </button>
+            <button type="button"
+                    data-hs-overlay="#hs-modal-reject"
+                    class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 transition">
+                <div class="size-9 rounded-lg bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
+                    {{ icon_document('size-4') }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium text-red-700 dark:text-red-300">{{ 'case_overview.recommended_actions.grant_annulment_executare'|trans }}</div>
+                    <div class="text-[11px] text-red-600/80 dark:text-red-400/80 mt-0.5">{{ 'case_overview.recommended_actions.grant_annulment_executare_hint'|trans }}</div>
+                </div>
+            </button>
+            <button type="button"
+                    data-hs-overlay="#hs-modal-annulment-rejected"
+                    class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition">
+                <div class="size-9 rounded-lg bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                    {{ icon_check('size-4') }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium text-emerald-700 dark:text-emerald-300">{{ 'case_overview.recommended_actions.annulment_rejected'|trans }}</div>
+                    <div class="text-[11px] text-emerald-600/80 dark:text-emerald-400/80 mt-0.5">{{ 'case_overview.recommended_actions.annulment_rejected_hint_executare'|trans }}</div>
+                </div>
             </button>
         {% endif %}
     </div>

@@ -10,6 +10,7 @@ use App\Enum\CaseStatus;
 use App\Enum\DeadlineType;
 use App\Form\Deadline\AddDeadlineType;
 use App\Form\Deadline\EditDeadlineType;
+use App\Form\Deadline\PaymentNoticeCommunicationDateType;
 use App\Form\Deadline\RulingCommunicationDateType;
 use App\Repository\LegalCaseRepository;
 use App\Repository\LegalDeadlineRepository;
@@ -157,6 +158,56 @@ final class CaseDeadlineController extends AbstractController
         }
 
         return $this->respondDeadline($request, $case, true, 'success', 'case_overview.deadlines.flash_ruling_date_set', 'hs-modal-set-ruling-communication-date');
+    }
+
+    #[Route('/case/{caseId}/summons-communication-date', name: 'case_deadline_summons_communication_date', requirements: ['caseId' => '\d+'], methods: ['POST'])]
+    public function setPaymentNoticeCommunicationDate(int $caseId, Request $request): Response
+    {
+        $case = $this->findOrThrow($caseId);
+        $this->denyAccessUnlessGranted(CaseVoter::DEADLINE_MANAGE, $case);
+
+        $form = $this->createForm(PaymentNoticeCommunicationDateType::class);
+        $form->handleRequest($request);
+
+        if (!$form->isSubmitted() || !$form->isValid()) {
+            $firstError = null;
+            foreach ($form->getErrors(true) as $error) {
+                $firstError = $error;
+                break;
+            }
+            $toastKey = $firstError?->getMessage() ?? 'case_overview.deadlines.flash_error_validation';
+
+            return $this->respondDeadline($request, $case, false, 'error', $toastKey, null);
+        }
+
+        $data = $form->getData();
+        $communicationDate = $data['paymentNoticeCommunicationDate'];
+        $method = $data['paymentNoticeCommunicationMethod'];
+        $previousDate = $case->getPaymentNoticeCommunicationDate();
+
+        $case->setPaymentNoticeCommunicationDate($communicationDate);
+        $case->setPaymentNoticeCommunicationMethod($method);
+        $this->em->flush();
+
+        $this->auditLogService->log(
+            action: 'payment_notice_communication_date_set',
+            entityType: LegalCase::class,
+            entityId: (string) $case->getId(),
+            oldData: ['paymentNoticeCommunicationDate' => $previousDate?->format('Y-m-d')],
+            newData: [
+                'caseNumber' => $case->getCaseNumber(),
+                'paymentNoticeCommunicationDate' => $communicationDate->format('Y-m-d'),
+                'paymentNoticeCommunicationMethod' => $method->value,
+            ],
+            category: AuditLogService::CATEGORY_DEADLINE_EDITED,
+        );
+        $this->em->flush();
+
+        // Recompute the 15-day RASPUNS_SOMATIE deadline from the real date and
+        // drop the "estimated" disclaimer.
+        $this->deadlineService->recalculatePaymentNoticeDeadline($case, $communicationDate);
+
+        return $this->respondDeadline($request, $case, true, 'success', 'case_overview.summons.modal_communication_date.flash_set', 'hs-modal-set-summons-communication-date');
     }
 
     #[Route('/case/{caseId}/deadline/{deadlineId}/edit', name: 'case_deadline_edit', requirements: ['caseId' => '\d+', 'deadlineId' => '\d+'], methods: ['POST'])]

@@ -134,14 +134,24 @@ export default class extends Controller {
                     clearTimeout(this._searchTimer);
                     this._searchTimer = setTimeout(() => this._applyFilters(), 300);
                 });
+            } else if (el.dataset.filterType === 'date_range') {
+                el.addEventListener('change', () => this._applyFilters());
             }
         });
     }
 
     _applyFilters() {
         const filters = [];
+        const dateRanges = {}; // key -> { from, to }
         this.filterTargets.forEach((el) => {
             const key = el.dataset.filterKey;
+            // Date-range: two inputs share one key; combine into "from..to".
+            if (el.dataset.filterType === 'date_range') {
+                const bounds = dateRanges[key] || (dateRanges[key] = { from: '', to: '' });
+                const v = (el.value || '').trim();
+                if (v !== '') bounds[el.dataset.filterBound] = v;
+                return;
+            }
             let value;
             if (el.multiple) {
                 value = Array.from(el.selectedOptions).map((o) => o.value);
@@ -153,13 +163,18 @@ export default class extends Controller {
             // `type` is ignored server-side (derived from the table definition).
             filters.push({ field: key, type: 'like', value });
         });
+        Object.entries(dateRanges).forEach(([key, r]) => {
+            if (r.from !== '' || r.to !== '') {
+                filters.push({ field: key, type: 'date_range', value: `${r.from}..${r.to}` });
+            }
+        });
         this.table.setFilter(filters);
     }
 
     _clearFilters() {
         this._tomSelects.forEach((ts) => ts.clear(true));
         this.filterTargets.forEach((el) => {
-            if (el.dataset.filterType === 'search') {
+            if (el.dataset.filterType === 'search' || el.dataset.filterType === 'date_range') {
                 el.value = '';
             }
         });

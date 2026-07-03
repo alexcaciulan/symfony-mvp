@@ -11,6 +11,7 @@ use App\Entity\User;
 use App\Enum\InvoiceStatus;
 use App\Enum\InvoiceType;
 use App\Enum\SubscriptionStatus;
+use App\Enum\UserType;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -36,6 +37,12 @@ final class SubscriptionControllerTest extends WebTestCase
         $this->user->setEmail($this->prefix . '@test.com');
         $this->user->setPassword($hasher->hashPassword($this->user, 'password'));
         $this->user->setIsVerified(true);
+        // Complete fiscal data so the checkout gate passes (lawyer cabinet, CIF).
+        $this->user->setType(UserType::AVOCAT);
+        $this->user->setCompanyName('Cabinet ' . $this->prefix);
+        $this->user->setCui('RO12345678');
+        $this->user->setStreet('Str. Test 1');
+        $this->user->setCity('București');
         $this->em->persist($this->user);
 
         $this->plan = new Plan();
@@ -119,12 +126,12 @@ final class SubscriptionControllerTest extends WebTestCase
         self::assertSelectorTextContains('body', $this->plan->getName());
     }
 
-    public function testInvoicesRenders(): void
+    public function testInvoicesRedirectsToInvoicesPage(): void
     {
         $this->client->loginUser($this->user);
         $this->client->request('GET', '/subscription/invoices');
 
-        self::assertResponseIsSuccessful();
+        self::assertResponseRedirects('/invoices');
     }
 
     public function testSubscribeCreatesSubscriptionAndInvoiceThenRedirects(): void
@@ -173,12 +180,35 @@ final class SubscriptionControllerTest extends WebTestCase
             '_token' => $token,
         ]);
 
-        self::assertResponseRedirects('/subscription/invoices');
+        self::assertResponseRedirects('/invoices');
 
         $this->em->clear();
         $refreshed = $this->em->getRepository(Invoice::class)->find($invoice->getId());
         self::assertSame(InvoiceStatus::PAID, $refreshed->getStatus());
         self::assertNotNull($refreshed->getPaidAt());
+    }
+
+    public function testPayBlockedWhenFiscalDataIncomplete(): void
+    {
+        // Strip the CIF so the fiscal-data gate trips before payment.
+        $this->user->setCui(null);
+        $this->em->flush();
+
+        $invoice = $this->createInvoice($this->user);
+        $this->client->loginUser($this->user);
+
+        $crawler = $this->client->request('GET', '/subscription/checkout/' . $invoice->getId());
+        $token = $crawler->filter('input[name="_token"]')->first()->attr('value');
+
+        $this->client->request('POST', '/subscription/checkout/' . $invoice->getId(), [
+            '_token' => $token,
+        ]);
+
+        self::assertResponseRedirects('/profile/edit');
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(Invoice::class)->find($invoice->getId());
+        self::assertSame(InvoiceStatus::PENDING, $refreshed->getStatus(), 'invoice must NOT be paid when fiscal data is missing');
     }
 
     public function testCheckoutDeniedForNonOwner(): void

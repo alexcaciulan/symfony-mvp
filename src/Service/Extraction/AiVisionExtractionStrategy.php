@@ -8,6 +8,7 @@ use App\DTO\Extraction\DebtorExtraction;
 use App\DTO\Extraction\ExtractedDocumentData;
 use App\Entity\Document;
 use App\Enum\LegalGroundCategory;
+use App\Enum\PenaltyType;
 use App\Enum\PersonType;
 use App\Service\AuditLogService;
 use App\Service\Llm\LlmClientInterface;
@@ -300,6 +301,7 @@ final class AiVisionExtractionStrategy implements ExtractionStrategyInterface
             . 'fără text liber sau markdown. Schema strictă. Câmpuri opționale dacă lipsesc din document.';
 
         $legalGrounds = implode('|', array_map(static fn (LegalGroundCategory $c) => $c->value, LegalGroundCategory::cases()));
+        $penaltyTypes = implode('|', array_map(static fn (PenaltyType $p) => $p->value, PenaltyType::cases()));
 
         $user = <<<PROMPT
 Analizează DOCUMENTUL ATAȘAT (imagine sau PDF) și extrage datele structurate.
@@ -349,7 +351,8 @@ Returnează JSON cu această schemă (toate câmpurile opționale dacă nu apar 
     "phone": "format compact RO: 0XXXXXXXXX sau +40XXXXXXXXX",
     "iban": "RO + 22 caractere",
     "legalRepresentative": "...",
-    "confidencePerField": {"name": 0.95, "cui": 0.99}
+    "bankName": "denumirea băncii unde e deschis contul creditorului, ex: Banca Transilvania",
+    "confidencePerField": {"name": 0.95, "cui": 0.99, "bankName": 0.9}
   },
   "debtor": {
     "personType": "PJ"|"PF",
@@ -373,6 +376,13 @@ Returnează JSON cu această schemă (toate câmpurile opționale dacă nu apar 
     "dueDate": "YYYY-MM-DD",
     "legalGround": "{$legalGrounds}",
     "description": "...",
+    "invoiceNumber": "seria și numărul facturii, ex: MJ 2024-00123",
+    "invoiceDate": "YYYY-MM-DD (data emiterii facturii)",
+    "contractNumber": "numărul contractului, ex: 45/2024",
+    "contractDate": "YYYY-MM-DD (data încheierii contractului)",
+    "contractReference": "denumirea/obiectul contractului, ex: contract de prestări servicii",
+    "penaltyType": "{$penaltyTypes}",
+    "contractualPenaltyRate": 0.1,
     "confidencePerField": {}
   },
   "globalConfidence": 0.85
@@ -383,6 +393,23 @@ Confidence per câmp: 0..1, reflectă cât de sigur ești pe baza vizuală
 ghicit din context = 0.3-0.5).
 Pentru email/phone returnează `null` dacă nu apar explicit — nu inventa.
 Pentru onrcNumber respectă format `J40/1234/2025`.
+
+PENALITĂȚI (penaltyType + contractualPenaltyRate):
+  • Returnează `penaltyType="CONTRACTUAL"` ȘI `contractualPenaltyRate` (rata zilnică
+    ca procent, ex: 0.1 pentru „0,1% pe zi") STRICT DOAR dacă documentul conține o
+    clauză explicită de penalități sau majorări cu rată PER ZI / PER ZI CALENDARISTICĂ,
+    formulată explicit în procente pe zi (ex: „penalități de 0,1%/zi de întârziere",
+    „0,15% pentru fiecare zi de întârziere", „majorări de 0,1% pe zi calendaristică
+    de întârziere").
+  • Dacă rata e exprimată PER LUNĂ (ex: „1% pe lună", „1%/lună"), PER AN (ex: „18%
+    pe an", „dobândă de întârziere de 18% anual") sau ca SUMĂ FIXĂ (ex: „100 RON
+    pe zi"), returnează `penaltyType=null` și `contractualPenaltyRate=null`. NU
+    converti rate lunare sau anuale în rate zilnice și NU confunda dobânda
+    remuneratorie (pe durata contractului) cu penalitatea de întârziere.
+  • Dacă NU există nicio clauză de penalitate sau majorare de întârziere, returnează
+    `penaltyType=null` și `contractualPenaltyRate=null`. NU presupune
+    `LEGAL_PENALIZATOARE` și NU deduce o rată din context, nici din dobânda legală.
+    Câmpul gol = aplicarea valorii implicite din formular (aleasă de avocat).
 PROMPT;
 
         return [
@@ -450,6 +477,7 @@ PROMPT;
             phone: $this->coercePhone($raw['phone'] ?? null),
             iban: $this->coerceString($raw['iban'] ?? null),
             legalRepresentative: $this->coerceString($raw['legalRepresentative'] ?? null),
+            bankName: $this->coerceString($raw['bankName'] ?? null),
             confidencePerField: $this->coerceConfidenceMap($raw['confidencePerField'] ?? null),
         );
     }
@@ -493,28 +521,49 @@ PROMPT;
         $amountRaw = $raw['amount'] ?? null;
         $amount = is_numeric($amountRaw) ? (float) $amountRaw : null;
 
-        $dueDate = null;
-        if (is_string($raw['dueDate'] ?? null) && $raw['dueDate'] !== '') {
-            // `!Y-m-d` resets time-of-day to 00:00:00 — dueDate is a calendar
-            // date, not a moment, so we don't want createFromFormat seeding it
-            // with the wall-clock current time.
-            $dt = \DateTimeImmutable::createFromFormat('!Y-m-d', $raw['dueDate']);
-            $dueDate = $dt instanceof \DateTimeImmutable ? $dt : null;
-        }
-
         $legalGround = null;
         if (is_string($raw['legalGround'] ?? null) && $raw['legalGround'] !== '') {
             $legalGround = LegalGroundCategory::tryFrom($raw['legalGround']);
         }
 
+        $penaltyType = null;
+        if (is_string($raw['penaltyType'] ?? null) && $raw['penaltyType'] !== '') {
+            $penaltyType = PenaltyType::tryFrom($raw['penaltyType']);
+        }
+        $penaltyRateRaw = $raw['contractualPenaltyRate'] ?? null;
+        $penaltyRate = is_numeric($penaltyRateRaw) ? (float) $penaltyRateRaw : null;
+
         return new ClaimExtraction(
             amount: $amount,
             currency: $this->coerceString($raw['currency'] ?? null),
-            dueDate: $dueDate,
+            dueDate: $this->coerceDate($raw['dueDate'] ?? null),
             legalGround: $legalGround,
             description: $this->coerceString($raw['description'] ?? null),
+            invoiceNumber: $this->coerceString($raw['invoiceNumber'] ?? null),
+            invoiceDate: $this->coerceDate($raw['invoiceDate'] ?? null),
+            contractNumber: $this->coerceString($raw['contractNumber'] ?? null),
+            contractDate: $this->coerceDate($raw['contractDate'] ?? null),
+            contractReference: $this->coerceString($raw['contractReference'] ?? null),
+            penaltyType: $penaltyType,
+            contractualPenaltyRate: $penaltyRate,
             confidencePerField: $this->coerceConfidenceMap($raw['confidencePerField'] ?? null),
         );
+    }
+
+    /**
+     * Parses an `YYYY-MM-DD` calendar date from AI output. The leading `!` in
+     * the format resets time-of-day to 00:00:00 so createFromFormat does not
+     * seed the value with the wall-clock current time. Returns null on any
+     * non-string, empty, or malformed input.
+     */
+    private function coerceDate(mixed $value): ?\DateTimeImmutable
+    {
+        if (!is_string($value) || $value === '') {
+            return null;
+        }
+        $dt = \DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+
+        return $dt instanceof \DateTimeImmutable ? $dt : null;
     }
 
     /**

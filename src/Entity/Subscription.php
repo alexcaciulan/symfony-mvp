@@ -4,6 +4,7 @@ namespace App\Entity;
 
 use App\Enum\SubscriptionStatus;
 use App\Repository\SubscriptionRepository;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: SubscriptionRepository::class)]
@@ -37,6 +38,22 @@ class Subscription
 
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $externalId = null;
+
+    /**
+     * Netopia recurring-payment token (`token_id`), saved on the first successful
+     * on-session payment so monthly renewals can be charged off-session without
+     * user interaction. Never the PAN: only this opaque token is stored.
+     */
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $recurringToken = null;
+
+    /** Token validity horizon (usually the card expiry); past this, re-authorization is required. */
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $recurringTokenExpiresAt = null;
+
+    /** Masked card for display only (e.g. "4111 **** **** 1111"). Not sensitive. */
+    #[ORM\Column(length: 20, nullable: true)]
+    private ?string $cardMask = null;
 
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
@@ -150,6 +167,59 @@ class Subscription
         $this->externalId = $externalId;
 
         return $this;
+    }
+
+    public function getRecurringToken(): ?string
+    {
+        return $this->recurringToken;
+    }
+
+    public function setRecurringToken(?string $recurringToken): static
+    {
+        $this->recurringToken = $recurringToken;
+
+        return $this;
+    }
+
+    public function getRecurringTokenExpiresAt(): ?\DateTimeImmutable
+    {
+        return $this->recurringTokenExpiresAt;
+    }
+
+    public function setRecurringTokenExpiresAt(?\DateTimeImmutable $recurringTokenExpiresAt): static
+    {
+        $this->recurringTokenExpiresAt = $recurringTokenExpiresAt;
+
+        return $this;
+    }
+
+    public function getCardMask(): ?string
+    {
+        return $this->cardMask;
+    }
+
+    public function setCardMask(?string $cardMask): static
+    {
+        $this->cardMask = $cardMask;
+
+        return $this;
+    }
+
+    /**
+     * Whether a usable recurring token is stored and not past its expiry. Drives
+     * whether a renewal can be charged off-session or must fall back to on-session
+     * re-authorization.
+     */
+    public function hasChargeableToken(?\DateTimeImmutable $now = null): bool
+    {
+        if (null === $this->recurringToken) {
+            return false;
+        }
+        if (null === $this->recurringTokenExpiresAt) {
+            return true;
+        }
+
+        return $this->recurringTokenExpiresAt >= ($now ?? new \DateTimeImmutable());
     }
 
     public function getCreatedAt(): \DateTimeImmutable

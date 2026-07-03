@@ -7,7 +7,9 @@ namespace App\Service\Deadline;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Entity\User;
+use App\Enum\CaseStatus;
 use App\Enum\DeadlineType;
+use App\Repository\LegalDeadlineRepository;
 use App\Service\AuditLogService;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -22,12 +24,40 @@ final class DeadlineService
     private const PAYMENT_NOTICE_DAYS = 15;          // CPC art. 1015 alin. 1
     private const APPEAL_DAYS = 10;                  // CPC art. 1024 alin. 1
     private const PRESCRIPTION_INTERVAL = '+3 years'; // NCC art. 2517
+    private const EXECUTION_PRESCRIPTION_INTERVAL = '+3 years'; // CPC art. 706 alin. 1
 
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly WorkingDayResolver $workingDayResolver,
         private readonly AuditLogService $auditLogService,
+        private readonly LegalDeadlineRepository $deadlineRepository,
+        private readonly int $voluntaryPaymentDays = 40,
     ) {}
+
+    /**
+     * Advisory date after which starting enforcement is recommended: the
+     * voluntary-payment window (default 40 days, configurable) counted from the
+     * date the ruling was communicated to the lawyer, prorogated to the next
+     * working day. Returns null unless the case is final (DEFINITIVA) and that
+     * communication date is known. This is NOT a procedural term and never blocks
+     * `trece_la_executare`: a final order is enforceable immediately (CPC art.
+     * 1021); the window is a practical courtesy before enforcing.
+     */
+    public function recommendedExecutionDate(LegalCase $legalCase): ?\DateTimeImmutable
+    {
+        if ($legalCase->getStatus() !== CaseStatus::DEFINITIVA) {
+            return null;
+        }
+
+        $communicationDate = $legalCase->getRulingCommunicationDate();
+        if ($communicationDate === null) {
+            return null;
+        }
+
+        $rawDate = $communicationDate->modify('+' . $this->voluntaryPaymentDays . ' days');
+
+        return $this->workingDayResolver->nextWorkingDay($rawDate);
+    }
 
     /**
      * Termen răspuns somație: paymentNoticeDate + 15 zile (CPC art. 1015 alin. 1),
@@ -45,6 +75,67 @@ final class DeadlineService
             baseDate: $paymentNoticeDate,
             rawDeadline: $rawDeadline,
         );
+    }
+
+    /**
+     * Whether the 15-day summons payment term has expired (CPC art. 1015 alin. 1).
+     * Returns false when the real communication date is unknown: the term cannot
+     * be proven expired, so OP generation relies on the lawyer's explicit consent
+     * instead (it is never computed from the PDF generation date, which would be
+     * premature and inadmissible per CPC art. 1016).
+     */
+    public function isPaymentTermExpired(LegalCase $legalCase, \DateTimeImmutable $today): bool
+    {
+        $communicationDate = $legalCase->getPaymentNoticeCommunicationDate();
+        if ($communicationDate === null) {
+            return false;
+        }
+
+        $termEnd = $this->workingDayResolver->nextWorkingDay($communicationDate->modify('+' . self::PAYMENT_NOTICE_DAYS . ' days'));
+
+        // Strictly after: the term lapses at the end of day D15, so the OP is
+        // admissible only from D16 (CPC art. 1015-1016).
+        return $today > $termEnd;
+    }
+
+    /**
+     * Recomputes the RASPUNS_SOMATIE deadline from the real date the debtor received
+     * the summons (CPC art. 1015 alin. 1: 15 days run from receipt, not generation),
+     * clearing the "estimated" disclaimer; creates it if missing. Next-working-day
+     * prorogation is a product choice (substantive term, not CPC art. 181 procedural).
+     */
+    public function recalculatePaymentNoticeDeadline(LegalCase $legalCase, \DateTimeImmutable $communicationDate): LegalDeadline
+    {
+        $deadline = $this->deadlineRepository->findOneByCaseAndType($legalCase, DeadlineType::RASPUNS_SOMATIE);
+        if ($deadline === null) {
+            return $this->createPaymentNoticeDeadline($legalCase, $communicationDate);
+        }
+
+        $rawDeadline = $communicationDate->modify('+' . self::PAYMENT_NOTICE_DAYS . ' days');
+        $deadlineDate = $this->workingDayResolver->nextWorkingDay($rawDeadline);
+
+        $deadline->setDeadlineDate($deadlineDate);
+        $deadline->setDescription(null); // estimate confirmed against the real communication date
+        $this->em->flush();
+
+        $this->auditLogService->log(
+            action: 'payment_notice_deadline_recomputed',
+            entityType: LegalDeadline::class,
+            entityId: (string) $deadline->getId(),
+            newData: [
+                'deadlineId' => $deadline->getId(),
+                'type' => DeadlineType::RASPUNS_SOMATIE->value,
+                'caseNumber' => $legalCase->getCaseNumber(),
+                'baseDate' => $communicationDate->format('Y-m-d'),
+                'rawDeadline' => $rawDeadline->format('Y-m-d'),
+                'deadlineDate' => $deadlineDate->format('Y-m-d'),
+                'prorogated' => $rawDeadline->format('Y-m-d') !== $deadlineDate->format('Y-m-d'),
+            ],
+            category: AuditLogService::CATEGORY_DEADLINE_EDITED,
+        );
+        $this->em->flush();
+
+        return $deadline;
     }
 
     /**
@@ -95,6 +186,24 @@ final class DeadlineService
             DeadlineType::PRESCRIPTIE,
             $deadlineDate,
             baseDate: $baseDate,
+            rawDeadline: $deadlineDate,
+        );
+    }
+
+    /**
+     * Enforcement prescription deadline: definitiveDate + 3 years (CPC art. 706 para.
+     * 1, runs from when the order became final). Priority CRITICAL. No prorogation:
+     * a years-based limitation is outside CPC art. 181 para. 4 (day-based terms).
+     */
+    public function createExecutionPrescriptionDeadline(LegalCase $legalCase, \DateTimeImmutable $definitiveDate): LegalDeadline
+    {
+        $deadlineDate = $definitiveDate->modify(self::EXECUTION_PRESCRIPTION_INTERVAL);
+
+        return $this->persistDeadline(
+            $legalCase,
+            DeadlineType::PRESCRIPTIE_EXECUTARE,
+            $deadlineDate,
+            baseDate: $definitiveDate,
             rawDeadline: $deadlineDate,
         );
     }

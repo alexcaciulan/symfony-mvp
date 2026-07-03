@@ -10,6 +10,7 @@ use App\DTO\Wizard\Step2DebtorsData;
 use App\DTO\Wizard\Step3ClaimData;
 use App\Entity\Document;
 use App\Enum\LegalGroundCategory;
+use App\Enum\PenaltyType;
 use App\Enum\PersonType;
 use App\Repository\DocumentRepository;
 
@@ -114,7 +115,7 @@ final class PrefillFromExtractionService
                 continue;
             }
             $confidence = is_array($creditor['confidencePerField'] ?? null) ? $creditor['confidencePerField'] : [];
-            foreach (['personType', 'name', 'cui', 'personalId', 'onrcNumber', 'address', 'email', 'phone', 'iban', 'legalRepresentative'] as $field) {
+            foreach (['personType', 'name', 'cui', 'personalId', 'onrcNumber', 'address', 'email', 'phone', 'iban', 'legalRepresentative', 'bankName'] as $field) {
                 $this->captureCandidate($bag, $field, $creditor[$field] ?? null, $confidence[$field] ?? null);
             }
         }
@@ -158,7 +159,7 @@ final class PrefillFromExtractionService
                 continue;
             }
             $confidence = is_array($claim['confidencePerField'] ?? null) ? $claim['confidencePerField'] : [];
-            foreach (['amount', 'currency', 'dueDate', 'legalGround', 'description'] as $field) {
+            foreach (['amount', 'currency', 'dueDate', 'legalGround', 'description', 'invoiceNumber', 'invoiceDate', 'contractNumber', 'contractDate', 'contractReference', 'penaltyType', 'contractualPenaltyRate'] as $field) {
                 $this->captureCandidate($bag, $field, $claim[$field] ?? null, $confidence[$field] ?? null);
             }
         }
@@ -227,6 +228,7 @@ final class PrefillFromExtractionService
             phone: $this->toStringOrNull($v['phone'] ?? null),
             iban: $this->toStringOrNull($v['iban'] ?? null),
             legalRepresentative: $this->toStringOrNull($v['legalRepresentative'] ?? null),
+            bankName: $this->toStringOrNull($v['bankName'] ?? null),
             autoFilled: $picked['autoFilled'],
         );
     }
@@ -272,21 +274,35 @@ final class PrefillFromExtractionService
     {
         $picked = $this->pickBest($candidates);
         $v = $picked['values'];
+        $autoFilled = $picked['autoFilled'];
 
-        $dueDate = null;
-        if (isset($v['dueDate']) && is_string($v['dueDate']) && $v['dueDate'] !== '') {
-            try {
-                $dueDate = new \DateTimeImmutable($v['dueDate']);
-            } catch (\Exception) {
-                // Malformed date in extraction payload — drop the field, the
-                // lawyer will pick it manually. Don't fail the whole prefill.
-                $dueDate = null;
+        // Date fields: parse tolerantly; drop the auto-filled badge when the
+        // extraction payload carried a malformed date (lawyer picks manually).
+        // Don't fail the whole prefill over a single bad date.
+        $dueDate = $this->toDateOrNull($v['dueDate'] ?? null);
+        $invoiceDate = $this->toDateOrNull($v['invoiceDate'] ?? null);
+        $contractDate = $this->toDateOrNull($v['contractDate'] ?? null);
+        foreach (['dueDate' => $dueDate, 'invoiceDate' => $invoiceDate, 'contractDate' => $contractDate] as $field => $parsed) {
+            if ($parsed === null) {
+                $autoFilled = array_values(array_filter($autoFilled, static fn (string $f) => $f !== $field));
             }
         }
 
-        $autoFilled = $picked['autoFilled'];
-        if ($dueDate === null) {
-            $autoFilled = array_values(array_filter($autoFilled, static fn (string $f) => $f !== 'dueDate'));
+        // Honour a CONTRACTUAL prefill only with a positive rate: Step3ClaimData
+        // requires it via Assert\When/Assert\Positive, so a missing or <= 0 rate
+        // would surface a validation error on a prefilled field. Falls back to
+        // the DTO default (the AI prompt never emits LEGAL_PENALIZATOARE).
+        $penaltyType = $this->toPenaltyType($v['penaltyType'] ?? null);
+        $penaltyRate = isset($v['contractualPenaltyRate']) && is_numeric($v['contractualPenaltyRate'])
+            ? (float) $v['contractualPenaltyRate']
+            : null;
+        if ($penaltyType !== PenaltyType::CONTRACTUAL || $penaltyRate === null || $penaltyRate <= 0.0) {
+            $penaltyType = null;
+            $penaltyRate = null;
+            $autoFilled = array_values(array_filter(
+                $autoFilled,
+                static fn (string $f) => $f !== 'penaltyType' && $f !== 'contractualPenaltyRate',
+            ));
         }
 
         return new Step3ClaimData(
@@ -295,6 +311,13 @@ final class PrefillFromExtractionService
             dueDate: $dueDate,
             legalGround: $this->toLegalGround($v['legalGround'] ?? null),
             description: $this->toStringOrNull($v['description'] ?? null),
+            penaltyType: $penaltyType ?? PenaltyType::LEGAL_PENALIZATOARE,
+            contractualPenaltyRate: $penaltyRate,
+            contractReference: $this->toStringOrNull($v['contractReference'] ?? null),
+            invoiceNumber: $this->toStringOrNull($v['invoiceNumber'] ?? null),
+            invoiceDate: $invoiceDate,
+            contractNumber: $this->toStringOrNull($v['contractNumber'] ?? null),
+            contractDate: $contractDate,
             autoFilled: $autoFilled,
         );
     }
@@ -329,6 +352,27 @@ final class PrefillFromExtractionService
         }
 
         return LegalGroundCategory::tryFrom($raw);
+    }
+
+    private function toPenaltyType(mixed $raw): ?PenaltyType
+    {
+        if (!is_string($raw)) {
+            return null;
+        }
+
+        return PenaltyType::tryFrom($raw);
+    }
+
+    private function toDateOrNull(mixed $raw): ?\DateTimeImmutable
+    {
+        if (!is_string($raw) || $raw === '') {
+            return null;
+        }
+        try {
+            return new \DateTimeImmutable($raw);
+        } catch (\Exception) {
+            return null;
+        }
     }
 
     private function toStringOrNull(mixed $raw): ?string

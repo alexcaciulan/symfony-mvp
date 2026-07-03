@@ -40,23 +40,58 @@ final class CoverageConfidenceCalculatorTest extends TestCase
 
     public function testFullCoverageAtPerfectConfidenceReachesOne(): void
     {
-        // 25 fields at 1.0 — exactly EXPECTED_TOTAL_FIELDS — must produce 1.0.
-        $creditor = array_fill_keys(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'], 1.0);
-        $debtor = array_fill_keys(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'], 1.0);
-        $claim = array_fill_keys(['a', 'b', 'c', 'd', 'e'], 1.0);
+        // 25 core fields at 1.0 — exactly EXPECTED_TOTAL_FIELDS — must produce 1.0.
+        // Uses real core field names because only allow-listed fields count.
+        $creditor = array_fill_keys(
+            ['personType', 'name', 'cui', 'personalId', 'onrcNumber', 'address', 'email', 'phone', 'iban', 'legalRepresentative'],
+            1.0,
+        );
+        $debtor = array_fill_keys(
+            ['personType', 'name', 'cui', 'personalId', 'onrcNumber', 'address', 'email', 'phone', 'iban', 'administrator'],
+            1.0,
+        );
+        $claim = array_fill_keys(['amount', 'currency', 'dueDate', 'legalGround', 'description'], 1.0);
 
         $this->assertSame(1.0, CoverageConfidenceCalculator::compute($creditor, $debtor, $claim));
     }
 
     public function testOverCountedFieldsClampToOne(): void
     {
-        // 30 fields at 1.0 (5 above expected total) — malformed AI output that
-        // would otherwise yield 30/25 = 1.2. The clamp protects threshold
-        // comparisons downstream which assume [0, 1].
-        $creditor = array_fill_keys(range(1, 15), 1.0);
-        $debtor = array_fill_keys(range(1, 15), 1.0);
+        // All core fields populated at 1.0: 10 creditor + 12 debtor + 5 claim =
+        // 27, above the expected total of 25 (debtor county/locality are core
+        // but push past 25). Would yield 27/25 = 1.08; the clamp protects
+        // threshold comparisons downstream which assume [0, 1].
+        $creditor = array_fill_keys(
+            ['personType', 'name', 'cui', 'personalId', 'onrcNumber', 'address', 'email', 'phone', 'iban', 'legalRepresentative'],
+            1.0,
+        );
+        $debtor = array_fill_keys(
+            ['personType', 'name', 'cui', 'personalId', 'onrcNumber', 'address', 'county', 'locality', 'email', 'phone', 'iban', 'administrator'],
+            1.0,
+        );
+        $claim = array_fill_keys(['amount', 'currency', 'dueDate', 'legalGround', 'description'], 1.0);
 
-        $this->assertSame(1.0, CoverageConfidenceCalculator::compute($creditor, $debtor, null));
+        $this->assertSame(1.0, CoverageConfidenceCalculator::compute($creditor, $debtor, $claim));
+    }
+
+    public function testNonCoreFieldsAreExcludedFromCoverage(): void
+    {
+        // New optional fields (bankName, invoice/contract metadata, penalty)
+        // must NOT inflate coverage, otherwise adding them would silently shift
+        // the cascade short-circuit threshold for every strategy.
+        $creditor = ['name' => 1.0, 'bankName' => 1.0];
+        $claim = [
+            'amount' => 1.0,
+            'invoiceNumber' => 1.0,
+            'invoiceDate' => 1.0,
+            'contractNumber' => 1.0,
+            'penaltyType' => 1.0,
+            'contractualPenaltyRate' => 1.0,
+        ];
+
+        // Only 'name' and 'amount' are core → 2/25 = 0.08. The 6 non-core
+        // entries are ignored.
+        $this->assertSame(0.08, CoverageConfidenceCalculator::compute($creditor, null, $claim));
     }
 
     public function testNegativeAndZeroValuesAreFilteredOut(): void

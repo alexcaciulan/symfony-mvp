@@ -22,6 +22,7 @@ final class InterestCalculatorService
         RelationshipType $relationshipType,
         InterestKind $kind = InterestKind::PENALIZATOARE,
         string $currency = 'RON',
+        ?\DateTimeImmutable $invoiceDate = null,
     ): InterestResult {
         if ($currency !== 'RON') {
             throw new \InvalidArgumentException('exception.calculation.currency_unsupported');
@@ -29,9 +30,10 @@ final class InterestCalculatorService
 
         $dueDate = $this->normalize($dueDate);
         $referenceDate = $this->normalize($referenceDate);
+        $invoiceDate = $invoiceDate !== null ? $this->normalize($invoiceDate) : null;
 
         if ($dueDate >= $referenceDate) {
-            return new InterestResult(0.0, []);
+            return new InterestResult(0.0, [], $dueDate, $referenceDate, $invoiceDate);
         }
 
         $configs = $this->rateRepository->findAllValidUpTo($referenceDate);
@@ -61,7 +63,7 @@ final class InterestCalculatorService
 
         $total = array_sum(array_map(fn(InterestPeriod $p) => $p->periodInterest, $periods));
 
-        return new InterestResult($total, $periods);
+        return new InterestResult($total, $periods, $dueDate, $referenceDate, $invoiceDate);
     }
 
     private function buildPeriod(
@@ -72,6 +74,9 @@ final class InterestCalculatorService
         RelationshipType $relationshipType,
         InterestKind $kind,
     ): InterestPeriod {
+        // Z+1 is implicit in diff(): with start = dueDate the count covers the
+        // half-open interval (dueDate, end], i.e. day after due date through end
+        // inclusive (art. 1535 NCC); segments telescope to diff(dueDate, refDate).
         $days = (int) $start->diff($end)->days;
         $applicableRate = $relationshipType->applicableRate($nbrRate, $kind);
         $periodInterest = $amount * ($applicableRate / 100.0) * $days / 365.0;

@@ -10,6 +10,7 @@ use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\DeadlinePriority;
 use App\Enum\DeadlineType;
+use App\Enum\PaymentNoticeCommunicationMethod;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -110,6 +111,7 @@ final class CaseDeadlineControllerTest extends WebTestCase
 
         $add = (string) $crawler->filter('input[name="add_deadline[_token]"]')->first()->attr('value');
         $setRuling = (string) $crawler->filter('input[name="ruling_communication_date[_token]"]')->first()->attr('value');
+        $setSummons = (string) $crawler->filter('input[name="payment_notice_communication_date[_token]"]')->first()->attr('value');
 
         $editNodes = $crawler->filter('input[name="edit_deadline[_token]"]');
         $edit = $editNodes->count() > 0 ? (string) $editNodes->first()->attr('value') : '';
@@ -121,7 +123,7 @@ final class CaseDeadlineControllerTest extends WebTestCase
             }
         });
 
-        return ['complete' => $complete, 'add' => $add, 'set_ruling' => $setRuling, 'edit' => $edit, 'delete' => $delete];
+        return ['complete' => $complete, 'add' => $add, 'set_ruling' => $setRuling, 'set_summons' => $setSummons, 'edit' => $edit, 'delete' => $delete];
     }
 
     public function testEditDeadlineHappyPathUpdatesDateAndDescription(): void
@@ -504,6 +506,91 @@ final class CaseDeadlineControllerTest extends WebTestCase
             'type' => DeadlineType::OTHER,
         ]);
         self::assertCount(0, $deadlines, 'Data în trecut trebuie respinsă de validator.');
+    }
+
+    // ===== summons-communication-date ===================================
+
+    public function testSetPaymentNoticeCommunicationDateRecomputesDeadline(): void
+    {
+        $this->case->setStatus(CaseStatus::SOMATIE_TRIMISA);
+        $this->em->flush();
+        // Pre-existing estimated RASPUNS_SOMATIE deadline (as set at trimite_somatie).
+        $this->createDeadline(DeadlineType::RASPUNS_SOMATIE, new \DateTimeImmutable('2026-01-20'));
+
+        $this->client->loginUser($this->user);
+        $tokens = $this->tokensFromOverview();
+
+        $this->client->request('POST', sprintf('/case/%d/summons-communication-date', $this->case->getId()), [
+            'payment_notice_communication_date' => [
+                '_token' => $tokens['set_summons'],
+                'paymentNoticeCommunicationDate' => '2026-02-10',
+                'paymentNoticeCommunicationMethod' => 'EXECUTOR',
+            ],
+        ]);
+
+        self::assertResponseRedirects('/case/' . $this->case->getId() . '?tab=termene');
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame('2026-02-10', $refreshed->getPaymentNoticeCommunicationDate()->format('Y-m-d'));
+        self::assertSame(PaymentNoticeCommunicationMethod::EXECUTOR, $refreshed->getPaymentNoticeCommunicationMethod());
+
+        $deadlines = $this->em->getRepository(LegalDeadline::class)->findBy([
+            'legalCase' => $refreshed->getId(),
+            'type' => DeadlineType::RASPUNS_SOMATIE,
+        ]);
+        self::assertCount(1, $deadlines);
+        // 2026-02-10 (Tue) + 15 days = 2026-02-25 (Wed, working day)
+        self::assertSame('2026-02-25', $deadlines[0]->getDeadlineDate()->format('Y-m-d'));
+    }
+
+    public function testSetSummonsCommunicationDateRejectsInvalidCsrf(): void
+    {
+        $this->case->setStatus(CaseStatus::SOMATIE_TRIMISA);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('POST', sprintf('/case/%d/summons-communication-date', $this->case->getId()), [
+            'payment_notice_communication_date' => [
+                '_token' => 'invalid-token',
+                'paymentNoticeCommunicationDate' => '2026-02-10',
+                'paymentNoticeCommunicationMethod' => 'EXECUTOR',
+            ],
+        ]);
+
+        self::assertResponseRedirects('/case/' . $this->case->getId() . '?tab=termene');
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertNull($refreshed->getPaymentNoticeCommunicationDate(), 'CSRF invalid → no date persisted.');
+    }
+
+    public function testSetSummonsCommunicationDateForbiddenForOtherUser(): void
+    {
+        $hasher = static::getContainer()->get(UserPasswordHasherInterface::class);
+        $intruder = new User();
+        $intruder->setEmail('intruder-summons-' . uniqid() . '@test.com');
+        $intruder->setPassword($hasher->hashPassword($intruder, 'password'));
+        $intruder->setIsVerified(true);
+        $intruder->setFirstName('Intruder');
+        $intruder->setLastName('Summons');
+        $this->em->persist($intruder);
+        $this->em->flush();
+
+        try {
+            $this->client->loginUser($intruder);
+            $this->client->request('POST', sprintf('/case/%d/summons-communication-date', $this->case->getId()), [
+                'payment_notice_communication_date' => [
+                    '_token' => 'any',
+                    'paymentNoticeCommunicationDate' => '2026-02-10',
+                    'paymentNoticeCommunicationMethod' => 'EXECUTOR',
+                ],
+            ]);
+            self::assertResponseStatusCodeSame(Response::HTTP_FORBIDDEN);
+        } finally {
+            $conn = $this->em->getConnection();
+            $conn->executeStatement('DELETE FROM `user` WHERE id = ?', [$intruder->getId()]);
+        }
     }
 
     // ===== ruling-communication-date ====================================

@@ -1,0 +1,49 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ 'subscription.return.title'|trans }}{% endblock %}
+
+{% block body %}
+    <div class="max-w-lg mx-auto">
+        <h1 class="text-2xl font-bold text-gray-900 mb-6">{{ 'subscription.return.title'|trans }}</h1>
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-8">
+            {% if invoice is null %}
+                <p class="text-sm text-gray-600">{{ 'subscription.return.no_invoice'|trans }}</p>
+            {% elseif invoice.status.value == 'paid' %}
+                <div class="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
+                    {{ 'subscription.return.paid'|trans }}
+                </div>
+            {% else %}
+                <div class="rounded-lg bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-800">
+                    {{ 'subscription.return.processing'|trans }}
+                </div>
+            {% endif %}
+
+            {% if invoice is not null %}
+                <dl class="mt-6 space-y-4">
+                    <div class="flex justify-between text-sm">
+                        <dt class="text-gray-500">{{ 'subscription.checkout.type'|trans }}</dt>
+                        <dd class="text-gray-800 font-medium">{{ invoice.type.label|trans }}</dd>
+                    </div>
+                    <div class="flex justify-between text-sm border-t border-gray-100 pt-4">
+                        <dt class="text-gray-500">{{ 'subscription.checkout.amount'|trans }}</dt>
+                        <dd class="text-gray-900 font-bold tabular-nums">{{ invoice.amount|number_format(2, ',', '.') }} RON</dd>
+                    </div>
+                    <div class="flex justify-between text-sm border-t border-gray-100 pt-4">
+                        <dt class="text-gray-500">{{ 'subscription.checkout.status'|trans }}</dt>
+                        <dd class="text-gray-800">{{ invoice.status.label|trans }}</dd>
+                    </div>
+                </dl>
+            {% endif %}
+
+            <div class="mt-6 pt-4 border-t border-gray-100 flex gap-4">
+                <a href="{{ path('app_invoices') }}" class="text-sm text-gray-500 hover:underline no-underline">
+                    {{ 'subscription.return.invoices'|trans }}
+                </a>
+                <a href="{{ path('app_subscription') }}" class="text-sm text-gray-500 hover:underline no-underline">
+                    {{ 'subscription.return.subscription'|trans }}
+                </a>
+            </div>
+        </div>
+    </div>
+{% endblock %}

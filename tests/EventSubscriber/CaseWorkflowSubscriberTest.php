@@ -149,6 +149,81 @@ class CaseWorkflowSubscriberTest extends KernelTestCase
         $this->assertSame('onCompleted', $events['workflow.legal_case.completed']);
     }
 
+    public function testMonitoringAutoStopsWhenEnteringDefinitiva(): void
+    {
+        $case = $this->createCase();
+        $case->setStatus(CaseStatus::ORDONANTA_EMISA);
+        $case->setPortalMonitoringActive(true);
+        $this->em->flush();
+
+        $this->workflowService->apply($case, 'marcheaza_definitiva');
+        $this->em->flush();
+
+        $this->assertFalse($case->isPortalMonitoringActive(), 'DEFINITIVA leaves the monitorable set → monitoring off.');
+
+        $log = $this->em->getRepository(AuditLog::class)->findOneBy([
+            'entityId' => (string) $case->getId(),
+            'action' => 'portal_monitoring_auto_stopped',
+        ]);
+        $this->assertNotNull($log);
+    }
+
+    public function testMonitoringAutoStopsWhenRejected(): void
+    {
+        $case = $this->createCase();
+        $case->setStatus(CaseStatus::TERMEN_FIXAT);
+        $case->setPortalMonitoringActive(true);
+        $this->em->flush();
+
+        $this->workflowService->apply($case, 'respinge');
+        $this->em->flush();
+
+        $this->assertFalse($case->isPortalMonitoringActive());
+
+        $log = $this->em->getRepository(AuditLog::class)->findOneBy([
+            'entityId' => (string) $case->getId(),
+            'action' => 'portal_monitoring_auto_stopped',
+        ]);
+        $this->assertNotNull($log);
+    }
+
+    public function testMonitoringStaysActiveWithinMonitorableSet(): void
+    {
+        $case = $this->createCase();
+        $case->setStatus(CaseStatus::DOSAR_INREGISTRAT);
+        $case->setPortalMonitoringActive(true);
+        $this->em->flush();
+
+        $this->workflowService->apply($case, 'fixeaza_termen'); // → TERMEN_FIXAT (still monitorable)
+        $this->em->flush();
+
+        $this->assertTrue($case->isPortalMonitoringActive(), 'Transition within the monitorable set must not stop monitoring.');
+
+        $log = $this->em->getRepository(AuditLog::class)->findOneBy([
+            'entityId' => (string) $case->getId(),
+            'action' => 'portal_monitoring_auto_stopped',
+        ]);
+        $this->assertNull($log, 'No auto-stop audit when staying monitorable.');
+    }
+
+    public function testNoAutoStopAuditWhenAlreadyInactive(): void
+    {
+        $case = $this->createCase();
+        $case->setStatus(CaseStatus::ORDONANTA_EMISA);
+        $case->setPortalMonitoringActive(false);
+        $this->em->flush();
+
+        $this->workflowService->apply($case, 'marcheaza_definitiva');
+        $this->em->flush();
+
+        $this->assertFalse($case->isPortalMonitoringActive());
+        $log = $this->em->getRepository(AuditLog::class)->findOneBy([
+            'entityId' => (string) $case->getId(),
+            'action' => 'portal_monitoring_auto_stopped',
+        ]);
+        $this->assertNull($log, 'Flag already false → no redundant auto-stop audit.');
+    }
+
     protected function tearDown(): void
     {
         if (!isset($this->testPrefix)) {
@@ -168,6 +243,12 @@ class CaseWorkflowSubscriberTest extends KernelTestCase
             );
             $conn->executeStatement(
                 "DELETE n FROM notification n JOIN user u ON n.user_id = u.id WHERE u.email LIKE ?",
+                [$this->testPrefix . '%']
+            );
+            // marcheaza_definitiva creates a PRESCRIPTIE_EXECUTARE deadline (R1),
+            // so deadlines must be removed before the parent legal_case rows.
+            $conn->executeStatement(
+                "DELETE d FROM legal_deadline d JOIN legal_case lc ON d.legal_case_id = lc.id JOIN user u ON lc.user_id = u.id WHERE u.email LIKE ?",
                 [$this->testPrefix . '%']
             );
             $conn->executeStatement(

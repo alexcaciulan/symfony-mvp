@@ -21,7 +21,7 @@ framework:
                 - EXECUTARE
                 - RESPINSA
                 - INCHIS_SUCCES
-                - INCHIS_PARTIAL_INSOLVABIL
+                - INCHIS_FARA_RECUPERARE
             transitions:
                 trimite_somatie:
                     from: AMIABIL
@@ -50,12 +50,22 @@ framework:
                 respinge_cerere_anulare:
                     from: IN_ANULARE
                     to: DEFINITIVA
+                # Annulment rejected while enforcement is already running: the order
+                # stands and enforcement continues, so this records the outcome
+                # without leaving EXECUTARE (a single-marking machine cannot be both
+                # in EXECUTARE and back in DEFINITIVA).
+                respinge_cerere_anulare_executare:
+                    from: EXECUTARE
+                    to: EXECUTARE
                 admite_cerere_anulare:
-                    from: IN_ANULARE
+                    from: [IN_ANULARE, EXECUTARE]
                     to: RESPINSA
+                trece_la_executare:
+                    from: [ORDONANTA_EMISA, IN_ANULARE, DEFINITIVA]
+                    to: EXECUTARE
                 inchide_succes:
-                    from: DEFINITIVA
+                    from: [DEFINITIVA, EXECUTARE]
                     to: INCHIS_SUCCES
-                inchide_insolvabil:
-                    from: DEFINITIVA
-                    to: INCHIS_PARTIAL_INSOLVABIL
+                inchide_fara_recuperare:
+                    from: [DEFINITIVA, EXECUTARE]
+                    to: INCHIS_FARA_RECUPERARE

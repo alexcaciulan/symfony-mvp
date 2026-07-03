@@ -27,7 +27,7 @@ enum CaseStatus: string
     case EXECUTARE = 'EXECUTARE';
     case RESPINSA = 'RESPINSA';
     case INCHIS_SUCCES = 'INCHIS_SUCCES';
-    case INCHIS_PARTIAL_INSOLVABIL = 'INCHIS_PARTIAL_INSOLVABIL';
+    case INCHIS_FARA_RECUPERARE = 'INCHIS_FARA_RECUPERARE';
 
     public function label(): string
     {
@@ -48,14 +48,14 @@ enum CaseStatus: string
             self::EXECUTARE => 'teal',
             self::RESPINSA => 'red',
             self::INCHIS_SUCCES => 'green',
-            self::INCHIS_PARTIAL_INSOLVABIL => 'gray',
+            self::INCHIS_FARA_RECUPERARE => 'gray',
         };
     }
 
     public function isTerminal(): bool
     {
         return match ($this) {
-            self::RESPINSA, self::INCHIS_SUCCES, self::INCHIS_PARTIAL_INSOLVABIL => true,
+            self::RESPINSA, self::INCHIS_SUCCES, self::INCHIS_FARA_RECUPERARE => true,
             default => false,
         };
     }

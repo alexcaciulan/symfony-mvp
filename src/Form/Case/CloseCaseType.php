@@ -13,10 +13,10 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints as Assert;
 
 /**
- * Form for closing a case from the DEFINITIVA state. The reason maps to
- * one of two workflow transitions via CloseReason::targetTransition():
- * PAID/PARTIAL → `inchide_succes`, INSOLVENT/ABANDONED → `inchide_insolvabil`.
- * data_class null.
+ * Form for closing a case from the DEFINITIVA or EXECUTARE state. The reason
+ * maps to one of two workflow transitions via CloseReason::targetTransition():
+ * PAID/PARTIAL → `inchide_succes`, ABANDONED/INSOLVENT_EXECUTARE →
+ * `inchide_fara_recuperare`. data_class null.
  */
 final class CloseCaseType extends AbstractType
 {

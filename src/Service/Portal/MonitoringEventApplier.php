@@ -6,7 +6,6 @@ namespace App\Service\Portal;
 
 use App\Entity\CourtPortalEvent;
 use App\Entity\LegalCase;
-use App\Enum\CaseStatus;
 use App\Enum\CaseTransition;
 use App\Enum\DeadlineType;
 use App\Enum\PortalEventType;
@@ -47,6 +46,7 @@ final class MonitoringEventApplier
         private readonly LegalDeadlineRepository $deadlineRepository,
         private readonly WorkingDayResolver $workingDayResolver,
         private readonly AuditLogService $auditLogService,
+        private readonly RulingProposalResolver $proposalResolver,
         private readonly EntityManagerInterface $em,
         private readonly LoggerInterface $logger = new NullLogger(),
     ) {}
@@ -126,7 +126,7 @@ final class MonitoringEventApplier
      */
     private function onRulingProposal(LegalCase $case, CourtPortalEvent $event): void
     {
-        $suggested = $this->suggestTransition($case, $event);
+        $suggested = $this->proposalResolver->suggestedTransition($case, $event);
 
         $this->auditLogService->log(
             action: 'portal_transition_proposed',
@@ -183,58 +183,4 @@ final class MonitoringEventApplier
         $this->em->flush();
     }
 
-    /**
-     * Heuristică ADVISORY pe soluția de pe portal (best-effort, NU declanșează
-     * tranziții). Doar sugerează tranziția probabilă pentru a ajuta avocatul în
-     * UI.
-     *
-     * Clasifică PRIMAR pe câmpul `solutie` ("Tip soluție"), care e vocabular
-     * controlat al portalului ("Admite cererea" / "Respinge cererea" / "Amână
-     * pronunțarea" etc.) și reflectă dispozitivul principal. Textul liber
-     * `solutieSumar` e folosit doar ca fallback când tipul lipsește: corpul
-     * soluției menționează frecvent un "respinge"/"admite" secundar (un capăt de
-     * cerere accesoriu, o excepție), care ar inversa clasificarea pe substring.
-     */
-    private function suggestTransition(LegalCase $case, CourtPortalEvent $event): ?string
-    {
-        $tip = $this->normalize($event->getSolutie() ?? '');
-        $text = $tip !== '' ? $tip : $this->normalize($event->getSolutieSumar() ?? '');
-
-        // IN_ANULARE: the operative verb "anulează" appears ONLY when the
-        // cerere în anulare is ADMITTED ("Anulează ordonanța de plată..."),
-        // which dissolves the OP. Map it to ADMITE_CERERE_ANULARE, never to a
-        // rejection (CPC art. 1024). A rejection here reads "Respinge cererea
-        // în anulare", which keeps the OP final.
-        if ($case->getStatus() === CaseStatus::IN_ANULARE) {
-            if (str_contains($text, 'admite') || str_contains($text, 'anuleaz')) {
-                return CaseTransition::ADMITE_CERERE_ANULARE->value;
-            }
-            if (str_contains($text, 'respinge') || str_contains($text, 'respins')) {
-                return CaseTransition::RESPINGE_CERERE_ANULARE->value;
-            }
-
-            return null;
-        }
-
-        // Main OP phase. "admite" (inclusiv "admite în parte") = OP emisă;
-        // "respinge"/"anulează" = cerere respinsă.
-        if (str_contains($text, 'admite')) {
-            return CaseTransition::EMITE_ORDONANTA->value;
-        }
-
-        if (str_contains($text, 'respinge') || str_contains($text, 'respins') || str_contains($text, 'anuleaz')) {
-            return CaseTransition::RESPINGE->value;
-        }
-
-        return null;
-    }
-
-    private function normalize(string $text): string
-    {
-        $text = mb_strtolower($text);
-
-        return strtr($text, [
-            'ă' => 'a', 'â' => 'a', 'î' => 'i', 'ș' => 's', 'ş' => 's', 'ț' => 't', 'ţ' => 't',
-        ]);
-    }
 }

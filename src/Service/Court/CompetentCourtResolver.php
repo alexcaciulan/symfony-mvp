@@ -14,10 +14,9 @@ use App\Service\Calculation\InterestCalculatorService;
 final class CompetentCourtResolver
 {
     /**
-     * Pragul valoric între judecătorie și tribunal pentru cereri OP
-     * (CPC art. 94 pct. 1 lit. k și art. 95 pct. 1).
-     * Aplicat pe valoarea totală a cererii (CPC art. 98) — principal + dobândă acumulată
-     * la data sesizării + penalități contractuale scadente.
+     * Judecătorie/tribunal threshold for OP claims (CPC art. 94 pct. 1 lit. k + art. 95 pct. 1).
+     * Applied on the principal only: CPC art. 98 alin. (2) excludes accessories from the
+     * competence valuation. ClaimValueBreakdown keeps the full total for display, not routing.
      */
     private const JURISDICTION_THRESHOLD_RON = 200_000.0;
 
@@ -27,11 +26,13 @@ final class CompetentCourtResolver
     ) {}
 
     /**
-     * @param bool $computeLegalInterest When true (default) the threshold value
-     *        includes legal interest (OG 13/2011) computed internally. Set false
-     *        when the claim's accessory is a contractual penalty (passed via
-     *        $scadentPenalties) so the two accessories are not double-counted:
-     *        a contractual penalty clause stands in lieu of legal interest.
+     * @param bool $computeLegalInterest When true (default) legal interest
+     *        (OG 13/2011) is computed internally and shown in the breakdown. Set
+     *        false when the claim's accessory is a contractual penalty (passed via
+     *        $scadentPenalties) so the two accessories are not double-counted in
+     *        the displayed total: a contractual penalty clause stands in lieu of
+     *        legal interest. This affects only the displayed breakdown, never the
+     *        competent court (decided on the principal alone, CPC art. 98 alin. 2).
      *
      * @throws \DomainException Propagat din InterestCalculatorService când relationshipType=CIVIL
      *                          (B2B-only MVP per Pas 2.1 revizie C3, fail-fast intentionat).
@@ -74,7 +75,10 @@ final class CompetentCourtResolver
         $total = $principal + $accruedInterest + $scadentPenalties;
         $breakdown = new ClaimValueBreakdown($principal, $accruedInterest, $scadentPenalties, $total);
 
-        $type = $total > self::JURISDICTION_THRESHOLD_RON ? CourtType::TRIBUNAL : CourtType::JUDECATORIE;
+        // Competence is decided on the principal alone (CPC art. 98 alin. (2) —
+        // accessories excluded regardless of due date). $total drives display
+        // and the petit, not the routing.
+        $type = $principal > self::JURISDICTION_THRESHOLD_RON ? CourtType::TRIBUNAL : CourtType::JUDECATORIE;
 
         return $type === CourtType::TRIBUNAL
             ? $this->resolveTribunal($debtorCounty, $breakdown)

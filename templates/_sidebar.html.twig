@@ -86,10 +86,11 @@
         {# Section — Bibliotecă (placeholders, post-MVP). #}
         <div class="space-y-0.5">
             <div class="px-2.5 mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-600">{{ 'layout.sidebar.section.library'|trans }}</div>
-            <a href="#" aria-disabled="true" title="{{ 'layout.sidebar.coming_soon'|trans }}"
-               class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition no-underline"
-               onclick="event.preventDefault()">
-                <svg class="size-[18px] text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"/></svg>
+            {% set is_creditors = current_route starts with 'app_creditors' %}
+            <a href="{{ path('app_creditors') }}"
+               class="{{ is_creditors ? 'nav-active text-lex-navy dark:text-blue-400 font-semibold' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium' }} flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm transition relative no-underline">
+                {% if is_creditors %}<span class="absolute left-0 top-2 bottom-2 w-0.5 bg-lex-navy dark:bg-blue-400 rounded-r" aria-hidden="true"></span>{% endif %}
+                <svg class="size-[18px] {{ is_creditors ? '' : 'text-slate-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"/></svg>
                 {{ 'layout.sidebar.nav.creditors'|trans }}
             </a>
             <a href="#" aria-disabled="true" title="{{ 'layout.sidebar.coming_soon'|trans }}"
@@ -97,12 +98,6 @@
                onclick="event.preventDefault()">
                 <svg class="size-[18px] text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                 {{ 'layout.sidebar.nav.debtors'|trans }}
-            </a>
-            <a href="#" aria-disabled="true" title="{{ 'layout.sidebar.coming_soon'|trans }}"
-               class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition no-underline"
-               onclick="event.preventDefault()">
-                <svg class="size-[18px] text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-                {{ 'layout.sidebar.nav.courts'|trans }}
             </a>
         </div>
 
@@ -115,6 +110,14 @@
                 {% if is_subscription %}<span class="absolute left-0 top-2 bottom-2 w-0.5 bg-lex-navy dark:bg-blue-400 rounded-r" aria-hidden="true"></span>{% endif %}
                 <svg class="size-[18px] {{ is_subscription ? '' : 'text-slate-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
                 {{ 'layout.sidebar.nav.subscription'|trans }}
+            </a>
+            {# Facturi #}
+            {% set is_invoices = current_route starts with 'app_invoices' or current_route starts with 'app_fiscal_invoice' %}
+            <a href="{{ path('app_invoices') }}"
+               class="{{ is_invoices ? 'nav-active text-lex-navy dark:text-blue-400 font-semibold' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium' }} flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm transition relative no-underline">
+                {% if is_invoices %}<span class="absolute left-0 top-2 bottom-2 w-0.5 bg-lex-navy dark:bg-blue-400 rounded-r" aria-hidden="true"></span>{% endif %}
+                <svg class="size-[18px] {{ is_invoices ? '' : 'text-slate-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 14h6m-6-4h6m2 9l-2-1-2 1-2-1-2 1-2-1-2 1V5a2 2 0 012-2h10a2 2 0 012 2v14z"/></svg>
+                {{ 'layout.sidebar.nav.invoices'|trans }}
             </a>
             {% set is_settings = current_route starts with 'app_profile' %}
             <a href="{{ path('app_profile') }}"

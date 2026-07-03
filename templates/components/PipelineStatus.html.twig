@@ -23,7 +23,7 @@
     'DEFINITIVA': 4,
     'EXECUTARE': 4,
     'INCHIS_SUCCES': 4,
-    'INCHIS_PARTIAL_INSOLVABIL': 4,
+    'INCHIS_FARA_RECUPERARE': 4,
 } %}
 {% set current = stage_index[status.value] ?? 0 %}
 {# Terminal failure: rejected => mark stage 3 as red instead of green completion. #}

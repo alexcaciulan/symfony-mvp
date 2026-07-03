@@ -29,8 +29,8 @@ layout:
             notifications: 'Notificări'
             creditors: 'Creditori'
             debtors: 'Debitori'
-            courts: 'Instanțe'
             subscription: 'Abonament'
+            invoices: 'Facturi'
             settings: 'Setări'
         section:
             library: 'Bibliotecă'
@@ -104,11 +104,14 @@ component:
             status_label: 'Status'
             status_placeholder: 'Toate statusurile'
             court_placeholder: 'Caută instanța...'
+            creditor_placeholder: 'Caută creditorul...'
             search_label: 'Căutare'
             search_placeholder: 'Caută după nr. dosar...'
             clear: 'Șterge filtre'
             autocomplete_hint: 'Tastează cel puțin 2 caractere'
             autocomplete_no_results: 'Niciun rezultat'
+            date_from: 'de la'
+            date_to: 'până la'
 
 # =============================================================================
 # Login (security/login.html.twig)
@@ -615,6 +618,7 @@ case_overview:
         no_creditor: '(fără creditor)'
         no_debtor: '(fără debitor)'
         court_undetermined: 'Instanță needeterminată'
+        payment_term_expired: 'termen somație expirat'
     hero:
         next_step_badge: 'Următorul pas'
     cta:
@@ -628,6 +632,8 @@ case_overview:
         register_case: 'Înregistrează dosar'
         issue_ruling: 'Emite ordonanța'
         close_case_definitiva: 'Închide dosar (definitiv)'
+        close_case_executare: 'Închide dosar (executare)'
+        start_execution: 'Trece la executare'
     kpi:
         principal: 'Sumă principală'
         principal_due: 'scadență %date%'
@@ -724,7 +730,17 @@ case_overview:
         reject_case_hint: 'Instanța a respins cererea de OP'
         reject_case_hint_in_anulare: 'Admite cererea în anulare a debitorului'
         close_case_definitiva: 'Închide dosar (definitiv)'
-        close_case_definitiva_hint: 'Plată confirmată, debitor insolvabil sau abandon'
+        close_case_definitiva_hint: 'Plată confirmată sau abandon dosar'
+        close_case_executare: 'Închide dosar (executare)'
+        close_case_executare_hint: 'Recuperare, debitor insolvabil sau abandon'
+        start_execution: 'Trece la executare'
+        start_execution_hint: 'Titlu executoriu obținut, pornește executarea silită'
+        start_execution_parallel_hint: 'Ordonanța e executorie chiar dacă e atacată cu cerere în anulare'
+        grant_annulment_executare: 'Admite cererea în anulare'
+        grant_annulment_executare_hint: 'Anularea a fost admisă în timpul executării (restituire sume)'
+        annulment_rejected: 'Cerere în anulare respinsă'
+        annulment_rejected_hint_in_anulare: 'Instanța a respins anularea, ordonanța rămâne valabilă'
+        annulment_rejected_hint_executare: 'Instanța a respins anularea, executarea continuă'
     summons:
         action_generate: 'Generează somația'
         flash_success: 'Somația a fost generată. Descarcă PDF-ul din tab Documente.'
@@ -734,6 +750,20 @@ case_overview:
         alert_attach_proof: 'Atașează dovada comunicării somației'
         alert_attach_proof_hint: 'Recipisa de la executor judecătoresc sau confirmarea de primire de la Poșta Română (R+CD+AR).'
         alert_attach_proof_remind: 'Vezi modalitățile legale'
+        alert_confirm_date: 'Confirmă data comunicării'
+        modal_communication_date:
+            title: 'Confirmă data comunicării somației'
+            intro: 'Introdu data la care debitorul a primit efectiv somația, conform dovezii de comunicare.'
+            hint: 'Termenul de 15 zile pentru plată curge de la primirea somației (CPC art. 1015 alin. 1), nu de la generarea ei. Termenul afișat se recalculează la data reală.'
+            field_date_label: 'Data primirii somației'
+            field_date_required: 'Completează data comunicării.'
+            field_date_cannot_be_future: 'Data comunicării nu poate fi în viitor.'
+            field_method_label: 'Modalitate de comunicare'
+            field_method_placeholder: '(Selectează modalitatea)'
+            field_method_required: 'Selectează modalitatea de comunicare.'
+            cancel: 'Renunță'
+            submit: 'Salvează și recalculează'
+            flash_set: 'Data comunicării a fost salvată. Termenul de 15 zile a fost recalculat.'
         modal_c4:
             title: 'Comunicarea somației: modalități legale'
             intro: 'Conform CPC art. 1015 alin. (1), somația se comunică debitorului prin una dintre cele două modalități legale de mai jos. Acestea sunt singurele admisibile ca dovadă în fața instanței.'
@@ -806,15 +836,28 @@ case_overview:
         flash_error_no_court: 'Lipsește instanța competentă. Completați câmpul „Instanță" înainte de a genera cererea.'
         flash_error_already_generated: 'Cererea de OP a fost deja generată. Descărcați pachetul existent.'
         flash_error_csrf: 'Sesiunea a expirat. Reîncărcați pagina și reîncercați.'
+        flash_error_term_not_expired: 'Termenul de plată de 15 zile din somație nu a expirat încă. Cererea OP nu poate fi depusă înainte de împlinirea lui.'
+        flash_error_debit_status_required: 'Selectați statusul debitului (neachitat sau achitat parțial).'
+        flash_error_consent_required: 'Confirmați expirarea termenului și neplata integrală înainte de generare.'
     communication_warning:
         title: 'Lipsește dovada comunicării'
         body: 'Adaugă recipisa executorului sau confirmarea de primire de pe scrisoarea recomandată cu conținut declarat, înainte de depunere.'
         cta: '+ Adaugă dovadă comunicare →'
+    portal_proposal:
+        title: 'Soluție detectată pe portal'
+        intro: 'Am preluat soluția de pe portal.just.ro. Verifică textul și confirmă pentru a aplica tranziția. Nu se aplică automat. Confirmă doar dacă e o soluție finală, nu o amânare de termen.'
+        pronounced_on: 'Pronunțată la %date%'
+        confirm_cta: 'Confirmă și aplică'
     transition:
         flash_success_register: 'Dosar înregistrat cu succes. Monitorizarea automată portal.just.ro este activă.'
         flash_success_ruling: 'Pronunțarea ordonanței a fost confirmată.'
+        flash_warning_ruling_document: 'Ordonanța a fost confirmată, dar atașarea documentului a eșuat. Îl poți încărca din secțiunea Documente.'
         flash_success_reject: 'Dosarul a fost marcat ca respins.'
         flash_success_close: 'Dosarul a fost închis. Datele rămân arhivate.'
+        flash_success_executare: 'Dosarul a trecut în faza de executare silită.'
+        flash_success_annulment_rejected: 'Cererea în anulare a fost respinsă. Ordonanța rămâne valabilă.'
+        flash_error_needs_communication_date: 'Completează data comunicării ordonanței înainte de a porni executarea din această stare.'
+        flash_error_needs_ruling_document: 'Atașează mai întâi ordonanța de plată emisă de instanță. Executorul are nevoie de ea pentru a porni executarea.'
         flash_error_wrong_status: 'Tranziția nu este permisă pentru statusul curent al dosarului.'
         flash_error_validation: 'Datele introduse nu sunt valide. Verifică și încearcă din nou.'
         court_case_number_required: 'Introdu numărul de dosar primit de la registratură.'
@@ -849,6 +892,21 @@ case_overview:
         close_case_reason_abandoned: 'Abandon dosar (decizie client)'
         close_case_cancel: 'Renunță'
         close_case_confirm: 'Închide dosar'
+        executare_title: 'Inițiază executarea silită'
+        executare_body_prefix: 'Pentru dosarul'
+        executare_body_suffix: 'se pornește faza de executare silită pe baza titlului executoriu. Dosarul rămâne activ până la recuperare sau închidere.'
+        executare_cancel: 'Renunță'
+        executare_confirm: 'Trece la executare'
+        executare_risk_title: 'Atenție: cerere în anulare nesoluționată'
+        executare_risk_body: 'Cererea în anulare nu suspendă executarea. Suspendarea poate fi încuviințată, la cererea debitorului, numai cu darea unei cauțiuni al cărei cuantum îl fixează instanța (CPC art. 1024). Dacă cererea în anulare este admisă, ordonanța se anulează în tot sau în parte, iar sumele recuperate se restituie.'
+        executare_voluntary_window_title: 'Fereastră de plată voluntară'
+        executare_voluntary_window_body: 'Executarea e recomandată după %date%, ca debitorul să aibă timp de plată voluntară. Termenul se calculează de la comunicarea hotărârii. Poți porni executarea și mai devreme: ordonanța definitivă e executorie imediat.'
+        annulment_rejected_title: 'Cerere în anulare respinsă'
+        annulment_rejected_body_prefix: 'Pentru dosarul'
+        annulment_rejected_body_suffix_definitiva: 'instanța a respins cererea în anulare. Ordonanța rămâne valabilă și nu mai poate fi atacată pe această cale.'
+        annulment_rejected_body_suffix_executare: 'instanța a respins cererea în anulare. Ordonanța rămâne valabilă și executarea continuă.'
+        annulment_rejected_cancel: 'Renunță'
+        annulment_rejected_confirm: 'Confirmă respingerea'
         close_case_details_label: 'Detalii (opțional)'
         close_case_details_placeholder: 'Notă internă pentru audit (max 500 caractere). Nu introduceți date personale ale debitorului (CNP, IBAN).'
         register_title: 'Înregistrează dosar la instanță'
@@ -862,6 +920,9 @@ case_overview:
         ruling_intro: 'Setează data la care instanța a pronunțat ordonanța de plată. Termenul de 10 zile pentru cererea în anulare (CPC art. 1024) începe abia după comunicarea ordonanței, dar înregistrăm data pronunțării ca reper procedural.'
         ruling_field_label: 'Data pronunțării'
         ruling_hint: 'Data nu poate fi în viitor. Termenul de 10 zile pentru cererea în anulare (CPC art. 1024) NU pornește până când nu setați data comunicării ordonanței către debitor (din alerta dedicată).'
+        ruling_document_label: 'Ordonanța de plată (opțional)'
+        ruling_document_hint: 'Atașează ordonanța emisă de instanță (PDF semnat electronic sau scan). O poți adăuga și ulterior din secțiunea Documente.'
+        ruling_document_invalid_type: 'Format neacceptat. Încarcă PDF sau imagine (JPG, PNG, GIF, WebP).'
         ruling_cancel: 'Renunță'
         ruling_confirm: 'Confirmă pronunțarea'
         reject_title: 'Marchează dosarul ca respins'
@@ -883,8 +944,12 @@ case_overview:
         generate_op_item_evidence: 'somație + contract + factură'
         generate_op_item_evidence_hint: '%count% fișiere existente'
         generate_op_disclaimer_warning: 'Atenție:'
-        generate_op_disclaimer_body: 'Vei depune fizic la %court%. Întoarce-te aici după depunere pentru a introduce nr. dosar instanță.'
+        generate_op_disclaimer_body: 'Vei depune cererea la %court%. Întoarce-te aici după depunere pentru a introduce nr. dosar instanță.'
         generate_op_disclaimer_no_court: 'Întoarce-te aici după depunere pentru a introduce nr. dosar instanță.'
+        generate_op_term_expired: 'Termenul de plată de 15 zile din somație a expirat. Puteți genera cererea.'
+        generate_op_term_unknown: 'Data comunicării somației nu e completată. Confirmă mai jos că termenul de 15 zile de la primire a expirat (poți completa data exactă din secțiunea Termene).'
+        generate_op_debit_status_label: 'Statusul debitului'
+        generate_op_consent_label: 'Confirm că termenul de plată de 15 zile de la primirea somației a expirat și debitul nu a fost achitat integral.'
         generate_op_cancel: 'Renunță'
         generate_op_confirm: 'Generează & descarcă ZIP'
     portal:
@@ -1015,6 +1080,7 @@ case_overview:
             intro: 'De la această dată curge termenul de 10 zile pentru cererea în anulare (CPC art. 1024 alin. 1).'
             hint: 'Folosiți data de pe procesul-verbal al executorului sau de pe recipisa Poștei (R+CD+AR). NU data pronunțării.'
             idempotency_note: 'Atenție: după salvare, termenul cererii în anulare se calculează pe data introdusă. Modificările ulterioare ale acestei date NU recalculează automat termenul existent.'
+            definitivare_note: 'Marcarea ca definitivă se face automat abia după cele 10 zile ale cererii în anulare plus un tampon de 5 zile lucrătoare. Marcarea e conservatoare fiindcă data comunicării către debitor nu ne e cunoscută (doar cea către avocat), iar tamponul în zile lucrătoare absoarbe și sărbătorile legale.'
             field_label: 'Data comunicării (recepție la debitor)'
             field_required: 'Selectați o dată.'
             field_cannot_be_future: 'Data comunicării nu poate fi în viitor.'
@@ -1150,7 +1216,7 @@ pdf:
         issued_on: 'Emisă astăzi, %date%'
         bar_number: 'Av. Nr. Barou: %number%'
         signature_label: '(semnătură și ștampilă)'
-        footer_disclaimer: 'Document generat electronic prin platforma LexRecovery. Depunerea la instanța competentă se face fizic la registratură sau prin curier, cu confirmare de primire.'
+        footer_disclaimer: 'Document generat electronic prin platforma LexRecovery. Depunerea la instanța competentă se face cu confirmare de primire.'
     document_index:
         heading: 'OPIS DE DOCUMENTE'
         subheading: 'Anexă la cererea de ordonanță de plată (CPC art. 1016)'
@@ -1386,17 +1452,20 @@ subscription:
         included_cases: '%count% dosare incluse pe lună'
         extra_case: '%price% RON pentru fiecare dosar suplimentar'
         choose: 'Alege planul'
+        recurring_disclosure: 'Prin abonare, cardul introdus este salvat și debitat automat lunar cu %price% RON, până la anulare. Poți anula oricând din contul tău.'
     invoices:
         title: 'Facturile mele'
         back: 'Înapoi la abonament'
         empty: 'Nu ai facturi încă.'
-        fiscal_disclaimer: 'Acestea sunt confirmări interne de plată, nu facturi fiscale. Factura fiscală va fi emisă separat.'
+        fiscal_note: 'După fiecare plată, factura fiscală se emite automat și o găsești aici, cu status e-Factura și descărcare PDF.'
         date: 'Dată'
         type: 'Tip'
         amount: 'Sumă'
         status: 'Status'
         action: 'Acțiune'
         pay: 'Plătește'
+        view_fiscal: 'Factura fiscală'
+        fiscal_issuing: 'Factură în curs de emitere'
     checkout:
         title: 'Finalizare plată'
         type: 'Tip'
@@ -1404,8 +1473,16 @@ subscription:
         status: 'Status'
         stub_notice: 'Mediu de test: plata nu este reală. Apasă butonul pentru a marca factura drept plătită.'
         mark_paid: 'Marchează ca plătită'
+        processing: 'Plata este în curs de procesare. Vei fi redirecționat către procesatorul de plăți.'
         already_paid: 'Această factură este deja plătită.'
         back: 'Înapoi la facturi'
+    return:
+        title: 'Statusul plății'
+        no_invoice: 'Nu am găsit o factură recentă pentru contul tău.'
+        paid: 'Plata a fost confirmată. Îți mulțumim.'
+        processing: 'Plata este în curs de confirmare. Poate dura câteva momente. Vei primi factura fiscală după confirmare.'
+        invoices: 'Vezi facturile'
+        subscription: 'Înapoi la abonament'
     paywall:
         blocked: 'Pentru a trimite somația ai nevoie de un abonament activ. Alege un plan pentru a continua. Termenele dosarului continuă să curgă indiferent de statusul abonamentului.'
         overage: 'Ai depășit pachetul lunar. S-a emis o factură pentru dosarul suplimentar, o găsești la Facturi.'
@@ -1414,6 +1491,41 @@ subscription:
         already_subscribed: 'Ai deja un abonament activ. Schimbarea planului va fi disponibilă în curând.'
         paid: 'Plata a fost înregistrată cu succes.'
         already_paid: 'Această factură este deja plătită.'
+        payment_processing: 'Plata este în curs de procesare. Vei vedea confirmarea imediat ce procesatorul o finalizează.'
+        fiscal_data_required: 'Înainte de plată, completează datele fiscale (CIF, denumire, adresă) ca să putem emite factura.'
+
+# =============================================================================
+# Fiscal invoice content (frozen onto the document at issuance)
+# =============================================================================
+invoice:
+    line:
+        subscription: 'Abonament %plan%'
+        case_extra: 'Procesare dosar suplimentar %case%'
+
+fiscal_invoices:
+    title: 'Facturi fiscale'
+    back: 'Înapoi la abonament'
+    back_to_list: 'Înapoi la facturi'
+    empty: 'Nu ai facturi fiscale încă.'
+    number: 'Serie / număr'
+    date: 'Data'
+    total: 'Total'
+    einvoice_status: 'Status e-Factura'
+    action: 'Acțiune'
+    download: 'Descarcă PDF'
+    draft: 'Ciornă'
+    detail: 'Factură'
+    supplier: 'Furnizor'
+    buyer: 'Client'
+    line: 'Descriere'
+    qty: 'Cant.'
+    unit_net: 'Preț net'
+    vat: 'TVA'
+    gross: 'Total'
+    net_total: 'Total net'
+    vat_total: 'Total TVA'
+    gross_total: 'Total de plată'
+    lines_in_pdf: 'Defalcarea completă (linii, TVA) este în PDF-ul oficial.'
 
 # =============================================================================
 # Enums (label() returns these keys; consumers apply |trans)
@@ -1439,6 +1551,20 @@ enum:
     invoice_type:
         subscription: 'Abonament'
         case_extra: 'Dosar suplimentar'
+    einvoice_status:
+        not_applicable: 'Neaplicabil'
+        pending: 'În așteptare'
+        sent: 'Trimisă la SPV'
+        accepted: 'Acceptată de ANAF'
+        rejected: 'Respinsă de ANAF'
+        error: 'Eroare'
+    fiscal_invoice_kind:
+        invoice: 'Factură'
+        storno: 'Factură de corecție (storno)'
+    fiscal_invoice_status:
+        draft: 'Ciornă'
+        issued: 'Emisă'
+        canceled: 'Anulată'
     subscription_slot_consumption_outcome:
         consumed_from_plan: 'Inclus în abonament'
         trial_consumed: 'Inclus în perioada de probă'
@@ -1457,7 +1583,7 @@ enum:
         EXECUTARE: 'Executare silită'
         RESPINSA: 'Respinsă'
         INCHIS_SUCCES: 'Închis cu succes'
-        INCHIS_PARTIAL_INSOLVABIL: 'Închis parțial / insolvabil'
+        INCHIS_FARA_RECUPERARE: 'Închis fără recuperare'
     case_transition:
         trimite_somatie: 'Trimite somație'
         depune_cerere: 'Depune cerere ordonanță de plată'
@@ -1466,11 +1592,13 @@ enum:
         emite_ordonanta: 'Emite ordonanță'
         formuleaza_cerere_anulare: 'Formulează cerere în anulare'
         respinge_cerere_anulare: 'Respinge cererea în anulare'
+        respinge_cerere_anulare_executare: 'Respinge cererea în anulare (în executare)'
         admite_cerere_anulare: 'Admite cererea în anulare'
         marcheaza_definitiva: 'Marchează definitivă'
         respinge: 'Respinge cererea'
+        trece_la_executare: 'Trece la executare silită'
         inchide_succes: 'Închide cu succes'
-        inchide_insolvabil: 'Închide ca insolvabil'
+        inchide_fara_recuperare: 'Închide fără recuperare'
     court_type:
         judecatorie: 'Judecătorie'
         tribunal: 'Tribunal'
@@ -1491,11 +1619,13 @@ enum:
         JUDECATA: 'Termen de judecată'
         CERERE_IN_ANULARE: 'Termen cerere în anulare'
         PRESCRIPTIE: 'Termen prescripție'
+        PRESCRIPTIE_EXECUTARE: 'Prescripție executare silită'
         OTHER: 'Alt termen'
     document_type:
         somatie: 'Somație'
         cerere_op: 'Cerere ordonanță de plată'
         opis: 'Opis documente'
+        ordonanta_plata: 'Ordonanță de plată'
         dovada_comunicare: 'Dovadă comunicare'
         act_constatator: 'Act constatator'
         anexa: 'Anexă'
@@ -1530,8 +1660,14 @@ enum:
     close_reason:
         PAID: 'Plată integrală'
         PARTIAL: 'Recuperare parțială'
-        INSOLVENT: 'Debitor insolvabil'
         ABANDONED: 'Abandon dosar (decizie client)'
+        INSOLVENT_EXECUTARE: 'Debitor insolvabil (constatat în executare)'
+    payment_notice_communication_method:
+        EXECUTOR: 'Prin executor judecătoresc'
+        POSTA_RCD: 'Poșta Română (recomandată cu conținut declarat și confirmare de primire)'
+    debit_acknowledged_status:
+        PARTIAL: 'Achitat parțial'
+        UNPAID: 'Neachitat'
     interest_kind:
         REMUNERATORIE: 'Remuneratorie'
         PENALIZATOARE: 'Penalizatoare'
@@ -1647,7 +1783,7 @@ court:
         locality_unmatched_pick_manually: 'Localitatea debitorului nu se potrivește unic cu o judecătorie. Alege manual instanța din listă.'
         locality_ambiguous: 'Localitatea se potrivește cu mai multe judecătorii. Alege manual instanța corectă.'
         matched_judecatorie: 'Judecătorie competentă conform CPC art. 94 + 107 (raza teritorială).'
-        matched_tribunal: 'Tribunal competent conform CPC art. 95 (peste pragul 200.000 RON, valoare totală cu accesorii, CPC art. 98).'
+        matched_tribunal: 'Tribunal competent conform CPC art. 95 (principalul depășește pragul de 200.000 RON). Accesoriile (dobânzi, penalități) nu intră în calculul competenței, conform CPC art. 98 alin. 2.'
         matched_tribunal_specializat: 'Tribunal specializat competent pentru litigii între profesioniști (Legea 304/2022 art. 41). Verifică practica instanței înainte de depunere.'
         tribunal_missing: 'Niciun tribunal activ în județul %county%. Contactează administratorul.'
         tribunal_ambiguous: 'Mai multe tribunale active în județul %county%. Verifică datele de configurare.'
@@ -1666,6 +1802,7 @@ validation:
         OP_INSOLVENCY_NOT_VERIFIED: 'Verifică statusul de insolvență al debitorului pe bpi.just.ro și confirmă în UI înainte de depunere (atașează PDF dovadă BPI).'
         OP_INSOLVENCY_STALE: 'Verificarea BPI (insolvență) este mai veche de 7 zile. Reverifică pe bpi.just.ro și actualizează dovada; insolvența se schimbă rapid.'
         OP_PF_BIPF_MANUAL_CHECK: 'Debitor persoană fizică: verifică manual BIPF (Buletinul Insolvenței Persoanelor Fizice, Legea 151/2015) pe bpi.just.ro înainte de depunere.'
+        OP_DEBT_NOT_YET_DUE: 'Scadența creanței este în viitor. Creanța nu este exigibilă (CPC art. 1013), iar cererea de ordonanță de plată este inadmisibilă: nu se poate solicita plata înainte de scadență. Corectează data scadenței sau așteaptă împlinirea termenului.'
 
 # =============================================================================
 # Email notifications (EmailNotificationSubscriber + templates/emails/)
@@ -1675,6 +1812,14 @@ email:
     footer_disclaimer: 'Acest mesaj este informativ și nu constituie consultanță juridică. Verificați termenele și soluțiile direct pe portalul instanței.'
     cta:
         view_case: 'Deschide dosarul'
+    subscription_action_required:
+        subject: 'Abonament LexRecovery: este necesară o acțiune'
+        heading: 'Reînnoirea abonamentului necesită atenția ta'
+        greeting: 'Bună, %name%,'
+        reason_charge_failed: 'Nu am reușit să încasăm automat abonamentul lunar. Cardul salvat a fost refuzat sau nu are fonduri suficiente.'
+        reason_token_expired: 'Cardul salvat pentru plata automată a expirat, așa că nu am putut încasa abonamentul lunar.'
+        instruction: 'Pentru a păstra abonamentul activ, actualizează metoda de plată și reia plata din contul tău.'
+        cta: 'Actualizează plata'
     case_status:
         somatie_trimisa:
             subject: 'Somație generată pentru dosarul %case%'
@@ -1770,6 +1915,38 @@ cases:
     heading: 'Dosare'
     subtitle: 'Toate dosarele tale, cu filtrare după status, căutare și sortare.'
 
+invoices:
+    heading: 'Facturi'
+    subtitle: 'Toate plățile tale, cu filtrare după status, tip și perioadă. După plată, factura fiscală se deschide de aici.'
+    manage_subscription: 'Gestionează abonamentul'
+
+# =============================================================================
+# Creditor library (creditors/*.html.twig)
+# =============================================================================
+library:
+    creditors:
+        title: 'Creditori'
+        heading: 'Creditori'
+        subtitle: 'Biblioteca ta de creditori, reutilizabili la crearea dosarelor.'
+        new_button: 'Creditor nou'
+        new:
+            title: 'Creditor nou'
+            heading: 'Creditor nou'
+            subtitle: 'Datele se vor precompleta automat la următoarele dosare.'
+        edit:
+            title: 'Editează creditor'
+            heading: 'Editează creditor'
+            subtitle: 'Modificările se aplică la dosarele viitoare, nu la cele deja depuse.'
+        form:
+            create_submit: 'Salvează creditorul'
+            update_submit: 'Salvează modificările'
+            cancel: 'Renunță'
+        flash:
+            created: 'Creditorul a fost adăugat în bibliotecă.'
+            updated: 'Creditorul a fost actualizat.'
+        error:
+            cui_duplicate: 'Ai deja un creditor cu acest CUI în bibliotecă.'
+
 # =============================================================================
 # Tables (server-side data grids — column headers per table key)
 # =============================================================================
@@ -1791,3 +1968,26 @@ table:
             status: 'Status'
             date: 'Creat'
             actions: 'Acțiuni'
+        filter:
+            creditor_label: 'Creditor'
+    creditors:
+        columns:
+            name: 'Nume'
+            person_type: 'Tip'
+            cui: 'CUI / CNP'
+            cases: 'Dosare'
+            date: 'Adăugat'
+            actions: 'Acțiuni'
+        filter:
+            person_type_placeholder: 'Toate tipurile'
+            search_placeholder: 'Caută după nume sau CUI...'
+    fiscal_invoices:
+        columns:
+            number: 'Serie / număr'
+            date: 'Data'
+            total: 'Total'
+            einvoice: 'Status e-Factura'
+            actions: 'Acțiuni'
+        filters:
+            einvoice_placeholder: 'Toate statusurile'
+            period: 'Perioadă'

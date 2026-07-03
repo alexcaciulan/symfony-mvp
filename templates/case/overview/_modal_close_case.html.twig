@@ -1,7 +1,8 @@
 {# Modal Preline „Confirmă închiderea dosarului". Reflectă mockup linii 1116-1133.
    Trigger din hero dropdown („Închide dosar"). Submit la `case_transition_close`
-   care dispatch la `inchide_succes` / `inchide_insolvabil` pe baza reason-ului.
-   Form auto-CSRF prin CloseCaseType (csrf_token_id: close_case). #}
+   care dispatch la `inchide_succes` / `inchide_fara_recuperare` pe baza reason-ului.
+   Opțiunile de motiv depind de status: din EXECUTARE apare și „insolvabil în
+   executare". Form auto-CSRF prin CloseCaseType (csrf_token_id: close_case). #}
 {% from 'case/overview/_icons.html.twig' import icon_warning %}
 
 <div id="hs-modal-close-case"
@@ -43,8 +44,10 @@
                         <option value="">{{ 'case_overview.modal.close_case_reason_placeholder'|trans }}</option>
                         <option value="PAID">{{ 'enum.close_reason.PAID'|trans }}</option>
                         <option value="PARTIAL">{{ 'enum.close_reason.PARTIAL'|trans }}</option>
-                        <option value="INSOLVENT">{{ 'enum.close_reason.INSOLVENT'|trans }}</option>
                         <option value="ABANDONED">{{ 'enum.close_reason.ABANDONED'|trans }}</option>
+                        {% if case.status.value == 'EXECUTARE' %}
+                            <option value="INSOLVENT_EXECUTARE">{{ 'enum.close_reason.INSOLVENT_EXECUTARE'|trans }}</option>
+                        {% endif %}
                     </select>
                 </div>
                 <div>

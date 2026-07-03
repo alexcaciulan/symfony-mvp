@@ -675,22 +675,28 @@ Următoarele 6 probleme au fost identificate de agentul `avocat-senior` la verif
 
 ---
 
-### N1 — Competența materială: valoarea totală vs principal (CPC art. 98) ⚖️
+### N1 — Competența materială: valoarea totală vs principal (CPC art. 98) ⚖️ — ✅ REZOLVAT 2026-06-29 (CONCLUZIE INVERSATĂ)
 
-**Norma legală**:
+> ⚠️ **CORECȚIE 2026-06-29 (validare avocat utilizator)**: analiza inițială de mai jos a fost **GREȘITĂ**. Avocatul a confirmat, citând textul legii, că **CPC art. 98 alin. 2 EXCLUDE accesoriile** (dobânzi, penalități, fructe, cheltuieli) din valoarea pentru competența materială, **„indiferent de data scadenței"**. Pragul de 200.000 RON se compară, prin urmare, **doar cu principalul**, nu cu totalul. Implementarea (`CompetentCourtResolver` linia 77) și exemplele au fost corectate în consecință. Vezi `DETERMINARE-INSTANTA-COMPETENTA.md` §3.
+
+**Norma legală corectă**:
+> CPC art. 98 alin. 2: „Pentru stabilirea valorii, nu se vor avea în vedere accesoriile pretenției principale, precum dobânzile, penalitățile, fructele, cheltuielile sau altele asemenea, indiferent de data scadenței [...]."
+
+**Conluzie aplicată**: routing-ul se face pe **principal singular**. Exemplul critic de mai jos (principal 190.000 + dobândă 15.000 = 205.000) merge la **judecătorie** (principal 190.000 < 200.000), nu la tribunal cum susținea analiza inițială.
+
+<details>
+<summary>Analiza inițială greșită (păstrată pentru istoric)</summary>
+
+**Norma legală** (interpretare greșită):
 > CPC art. 98: valoarea cererii se determină la data sesizării instanței și include accesoriile scadente la acea dată (dobânzi, penalități acumulate până atunci).
 
-**Problemă**:
-- Analiza inițială (în M7 și prin extensie pentru `CompetentCourtResolver` Pas 2.3) menționează pragul 200.000 RON între judecătorie și tribunal **fără a clarifica** dacă valoarea se calculează pe **principal singular** sau pe **principal + accesorii** la data sesizării.
-- Exemplu critic: principal 190.000 RON + dobânzi acumulate 15.000 RON la data sesizării = total 205.000 RON → **competent tribunalul**, nu judecătoria. Dacă routing-ul se face doar pe principal, dosarul se depune la instanța greșită → necompetență materială ridicabilă din oficiu, dosar declinat, întârziere.
+**Problemă** (formulată greșit):
+- Analiza inițială concluziona că pragul 200.000 RON se aplică pe **principal + accesorii** la data sesizării.
+- Exemplu (concluzie greșită): principal 190.000 + dobânzi 15.000 = 205.000 → „tribunal". Corect: judecătorie (doar principalul contează).
 
-**Severitate**: **CRITIC** — gap de logică în `CompetentCourtResolver` (Pas 2.3).
+Această interpretare contrazicea art. 98 **alin. 2** și a fost corectată la 2026-06-29.
 
-**Recomandare**:
-- `CompetentCourtResolver` calculează `valoareaTotalaCerere = principal + dobandaScadentaLaSesizare + penalitatiContractualeScadente` înainte de a aplica pragul 200.000 RON.
-- UI step 3 wizard afișează calculul transparent: principal | dobândă | penalități | TOTAL competență.
-
-⚖️ **Validare avocat**: confirmă cu jurisprudența curentă că art. 98 CPC se aplică inclusiv accesoriilor, nu doar principalului — există nuanțe doctrinare?
+</details>
 
 ---
 

@@ -29,8 +29,8 @@ layout:
             notifications: 'Notifications'
             creditors: 'Creditors'
             debtors: 'Debtors'
-            courts: 'Courts'
             subscription: 'Billing'
+            invoices: 'Invoices'
             settings: 'Settings'
         section:
             library: 'Library'
@@ -104,11 +104,14 @@ component:
             status_label: 'Status'
             status_placeholder: 'All statuses'
             court_placeholder: 'Search court...'
+            creditor_placeholder: 'Search creditor...'
             search_label: 'Search'
             search_placeholder: 'Search by case number...'
             clear: 'Clear filters'
             autocomplete_hint: 'Type at least 2 characters'
             autocomplete_no_results: 'No results'
+            date_from: 'from'
+            date_to: 'to'
 
 # =============================================================================
 # Login (security/login.html.twig)
@@ -614,6 +617,7 @@ case_overview:
         no_creditor: '(no creditor)'
         no_debtor: '(no debtor)'
         court_undetermined: 'Court undetermined'
+        payment_term_expired: 'summons term expired'
     hero:
         next_step_badge: 'Next step'
     cta:
@@ -627,6 +631,8 @@ case_overview:
         register_case: 'Register case'
         issue_ruling: 'Issue ruling'
         close_case_definitiva: 'Close case (final)'
+        close_case_executare: 'Close case (enforcement)'
+        start_execution: 'Move to enforcement'
     kpi:
         principal: 'Principal amount'
         principal_due: 'due %date%'
@@ -723,7 +729,17 @@ case_overview:
         reject_case_hint: 'The court rejected the payment-order petition'
         reject_case_hint_in_anulare: 'Grant the debtor''s annulment request'
         close_case_definitiva: 'Close case (final)'
-        close_case_definitiva_hint: 'Payment confirmed, debtor insolvent or abandoned'
+        close_case_definitiva_hint: 'Payment confirmed or case abandoned'
+        close_case_executare: 'Close case (enforcement)'
+        close_case_executare_hint: 'Recovery, debtor insolvent or abandoned'
+        start_execution: 'Move to enforcement'
+        start_execution_hint: 'Writ of execution obtained, start enforcement'
+        start_execution_parallel_hint: 'The order is enforceable even while challenged by an annulment request'
+        grant_annulment_executare: 'Grant the annulment request'
+        grant_annulment_executare_hint: 'Annulment granted during enforcement (amounts to be refunded)'
+        annulment_rejected: 'Annulment request rejected'
+        annulment_rejected_hint_in_anulare: 'The court rejected the annulment, the order remains valid'
+        annulment_rejected_hint_executare: 'The court rejected the annulment, enforcement continues'
     summons:
         action_generate: 'Generate the payment notice'
         flash_success: 'The payment notice has been generated. Download the PDF from the Documents tab.'
@@ -733,6 +749,20 @@ case_overview:
         alert_attach_proof: 'Attach proof of notice communication'
         alert_attach_proof_hint: 'Receipt from a court bailiff or registered-mail confirmation from the Romanian Post (R+CD+AR).'
         alert_attach_proof_remind: 'See legal options'
+        alert_confirm_date: 'Confirm communication date'
+        modal_communication_date:
+            title: 'Confirm the notice communication date'
+            intro: 'Enter the date the debtor actually received the summons, per the proof of communication.'
+            hint: 'The 15-day payment term runs from the receipt of the summons (CPC art. 1015 para. 1), not from its generation. The displayed term is recomputed to the real date.'
+            field_date_label: 'Notice receipt date'
+            field_date_required: 'Fill in the communication date.'
+            field_date_cannot_be_future: 'The communication date cannot be in the future.'
+            field_method_label: 'Communication method'
+            field_method_placeholder: '(Select the method)'
+            field_method_required: 'Select the communication method.'
+            cancel: 'Cancel'
+            submit: 'Save and recompute'
+            flash_set: 'The communication date has been saved. The 15-day term has been recomputed.'
         modal_c4:
             title: 'Notice communication: legal options'
             intro: 'Under CPC art. 1015 para. (1), the payment notice must reach the debtor via one of the two legal channels below. These are the only ones admissible as proof in court.'
@@ -805,15 +835,28 @@ case_overview:
         flash_error_no_court: 'The competent court is missing. Fill in the "Court" field before generating the petition.'
         flash_error_already_generated: 'The petition has already been generated. Download the existing package.'
         flash_error_csrf: 'Your session expired. Reload the page and try again.'
+        flash_error_term_not_expired: 'The 15-day summons payment term has not expired yet. The OP petition cannot be filed before it lapses.'
+        flash_error_debit_status_required: 'Select the debt status (unpaid or partially paid).'
+        flash_error_consent_required: 'Confirm the term has expired and the debt is unpaid before generating.'
     communication_warning:
         title: 'Notice delivery proof missing'
         body: 'Add the bailiff receipt or the acknowledgment of receipt for the registered letter with declared contents, before filing.'
         cta: '+ Add delivery proof →'
+    portal_proposal:
+        title: 'Ruling detected on the portal'
+        intro: 'We pulled the ruling from portal.just.ro. Review the text and confirm to apply the transition. It is not applied automatically. Confirm only if it is a final ruling, not a hearing postponement.'
+        pronounced_on: 'Ruled on %date%'
+        confirm_cta: 'Confirm and apply'
     transition:
         flash_success_register: 'Case registered successfully. Automatic portal.just.ro monitoring is now active.'
         flash_success_ruling: 'The ruling has been confirmed.'
+        flash_warning_ruling_document: 'The ruling was confirmed, but attaching the document failed. You can upload it from the Documents section.'
         flash_success_reject: 'The case has been marked as rejected.'
         flash_success_close: 'The case has been closed. Data remains archived.'
+        flash_success_executare: 'The case has moved to the enforcement phase.'
+        flash_success_annulment_rejected: 'The annulment request was rejected. The order remains valid.'
+        flash_error_needs_communication_date: 'Fill in the order communication date before starting enforcement from this status.'
+        flash_error_needs_ruling_document: 'Attach the payment order issued by the court first. The bailiff needs it to start enforcement.'
         flash_error_wrong_status: 'This transition is not allowed for the case''s current status.'
         flash_error_validation: 'The submitted data is invalid. Please check and try again.'
         court_case_number_required: 'Enter the case number received from the court registry.'
@@ -848,6 +891,21 @@ case_overview:
         close_case_reason_abandoned: 'Case abandoned (client decision)'
         close_case_cancel: 'Cancel'
         close_case_confirm: 'Close case'
+        executare_title: 'Start enforcement'
+        executare_body_prefix: 'For case'
+        executare_body_suffix: 'the enforcement phase will start based on the writ of execution. The case stays active until recovery or closure.'
+        executare_cancel: 'Cancel'
+        executare_confirm: 'Move to enforcement'
+        executare_risk_title: 'Caution: annulment request pending'
+        executare_risk_body: 'The annulment request does not suspend enforcement. Suspension may be granted, at the debtor''s request, only against a security deposit whose amount is set by the court (CPC art. 1024). If the annulment request is granted, the order is annulled in whole or in part, and the recovered amounts are refunded.'
+        executare_voluntary_window_title: 'Voluntary payment window'
+        executare_voluntary_window_body: 'Enforcement is recommended after %date%, to give the debtor time to pay voluntarily. The term runs from the communication of the ruling. You may start enforcement earlier: a final order is enforceable immediately.'
+        annulment_rejected_title: 'Annulment request rejected'
+        annulment_rejected_body_prefix: 'For case'
+        annulment_rejected_body_suffix_definitiva: 'the court rejected the annulment request. The order remains valid and can no longer be challenged by this means.'
+        annulment_rejected_body_suffix_executare: 'the court rejected the annulment request. The order remains valid and enforcement continues.'
+        annulment_rejected_cancel: 'Cancel'
+        annulment_rejected_confirm: 'Confirm rejection'
         close_case_details_label: 'Details (optional)'
         close_case_details_placeholder: 'Internal note for audit (max 500 characters). Do not enter personal data of the debtor (CNP, IBAN).'
         register_title: 'Register case with court'
@@ -861,6 +919,9 @@ case_overview:
         ruling_intro: 'Set the date the court issued the payment order. The 10-day window for the annulment request (CPC art. 1024) starts only after the ruling is served, but we record the issue date as a procedural marker.'
         ruling_field_label: 'Ruling date'
         ruling_hint: 'The date cannot be in the future. The 10-day window for the annulment request (CPC art. 1024) does NOT start running until you set the serving date to the debtor (from the dedicated alert).'
+        ruling_document_label: 'Payment order (optional)'
+        ruling_document_hint: 'Attach the order issued by the court (electronically signed PDF or scan). You can also add it later from the Documents section.'
+        ruling_document_invalid_type: 'Unsupported format. Upload a PDF or image (JPG, PNG, GIF, WebP).'
         ruling_cancel: 'Cancel'
         ruling_confirm: 'Confirm ruling'
         reject_title: 'Mark case as rejected'
@@ -882,8 +943,12 @@ case_overview:
         generate_op_item_evidence: 'notice + contract + invoice'
         generate_op_item_evidence_hint: '%count% existing files'
         generate_op_disclaimer_warning: 'Heads up:'
-        generate_op_disclaimer_body: 'You will file in person at %court%. Return here after filing to enter the court case number.'
+        generate_op_disclaimer_body: 'You will file the petition with %court%. Return here after filing to enter the court case number.'
         generate_op_disclaimer_no_court: 'Return here after filing to enter the court case number.'
+        generate_op_term_expired: 'The 15-day summons payment term has expired. You can generate the petition.'
+        generate_op_term_unknown: 'The summons communication date is not set. Confirm below that the 15-day term from receipt has expired (you can set the exact date in the Deadlines section).'
+        generate_op_debit_status_label: 'Debt status'
+        generate_op_consent_label: 'I confirm the 15-day payment term from the receipt of the summons has expired and the debt has not been paid in full.'
         generate_op_cancel: 'Cancel'
         generate_op_confirm: 'Generate & download ZIP'
     portal:
@@ -1014,6 +1079,7 @@ case_overview:
             intro: 'The 10-day annulment-application window (CPC art. 1024 para. 1) runs from this date.'
             hint: 'Use the date on the bailiff record or the Romanian Post receipt (R+CD+AR), not the date the order was issued.'
             idempotency_note: 'Note: once saved, the annulment-application deadline is calculated from the date you enter. Later edits to this date do NOT automatically recalculate the existing deadline.'
+            definitivare_note: 'Marking the case as final happens automatically only after the 10-day annulment window plus a 5-working-day buffer. The marking is conservative because the debtor-side communication date is unknown to us (only the one to the lawyer), and a working-day buffer also absorbs public holidays.'
             field_label: 'Communication date (debtor receipt)'
             field_required: 'Select a date.'
             field_cannot_be_future: 'Communication date cannot be in the future.'
@@ -1149,7 +1215,7 @@ pdf:
         issued_on: 'Issued on %date%'
         bar_number: 'Bar membership no. %number%'
         signature_label: '(signature and stamp)'
-        footer_disclaimer: 'Document generated electronically through the LexRecovery platform. Filing with the competent court is done in person at the registry or by courier with proof of delivery.'
+        footer_disclaimer: 'Document generated electronically through the LexRecovery platform. Filing with the competent court is done with proof of delivery.'
     document_index:
         heading: 'DOCUMENTS INDEX'
         subheading: 'Annex to the payment-order petition (CPC art. 1016)'
@@ -1385,17 +1451,20 @@ subscription:
         included_cases: '%count% cases included per month'
         extra_case: '%price% RON per extra case'
         choose: 'Choose plan'
+        recurring_disclosure: 'By subscribing, the card you enter is saved and charged automatically each month with %price% RON, until you cancel. You can cancel anytime from your account.'
     invoices:
         title: 'My invoices'
         back: 'Back to subscription'
         empty: 'No invoices yet.'
-        fiscal_disclaimer: 'These are internal payment confirmations, not fiscal invoices. A fiscal invoice will be issued separately.'
+        fiscal_note: 'After each payment, the fiscal invoice is issued automatically and appears here, with e-Factura status and PDF download.'
         date: 'Date'
         type: 'Type'
         amount: 'Amount'
         status: 'Status'
         action: 'Action'
         pay: 'Pay'
+        view_fiscal: 'Fiscal invoice'
+        fiscal_issuing: 'Invoice being issued'
     checkout:
         title: 'Checkout'
         type: 'Type'
@@ -1403,8 +1472,16 @@ subscription:
         status: 'Status'
         stub_notice: 'Test environment: this is not a real payment. Click the button to mark the invoice as paid.'
         mark_paid: 'Mark as paid'
+        processing: 'Your payment is being processed. You will be redirected to the payment processor.'
         already_paid: 'This invoice is already paid.'
         back: 'Back to invoices'
+    return:
+        title: 'Payment status'
+        no_invoice: 'We could not find a recent invoice for your account.'
+        paid: 'Your payment is confirmed. Thank you.'
+        processing: 'Your payment is being confirmed. This may take a moment. The fiscal invoice follows once confirmed.'
+        invoices: 'View invoices'
+        subscription: 'Back to subscription'
     paywall:
         blocked: 'Sending the payment notice requires an active subscription. Choose a plan to continue. The case deadlines keep running regardless of subscription status.'
         overage: 'You exceeded your monthly plan. An invoice was issued for the extra case; find it under Invoices.'
@@ -1413,6 +1490,41 @@ subscription:
         already_subscribed: 'You already have an active subscription. Changing plans will be available soon.'
         paid: 'Payment recorded successfully.'
         already_paid: 'This invoice is already paid.'
+        payment_processing: 'Your payment is being processed. You will see the confirmation as soon as the processor completes it.'
+        fiscal_data_required: 'Before paying, complete your fiscal data (tax ID, name, address) so we can issue the invoice.'
+
+# =============================================================================
+# Fiscal invoice content (frozen onto the document at issuance)
+# =============================================================================
+invoice:
+    line:
+        subscription: 'Subscription %plan%'
+        case_extra: 'Extra case processing %case%'
+
+fiscal_invoices:
+    title: 'Fiscal invoices'
+    back: 'Back to subscription'
+    back_to_list: 'Back to invoices'
+    empty: 'You have no fiscal invoices yet.'
+    number: 'Series / number'
+    date: 'Date'
+    total: 'Total'
+    einvoice_status: 'e-Factura status'
+    action: 'Action'
+    download: 'Download PDF'
+    draft: 'Draft'
+    detail: 'Invoice'
+    supplier: 'Supplier'
+    buyer: 'Client'
+    line: 'Description'
+    qty: 'Qty'
+    unit_net: 'Net price'
+    vat: 'VAT'
+    gross: 'Total'
+    net_total: 'Net total'
+    vat_total: 'VAT total'
+    gross_total: 'Total due'
+    lines_in_pdf: 'The full breakdown (lines, VAT) is in the official PDF.'
 
 # =============================================================================
 # Enums (label() returns these keys; consumers apply |trans)
@@ -1438,6 +1550,20 @@ enum:
     invoice_type:
         subscription: 'Subscription'
         case_extra: 'Extra case'
+    einvoice_status:
+        not_applicable: 'Not applicable'
+        pending: 'Pending'
+        sent: 'Sent to SPV'
+        accepted: 'Accepted by ANAF'
+        rejected: 'Rejected by ANAF'
+        error: 'Error'
+    fiscal_invoice_kind:
+        invoice: 'Invoice'
+        storno: 'Correction invoice (storno)'
+    fiscal_invoice_status:
+        draft: 'Draft'
+        issued: 'Issued'
+        canceled: 'Canceled'
     subscription_slot_consumption_outcome:
         consumed_from_plan: 'Included in plan'
         trial_consumed: 'Included in trial'
@@ -1456,7 +1582,7 @@ enum:
         EXECUTARE: 'Enforcement'
         RESPINSA: 'Rejected'
         INCHIS_SUCCES: 'Closed: recovered'
-        INCHIS_PARTIAL_INSOLVABIL: 'Closed: partial / insolvent'
+        INCHIS_FARA_RECUPERARE: 'Closed: not recovered'
     case_transition:
         trimite_somatie: 'Send notice'
         depune_cerere: 'File payment order petition'
@@ -1465,11 +1591,13 @@ enum:
         emite_ordonanta: 'Issue order'
         formuleaza_cerere_anulare: 'File annulment request'
         respinge_cerere_anulare: 'Reject annulment request'
+        respinge_cerere_anulare_executare: 'Reject annulment request (during enforcement)'
         admite_cerere_anulare: 'Grant annulment request'
         marcheaza_definitiva: 'Mark as final'
         respinge: 'Reject petition'
+        trece_la_executare: 'Move to enforcement'
         inchide_succes: 'Close: recovered'
-        inchide_insolvabil: 'Close: insolvent'
+        inchide_fara_recuperare: 'Close: not recovered'
     court_type:
         judecatorie: 'Local court'
         tribunal: 'Tribunal'
@@ -1490,11 +1618,13 @@ enum:
         JUDECATA: 'Court hearing'
         CERERE_IN_ANULARE: 'Annulment request deadline'
         PRESCRIPTIE: 'Statute of limitations'
+        PRESCRIPTIE_EXECUTARE: 'Enforcement statute of limitations'
         OTHER: 'Other deadline'
     document_type:
         somatie: 'Payment notice'
         cerere_op: 'Payment order petition'
         opis: 'Document index'
+        ordonanta_plata: 'Payment order'
         dovada_comunicare: 'Proof of communication'
         act_constatator: 'Findings document'
         anexa: 'Annex'
@@ -1529,8 +1659,14 @@ enum:
     close_reason:
         PAID: 'Full payment'
         PARTIAL: 'Partial recovery'
-        INSOLVENT: 'Debtor insolvent'
         ABANDONED: 'Case abandoned (client decision)'
+        INSOLVENT_EXECUTARE: 'Debtor insolvent (found in enforcement)'
+    payment_notice_communication_method:
+        EXECUTOR: 'Through a judicial bailiff'
+        POSTA_RCD: 'Romanian Post (registered letter with declared content and return receipt)'
+    debit_acknowledged_status:
+        PARTIAL: 'Partially paid'
+        UNPAID: 'Unpaid'
     interest_kind:
         REMUNERATORIE: 'Remunerative'
         PENALIZATOARE: 'Penalty'
@@ -1646,7 +1782,7 @@ court:
         locality_unmatched_pick_manually: 'Debtor locality does not match a single local court. Please pick the competent court manually from the list.'
         locality_ambiguous: 'The locality matches multiple local courts. Please pick the correct one manually.'
         matched_judecatorie: 'Local court (judecătorie) competent per CPC art. 94 + 107 (territorial jurisdiction).'
-        matched_tribunal: 'Tribunal competent per CPC art. 95 (above 200,000 RON threshold on the total claim value with accessories, CPC art. 98).'
+        matched_tribunal: 'Tribunal competent per CPC art. 95 (the principal exceeds the 200,000 RON threshold). Accessories (interest, penalties) are excluded from the competence calculation, per CPC art. 98 para. 2.'
         matched_tribunal_specializat: 'Specialized tribunal competent for litigation between professionals (Law 304/2022 art. 41). Verify the court practice before filing.'
         tribunal_missing: 'No active tribunal in %county%. Please contact the administrator.'
         tribunal_ambiguous: 'Multiple active tribunals in %county%. Please verify the configuration data.'
@@ -1665,6 +1801,7 @@ validation:
         OP_INSOLVENCY_NOT_VERIFIED: 'Verify the debtor''s insolvency status on bpi.just.ro and confirm in the UI before filing (attach the BPI proof PDF).'
         OP_INSOLVENCY_STALE: 'The BPI (insolvency) check is older than 7 days. Re-verify on bpi.just.ro and update the proof; insolvency status changes rapidly.'
         OP_PF_BIPF_MANUAL_CHECK: 'Individual debtor: manually verify BIPF (Personal Insolvency Bulletin, Law 151/2015) on bpi.just.ro before filing.'
+        OP_DEBT_NOT_YET_DUE: 'The claim''s due date is in the future. The claim is not yet due and payable (CPC art. 1013) and the payment order petition is inadmissible: payment cannot be demanded before the due date. Correct the due date or wait until the term falls due.'
 
 # =============================================================================
 # Email notifications (EmailNotificationSubscriber + templates/emails/)
@@ -1674,6 +1811,14 @@ email:
     footer_disclaimer: 'This message is informational and does not constitute legal advice. Always verify deadlines and rulings directly on the court portal.'
     cta:
         view_case: 'Open case'
+    subscription_action_required:
+        subject: 'LexRecovery subscription: action required'
+        heading: 'Your subscription renewal needs attention'
+        greeting: 'Hi %name%,'
+        reason_charge_failed: 'We could not automatically charge your monthly subscription. The saved card was declined or has insufficient funds.'
+        reason_token_expired: 'The saved card for automatic payment has expired, so we could not charge your monthly subscription.'
+        instruction: 'To keep your subscription active, update your payment method and retry the payment from your account.'
+        cta: 'Update payment'
     case_status:
         somatie_trimisa:
             subject: 'Payment notice generated for case %case%'
@@ -1769,6 +1914,38 @@ cases:
     heading: 'Cases'
     subtitle: 'All your cases, with status filtering, search and sorting.'
 
+invoices:
+    heading: 'Invoices'
+    subtitle: 'All your payments, filterable by status, type and period. Once paid, the fiscal invoice opens from here.'
+    manage_subscription: 'Manage subscription'
+
+# =============================================================================
+# Creditor library (creditors/*.html.twig)
+# =============================================================================
+library:
+    creditors:
+        title: 'Creditors'
+        heading: 'Creditors'
+        subtitle: 'Your creditor library, reusable when creating cases.'
+        new_button: 'New creditor'
+        new:
+            title: 'New creditor'
+            heading: 'New creditor'
+            subtitle: 'The details will auto-fill on your next cases.'
+        edit:
+            title: 'Edit creditor'
+            heading: 'Edit creditor'
+            subtitle: 'Changes apply to future cases, not to ones already filed.'
+        form:
+            create_submit: 'Save creditor'
+            update_submit: 'Save changes'
+            cancel: 'Cancel'
+        flash:
+            created: 'The creditor was added to your library.'
+            updated: 'The creditor was updated.'
+        error:
+            cui_duplicate: 'You already have a creditor with this tax ID in your library.'
+
 # =============================================================================
 # Tables (server-side data grids — column headers per table key)
 # =============================================================================
@@ -1790,3 +1967,26 @@ table:
             status: 'Status'
             date: 'Created'
             actions: 'Actions'
+        filter:
+            creditor_label: 'Creditor'
+    creditors:
+        columns:
+            name: 'Name'
+            person_type: 'Type'
+            cui: 'Tax ID / SSN'
+            cases: 'Cases'
+            date: 'Added'
+            actions: 'Actions'
+        filter:
+            person_type_placeholder: 'All types'
+            search_placeholder: 'Search by name or tax ID...'
+    fiscal_invoices:
+        columns:
+            number: 'Series / number'
+            date: 'Date'
+            total: 'Total'
+            einvoice: 'e-Factura status'
+            actions: 'Actions'
+        filters:
+            einvoice_placeholder: 'All statuses'
+            period: 'Period'

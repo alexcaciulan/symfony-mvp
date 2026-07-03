@@ -11,6 +11,7 @@ enum DeadlineType: string
     case JUDECATA = 'JUDECATA';
     case CERERE_IN_ANULARE = 'CERERE_IN_ANULARE';
     case PRESCRIPTIE = 'PRESCRIPTIE';
+    case PRESCRIPTIE_EXECUTARE = 'PRESCRIPTIE_EXECUTARE';
     case OTHER = 'OTHER';
 
     public function label(): string
@@ -33,6 +34,7 @@ enum DeadlineType: string
             self::JUDECATA => DeadlinePriority::MEDIUM,
             self::CERERE_IN_ANULARE => DeadlinePriority::CRITICAL,
             self::PRESCRIPTIE => DeadlinePriority::CRITICAL,
+            self::PRESCRIPTIE_EXECUTARE => DeadlinePriority::CRITICAL,
             self::OTHER => DeadlinePriority::MEDIUM,
         };
     }

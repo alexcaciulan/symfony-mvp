@@ -1,0 +1,95 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ 'fiscal_invoices.detail'|trans }} {{ invoice.formattedNumber }}{% endblock %}
+
+{% block body %}
+    <div class="max-w-3xl mx-auto">
+        <div class="flex items-center justify-between mb-6">
+            <h1 class="text-2xl font-bold text-gray-900">
+                {{ invoice.formattedNumber ?? ('fiscal_invoices.draft'|trans) }}
+            </h1>
+            <a href="{{ path('app_invoices') }}" class="text-sm font-medium text-lex-navy hover:underline no-underline">
+                {{ 'fiscal_invoices.back_to_list'|trans }}
+            </a>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-6">
+            <div class="grid grid-cols-2 gap-6 text-sm">
+                <div>
+                    <h2 class="text-gray-500 font-medium mb-1">{{ 'fiscal_invoices.supplier'|trans }}</h2>
+                    {% set s = invoice.supplier %}
+                    {% if s %}
+                        <p class="text-gray-900 font-medium">{{ s.name }}</p>
+                        {% if s.cui %}<p class="text-gray-600">CIF: {{ s.cui }}</p>{% endif %}
+                        {% if s.address %}<p class="text-gray-600">{{ s.address }}</p>{% endif %}
+                    {% else %}
+                        <p class="text-gray-500 italic">{{ 'fiscal_invoices.draft'|trans }}</p>
+                    {% endif %}
+                </div>
+                <div>
+                    <h2 class="text-gray-500 font-medium mb-1">{{ 'fiscal_invoices.buyer'|trans }}</h2>
+                    {% set b = invoice.buyer %}
+                    {% if b %}
+                        <p class="text-gray-900 font-medium">{{ b.name }}</p>
+                        {% if b.cui %}<p class="text-gray-600">CIF: {{ b.cui }}</p>{% endif %}
+                        {% if b.address %}<p class="text-gray-600">{{ b.address }}</p>{% endif %}
+                    {% else %}
+                        <p class="text-gray-500 italic">{{ 'fiscal_invoices.draft'|trans }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4 text-sm text-gray-600">
+                <span>{{ 'fiscal_invoices.date'|trans }}: <span class="text-gray-900">{{ invoice.issuedAt ? invoice.issuedAt|date('d.m.Y') : '—' }}</span></span>
+                <span>{{ 'fiscal_invoices.einvoice_status'|trans }}: <span class="text-gray-900">{{ invoice.eInvoiceStatus.label|trans }}</span></span>
+            </div>
+
+            {% if invoice.lines is not empty %}
+                <table class="w-full text-sm border-t border-gray-100">
+                    <thead class="text-gray-500 text-left">
+                        <tr>
+                            <th class="py-2 font-medium">{{ 'fiscal_invoices.line'|trans }}</th>
+                            <th class="py-2 font-medium text-right">{{ 'fiscal_invoices.qty'|trans }}</th>
+                            <th class="py-2 font-medium text-right">{{ 'fiscal_invoices.unit_net'|trans }}</th>
+                            <th class="py-2 font-medium text-right">{{ 'fiscal_invoices.vat'|trans }}</th>
+                            <th class="py-2 font-medium text-right">{{ 'fiscal_invoices.gross'|trans }}</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        {% for line in invoice.lines %}
+                            <tr>
+                                <td class="py-2 text-gray-900">{{ line.description }}</td>
+                                <td class="py-2 text-right tabular-nums">{{ line.quantity|number_format(0) }}</td>
+                                <td class="py-2 text-right tabular-nums">{{ line.unitPriceNet|number_format(2, ',', '.') }}</td>
+                                <td class="py-2 text-right tabular-nums">{{ line.lineVat|number_format(2, ',', '.') }}</td>
+                                <td class="py-2 text-right tabular-nums">{{ line.lineGross|number_format(2, ',', '.') }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                <div class="flex justify-end">
+                    <dl class="text-sm space-y-1 w-56">
+                        <div class="flex justify-between"><dt class="text-gray-500">{{ 'fiscal_invoices.net_total'|trans }}</dt><dd class="tabular-nums">{{ invoice.netTotal|number_format(2, ',', '.') }}</dd></div>
+                        <div class="flex justify-between"><dt class="text-gray-500">{{ 'fiscal_invoices.vat_total'|trans }}</dt><dd class="tabular-nums">{{ invoice.vatTotal|number_format(2, ',', '.') }}</dd></div>
+                        <div class="flex justify-between font-semibold text-gray-900 border-t border-gray-200 pt-1"><dt>{{ 'fiscal_invoices.gross_total'|trans }}</dt><dd class="tabular-nums">{{ invoice.grossTotal|number_format(2, ',', '.') }} {{ invoice.currency }}</dd></div>
+                    </dl>
+                </div>
+            {% else %}
+                <div class="border-t border-gray-100 pt-4 flex items-center justify-between">
+                    <p class="text-sm text-gray-500">{{ 'fiscal_invoices.lines_in_pdf'|trans }}</p>
+                    <div class="text-right">
+                        <span class="text-gray-500 text-sm">{{ 'fiscal_invoices.gross_total'|trans }}</span>
+                        <span class="ml-2 font-semibold text-gray-900 tabular-nums">{{ invoice.grossTotal|number_format(2, ',', '.') }} {{ invoice.currency }}</span>
+                    </div>
+                </div>
+            {% endif %}
+
+            <div class="border-t border-gray-100 pt-4">
+                <a href="{{ path('app_fiscal_invoice_pdf', {id: invoice.id}) }}" class="inline-flex items-center px-4 py-2 rounded-lg bg-lex-navy text-white text-sm font-medium hover:opacity-90 no-underline">
+                    {{ 'fiscal_invoices.download'|trans }}
+                </a>
+            </div>
+        </div>
+    </div>
+{% endblock %}

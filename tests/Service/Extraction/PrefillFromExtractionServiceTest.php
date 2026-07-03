@@ -210,6 +210,7 @@ final class PrefillFromExtractionServiceTest extends TestCase
                 'phone' => '0721234567',
                 'iban' => 'RO49AAAA1B31007593840000',
                 'legalRepresentative' => 'Popescu Ion',
+                'bankName' => 'Banca Transilvania',
                 'confidencePerField' => [
                     'personType' => 0.99,
                     'name' => 0.95,
@@ -220,6 +221,7 @@ final class PrefillFromExtractionServiceTest extends TestCase
                     'phone' => 0.85,
                     'iban' => 0.93,
                     'legalRepresentative' => 0.81,
+                    'bankName' => 0.90,
                 ],
             ],
             'debtor' => [
@@ -266,8 +268,9 @@ final class PrefillFromExtractionServiceTest extends TestCase
         self::assertSame('0721234567', $creditor->phone);
         self::assertSame('RO49AAAA1B31007593840000', $creditor->iban);
         self::assertSame('Popescu Ion', $creditor->legalRepresentative);
+        self::assertSame('Banca Transilvania', $creditor->bankName);
         self::assertEqualsCanonicalizing(
-            ['personType', 'name', 'cui', 'onrcNumber', 'address', 'email', 'phone', 'iban', 'legalRepresentative'],
+            ['personType', 'name', 'cui', 'onrcNumber', 'address', 'email', 'phone', 'iban', 'legalRepresentative', 'bankName'],
             $creditor->autoFilled,
         );
 
@@ -286,6 +289,103 @@ final class PrefillFromExtractionServiceTest extends TestCase
             ['personType', 'name', 'cui', 'onrcNumber', 'address', 'addressCounty', 'addressLocality', 'email', 'phone', 'iban', 'administrator'],
             $debtor->autoFilled,
         );
+    }
+
+    public function testAllClaimFieldsAggregatedWhenPresent(): void
+    {
+        // Same drift guard as the creditor/debtor full-coverage test, for the
+        // claim block extended with invoice/contract/penalty metadata.
+        $document = $this->buildDocumentWithExtractedData([
+            'claim' => [
+                'amount' => 12000.0,
+                'currency' => 'RON',
+                'dueDate' => '2026-02-01T00:00:00+00:00',
+                'legalGround' => LegalGroundCategory::FACTURA_ACCEPTATA->value,
+                'description' => 'Servicii consultanță Q4 2025',
+                'invoiceNumber' => 'MJ 2026-00042',
+                'invoiceDate' => '2026-01-10T00:00:00+00:00',
+                'contractNumber' => '45/2025',
+                'contractDate' => '2025-12-01T00:00:00+00:00',
+                'contractReference' => 'contract de prestări servicii',
+                'penaltyType' => \App\Enum\PenaltyType::CONTRACTUAL->value,
+                'contractualPenaltyRate' => 0.1,
+                'confidencePerField' => [
+                    'amount' => 0.99,
+                    'currency' => 0.99,
+                    'dueDate' => 0.91,
+                    'legalGround' => 0.83,
+                    'description' => 0.82,
+                    'invoiceNumber' => 0.95,
+                    'invoiceDate' => 0.90,
+                    'contractNumber' => 0.93,
+                    'contractDate' => 0.88,
+                    'contractReference' => 0.85,
+                    'penaltyType' => 0.92,
+                    'contractualPenaltyRate' => 0.90,
+                ],
+            ],
+        ]);
+
+        $service = $this->buildServiceFor([$document]);
+        $claim = $service->aggregateForClaim([1]);
+
+        self::assertSame(12000.0, $claim->amount);
+        self::assertSame('MJ 2026-00042', $claim->invoiceNumber);
+        self::assertNotNull($claim->invoiceDate);
+        self::assertSame('2026-01-10', $claim->invoiceDate->format('Y-m-d'));
+        self::assertSame('45/2025', $claim->contractNumber);
+        self::assertNotNull($claim->contractDate);
+        self::assertSame('2025-12-01', $claim->contractDate->format('Y-m-d'));
+        self::assertSame('contract de prestări servicii', $claim->contractReference);
+        self::assertSame(\App\Enum\PenaltyType::CONTRACTUAL, $claim->penaltyType);
+        self::assertSame(0.1, $claim->contractualPenaltyRate);
+        self::assertEqualsCanonicalizing(
+            ['amount', 'currency', 'dueDate', 'legalGround', 'description', 'invoiceNumber', 'invoiceDate', 'contractNumber', 'contractDate', 'contractReference', 'penaltyType', 'contractualPenaltyRate'],
+            $claim->autoFilled,
+        );
+    }
+
+    public function testContractualPenaltyTypeWithoutRateFallsBackToDefault(): void
+    {
+        // CONTRACTUAL prefilled but no rate → Step3 would be invalid (Assert\When
+        // requires the rate). The service drops both and falls back to the
+        // wizard default (LEGAL_PENALIZATOARE), without marking them auto-filled.
+        $document = $this->buildDocumentWithExtractedData([
+            'claim' => [
+                'amount' => 5000.0,
+                'penaltyType' => \App\Enum\PenaltyType::CONTRACTUAL->value,
+                // contractualPenaltyRate absent / below threshold
+                'confidencePerField' => ['amount' => 0.99, 'penaltyType' => 0.95],
+            ],
+        ]);
+
+        $service = $this->buildServiceFor([$document]);
+        $claim = $service->aggregateForClaim([1]);
+
+        self::assertSame(\App\Enum\PenaltyType::LEGAL_PENALIZATOARE, $claim->penaltyType);
+        self::assertNull($claim->contractualPenaltyRate);
+        self::assertNotContains('penaltyType', $claim->autoFilled);
+        self::assertNotContains('contractualPenaltyRate', $claim->autoFilled);
+    }
+
+    public function testMalformedInvoiceAndContractDatesFallBackToNull(): void
+    {
+        $document = $this->buildDocumentWithExtractedData([
+            'claim' => [
+                'amount' => 1000.0,
+                'invoiceDate' => 'not-a-date',
+                'contractDate' => '31/12/2025',
+                'confidencePerField' => ['amount' => 0.99, 'invoiceDate' => 0.95, 'contractDate' => 0.93],
+            ],
+        ]);
+
+        $service = $this->buildServiceFor([$document]);
+        $claim = $service->aggregateForClaim([1]);
+
+        self::assertNull($claim->invoiceDate);
+        self::assertNull($claim->contractDate);
+        self::assertNotContains('invoiceDate', $claim->autoFilled);
+        self::assertNotContains('contractDate', $claim->autoFilled);
     }
 
     public function testMissingConfidencePerFieldIsTreatedAsBelowThreshold(): void

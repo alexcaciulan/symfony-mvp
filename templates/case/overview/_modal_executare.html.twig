@@ -1,0 +1,63 @@
+{# Confirmation modal for `trece_la_executare` (from ORDONANTA_EMISA, IN_ANULARE
+   or DEFINITIVA). Rendered unconditionally so the CSRF token (transition_executare)
+   is always available. When the order is not yet final (ORDONANTA_EMISA/IN_ANULARE)
+   the restitution-risk warning is shown. #}
+{% from 'case/overview/_icons.html.twig' import icon_warning %}
+
+<div id="hs-modal-executare"
+     class="hs-overlay hidden size-full fixed top-0 start-0 z-[80] overflow-x-hidden overflow-y-auto pointer-events-none"
+     role="dialog"
+     tabindex="-1"
+     aria-labelledby="hs-modal-executare-title">
+    <div class="hs-overlay-open:mt-7 hs-overlay-open:opacity-100 hs-overlay-open:duration-500 mt-0 opacity-0 ease-out transition-all sm:max-w-lg sm:w-full m-3 sm:mx-auto">
+        <form method="post" action="{{ path('case_transition_executare', {id: case.id}) }}" class="flex flex-col bg-white border border-slate-200 shadow-lg rounded-2xl pointer-events-auto dark:bg-slate-900 dark:border-slate-800">
+            <input type="hidden" name="_token" value="{{ csrf_token('transition_executare') }}">
+
+            <div class="flex justify-between items-center py-4 px-5 border-b border-slate-100 dark:border-slate-800">
+                <div class="flex items-center gap-3">
+                    <span class="inline-flex items-center justify-center size-9 rounded-lg bg-teal-100 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400">
+                        {{ icon_warning('size-5') }}
+                    </span>
+                    <h3 id="hs-modal-executare-title" class="font-bold text-slate-900 dark:text-white">{{ 'case_overview.modal.executare_title'|trans }}</h3>
+                </div>
+                <button type="button"
+                        class="size-8 inline-flex justify-center items-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 hover:bg-slate-200 dark:text-slate-100 dark:hover:bg-slate-700"
+                        aria-label="{{ 'case_overview.modal.aria_close'|trans }}"
+                        data-hs-overlay="#hs-modal-executare">
+                    <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <div class="p-5 space-y-4">
+                <p class="text-sm text-slate-600 dark:text-slate-400">
+                    {{ 'case_overview.modal.executare_body_prefix'|trans }}
+                    <strong class="font-mono text-slate-900 dark:text-white">{{ case.caseNumber }}</strong>
+                    {{ 'case_overview.modal.executare_body_suffix'|trans }}
+                </p>
+                {% if case.status.value == 'ORDONANTA_EMISA' or case.status.value == 'IN_ANULARE' %}
+                    <div class="rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 p-3">
+                        <p class="text-[13px] font-semibold text-amber-900 dark:text-amber-200">{{ 'case_overview.modal.executare_risk_title'|trans }}</p>
+                        <p class="mt-1 text-[12px] leading-relaxed text-amber-800/90 dark:text-amber-300/90">{{ 'case_overview.modal.executare_risk_body'|trans }}</p>
+                    </div>
+                {% elseif case.status.value == 'DEFINITIVA' and execution_recommended_date is defined and execution_recommended_date is not null %}
+                    <div class="rounded-lg border border-teal-200 dark:border-teal-900/50 bg-teal-50 dark:bg-teal-950/30 p-3">
+                        <p class="text-[13px] font-semibold text-teal-900 dark:text-teal-200">{{ 'case_overview.modal.executare_voluntary_window_title'|trans }}</p>
+                        <p class="mt-1 text-[12px] leading-relaxed text-teal-800/90 dark:text-teal-300/90">{{ 'case_overview.modal.executare_voluntary_window_body'|trans({'%date%': execution_recommended_date|date('d.m.Y')}) }}</p>
+                    </div>
+                {% endif %}
+            </div>
+
+            <div class="flex justify-end items-center gap-x-2 py-3 px-5 border-t border-slate-100 dark:border-slate-800">
+                <button type="button"
+                        class="py-2 px-3 inline-flex items-center text-sm font-medium rounded-lg border border-slate-200 bg-white text-slate-800 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                        data-hs-overlay="#hs-modal-executare">
+                    {{ 'case_overview.modal.executare_cancel'|trans }}
+                </button>
+                <button type="submit"
+                        class="py-2 px-3 inline-flex items-center text-sm font-semibold rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition">
+                    {{ 'case_overview.modal.executare_confirm'|trans }}
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

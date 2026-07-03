@@ -23,8 +23,9 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  *  - the term runs from `rulingCommunicationDate`, not from the ruling date;
  *  - `deadline = nextWorkingDay(rulingCommunicationDate + 10 days)` (CPC art. 181
  *    para. 2 prorogation to the next working day);
- *  - finalize only when `now >= deadline + autoFinalBufferDays` (safety buffer:
- *    a day late beats a premature transition);
+ *  - finalize only when `now >= addWorkingDays(deadline, autoFinalBufferDays)`
+ *    (safety buffer in WORKING days, so holiday clusters like Easter/Christmas are
+ *    absorbed automatically; a few days late beats a premature transition);
  *  - if `rulingCommunicationDate` is null, do not finalize; dispatch
  *    {@see MissingCommunicationDateEvent} so the lawyer fills in the date;
  *  - if the debtor challenged in time, the case is already in IN_ANULARE and falls
@@ -42,7 +43,7 @@ final class CaseAutoFinalizer
         private readonly AuditLogService $auditLogService,
         private readonly EventDispatcherInterface $eventDispatcher,
         private readonly EntityManagerInterface $em,
-        private readonly int $autoFinalBufferDays = 1,
+        private readonly int $autoFinalBufferDays = 5,
     ) {}
 
     public function process(\DateTimeImmutable $now): AutoFinalizeReport
@@ -68,7 +69,7 @@ final class CaseAutoFinalizer
             $deadline = $this->workingDayResolver->nextWorkingDay(
                 $communicationDate->modify('+' . self::APPEAL_DAYS . ' days'),
             );
-            $finalThreshold = $deadline->modify('+' . $this->autoFinalBufferDays . ' days');
+            $finalThreshold = $this->workingDayResolver->addWorkingDays($deadline, $this->autoFinalBufferDays);
 
             if ($nowDate < $finalThreshold) {
                 ++$notYetDue;

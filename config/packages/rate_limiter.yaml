@@ -64,6 +64,14 @@ framework:
             policy: sliding_window
             limit: 10
             interval: '1 hour'
+        # Public IPN endpoint (PaymentWebhookController) — per client IP. Generous
+        # because Netopia may resend a notification several times per payment
+        # (status transitions + retries), but tight enough to blunt a flood from
+        # a spoofed source before signature verification even runs.
+        payment_webhook:
+            policy: sliding_window
+            limit: 120
+            interval: '1 hour'
 
 when@test:
     framework:
@@ -93,4 +101,6 @@ when@test:
             table_data:
                 policy: no_limit
             subscription_checkout:
+                policy: no_limit
+            payment_webhook:
                 policy: no_limit

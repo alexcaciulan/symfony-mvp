@@ -24,12 +24,15 @@ Rata de referință (rata BNR) este publicată periodic de Banca Națională a R
 - **REMUNERATORIE** — dobânda datorată pentru folosința unei sume (împrumut, credit). Compensează creditorul pentru lipsa de folosință.
 - **PENALIZATOARE** — dobânda datorată pentru întârzierea executării obligației de plată. Sancționează întârzierea.
 
-În procedura ordonanței de plată (OP), dobânda calculată este, de regulă, **PENALIZATOARE** (creanța e exigibilă și neachitată).
+În procedura ordonanței de plată (OP), dobânda calculată este **întotdeauna PENALIZATOARE**: creanța dedusă judecății este, prin definiție, exigibilă și neachitată, iar din momentul scadenței curge exclusiv dobânda de întârziere (daune moratorii de la scadență, art. 1535 NCC; rata penalizatoare B2B, art. 3 alin. 2¹ OG 13/2011 coroborat cu Legea 72/2013). Dobânda remuneratorie este pre-scadentă prin natura ei și nu apare în calculul OP. Eventualele dobânzi remuneratorii acumulate înainte de scadență fac parte din principalul dedus judecății, nu din dobânda calculată aici.
 
 ### 2.3 Date relevante
 
 - **Scadența** (`dueDate`) — data la care obligația de plată a devenit exigibilă. Dobânda curge **începând cu ziua imediat următoare**.
+- **Data emiterii facturii** (`invoiceDate`) — data la care a fost emisă factura. Coroborată cu termenul de plată, permite verificarea modului în care s-a stabilit scadența (și, pentru creanțele în valută, este data cursului BNR de referință). Se reține pentru auditabilitate.
 - **Data de referință** (`referenceDate`) — data până la care se calculează dobânda (în practică: data emiterii somației, data introducerii cererii, data calculului).
+
+> **Ciclu de date de calcul.** În viața unei creanțe, dobânda penalizatoare se recalculează succesiv la mai multe momente: (1) data emiterii somației, (2) data introducerii cererii pe rolul instanței (cu capăt de cerere prin care se solicită dobânda penalizatoare *până la plata efectivă*), (3) data introducerii cererii de executare silită, (4) data fiecărei plăți efective (parțiale sau integrale). La o plată parțială se aplică **imputația plății** (art. 1509 alin. (2) NCC): din suma plătită se sting întâi cheltuielile, apoi dobânzile și penalitățile, și la urmă capitalul; pe capitalul rezidual dobânda penalizatoare continuă să curgă. *Etapele (1) și (2) sunt suportate în MVP (orice `referenceDate`). Etapele (3) și (4), inclusiv imputația plății, sunt **backlog post-MVP** (vezi §11) — necesită modelarea istoricului de plăți pe componente (capital / dobânzi / cheltuieli).*
 
 ---
 
@@ -70,6 +73,8 @@ Forma echivalentă cu rata ca fracție:
 ```
 Dobânda  =  Suma × (Rata / 100) × (Zile / 365)
 ```
+
+**Numărarea zilelor — convenția Z+1.** Ziua scadenței (Z) **nu se numără**; dobânda curge începând cu ziua imediat următoare (art. 1535 NCC). Exemplu: factură scadentă pe 15 iunie → prima zi de dobândă este 16 iunie. Capătul superior al intervalului (data de referință) este inclus. Numărul de zile dintr-un interval este, așadar, numărul de zile din `(scadență, referință]`.
 
 ---
 
@@ -118,6 +123,8 @@ Nu se capitalizează dobânda între perioade (nu este dobândă compusă). Prin
 
 Dacă scadența este în viitor sau egală cu data de referință, **nu curge dobândă**. Rezultatul este 0 și lista de perioade e goală.
 
+> **Atenție — inadmisibilitate, nu doar dobândă nulă.** Dacă scadența este în **viitor**, creanța este **neexigibilă**, iar procedura OP este **inadmisibilă** (CPC art. 1013: creanță certă, lichidă și *exigibilă*). Această situație trebuie semnalată ca **eroare blocantă de admisibilitate** înainte de generarea somației sau a cererii, nu lăsată să treacă pe motiv că „dobânda este oricum 0". Returnarea valorii 0 de către calculator rămâne o protecție matematică defensivă, dar garanția juridică se aplică la stratul de validare a admisibilității.
+
 ### 6.2 Aceeași zi
 
 Dacă scadența = data de referință (după normalizare la 00:00:00), numărul de zile = 0 → dobânda = 0.
@@ -126,9 +133,13 @@ Dacă scadența = data de referință (după normalizare la 00:00:00), numărul 
 
 Dacă în baza de date **nu există o configurație BNR validă la scadență** (caz teoretic — toate configurațiile sunt mai noi decât scadența), calculul nu se poate face și se semnalează eroare. În practică, baza trebuie să acopere istoric ratele BNR cel puțin până la cea mai veche scadență posibil de invocat (uzual: 1 ianuarie an curent − 3 ani, pentru a acoperi prescripția).
 
+În practică această situație **nu apare** dacă baza este populată corect cu ratele BNR pe ultimii 3 ani (acoperind prescripția de drept comun, art. 2517 NCC). Eroarea semnalată în acest caz indică **date lipsă în configurație**, nu o eroare de calcul, și nu trebuie tratată ca un scenariu de utilizare normal.
+
 ### 6.4 Monedă diferită de RON
 
 OG 13/2011 reglementează dobânda legală **în lei**. Calculul în alte monede (EUR, USD) nu intră în scope-ul MVP și este respins explicit.
+
+> **Direcție post-MVP (vezi §11).** Facturile în valută indică de regulă cursul BNR de la data emiterii și echivalentul în RON. O extensie viitoare ar putea permite avocatului să introducă suma în valută plus cursul BNR la o dată aleasă, calculând echivalentul în RON, cu mențiune transparentă în document. **Alegerea cursului (data emiterii / scadenței / introducerii cererii) este o decizie juridică ce rămâne a avocatului** — aplicația nu trebuie să infereze automat cursul, fiindcă jurisprudența este neuniformă și un curs greșit poate fi contestat de debitor.
 
 ### 6.5 Normalizarea datelor
 
@@ -190,7 +201,7 @@ Dobânda calculată conform acestei metodologii constituie **punctul (2)** și s
 Pentru a fi reproductibil și apărabil în fața instanței, rezultatul calculului trebuie să cuprindă:
 
 - suma principalului;
-- data scadenței și data de referință (cu normalizare 00:00:00);
+- data emiterii facturii, data scadenței și data de referință (cu normalizare 00:00:00);
 - lista perioadelor segmentate (start, end, zile, rata BNR, rata aplicabilă, dobânda parțială);
 - totalul dobânzii;
 - temeiul legal (OG 13/2011 art. 3 alin. 2¹, L. 72/2013 art. 20);
@@ -206,4 +217,13 @@ Această descompunere permite verificarea independentă a calculului de către d
 - Doar raporturi **COMERCIAL** (B2B). Raporturile civile (B2C, P2P) sunt în backlog post-MVP.
 - Convenție de calcul **act / 365** (zile efective / 365). Variantele 30/360 sau act/360 nu sunt suportate.
 - **Dobândă simplă** — fără capitalizare (anatocism interzis în lipsa convenției exprese).
-- Nu se calculează dobânzi convenționale care depășesc plafonul legal — aceasta intră în analiza juridică separată (clauze abuzive, plafonul de 50 % peste dobânda legală conform OG 13/2011 art. 5).
+- **Fără plafon legal al ratei în raporturile B2B.** Plafonul de +50 % peste dobânda legală din OG 13/2011 **art. 5 alin. (1)** se aplică *exclusiv* raporturilor care nu decurg din exploatarea unei întreprinderi (raporturi civile / non-profesionale, în sensul art. 3 alin. 3). Creanțele B2B din scope-ul MVP **nu intră** sub acest plafon: rata convențională poate fi orice rată agreată contractual. Singura limitare reală este o eventuală **clauză contractuală** care plafonează ea însăși dobânda (de ex. „dobânda nu poate depăși X % din principal").
+
+---
+
+## 11. Backlog post-MVP
+
+Funcționalități identificate dar amânate explicit, fiindcă necesită modelare de date nouă și au risc juridic dacă sunt implementate superficial:
+
+- **Imputația plății (art. 1509 alin. (2) NCC)** — la plăți parțiale primite în cursul procedurii/executării, stingerea pe ordinea cheltuieli → dobânzi → capital și recalculul dobânzii pe capitalul rezidual. Necesită un istoric de plăți cu data fiecărei plăți și sumele alocate pe componente (capital / dobânzi / cheltuieli), pentru a fi auditabil. Relevant mai ales în faza de executare silită (CPC art. 622 și urm.), în afara scope-ului OP propriu-zis.
+- **Creanțe în valută** — conversie în RON pe baza cursului BNR la o dată aleasă de avocat, cu mențiune transparentă în document (vezi §6.4). Necesită sursă de curs valutar BNR și input manual confirmat de avocat.

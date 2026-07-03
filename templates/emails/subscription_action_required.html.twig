@@ -1,0 +1,20 @@
+{% extends 'emails/_layout.html.twig' %}
+
+{% block content %}
+    <h2 style="color:#b45309;margin-bottom:16px;">{{ 'email.subscription_action_required.heading'|trans }}</h2>
+
+    <p style="font-size:15px;line-height:1.6;">{{ 'email.subscription_action_required.greeting'|trans({'%name%': userName}) }}</p>
+
+    <p style="font-size:15px;line-height:1.6;">
+        {{ ('email.subscription_action_required.reason_' ~ reason)|trans }}
+    </p>
+
+    <p style="font-size:15px;line-height:1.6;">{{ 'email.subscription_action_required.instruction'|trans }}</p>
+
+    <p style="text-align:center;margin:32px 0;">
+        <a href="{{ subscriptionUrl }}"
+           style="display:inline-block;padding:14px 28px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:6px;font-size:16px;font-weight:bold;">
+            {{ 'email.subscription_action_required.cta'|trans }}
+        </a>
+    </p>
+{% endblock %}

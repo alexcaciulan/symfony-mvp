@@ -1,0 +1,39 @@
+{# Card „Soluție detectată pe portal" (R7). Afișat când monitorizarea portal a
+   detectat o soluție a cărei tranziție sugerată e aplicabilă acum. NU aplică
+   automat: CTA deschide modalul de confirmare, prefilat cu data pronunțării.
+   Necesită `portal_ruling_proposal` în context (OverviewContextBuilder). #}
+{% from 'case/overview/_icons.html.twig' import icon_check, icon_chevron_right %}
+
+{% if portal_ruling_proposal is defined and portal_ruling_proposal %}
+    {% set proposal = portal_ruling_proposal %}
+    <section class="rounded-xl border border-sky-200 dark:border-sky-900/50 bg-sky-50 dark:bg-sky-950/20 p-4 mb-4">
+        <div class="flex items-start gap-3">
+            <span class="inline-flex items-center justify-center size-8 rounded-lg bg-sky-100 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 shrink-0">
+                {{ icon_check('size-4') }}
+            </span>
+            <div class="flex-1 min-w-0">
+                <div class="text-sm font-semibold text-sky-900 dark:text-sky-200">{{ 'case_overview.portal_proposal.title'|trans }}</div>
+                <p class="mt-0.5 text-xs text-sky-800/90 dark:text-sky-300/80">{{ 'case_overview.portal_proposal.intro'|trans }}</p>
+
+                <div class="mt-2 rounded-lg bg-white dark:bg-slate-900 border border-sky-100 dark:border-sky-900/40 p-3">
+                    {% if proposal.event.solutie %}
+                        <div class="text-sm font-medium text-slate-900 dark:text-white">{{ proposal.event.solutie }}</div>
+                    {% endif %}
+                    {% if proposal.event.solutieSumar %}
+                        <div class="mt-1 text-xs text-slate-600 dark:text-slate-400">{{ proposal.event.solutieSumar }}</div>
+                    {% endif %}
+                    {% if proposal.prefillDate %}
+                        <div class="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">{{ 'case_overview.portal_proposal.pronounced_on'|trans({'%date%': proposal.prefillDate|date('d.m.Y')}) }}</div>
+                    {% endif %}
+                </div>
+
+                <button type="button"
+                        data-hs-overlay="{{ proposal.modalTarget }}"
+                        class="mt-3 inline-flex items-center gap-x-2 py-2 px-3 text-sm font-semibold rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition">
+                    {{ 'case_overview.portal_proposal.confirm_cta'|trans }}
+                    {{ icon_chevron_right('size-4') }}
+                </button>
+            </div>
+        </div>
+    </section>
+{% endif %}
