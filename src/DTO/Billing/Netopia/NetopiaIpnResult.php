@@ -9,8 +9,10 @@ namespace App\DTO\Billing\Netopia;
  * Produced by {@see App\Service\Billing\Netopia\NetopiaApiClient::verifyIpn()}
  * only AFTER the JWT signature has been validated against the POS public key.
  *
- * `token`/`tokenExpiresAt`/`cardMask` are present only on the first successful
- * payment when the payer opted into a saved card for recurring charges.
+ * `token`/`tokenExpiresAt`/`cardMask` are present whenever the transaction
+ * carries a saved-card binding: on the first recurring payment AND on every
+ * subsequent token charge, which rotates the token (the new value must overwrite
+ * the stored one). Absent for one-off payments.
  */
 final readonly class NetopiaIpnResult
 {

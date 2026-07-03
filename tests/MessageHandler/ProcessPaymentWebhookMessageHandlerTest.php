@@ -12,6 +12,7 @@ use App\Enum\InvoiceType;
 use App\Message\ProcessPaymentWebhookMessage;
 use App\MessageHandler\ProcessPaymentWebhookMessageHandler;
 use App\Repository\InvoiceRepository;
+use App\Service\AuditLogService;
 use App\Service\Billing\InvoicingService;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
@@ -30,7 +31,12 @@ final class ProcessPaymentWebhookMessageHandlerTest extends TestCase
 
     private function handler(InvoiceRepository $invoices, InvoicingService $invoicing): ProcessPaymentWebhookMessageHandler
     {
-        return new ProcessPaymentWebhookMessageHandler($invoices, $invoicing, $this->createMock(EntityManagerInterface::class));
+        return new ProcessPaymentWebhookMessageHandler(
+            $invoices,
+            $invoicing,
+            $this->createMock(EntityManagerInterface::class),
+            $this->createMock(AuditLogService::class),
+        );
     }
 
     public function testSettlesPendingInvoice(): void

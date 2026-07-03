@@ -8,6 +8,7 @@ use App\Entity\Invoice;
 use App\Enum\InvoiceStatus;
 use App\Message\ProcessPaymentWebhookMessage;
 use App\Repository\InvoiceRepository;
+use App\Service\AuditLogService;
 use App\Service\Billing\InvoicingService;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
@@ -35,6 +36,7 @@ final class ProcessPaymentWebhookMessageHandler
         private readonly InvoiceRepository $invoices,
         private readonly InvoicingService $invoicing,
         private readonly EntityManagerInterface $em,
+        private readonly AuditLogService $auditLog,
         private readonly LoggerInterface $logger = new NullLogger(),
     ) {}
 
@@ -86,7 +88,12 @@ final class ProcessPaymentWebhookMessageHandler
         }
 
         $subscription->setRecurringToken($message->token);
-        $subscription->setCardMask($message->cardMask);
+
+        // Defensive: persist the card mask only if it actually looks masked, never
+        // a full PAN (guards SAQ-A scope against a provider format regression).
+        if (null !== $message->cardMask && $this->looksMasked($message->cardMask)) {
+            $subscription->setCardMask($message->cardMask);
+        }
 
         $expiry = null !== $message->tokenExpiresAt ? $this->parseTokenExpiry($message->tokenExpiresAt) : null;
         if (null !== $expiry) {
@@ -94,7 +101,29 @@ final class ProcessPaymentWebhookMessageHandler
         }
 
         $this->em->flush();
+
+        // Audit trail for chargeback/MIT disputes: record that a recurring token
+        // was captured/rotated, WITHOUT the raw token (a short hash correlates it).
+        $this->auditLog->log(
+            action: 'recurring_token_captured',
+            entityType: 'Subscription',
+            entityId: (string) $subscription->getId(),
+            newData: [
+                'invoiceId' => $invoice->getId(),
+                'tokenExpiresAt' => $expiry?->format('Y-m-d'),
+                'tokenHash' => substr(hash('sha256', $message->token), 0, 16),
+            ],
+            category: AuditLogService::CATEGORY_BILLING,
+        );
+        $this->em->flush();
+
         $this->logger->info('payment.webhook.token_saved', ['subscriptionId' => $subscription->getId()]);
+    }
+
+    /** Whether a card mask looks masked (contains no full-PAN digit run of 12+). */
+    private function looksMasked(string $mask): bool
+    {
+        return 1 !== preg_match('/\d{12,}/', $mask);
     }
 
     /**

@@ -127,7 +127,7 @@ final class NetopiaApiClientTest extends TestCase
      *
      * @param array<string, mixed> $body
      */
-    private function signedIpn(array $body, ?string $iss = 'NETOPIA Payments', ?string $aud = 'POS-1'): Request
+    private function signedIpn(array $body, ?string $iss = 'NETOPIA Payments', ?string $aud = 'POS-1', ?int $iat = null): Request
     {
         $json = (string) json_encode($body);
         $sub = base64_encode((string) hash('sha512', $json, true));
@@ -136,11 +136,24 @@ final class NetopiaApiClientTest extends TestCase
             'iss' => $iss,
             'aud' => [$aud],
             'sub' => $sub,
-            'iat' => 1783000000,
+            'iat' => $iat ?? time(),
         ], $this->privateKey, 'RS512');
 
         $request = Request::create('/webhook/netopia', 'POST', content: $json);
         $request->headers->set('Verification-token', $jwt);
+
+        return $request;
+    }
+
+    private static function b64url(string $raw): string
+    {
+        return rtrim(strtr(base64_encode($raw), '+/', '-_'), '=');
+    }
+
+    private function ipnWithRawToken(string $token): Request
+    {
+        $request = Request::create('/webhook/netopia', 'POST', content: '{"order":{"orderID":"INV-1-a"}}');
+        $request->headers->set('Verification-token', $token);
 
         return $request;
     }
@@ -233,6 +246,47 @@ final class NetopiaApiClientTest extends TestCase
 
         $this->expectException(NetopiaException::class);
         $this->client(new MockHttpClient([]), $otherPublic)->verifyIpn($this->signedIpn($this->ipnBody()));
+    }
+
+    public function testVerifyIpnRejectsStaleIat(): void
+    {
+        // Replay protection: an IPN older than the accepted window is rejected.
+        $this->expectException(NetopiaException::class);
+        $this->client(new MockHttpClient([]))->verifyIpn($this->signedIpn($this->ipnBody(), iat: time() - 7200));
+    }
+
+    public function testVerifyIpnRejectsAlgNone(): void
+    {
+        // alg:none downgrade must be refused by the allowlist before any key use.
+        $token = self::b64url('{"alg":"none","typ":"JWT"}') . '.' . self::b64url('{"iss":"NETOPIA Payments"}') . '.';
+
+        $this->expectException(NetopiaException::class);
+        $this->client(new MockHttpClient([]))->verifyIpn($this->ipnWithRawToken($token));
+    }
+
+    public function testVerifyIpnRejectsHs256Downgrade(): void
+    {
+        // Classic alg-confusion: sign HS256 using the RSA public key PEM as the
+        // HMAC secret. The RS*-only allowlist rejects it before verification.
+        $header = self::b64url('{"alg":"HS256","typ":"JWT"}');
+        $payload = self::b64url('{"iss":"NETOPIA Payments","aud":["POS-1"]}');
+        $sig = self::b64url(hash_hmac('sha256', $header . '.' . $payload, $this->publicKey, true));
+
+        $this->expectException(NetopiaException::class);
+        $this->client(new MockHttpClient([]))->verifyIpn($this->ipnWithRawToken("$header.$payload.$sig"));
+    }
+
+    public function testVerifyIpnAcceptsAudienceNotAtIndexZero(): void
+    {
+        $json = (string) json_encode($this->ipnBody());
+        $sub = base64_encode((string) hash('sha512', $json, true));
+        $jwt = JWT::encode(['iss' => 'NETOPIA Payments', 'aud' => ['OTHER', 'POS-1'], 'sub' => $sub, 'iat' => time()], $this->privateKey, 'RS512');
+        $request = Request::create('/webhook/netopia', 'POST', content: $json);
+        $request->headers->set('Verification-token', $jwt);
+
+        $result = $this->client(new MockHttpClient([]))->verifyIpn($request);
+
+        self::assertSame('INV-42-xyz', $result->orderId);
     }
 
     public function testVerifyIpnRejectsMissingToken(): void

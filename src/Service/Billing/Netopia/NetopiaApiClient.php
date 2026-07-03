@@ -26,9 +26,9 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  * WHY custom over the official `netopia/payment2` SDK: that SDK pins
  * `firebase/php-jwt:^6.0`, whose entire 6.x line is covered by CVE-2025-45769
  * ("weak encryption", fixed only in 7.0.0 which `^6.0` excludes), so composer's
- * security audit blocks it. We depend on `firebase/php-jwt:^7.0` (clean)
- * directly and keep the request/response mapping here, testable with
- * MockHttpClient exactly like {@see App\Service\Llm\AnthropicApiClient}.
+ * security audit blocks it. This client keeps the request/response mapping here
+ * and verifies the IPN JWT with openssl directly (no runtime JWT dependency),
+ * testable with MockHttpClient exactly like {@see App\Service\Llm\AnthropicApiClient}.
  *
  * WIRE FORMAT: the exact v2 request/response envelope and the IPN signing
  * scheme are not fully public. Everything version-specific is confined to the
@@ -65,6 +65,10 @@ class NetopiaApiClient
 
     /** Header Netopia v2 uses to carry the signed IPN token (fallback: raw body). */
     private const IPN_TOKEN_HEADER = 'Verification-token';
+
+    /** Max accepted age of a signed IPN, and clock-skew tolerance for future iat. */
+    private const IPN_MAX_AGE_SECONDS = 3600;
+    private const IPN_FUTURE_SKEW_SECONDS = 300;
 
     /**
      * Netopia's platform public key (2048-bit) that signs the v2 IPN JWTs. Per
@@ -194,10 +198,16 @@ class NetopiaApiClient
             throw new NetopiaException('IPN issuer mismatch');
         }
         $aud = $claims['aud'] ?? null;
-        $audValue = is_array($aud) ? ($aud[0] ?? null) : $aud;
-        if ($audValue !== $this->netopiaPosSignature) {
+        $audValues = is_array($aud) ? $aud : [$aud];
+        if (!in_array($this->netopiaPosSignature, $audValues, true)) {
             throw new NetopiaException('IPN audience mismatch');
         }
+
+        // Freshness: reject stale/replayed IPNs (a captured, still-signed token
+        // replayed later could otherwise overwrite an already-rotated recurring
+        // token). Fail-open only when `iat` is absent/unparseable (the signature
+        // is still required); the window is generous for clock skew + worker lag.
+        $this->assertFresh($claims['iat'] ?? null);
 
         // Integrity: the signed `sub` must equal base64(sha512(body)); otherwise the
         // (unsigned) body was tampered with in transit.
@@ -381,14 +391,10 @@ class NetopiaApiClient
     // ---------- JWT / parsing ----------
 
     /**
-     * @return array<string, mixed>
-     */
-    /**
      * Verifies the RS* JWT signature directly with openssl and returns the decoded
-     * payload. openssl is used instead of firebase/php-jwt because Netopia's
-     * sandbox certificate is a 1024-bit RSA key, which firebase/php-jwt rejects as
-     * too short; openssl_verify has no such policy and works for any key size
-     * (sandbox 1024-bit and live 2048-bit alike).
+     * payload. openssl is used instead of firebase/php-jwt because the latter
+     * rejects RSA keys under 2048 bits (Netopia's sandbox cert was 1024-bit);
+     * openssl_verify has no such policy and works for any key size.
      *
      * Alg-confusion is prevented by a strict allowlist: only RS256/384/512 are
      * accepted (mapped to their SHA variant), and the RSA public key is used, so
@@ -448,6 +454,30 @@ class NetopiaApiClient
         }
 
         return sprintf('%02d/%02d', $month, $year % 100);
+    }
+
+    /**
+     * Rejects IPNs whose `iat` is outside the accepted window. `iat` is accepted
+     * in seconds or milliseconds. Absent/unparseable iat is tolerated (fail-open
+     * on freshness only; the signature check is never skipped).
+     */
+    private function assertFresh(mixed $iat): void
+    {
+        if (!is_numeric($iat)) {
+            return;
+        }
+        $iat = (int) $iat;
+        if ($iat > 1_000_000_000_000) {
+            $iat = intdiv($iat, 1000); // milliseconds → seconds
+        }
+
+        $age = time() - $iat;
+        if ($age > self::IPN_MAX_AGE_SECONDS) {
+            throw new NetopiaException('IPN is too old (possible replay)');
+        }
+        if ($age < -self::IPN_FUTURE_SKEW_SECONDS) {
+            throw new NetopiaException('IPN timestamp is in the future');
+        }
     }
 
     /** The configured IPN public key, falling back to the fixed platform key. */

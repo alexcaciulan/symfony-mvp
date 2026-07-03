@@ -191,6 +191,12 @@ class SubscriptionService
     {
         $subscription->setStatus(SubscriptionStatus::CANCELED);
 
+        // GDPR minimization: a saved card instrument has no legitimate purpose once
+        // the subscription will not renew, so drop the recurring token immediately.
+        $subscription->setRecurringToken(null)
+            ->setRecurringTokenExpiresAt(null)
+            ->setCardMask(null);
+
         $this->auditLog->log(
             action: 'subscription_canceled',
             entityType: 'Subscription',
