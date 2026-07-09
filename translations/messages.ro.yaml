@@ -845,7 +845,7 @@ case_overview:
         cta: '+ Adaugă dovadă comunicare →'
     portal_proposal:
         title: 'Soluție detectată pe portal'
-        intro: 'Am preluat soluția de pe portal.just.ro. Verifică textul și confirmă pentru a aplica tranziția. Nu se aplică automat. Confirmă doar dacă e o soluție finală, nu o amânare de termen.'
+        intro: 'Am preluat soluția de pe portal.just.ro. Verifică textul și confirmă pentru a aplica tranziția. Nu se aplică automat. Confirmă exclusiv în măsura în care a fost pronunțată o soluție finală de către instanță, în vederea demarării următoarelor etape procedurale.'
         pronounced_on: 'Pronunțată la %date%'
         confirm_cta: 'Confirmă și aplică'
     transition:

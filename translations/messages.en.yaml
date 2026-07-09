@@ -844,7 +844,7 @@ case_overview:
         cta: '+ Add delivery proof →'
     portal_proposal:
         title: 'Ruling detected on the portal'
-        intro: 'We pulled the ruling from portal.just.ro. Review the text and confirm to apply the transition. It is not applied automatically. Confirm only if it is a final ruling, not a hearing postponement.'
+        intro: 'We pulled the ruling from portal.just.ro. Review the text and confirm to apply the transition. It is not applied automatically. Confirm only insofar as the court has pronounced a final ruling, in order to start the next procedural steps.'
         pronounced_on: 'Ruled on %date%'
         confirm_cta: 'Confirm and apply'
     transition:
