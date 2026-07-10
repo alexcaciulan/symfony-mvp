@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller\Case;
 
+use App\DTO\Calculation\CurrencyConversionResult;
 use App\DTO\Calculation\InterestResult;
 use App\DTO\Calculation\StampDutyResult;
 use App\DTO\Court\CourtResolveResult;
@@ -34,6 +35,7 @@ use App\Repository\CreditorRepository;
 use App\Repository\DocumentRepository;
 use App\Service\AuditLogService;
 use App\Service\Calculation\ContractualPenaltyCalculator;
+use App\Service\Calculation\CurrencyConverter;
 use App\Service\Calculation\InterestCalculatorService;
 use App\Service\Calculation\StampDutyCalculator;
 use App\Service\Court\CompetentCourtResolver;
@@ -86,6 +88,7 @@ final class CaseWizardController extends AbstractController
         private readonly OpAdmissibilityValidator $admissibility,
         private readonly InterestCalculatorService $interestCalculator,
         private readonly ContractualPenaltyCalculator $penaltyCalculator,
+        private readonly CurrencyConverter $currencyConverter,
         private readonly StampDutyCalculator $stampDutyCalculator,
         private readonly CompetentCourtResolver $courtResolver,
         private readonly AuditLogService $auditLog,
@@ -381,13 +384,14 @@ final class CaseWizardController extends AbstractController
         }
 
         $now = new \DateTimeImmutable();
-        $skeleton = $this->buildLegalCaseSkeleton($user, $creditorDto, $debtorsDto, $claimDto);
+        $conversion = $this->resolveConversion($claimDto);
+        $skeleton = $this->buildLegalCaseSkeleton($user, $creditorDto, $debtorsDto, $claimDto, $conversion);
         $issues = $this->admissibility->validate($skeleton, $now);
         ['errors' => $errors, 'warnings' => $warnings] = $this->splitIssues($issues);
         $hasErrors = $errors !== [];
         $hasWarnings = $warnings !== [];
 
-        $calculations = $this->safeComputeForSidebar($claimDto, $debtorsDto->debtors[0] ?? null);
+        $calculations = $this->safeComputeForSidebar($claimDto, $debtorsDto->debtors[0] ?? null, $conversion);
         $sessionDocuments = $this->loadOwnedDocuments($bag['documentIds'], $user);
 
         $confirmation = new Step4ConfirmationData();
@@ -423,6 +427,16 @@ final class CaseWizardController extends AbstractController
             }
 
             if (!$form->isValid()) {
+                return $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex, $sessionDocuments, $preselectedCourt);
+            }
+
+            // A foreign-currency claim cannot be persisted without a resolved BNR
+            // rate, otherwise the case lands in an inconsistent state (currency
+            // EUR with no conversion, which the calculator guard rejects at
+            // document time). Block with a clear message instead.
+            if ($claimDto->currency !== 'RON' && $conversion === null) {
+                $this->addFlash('error', 'wizard.step4.flash.exchange_rate_missing');
+
                 return $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex, $sessionDocuments, $preselectedCourt);
             }
 
@@ -464,6 +478,7 @@ final class CaseWizardController extends AbstractController
                 $creditorOutcome,
                 $chosenCourt,
                 $courtResolution,
+                $conversion,
             );
 
             $session->set(self::SESSION_KEY, $this->emptyBag());
@@ -535,6 +550,7 @@ final class CaseWizardController extends AbstractController
             'accessory_total' => $calculations['accessoryTotal'] ?? 0.0,
             'stamp_duty' => $calculations['stampDuty'],
             'court' => $calculations['court'],
+            'conversion' => $calculations['conversion'] ?? null,
             'auto_filled' => $autoFilledIndex,
         ]);
     }
@@ -557,6 +573,7 @@ final class CaseWizardController extends AbstractController
         array &$creditorOutcome,
         ?Court $court,
         string $courtResolution,
+        ?CurrencyConversionResult $conversion,
     ): LegalCase {
         return $this->em->wrapInTransaction(function () use (
             $user,
@@ -570,14 +587,26 @@ final class CaseWizardController extends AbstractController
             &$creditorOutcome,
             $court,
             $courtResolution,
+            $conversion,
         ): LegalCase {
             $creditor = $this->reuseOrCreateCreditor($user, $creditorDto, $creditorOutcome);
 
             $case = new LegalCase();
             $case->setUser($user);
             $case->setCreditor($creditor);
-            $case->setAmount(sprintf('%.2f', $claimDto->amount ?? 0.0));
-            $case->setCurrency($claimDto->currency);
+            // Foreign currency is stored converted to RON; the original values
+            // are kept for transparency in the document (art. 9 audit trail).
+            if ($conversion !== null) {
+                $case->setAmount(sprintf('%.2f', $conversion->ronAmount));
+                $case->setCurrency('RON');
+                $case->setOriginalAmount(sprintf('%.2f', $conversion->originalAmount));
+                $case->setOriginalCurrency($conversion->originalCurrency);
+                $case->setExchangeRate(sprintf('%.4f', $conversion->rate));
+                $case->setExchangeRateDate($conversion->rateDate);
+            } else {
+                $case->setAmount(sprintf('%.2f', $claimDto->amount ?? 0.0));
+                $case->setCurrency($claimDto->currency);
+            }
             // LegalCase.dueDate is DATE_MUTABLE in Doctrine — the DTO holds an
             // immutable; Doctrine's DateType rejects DateTimeImmutable. Convert
             // at the persistence boundary.
@@ -726,16 +755,52 @@ final class CaseWizardController extends AbstractController
         );
     }
 
+    /**
+     * FX conversion for a foreign-currency claim, at the BNR rate of the invoice
+     * emission date. Null when the claim is already in RON, when required inputs
+     * are missing, or when no BNR rate is available (logged, surfaced upstream).
+     */
+    private function resolveConversion(Step3ClaimData $claim): ?CurrencyConversionResult
+    {
+        if ($claim->amount === null || $claim->currency === 'RON' || $claim->invoiceDate === null) {
+            return null;
+        }
+
+        try {
+            return $this->currencyConverter->convertToRon($claim->amount, $claim->currency, $claim->invoiceDate);
+        } catch (\RuntimeException $e) {
+            $this->logger->info('wizard.calc.fx_failed', ['reason' => $e->getMessage()]);
+
+            return null;
+        }
+    }
+
+    /**
+     * The claim amount every calculation runs on: the RON-converted value for a
+     * foreign currency, or the raw amount for RON. Null signals "cannot compute"
+     * (foreign currency without a resolvable rate).
+     */
+    private function ronAmount(Step3ClaimData $claim, ?CurrencyConversionResult $conversion): ?float
+    {
+        if ($claim->currency === 'RON') {
+            return $claim->amount;
+        }
+
+        return $conversion?->ronAmount;
+    }
+
     private function buildLegalCaseSkeleton(
         User $user,
         Step1CreditorData $creditorDto,
         Step2DebtorsData $debtorsDto,
         Step3ClaimData $claimDto,
+        ?CurrencyConversionResult $conversion = null,
     ): LegalCase {
         $case = new LegalCase();
         $case->setUser($user);
-        $case->setAmount($claimDto->amount !== null ? sprintf('%.2f', $claimDto->amount) : null);
-        $case->setCurrency($claimDto->currency);
+        $ronAmount = $this->ronAmount($claimDto, $conversion);
+        $case->setAmount($ronAmount !== null ? sprintf('%.2f', $ronAmount) : null);
+        $case->setCurrency($conversion !== null ? 'RON' : $claimDto->currency);
         $case->setDueDate($claimDto->dueDate !== null ? \DateTime::createFromImmutable($claimDto->dueDate) : null);
         $case->setRelationshipType($claimDto->relationshipType);
         $this->applyAccessoryFields($case, $claimDto);
@@ -789,12 +854,17 @@ final class CaseWizardController extends AbstractController
      * template renders placeholders instead of crashing the page when the
      * user is on step 3/4 with incomplete data.
      *
-     * @return array{interest: ?InterestResult, penalty: ?PenaltyResult, accessoryTotal: float, stampDuty: ?StampDutyResult, court: ?CourtResolveResult}
+     * @return array{interest: ?InterestResult, penalty: ?PenaltyResult, accessoryTotal: float, stampDuty: ?StampDutyResult, court: ?CourtResolveResult, conversion: ?CurrencyConversionResult}
      */
-    private function safeComputeForSidebar(Step3ClaimData $claim, ?Step2DebtorEntry $primaryDebtor): array
+    private function safeComputeForSidebar(Step3ClaimData $claim, ?Step2DebtorEntry $primaryDebtor, ?CurrencyConversionResult $conversion): array
     {
-        if ($claim->amount === null || $claim->amount <= 0.0 || $claim->dueDate === null || $claim->relationshipType === null) {
-            return ['interest' => null, 'penalty' => null, 'accessoryTotal' => 0.0, 'stampDuty' => $this->safeStampDuty(), 'court' => null];
+        // Everything downstream runs on RON: convert a foreign-currency claim
+        // first. A foreign currency with no resolvable rate yields a null
+        // principal, so we bail to placeholders (and the template shows the FX
+        // error via `conversion`).
+        $principal = $this->ronAmount($claim, $conversion);
+        if ($principal === null || $principal <= 0.0 || $claim->dueDate === null || $claim->relationshipType === null) {
+            return ['interest' => null, 'penalty' => null, 'accessoryTotal' => 0.0, 'stampDuty' => $this->safeStampDuty(), 'court' => null, 'conversion' => $conversion];
         }
 
         $now = new \DateTimeImmutable();
@@ -808,7 +878,7 @@ final class CaseWizardController extends AbstractController
 
         if ($claim->penaltyType === PenaltyType::CONTRACTUAL && $claim->contractualPenaltyRate !== null) {
             $penalty = $this->penaltyCalculator->calculate(
-                $claim->amount,
+                $principal,
                 $claim->contractualPenaltyRate,
                 $claim->dueDate,
                 $now,
@@ -817,7 +887,7 @@ final class CaseWizardController extends AbstractController
         } else {
             try {
                 $interest = $this->interestCalculator->calculate(
-                    $claim->amount,
+                    $principal,
                     $claim->dueDate,
                     $now,
                     $claim->relationshipType,
@@ -839,7 +909,7 @@ final class CaseWizardController extends AbstractController
         $isContractual = $claim->penaltyType === PenaltyType::CONTRACTUAL;
         try {
             $court = $this->courtResolver->resolve(
-                $claim->amount,
+                $principal,
                 $claim->dueDate,
                 $now,
                 $claim->relationshipType,
@@ -853,7 +923,7 @@ final class CaseWizardController extends AbstractController
             $court = null;
         }
 
-        return ['interest' => $interest, 'penalty' => $penalty, 'accessoryTotal' => $accessoryTotal, 'stampDuty' => $this->safeStampDuty(), 'court' => $court];
+        return ['interest' => $interest, 'penalty' => $penalty, 'accessoryTotal' => $accessoryTotal, 'stampDuty' => $this->safeStampDuty(), 'court' => $court, 'conversion' => $conversion];
     }
 
     private function safeStampDuty(): ?StampDutyResult

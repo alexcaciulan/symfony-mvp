@@ -228,10 +228,18 @@
             </div>
 
             <div class="px-5 py-4 space-y-4">
+                {# Foreign currency is converted to RON first; the whole sidebar
+                   then displays RON so the principal/interest/total stay consistent. #}
+                {% set conv = this.getConversion %}
+                {% set display_currency = conv is not null ? 'RON' : currency %}
+                {% set display_principal = conv is not null ? conv.ronAmount : amount %}
                 <div>
                     <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.principal_label'|trans }}</div>
-                    {% if amount is not null and amount > 0 %}
-                        <div class="mt-1 text-2xl font-bold tnum">{{ amount|number_format(2, '.', ',') }} <span class="text-sm font-normal text-white/70">{{ currency }}</span></div>
+                    {% if display_principal is not null and display_principal > 0 %}
+                        <div class="mt-1 text-2xl font-bold tnum">{{ display_principal|number_format(2, '.', ',') }} <span class="text-sm font-normal text-white/70">{{ display_currency }}</span></div>
+                        {% if conv is not null %}
+                            <div class="mt-1 text-[11px] text-white/60">{{ 'wizard.step3.sidebar.conversion_line'|trans({ '%amount%': conv.originalAmount|number_format(2, '.', ','), '%currency%': conv.originalCurrency, '%rate%': conv.rate|number_format(4, '.', ','), '%date%': conv.rateDate ? conv.rateDate|date('d.m.Y') : '', '%ron%': conv.ronAmount|number_format(2, '.', ',') }) }}</div>
+                        {% endif %}
                     {% else %}
                         <div class="mt-1 text-xs text-white/60">{{ 'wizard.step3.sidebar.principal_placeholder'|trans }}</div>
                     {% endif %}
@@ -242,13 +250,13 @@
                     {% if interest is null %}
                         {% if due_in_future %}
                             <div class="mt-1 text-xs text-amber-300">{{ 'wizard.step3.live.error.due_date_future'|trans }}</div>
-                        {% elseif currency != 'RON' %}
-                            <div class="mt-1 text-xs text-amber-300">{{ 'wizard.step3.live.error.currency_unsupported'|trans }}</div>
+                        {% elseif currency != 'RON' and conv is null %}
+                            <div class="mt-1 text-xs text-amber-300">{{ 'wizard.step3.live.error.exchange_rate_missing'|trans }}</div>
                         {% else %}
                             <div class="mt-1 text-xs text-white/60">{{ 'wizard.step3.sidebar.interest_placeholder'|trans }}</div>
                         {% endif %}
                     {% else %}
-                        <div class="mt-1 text-2xl font-bold tnum text-amber-300">+ {{ interest.total|number_format(2, '.', ',') }} <span class="text-sm font-normal text-white/70">{{ currency }}</span></div>
+                        <div class="mt-1 text-2xl font-bold tnum text-amber-300">+ {{ interest.total|number_format(2, '.', ',') }} <span class="text-sm font-normal text-white/70">{{ display_currency }}</span></div>
                         {% if interest.breakdown|length > 0 %}
                             {% set last = interest.breakdown|last %}
                             <div class="mt-1 text-[11px] text-white/50">{{ 'wizard.step3.sidebar.interest_last_rate'|trans({ '%rate%': last.applicableRate|number_format(2) }) }}</div>
@@ -256,10 +264,10 @@
                     {% endif %}
                 </div>
 
-                {% if interest is not null and amount is not null %}
+                {% if interest is not null and display_principal is not null %}
                     <div class="pt-3 border-t border-white/10">
                         <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.total_label'|trans }}</div>
-                        <div class="mt-1 text-3xl font-bold tnum text-green-300">{{ (amount + interest.total)|number_format(2, '.', ',') }} <span class="text-base font-normal text-white/70">{{ currency }}</span></div>
+                        <div class="mt-1 text-3xl font-bold tnum text-green-300">{{ (display_principal + interest.total)|number_format(2, '.', ',') }} <span class="text-base font-normal text-white/70">{{ display_currency }}</span></div>
                     </div>
                 {% endif %}
 
@@ -302,10 +310,10 @@
                         <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.stamp_duty_label'|trans }}</div>
                         <div class="mt-0.5 text-base font-semibold tnum">{{ stamp_duty.amount|number_format(2, '.', ',') }}</div>
                     </div>
-                    {% if interest is not null and amount is not null %}
+                    {% if interest is not null and display_principal is not null %}
                         <div>
                             <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.total_plus_stamp'|trans }}</div>
-                            <div class="mt-0.5 text-base font-semibold tnum">{{ (amount + interest.total + stamp_duty.amount)|number_format(2, '.', ',') }}</div>
+                            <div class="mt-0.5 text-base font-semibold tnum">{{ (display_principal + interest.total + stamp_duty.amount)|number_format(2, '.', ',') }}</div>
                         </div>
                     {% endif %}
                 </div>

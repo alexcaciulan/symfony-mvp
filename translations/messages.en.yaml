@@ -339,6 +339,7 @@ wizard:
             computed_at: 'at %date%'
             principal_label: 'Principal'
             principal_placeholder: 'Enter the amount in the form to see calculations.'
+            conversion_line: '%amount% %currency% × BNR rate %rate% (%date%) = %ron% RON'
             interest_label: 'Accrued interest'
             interest_placeholder: 'Enter amount and due date to see interest.'
             interest_last_rate: 'Current BNR rate %rate%%'
@@ -358,6 +359,7 @@ wizard:
             error:
                 due_date_future: 'Due date is in the future; claim is not yet exigible.'
                 currency_unsupported: 'Interest calculation supported only for RON (OG 13/2011).'
+                exchange_rate_missing: 'BNR rate unavailable for the invoice date. Import the rates or check the issue date.'
             court:
                 indeterminate: 'Court is computed at the confirmation step.'
                 computed_at_step4: 'With complete data (structured debtor address).'
@@ -428,6 +430,7 @@ wizard:
             body: 'AI-extracted data passes through Anthropic (30-day retention, no model training). Binary documents never leave our server without explicit consent (MAX_ACCURACY mode).'
         flash:
             errors_blocking: 'Admissibility errors block submission. Fix them before saving.'
+            exchange_rate_missing: 'No BNR rate for the invoice currency and date. Import the exchange rates or fix the issue date before saving.'
             creditor_reused: 'Existing creditor reused from your catalog (same CUI).'
             success: 'Case created successfully. Number %caseNumber%.'
             success_toast: 'Case %caseNumber% created successfully'
@@ -1154,6 +1157,7 @@ pdf:
         debtor_identification_lead: '%name%, with registered office/domicile at %address%'
         principal_block_title: 'Regarding the obligation to pay the principal debt'
         principal_body: 'Pursuant to art. 1270 para. (1) of the Civil Code, a validly concluded contract has the force of law between the contracting parties. As shown in the creditor''s accounting records, the debtor owes an outstanding principal debt of %principal% %currency%, unpaid at maturity.'
+        principal_fx_conversion: 'The claim is denominated in the invoice in foreign currency (%amount% %currency%). The amount was converted to lei at the BNR reference rate applicable to the invoice issue date, namely %rate% RON per one unit of %currency% (BNR reference rate published on %date%), resulting in a principal debt of %ron% RON.'
         principal_invoice: 'The amount is due under invoice %invoice%%date%.'
         principal_invoice_date: ', issued on %date%'
         principal_contract: 'The obligation arises from Contract %contract%%date%.'
@@ -1769,6 +1773,7 @@ exception:
     calculation:
         interest_rate_missing: 'No BNR rate is configured for the due date. Check InterestRateConfigFixtures.'
         currency_unsupported: 'Interest calculation is only available for RON-denominated claims. Foreign-currency support will be added later.'
+        exchange_rate_missing: 'No BNR exchange rate for the invoice currency and date. Import the rates (app:import-exchange-rates) or check the issue date.'
 
 # =============================================================================
 # Court resolver explanation keys (CompetentCourtResolver — CPC art. 94 + 95 + 98 + 107)

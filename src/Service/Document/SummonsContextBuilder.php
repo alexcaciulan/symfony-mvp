@@ -65,6 +65,12 @@ final class SummonsContextBuilder
             'grandTotal' => $principal + $accessoryTotal,
             'refDate' => $refDate,
             'invoiceDate' => $this->invoiceDate($case),
+            // FX conversion metadata (null for native-RON claims). Lets the
+            // document state "X EUR × curs BNR Y (data Z) = W RON".
+            'originalAmount' => $case->getOriginalAmount() !== null ? (float) $case->getOriginalAmount() : null,
+            'originalCurrency' => $case->getOriginalCurrency(),
+            'exchangeRate' => $case->getExchangeRate() !== null ? (float) $case->getExchangeRate() : null,
+            'exchangeRateDate' => $case->getExchangeRateDate(),
         ];
     }
 

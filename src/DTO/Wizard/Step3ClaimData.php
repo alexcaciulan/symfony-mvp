@@ -66,6 +66,19 @@ class Step3ClaimData
         public ?float $contractualPenaltyRate = null,
         public ?string $contractReference = null,
         public ?string $invoiceNumber = null,
+        // A foreign-currency claim is converted to RON at the BNR rate of the
+        // invoice emission date, so that date is mandatory when currency != RON.
+        // A future issue date is always wrong (no BNR rate exists for it yet).
+        #[Assert\LessThanOrEqual(
+            value: 'today',
+            message: 'wizard.step3.error.invoice_date_not_future',
+        )]
+        #[Assert\When(
+            expression: 'this.currency !== "RON"',
+            constraints: [
+                new Assert\NotNull(message: 'wizard.step3.error.invoice_date_required_fx'),
+            ],
+        )]
         public ?\DateTimeImmutable $invoiceDate = null,
         public ?string $contractNumber = null,
         public ?\DateTimeImmutable $contractDate = null,

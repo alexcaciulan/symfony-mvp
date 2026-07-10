@@ -146,6 +146,66 @@ final class Step3ClaimDataTest extends KernelTestCase
         self::assertNotContains('wizard.step3.error.penalty_rate_required', $messages);
     }
 
+    public function testForeignCurrencyRequiresInvoiceDate(): void
+    {
+        $dto = new Step3ClaimData(
+            amount: 1000.0,
+            currency: 'EUR',
+            dueDate: new \DateTimeImmutable('-1 day'),
+            relationshipType: RelationshipType::COMERCIAL,
+            invoiceDate: null,
+        );
+
+        $violations = $this->validator->validate($dto);
+
+        self::assertContains('wizard.step3.error.invoice_date_required_fx', $this->messageTemplates($violations));
+    }
+
+    public function testForeignCurrencyWithInvoiceDatePasses(): void
+    {
+        $dto = new Step3ClaimData(
+            amount: 1000.0,
+            currency: 'EUR',
+            dueDate: new \DateTimeImmutable('-1 day'),
+            relationshipType: RelationshipType::COMERCIAL,
+            invoiceDate: new \DateTimeImmutable('-10 days'),
+        );
+
+        $violations = $this->validator->validate($dto);
+
+        self::assertNotContains('wizard.step3.error.invoice_date_required_fx', $this->messageTemplates($violations));
+    }
+
+    public function testRonDoesNotRequireInvoiceDate(): void
+    {
+        $dto = new Step3ClaimData(
+            amount: 1000.0,
+            currency: 'RON',
+            dueDate: new \DateTimeImmutable('-1 day'),
+            relationshipType: RelationshipType::COMERCIAL,
+            invoiceDate: null,
+        );
+
+        $violations = $this->validator->validate($dto);
+
+        self::assertNotContains('wizard.step3.error.invoice_date_required_fx', $this->messageTemplates($violations));
+    }
+
+    public function testFutureInvoiceDateIsRejected(): void
+    {
+        $dto = new Step3ClaimData(
+            amount: 1000.0,
+            currency: 'RON',
+            dueDate: new \DateTimeImmutable('-1 day'),
+            relationshipType: RelationshipType::COMERCIAL,
+            invoiceDate: new \DateTimeImmutable('+1 day'),
+        );
+
+        $violations = $this->validator->validate($dto);
+
+        self::assertContains('wizard.step3.error.invoice_date_not_future', $this->messageTemplates($violations));
+    }
+
     public function testContractualPenaltyRateTooHighIsRejected(): void
     {
         $dto = new Step3ClaimData(

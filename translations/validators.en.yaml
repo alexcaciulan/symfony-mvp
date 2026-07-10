@@ -57,6 +57,8 @@ wizard:
             invalid_currency: 'Accepted currencies: RON or EUR.'
             due_date_required: 'Enter the due date.'
             due_date_not_future: 'Due date cannot be in the future; the claim is not yet enforceable (CPC art. 1014).'
+            invoice_date_required_fx: 'For foreign-currency claims, the invoice issue date is required: the RON conversion uses the BNR reference rate published for that date.'
+            invoice_date_not_future: 'The invoice issue date cannot be in the future.'
             relationship_required: 'Select the legal relationship type.'
             penalty_type_required: 'Select how accessories are computed.'
             penalty_rate_required: 'Enter the daily rate of the contractual penalty.'

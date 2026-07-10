@@ -223,6 +223,11 @@
                         {% if 'amount' in claim.autoFilled %}<span class="text-blue-500"><svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></span>{% endif %}
                     </span>
                 </div>
+                {% if conversion is defined and conversion is not null %}
+                    <div class="flex justify-end">
+                        <span class="text-[11px] text-slate-500">{{ 'wizard.step3.sidebar.conversion_line'|trans({ '%amount%': conversion.originalAmount|number_format(2, '.', ','), '%currency%': conversion.originalCurrency, '%rate%': conversion.rate|number_format(4, '.', ','), '%date%': conversion.rateDate ? conversion.rateDate|date('d.m.Y') : '', '%ron%': conversion.ronAmount|number_format(2, '.', ',') }) }}</span>
+                    </div>
+                {% endif %}
                 <div class="flex justify-between gap-2">
                     <span class="text-slate-500">{{ 'wizard.step3.field.relationship_type'|trans }}</span>
                     <span class="font-medium">{{ claim.relationshipType is null ? '—' : ('enum.relationship_type.' ~ claim.relationshipType.value)|trans }}</span>
@@ -249,10 +254,12 @@
         <div class="px-5 py-4 border-b border-white/10">
             <h3 class="text-sm font-semibold">{{ 'wizard.step4.final_calculations.title'|trans }}</h3>
         </div>
+        {# For foreign-currency claims every figure here is the RON-converted one. #}
+        {% set final_principal = (conversion is defined and conversion is not null) ? conversion.ronAmount : claim.amount %}
         <div class="px-5 py-4 grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
                 <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.principal_label'|trans }}</div>
-                <div class="mt-1 text-lg font-bold tnum">{{ claim.amount is null ? '—' : claim.amount|number_format(2, '.', ',') }}</div>
+                <div class="mt-1 text-lg font-bold tnum">{{ final_principal is null ? '—' : final_principal|number_format(2, '.', ',') }}</div>
             </div>
             <div>
                 <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.interest_label'|trans }}</div>
@@ -260,7 +267,7 @@
             </div>
             <div>
                 <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.total_label'|trans }}</div>
-                <div class="mt-1 text-lg font-bold tnum text-green-300">{{ claim.amount is null ? '—' : (claim.amount + accessory_total)|number_format(2, '.', ',') }}</div>
+                <div class="mt-1 text-lg font-bold tnum text-green-300">{{ final_principal is null ? '—' : (final_principal + accessory_total)|number_format(2, '.', ',') }}</div>
             </div>
             <div>
                 <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.stamp_duty_label'|trans }}</div>

@@ -161,6 +161,15 @@
 {# 10. Debit principal #}
 <h2>{{ 'pdf.summons.principal_block_title'|trans }}</h2>
 <p>{{ 'pdf.summons.principal_body'|trans({'%principal%': principal|number_format(2, ',', '.'), '%currency%': currency}) }}</p>
+{% if originalCurrency %}
+    <p>{{ 'pdf.summons.principal_fx_conversion'|trans({
+        '%amount%': originalAmount|number_format(2, ',', '.'),
+        '%currency%': originalCurrency,
+        '%rate%': exchangeRate|number_format(4, ',', '.'),
+        '%date%': exchangeRateDate ? exchangeRateDate|date('d.m.Y') : '',
+        '%ron%': principal|number_format(2, ',', '.'),
+    }) }}</p>
+{% endif %}
 {% if case.invoiceNumber %}
     {% set invDate = case.invoiceDate ? 'pdf.summons.principal_invoice_date'|trans({'%date%': case.invoiceDate|date('d.m.Y')}) : '' %}
     <p>{{ 'pdf.summons.principal_invoice'|trans({'%invoice%': case.invoiceNumber, '%date%': invDate}) }}</p>

@@ -57,6 +57,24 @@ class LegalCase
     #[ORM\Column(length: 3)]
     private string $currency = 'RON';
 
+    /**
+     * FX conversion audit trail. When the claim was filed in a foreign currency,
+     * `amount`/`currency` hold the RON-converted values used in every calculation,
+     * while these four keep the original for transparency in the document. All
+     * null for native-RON claims.
+     */
+    #[ORM\Column(type: Types::DECIMAL, precision: 12, scale: 2, nullable: true)]
+    private ?string $originalAmount = null;
+
+    #[ORM\Column(length: 3, nullable: true)]
+    private ?string $originalCurrency = null;
+
+    #[ORM\Column(type: Types::DECIMAL, precision: 10, scale: 4, nullable: true)]
+    private ?string $exchangeRate = null;
+
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $exchangeRateDate = null;
+
     #[ORM\Column(type: Types::DECIMAL, precision: 12, scale: 2, nullable: true)]
     private ?string $calculatedInterest = null;
 
@@ -342,6 +360,54 @@ class LegalCase
     public function setCurrency(string $currency): static
     {
         $this->currency = $currency;
+
+        return $this;
+    }
+
+    public function getOriginalAmount(): ?string
+    {
+        return $this->originalAmount;
+    }
+
+    public function setOriginalAmount(?string $originalAmount): static
+    {
+        $this->originalAmount = $originalAmount;
+
+        return $this;
+    }
+
+    public function getOriginalCurrency(): ?string
+    {
+        return $this->originalCurrency;
+    }
+
+    public function setOriginalCurrency(?string $originalCurrency): static
+    {
+        $this->originalCurrency = $originalCurrency;
+
+        return $this;
+    }
+
+    public function getExchangeRate(): ?string
+    {
+        return $this->exchangeRate;
+    }
+
+    public function setExchangeRate(?string $exchangeRate): static
+    {
+        $this->exchangeRate = $exchangeRate;
+
+        return $this;
+    }
+
+    public function getExchangeRateDate(): ?\DateTimeImmutable
+    {
+        return $this->exchangeRateDate;
+    }
+
+    public function setExchangeRateDate(?\DateTimeImmutable $exchangeRateDate): static
+    {
+        $this->exchangeRateDate = $exchangeRateDate;
 
         return $this;
     }

@@ -339,6 +339,7 @@ wizard:
             computed_at: 'la %date%'
             principal_label: 'Sumă principală'
             principal_placeholder: 'Introdu suma în formular pentru a vedea calculele.'
+            conversion_line: '%amount% %currency% × curs BNR %rate% (%date%) = %ron% RON'
             interest_label: 'Dobândă acumulată'
             interest_placeholder: 'Introdu suma și scadența pentru a vedea dobânda.'
             interest_last_rate: 'Rata curentă BNR %rate%%'
@@ -358,6 +359,7 @@ wizard:
             error:
                 due_date_future: 'Scadența e în viitor; creanța nu e încă exigibilă.'
                 currency_unsupported: 'Calcul dobândă suportat doar pentru RON (OG 13/2011).'
+                exchange_rate_missing: 'Curs BNR indisponibil pentru data facturii. Importă cursurile sau verifică data emiterii.'
             court:
                 indeterminate: 'Instanța se calculează la pasul de confirmare.'
                 computed_at_step4: 'Cu datele complete (adresă structurată debitor).'
@@ -428,6 +430,7 @@ wizard:
             body: 'Datele AI extrase trec prin Anthropic (retention 30 zile, fără antrenare model). Documentele binare nu părăsesc serverul nostru fără acordul tău explicit (Modul „MAX_ACCURACY").'
         flash:
             errors_blocking: 'Există erori de admisibilitate. Corectează-le înainte de a salva.'
+            exchange_rate_missing: 'Nu există curs BNR pentru moneda și data facturii. Importă cursurile valutare sau corectează data emiterii înainte de a salva.'
             creditor_reused: 'Creditor existent reutilizat din catalogul tău (același CUI).'
             success: 'Dosar creat cu succes. Număr %caseNumber%.'
             success_toast: 'Dosar %caseNumber% creat cu succes'
@@ -1155,6 +1158,7 @@ pdf:
         debtor_identification_lead: '%name%, cu sediul/domiciliul în %address%'
         principal_block_title: 'Cu privire la obligația de plată a debitului principal'
         principal_body: 'Potrivit art. 1270 alin. (1) din Codul civil, contractul valabil încheiat are putere de lege între părțile contractante. Așa cum rezultă din evidențele contabile ale creditorului, debitorul figurează cu un debit principal restant în cuantum de %principal% %currency%, neachitat la scadență.'
+        principal_fx_conversion: 'Creanța este exprimată în factură în valută (%amount% %currency%). Suma a fost convertită în lei la cursul de referință BNR aplicabil datei emiterii facturii, respectiv %rate% RON pentru o unitate de %currency% (curs de referință BNR publicat la data de %date%), rezultând un debit principal de %ron% RON.'
         principal_invoice: 'Suma este scadentă conform facturii %invoice%%date%.'
         principal_invoice_date: ', emisă la data de %date%'
         principal_contract: 'Obligația izvorăște din Contractul %contract%%date%.'
@@ -1770,6 +1774,7 @@ exception:
     calculation:
         interest_rate_missing: 'Nu există o rată BNR validă pentru data de scadență. Verifică InterestRateConfigFixtures.'
         currency_unsupported: 'Calculul dobânzii este disponibil doar pentru creanțe în RON. Suportul pentru valută va fi adăugat ulterior.'
+        exchange_rate_missing: 'Nu există un curs valutar BNR pentru moneda și data facturii. Importă cursurile (app:import-exchange-rates) sau verifică data emiterii.'
 
 # =============================================================================
 # Court resolver explanation keys (CompetentCourtResolver — CPC art. 94 + 95 + 98 + 107)

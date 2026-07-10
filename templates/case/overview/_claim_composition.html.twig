@@ -44,6 +44,9 @@
                     <span class="text-xs font-medium text-slate-500">{{ 'case_overview.claim.composition'|trans }}</span>
                     <div class="text-2xl font-bold tnum text-blue-700 dark:text-blue-300">{{ grand_total|number_format(2, ',', '.') }} <span class="text-sm font-medium text-slate-400">{{ case.currency }}</span></div>
                 </div>
+                {% if case.originalCurrency %}
+                    <p class="mb-2 text-[11px] text-slate-500">{{ 'wizard.step3.sidebar.conversion_line'|trans({ '%amount%': (case.originalAmount + 0)|number_format(2, '.', ','), '%currency%': case.originalCurrency, '%rate%': (case.exchangeRate + 0)|number_format(4, '.', ','), '%date%': case.exchangeRateDate ? case.exchangeRateDate|date('d.m.Y') : '', '%ron%': principal|number_format(2, '.', ',') }) }}</p>
+                {% endif %}
                 <div class="flex h-2.5 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800">
                     <div class="bg-gradient-to-r from-blue-500 to-blue-600" style="width: {{ principal_pct|number_format(1, '.', '') }}%"></div>
                     <div class="bg-gradient-to-r from-amber-400 to-amber-500" style="width: {{ interest_pct|number_format(1, '.', '') }}%"></div>

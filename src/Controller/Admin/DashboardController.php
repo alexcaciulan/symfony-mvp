@@ -62,6 +62,7 @@ class DashboardController extends AbstractDashboardController
         yield MenuItem::linkTo(CourtCrudController::class, 'Instanțe', 'fas fa-landmark')->setAction(Action::INDEX);
         yield MenuItem::linkTo(CourtPortalEventCrudController::class, 'Evenimente portal', 'fas fa-satellite-dish')->setAction(Action::INDEX);
         yield MenuItem::linkTo(InterestRateConfigCrudController::class, 'Rate dobândă', 'fas fa-percent')->setAction(Action::INDEX);
+        yield MenuItem::linkTo(BnrExchangeRateCrudController::class, 'Cursuri valutare BNR', 'fas fa-money-bill-transfer')->setAction(Action::INDEX);
         yield MenuItem::linkTo(AuditLogCrudController::class, 'Jurnal audit', 'fas fa-clipboard-list')->setAction(Action::INDEX);
     }
 }

@@ -87,6 +87,12 @@ if [ "$APP_ENV" = "dev" ]; then
     echo "Seeding demo cases..."
     php bin/console app:seed-demo-cases --no-interaction
 
+    # Dense BNR exchange rates for the current year so the FX freshness guard
+    # accepts recent invoice dates in dev. Best-effort: offline start still works
+    # (the sparse baseline fixtures remain as anchors).
+    echo "Importing BNR exchange rates (current year, best-effort)..."
+    php bin/console app:import-exchange-rates --year="$(date +%Y)" 2>/dev/null || echo "  BNR rate import skipped (offline or unavailable)"
+
     # Run migrations on test database for PHPUnit
     echo "Running test database migrations..."
     APP_ENV=test php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration 2>/dev/null || true
@@ -114,10 +120,10 @@ chown -R www-data:www-data /var/www/html/var
 
 echo "Application is ready!"
 
-# NOTE: cron jobs are NOT started here. `app:check-deadlines` (07:00) and
-# `app:portal-check-all` (08:00) are registered as scheduled jobs in Coolify.
-# The Messenger worker (compose `worker`) consumes the `CheckCasePortalMessage`
-# items dispatched by `app:portal-check-all`.
+# NOTE: cron jobs are NOT started here. `app:import-exchange-rates` (06:00),
+# `app:check-deadlines` (07:00) and `app:portal-check-all` (08:00) are registered
+# as scheduled jobs in Coolify. The Messenger worker (compose `worker`) consumes
+# the `CheckCasePortalMessage` items dispatched by `app:portal-check-all`.
 
 # Execute the main command
 exec "$@"
