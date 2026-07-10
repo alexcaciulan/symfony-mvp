@@ -313,10 +313,11 @@ class CompetentCourtResolverTest extends TestCase
         $this->assertSame(201_000.0, $result->claimValue->total, 'Total with penalties exceeds 200k but does not drive competence');
     }
 
-    public function testPrincipalAboveThresholdRoutesToTribunalRegardlessOfAccessories(): void
+    public function testPrincipalJustAboveThresholdRoutesToTribunalRegardlessOfAccessories(): void
     {
-        // The mirror case: it is the principal crossing the threshold that sends the
-        // claim to the tribunal. Principal 201k > 200k → TRIBUNAL with zero accessories.
+        // The mirror of the exactly-200k boundary test: the smallest principal above
+        // the threshold (200.000,01) already routes to the tribunal, with zero
+        // accessories. The strict ">" comparison flips precisely at this point.
         $resolver = $this->makeResolver(
             courts: $this->clujCourts(),
             rates: [$this->makeRateConfig('2024-01-01', '6.00')],
@@ -324,7 +325,7 @@ class CompetentCourtResolverTest extends TestCase
 
         $sameDate = new \DateTimeImmutable('2024-06-01');
         $result = $resolver->resolve(
-            principal: 201_000.0,
+            principal: 200_000.01,
             dueDate: $sameDate,
             referenceDate: $sameDate,
             relationshipType: RelationshipType::COMERCIAL,
@@ -332,12 +333,12 @@ class CompetentCourtResolverTest extends TestCase
             debtorLocality: 'Cluj-Napoca',
         );
 
-        $this->assertNotNull($result->court, 'Principal 201k > 200k → tribunal');
+        $this->assertNotNull($result->court, 'Principal 200.000,01 > 200.000 → tribunal');
         $this->assertSame('Tribunalul Cluj', $result->court->getName());
         $this->assertSame('court.resolver.matched_tribunal', $result->explanationKey);
-        $this->assertSame(201_000.0, $result->claimValue->principal);
+        $this->assertSame(200_000.01, $result->claimValue->principal);
         $this->assertSame(0.0, $result->claimValue->accruedInterest);
-        $this->assertSame(201_000.0, $result->claimValue->total, 'Breakdown total equals principal with zero accessories');
+        $this->assertSame(200_000.01, $result->claimValue->total, 'Breakdown total equals principal with zero accessories');
     }
 
     public function testPrincipalExactlyAtThresholdRoutesToJudecatorie(): void

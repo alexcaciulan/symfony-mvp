@@ -70,7 +70,7 @@ Coloana decisivă pentru competență este **Principalul**, nu Totalul.
 | 195.000   | 0                 | 10.000     | 205.000       | Judecătorie               |
 | 200.000   | 0                 | 0          | 200.000       | Judecătorie               |
 | 200.000   | 0,01              | 0          | 200.000,01    | Judecătorie               |
-| 201.000   | 0                 | 0          | 201.000       | **Tribunal**              |
+| 200.000,01| 0                 | 0          | 200.000,01    | **Tribunal**              |
 
 > **Atenție**: dobânda continuă să curgă după data sesizării și se cere distinct în petit (până la plata efectivă), dar **nu** afectează nici competența (care urmează exclusiv principalul, art. 98 alin. 2), nici instanța deja sesizată.
 
@@ -211,7 +211,14 @@ Se păstrează doar judecătoriile a căror listă de localități **conține** 
 
 Dacă județul debitorului nu poate fi determinat (extracție eșuată, ANAF nu a returnat adresă), **se calculează totuși dobânda** și valoarea totală (pentru taxă timbru și informare), dar **instanța rămâne neidentificată** și utilizatorul completează manual.
 
-> **Fallback posibil (de implementat)**: județul poate fi dedus din prefixul `J` al numărului ONRC al societății (de ex. `J40/...` = București, `J12/...` = Cluj). Atenție: prefixul `J` reflectă județul de **înregistrare**, nu neapărat sediul **curent** (o firmă mutată își păstrează numărul). De folosit doar ca sugestie, cu avertisment către avocat să verifice adresa reală.
+> **Fallback posibil (de implementat)**: județul poate fi dedus din numărul de ordine ONRC, dar regula depinde de formatul numărului (schimbat de ONRC la 26.07.2024):
+>
+> - **Format vechi** `J40/7788/2024`: prefixul de două cifre (`40`) este codul județului sediului. La mutarea sediului în alt județ se schimba și acest prefix, deci pentru firmele rămase pe formatul vechi el reflectă județul **sediului curent** (indicator fiabil). Doar CUI-ul rămânea mereu neschimbat.
+> - **Format nou** `YAAAAXXXXXXJJC` (ex. `J1993004155124`): numărul de ordine se alocă o singură dată la nivel național și rămâne fix indiferent de mutări. Codul județului este segmentul `JJ` (cele două cifre dinaintea cifrei de control `C`), dar:
+>   - `JJ = 00` pentru firmele înmatriculate **după 26.07.2024** → **niciun județ codificat**, fallback-ul nu ajută;
+>   - `JJ = codul județului ultimului sediu` pentru firmele înmatriculate **înainte** de 26.07.2024, înghețat la momentul transformării (poate deveni neactual după mutări ulterioare).
+>
+> La implementare: (1) detectează formatul (vechi, cu `/`, vs nou, 14 caractere fără `/`); (2) extrage segmentul corect (prefix la vechi, `JJ` la nou); (3) tratează `JJ = 00` drept „județ necunoscut"; (4) folosește rezultatul doar ca sugestie, cu avertisment către avocat să verifice adresa reală. În practică, ANAF returnează județul din adresă în majoritatea cazurilor, deci acesta este doar un ajutor de nișă.
 
 ### 7.3 Tip raport CIVIL
 
