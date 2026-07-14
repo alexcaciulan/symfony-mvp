@@ -2,12 +2,11 @@
     "_doc": "Reconciliation map for app:build-court-coverage. Source: HG 1217/2023 (MO 1102/07.12.2023), annex of localities per judecatorie circumscription. Resolves naming differences between the annex, data/courts.json and data/cities.json, plus de-facto routing for suspended courts. Keep in lockstep with data/sources/hotarare-1217-2023.txt.",
 
     "court_remap": {
-        "_doc": "Annex court that is de-facto suspended -> operational court that currently handles its localities. Its annex localities are merged into the target.",
-        "Judecătoria Baia de Aramă": "Judecătoria Strehaia"
+        "_doc": "Annex court that is de-facto suspended -> operational court that currently handles its localities. Its annex localities are merged into the target. Empty: Judecatoria Baia de Arama was initially remapped to Strehaia but the lawyer confirmed (2026-07, portal.just.ro id 181, hearings scheduled) it is operational, so it is a normal court now (added to courts.json)."
     },
 
     "skip_courts": {
-        "_doc": "Annex court entries to ignore entirely. Judecatoria Insuratei: suspended, its localities are already listed under Braila/Faurei with a transition note. Bucharest sectors: coverage kept as-is in courts.json ([Sector N]).",
+        "_doc": "Annex court entries to ignore entirely. Judecatoria Insuratei: suspended (lawyer-confirmed 2026-07, portal.just.ro id 247 announcement); its localities are already listed under Braila/Faurei with a transition note. Bucharest sectors: coverage kept as-is in courts.json ([Sector N]).",
         "list": [
             "Judecătoria Însurăței",
             "Judecătoria Sectorului 1",

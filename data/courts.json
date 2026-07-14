@@ -2886,9 +2886,6 @@
         "county": "Mehedinți",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Baia de Aramă",
-            "Bala",
-            "Balta",
             "Breznița-Motru",
             "Broșteni",
             "Butoiești",
@@ -2898,14 +2895,10 @@
             "Florești",
             "Greci",
             "Grozești",
-            "Isverna",
-            "Obârșia-Cloșani",
-            "Ponoarele",
             "Strehaia",
             "Stângăceaua",
             "Tâmna",
-            "Voloiac",
-            "Șovarna"
+            "Voloiac"
         ]
     },
     {
@@ -4642,6 +4635,20 @@
             "Străoane",
             "Vizantea-Livezi",
             "Țifești"
+        ]
+    },
+    {
+        "name": "Judecătoria Baia de Aramă",
+        "county": "Mehedinți",
+        "type": "judecatorie",
+        "coveredLocalities": [
+            "Baia de Aramă",
+            "Bala",
+            "Balta",
+            "Isverna",
+            "Obârșia-Cloșani",
+            "Ponoarele",
+            "Șovarna"
         ]
     }
 ]

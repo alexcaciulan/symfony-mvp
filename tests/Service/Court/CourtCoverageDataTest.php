@@ -84,8 +84,9 @@ class CourtCoverageDataTest extends TestCase
         return [
             // Non-residence commune: the point of the whole feature.
             'Pangarati -> Piatra Neamt' => ['Neamț', 'Pângarați', 'Judecătoria Piatra Neamț'],
-            // De-facto remap: suspended Judecatoria Baia de Arama -> Strehaia.
-            'Ponoarele -> Strehaia' => ['Mehedinți', 'Ponoarele', 'Judecătoria Strehaia'],
+            // Judecatoria Baia de Arama is operational (lawyer-confirmed 2026-07): its
+            // own communes stay with it, they are not routed to Strehaia.
+            'Ponoarele -> Baia de Arama' => ['Mehedinți', 'Ponoarele', 'Judecătoria Baia de Aramă'],
             // Alias resolution: annex "Rișca" -> cities.json "Râșca".
             'Rasca -> Huedin' => ['Cluj', 'Râșca', 'Judecătoria Huedin'],
             // Suspended Judecatoria Insuratei: locality currently at Braila.
