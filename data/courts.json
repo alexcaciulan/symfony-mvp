@@ -9,7 +9,23 @@
         "county": "Alba",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Alba Iulia"
+            "Alba Iulia",
+            "Almașu Mare",
+            "Berghin",
+            "Blandiana",
+            "Ceru-Băcăinți",
+            "Ciugud",
+            "Cricău",
+            "Cugir",
+            "Galda de Jos",
+            "Ighiu",
+            "Meteș",
+            "Sântimbru",
+            "Săliștea",
+            "Vințu de Jos",
+            "Zlatna",
+            "Întregalde",
+            "Șibot"
         ]
     },
     {
@@ -17,7 +33,22 @@
         "county": "Alba",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Aiud"
+            "Aiud",
+            "Fărău",
+            "Hopârta",
+            "Livezile",
+            "Lopadea Nouă",
+            "Lunca Mureșului",
+            "Mirăslău",
+            "Noșlac",
+            "Ocna Mureș",
+            "Ponor",
+            "Râmetea",
+            "Râmeț",
+            "Rădești",
+            "Stremț",
+            "Teiuș",
+            "Unirea"
         ]
     },
     {
@@ -25,7 +56,18 @@
         "county": "Alba",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Blaj"
+            "Blaj",
+            "Bucerdea Grânoasă",
+            "Cenade",
+            "Cergău",
+            "Cetatea de Baltă",
+            "Crăciunelu de Jos",
+            "Jidvei",
+            "Mihalț",
+            "Roșia de Secaș",
+            "Sâncel",
+            "Valea Lungă",
+            "Șona"
         ]
     },
     {
@@ -33,7 +75,28 @@
         "county": "Alba",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Câmpeni"
+            "Abrud",
+            "Albac",
+            "Arieșeni",
+            "Avram Iancu",
+            "Baia de Arieș",
+            "Bistra",
+            "Bucium",
+            "Ciuruleasa",
+            "Câmpeni",
+            "Gârda de Sus",
+            "Horea",
+            "Lupșa",
+            "Mogoș",
+            "Ocoliș",
+            "Poiana Vadului",
+            "Poșaga",
+            "Roșia Montană",
+            "Scărișoara",
+            "Sohodol",
+            "Sălciua",
+            "Vadu Moților",
+            "Vidra"
         ]
     },
     {
@@ -41,7 +104,17 @@
         "county": "Alba",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Sebeș"
+            "Cut",
+            "Câlnic",
+            "Daia Română",
+            "Doștat",
+            "Gârbova",
+            "Ohaba",
+            "Pianu",
+            "Sebeș",
+            "Săsciori",
+            "Șpring",
+            "Șugag"
         ]
     },
     {
@@ -54,7 +127,28 @@
         "county": "Arad",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Arad"
+            "Arad",
+            "Curtici",
+            "Dorobanți",
+            "Felnac",
+            "Frumușeni",
+            "Fântânele",
+            "Iratoșu",
+            "Livada",
+            "Macea",
+            "Nădlac",
+            "Pecica",
+            "Peregu Mare",
+            "Secusigiu",
+            "Semlac",
+            "Vinga",
+            "Vladimirescu",
+            "Zimandu Nou",
+            "Zădăreni",
+            "Șagu",
+            "Șeitin",
+            "Șiria",
+            "Șofronea"
         ]
     },
     {
@@ -62,7 +156,19 @@
         "county": "Arad",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Chișineu-Criș"
+            "Apateu",
+            "Chișineu-Criș",
+            "Grăniceri",
+            "Mișca",
+            "Olari",
+            "Pilu",
+            "Sintea Mare",
+            "Socodor",
+            "Sântana",
+            "Zerind",
+            "Zărand",
+            "Șepreuș",
+            "Șimand"
         ]
     },
     {
@@ -70,7 +176,20 @@
         "county": "Arad",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Gurahonț"
+            "Almaș",
+            "Brazii",
+            "Buteni",
+            "Chisindia",
+            "Dezna",
+            "Dieci",
+            "Gurahonț",
+            "Hălmagiu",
+            "Hălmăgel",
+            "Ignești",
+            "Moneasa",
+            "Pleșcuța",
+            "Sebiș",
+            "Vârfurile"
         ]
     },
     {
@@ -78,7 +197,21 @@
         "county": "Arad",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Ineu"
+            "Archiș",
+            "Beliu",
+            "Bocsig",
+            "Bârsa",
+            "Cermei",
+            "Craiva",
+            "Cărand",
+            "Hășmaș",
+            "Ineu",
+            "Pâncota",
+            "Seleuș",
+            "Tauț",
+            "Târnova",
+            "Șicula",
+            "Șilindia"
         ]
     },
     {
@@ -86,7 +219,20 @@
         "county": "Arad",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Lipova"
+            "Bata",
+            "Birchiș",
+            "Bârzava",
+            "Conop",
+            "Covăsinț",
+            "Ghioroc",
+            "Lipova",
+            "Petriș",
+            "Păuliș",
+            "Săvârșin",
+            "Ususău",
+            "Vărădia de Mureș",
+            "Zăbrani",
+            "Șiștarovăț"
         ]
     },
     {
@@ -104,7 +250,28 @@
         "county": "Argeș",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Pitești"
+            "Albota",
+            "Bascov",
+            "Bradu",
+            "Budeasa",
+            "Băbana",
+            "Ciomăgești",
+            "Cocu",
+            "Cotmeana",
+            "Cuca",
+            "Drăganu",
+            "Merișani",
+            "Micești",
+            "Mioveni",
+            "Morărești",
+            "Moșoaia",
+            "Mărăcineni",
+            "Oarja",
+            "Pitești",
+            "Poiana Lacului",
+            "Uda",
+            "Vedea",
+            "Ștefănești"
         ]
     },
     {
@@ -112,7 +279,34 @@
         "county": "Argeș",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Câmpulung"
+            "Albeștii de Muscel",
+            "Aninoasa",
+            "Berevoești",
+            "Boteni",
+            "Bughea de Jos",
+            "Bughea de Sus",
+            "Bălilești",
+            "Cetățeni",
+            "Coșești",
+            "Câmpulung",
+            "Davidești",
+            "Dragoslavele",
+            "Dâmbovicioara",
+            "Dârmănești",
+            "Godeni",
+            "Hârtiești",
+            "Lerești",
+            "Mihăești",
+            "Mioarele",
+            "Poienarii de Muscel",
+            "Rucăr",
+            "Schitu Golești",
+            "Stoenești",
+            "Stâlpeni",
+            "Valea Mare Pravaț",
+            "Vlădești",
+            "Vulturești",
+            "Țițești"
         ]
     },
     {
@@ -120,7 +314,27 @@
         "county": "Argeș",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Curtea de Argeș"
+            "Albeștii de Argeș",
+            "Arefu",
+            "Brăduleț",
+            "Băiculești",
+            "Cepari",
+            "Cicănești",
+            "Ciofringeni",
+            "Corbeni",
+            "Corbi",
+            "Curtea de Argeș",
+            "Domnești",
+            "Mușătești",
+            "Mălureni",
+            "Nucșoara",
+            "Pietroșani",
+            "Poienarii de Argeș",
+            "Sălătrucu",
+            "Tigveni",
+            "Valea Danului",
+            "Valea Iașului",
+            "Șuici"
         ]
     },
     {
@@ -128,7 +342,26 @@
         "county": "Argeș",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Costești"
+            "Buzoești",
+            "Bârla",
+            "Costești",
+            "Căldăraru",
+            "Hârsești",
+            "Izvoru",
+            "Lunca Corbului",
+            "Miroși",
+            "Mozăceni",
+            "Negrași",
+            "Popești",
+            "Recea",
+            "Rociu",
+            "Râca",
+            "Slobozia",
+            "Stolnici",
+            "Suseni",
+            "Săpata",
+            "Ungheni",
+            "Ștefan cel Mare"
         ]
     },
     {
@@ -136,6 +369,16 @@
         "county": "Argeș",
         "type": "judecatorie",
         "coveredLocalities": [
+            "Beleți-Negrești",
+            "Bogați",
+            "Boțești",
+            "Călinești",
+            "Căteasca",
+            "Dobrești",
+            "Leordeni",
+            "Priboieni",
+            "Rătești",
+            "Teiu",
             "Topoloveni"
         ]
     },
@@ -149,7 +392,40 @@
         "county": "Bacău",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Bacău"
+            "Bacău",
+            "Buhoci",
+            "Cleja",
+            "Colonești",
+            "Dămienești",
+            "Faraoani",
+            "Filipeni",
+            "Gioseni",
+            "Hemeiuș",
+            "Horgești",
+            "Izvoru Berheciului",
+            "Letea Veche",
+            "Lipova",
+            "Luizi-Călugăra",
+            "Măgura",
+            "Mărgineni",
+            "Negri",
+            "Nicolae Bălcescu",
+            "Odobești",
+            "Orbeni",
+            "Parava",
+            "Parincea",
+            "Plopana",
+            "Prăjești",
+            "Roșiori",
+            "Răcăciuni",
+            "Sascut",
+            "Secuieni",
+            "Sărata",
+            "Săucești",
+            "Tamași",
+            "Traian",
+            "Ungureni",
+            "Valea Seacă"
         ]
     },
     {
@@ -157,7 +433,24 @@
         "county": "Bacău",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Moinești"
+            "Agăș",
+            "Ardeoani",
+            "Asău",
+            "Balcani",
+            "Berești-Tazlău",
+            "Brusturoasa",
+            "Comănești",
+            "Dărmănești",
+            "Ghimeș-Făget",
+            "Moinești",
+            "Măgirești",
+            "Palanca",
+            "Poduri",
+            "Pârjol",
+            "Scorțeni",
+            "Solonț",
+            "Strugari",
+            "Zemeș"
         ]
     },
     {
@@ -165,7 +458,27 @@
         "county": "Bacău",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Onești"
+            "Berzunți",
+            "Bogdănești",
+            "Buciumi",
+            "Bârsănești",
+            "Cașin",
+            "Coțofănești",
+            "Căiuți",
+            "Dofteana",
+            "Gura Văii",
+            "Helegiu",
+            "Livezi",
+            "Mănăstirea Cașin",
+            "Oituz",
+            "Onești",
+            "Pârgărești",
+            "Slănic-Moldova",
+            "Sănduleni",
+            "Târgu Ocna",
+            "Târgu Trotuș",
+            "Urechești",
+            "Ștefan cel Mare"
         ]
     },
     {
@@ -173,7 +486,13 @@
         "county": "Bacău",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Buhuși"
+            "Berești-Bistrița",
+            "Blăgești",
+            "Buhuși",
+            "Filipești",
+            "Gârleni",
+            "Itești",
+            "Racova"
         ]
     },
     {
@@ -181,7 +500,19 @@
         "county": "Bacău",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Podu Turcului"
+            "Corbasca",
+            "Dealu Morii",
+            "Glăvănești",
+            "Găiceana",
+            "Huruiești",
+            "Motoșeni",
+            "Oncești",
+            "Podu Turcului",
+            "Pâncești",
+            "Răchitoasa",
+            "Stănișești",
+            "Tătărăști",
+            "Vultureni"
         ]
     },
     {
@@ -194,7 +525,30 @@
         "county": "Bihor",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Oradea"
+            "Biharia",
+            "Borș",
+            "Cetariu",
+            "Copăcel",
+            "Diosig",
+            "Drăgești",
+            "Girișu de Criș",
+            "Hidișelu de Sus",
+            "Husasău de Tinca",
+            "Ineu",
+            "Lăzăreni",
+            "Nojorid",
+            "Oradea",
+            "Oșorhei",
+            "Paleu",
+            "Roșiori",
+            "Sâniob",
+            "Sânmartin",
+            "Sântandrei",
+            "Sârbi",
+            "Săcădat",
+            "Sălard",
+            "Toboliu",
+            "Tămășeu"
         ]
     },
     {
@@ -202,7 +556,21 @@
         "county": "Bihor",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Aleșd"
+            "Aleșd",
+            "Aușeu",
+            "Aștileu",
+            "Borod",
+            "Bratca",
+            "Brusturi",
+            "Bulz",
+            "Lugașu de Jos",
+            "Măgești",
+            "Tileagd",
+            "Vadu Crișului",
+            "Vârciorog",
+            "Șinteu",
+            "Șuncuiuș",
+            "Țețchea"
         ]
     },
     {
@@ -210,7 +578,36 @@
         "county": "Bihor",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Beiuș"
+            "Beiuș",
+            "Budureasa",
+            "Buntești",
+            "Ceica",
+            "Criștioru de Jos",
+            "Curățele",
+            "Câmpani",
+            "Căbești",
+            "Căpâlna",
+            "Cărpinet",
+            "Dobrești",
+            "Drăgănești",
+            "Finiș",
+            "Holod",
+            "Lazuri de Beiuș",
+            "Lunca",
+            "Nucet",
+            "Pietroasa",
+            "Pocola",
+            "Pomezeu",
+            "Remetea",
+            "Rieni",
+            "Roșia",
+            "Răbăgani",
+            "Sâmbăta",
+            "Tărcaia",
+            "Uileacu de Beiuș",
+            "Vașcău",
+            "Șoimi",
+            "Ștei"
         ]
     },
     {
@@ -218,7 +615,26 @@
         "county": "Bihor",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Marghita"
+            "Abram",
+            "Abramuț",
+            "Balc",
+            "Boianu Mare",
+            "Buduslău",
+            "Cherechiu",
+            "Chișlaz",
+            "Curtuișeni",
+            "Derna",
+            "Marghita",
+            "Popești",
+            "Spinuș",
+            "Suplacu de Barcău",
+            "Săcueni",
+            "Sălacea",
+            "Tarcea",
+            "Tăuteu",
+            "Valea lui Mihai",
+            "Viișoara",
+            "Șimian"
         ]
     },
     {
@@ -226,7 +642,18 @@
         "county": "Bihor",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Salonta"
+            "Avram Iancu",
+            "Batăr",
+            "Cefa",
+            "Ciumeghiu",
+            "Cociuba Mare",
+            "Gepiu",
+            "Mădăras",
+            "Olcea",
+            "Salonta",
+            "Sânnicolau Român",
+            "Tinca",
+            "Tulca"
         ]
     },
     {
@@ -239,7 +666,22 @@
         "county": "Bistrița-Năsăud",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Bistrița"
+            "Bistrița",
+            "Bistrița Bârgăului",
+            "Budacu de Jos",
+            "Cetate",
+            "Dumitrița",
+            "Galații Bistriței",
+            "Josenii Bârgăului",
+            "Livezile",
+            "Milaș",
+            "Monor",
+            "Mărișelu",
+            "Prundu Bârgăului",
+            "Teaca",
+            "Tiha Bârgăului",
+            "Șieu",
+            "Șieuț"
         ]
     },
     {
@@ -247,7 +689,29 @@
         "county": "Bistrița-Năsăud",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Beclean"
+            "Beclean",
+            "Braniștea",
+            "Budești",
+            "Chiochiș",
+            "Chiuza",
+            "Ciceu - Mihăiești",
+            "Ciceu-Giurgești",
+            "Căianu Mic",
+            "Lechința",
+            "Matei",
+            "Miceștii de Câmpie",
+            "Negrilești",
+            "Nușeni",
+            "Petru Rareș",
+            "Silivașu de Câmpie",
+            "Spermezeu",
+            "Sânmihaiu de Câmpie",
+            "Târlișua",
+            "Uriu",
+            "Urmeniș",
+            "Șieu-Măgheruș",
+            "Șieu-Odorhei",
+            "Șintereag"
         ]
     },
     {
@@ -255,7 +719,29 @@
         "county": "Bistrița-Năsăud",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Năsăud"
+            "Coșbuc",
+            "Dumitra",
+            "Feldru",
+            "Ilva Mare",
+            "Ilva Mică",
+            "Leșu",
+            "Lunca Ilvei",
+            "Maieru",
+            "Măgura Ilvei",
+            "Nimigea",
+            "Năsăud",
+            "Parva",
+            "Poiana Ilvei",
+            "Rebra",
+            "Rebrișoara",
+            "Rodna",
+            "Romuli",
+            "Runcu Salvei",
+            "Salva",
+            "Sângeorz-Băi",
+            "Telciu",
+            "Zagra",
+            "Șanț"
         ]
     },
     {
@@ -268,7 +754,40 @@
         "county": "Botoșani",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Botoșani"
+            "Albești",
+            "Blândești",
+            "Botoșani",
+            "Bucecea",
+            "Bălușeni",
+            "Copălău",
+            "Corni",
+            "Coșula",
+            "Cristești",
+            "Curtești",
+            "Călărași",
+            "Durnești",
+            "Flămânzi",
+            "Frumușica",
+            "Gorbănești",
+            "Hlipiceni",
+            "Lunca",
+            "Mihai Eminescu",
+            "Nicșeni",
+            "Prăjeni",
+            "Roma",
+            "Românești",
+            "Răchiți",
+            "Răuseni",
+            "Santa Mare",
+            "Stăuceni",
+            "Sulița",
+            "Todireni",
+            "Trușești",
+            "Tudora",
+            "Unțeni",
+            "Vlădeni",
+            "Vorona",
+            "Ștefănești"
         ]
     },
     {
@@ -276,7 +795,25 @@
         "county": "Botoșani",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Dorohoi"
+            "Broscăuți",
+            "Brăești",
+            "Cordăreni",
+            "Corlăteni",
+            "Cristinești",
+            "Cândești",
+            "Dersca",
+            "Dimăcheni",
+            "Dorohoi",
+            "George Enescu",
+            "Hilișeu-Horia",
+            "Ibănești",
+            "Leorda",
+            "Lozna",
+            "Mihăileni",
+            "Pomârla",
+            "Vârfu Câmpului",
+            "Văculești",
+            "Șendriceni"
         ]
     },
     {
@@ -284,7 +821,21 @@
         "county": "Botoșani",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Săveni"
+            "Adășeni",
+            "Avrămeni",
+            "Dobârceni",
+            "Drăgușeni",
+            "Dângeni",
+            "Hănești",
+            "Manoleasa",
+            "Mihălășeni",
+            "Mitoc",
+            "Ripiceni",
+            "Săveni",
+            "Ungureni",
+            "Vlăsinești",
+            "Vorniceni",
+            "Știubieni"
         ]
     },
     {
@@ -292,7 +843,16 @@
         "county": "Botoșani",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Darabani"
+            "Concești",
+            "Coțușca",
+            "Darabani",
+            "Havârna",
+            "Hudești",
+            "Mileanca",
+            "Păltiniș",
+            "Rădăuți-Prut",
+            "Suharău",
+            "Viișoara"
         ]
     },
     {
@@ -305,7 +865,31 @@
         "county": "Brăila",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Brăila"
+            "Berteștii de Jos",
+            "Brăila",
+            "Cazasu",
+            "Chiscani",
+            "Frecăței",
+            "Gemenele",
+            "Gropeni",
+            "Movila Miresii",
+            "Mărașu",
+            "Măxineni",
+            "Romanu",
+            "Râmnicelu",
+            "Salcia Tudor",
+            "Scorțaru Nou",
+            "Siliștea",
+            "Stăncuța",
+            "Tichilești",
+            "Traian",
+            "Tudor Vladimirescu",
+            "Tufești",
+            "Unirea",
+            "Victoria",
+            "Viziru",
+            "Vădeni",
+            "Însurăței"
         ]
     },
     {
@@ -313,16 +897,32 @@
         "county": "Brăila",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Făurei"
+            "Bordei Verde",
+            "Bărăganul",
+            "Ciocile",
+            "Cireșu",
+            "Dudești",
+            "Făurei",
+            "Galbenu",
+            "Grădiștea",
+            "Ianca",
+            "Jirlău",
+            "Mircea Vodă",
+            "Racovița",
+            "Roșiori",
+            "Surdila-Greci",
+            "Surdila-Găiseanca",
+            "Ulmu",
+            "Vișani",
+            "Zăvoaia",
+            "Șuțești"
         ]
     },
     {
         "name": "Judecătoria Însurăței",
         "county": "Brăila",
         "type": "judecatorie",
-        "coveredLocalities": [
-            "Însurăței"
-        ]
+        "coveredLocalities": []
     },
     {
         "name": "Tribunalul Brașov",
@@ -334,7 +934,25 @@
         "county": "Brașov",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Brașov"
+            "Bod",
+            "Brașov",
+            "Budila",
+            "Codlea",
+            "Cristian",
+            "Crizbav",
+            "Dumbrăvița",
+            "Feldioara",
+            "Ghimbav",
+            "Hălchiu",
+            "Hărman",
+            "Măieruș",
+            "Predeal",
+            "Prejmer",
+            "Sânpetru",
+            "Săcele",
+            "Teliu",
+            "Tărlungeni",
+            "Vama Buzăului"
         ]
     },
     {
@@ -342,7 +960,23 @@
         "county": "Brașov",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Făgăraș"
+            "Beclean",
+            "Cincu",
+            "Drăguș",
+            "Făgăraș",
+            "Hârseni",
+            "Lisa",
+            "Mândra",
+            "Părău",
+            "Recea",
+            "Sâmbăta de Sus",
+            "Ucea",
+            "Victoria",
+            "Viștea",
+            "Voila",
+            "Șercaia",
+            "Șinca",
+            "Șoarș"
         ]
     },
     {
@@ -350,7 +984,19 @@
         "county": "Brașov",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Rupea"
+            "Apața",
+            "Augustin",
+            "Bunești",
+            "Cața",
+            "Comana",
+            "Hoghiz",
+            "Homorod",
+            "Jibert",
+            "Ormeniș",
+            "Racoș",
+            "Rupea",
+            "Ticușu",
+            "Ungra"
         ]
     },
     {
@@ -358,7 +1004,15 @@
         "county": "Brașov",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Zărnești"
+            "Bran",
+            "Fundata",
+            "Holbav",
+            "Moieciu",
+            "Poiana Mărului",
+            "Râșnov",
+            "Vulcan",
+            "Zărnești",
+            "Șinca Nouă"
         ]
     },
     {
@@ -424,7 +1078,43 @@
         "county": "Buzău",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Buzău"
+            "Amaru",
+            "Beceni",
+            "Berca",
+            "Bisoca",
+            "Blăjani",
+            "Breaza",
+            "Buzău",
+            "Cernătești",
+            "Chiliile",
+            "Costești",
+            "Cănești",
+            "Florica",
+            "Gherăseni",
+            "Gălbinași",
+            "Lopătari",
+            "Merei",
+            "Mihăilești",
+            "Movila Banului",
+            "Mânzălești",
+            "Mărăcineni",
+            "Naeni",
+            "Pietroasele",
+            "Poșta Câlnău",
+            "Scorțoasa",
+            "Stâlpu",
+            "Săgeata",
+            "Săhăteni",
+            "Săpoca",
+            "Sărulești",
+            "Tisău",
+            "Ulmeni",
+            "Unguriu",
+            "Vadu Pașii",
+            "Vernești",
+            "Vintilă Vodă",
+            "Zărnești",
+            "Țintești"
         ]
     },
     {
@@ -432,7 +1122,23 @@
         "county": "Buzău",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Pătârlagele"
+            "Bozioru",
+            "Brăești",
+            "Calvini",
+            "Chiojdu",
+            "Cislău",
+            "Colți",
+            "Cozieni",
+            "Cătina",
+            "Gura Teghii",
+            "Măgura",
+            "Nehoiu",
+            "Odăile",
+            "Pârscov",
+            "Pănătău",
+            "Pătârlagele",
+            "Siriu",
+            "Viperești"
         ]
     },
     {
@@ -440,7 +1146,18 @@
         "county": "Buzău",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Pogoanele"
+            "Brădeanu",
+            "C.A. Rosetti",
+            "Cilibia",
+            "Glodeanu Sărat",
+            "Glodeanu-Siliștea",
+            "Largu",
+            "Luciu",
+            "Padina",
+            "Pogoanele",
+            "Rușețu",
+            "Scutelnici",
+            "Smeeni"
         ]
     },
     {
@@ -448,7 +1165,27 @@
         "county": "Buzău",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Râmnicu Sărat"
+            "Balta Albă",
+            "Boldu",
+            "Buda",
+            "Bălăceanu",
+            "Cochirleanca",
+            "Ghergheasa",
+            "Grebănu",
+            "Murgești",
+            "Mărgăritești",
+            "Pardoși",
+            "Podgoria",
+            "Puiești",
+            "Racovițeni",
+            "Robeasca",
+            "Râmnicelu",
+            "Râmnicu Sărat",
+            "Topliceni",
+            "Valea Râmnicului",
+            "Valea Salciei",
+            "Vâlcelele",
+            "Ziduri"
         ]
     },
     {
@@ -461,7 +1198,26 @@
         "county": "Călărași",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Călărași"
+            "Alexandru Odobescu",
+            "Borcea",
+            "Ciocănești",
+            "Cuza Vodă",
+            "Călărași",
+            "Dichiseni",
+            "Dorobanțu",
+            "Dragalina",
+            "Grădiștea",
+            "Independența",
+            "Jegălia",
+            "Modelu",
+            "Perișoru",
+            "Roseți",
+            "Ulmu",
+            "Unirea",
+            "Vlad Țepeș",
+            "Vâlcelele",
+            "Ștefan cel Mare",
+            "Ștefan Vodă"
         ]
     },
     {
@@ -469,7 +1225,20 @@
         "county": "Călărași",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Lehliu Gară"
+            "Belciugatele",
+            "Dor Mărunt",
+            "Dragoș Vodă",
+            "Frăsinet",
+            "Fundulea",
+            "Gurbănești",
+            "Ileana",
+            "Lehliu",
+            "Lehliu Gara",
+            "Lupșanu",
+            "Nicolae Bălcescu",
+            "Sărulești",
+            "Tămădău Mare",
+            "Valea Argovei"
         ]
     },
     {
@@ -477,7 +1246,27 @@
         "county": "Călărași",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Oltenița"
+            "Budești",
+            "Chirnogi",
+            "Chiselet",
+            "Crivăț",
+            "Curcani",
+            "Căscioarele",
+            "Frumușani",
+            "Fundeni",
+            "Gălbinași",
+            "Luica",
+            "Mitreni",
+            "Mânăstirea",
+            "Nana",
+            "Oltenița",
+            "Plătărești",
+            "Radovanu",
+            "Sohatu",
+            "Spanțov",
+            "Ulmeni",
+            "Vasilați",
+            "Șoldanu"
         ]
     },
     {
@@ -490,7 +1279,24 @@
         "county": "Caraș-Severin",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Reșița"
+            "Berzovia",
+            "Bocșa",
+            "Brebu",
+            "Brebu Nou",
+            "Carașova",
+            "Doclin",
+            "Dognecea",
+            "Ezeriș",
+            "Fârliug",
+            "Lupac",
+            "Măureni",
+            "Ocna de Fier",
+            "Ramna",
+            "Reșița",
+            "Târnova",
+            "Vermeș",
+            "Văliug",
+            "Zorlențu Mare"
         ]
     },
     {
@@ -498,7 +1304,34 @@
         "county": "Caraș-Severin",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Caransebeș"
+            "Armeniș",
+            "Bolvașnița",
+            "Buchin",
+            "Bucoșnița",
+            "Băile Herculane",
+            "Băuțar",
+            "Caransebeș",
+            "Constantin Daicoviciu",
+            "Copăcele",
+            "Cornea",
+            "Cornereva",
+            "Domașnea",
+            "Glimboca",
+            "Iablanița",
+            "Luncavița",
+            "Marga",
+            "Mehadia",
+            "Mehadica",
+            "Obreja",
+            "Oțelu Roșu",
+            "Păltiniș",
+            "Rusca Montană",
+            "Sacu",
+            "Slatina-Timiș",
+            "Teregova",
+            "Topleț",
+            "Turnu Ruieni",
+            "Zăvoi"
         ]
     },
     {
@@ -506,7 +1339,15 @@
         "county": "Caraș-Severin",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Moldova Nouă"
+            "Berzasca",
+            "Coronini",
+            "Cărbunari",
+            "Gârnic",
+            "Moldova Nouă",
+            "Naidăș",
+            "Pojejena",
+            "Sichevița",
+            "Socol"
         ]
     },
     {
@@ -514,16 +1355,35 @@
         "county": "Caraș-Severin",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Oravița"
+            "Anina",
+            "Berliște",
+            "Bozovici",
+            "Bănia",
+            "Ciclova Română",
+            "Ciuchici",
+            "Ciudanovița",
+            "Dalboșeț",
+            "Eftimie Murgu",
+            "Forotic",
+            "Goruia",
+            "Grădinari",
+            "Lăpușnicel",
+            "Lăpușnicu Mare",
+            "Oravița",
+            "Prigor",
+            "Răcășdia",
+            "Sasca Montană",
+            "Ticvaniu Mare",
+            "Vrani",
+            "Vărădia",
+            "Șopotu Nou"
         ]
     },
     {
         "name": "Judecătoria Bocșa",
         "county": "Caraș-Severin",
         "type": "judecatorie",
-        "coveredLocalities": [
-            "Bocșa"
-        ]
+        "coveredLocalities": []
     },
     {
         "name": "Tribunalul Cluj",
@@ -540,7 +1400,14 @@
         "county": "Cluj",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Cluj-Napoca"
+            "Apahida",
+            "Baciu",
+            "Chinteni",
+            "Cluj-Napoca",
+            "Cojocna",
+            "Feleacu",
+            "Florești",
+            "Sânpaul"
         ]
     },
     {
@@ -548,7 +1415,19 @@
         "county": "Cluj",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Dej"
+            "Bobâlna",
+            "Chiuiești",
+            "Cuzdrioara",
+            "Câțcău",
+            "Cășeiu",
+            "Dej",
+            "Jichișu de Jos",
+            "Mica",
+            "Mintiu Gherlii",
+            "Panticeu",
+            "Recea-Cristur",
+            "Unguraș",
+            "Vad"
         ]
     },
     {
@@ -556,7 +1435,28 @@
         "county": "Cluj",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Gherla"
+            "Aluniș",
+            "Așchileu",
+            "Bonțida",
+            "Borșa",
+            "Buza",
+            "Cornești",
+            "Căianu",
+            "Cămărașu",
+            "Cătina",
+            "Dăbâca",
+            "Fizeșu Gherlii",
+            "Geaca",
+            "Gherla",
+            "Iclod",
+            "Jucu",
+            "Mociu",
+            "Pălatca",
+            "Sic",
+            "Suatu",
+            "Sânmartin",
+            "Vultureni",
+            "Țaga"
         ]
     },
     {
@@ -564,7 +1464,24 @@
         "county": "Cluj",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Huedin"
+            "Aghireșu",
+            "Beliș",
+            "Ciucea",
+            "Călățele",
+            "Căpușu Mare",
+            "Gilău",
+            "Gârbău",
+            "Huedin",
+            "Izvoru Crișului",
+            "Măguri-Răcătău",
+            "Mănăstireni",
+            "Mărgău",
+            "Mărișel",
+            "Negreni",
+            "Poieni",
+            "Râșca",
+            "Sâncraiu",
+            "Săcuieu"
         ]
     },
     {
@@ -572,7 +1489,26 @@
         "county": "Cluj",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Turda"
+            "Aiton",
+            "Băișoara",
+            "Ceanu Mare",
+            "Ciurila",
+            "Câmpia Turzii",
+            "Călărași",
+            "Frata",
+            "Iara",
+            "Luna",
+            "Mihai Viteazu",
+            "Moldovenești",
+            "Petreștii de Jos",
+            "Ploscoș",
+            "Săndulești",
+            "Săvădisla",
+            "Tritenii de Jos",
+            "Turda",
+            "Tureni",
+            "Valea Ierii",
+            "Viișoara"
         ]
     },
     {
@@ -585,7 +1521,26 @@
         "county": "Constanța",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Constanța"
+            "Agigea",
+            "Cogealac",
+            "Constanța",
+            "Corbu",
+            "Cumpăna",
+            "Eforie",
+            "Fântânele",
+            "Grădina",
+            "Istria",
+            "Lumina",
+            "Mihai Viteazu",
+            "Mihail Kogălniceanu",
+            "Murfatlar",
+            "Nicolae Bălcescu",
+            "Năvodari",
+            "Ovidiu",
+            "Săcele",
+            "Techirghiol",
+            "Târgușor",
+            "Valu lui Traian"
         ]
     },
     {
@@ -593,7 +1548,20 @@
         "county": "Constanța",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Mangalia"
+            "23 August",
+            "Albești",
+            "Amzacea",
+            "Cerchezu",
+            "Chirnogeni",
+            "Comana",
+            "Costinești",
+            "Dumbrăveni",
+            "Independența",
+            "Limanu",
+            "Mangalia",
+            "Negru Vodă",
+            "Pecineaga",
+            "Tuzla"
         ]
     },
     {
@@ -601,7 +1569,32 @@
         "county": "Constanța",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Medgidia"
+            "Adamclisi",
+            "Aliman",
+            "Băneasa",
+            "Bărăganu",
+            "Castelu",
+            "Cernavodă",
+            "Ciocârlia",
+            "Cobadin",
+            "Cuza Vodă",
+            "Deleni",
+            "Dobromir",
+            "Ion Corvin",
+            "Lipnița",
+            "Medgidia",
+            "Mereni",
+            "Mircea Vodă",
+            "Oltina",
+            "Ostrov",
+            "Peștera",
+            "Poarta Albă",
+            "Rasova",
+            "Saligny",
+            "Seimeni",
+            "Siliștea",
+            "Topraisar",
+            "Tortoman"
         ]
     },
     {
@@ -609,7 +1602,16 @@
         "county": "Constanța",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Hârșova"
+            "Ciobanu",
+            "Crucea",
+            "Ghindărești",
+            "Gârliciu",
+            "Horia",
+            "Hârșova",
+            "Pantelimon",
+            "Saraiu",
+            "Topalu",
+            "Vulturu"
         ]
     },
     {
@@ -622,7 +1624,27 @@
         "county": "Covasna",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Sfântu Gheorghe"
+            "Aita Mare",
+            "Arcuș",
+            "Baraolt",
+            "Belin",
+            "Bixad",
+            "Bodoc",
+            "Boroșneu Mare",
+            "Brăduț",
+            "Bățani",
+            "Chichiș",
+            "Ghidfalău",
+            "Hăghig",
+            "Ilieni",
+            "Malnaș",
+            "Micfalău",
+            "Ozun",
+            "Reci",
+            "Sfântu Gheorghe",
+            "Valea Crișului",
+            "Vâlcele",
+            "Vârghiș"
         ]
     },
     {
@@ -630,7 +1652,25 @@
         "county": "Covasna",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Târgu Secuiesc"
+            "Brateș",
+            "Brețcu",
+            "Catalina",
+            "Cernat",
+            "Comandău",
+            "Covasna",
+            "Dalnic",
+            "Estelnic",
+            "Ghelința",
+            "Lemnia",
+            "Mereni",
+            "Moacșa",
+            "Ojdula",
+            "Poian",
+            "Sânzieni",
+            "Turia",
+            "Târgu Secuiesc",
+            "Zagon",
+            "Zăbala"
         ]
     },
     {
@@ -638,6 +1678,10 @@
         "county": "Covasna",
         "type": "judecatorie",
         "coveredLocalities": [
+            "Barcani",
+            "Dobârlău",
+            "Sita Buzăului",
+            "Valea Mare",
             "Întorsura Buzăului"
         ]
     },
@@ -651,7 +1695,38 @@
         "county": "Dâmbovița",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Târgoviște"
+            "Aninoasa",
+            "Bilciurești",
+            "Bucșani",
+            "Butimanu",
+            "Băleni",
+            "Bărbulețu",
+            "Cojasca",
+            "Comișani",
+            "Cornești",
+            "Cândești",
+            "Dobra",
+            "Doicești",
+            "Dragomirești",
+            "Finta",
+            "Lucieni",
+            "Malu cu Flori",
+            "Mănești",
+            "Niculești",
+            "Nucet",
+            "Perșinari",
+            "Pietrari",
+            "Pucheni",
+            "Raciu",
+            "Râu Alb",
+            "Răzvad",
+            "Târgoviște",
+            "Tătărani",
+            "Ulmi",
+            "Voinești",
+            "Văcărești",
+            "Văleni-Dâmbovița",
+            "Șotânga"
         ]
     },
     {
@@ -659,7 +1734,26 @@
         "county": "Dâmbovița",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Găești"
+            "Cobia",
+            "Corbii Mari",
+            "Costeștii din Vale",
+            "Crângurile",
+            "Dragodana",
+            "Gura Foii",
+            "Gura Șuții",
+            "Găești",
+            "Hulubești",
+            "Ludești",
+            "Mogoșani",
+            "Morteni",
+            "Mătăsaru",
+            "Petrești",
+            "Produlești",
+            "Răscăeți",
+            "Uliești",
+            "Valea Mare",
+            "Vișina",
+            "Șelaru"
         ]
     },
     {
@@ -667,7 +1761,15 @@
         "county": "Dâmbovița",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Moreni"
+            "Dărmănești",
+            "Gura Ocniței",
+            "I. L. Caragiale",
+            "Iedera",
+            "Moreni",
+            "Ocnița",
+            "Valea Lungă",
+            "Vișinești",
+            "Vlădeni"
         ]
     },
     {
@@ -675,7 +1777,19 @@
         "county": "Dâmbovița",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Pucioasa"
+            "Bezdead",
+            "Brănești",
+            "Buciumeni",
+            "Fieni",
+            "Glodeni",
+            "Moroeni",
+            "Moțăieni",
+            "Pietroșița",
+            "Pucioasa",
+            "Runcu",
+            "Vulcana-Băi",
+            "Vulcana-Pandele",
+            "Vârfuri"
         ]
     },
     {
@@ -683,7 +1797,21 @@
         "county": "Dâmbovița",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Răcari"
+            "Braniștea",
+            "Brezoaele",
+            "Ciocănești",
+            "Conțești",
+            "Cornățelu",
+            "Crevedia",
+            "Lungulețu",
+            "Odobești",
+            "Poiana",
+            "Potlogi",
+            "Răcari",
+            "Slobozia Moară",
+            "Sălcioara",
+            "Titu",
+            "Tărtășești"
         ]
     },
     {
@@ -696,7 +1824,56 @@
         "county": "Dolj",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Craiova"
+            "Amărăștii de Jos",
+            "Amărăștii de Sus",
+            "Apele Vii",
+            "Bechet",
+            "Botoșești-Paia",
+            "Brabova",
+            "Bratovoești",
+            "Breasta",
+            "Bucovăț",
+            "Bulzești",
+            "Carpen",
+            "Castranova",
+            "Celaru",
+            "Coșoveni",
+            "Craiova",
+            "Cârcea",
+            "Călărași",
+            "Daneți",
+            "Dioști",
+            "Dobrești",
+            "Dobrotești",
+            "Drăgotești",
+            "Dăbuleni",
+            "Ghercești",
+            "Ghindeni",
+            "Gogoșu",
+            "Ișalnița",
+            "Leu",
+            "Malu Mare",
+            "Mischii",
+            "Murgași",
+            "Mârșani",
+            "Ostroveni",
+            "Pielești",
+            "Pleșoi",
+            "Podari",
+            "Predești",
+            "Robănești",
+            "Rojiște",
+            "Sadova",
+            "Seaca de Pădure",
+            "Sopot",
+            "Sălcuța",
+            "Teasc",
+            "Terpezița",
+            "Teslui",
+            "Vela",
+            "Vârvoru de Jos",
+            "Șimnicu de Sus",
+            "Țuglui"
         ]
     },
     {
@@ -704,7 +1881,27 @@
         "county": "Dolj",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Băilești"
+            "Afumați",
+            "Bistreț",
+            "Băilești",
+            "Caraula",
+            "Catane",
+            "Cioroiași",
+            "Galicea Mare",
+            "Galiciuica",
+            "Giubega",
+            "Izvoare",
+            "Negoi",
+            "Orodel",
+            "Perișor",
+            "Plenița",
+            "Radovan",
+            "Rast",
+            "Siliștea Crucii",
+            "Urzicuța",
+            "Verbița",
+            "Vârtop",
+            "Întorsura"
         ]
     },
     {
@@ -712,7 +1909,17 @@
         "county": "Dolj",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Calafat"
+            "Calafat",
+            "Cetate",
+            "Ciupercenii Noi",
+            "Desa",
+            "Ghidici",
+            "Maglavit",
+            "Moțăței",
+            "Piscu Vechi",
+            "Poiana Mare",
+            "Seaca de Câmp",
+            "Unirea"
         ]
     },
     {
@@ -720,7 +1927,21 @@
         "county": "Dolj",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Filiași"
+            "Almăj",
+            "Argetoaia",
+            "Braloștița",
+            "Brădești",
+            "Cernătești",
+            "Coțofenii din Dos",
+            "Coțofenii din Față",
+            "Filiași",
+            "Fărcaș",
+            "Goiești",
+            "Grecești",
+            "Melinești",
+            "Scăești",
+            "Secu",
+            "Tălpaș"
         ]
     },
     {
@@ -728,7 +1949,20 @@
         "county": "Dolj",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Segarcea"
+            "Bârca",
+            "Calopăr",
+            "Cerăt",
+            "Cârna",
+            "Drănic",
+            "Gighera",
+            "Giurgița",
+            "Goicea",
+            "Gângiova",
+            "Lipovu",
+            "Măceșu de Jos",
+            "Măceșu de Sus",
+            "Segarcea",
+            "Valea Stanciului"
         ]
     },
     {
@@ -741,7 +1975,16 @@
         "county": "Galați",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Galați"
+            "Braniștea",
+            "Cuza Vodă",
+            "Galați",
+            "Pechea",
+            "Schela",
+            "Slobozia Conachi",
+            "Smârdan",
+            "Tulucești",
+            "Vânători",
+            "Șendreni"
         ]
     },
     {
@@ -749,7 +1992,25 @@
         "county": "Galați",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Tecuci"
+            "Brăhășești",
+            "Buciumeni",
+            "Cerțești",
+            "Corod",
+            "Cosmești",
+            "Cudalbi",
+            "Drăgănești",
+            "Ghidigeni",
+            "Gohor",
+            "Matca",
+            "Movileni",
+            "Munteni",
+            "Negrilești",
+            "Nicorești",
+            "Poiana",
+            "Priponești",
+            "Tecuci",
+            "Valea Mărului",
+            "Țepu"
         ]
     },
     {
@@ -757,7 +2018,31 @@
         "county": "Galați",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Târgu Bujor"
+            "Berești",
+            "Berești-Meria",
+            "Băleni",
+            "Bălăbănești",
+            "Bălășești",
+            "Băneasa",
+            "Cavadinești",
+            "Corni",
+            "Cuca",
+            "Drăgușeni",
+            "Foltești",
+            "Frumușița",
+            "Fârțănești",
+            "Jorăști",
+            "Măstăcani",
+            "Oancea",
+            "Rediu",
+            "Rădești",
+            "Scânteiești",
+            "Smulți",
+            "Suceveni",
+            "Suhurlui",
+            "Târgu Bujor",
+            "Vlădești",
+            "Vârlezi"
         ]
     },
     {
@@ -765,7 +2050,17 @@
         "county": "Galați",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Liești"
+            "Barcea",
+            "Costache Negri",
+            "Fundeni",
+            "Grivița",
+            "Independența",
+            "Ivești",
+            "Liești",
+            "Nămoloasa",
+            "Piscu",
+            "Tudor Vladimirescu",
+            "Umbrărești"
         ]
     },
     {
@@ -778,7 +2073,40 @@
         "county": "Giurgiu",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Giurgiu"
+            "Adunații-Copăceni",
+            "Băneasa",
+            "Colibași",
+            "Comana",
+            "Călugăreni",
+            "Daia",
+            "Frătești",
+            "Ghimpați",
+            "Giurgiu",
+            "Gogoșari",
+            "Gostinari",
+            "Gostinu",
+            "Greaca",
+            "Găujani",
+            "Herăști",
+            "Hotarele",
+            "Iepurești",
+            "Isvoarele",
+            "Izvoarele",
+            "Malu",
+            "Mihai Bravu",
+            "Oinacu",
+            "Prundu",
+            "Putineiu",
+            "Răsuceni",
+            "Schitu",
+            "Singureni",
+            "Slobozia",
+            "Stoenești",
+            "Stănești",
+            "Toporu",
+            "Valea Dragului",
+            "Vedea",
+            "Vărăști"
         ]
     },
     {
@@ -786,7 +2114,26 @@
         "county": "Giurgiu",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Bolintin-Vale"
+            "Bolintin-Deal",
+            "Bolintin-Vale",
+            "Bucșani",
+            "Bulbucata",
+            "Buturugeni",
+            "Clejani",
+            "Cosoba",
+            "Crevedia Mare",
+            "Florești-Stoenești",
+            "Grădinari",
+            "Găiseni",
+            "Joița",
+            "Letca Nouă",
+            "Mihăilești",
+            "Mârșa",
+            "Ogrezeni",
+            "Roata de Jos",
+            "Săbăreni",
+            "Ulmi",
+            "Vânătorii Mici"
         ]
     },
     {
@@ -799,7 +2146,34 @@
         "county": "Gorj",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Târgu Jiu"
+            "Arcani",
+            "Brănești",
+            "Bumbești-Jiu",
+            "Bâlteni",
+            "Bălești",
+            "Bălănești",
+            "Ciuperceni",
+            "Câlnic",
+            "Drăguțești",
+            "Dănești",
+            "Fărcășești",
+            "Godinești",
+            "Ionești",
+            "Lelești",
+            "Mușetești",
+            "Negomir",
+            "Peștișani",
+            "Plopșoru",
+            "Rovinari",
+            "Runcu",
+            "Schela",
+            "Stănești",
+            "Telești",
+            "Tismana",
+            "Turceni",
+            "Turcinești",
+            "Târgu Jiu",
+            "Urdari"
         ]
     },
     {
@@ -807,7 +2181,17 @@
         "county": "Gorj",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Motru"
+            "Bolboși",
+            "Borăscu",
+            "Cătunele",
+            "Drăgotești",
+            "Glogova",
+            "Motru",
+            "Mătăsari",
+            "Padeș",
+            "Samarinești",
+            "Slivilești",
+            "Văgiulești"
         ]
     },
     {
@@ -815,7 +2199,15 @@
         "county": "Gorj",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Novaci"
+            "Alimpești",
+            "Baia de Fier",
+            "Bengești-Ciocadia",
+            "Bumbești-Pițic",
+            "Crasna",
+            "Novaci",
+            "Polovragi",
+            "Roșia de Amaradia",
+            "Săcelu"
         ]
     },
     {
@@ -823,7 +2215,28 @@
         "county": "Gorj",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Târgu Cărbunești"
+            "Albeni",
+            "Aninoasa",
+            "Berlești",
+            "Bustuchin",
+            "Bărbătești",
+            "Crușeț",
+            "Căpreni",
+            "Dănciulești",
+            "Hurezani",
+            "Jupânești",
+            "Licurici",
+            "Logrești",
+            "Prigoria",
+            "Scoarța",
+            "Stejari",
+            "Stoina",
+            "Săulești",
+            "Turburea",
+            "Târgu Cărbunești",
+            "Vladimir",
+            "Țicleni",
+            "Țânțăreni"
         ]
     },
     {
@@ -836,7 +2249,31 @@
         "county": "Harghita",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Miercurea Ciuc"
+            "Băile Tușnad",
+            "Bălan",
+            "Ciceu",
+            "Ciucsângeorgiu",
+            "Cozmeni",
+            "Cârța",
+            "Dănești",
+            "Frumoasa",
+            "Leliceni",
+            "Lunca de Jos",
+            "Lunca de Sus",
+            "Miercurea Ciuc",
+            "Mihăileni",
+            "Mădăraș",
+            "Plăieșii de Jos",
+            "Păuleni-Ciuc",
+            "Racu",
+            "Siculeni",
+            "Sâncrăieni",
+            "Sândominic",
+            "Sânmartin",
+            "Sânsimion",
+            "Sântimbru",
+            "Tomești",
+            "Tușnad"
         ]
     },
     {
@@ -844,7 +2281,14 @@
         "county": "Harghita",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Gheorgheni"
+            "Ciumani",
+            "Ditrău",
+            "Gheorgheni",
+            "Joseni",
+            "Lăzarea",
+            "Remetea",
+            "Suseni",
+            "Voșlăbeni"
         ]
     },
     {
@@ -852,7 +2296,32 @@
         "county": "Harghita",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Odorheiu Secuiesc"
+            "Atid",
+            "Avrămești",
+            "Brădești",
+            "Corund",
+            "Cristuru Secuiesc",
+            "Căpâlnița",
+            "Dealu",
+            "Dârjiu",
+            "Feliceni",
+            "Lueta",
+            "Lupeni",
+            "Merești",
+            "Mugeni",
+            "Mărtiniș",
+            "Ocland",
+            "Odorheiu Secuiesc",
+            "Porumbeni",
+            "Praid",
+            "Satu Mare",
+            "Secuieni",
+            "Simonești",
+            "Săcel",
+            "Ulieș",
+            "Vlăhița",
+            "Vărșag",
+            "Zetea"
         ]
     },
     {
@@ -860,7 +2329,14 @@
         "county": "Harghita",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Toplița"
+            "Bilbor",
+            "Borsec",
+            "Corbu",
+            "Gălăuțaș",
+            "Subcetate",
+            "Sărmaș",
+            "Toplița",
+            "Tulgheș"
         ]
     },
     {
@@ -873,7 +2349,25 @@
         "county": "Hunedoara",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Deva"
+            "Brănișca",
+            "Burjuc",
+            "Băcia",
+            "Băița",
+            "Bătrâna",
+            "Certeju de Sus",
+            "Cârjiți",
+            "Deva",
+            "Dobra",
+            "Gurasada",
+            "Hărău",
+            "Ilia",
+            "Lăpugiu de Jos",
+            "Rapoltu Mare",
+            "Simeria",
+            "Vețel",
+            "Vorța",
+            "Zam",
+            "Șoimuș"
         ]
     },
     {
@@ -881,7 +2375,18 @@
         "county": "Hunedoara",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Brad"
+            "Baia de Criș",
+            "Blăjeni",
+            "Brad",
+            "Buceș",
+            "Bucureșci",
+            "Bulzeștii de Sus",
+            "Crișcior",
+            "Luncoiu de Jos",
+            "Ribița",
+            "Tomești",
+            "Vața de Jos",
+            "Vălișoara"
         ]
     },
     {
@@ -889,7 +2394,20 @@
         "county": "Hunedoara",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Hațeg"
+            "Baru",
+            "Boșorod",
+            "Bretea Română",
+            "Bănița",
+            "Densuș",
+            "General Berthelot",
+            "Hațeg",
+            "Pui",
+            "Râu de Mori",
+            "Răchitova",
+            "Sarmizegetusa",
+            "Sântămăria-Orlea",
+            "Sălașu de Sus",
+            "Totești"
         ]
     },
     {
@@ -897,7 +2415,16 @@
         "county": "Hunedoara",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Hunedoara"
+            "Bunila",
+            "Cerbăl",
+            "Călan",
+            "Ghelari",
+            "Hunedoara",
+            "Lelese",
+            "Lunca Cernii de Jos",
+            "Pestișu Mic",
+            "Teliucu Inferior",
+            "Toplița"
         ]
     },
     {
@@ -905,7 +2432,14 @@
         "county": "Hunedoara",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Orăștie"
+            "Balșa",
+            "Beriu",
+            "Geoagiu",
+            "Mărtinești",
+            "Orăștie",
+            "Orăștioara de Sus",
+            "Romos",
+            "Turdaș"
         ]
     },
     {
@@ -913,7 +2447,12 @@
         "county": "Hunedoara",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Petroșani"
+            "Aninoasa",
+            "Lupeni",
+            "Petrila",
+            "Petroșani",
+            "Uricani",
+            "Vulcan"
         ]
     },
     {
@@ -926,7 +2465,29 @@
         "county": "Ialomița",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Slobozia"
+            "Albești",
+            "Amara",
+            "Andrășești",
+            "Bucu",
+            "Buești",
+            "Ciochina",
+            "Ciulnița",
+            "Cocora",
+            "Colelia",
+            "Cosâmbești",
+            "Căzănești",
+            "Gheorghe Doja",
+            "Gheorghe Lazăr",
+            "Grivița",
+            "Miloșești",
+            "Munteni-Buzău",
+            "Mărculești",
+            "Ograda",
+            "Perieți",
+            "Reviga",
+            "Scânteia",
+            "Slobozia",
+            "Traian"
         ]
     },
     {
@@ -934,7 +2495,20 @@
         "county": "Ialomița",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Fetești"
+            "Bordușani",
+            "Fetești",
+            "Făcăeni",
+            "Giurgeni",
+            "Gura Ialomiței",
+            "Mihail Kogălniceanu",
+            "Movila",
+            "Platonești",
+            "Stelnica",
+            "Sudiți",
+            "Săveni",
+            "Valea Ciorii",
+            "Vlădeni",
+            "Țăndărei"
         ]
     },
     {
@@ -942,7 +2516,35 @@
         "county": "Ialomița",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Urziceni"
+            "Adâncata",
+            "Alexeni",
+            "Armășești",
+            "Axintele",
+            "Balaciu",
+            "Borănești",
+            "Bărbulești",
+            "Bărcănești",
+            "Ciocârlia",
+            "Coșereni",
+            "Dridu",
+            "Drăgoești",
+            "Fierbinți-Târg",
+            "Grindu",
+            "Gârbovi",
+            "Ion Roată",
+            "Jilavele",
+            "Maia",
+            "Manasia",
+            "Moldoveni",
+            "Movilița",
+            "Roșiori",
+            "Rădulești",
+            "Sfântu Gheorghe",
+            "Sinești",
+            "Sălcioara",
+            "Sărățeni",
+            "Urziceni",
+            "Valea Măcrișului"
         ]
     },
     {
@@ -955,7 +2557,50 @@
         "county": "Iași",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Iași"
+            "Andrieșeni",
+            "Aroneanu",
+            "Bivolari",
+            "Bârnova",
+            "Ciurea",
+            "Dagâța",
+            "Dobrovăț",
+            "Drăgușeni",
+            "Dumești",
+            "Golăiești",
+            "Grajduri",
+            "Holboca",
+            "Horlești",
+            "Iași",
+            "Ipatele",
+            "Lețcani",
+            "Madârjac",
+            "Mironeasa",
+            "Miroslava",
+            "Mogoșești",
+            "Movileni",
+            "Podu Iloaiei",
+            "Popești",
+            "Popricani",
+            "Probota",
+            "Rediu",
+            "Românești",
+            "Roșcani",
+            "Schitu Duca",
+            "Scânteia",
+            "Sinești",
+            "Tansa",
+            "Tomești",
+            "Trifești",
+            "Ungheni",
+            "Valea Lupului",
+            "Victoria",
+            "Vlădeni",
+            "Voinești",
+            "Șcheia",
+            "Țibana",
+            "Țibănești",
+            "Țigănași",
+            "Țuțora"
         ]
     },
     {
@@ -963,7 +2608,21 @@
         "county": "Iași",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Hârlău"
+            "Balș",
+            "Belcești",
+            "Ceplenița",
+            "Coarnele Caprei",
+            "Cotnari",
+            "Cucuteni",
+            "Deleni",
+            "Erbiceni",
+            "Focuri",
+            "Fântânele",
+            "Gropnița",
+            "Hârlău",
+            "Plugari",
+            "Scobinți",
+            "Șipote"
         ]
     },
     {
@@ -971,7 +2630,35 @@
         "county": "Iași",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Pașcani"
+            "Alexandru I. Cuza",
+            "Brăești",
+            "Butea",
+            "Bălțați",
+            "Ciohorăni",
+            "Costești",
+            "Cristești",
+            "Heleșteni",
+            "Hălăucești",
+            "Hărmănești",
+            "Ion Neculce",
+            "Lespezi",
+            "Lungani",
+            "Mircești",
+            "Miroslovești",
+            "Mogoșești-Siret",
+            "Moțca",
+            "Oțeleni",
+            "Pașcani",
+            "Ruginoasa",
+            "Răchiteni",
+            "Sirețel",
+            "Stolniceni-Prăjescu",
+            "Strunga",
+            "Todirești",
+            "Târgu Frumos",
+            "Tătăruși",
+            "Valea Seacă",
+            "Vânători"
         ]
     },
     {
@@ -979,6 +2666,15 @@
         "county": "Iași",
         "type": "judecatorie",
         "coveredLocalities": [
+            "Ciortești",
+            "Comarna",
+            "Costuleni",
+            "Cozmești",
+            "Dolhești",
+            "Gorban",
+            "Grozești",
+            "Moșna",
+            "Prisăcani",
             "Răducăneni"
         ]
     },
@@ -992,7 +2688,28 @@
         "county": "Ilfov",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Buftea"
+            "Afumați",
+            "Balotești",
+            "Buftea",
+            "Chiajna",
+            "Chitila",
+            "Ciolpani",
+            "Corbeanca",
+            "Dascălu",
+            "Dragomirești-Vale",
+            "Gruiu",
+            "Grădiștea",
+            "Găneasa",
+            "Moara Vlăsiei",
+            "Mogoșoaia",
+            "Nuci",
+            "Otopeni",
+            "Periș",
+            "Petrăchioaia",
+            "Snagov",
+            "Tunari",
+            "Voluntari",
+            "Ștefăneștii de Jos"
         ]
     },
     {
@@ -1000,7 +2717,24 @@
         "county": "Ilfov",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Cornetu"
+            "1 Decembrie",
+            "Berceni",
+            "Bragadiru",
+            "Brănești",
+            "Cernica",
+            "Ciorogârla",
+            "Clinceni",
+            "Copăceni",
+            "Cornetu",
+            "Dobroești",
+            "Domnești",
+            "Dărăști-Ilfov",
+            "Glina",
+            "Jilava",
+            "Măgurele",
+            "Pantelimon",
+            "Popești Leordeni",
+            "Vidra"
         ]
     },
     {
@@ -1013,7 +2747,32 @@
         "county": "Maramureș",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Baia Mare"
+            "Ardusat",
+            "Ariniș",
+            "Asuaju de Sus",
+            "Baia Mare",
+            "Baia Sprie",
+            "Bicaz",
+            "Băița de sub Codru",
+            "Băsești",
+            "Cicârlău",
+            "Coltău",
+            "Dumbrăvița",
+            "Fărcașa",
+            "Groși",
+            "Gârdani",
+            "Mireșu Mare",
+            "Oarța de Jos",
+            "Recea",
+            "Satulung",
+            "Seini",
+            "Săcălășeni",
+            "Sălsig",
+            "Tăuții-Măgherăuș",
+            "Ulmeni",
+            "Valea Chioarului",
+            "Șișești",
+            "Șomcuta Mare"
         ]
     },
     {
@@ -1021,7 +2780,21 @@
         "county": "Maramureș",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Sighetu Marmației"
+            "Bocicoiu Mare",
+            "Budești",
+            "Câmpulung la Tisa",
+            "Călinești",
+            "Desești",
+            "Giulești",
+            "Ocna Șugatag",
+            "Oncești",
+            "Remeți",
+            "Rona de Jos",
+            "Rona de Sus",
+            "Sarasău",
+            "Sighetu Marmației",
+            "Săpânța",
+            "Vadu Izei"
         ]
     },
     {
@@ -1029,6 +2802,15 @@
         "county": "Maramureș",
         "type": "judecatorie",
         "coveredLocalities": [
+            "Bistra",
+            "Borșa",
+            "Leordina",
+            "Moisei",
+            "Petrova",
+            "Poienile de sub Munte",
+            "Repedea",
+            "Ruscova",
+            "Vișeu de Jos",
             "Vișeu de Sus"
         ]
     },
@@ -1037,7 +2819,17 @@
         "county": "Maramureș",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Dragomirești"
+            "Bogdan Vodă",
+            "Botiza",
+            "Bârsana",
+            "Dragomirești",
+            "Ieud",
+            "Poienile Izei",
+            "Rozavlea",
+            "Strâmtura",
+            "Săcel",
+            "Săliștea de Sus",
+            "Șieu"
         ]
     },
     {
@@ -1045,7 +2837,20 @@
         "county": "Maramureș",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Târgu Lăpuș"
+            "Boiu Mare",
+            "Băiuț",
+            "Cavnic",
+            "Cernești",
+            "Coaș",
+            "Copalnic-Mănăștur",
+            "Coroieni",
+            "Cupșeni",
+            "Groșii Țibleșului",
+            "Lăpuș",
+            "Remetea Chioarului",
+            "Suciu de Sus",
+            "Târgu Lăpuș",
+            "Vima Mică"
         ]
     },
     {
@@ -1058,7 +2863,22 @@
         "county": "Mehedinți",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Drobeta-Turnu Severin"
+            "Breznița-Ocol",
+            "Burila Mare",
+            "Bâlvănești",
+            "Căzănești",
+            "Devesel",
+            "Drobeta-Turnu Severin",
+            "Godeanu",
+            "Gogoșu",
+            "Hinova",
+            "Husnicioara",
+            "Ilovăț",
+            "Izvoru Bârzii",
+            "Malovăț",
+            "Prunișor",
+            "Șimian",
+            "Șișești"
         ]
     },
     {
@@ -1066,7 +2886,26 @@
         "county": "Mehedinți",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Strehaia"
+            "Baia de Aramă",
+            "Bala",
+            "Balta",
+            "Breznița-Motru",
+            "Broșteni",
+            "Butoiești",
+            "Bâcleș",
+            "Corcova",
+            "Dumbrava",
+            "Florești",
+            "Greci",
+            "Grozești",
+            "Isverna",
+            "Obârșia-Cloșani",
+            "Ponoarele",
+            "Strehaia",
+            "Stângăceaua",
+            "Tâmna",
+            "Voloiac",
+            "Șovarna"
         ]
     },
     {
@@ -1074,7 +2913,13 @@
         "county": "Mehedinți",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Orșova"
+            "Cireșu",
+            "Dubova",
+            "Eșelnița",
+            "Ilovița",
+            "Orșova",
+            "Podeni",
+            "Svinița"
         ]
     },
     {
@@ -1082,7 +2927,29 @@
         "county": "Mehedinți",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Vânju Mare"
+            "Braniștea",
+            "Bălăcița",
+            "Corlățel",
+            "Cujmir",
+            "Dârvari",
+            "Gruia",
+            "Gârla Mare",
+            "Jiana",
+            "Livezile",
+            "Obârșia de Câmp",
+            "Oprișor",
+            "Poroina Mare",
+            "Pristol",
+            "Punghina",
+            "Pădina",
+            "Pătulele",
+            "Rogova",
+            "Salcia",
+            "Vlădaia",
+            "Vrata",
+            "Vânju Mare",
+            "Vânjuleț",
+            "Vânători"
         ]
     },
     {
@@ -1100,7 +2967,41 @@
         "county": "Mureș",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Târgu Mureș"
+            "Acățari",
+            "Band",
+            "Bereni",
+            "Ceuașu de Câmpie",
+            "Corunca",
+            "Cristești",
+            "Crăciunești",
+            "Eremitu",
+            "Ernei",
+            "Gheorghe Doja",
+            "Glodeni",
+            "Gornești",
+            "Grebenișu de Câmpie",
+            "Gălești",
+            "Hodoșa",
+            "Livezeni",
+            "Miercurea Nirajului",
+            "Mădăraș",
+            "Măgherani",
+            "Ogra",
+            "Pogăceaua",
+            "Pănet",
+            "Păsăreni",
+            "Râciu",
+            "Sâncraiu de Mureș",
+            "Sângeorgiu de Mureș",
+            "Sânpaul",
+            "Sânpetru de Câmpie",
+            "Sântana de Mureș",
+            "Târgu Mureș",
+            "Ungheni",
+            "Voivodeni",
+            "Vărgata",
+            "Șincai",
+            "Șăulia"
         ]
     },
     {
@@ -1108,7 +3009,31 @@
         "county": "Mureș",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Reghin"
+            "Aluniș",
+            "Batoș",
+            "Beica de Jos",
+            "Breaza",
+            "Brâncovenești",
+            "Băla",
+            "Chiheru de Jos",
+            "Cozma",
+            "Crăiești",
+            "Deda",
+            "Fărăgău",
+            "Gurghiu",
+            "Hodac",
+            "Ibănești",
+            "Ideciu de Jos",
+            "Lunca",
+            "Lunca Bradului",
+            "Petelea",
+            "Reghin",
+            "Rușii-Munți",
+            "Răstolița",
+            "Solovăstru",
+            "Stânceni",
+            "Suseni",
+            "Vătava"
         ]
     },
     {
@@ -1116,7 +3041,23 @@
         "county": "Mureș",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Sighișoara"
+            "Albești",
+            "Apold",
+            "Bălăușeri",
+            "Chibed",
+            "Daneș",
+            "Fântânele",
+            "Ghindari",
+            "Nadeș",
+            "Neaua",
+            "Saschiz",
+            "Sighișoara",
+            "Sovata",
+            "Sângeorgiu de Pădure",
+            "Sărățeni",
+            "Vețca",
+            "Viișoara",
+            "Vânători"
         ]
     },
     {
@@ -1124,7 +3065,16 @@
         "county": "Mureș",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Târnăveni"
+            "Adămuș",
+            "Bahnea",
+            "Băgaciu",
+            "Coroisânmărtin",
+            "Cucerdea",
+            "Gănești",
+            "Mica",
+            "Suplac",
+            "Târnăveni",
+            "Zagăr"
         ]
     },
     {
@@ -1132,7 +3082,21 @@
         "county": "Mureș",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Luduș"
+            "Ațintiș",
+            "Bichiș",
+            "Bogata",
+            "Chețani",
+            "Cuci",
+            "Iclănzel",
+            "Iernut",
+            "Luduș",
+            "Miheșu de Câmpie",
+            "Papiu Ilarian",
+            "Sânger",
+            "Sărmașu",
+            "Tăureni",
+            "Valea Largă",
+            "Zau de Câmpie"
         ]
     },
     {
@@ -1145,7 +3109,32 @@
         "county": "Neamț",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Piatra-Neamț"
+            "Alexandru cel Bun",
+            "Bodești",
+            "Borlești",
+            "Bârgăuani",
+            "Costișa",
+            "Cândești",
+            "Dobreni",
+            "Dochia",
+            "Dragomirești",
+            "Dumbrava Roșie",
+            "Girov",
+            "Gârcina",
+            "Mărgineni",
+            "Negrești",
+            "Piatra Șoimului",
+            "Piatra-Neamț",
+            "Podoleni",
+            "Pângărați",
+            "Rediu",
+            "Roznov",
+            "Războieni",
+            "Săvinești",
+            "Tazlău",
+            "Tupilați",
+            "Zănești",
+            "Ștefan cel Mare"
         ]
     },
     {
@@ -1153,7 +3142,18 @@
         "county": "Neamț",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Bicaz"
+            "Bicaz",
+            "Bicaz-Chei",
+            "Bicazu Ardelean",
+            "Borca",
+            "Ceahlău",
+            "Dămuc",
+            "Farcașa",
+            "Grințieș",
+            "Hangu",
+            "Poiana Teiului",
+            "Tarcău",
+            "Tașca"
         ]
     },
     {
@@ -1161,7 +3161,35 @@
         "county": "Neamț",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Roman"
+            "Bahna",
+            "Bira",
+            "Boghicea",
+            "Botești",
+            "Bozieni",
+            "Cordun",
+            "Doljești",
+            "Dulcești",
+            "Făurei",
+            "Gherăești",
+            "Gâdinți",
+            "Horia",
+            "Icușești",
+            "Ion Creangă",
+            "Moldoveni",
+            "Oniceni",
+            "Poienari",
+            "Pâncești",
+            "Roman",
+            "Români",
+            "Ruginoasa",
+            "Sagna",
+            "Secuieni",
+            "Stănița",
+            "Săbăoani",
+            "Trifești",
+            "Tămășeni",
+            "Valea Ursului",
+            "Văleni"
         ]
     },
     {
@@ -1169,7 +3197,22 @@
         "county": "Neamț",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Târgu Neamț"
+            "Agapia",
+            "Brusturi",
+            "Bălțătești",
+            "Crăcăoani",
+            "Drăgănești",
+            "Ghindăoani",
+            "Grumăzești",
+            "Petricani",
+            "Pipirig",
+            "Păstrăveni",
+            "Răucești",
+            "Timișești",
+            "Târgu Neamț",
+            "Urecheni",
+            "Vânători-Neamț",
+            "Țibucani"
         ]
     },
     {
@@ -1182,7 +3225,53 @@
         "county": "Olt",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Slatina"
+            "Brebeni",
+            "Bălteni",
+            "Bărăști",
+            "Colonești",
+            "Corbu",
+            "Coteana",
+            "Crâmpoia",
+            "Cungrea",
+            "Curtișoara",
+            "Dobroteasa",
+            "Făgețelu",
+            "Ghimpețeni",
+            "Grădinari",
+            "Găneasa",
+            "Icoana",
+            "Ipotești",
+            "Izvoarele",
+            "Leleasca",
+            "Milcov",
+            "Movileni",
+            "Mărunței",
+            "Nicolae Titulescu",
+            "Oporelu",
+            "Optași-Măgura",
+            "Perieți",
+            "Pleșoiu",
+            "Poboru",
+            "Potcoava",
+            "Priseaca",
+            "Schitu",
+            "Scornicești",
+            "Slatina",
+            "Slătioara",
+            "Spineni",
+            "Strejești",
+            "Sâmburești",
+            "Sârbii - Magura",
+            "Teslui",
+            "Topana",
+            "Tufeni",
+            "Tătulești",
+            "Valea Mare",
+            "Verguleasa",
+            "Vitomirești",
+            "Vulturești",
+            "Vâlcele",
+            "Șerbănești"
         ]
     },
     {
@@ -1190,7 +3279,23 @@
         "county": "Olt",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Balș"
+            "Baldovinești",
+            "Balș",
+            "Bobicești",
+            "Brâncoveni",
+            "Bârza",
+            "Cârlogani",
+            "Călui",
+            "Dobrețu",
+            "Găvănești",
+            "Iancu Jianu",
+            "Morunglav",
+            "Oboga",
+            "Piatra-Olt",
+            "Pârșcoveni",
+            "Voineasa",
+            "Vulpeni",
+            "Șopârlița"
         ]
     },
     {
@@ -1198,7 +3303,33 @@
         "county": "Olt",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Caracal"
+            "Bucinișu",
+            "Băbiciu",
+            "Caracal",
+            "Cezieni",
+            "Deveselu",
+            "Dobrosloveni",
+            "Dobrun",
+            "Drăghiceni",
+            "Drăgănești-Olt",
+            "Dăneasa",
+            "Fălcoiu",
+            "Fărcașele",
+            "Gostavățu",
+            "Mihăești",
+            "Osica de Jos",
+            "Osica de Sus",
+            "Radomirești",
+            "Redea",
+            "Rotunda",
+            "Scărișoara",
+            "Seaca",
+            "Sprâncenata",
+            "Stoenești",
+            "Stoicănești",
+            "Traian",
+            "Vlădila",
+            "Văleni"
         ]
     },
     {
@@ -1206,7 +3337,27 @@
         "county": "Olt",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Corabia"
+            "Brastavățu",
+            "Cilieni",
+            "Corabia",
+            "Giuvaraști",
+            "Grojdibodu",
+            "Grădinile",
+            "Gura Padinii",
+            "Gârcov",
+            "Ianca",
+            "Izbiceni",
+            "Obârșia",
+            "Orlea",
+            "Rusănești",
+            "Studina",
+            "Tia Mare",
+            "Urzica",
+            "Vișina",
+            "Vișina Nouă",
+            "Vădastra",
+            "Vădăstrița",
+            "Ștefan cel Mare"
         ]
     },
     {
@@ -1219,7 +3370,37 @@
         "county": "Prahova",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Ploiești"
+            "Ariceștii Rahtivani",
+            "Balta Doamnei",
+            "Berceni",
+            "Blejoi",
+            "Boldești-Scăeni",
+            "Brazi",
+            "Bucov",
+            "Bărcănești",
+            "Cocorăștii Colț",
+            "Drăgănești",
+            "Dumbrava",
+            "Dumbrăvești",
+            "Gherghița",
+            "Gorgota",
+            "Lipănești",
+            "Mănești",
+            "Olari",
+            "Ploiești",
+            "Plopeni",
+            "Plopu",
+            "Podenii Noi",
+            "Poienarii Burchii",
+            "Puchenii Mari",
+            "Păulești",
+            "Râfov",
+            "Sângeru",
+            "Tinosu",
+            "Târgșoru Vechi",
+            "Valea Călugărească",
+            "Vâlcănești",
+            "Șirna"
         ]
     },
     {
@@ -1227,7 +3408,25 @@
         "county": "Prahova",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Câmpina"
+            "Adunați",
+            "Breaza",
+            "Brebu",
+            "Băicoi",
+            "Bănești",
+            "Cocorăștii Mislii",
+            "Cornu",
+            "Câmpina",
+            "Filipeștii de Pădure",
+            "Filipeștii de Târg",
+            "Florești",
+            "Măgureni",
+            "Poiana Câmpina",
+            "Provița de Jos",
+            "Provița de Sus",
+            "Scorțeni",
+            "Telega",
+            "Valea Doftanei",
+            "Șotrile"
         ]
     },
     {
@@ -1235,7 +3434,12 @@
         "county": "Prahova",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Sinaia"
+            "Azuga",
+            "Bușteni",
+            "Comarnic",
+            "Secăria",
+            "Sinaia",
+            "Talea"
         ]
     },
     {
@@ -1243,7 +3447,29 @@
         "county": "Prahova",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Mizil"
+            "Albești-Paleologu",
+            "Apostolache",
+            "Baba Ana",
+            "Boldești-Gradiștea",
+            "Ceptura",
+            "Chiojdeanca",
+            "Ciorani",
+            "Colceag",
+            "Călugăreni",
+            "Fulga",
+            "Fântânele",
+            "Gornet-Cricov",
+            "Gura Vadului",
+            "Iordăcheanu",
+            "Jugureni",
+            "Lapoș",
+            "Mizil",
+            "Salcia",
+            "Sălciile",
+            "Tomșani",
+            "Tătaru",
+            "Urlați",
+            "Vadu Săpat"
         ]
     },
     {
@@ -1251,7 +3477,31 @@
         "county": "Prahova",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Vălenii de Munte"
+            "Aluniș",
+            "Ariceștii Zeletin",
+            "Bertea",
+            "Bălțești",
+            "Bătrâni",
+            "Cerașu",
+            "Cosminele",
+            "Cărbunești",
+            "Drajna",
+            "Gornet",
+            "Gura Vitioarei",
+            "Izvoarele",
+            "Măgurele",
+            "Măneciu",
+            "Posești",
+            "Predeal-Sărari",
+            "Păcureți",
+            "Slănic",
+            "Starchiojd",
+            "Surani",
+            "Teișani",
+            "Vălenii de Munte",
+            "Vărbilău",
+            "Șoimari",
+            "Ștefești"
         ]
     },
     {
@@ -1264,7 +3514,19 @@
         "county": "Sălaj",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Zalău"
+            "Agrij",
+            "Bocșa",
+            "Buciumi",
+            "Coșeiu",
+            "Crișeni",
+            "Dobrin",
+            "Hereclean",
+            "Meseșenii de Jos",
+            "Mirșid",
+            "Românași",
+            "Treznea",
+            "Zalău",
+            "Șamșud"
         ]
     },
     {
@@ -1272,7 +3534,33 @@
         "county": "Sălaj",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Jibou"
+            "Almașu",
+            "Benesat",
+            "Băbeni",
+            "Bălan",
+            "Cehu Silvaniei",
+            "Creaca",
+            "Cristolț",
+            "Cuzăplac",
+            "Dragu",
+            "Fildu de Jos",
+            "Gâlgău",
+            "Gârbou",
+            "Hida",
+            "Ileanda",
+            "Jibou",
+            "Letca",
+            "Lozna",
+            "Năpradea",
+            "Poiana Blenchii",
+            "Rus",
+            "Someș-Odorhei",
+            "Surduc",
+            "Sânmihaiu Almașului",
+            "Sălățig",
+            "Zalha",
+            "Zimbor",
+            "Șimișna"
         ]
     },
     {
@@ -1280,7 +3568,27 @@
         "county": "Sălaj",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Șimleu Silvaniei"
+            "Bobota",
+            "Boghiș",
+            "Bănișor",
+            "Camăr",
+            "Carastelec",
+            "Chieșd",
+            "Cizer",
+            "Crasna",
+            "Halmășd",
+            "Horoatu Crasnei",
+            "Ip",
+            "Marca",
+            "Măeriște",
+            "Nușfalău",
+            "Pericei",
+            "Plopiș",
+            "Sâg",
+            "Valcău de Jos",
+            "Vârșolț",
+            "Șimleu Silvaniei",
+            "Șărmășag"
         ]
     },
     {
@@ -1293,7 +3601,33 @@
         "county": "Satu Mare",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Satu Mare"
+            "Agriș",
+            "Apa",
+            "Ardud",
+            "Beltiug",
+            "Botiz",
+            "Bârsău",
+            "Crucișor",
+            "Culciu",
+            "Doba",
+            "Dorolț",
+            "Halmeu",
+            "Homoroade",
+            "Lazuri",
+            "Livada",
+            "Medieșu Aurit",
+            "Micula",
+            "Odoreu",
+            "Pomi",
+            "Porumbești",
+            "Păulești",
+            "Satu Mare",
+            "Socond",
+            "Terebești",
+            "Turulung",
+            "Valea Vinului",
+            "Vetiș",
+            "Viile Satu Mare"
         ]
     },
     {
@@ -1301,7 +3635,31 @@
         "county": "Satu Mare",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Carei"
+            "Acâș",
+            "Andrid",
+            "Berveni",
+            "Bogdand",
+            "Carei",
+            "Cehal",
+            "Ciumești",
+            "Craidorolț",
+            "Cămin",
+            "Căpleni",
+            "Căuaș",
+            "Foieni",
+            "Hodod",
+            "Moftin",
+            "Petrești",
+            "Pir",
+            "Pișcolt",
+            "Sanislău",
+            "Santău",
+            "Supur",
+            "Săcășeni",
+            "Săuca",
+            "Tiream",
+            "Tășnad",
+            "Urziceni"
         ]
     },
     {
@@ -1309,7 +3667,19 @@
         "county": "Satu Mare",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Negrești-Oaș"
+            "Bixad",
+            "Bătarci",
+            "Certeze",
+            "Călinești-Oaș",
+            "Cămărzana",
+            "Gherța Mică",
+            "Negrești-Oaș",
+            "Orașu Nou",
+            "Racșa",
+            "Tarna Mare",
+            "Turț",
+            "Târșolț",
+            "Vama"
         ]
     },
     {
@@ -1322,7 +3692,22 @@
         "county": "Sibiu",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Sibiu"
+            "Cisnădie",
+            "Cristian",
+            "Loamneș",
+            "Ocna Sibiului",
+            "Poplaca",
+            "Păuca",
+            "Roșia",
+            "Râu Sadului",
+            "Rășinari",
+            "Sadu",
+            "Sibiu",
+            "Slimnic",
+            "Vurpăr",
+            "Șelimbăr",
+            "Șura Mare",
+            "Șura Mică"
         ]
     },
     {
@@ -1330,7 +3715,17 @@
         "county": "Sibiu",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Agnita"
+            "Agnita",
+            "Alțina",
+            "Bruiu",
+            "Brădeni",
+            "Bârghiș",
+            "Chirpăr",
+            "Iacobeni",
+            "Marpod",
+            "Merghindeal",
+            "Mihăileni",
+            "Nocrich"
         ]
     },
     {
@@ -1338,7 +3733,15 @@
         "county": "Sibiu",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Avrig"
+            "Arpașu de Jos",
+            "Avrig",
+            "Boița",
+            "Cârța",
+            "Cârțișoara",
+            "Porumbacu de Jos",
+            "Racovița",
+            "Turnu Roșu",
+            "Tălmaciu"
         ]
     },
     {
@@ -1346,7 +3749,25 @@
         "county": "Sibiu",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Mediaș"
+            "Alma",
+            "Axente Sever",
+            "Ațel",
+            "Bazna",
+            "Biertan",
+            "Blăjel",
+            "Brateiu",
+            "Copșa Mică",
+            "Dumbrăveni",
+            "Dârlos",
+            "Hoghilag",
+            "Laslea",
+            "Mediaș",
+            "Micăsasa",
+            "Moșna",
+            "Târnava",
+            "Valea Viilor",
+            "Șeica Mare",
+            "Șeica Mică"
         ]
     },
     {
@@ -1354,7 +3775,15 @@
         "county": "Sibiu",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Săliște"
+            "Apoldu de Jos",
+            "Gura Râului",
+            "Jina",
+            "Ludoș",
+            "Miercurea Sibiului",
+            "Orlat",
+            "Poiana Sibiului",
+            "Săliște",
+            "Tilișca"
         ]
     },
     {
@@ -1367,7 +3796,26 @@
         "county": "Suceava",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Suceava"
+            "Adâncata",
+            "Bosanci",
+            "Dumbrăveni",
+            "Dărmănești",
+            "Fântânele",
+            "Hănțești",
+            "Ipotești",
+            "Liteni",
+            "Mitocu Dragomirnei",
+            "Moara",
+            "Pătrăuți",
+            "Salcea",
+            "Siminicea",
+            "Stroiești",
+            "Suceava",
+            "Todirești",
+            "Udești",
+            "Verești",
+            "Zvoriștea",
+            "Șcheia"
         ]
     },
     {
@@ -1375,7 +3823,17 @@
         "county": "Suceava",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Câmpulung Moldovenesc"
+            "Breaza",
+            "Câmpulung Moldovenesc",
+            "Frumosu",
+            "Fundu Moldovei",
+            "Izvoarele Sucevei",
+            "Moldova-Sulița",
+            "Moldovița",
+            "Pojorâta",
+            "Sadova",
+            "Vama",
+            "Vatra Moldoviței"
         ]
     },
     {
@@ -1383,7 +3841,26 @@
         "county": "Suceava",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Fălticeni"
+            "Baia",
+            "Bogdănești",
+            "Boroaia",
+            "Bunești",
+            "Cornu Luncii",
+            "Dolhasca",
+            "Dolhești",
+            "Drăgușeni",
+            "Forăști",
+            "Fântâna Mare",
+            "Fălticeni",
+            "Horodniceni",
+            "Hârtop",
+            "Mălini",
+            "Preutești",
+            "Râșca",
+            "Rădășeni",
+            "Slatina",
+            "Vadu Moldovei",
+            "Vulturești"
         ]
     },
     {
@@ -1391,7 +3868,22 @@
         "county": "Suceava",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Gura Humorului"
+            "Berchișești",
+            "Botoșana",
+            "Bălăceana",
+            "Cacica",
+            "Ciprian Porumbescu",
+            "Comănești",
+            "Drăgoiești",
+            "Frasin",
+            "Gura Humorului",
+            "Ilișești",
+            "Mănăstirea Humorului",
+            "Ostra",
+            "Pârteștii de Jos",
+            "Păltinoasa",
+            "Stulpicani",
+            "Valea Moldovei"
         ]
     },
     {
@@ -1399,7 +3891,40 @@
         "county": "Suceava",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Rădăuți"
+            "Arbore",
+            "Bilca",
+            "Brodina",
+            "Burla",
+            "Bălcăuți",
+            "Cajvana",
+            "Calafindești",
+            "Dornești",
+            "Frătăuții Noi",
+            "Frătăuții Vechi",
+            "Grămești",
+            "Grănicești",
+            "Gălănești",
+            "Horodnic de Jos",
+            "Horodnic de Sus",
+            "Iaslovăț",
+            "Marginea",
+            "Milișăuți",
+            "Mușenița",
+            "Poieni-Solca",
+            "Putna",
+            "Rădăuți",
+            "Satu Mare",
+            "Siret",
+            "Solca",
+            "Straja",
+            "Sucevița",
+            "Ulma",
+            "Vicovu de Jos",
+            "Vicovu de Sus",
+            "Voitinel",
+            "Volovăț",
+            "Zamostea",
+            "Șerbăuți"
         ]
     },
     {
@@ -1407,7 +3932,18 @@
         "county": "Suceava",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Vatra Dornei"
+            "Broșteni",
+            "Ciocănești",
+            "Coșna",
+            "Crucea",
+            "Cârlibaba",
+            "Dorna Candrenilor",
+            "Dorna-Arini",
+            "Iacobeni",
+            "Panaci",
+            "Poiana Stampei",
+            "Vatra Dornei",
+            "Șaru Dornei"
         ]
     },
     {
@@ -1420,7 +3956,24 @@
         "county": "Teleorman",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Alexandria"
+            "Alexandria",
+            "Bogdana",
+            "Brânceni",
+            "Buzescu",
+            "Călinești",
+            "Furculești",
+            "Mavrodin",
+            "Mârzănești",
+            "Măgura",
+            "Nanov",
+            "Nenciulești",
+            "Orbeasca",
+            "Plosca",
+            "Poroschia",
+            "Răsmirești",
+            "Vitănești",
+            "Ștorobăneasa",
+            "Țigănești"
         ]
     },
     {
@@ -1428,7 +3981,29 @@
         "county": "Teleorman",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Roșiori de Vede"
+            "Balaci",
+            "Beuca",
+            "Ciolănești",
+            "Crângeni",
+            "Călmățuiu",
+            "Călmățuiu de Sus",
+            "Didești",
+            "Dobrotești",
+            "Drăcșenei",
+            "Drăgănești de Vede",
+            "Măldăeni",
+            "Necșești",
+            "Peretu",
+            "Roșiori de Vede",
+            "Rădoiești",
+            "Scrioaștea",
+            "Sfințești",
+            "Stejaru",
+            "Săceni",
+            "Troianul",
+            "Vedea",
+            "Vârtoape",
+            "Zâmbreasca"
         ]
     },
     {
@@ -1436,7 +4011,24 @@
         "county": "Teleorman",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Turnu Măgurele"
+            "Beciu",
+            "Ciuperceni",
+            "Crângu",
+            "Dracea",
+            "Islaz",
+            "Lisa",
+            "Lița",
+            "Lunca",
+            "Plopii-Slăvitești",
+            "Putineiu",
+            "Salcia",
+            "Seaca",
+            "Segarcea-Vale",
+            "Slobozia Mândra",
+            "Săelele",
+            "Traian",
+            "Turnu Măgurele",
+            "Uda-Clocociov"
         ]
     },
     {
@@ -1444,6 +4036,29 @@
         "county": "Teleorman",
         "type": "judecatorie",
         "coveredLocalities": [
+            "Blejești",
+            "Botoroaga",
+            "Bujoreni",
+            "Băbăița",
+            "Cosmești",
+            "Crevenicu",
+            "Drăgănești-Vlașca",
+            "Frăsinet",
+            "Gratia",
+            "Gălăteni",
+            "Mereni",
+            "Moșteni",
+            "Olteni",
+            "Poeni",
+            "Purani",
+            "Scurtu Mare",
+            "Siliștea",
+            "Siliștea-Gumești",
+            "Sârbeni",
+            "Talpa",
+            "Trivalea-Moșteni",
+            "Tătărăștii de Jos",
+            "Tătărăștii de Sus",
             "Videle"
         ]
     },
@@ -1452,6 +4067,19 @@
         "county": "Teleorman",
         "type": "judecatorie",
         "coveredLocalities": [
+            "Bragadiru",
+            "Bujoru",
+            "Cervenia",
+            "Conțești",
+            "Frumoasa",
+            "Fântânele",
+            "Izvoarele",
+            "Năsturelu",
+            "Piatra",
+            "Pietroșani",
+            "Smârdioasa",
+            "Suhaia",
+            "Viișoara",
             "Zimnicea"
         ]
     },
@@ -1465,7 +4093,42 @@
         "county": "Timiș",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Timișoara"
+            "Becicherecu Mic",
+            "Biled",
+            "Bogda",
+            "Bucovăț",
+            "Cenei",
+            "Checea",
+            "Chevereșu Mare",
+            "Cărpiniș",
+            "Dudeștii Noi",
+            "Dumbrăvița",
+            "Fibiș",
+            "Foeni",
+            "Ghiroda",
+            "Giarmata",
+            "Giroc",
+            "Giulvăz",
+            "Iecea Mare",
+            "Jimbolia",
+            "Mașloc",
+            "Moșnița Nouă",
+            "Orțișoara",
+            "Otelec",
+            "Parța",
+            "Peciu Nou",
+            "Pișchia",
+            "Recaș",
+            "Remetea Mare",
+            "Sacoșu Turcesc",
+            "Satchinez",
+            "Sânandrei",
+            "Sânmihaiu Român",
+            "Săcălaz",
+            "Timișoara",
+            "Uivar",
+            "Șag",
+            "Șandra"
         ]
     },
     {
@@ -1473,7 +4136,22 @@
         "county": "Timiș",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Deta"
+            "Banloc",
+            "Birda",
+            "Ciacova",
+            "Denta",
+            "Deta",
+            "Ghilad",
+            "Giera",
+            "Gătaia",
+            "Jamu Mare",
+            "Jebel",
+            "Liebling",
+            "Livezile",
+            "Moravița",
+            "Pădureni",
+            "Tormac",
+            "Voiteg"
         ]
     },
     {
@@ -1481,7 +4159,22 @@
         "county": "Timiș",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Făget"
+            "Balinț",
+            "Bara",
+            "Bethausen",
+            "Bârna",
+            "Curtea",
+            "Dumbrava",
+            "Fârdea",
+            "Făget",
+            "Margina",
+            "Mănăștiur",
+            "Nădrag",
+            "Ohaba Lungă",
+            "Pietroasa",
+            "Secaș",
+            "Tomești",
+            "Traian Vuia"
         ]
     },
     {
@@ -1489,7 +4182,21 @@
         "county": "Timiș",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Lugoj"
+            "Belinț",
+            "Boldur",
+            "Brestovăț",
+            "Buziaș",
+            "Coșteiu",
+            "Criciova",
+            "Darova",
+            "Gavojdia",
+            "Ghizela",
+            "Lugoj",
+            "Nițchidorf",
+            "Racovița",
+            "Topolovățu Mare",
+            "Victor Vlad Delamarina",
+            "Știuca"
         ]
     },
     {
@@ -1497,7 +4204,22 @@
         "county": "Timiș",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Sânnicolau Mare"
+            "Beba Veche",
+            "Cenad",
+            "Comloșu Mare",
+            "Dudeștii Vechi",
+            "Gottlob",
+            "Lenauheim",
+            "Lovrin",
+            "Periam",
+            "Pesac",
+            "Saravale",
+            "Sânnicolau Mare",
+            "Sânpetru Mare",
+            "Teremia Mare",
+            "Tomnatic",
+            "Variaș",
+            "Vălcani"
         ]
     },
     {
@@ -1510,7 +4232,25 @@
         "county": "Tulcea",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Tulcea"
+            "Beștepe",
+            "C.A. Rosetti",
+            "Ceatalchioi",
+            "Chilia Veche",
+            "Crișan",
+            "Frecăței",
+            "Izvoarele",
+            "Mahmudia",
+            "Maliuc",
+            "Murighiol",
+            "Niculițel",
+            "Nufăru",
+            "Pardina",
+            "Sfântu Gheorghe",
+            "Somova",
+            "Sulina",
+            "Tulcea",
+            "Valea Nucarilor",
+            "Valea Teilor"
         ]
     },
     {
@@ -1518,7 +4258,21 @@
         "county": "Tulcea",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Babadag"
+            "Babadag",
+            "Baia",
+            "Beidaud",
+            "Casimcea",
+            "Ceamurlia de Jos",
+            "Ciucurova",
+            "Horia",
+            "Jurilovca",
+            "Mihai Bravu",
+            "Mihail Kogălniceanu",
+            "Nalbant",
+            "Sarichioi",
+            "Slava Cercheză",
+            "Stejaru",
+            "Topolog"
         ]
     },
     {
@@ -1526,7 +4280,23 @@
         "county": "Tulcea",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Măcin"
+            "Carcaliu",
+            "Cerna",
+            "Dorobanțu",
+            "Dăeni",
+            "Greci",
+            "Grindu",
+            "Hamcearca",
+            "I.c.bratianu",
+            "Isaccea",
+            "Jijila",
+            "Luncavița",
+            "Măcin",
+            "Ostrov",
+            "Peceneaga",
+            "Smârdan",
+            "Turcoaia",
+            "Văcăreni"
         ]
     },
     {
@@ -1539,7 +4309,28 @@
         "county": "Vâlcea",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Râmnicu Vâlcea"
+            "Budești",
+            "Bujoreni",
+            "Bunești",
+            "Băbeni",
+            "Băile Govora",
+            "Băile Olănești",
+            "Dăești",
+            "Dănicei",
+            "Frâncești",
+            "Galicea",
+            "Golești",
+            "Mihăești",
+            "Milcoiu",
+            "Muereasca",
+            "Nicolae Bălcescu",
+            "Ocnele Mari",
+            "Păușești-Măglași",
+            "Runcu",
+            "Râmnicu Vâlcea",
+            "Stoilești",
+            "Vlădești",
+            "Șirineasa"
         ]
     },
     {
@@ -1547,7 +4338,17 @@
         "county": "Vâlcea",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Brezoi"
+            "Berislăvești",
+            "Boișoara",
+            "Brezoi",
+            "Câineni",
+            "Călimănești",
+            "Malaia",
+            "Perișani",
+            "Racovița",
+            "Sălătrucel",
+            "Titești",
+            "Voineasa"
         ]
     },
     {
@@ -1555,7 +4356,25 @@
         "county": "Vâlcea",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Drăgășani"
+            "Amărăști",
+            "Crețeni",
+            "Drăgoești",
+            "Drăgășani",
+            "Glăvile",
+            "Gușoeni",
+            "Ionești",
+            "Lungești",
+            "Mitrofani",
+            "Mădulari",
+            "Olanu",
+            "Orlești",
+            "Pesceana",
+            "Prundeni",
+            "Scundu",
+            "Sutești",
+            "Voicești",
+            "Ștefănești",
+            "Șușani"
         ]
     },
     {
@@ -1563,7 +4382,28 @@
         "county": "Vâlcea",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Horezu"
+            "Alunu",
+            "Berbești",
+            "Bărbătești",
+            "Cernișoara",
+            "Copăceni",
+            "Costești",
+            "Horezu",
+            "Lădești",
+            "Lăpușata",
+            "Mateești",
+            "Măldărești",
+            "Oteșani",
+            "Pietrari",
+            "Popești",
+            "Păușești",
+            "Roești",
+            "Sinești",
+            "Slătioara",
+            "Stoenești",
+            "Stroești",
+            "Tomșani",
+            "Vaideeni"
         ]
     },
     {
@@ -1571,7 +4411,21 @@
         "county": "Vâlcea",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Bălcești"
+            "Bălcești",
+            "Diculești",
+            "Fârtățești",
+            "Făurești",
+            "Ghioroiu",
+            "Grădiștea",
+            "Laloșu",
+            "Livezi",
+            "Lăcusteni",
+            "Măciuca",
+            "Roșiile",
+            "Stănești",
+            "Tetoiu",
+            "Valea Mare",
+            "Zătreni"
         ]
     },
     {
@@ -1584,7 +4438,42 @@
         "county": "Vaslui",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Vaslui"
+            "Albești",
+            "Bogdana",
+            "Băcești",
+            "Bălteni",
+            "Codăești",
+            "Costești",
+            "Cozmești",
+            "Deleni",
+            "Delești",
+            "Dragomirești",
+            "Dumești",
+            "Dănești",
+            "Ferești",
+            "Gârceni",
+            "Ivănești",
+            "Laza",
+            "Lipovăț",
+            "Miclești",
+            "Muntenii de Jos",
+            "Muntenii de Sus",
+            "Negrești",
+            "Oșești",
+            "Poienești",
+            "Pungești",
+            "Pușcași",
+            "Rafaila",
+            "Rebricea",
+            "Solești",
+            "Tanacu",
+            "Todirești",
+            "Tăcuta",
+            "Vaslui",
+            "Vulturești",
+            "Văleni",
+            "Zăpodeni",
+            "Ștefan cel Mare"
         ]
     },
     {
@@ -1592,7 +4481,39 @@
         "county": "Vaslui",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Bârlad"
+            "Alexandru Vlahuță",
+            "Banca",
+            "Blăgești",
+            "Bogdănești",
+            "Bogdănița",
+            "Bârlad",
+            "Băcani",
+            "Ciocani",
+            "Coroiești",
+            "Dodești",
+            "Epureni",
+            "Fruntișeni",
+            "Fălciu",
+            "Gherghești",
+            "Grivița",
+            "Iana",
+            "Ibănești",
+            "Ivești",
+            "Murgeni",
+            "Mălușteni",
+            "Perieni",
+            "Pochidia",
+            "Pogana",
+            "Pogonești",
+            "Puiești",
+            "Roșiești",
+            "Tutova",
+            "Viișoara",
+            "Vinderei",
+            "Voinești",
+            "Vutcani",
+            "Zorleni",
+            "Șuletea"
         ]
     },
     {
@@ -1600,16 +4521,30 @@
         "county": "Vaslui",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Huși"
+            "Arsura",
+            "Berezeni",
+            "Boțești",
+            "Bunești-Averești",
+            "Crețești",
+            "Dimitrie Cantemir",
+            "Drânceni",
+            "Duda-Epureni",
+            "Găgești",
+            "Hoceni",
+            "Huși",
+            "Lunca Banului",
+            "Oltenești",
+            "Pădureni",
+            "Stănilești",
+            "Tătărăni",
+            "Vetrișoaia"
         ]
     },
     {
         "name": "Judecătoria Murgeni",
         "county": "Vaslui",
         "type": "judecatorie",
-        "coveredLocalities": [
-            "Murgeni"
-        ]
+        "coveredLocalities": []
     },
     {
         "name": "Tribunalul Vrancea",
@@ -1621,7 +4556,59 @@
         "county": "Vrancea",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Focșani"
+            "Andreiașu de Jos",
+            "Biliești",
+            "Bolotești",
+            "Bordești",
+            "Broșteni",
+            "Bârsești",
+            "Bălești",
+            "Chiojdeni",
+            "Ciorăști",
+            "Cotești",
+            "Câmpineanca",
+            "Cârligele",
+            "Dumbrăveni",
+            "Dumitrești",
+            "Focșani",
+            "Garoafa",
+            "Golești",
+            "Gugești",
+            "Gura Caliței",
+            "Jariștea",
+            "Jitia",
+            "Mera",
+            "Milcovul",
+            "Măicănești",
+            "Negrilești",
+            "Nereju",
+            "Nistorești",
+            "Nănești",
+            "Năruja",
+            "Obrejița",
+            "Odobești",
+            "Paltin",
+            "Poiana Cristei",
+            "Popești",
+            "Păulești",
+            "Reghiu",
+            "Răstoaca",
+            "Sihlea",
+            "Slobozia Bradului",
+            "Slobozia Ciorăști",
+            "Spulber",
+            "Suraia",
+            "Tulnici",
+            "Tâmboești",
+            "Tătăranu",
+            "Urechești",
+            "Valea Sării",
+            "Vidra",
+            "Vintileasca",
+            "Vrâncioaia",
+            "Vulturu",
+            "Vânători",
+            "Vârteșcoiu"
         ]
     },
     {
@@ -1629,7 +4616,15 @@
         "county": "Vrancea",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Adjud"
+            "Adjud",
+            "Boghești",
+            "Corbița",
+            "Homocea",
+            "Ploscuțeni",
+            "Pufești",
+            "Păunești",
+            "Ruginești",
+            "Tănăsoaia"
         ]
     },
     {
@@ -1637,7 +4632,16 @@
         "county": "Vrancea",
         "type": "judecatorie",
         "coveredLocalities": [
-            "Panciu"
+            "Câmpuri",
+            "Fitionești",
+            "Movilița",
+            "Mărășești",
+            "Panciu",
+            "Răcoasa",
+            "Soveja",
+            "Străoane",
+            "Vizantea-Livezi",
+            "Țifești"
         ]
     }
 ]

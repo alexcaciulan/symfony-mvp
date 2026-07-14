@@ -75,9 +75,16 @@ php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migratio
 echo "Loading baseline fixtures..."
 php bin/console doctrine:fixtures:load --no-interaction --append --group=baseline
 
+# Import counties + cities (UAT nomenclature) - must run before courts
+echo "Importing cities..."
+php bin/console app:import-cities --no-interaction
+
 # Import courts data
 echo "Importing courts..."
 php bin/console app:import-courts --no-interaction
+
+# Post-import territorial coverage audit (non-fatal, logs gaps/overlaps)
+php bin/console app:audit-court-coverage || echo "  Court coverage audit reported issues (see above)"
 
 # Create test users + demo cases (only in dev)
 if [ "$APP_ENV" = "dev" ]; then

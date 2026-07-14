@@ -1,0 +1,61 @@
+{
+    "_doc": "Reconciliation map for app:build-court-coverage. Source: HG 1217/2023 (MO 1102/07.12.2023), annex of localities per judecatorie circumscription. Resolves naming differences between the annex, data/courts.json and data/cities.json, plus de-facto routing for suspended courts. Keep in lockstep with data/sources/hotarare-1217-2023.txt.",
+
+    "court_remap": {
+        "_doc": "Annex court that is de-facto suspended -> operational court that currently handles its localities. Its annex localities are merged into the target.",
+        "Judecătoria Baia de Aramă": "Judecătoria Strehaia"
+    },
+
+    "skip_courts": {
+        "_doc": "Annex court entries to ignore entirely. Judecatoria Insuratei: suspended, its localities are already listed under Braila/Faurei with a transition note. Bucharest sectors: coverage kept as-is in courts.json ([Sector N]).",
+        "list": [
+            "Judecătoria Însurăței",
+            "Judecătoria Sectorului 1",
+            "Judecătoria Sectorului 2",
+            "Judecătoria Sectorului 3",
+            "Judecătoria Sectorului 4",
+            "Judecătoria Sectorului 5",
+            "Judecătoria Sectorului 6"
+        ]
+    },
+
+    "court_aliases": {
+        "_doc": "Annex court name -> data/courts.json court name (hyphen/spelling differences).",
+        "map": {
+            "Judecătoria Miercurea-Ciuc": "Judecătoria Miercurea Ciuc",
+            "Judecătoria Piatra-Neamț": "Judecătoria Piatra Neamț",
+            "Judecătoria Târgu-Neamț": "Judecătoria Târgu Neamț",
+            "Judecătoria Roșiori de Vede": "Judecătoria Roșiorii de Vede"
+        }
+    },
+
+    "uat_aliases": {
+        "_doc": "County|AnnexLocalityName -> exact data/cities.json name (hyphen/punctuation/diacritic/rename differences). Bihor|Petreu: commune renamed Abramut. Some target names carry cities.json data-quality quirks (kept verbatim so import matches).",
+        "map": {
+            "Alba|Rimetea": "Râmetea",
+            "Argeș|Valea Mare-Pravăț": "Valea Mare Pravaț",
+            "Argeș|Ciofrângeni": "Ciofringeni",
+            "Bihor|Petreu": "Abramuț",
+            "Bistrița-Năsăud|Ciceu-Mihăiești": "Ciceu - Mihăiești",
+            "Buzău|Năieni": "Naeni",
+            "Călărași|Lehliu-Gară": "Lehliu Gara",
+            "Cluj|Recea Cristur": "Recea-Cristur",
+            "Cluj|Rișca": "Râșca",
+            "Dâmbovița|I.L. Caragiale": "I. L. Caragiale",
+            "Harghita|Miercurea-Ciuc": "Miercurea Ciuc",
+            "Ilfov|Popești-Leordeni": "Popești Leordeni",
+            "Neamț|Târgu-Neamț": "Târgu Neamț",
+            "Olt|Giuvărești": "Giuvaraști",
+            "Olt|Sârbii-Măgura": "Sârbii - Magura",
+            "Tulcea|I.C. Brătianu": "I.c.bratianu"
+        }
+    },
+
+    "known_gaps": {
+        "_doc": "UATs present in data/cities.json but absent from HG 1217/2023 (communes created in 2004, not carried into the circumscription annex). Left uncovered on purpose: the resolver falls back to manual court selection. Do NOT fabricate a competence the law does not assign. Assign only if a newer HG amends the annex.",
+        "list": [
+            { "county": "Vrancea", "uat": "Gologanu" },
+            { "county": "Suceava", "uat": "Capu Câmpului" }
+        ]
+    }
+}
