@@ -156,6 +156,86 @@ final class EmailNotificationSubscriberTest extends TestCase
         self::assertSame('notification.case_status.definitiva.message', $request->message);
     }
 
+    public function testWorkflowDosarInregistratMapsToInfoStatusNotification(): void
+    {
+        $spy = new SpyNotificationDispatcher();
+
+        $this->subscriber($spy)->onDosarInregistrat(new EnteredEvent($this->case(), new Marking()));
+
+        $request = $spy->last();
+        self::assertSame(NotificationType::CASE_STATUS, $request->type);
+        self::assertSame('info', $request->variant);
+        self::assertSame('notification.case_status.dosar_inregistrat.title', $request->title);
+        self::assertSame('notification.case_status.dosar_inregistrat.message', $request->message);
+    }
+
+    public function testWorkflowTermenFixatMapsToInfoStatusNotification(): void
+    {
+        $spy = new SpyNotificationDispatcher();
+
+        $this->subscriber($spy)->onTermenFixat(new EnteredEvent($this->case(), new Marking()));
+
+        $request = $spy->last();
+        self::assertSame(NotificationType::CASE_STATUS, $request->type);
+        self::assertSame('info', $request->variant);
+        self::assertSame('notification.case_status.termen_fixat.title', $request->title);
+        self::assertSame('notification.case_status.termen_fixat.message', $request->message);
+    }
+
+    public function testWorkflowExecutareWithTreceLaExecutareMapsToExecutare(): void
+    {
+        $spy = new SpyNotificationDispatcher();
+        $transition = new Transition('trece_la_executare', 'DEFINITIVA', 'EXECUTARE');
+
+        $this->subscriber($spy)->onExecutare(new EnteredEvent($this->case(), new Marking(), $transition));
+
+        $request = $spy->last();
+        self::assertSame(NotificationType::CASE_STATUS, $request->type);
+        self::assertSame('info', $request->variant);
+        self::assertSame('notification.case_status.executare.title', $request->title);
+        self::assertSame('notification.case_status.executare.message', $request->message);
+    }
+
+    public function testWorkflowExecutareSelfLoopMapsToExecutareAnulareRespinsa(): void
+    {
+        $spy = new SpyNotificationDispatcher();
+        $transition = new Transition('respinge_cerere_anulare_executare', 'EXECUTARE', 'EXECUTARE');
+
+        $this->subscriber($spy)->onExecutare(new EnteredEvent($this->case(), new Marking(), $transition));
+
+        $request = $spy->last();
+        self::assertSame(NotificationType::CASE_STATUS, $request->type);
+        self::assertSame('info', $request->variant);
+        self::assertSame('notification.case_status.executare_anulare_respinsa.title', $request->title);
+        self::assertSame('notification.case_status.executare_anulare_respinsa.message', $request->message);
+    }
+
+    public function testWorkflowInchisSuccesMapsToSuccessStatusNotification(): void
+    {
+        $spy = new SpyNotificationDispatcher();
+
+        $this->subscriber($spy)->onInchisSucces(new EnteredEvent($this->case(), new Marking()));
+
+        $request = $spy->last();
+        self::assertSame(NotificationType::CASE_STATUS, $request->type);
+        self::assertSame('success', $request->variant);
+        self::assertSame('notification.case_status.inchis_succes.title', $request->title);
+        self::assertSame('notification.case_status.inchis_succes.message', $request->message);
+    }
+
+    public function testWorkflowInchisFaraRecuperareMapsToWarningStatusNotification(): void
+    {
+        $spy = new SpyNotificationDispatcher();
+
+        $this->subscriber($spy)->onInchisFaraRecuperare(new EnteredEvent($this->case(), new Marking()));
+
+        $request = $spy->last();
+        self::assertSame(NotificationType::CASE_STATUS, $request->type);
+        self::assertSame('warning', $request->variant);
+        self::assertSame('notification.case_status.inchis_fara_recuperare.title', $request->title);
+        self::assertSame('notification.case_status.inchis_fara_recuperare.message', $request->message);
+    }
+
     public function testMissingCommunicationDateBuildsWarning(): void
     {
         $spy = new SpyNotificationDispatcher();

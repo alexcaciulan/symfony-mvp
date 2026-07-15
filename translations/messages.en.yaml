@@ -1982,6 +1982,30 @@ email:
             subject: 'Order now final on case %case%'
             heading: 'The annulment request was rejected'
             body: 'The court rejected the annulment request on case %case%. The ruling is final (CPC art. 1024 para. 8) and cannot be appealed, and the payment order remains an enforceable title.'
+        dosar_inregistrat:
+            subject: 'Case file registered with the court: %case%'
+            heading: 'The court registered the case file'
+            body: 'The payment order petition was registered with the court and case %case% received a case number. Informational notice.'
+        termen_fixat:
+            subject: 'Hearing date set on case %case%'
+            heading: 'The court set a hearing date'
+            body: 'The court set a hearing date on case %case%. Informational notice. Check the hearing details on the court portal.'
+        executare:
+            subject: 'Enforcement started on case %case%'
+            heading: 'The case moved to enforcement'
+            body: 'Case %case% moved to enforcement on the basis of the enforceable title (the final payment order).'
+        executare_anulare_respinsa:
+            subject: 'Annulment request rejected, enforcement continues on case %case%'
+            heading: 'The annulment request was rejected, enforcement continues'
+            body: 'On case %case%, the annulment request was rejected while enforcement was already running. The order remains an enforceable title and enforcement continues (the annulment request does not suspend enforcement, CPC art. 1024 para. 5; the rejection ruling is final, para. 8).'
+        inchis_succes:
+            subject: 'Case closed with recovery: %case%'
+            heading: 'The case was closed with recovery'
+            body: 'Case %case% was closed successfully: the claim was recovered.'
+        inchis_fara_recuperare:
+            subject: 'Case closed without recovery: %case%'
+            heading: 'The case was closed without recovery'
+            body: 'Case %case% was closed without recovering the claim.'
     deadline_alert:
         field_type: 'Deadline type'
         field_date: 'Due date'
@@ -2042,6 +2066,24 @@ notification:
         anulare_respinsa:
             title: 'Annulment request rejected, order final: %case%'
             message: 'The court rejected the annulment request filed by the debtor on case %case%. The ruling is final (CPC art. 1024 para. 8) and cannot be appealed. The payment order remains an enforceable title.'
+        dosar_inregistrat:
+            title: 'Case file registered: %case%'
+            message: 'The payment order petition was registered with the court and case %case% received a case number.'
+        termen_fixat:
+            title: 'Hearing date set: %case%'
+            message: 'The court set a hearing date on case %case%.'
+        executare:
+            title: 'Enforcement started: %case%'
+            message: 'Case %case% moved to enforcement on the basis of the enforceable title (the final payment order).'
+        executare_anulare_respinsa:
+            title: 'Annulment request rejected, enforcement continues: %case%'
+            message: 'On case %case%, the annulment request was rejected while enforcement was already running. The order remains an enforceable title and enforcement continues (the annulment request does not suspend enforcement, CPC art. 1024 para. 5; the rejection ruling is final, para. 8).'
+        inchis_succes:
+            title: 'Case closed with recovery: %case%'
+            message: 'Case %case% was closed successfully: the claim was recovered.'
+        inchis_fara_recuperare:
+            title: 'Case closed without recovery: %case%'
+            message: 'Case %case% was closed without recovering the claim.'
     portal_event:
         title: 'Portal activity: %case%'
         message: 'New portal activity for case %case%.'

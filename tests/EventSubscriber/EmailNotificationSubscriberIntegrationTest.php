@@ -113,6 +113,24 @@ final class EmailNotificationSubscriberIntegrationTest extends KernelTestCase
         self::assertSame(NotificationChannel::IN_APP, $notifications[0]->getChannel());
     }
 
+    public function testDosarInregistratEnteredEventPersistsSingleCaseStatusNotification(): void
+    {
+        $case = $this->persistCase();
+
+        static::getContainer()->get('event_dispatcher')->dispatch(
+            new EnteredEvent($case, new Marking()),
+            'workflow.legal_case.entered.DOSAR_INREGISTRAT',
+        );
+
+        $this->assertEmailCount(1);
+        $notifications = $this->em->getRepository(Notification::class)->findBy([
+            'legalCase' => $case,
+            'type' => 'case_status',
+        ]);
+        self::assertCount(1, $notifications);
+        self::assertSame(NotificationChannel::IN_APP, $notifications[0]->getChannel());
+    }
+
     public function testPortalEventSendsEmailButDoesNotPersistInApp(): void
     {
         $case = $this->persistCase();

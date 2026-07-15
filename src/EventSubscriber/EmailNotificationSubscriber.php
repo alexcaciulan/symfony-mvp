@@ -84,6 +84,48 @@ final class EmailNotificationSubscriber
         $this->notifyStatusChange($event, 'respinsa', 'warning');
     }
 
+    #[AsEventListener(event: 'workflow.legal_case.entered.DOSAR_INREGISTRAT')]
+    public function onDosarInregistrat(EnteredEvent $event): void
+    {
+        $this->notifyStatusChange($event, 'dosar_inregistrat', 'info');
+    }
+
+    #[AsEventListener(event: 'workflow.legal_case.entered.TERMEN_FIXAT')]
+    public function onTermenFixat(EnteredEvent $event): void
+    {
+        $this->notifyStatusChange($event, 'termen_fixat', 'info');
+    }
+
+    #[AsEventListener(event: 'workflow.legal_case.entered.EXECUTARE')]
+    public function onExecutare(EnteredEvent $event): void
+    {
+        // EXECUTARE is entered by two transitions. The self-loop
+        // respinge_cerere_anulare_executare (EXECUTARE -> EXECUTARE) still fires
+        // entered.EXECUTARE: Workflow::entered() dispatches entered.<place> for every
+        // place in the transition's "tos" unconditionally, with no guard on prior
+        // marking. It records the annulment request being rejected while enforcement
+        // is already running, so enforcement continues.
+        if ($event->getTransition()?->getName() === 'respinge_cerere_anulare_executare') {
+            $this->notifyStatusChange($event, 'executare_anulare_respinsa', 'info');
+
+            return;
+        }
+
+        $this->notifyStatusChange($event, 'executare', 'info');
+    }
+
+    #[AsEventListener(event: 'workflow.legal_case.entered.INCHIS_SUCCES')]
+    public function onInchisSucces(EnteredEvent $event): void
+    {
+        $this->notifyStatusChange($event, 'inchis_succes', 'success');
+    }
+
+    #[AsEventListener(event: 'workflow.legal_case.entered.INCHIS_FARA_RECUPERARE')]
+    public function onInchisFaraRecuperare(EnteredEvent $event): void
+    {
+        $this->notifyStatusChange($event, 'inchis_fara_recuperare', 'warning');
+    }
+
     #[AsEventListener(event: DeadlineAlertEvent::class)]
     public function onDeadlineAlert(DeadlineAlertEvent $event): void
     {

@@ -1983,6 +1983,30 @@ email:
             subject: 'Ordonanță definitivă pe dosarul %case%'
             heading: 'Cererea în anulare a fost respinsă'
             body: 'Instanța a respins cererea în anulare pe dosarul %case%. Hotărârea este definitivă (CPC art. 1024 alin. 8) și nu poate fi atacată cu apel, iar ordonanța de plată rămâne titlu executoriu.'
+        dosar_inregistrat:
+            subject: 'Dosar înregistrat la instanță: %case%'
+            heading: 'Instanța a înregistrat dosarul'
+            body: 'Cererea de ordonanță de plată a fost înregistrată la instanță și dosarul %case% a primit număr de dosar. Notificare informativă.'
+        termen_fixat:
+            subject: 'Termen de judecată fixat pe dosarul %case%'
+            heading: 'Instanța a fixat termen de judecată'
+            body: 'Pe dosarul %case% instanța a fixat un termen de judecată. Notificare informativă. Verifică detaliile termenului pe portalul instanței.'
+        executare:
+            subject: 'Trecere la executare silită pe dosarul %case%'
+            heading: 'Dosarul a trecut la executare silită'
+            body: 'Dosarul %case% a trecut la executare silită în baza titlului executoriu (ordonanța de plată definitivă).'
+        executare_anulare_respinsa:
+            subject: 'Cerere în anulare respinsă, executarea continuă pe dosarul %case%'
+            heading: 'Cererea în anulare a fost respinsă, executarea continuă'
+            body: 'Pe dosarul %case%, cererea în anulare a fost respinsă în timp ce executarea silită era deja pornită. Ordonanța rămâne titlu executoriu și executarea continuă (cererea în anulare nu suspendă executarea, CPC art. 1024 alin. 5; hotărârea de respingere este definitivă, alin. 8).'
+        inchis_succes:
+            subject: 'Dosar închis cu recuperare: %case%'
+            heading: 'Dosarul a fost închis cu recuperare'
+            body: 'Dosarul %case% a fost închis cu succes: creanța a fost recuperată.'
+        inchis_fara_recuperare:
+            subject: 'Dosar închis fără recuperare: %case%'
+            heading: 'Dosarul a fost închis fără recuperare'
+            body: 'Dosarul %case% a fost închis fără recuperarea creanței.'
     deadline_alert:
         field_type: 'Tip termen'
         field_date: 'Data limită'
@@ -2043,6 +2067,24 @@ notification:
         anulare_respinsa:
             title: 'Cerere în anulare respinsă, ordonanță definitivă: %case%'
             message: 'Instanța a respins cererea în anulare formulată de debitor pe dosarul %case%. Hotărârea este definitivă (CPC art. 1024 alin. 8) și nu poate fi atacată cu apel. Ordonanța de plată rămâne titlu executoriu.'
+        dosar_inregistrat:
+            title: 'Dosar înregistrat: %case%'
+            message: 'Cererea de ordonanță de plată a fost înregistrată la instanță și dosarul %case% a primit număr de dosar.'
+        termen_fixat:
+            title: 'Termen de judecată fixat: %case%'
+            message: 'Instanța a fixat un termen de judecată pe dosarul %case%.'
+        executare:
+            title: 'Trecere la executare silită: %case%'
+            message: 'Dosarul %case% a trecut la executare silită în baza titlului executoriu (ordonanța de plată definitivă).'
+        executare_anulare_respinsa:
+            title: 'Cerere în anulare respinsă, executarea continuă: %case%'
+            message: 'Pe dosarul %case%, cererea în anulare a fost respinsă în timp ce executarea era deja pornită. Ordonanța rămâne titlu executoriu și executarea continuă (cererea în anulare nu suspendă executarea, CPC art. 1024 alin. 5; hotărârea de respingere este definitivă, alin. 8).'
+        inchis_succes:
+            title: 'Dosar închis cu recuperare: %case%'
+            message: 'Dosarul %case% a fost închis cu succes: creanța a fost recuperată.'
+        inchis_fara_recuperare:
+            title: 'Dosar închis fără recuperare: %case%'
+            message: 'Dosarul %case% a fost închis fără recuperarea creanței.'
     portal_event:
         title: 'Activitate portal: %case%'
         message: 'Activitate nouă pe portal pentru dosarul %case%.'
