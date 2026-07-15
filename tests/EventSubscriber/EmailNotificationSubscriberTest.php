@@ -21,6 +21,7 @@ use PHPUnit\Framework\TestCase;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Workflow\Event\EnteredEvent;
 use Symfony\Component\Workflow\Marking;
+use Symfony\Component\Workflow\Transition;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 final class EmailNotificationSubscriberTest extends TestCase
@@ -87,6 +88,72 @@ final class EmailNotificationSubscriberTest extends TestCase
         self::assertSame('notification.case_status.ordonanta_emisa.title', $request->title);
         self::assertSame('emails/case_status.html.twig', $request->emailTemplate);
         self::assertTrue($request->persistInApp);
+    }
+
+    public function testWorkflowInAnulareMapsToInfoStatusNotification(): void
+    {
+        $spy = new SpyNotificationDispatcher();
+
+        $this->subscriber($spy)->onInAnulare(new EnteredEvent($this->case(), new Marking()));
+
+        $request = $spy->last();
+        self::assertSame(NotificationType::CASE_STATUS, $request->type);
+        self::assertSame('info', $request->variant);
+        self::assertSame('notification.case_status.in_anulare.title', $request->title);
+        self::assertSame('notification.case_status.in_anulare.message', $request->message);
+    }
+
+    public function testWorkflowRespinsaWithAdmiteCerereAnulareMapsToAnulareAdmisa(): void
+    {
+        $spy = new SpyNotificationDispatcher();
+        $transition = new Transition('admite_cerere_anulare', 'IN_ANULARE', 'RESPINSA');
+
+        $this->subscriber($spy)->onRespinsa(new EnteredEvent($this->case(), new Marking(), $transition));
+
+        $request = $spy->last();
+        self::assertSame(NotificationType::CASE_STATUS, $request->type);
+        self::assertSame('warning', $request->variant);
+        self::assertSame('notification.case_status.anulare_admisa.title', $request->title);
+        self::assertSame('notification.case_status.anulare_admisa.message', $request->message);
+    }
+
+    public function testWorkflowRespinsaWithOtherTransitionMapsToRespinsa(): void
+    {
+        $spy = new SpyNotificationDispatcher();
+        $transition = new Transition('respinge', 'CERERE_DEPUSA', 'RESPINSA');
+
+        $this->subscriber($spy)->onRespinsa(new EnteredEvent($this->case(), new Marking(), $transition));
+
+        $request = $spy->last();
+        self::assertSame('warning', $request->variant);
+        self::assertSame('notification.case_status.respinsa.title', $request->title);
+        self::assertSame('notification.case_status.respinsa.message', $request->message);
+    }
+
+    public function testWorkflowDefinitivaWithRespingeCerereAnulareMapsToAnulareRespinsa(): void
+    {
+        $spy = new SpyNotificationDispatcher();
+        $transition = new Transition('respinge_cerere_anulare', 'IN_ANULARE', 'DEFINITIVA');
+
+        $this->subscriber($spy)->onDefinitiva(new EnteredEvent($this->case(), new Marking(), $transition));
+
+        $request = $spy->last();
+        self::assertSame('success', $request->variant);
+        self::assertSame('notification.case_status.anulare_respinsa.title', $request->title);
+        self::assertSame('notification.case_status.anulare_respinsa.message', $request->message);
+    }
+
+    public function testWorkflowDefinitivaWithoutAnnulmentTransitionMapsToDefinitiva(): void
+    {
+        $spy = new SpyNotificationDispatcher();
+        $transition = new Transition('marcheaza_definitiva', 'ORDONANTA_EMISA', 'DEFINITIVA');
+
+        $this->subscriber($spy)->onDefinitiva(new EnteredEvent($this->case(), new Marking(), $transition));
+
+        $request = $spy->last();
+        self::assertSame('success', $request->variant);
+        self::assertSame('notification.case_status.definitiva.title', $request->title);
+        self::assertSame('notification.case_status.definitiva.message', $request->message);
     }
 
     public function testMissingCommunicationDateBuildsWarning(): void

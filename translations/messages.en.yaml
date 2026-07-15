@@ -1970,6 +1970,18 @@ email:
             subject: 'Unfavourable ruling on case %case%'
             heading: 'Unfavourable ruling on the case'
             body: 'On case %case% the court issued an unfavourable ruling (payment order petition rejected or annulment request admitted). Check the court ruling and the applicable deadlines.'
+        in_anulare:
+            subject: 'Annulment request on case %case%'
+            heading: 'The debtor filed an annulment request'
+            body: 'The debtor filed an annulment request against the order on case %case% (CPC art. 1024 para. 1). The request does not suspend enforcement unless the court grants suspension against a bond (CPC art. 1024 para. 5). The request is decided by a panel of 2 judges, with no further action required from you until the ruling.'
+        anulare_admisa:
+            subject: 'Annulment request admitted on case %case%'
+            heading: 'The court admitted the annulment request'
+            body: 'The court admitted the annulment request on case %case%. The payment order has been annulled and is no longer an enforceable title, and the ruling is final (CPC art. 1024). If enforcement had started, check that it is stopped. Recovery through common-law proceedings is not covered by the application.'
+        anulare_respinsa:
+            subject: 'Order now final on case %case%'
+            heading: 'The annulment request was rejected'
+            body: 'The court rejected the annulment request on case %case%. The ruling is final (CPC art. 1024 para. 8) and cannot be appealed, and the payment order remains an enforceable title.'
     deadline_alert:
         field_type: 'Deadline type'
         field_date: 'Due date'
@@ -2021,6 +2033,15 @@ notification:
         respinsa:
             title: 'Unfavourable ruling: %case%'
             message: 'On case %case% the court issued an unfavourable ruling.'
+        in_anulare:
+            title: 'Annulment request filed by the debtor: %case%'
+            message: 'The debtor filed an annulment request against the order on case %case% (CPC art. 1024 para. 1). The request does not suspend enforcement unless the court grants suspension against a bond (CPC art. 1024 para. 5). The court decides the request in a panel of 2 judges; no action is required from you until the ruling.'
+        anulare_admisa:
+            title: 'Annulment request admitted: %case%'
+            message: 'The court admitted the annulment request filed by the debtor on case %case%. The payment order has been annulled and is no longer an enforceable title; the ruling is final (CPC art. 1024). If enforcement had started, check that it is stopped. Recovery through common-law proceedings is not covered by the application.'
+        anulare_respinsa:
+            title: 'Annulment request rejected, order final: %case%'
+            message: 'The court rejected the annulment request filed by the debtor on case %case%. The ruling is final (CPC art. 1024 para. 8) and cannot be appealed. The payment order remains an enforceable title.'
     portal_event:
         title: 'Portal activity: %case%'
         message: 'New portal activity for case %case%.'

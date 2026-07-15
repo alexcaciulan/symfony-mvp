@@ -95,6 +95,24 @@ final class EmailNotificationSubscriberIntegrationTest extends KernelTestCase
         self::assertCount(1, $notifications);
     }
 
+    public function testInAnulareEnteredEventPersistsSingleCaseStatusNotification(): void
+    {
+        $case = $this->persistCase();
+
+        static::getContainer()->get('event_dispatcher')->dispatch(
+            new EnteredEvent($case, new Marking()),
+            'workflow.legal_case.entered.IN_ANULARE',
+        );
+
+        $this->assertEmailCount(1);
+        $notifications = $this->em->getRepository(Notification::class)->findBy([
+            'legalCase' => $case,
+            'type' => 'case_status',
+        ]);
+        self::assertCount(1, $notifications);
+        self::assertSame(NotificationChannel::IN_APP, $notifications[0]->getChannel());
+    }
+
     public function testPortalEventSendsEmailButDoesNotPersistInApp(): void
     {
         $case = $this->persistCase();

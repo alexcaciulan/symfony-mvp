@@ -50,15 +50,37 @@ final class EmailNotificationSubscriber
         $this->notifyStatusChange($event, 'ordonanta_emisa', 'success');
     }
 
+    #[AsEventListener(event: 'workflow.legal_case.entered.IN_ANULARE')]
+    public function onInAnulare(EnteredEvent $event): void
+    {
+        $this->notifyStatusChange($event, 'in_anulare', 'info');
+    }
+
     #[AsEventListener(event: 'workflow.legal_case.entered.DEFINITIVA')]
     public function onDefinitiva(EnteredEvent $event): void
     {
+        // A rejected annulment request makes the order final (CPC art. 1024 alin. 8);
+        // the plain marcheaza_definitiva path is the ordinary "became final" case.
+        if ($event->getTransition()?->getName() === 'respinge_cerere_anulare') {
+            $this->notifyStatusChange($event, 'anulare_respinsa', 'success');
+
+            return;
+        }
+
         $this->notifyStatusChange($event, 'definitiva', 'success');
     }
 
     #[AsEventListener(event: 'workflow.legal_case.entered.RESPINSA')]
     public function onRespinsa(EnteredEvent $event): void
     {
+        // An admitted annulment request annuls the payment order (CPC art. 1024);
+        // otherwise RESPINSA is the rejected OP request.
+        if ($event->getTransition()?->getName() === 'admite_cerere_anulare') {
+            $this->notifyStatusChange($event, 'anulare_admisa', 'warning');
+
+            return;
+        }
+
         $this->notifyStatusChange($event, 'respinsa', 'warning');
     }
 

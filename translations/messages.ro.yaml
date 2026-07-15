@@ -1971,6 +1971,18 @@ email:
             subject: 'Soluție nefavorabilă pe dosarul %case%'
             heading: 'Soluție nefavorabilă pe dosar'
             body: 'Pe dosarul %case% instanța a pronunțat o soluție nefavorabilă (cerere de ordonanță de plată respinsă sau cerere în anulare admisă). Verifică soluția instanței și termenele aplicabile.'
+        in_anulare:
+            subject: 'Cerere în anulare pe dosarul %case%'
+            heading: 'Debitorul a formulat cerere în anulare'
+            body: 'Debitorul a formulat cerere în anulare împotriva ordonanței pe dosarul %case% (CPC art. 1024 alin. 1). Cererea nu suspendă executarea decât dacă instanța încuviințează suspendarea cu cauțiune (CPC art. 1024 alin. 5). Cererea se soluționează în complet de 2 judecători, fără o acțiune suplimentară din partea ta până la soluție.'
+        anulare_admisa:
+            subject: 'Cerere în anulare admisă pe dosarul %case%'
+            heading: 'Instanța a admis cererea în anulare'
+            body: 'Instanța a admis cererea în anulare pe dosarul %case%. Ordonanța de plată a fost anulată și nu mai este titlu executoriu, iar hotărârea este definitivă (CPC art. 1024). Dacă executarea silită era pornită, verifică oprirea ei. Recuperarea pe calea dreptului comun nu este acoperită de aplicație.'
+        anulare_respinsa:
+            subject: 'Ordonanță definitivă pe dosarul %case%'
+            heading: 'Cererea în anulare a fost respinsă'
+            body: 'Instanța a respins cererea în anulare pe dosarul %case%. Hotărârea este definitivă (CPC art. 1024 alin. 8) și nu poate fi atacată cu apel, iar ordonanța de plată rămâne titlu executoriu.'
     deadline_alert:
         field_type: 'Tip termen'
         field_date: 'Data limită'
@@ -2022,6 +2034,15 @@ notification:
         respinsa:
             title: 'Soluție nefavorabilă: %case%'
             message: 'Pe dosarul %case% instanța a pronunțat o soluție nefavorabilă.'
+        in_anulare:
+            title: 'Cerere în anulare formulată de debitor: %case%'
+            message: 'Debitorul a formulat cerere în anulare împotriva ordonanței pe dosarul %case% (CPC art. 1024 alin. 1). Cererea nu suspendă executarea decât dacă instanța încuviințează suspendarea cu cauțiune (CPC art. 1024 alin. 5). Instanța soluționează cererea în complet de 2 judecători; nu mai e nevoie de acțiune din partea ta până la soluție.'
+        anulare_admisa:
+            title: 'Cerere în anulare admisă: %case%'
+            message: 'Instanța a admis cererea în anulare formulată de debitor pe dosarul %case%. Ordonanța de plată a fost anulată și nu mai este titlu executoriu; hotărârea este definitivă (CPC art. 1024). Dacă executarea silită era pornită, verifică oprirea ei. Recuperarea pe calea dreptului comun nu este acoperită de aplicație.'
+        anulare_respinsa:
+            title: 'Cerere în anulare respinsă, ordonanță definitivă: %case%'
+            message: 'Instanța a respins cererea în anulare formulată de debitor pe dosarul %case%. Hotărârea este definitivă (CPC art. 1024 alin. 8) și nu poate fi atacată cu apel. Ordonanța de plată rămâne titlu executoriu.'
     portal_event:
         title: 'Activitate portal: %case%'
         message: 'Activitate nouă pe portal pentru dosarul %case%.'
