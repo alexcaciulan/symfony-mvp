@@ -17,6 +17,7 @@ use App\Enum\DebitAcknowledgedStatus;
 use App\Enum\DocumentType;
 use App\Enum\ExtractionStatus;
 use App\Enum\PersonType;
+use App\Enum\StampDutyStatus;
 use App\Service\AuditLogService;
 use App\Tests\Support\CountyFixtureTrait;
 use Doctrine\ORM\EntityManagerInterface;
@@ -80,6 +81,9 @@ final class CasePaymentOrderControllerTest extends WebTestCase
         $this->case->setCurrency('RON');
         $this->case->setDueDate(new \DateTime('2024-06-15'));
         $this->case->setPaymentNoticeDate(new \DateTime('2026-02-01'));
+        // Stamp duty settled by default: these tests exercise the petition flow, and
+        // the duty gate has its own dedicated tests below.
+        $this->case->setStampDutyStatus(StampDutyStatus::ACHITATA);
         $this->em->persist($this->case);
 
         $debtor = new Debtor();
@@ -162,6 +166,61 @@ final class CasePaymentOrderControllerTest extends WebTestCase
         $this->case->getDocuments()->add($doc);
 
         return $doc;
+    }
+
+    /**
+     * CPC art. 197: proof of the stamp duty is attached to the petition, and failing
+     * to stamp it annuls the claim. So an unpaid duty must stop the filing package
+     * from being produced at all.
+     */
+    public function testGenerateIsBlockedWhenStampDutyIsUnpaid(): void
+    {
+        $this->attachSomatieFile();
+        $this->case->setStampDutyStatus(StampDutyStatus::NEACHITATA);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/payment-order/generate', [
+            '_token' => $token,
+            'debitAcknowledgedStatus' => 'UNPAID',
+            'opGenerationConsent' => '1',
+        ]);
+
+        self::assertResponseRedirects('/case/' . $this->case->getId());
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame(CaseStatus::SOMATIE_TRIMISA, $refreshed->getStatus(), 'An unstamped case must not reach CERERE_DEPUSA.');
+
+        $documents = $this->em->getRepository(Document::class)->findBy(['legalCase' => $refreshed->getId()]);
+        $types = array_map(static fn (Document $d): DocumentType => $d->getDocumentType(), $documents);
+        self::assertNotContains(DocumentType::CERERE_OP, $types, 'No petition may be generated while the duty is unpaid.');
+    }
+
+    /**
+     * OUG 80/2013 art. 33 alin. 2 lets the claimant stamp during regularization, so a
+     * lawyer who knowingly takes that route must not be locked out of filing.
+     */
+    public function testGenerateIsAllowedWhenStampDutyIsDeferredToRegularization(): void
+    {
+        $this->attachSomatieFile();
+        $this->case->setStampDutyStatus(StampDutyStatus::AMANATA_REGULARIZARE);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/payment-order/generate', [
+            '_token' => $token,
+            'debitAcknowledgedStatus' => 'UNPAID',
+            'opGenerationConsent' => '1',
+        ]);
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame(CaseStatus::CERERE_DEPUSA, $refreshed->getStatus());
     }
 
     public function testGenerateHappyPathTransitionsToCerereDepusa(): void

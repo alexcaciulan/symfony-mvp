@@ -54,6 +54,14 @@ class Step1CreditorData
             groups: ['manual'],
         )]
         public ?string $address = null,
+        // Structured registered office, filled by the ANAF lookup and correctable
+        // by the lawyer. Drives the UAT that collects the stamp duty (OUG 80/2013
+        // art. 40 alin. 1), which cannot be derived from the free-text address.
+        #[Assert\Length(max: 100)]
+        public ?string $addressCounty = null,
+        #[Assert\Length(max: 150)]
+        public ?string $addressLocality = null,
+        public ?string $anafCheckedAt = null,
         #[Assert\Email(message: 'validation.email.invalid')]
         public ?string $email = null,
         public ?string $phone = null,

@@ -113,8 +113,8 @@ final class Step2DebtorEntryType extends AbstractType
                 'label' => 'wizard.step2.field.bpi_verified_today',
                 'required' => false,
             ])
-            // Pas 3.3 — ANAF metadata, populated client-side by the
-            // `debtor-anaf-lookup` Stimulus controller on CUI blur. Declared as
+            // ANAF metadata, populated client-side by the
+            // `party-anaf-lookup` Stimulus controller on CUI blur. Declared as
             // unmapped HiddenType (the DTO has typed `?AnafStatus` and
             // `?\DateTimeImmutable` properties — direct Form-to-DTO mapping
             // would need a transformer). The SUBMIT listener below converts the

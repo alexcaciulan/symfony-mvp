@@ -2,22 +2,26 @@
 import { Controller } from '@hotwired/stimulus';
 
 /*
- * Pas 3.3 — ANAF lookup on CUI blur.
+ * ANAF lookup on CUI blur, for either party of a case.
  *
- * Wired per debtor entry in Step 2 of the wizard. The controller root wraps
- * the CUI input + the name / address fields + the ANAF status badge so we
- * can populate them all at once on a successful lookup. The lookup is
- * triggered on `blur` of the CUI field (debounce comes from the user moving
- * focus). The endpoint is `api_anaf_lookup` (see src/Controller/Api/LookupController.php).
+ * Wired per debtor entry in Step 2 and on the creditor in Step 1. The controller
+ * root wraps the CUI input + the name / address fields + the ANAF status badge so
+ * we can populate them all at once on a successful lookup. The lookup is triggered
+ * on `blur` of the CUI field (debounce comes from the user moving focus). The
+ * endpoint is `api_anaf_lookup` (see src/Controller/Api/LookupController.php).
  *
  * On success the controller writes:
  *   - companyName  → the [name] target
  *   - composed address (street + nr + city + county) → the [address] target
  *   - county / locality → the [addressCounty] / [addressLocality] targets
- *     (structured, feed the competent-court resolver at step 4)
+ *     (structured: they feed the competent-court resolver for the debtor, and the
+ *     stamp-duty payment UAT for the creditor)
  *   - anafStatus value (`ACTIV`/`INACTIV`/`RADIAT`) → the hidden [anafStatus]
  *   - ISO8601 timestamp → the hidden [anafCheckedAt]
  *   - the emerald "ANAF verificat" badge is unhidden
+ *
+ * Every target is optional, so a party that has no ANAF status field (the creditor)
+ * simply omits it.
  *
  * Errors dispatch a `toast:show` event with the translated message so the
  * existing toast_controller.js picks them up.
@@ -26,9 +30,9 @@ export default class extends Controller {
     static targets = ['cui', 'name', 'address', 'addressCounty', 'addressLocality', 'anafStatus', 'anafCheckedAt', 'badge', 'spinner'];
     static values = {
         url: String,
-        // English fallbacks — actual user-facing text vine via template:
-        //   data-debtor-anaf-lookup-invalid-msg-value="{{ 'exception.anaf.cui_invalid'|trans }}"
-        //   data-debtor-anaf-lookup-unavailable-msg-value="{{ 'exception.anaf.unavailable'|trans }}"
+        // English fallbacks. User-facing text comes from the template:
+        //   data-party-anaf-lookup-invalid-msg-value="{{ 'exception.anaf.cui_invalid'|trans }}"
+        //   data-party-anaf-lookup-unavailable-msg-value="{{ 'exception.anaf.unavailable'|trans }}"
         invalidMsg: { type: String, default: 'Invalid CUI.' },
         unavailableMsg: { type: String, default: 'ANAF unavailable. Please retry.' },
     };

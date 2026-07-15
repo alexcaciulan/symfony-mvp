@@ -1,4 +1,6 @@
-{# Tab Documente orchestrator: main col-span-2 (Generated + Source) + sidebar (ZIP + Communication warning). #}
+{# Tab Documente orchestrator: main col-span-2 (Generated + Source) + sidebar
+   (Taxă timbru + ZIP + Communication warning). Cardul taxei stă deasupra ZIP-ului
+   fiindcă plata condiționează pachetul: dovada trebuie atașată cererii (CPC art. 197). #}
 
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -8,6 +10,9 @@
     </div>
 
     <aside class="space-y-6">
+        {% if case.status.value not in ['AMIABIL', 'RESPINSA', 'INCHIS_SUCCES', 'INCHIS_FARA_RECUPERARE'] %}
+            {{ include('case/overview/_stamp_duty_card.html.twig') }}
+        {% endif %}
         {{ include('case/overview/_zip_package_card.html.twig') }}
         {% if not has_communication_proof %}
             {{ include('case/overview/_communication_warning.html.twig') }}

@@ -1,0 +1,41 @@
+{# Turbo Stream pentru acțiunile de taxă de timbru (dovadă / amânare / comunicare
+   instanță). Statusul dosarului nu se schimbă, dar se schimbă cardul, panoul de
+   documente (apare dovada), termenele (apare TIMBRARE) și acțiunile recomandate.
+   `update_regions` e false pe erori/avertismente pure (nu s-a schimbat nimic). #}
+{% if update_regions %}
+    <turbo-stream action="update" target="panel-documente">
+        <template>{{ include('case/overview/_tab_documente.html.twig') }}</template>
+    </turbo-stream>
+    <turbo-stream action="update" target="panel-termene">
+        <template>{{ include('case/overview/_tab_termene.html.twig') }}</template>
+    </turbo-stream>
+    <turbo-stream action="update" target="case-detalii-sidebar">
+        <template>{{ include('case/overview/_detalii_sidebar.html.twig') }}</template>
+    </turbo-stream>
+    {# Modalul de depunere trăiește la nivel de pagină, în afara panourilor, iar starea
+       taxei îi decide gate-ul. Fără acest replace, avocatul achită taxa, deschide
+       modalul și îl găsește tot blocat până la un refresh manual. #}
+    <turbo-stream action="replace" target="hs-modal-cerere-op">
+        <template>{{ include('case/overview/_modal_generate_op.html.twig') }}</template>
+    </turbo-stream>
+{% endif %}
+
+{% if close_modal_id is defined and close_modal_id %}
+    <turbo-stream action="append" target="toasts">
+        <template><div data-controller="close-modal" data-close-modal-target-id-value="{{ close_modal_id }}"></div></template>
+    </turbo-stream>
+{% endif %}
+
+<turbo-stream action="append" target="toasts">
+    <template>
+        {% include 'components/Toast.html.twig' with { message: toast_key|trans, variant: toast_variant, details: [] } only %}
+    </template>
+</turbo-stream>
+
+{% if extra_toast_key is defined and extra_toast_key %}
+    <turbo-stream action="append" target="toasts">
+        <template>
+            {% include 'components/Toast.html.twig' with { message: extra_toast_key|trans, variant: 'warning', details: [] } only %}
+        </template>
+    </turbo-stream>
+{% endif %}

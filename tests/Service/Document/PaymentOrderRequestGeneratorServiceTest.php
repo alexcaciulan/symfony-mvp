@@ -13,6 +13,7 @@ use App\Entity\User;
 use App\Enum\CourtType;
 use App\Enum\DocumentType;
 use App\Enum\PersonType;
+use App\Enum\StampDutyStatus;
 use App\Service\Document\PaymentOrderRequestGeneratorService;
 use App\Tests\Support\CountyFixtureTrait;
 use Doctrine\ORM\EntityManagerInterface;
@@ -136,6 +137,44 @@ final class PaymentOrderRequestGeneratorServiceTest extends KernelTestCase
         self::assertStringContainsString('10.850,00', $html);
         // Taxa timbru e ÎNTOTDEAUNA în RON (OUG 80/2013 art. 6 alin. 2), separată de currency creanță
         self::assertMatchesRegularExpression('/200,00\s+RON/', $html, 'Taxa timbru afișată explicit în RON.');
+    }
+
+    /**
+     * The petition asks the court for the costs (CPC art. 453 is not applied ex
+     * officio), so the stamp duty must be claimed back from the debtor. Without this
+     * the creditor wins and still loses the 200 lei.
+     */
+    public function testRenderHtmlClaimsTheStampDutyAsRecoverableCosts(): void
+    {
+        $this->case->setStampDutyStatus(StampDutyStatus::ACHITATA);
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString('art. 453', $html);
+        self::assertStringContainsString('achitată conform dovezii anexate', $html);
+    }
+
+    /**
+     * The case can be filed unstamped, with the duty paid during regularization (OUG
+     * 80/2013 art. 33 alin. 2). Claiming "paid as per the attached proof" there would
+     * assert a falsehood to the judge, contradicted by the very package we produce:
+     * no proof is in the ZIP.
+     */
+    public function testRenderHtmlDoesNotClaimAProofThatWasNeverFiled(): void
+    {
+        $this->case->setStampDutyStatus(StampDutyStatus::AMANATA_REGULARIZARE);
+
+        $html = $this->service->renderHtml($this->case);
+
+        // Every phrasing that ties the duty to an attached proof, not just the one
+        // sentence a review happened to flag: the first fix patched the costs section
+        // while the amounts table went on labelling the duty "(anexată)" a line above.
+        self::assertStringNotContainsString('achitată conform dovezii anexate', $html);
+        self::assertStringNotContainsString('Taxă timbru (anexată)', $html, 'The amounts table must not claim a proof either.');
+        self::assertStringNotContainsString('(anexată)', $html, 'No label may assert an attachment that is not in the package.');
+        self::assertStringContainsString('urmând a fi achitată', $html);
+        // The amount is still claimed: it will be owed either way.
+        self::assertMatchesRegularExpression('/200,00\s+RON/', $html);
     }
 
     public function testGeneratePersistsDocumentWithTypeCerereOp(): void

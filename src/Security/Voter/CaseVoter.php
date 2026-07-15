@@ -26,6 +26,15 @@ class CaseVoter extends Voter
      */
     public const DEADLINE_MANAGE = 'CASE_DEADLINE_MANAGE';
 
+    /**
+     * Permite gestionarea taxei de timbru (upload dovadă, amânare la regularizare,
+     * data comunicării instanței): ownership-only, FĂRĂ restricție de status.
+     * CASE_UPLOAD e prea restrictiv aici: când avocatul depune fără dovadă și
+     * timbrează la regularizare, dosarul e deja DOSAR_INREGISTRAT în momentul în
+     * care primește dovada de plată, iar el trebuie să o poată încărca.
+     */
+    public const STAMP_DUTY_MANAGE = 'CASE_STAMP_DUTY_MANAGE';
+
     private const EDITABLE_STATUSES = [
         CaseStatus::AMIABIL,
         CaseStatus::SOMATIE_TRIMISA,
@@ -34,7 +43,7 @@ class CaseVoter extends Voter
 
     protected function supports(string $attribute, mixed $subject): bool
     {
-        return in_array($attribute, [self::VIEW, self::EDIT, self::UPLOAD, self::TRANSITION, self::DEADLINE_MANAGE], true)
+        return in_array($attribute, [self::VIEW, self::EDIT, self::UPLOAD, self::TRANSITION, self::DEADLINE_MANAGE, self::STAMP_DUTY_MANAGE], true)
             && $subject instanceof LegalCase;
     }
 
@@ -59,6 +68,7 @@ class CaseVoter extends Voter
             self::UPLOAD => $this->canUpload($legalCase, $user),
             self::TRANSITION => $this->canTransition($legalCase, $user),
             self::DEADLINE_MANAGE => $this->canManageDeadlines($legalCase, $user),
+            self::STAMP_DUTY_MANAGE => $this->canManageStampDuty($legalCase, $user),
             default => false,
         };
     }
@@ -86,6 +96,11 @@ class CaseVoter extends Voter
     }
 
     private function canManageDeadlines(LegalCase $legalCase, User $user): bool
+    {
+        return $legalCase->getUser() === $user;
+    }
+
+    private function canManageStampDuty(LegalCase $legalCase, User $user): bool
     {
         return $legalCase->getUser() === $user;
     }

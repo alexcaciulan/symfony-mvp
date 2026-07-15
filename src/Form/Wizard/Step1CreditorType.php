@@ -10,6 +10,7 @@ use App\Enum\PersonType;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\EmailType;
 use Symfony\Component\Form\Extension\Core\Type\EnumType;
+use Symfony\Component\Form\Extension\Core\Type\HiddenType;
 use Symfony\Component\Form\Extension\Core\Type\IntegerType;
 use Symfony\Component\Form\Extension\Core\Type\TextareaType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
@@ -83,6 +84,22 @@ final class Step1CreditorType extends AbstractType
             ->add('address', TextareaType::class, [
                 'label' => 'wizard.step1.field.address',
                 'required' => true,
+            ])
+            // County + locality of the registered office. Auto-filled by the
+            // `party-anaf-lookup` Stimulus controller on CUI blur, editable as a
+            // manual fallback. They decide the UAT that collects the stamp duty
+            // (OUG 80/2013 art. 40 alin. 1), so a wrong value here sends the money
+            // to the wrong town hall, which courts treat as non-payment.
+            ->add('addressCounty', TextType::class, [
+                'label' => 'wizard.step1.field.address_county',
+                'required' => false,
+            ])
+            ->add('addressLocality', TextType::class, [
+                'label' => 'wizard.step1.field.address_locality',
+                'required' => false,
+            ])
+            ->add('anafCheckedAt', HiddenType::class, [
+                'required' => false,
             ])
             ->add('email', EmailType::class, [
                 'label' => 'wizard.step1.field.email',

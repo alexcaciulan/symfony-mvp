@@ -1,0 +1,124 @@
+{# Taxa judiciară de timbru (OUG 80/2013). Platforma nu încasează banii: indică
+   unde se plătește, trimite spre canalul oficial și cere dovada înapoi, fiindcă
+   CPC art. 197 impune ca dovada achitării să fie atașată cererii. #}
+{% from 'case/overview/_icons.html.twig' import icon_money, icon_check, icon_warning, icon_external_link, icon_document %}
+
+{% set status = case.stampDutyStatus %}
+{% set target = stamp_duty_target|default(null) %}
+{% set proof = stamp_duty_proof|default(null) %}
+{# Suma legală, nu cea de pe dosar: taxa e datorată și pe dosarele create înainte
+   ca acest câmp să existe, iar „0 lei taxă de timbru" ar fi pur și simplu fals. #}
+{% set amount = stamp_duty_amount|default(case.stampDuty|default(0) + 0) %}
+
+{# Plata într-un dosar existent devine posibilă abia după ce dosarul are număr. #}
+{% set rejust_url = case.courtCaseNumber
+    ? 'https://registratura.rejust.ro/plata-taxei-judiciare-de-timbru-intr-un-dosar-existent'
+    : 'https://registratura.rejust.ro/' %}
+
+<section id="case-stamp-duty-card" class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft overflow-hidden">
+    <div class="p-5">
+        <div class="flex items-start justify-between gap-3 mb-3">
+            <div class="flex items-center gap-2">
+                {{ icon_money('size-5 text-slate-400') }}
+                <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ 'case_overview.stamp_duty.title'|trans }}</h3>
+            </div>
+            <twig:StatusBadge :status="status" />
+        </div>
+
+        <div class="flex items-baseline gap-2 mb-1">
+            <span class="text-2xl font-bold text-slate-900 dark:text-slate-100 tnum">{{ amount|number_format(2, ',', '.') }}</span>
+            <span class="text-sm text-slate-500">RON</span>
+        </div>
+        <p class="text-xs text-slate-500 mb-4">{{ 'case_overview.stamp_duty.law_basis'|trans }}</p>
+
+        {% if status.value == 'ACHITATA' %}
+            <div class="rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900/60 p-3 mb-4">
+                <div class="flex items-start gap-2">
+                    {{ icon_check('size-4 text-green-600 shrink-0 mt-0.5') }}
+                    <div class="text-xs text-green-800 dark:text-green-200">
+                        {# Dosarele anterioare acestei funcționalități figurează ca timbrate
+                           fiindcă instanța le-a înregistrat, dar platforma nu are dovada.
+                           Nu pretindem o dată de plată pe care nu o cunoaștem. #}
+                        {% if case.stampDutyPaidAt %}
+                            <p class="font-semibold">{{ 'case_overview.stamp_duty.paid_on'|trans({'%date%': case.stampDutyPaidAt|date('d.m.Y')}) }}</p>
+                        {% else %}
+                            <p class="font-semibold">{{ 'case_overview.stamp_duty.presumed_paid'|trans }}</p>
+                        {% endif %}
+                        {% if case.stampDutyUat %}
+                            <p class="mt-0.5">{{ 'case_overview.stamp_duty.paid_to'|trans({'%uat%': case.stampDutyUat}) }}</p>
+                        {% endif %}
+                        {% if proof %}
+                            <a href="{{ path('case_document_download', {caseId: case.id, documentId: proof.id}) }}"
+                               class="mt-1 inline-flex items-center gap-1 font-semibold underline">
+                                {{ icon_document('size-3.5') }}
+                                {{ 'case_overview.stamp_duty.view_proof'|trans }}
+                            </a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% elseif status.value == 'AMANATA_REGULARIZARE' %}
+            <div class="rounded-lg bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-900/60 p-3 mb-4">
+                <div class="flex items-start gap-2">
+                    {{ icon_warning('size-4 text-orange-600 shrink-0 mt-0.5') }}
+                    <div class="text-xs text-orange-800 dark:text-orange-200">
+                        <p class="font-semibold">{{ 'case_overview.stamp_duty.deferred_title'|trans }}</p>
+                        <p class="mt-0.5">{{ 'case_overview.stamp_duty.deferred_body'|trans }}</p>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            {# Unde se plătește. Sugestia e orientativă: contul exact îl rezolvă portalul
+               oficial, iar o primărie greșită înseamnă taxă neachitată în sensul legii. #}
+            <dl class="text-xs space-y-2 mb-4">
+                <div>
+                    <dt class="text-slate-500">{{ 'case_overview.stamp_duty.payer'|trans }}</dt>
+                    <dd class="font-medium text-slate-900 dark:text-slate-100">{{ case.creditor ? case.creditor.name : '—' }}</dd>
+                </div>
+                <div>
+                    <dt class="text-slate-500">{{ 'case_overview.stamp_duty.uat'|trans }}</dt>
+                    <dd class="font-medium text-slate-900 dark:text-slate-100">
+                        {% if target and target.isResolved %}
+                            {{ target.uatName }}<span class="text-slate-500 font-normal">, {{ 'case_overview.stamp_duty.county'|trans({'%county%': target.countyName}) }}</span>
+                        {% else %}
+                            <span class="text-amber-700 dark:text-amber-400">{{ 'case_overview.stamp_duty.uat_unknown'|trans }}</span>
+                        {% endif %}
+                    </dd>
+                </div>
+                <div>
+                    <dt class="text-slate-500">{{ 'case_overview.stamp_duty.account'|trans }}</dt>
+                    <dd class="font-medium text-slate-900 dark:text-slate-100">{{ 'case_overview.stamp_duty.account_name'|trans }}</dd>
+                </div>
+            </dl>
+
+            {% if not (target and target.isResolved) %}
+                <div class="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 p-3 mb-4">
+                    <p class="text-xs text-amber-800 dark:text-amber-200">{{ target ? target.reasonKey|trans : 'case_overview.stamp_duty.target.location_missing'|trans }}</p>
+                </div>
+            {% endif %}
+        {% endif %}
+
+        <div class="space-y-2">
+            {% if status.value != 'ACHITATA' %}
+                <a href="{{ rejust_url }}" target="_blank" rel="noopener noreferrer"
+                   class="w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-semibold rounded-lg bg-lex-navy text-white hover:bg-lex-navy-dark transition no-underline">
+                    {{ icon_external_link('size-4') }}
+                    {{ 'case_overview.stamp_duty.cta_pay'|trans }}
+                </a>
+                <button type="button" data-hs-overlay="#hs-modal-stamp-duty-proof"
+                        class="w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-semibold rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+                    {{ 'case_overview.stamp_duty.cta_upload_proof'|trans }}
+                </button>
+            {% endif %}
+
+            {% if status.value == 'AMANATA_REGULARIZARE' %}
+                <button type="button" data-hs-overlay="#hs-modal-stamp-duty-court-notice"
+                        class="w-full py-2 px-3 inline-flex items-center justify-center gap-2 text-xs font-medium rounded-lg border border-orange-300 dark:border-orange-800 text-orange-800 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/40 transition">
+                    {{ 'case_overview.stamp_duty.cta_court_notice'|trans }}
+                </button>
+            {% endif %}
+        </div>
+
+        <p class="mt-3 text-[11px] text-slate-400">{{ 'case_overview.stamp_duty.disclaimer'|trans }}</p>
+    </div>
+</section>

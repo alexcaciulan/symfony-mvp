@@ -23,6 +23,7 @@ final class DeadlineService
 {
     private const PAYMENT_NOTICE_DAYS = 15;          // CPC art. 1015 alin. 1
     private const APPEAL_DAYS = 10;                  // CPC art. 1024 alin. 1
+    private const STAMP_DUTY_DAYS = 10;              // OUG 80/2013 art. 33 alin. 2
     private const PRESCRIPTION_INTERVAL = '+3 years'; // NCC art. 2517
     private const EXECUTION_PRESCRIPTION_INTERVAL = '+3 years'; // CPC art. 706 alin. 1
 
@@ -154,6 +155,56 @@ final class DeadlineService
             DeadlineType::CERERE_IN_ANULARE,
             $deadlineDate,
             baseDate: $rulingCommunicationDate,
+            rawDeadline: $rawDeadline,
+        );
+    }
+
+    /**
+     * Termen de timbrare: data comunicării înștiințării instanței + 10 zile (OUG
+     * 80/2013 art. 33 alin. 2, care trimite la CPC art. 200 alin. 2 teza I),
+     * prorogat la prima zi lucrătoare. Prioritate CRITICAL: ratarea lui atrage
+     * ANULAREA cererii (CPC art. 197).
+     *
+     * Termenul curge de la comunicarea instanței, dată pe care platforma nu o
+     * cunoaște, deci e furnizată de avocat când primește înștiințarea. Recalculează
+     * termenul existent dacă avocatul corectează data.
+     */
+    public function createStampDutyDeadline(LegalCase $legalCase, \DateTimeImmutable $courtNoticeDate): LegalDeadline
+    {
+        $rawDeadline = $courtNoticeDate->modify('+' . self::STAMP_DUTY_DAYS . ' days');
+        $deadlineDate = $this->workingDayResolver->nextWorkingDay($rawDeadline);
+
+        $existing = $this->deadlineRepository->findOneByCaseAndType($legalCase, DeadlineType::TIMBRARE);
+        if ($existing !== null) {
+            $existing->setDeadlineDate($deadlineDate);
+            $existing->resetAlertFlags();
+            $this->em->flush();
+
+            $this->auditLogService->log(
+                action: 'stamp_duty_deadline_recomputed',
+                entityType: LegalDeadline::class,
+                entityId: (string) $existing->getId(),
+                newData: [
+                    'deadlineId' => $existing->getId(),
+                    'type' => DeadlineType::TIMBRARE->value,
+                    'caseNumber' => $legalCase->getCaseNumber(),
+                    'baseDate' => $courtNoticeDate->format('Y-m-d'),
+                    'rawDeadline' => $rawDeadline->format('Y-m-d'),
+                    'deadlineDate' => $deadlineDate->format('Y-m-d'),
+                    'prorogated' => $rawDeadline->format('Y-m-d') !== $deadlineDate->format('Y-m-d'),
+                ],
+                category: AuditLogService::CATEGORY_DEADLINE_EDITED,
+            );
+            $this->em->flush();
+
+            return $existing;
+        }
+
+        return $this->persistDeadline(
+            $legalCase,
+            DeadlineType::TIMBRARE,
+            $deadlineDate,
+            baseDate: $courtNoticeDate,
             rawDeadline: $rawDeadline,
         );
     }

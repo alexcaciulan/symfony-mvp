@@ -12,8 +12,10 @@ use App\Repository\AuditLogRepository;
 use App\Repository\CourtPortalEventRepository;
 use App\Repository\LegalDeadlineRepository;
 use App\Service\Calculation\InterestCalculatorService;
+use App\Service\Calculation\StampDutyCalculator;
 use App\Service\Deadline\DeadlineService;
 use App\Service\Portal\RulingProposalResolver;
+use App\Service\StampDuty\StampDutyUatResolver;
 
 /**
  * Builds the Twig context for the case overview page in a single place
@@ -30,6 +32,8 @@ final class OverviewContextBuilder
         private readonly InterestCalculatorService $interestService,
         private readonly DeadlineService $deadlineService,
         private readonly RulingProposalResolver $rulingProposalResolver,
+        private readonly StampDutyUatResolver $stampDutyUatResolver,
+        private readonly StampDutyCalculator $stampDutyCalculator,
     ) {}
 
     /**
@@ -59,6 +63,12 @@ final class OverviewContextBuilder
             'payment_term_expired' => $this->deadlineService->isPaymentTermExpired($case, new \DateTimeImmutable('today')),
             'execution_recommended_date' => $this->deadlineService->recommendedExecutionDate($case),
             'document_upload_types' => DocumentType::uploadableTypes(),
+            'stamp_duty_target' => $this->stampDutyUatResolver->resolve($case),
+            'stamp_duty_proof' => $this->findStampDutyProof($case),
+            // The duty is owed whether or not it was ever written onto the case (older
+            // cases predate the field), so fall back to the statutory amount rather
+            // than telling the lawyer the duty is 0 lei.
+            'stamp_duty_amount' => (float) ($case->getStampDuty() ?? $this->stampDutyCalculator->calculate()->amount),
             'just_created' => false,
         ], $extra);
     }
@@ -123,6 +133,29 @@ final class OverviewContextBuilder
         return $case->getDocuments()->exists(
             static fn (int $_key, Document $doc): bool => $doc->getDocumentType() === DocumentType::DOVADA_COMUNICARE,
         );
+    }
+
+    /**
+     * The most recent proof, not the first one found: the collection carries no
+     * ordering guarantee, and showing a superseded proof under "view proof" would
+     * misrepresent what was actually filed.
+     */
+    private function findStampDutyProof(LegalCase $case): ?Document
+    {
+        $proofs = [];
+        foreach ($case->getDocuments() as $document) {
+            if ($document->getDocumentType() === DocumentType::DOVADA_TAXA_TIMBRU) {
+                $proofs[] = $document;
+            }
+        }
+
+        if ($proofs === []) {
+            return null;
+        }
+
+        usort($proofs, static fn (Document $a, Document $b): int => $b->getCreatedAt() <=> $a->getCreatedAt());
+
+        return $proofs[0];
     }
 
     /**

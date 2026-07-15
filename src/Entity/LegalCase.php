@@ -8,6 +8,7 @@ use App\Enum\ExtractionMode;
 use App\Enum\PaymentNoticeCommunicationMethod;
 use App\Enum\PenaltyType;
 use App\Enum\RelationshipType;
+use App\Enum\StampDutyStatus;
 use App\Repository\LegalCaseRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
@@ -80,6 +81,46 @@ class LegalCase
 
     #[ORM\Column(type: Types::DECIMAL, precision: 8, scale: 2, nullable: true)]
     private ?string $stampDuty = null;
+
+    #[ORM\Column(length: 30, enumType: StampDutyStatus::class, options: ['default' => 'NEACHITATA'])]
+    private StampDutyStatus $stampDutyStatus = StampDutyStatus::NEACHITATA;
+
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $stampDutyPaidAt = null;
+
+    /**
+     * Amount actually paid, as it appears on the proof. Deliberately distinct from
+     * `stampDuty`, which is the amount computed when the case was created: the two
+     * can diverge if the statutory duty changes between filing and payment, and a
+     * dispute is about what was paid, not about what we once calculated.
+     */
+    #[ORM\Column(type: Types::DECIMAL, precision: 8, scale: 2, nullable: true)]
+    private ?string $stampDutyPaidAmount = null;
+
+    /**
+     * Who appears as payer on the proof. The duty is owed by the claimant (OUG
+     * 80/2013 art. 40 alin. 1) and art. 40 alin. 3 presumes payment from a transfer
+     * order "signed by the debtor of the duty", so a proof naming someone else is
+     * a risk worth surfacing to the lawyer.
+     */
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $stampDutyPayerName = null;
+
+    /**
+     * Snapshot of the UAT we told the lawyer to pay into. Kept even though the
+     * creditor's office is known, because the office can move: without this we
+     * cannot reconstruct the advice we gave, and paying into the wrong UAT's
+     * account is treated as non-payment.
+     */
+    #[ORM\Column(length: 150, nullable: true)]
+    private ?string $stampDutyUat = null;
+
+    #[ORM\Column(length: 100, nullable: true)]
+    private ?string $stampDutyPaymentReference = null;
+
+    /** Statutory basis for the amount, frozen at payment time for retroactive justification. */
+    #[ORM\Column(length: 120, nullable: true)]
+    private ?string $stampDutyLawVersion = null;
 
     /**
      * Modul de calcul al accesoriilor pentru somație. Fallback la render:
@@ -432,6 +473,90 @@ class LegalCase
     public function setStampDuty(?string $stampDuty): static
     {
         $this->stampDuty = $stampDuty;
+
+        return $this;
+    }
+
+    public function getStampDutyStatus(): StampDutyStatus
+    {
+        return $this->stampDutyStatus;
+    }
+
+    public function setStampDutyStatus(StampDutyStatus $stampDutyStatus): static
+    {
+        $this->stampDutyStatus = $stampDutyStatus;
+
+        return $this;
+    }
+
+    public function getStampDutyPaidAt(): ?\DateTimeImmutable
+    {
+        return $this->stampDutyPaidAt;
+    }
+
+    public function setStampDutyPaidAt(?\DateTimeImmutable $stampDutyPaidAt): static
+    {
+        $this->stampDutyPaidAt = $stampDutyPaidAt;
+
+        return $this;
+    }
+
+    public function getStampDutyPaidAmount(): ?string
+    {
+        return $this->stampDutyPaidAmount;
+    }
+
+    public function setStampDutyPaidAmount(?string $stampDutyPaidAmount): static
+    {
+        $this->stampDutyPaidAmount = $stampDutyPaidAmount;
+
+        return $this;
+    }
+
+    public function getStampDutyPayerName(): ?string
+    {
+        return $this->stampDutyPayerName;
+    }
+
+    public function setStampDutyPayerName(?string $stampDutyPayerName): static
+    {
+        $this->stampDutyPayerName = $stampDutyPayerName;
+
+        return $this;
+    }
+
+    public function getStampDutyUat(): ?string
+    {
+        return $this->stampDutyUat;
+    }
+
+    public function setStampDutyUat(?string $stampDutyUat): static
+    {
+        $this->stampDutyUat = $stampDutyUat;
+
+        return $this;
+    }
+
+    public function getStampDutyPaymentReference(): ?string
+    {
+        return $this->stampDutyPaymentReference;
+    }
+
+    public function setStampDutyPaymentReference(?string $stampDutyPaymentReference): static
+    {
+        $this->stampDutyPaymentReference = $stampDutyPaymentReference;
+
+        return $this;
+    }
+
+    public function getStampDutyLawVersion(): ?string
+    {
+        return $this->stampDutyLawVersion;
+    }
+
+    public function setStampDutyLawVersion(?string $stampDutyLawVersion): static
+    {
+        $this->stampDutyLawVersion = $stampDutyLawVersion;
 
         return $this;
     }

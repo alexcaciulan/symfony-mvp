@@ -26,6 +26,14 @@
                 {{ 'case_overview.zip_package.item_somatie'|trans }}
             </li>
             <li class="flex items-center gap-2">
+                {% if case.stampDutyStatus.value == 'ACHITATA' %}
+                    {{ icon_check('size-3.5 text-green-300') }}
+                {% else %}
+                    <span class="size-3.5 inline-flex items-center justify-center text-amber-300" aria-hidden="true">!</span>
+                {% endif %}
+                {{ 'case_overview.zip_package.item_stamp_duty'|trans }}
+            </li>
+            <li class="flex items-center gap-2">
                 {{ icon_check('size-3.5 text-green-300') }}
                 {{ 'case_overview.zip_package.item_evidence'|trans }}
             </li>

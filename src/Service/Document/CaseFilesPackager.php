@@ -62,12 +62,15 @@ final class CaseFilesPackager
 
     private function addDocumentsToZip(\ZipArchive $zip, LegalCase $case): void
     {
-        // Numbered top-level files (1, 2, 3) — predictable order for the
-        // judge handling the file. Other types group into subfolders.
+        // Numbered top-level files, in the order the judge handling the case will
+        // read them. Other types group into subfolders. The stamp-duty proof sits at
+        // the top level rather than in `anexe/` because CPC art. 197 requires it to be
+        // attached to the petition itself, not buried among the exhibits.
         $orderedTopLevel = [
             DocumentType::CERERE_OP->value => '01_cerere_ordonanta_plata',
             DocumentType::OPIS->value => '02_opis_documente',
             DocumentType::SOMATIE->value => '03_somatie_de_plata',
+            DocumentType::DOVADA_TAXA_TIMBRU->value => '04_dovada_taxa_timbru',
         ];
 
         foreach ($case->getDocuments() as $document) {

@@ -672,6 +672,7 @@ final class CaseWizardController extends AbstractController
             $existing = $this->creditors->find($dto->creditorId);
             if ($existing !== null && $existing->getUser()->getId() === $user->getId()) {
                 $outcome['wasReused'] = true;
+                $this->backfillCreditorLocation($existing, $dto);
 
                 return $existing;
             }
@@ -681,6 +682,7 @@ final class CaseWizardController extends AbstractController
             $byCui = $this->creditors->findOneBy(['user' => $user, 'cui' => $dto->cui]);
             if ($byCui !== null) {
                 $outcome['wasReused'] = true;
+                $this->backfillCreditorLocation($byCui, $dto);
 
                 return $byCui;
             }
@@ -693,6 +695,9 @@ final class CaseWizardController extends AbstractController
         $creditor->setPersonType($dto->personType);
         $creditor->setName($dto->name);
         $creditor->setAddress($dto->address);
+        $creditor->setAddressCounty($dto->addressCounty);
+        $creditor->setAddressLocality($dto->addressLocality);
+        $creditor->setAnafCheckedAt($this->parseAnafCheckedAt($dto->anafCheckedAt));
         $creditor->setCui($dto->cui);
         $creditor->setPersonalId($dto->personalId);
         $creditor->setOnrcNumber($dto->onrcNumber);
@@ -705,6 +710,37 @@ final class CaseWizardController extends AbstractController
         $this->em->persist($creditor);
 
         return $creditor;
+    }
+
+    /**
+     * Creditors saved before the stamp-duty work have no structured location, so a
+     * case on a reused creditor could never resolve its payment UAT. Fill the gap
+     * when the ANAF lookup supplies it, without overwriting a value the lawyer
+     * already curated.
+     */
+    private function backfillCreditorLocation(Creditor $creditor, Step1CreditorData $dto): void
+    {
+        if ($creditor->getAddressCounty() === null && $dto->addressCounty !== null && $dto->addressCounty !== '') {
+            $creditor->setAddressCounty($dto->addressCounty);
+        }
+
+        if ($creditor->getAddressLocality() === null && $dto->addressLocality !== null && $dto->addressLocality !== '') {
+            $creditor->setAddressLocality($dto->addressLocality);
+            $creditor->setAnafCheckedAt($this->parseAnafCheckedAt($dto->anafCheckedAt));
+        }
+    }
+
+    private function parseAnafCheckedAt(?string $raw): ?\DateTimeImmutable
+    {
+        if ($raw === null || trim($raw) === '') {
+            return null;
+        }
+
+        try {
+            return new \DateTimeImmutable($raw);
+        } catch (\Exception) {
+            return null;
+        }
     }
 
     private function buildDebtor(Step2DebtorEntry $entry): Debtor

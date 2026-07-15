@@ -55,6 +55,9 @@ services:
             $autoFinalBufferDays: '%app.legal_deadlines.auto_final_buffer_days%'
             # Voluntary-payment window, injected into DeadlineService.
             $voluntaryPaymentDays: '%app.legal_deadlines.voluntary_payment_days%'
+            # Frozen onto the case when the stamp duty is paid, so the amount can be
+            # justified retroactively if the statutory duty changes later.
+            $stampDutyLawVersion: '%app.taxa_timbru_op.law_version%'
             # Fiscal invoicing, injected into FiscalInvoiceFactory.
             $invoiceSupplier: '%app.invoice.supplier%'
             $invoiceVatRate: '%app.invoice.vat_rate%'

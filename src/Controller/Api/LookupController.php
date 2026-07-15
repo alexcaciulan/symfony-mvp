@@ -20,13 +20,15 @@ use Symfony\Component\Security\Http\Attribute\CurrentUser;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 /**
- * Pas 3.3 — internal JSON endpoint used by the `debtor-anaf-lookup` Stimulus
- * controller. Hit on CUI blur in Step 2 to populate name/address + the
- * `anafStatus` / `anafCheckedAt` hidden fields stored on `Step2DebtorEntry`.
+ * Internal JSON endpoint used by the `party-anaf-lookup` Stimulus controller. Hit on
+ * CUI blur for the debtor in Step 2 and the creditor in Step 1, to populate
+ * name/address plus the structured county/locality. Those two feed different
+ * decisions: the competent court for the debtor, the stamp-duty payment UAT for the
+ * creditor (OUG 80/2013 art. 40 alin. 1).
  *
  * Session-authenticated (firewall `main` covers `/api`); rate-limited via the
  * existing `company_lookup` factory (10/hour/user). The endpoint never proxies
- * arbitrary callers — `IsGranted` enforces a logged-in user.
+ * arbitrary callers: `IsGranted` enforces a logged-in user.
  */
 #[Route('/api', name: 'api_')]
 #[IsGranted('IS_AUTHENTICATED_FULLY')]

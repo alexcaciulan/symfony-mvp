@@ -87,6 +87,14 @@ final class CasePaymentOrderController extends AbstractController
             return $this->respond($request, $case, false, 'error', 'case_overview.payment_order.flash_error_consent_required');
         }
 
+        // Stamp duty (CPC art. 197: proof of payment is attached to the petition;
+        // non-stamping annuls it). Either the proof is in, or the lawyer explicitly
+        // takes the regularization route (OUG 80/2013 art. 33 alin. 2), which the
+        // law allows but puts a 10-day annulment clock on the case.
+        if (!$case->getStampDutyStatus()->allowsFiling()) {
+            return $this->respond($request, $case, false, 'error', 'case_overview.payment_order.flash_error_stamp_duty_missing');
+        }
+
         $user = $this->getUser();
         if ($user !== null) {
             $limiter = $paymentOrderGenerationLimiter->create($user->getUserIdentifier());

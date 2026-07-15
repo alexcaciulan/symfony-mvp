@@ -3,7 +3,10 @@
 {% set debtors = case.debtors %}
 {% set principal = case.amount|default('0') %}
 {% set interest = case.calculatedInterest|default('0') %}
-{% set stampDuty = case.stampDuty|default('0') %}
+{# Suma legală, nu doar cea persistată: taxa e datorată și pe dosarele create înainte
+   ca acest câmp să existe, iar omiterea ei din cheltuielile solicitate l-ar costa pe
+   creditor 200 lei pe care instanța nu îi acordă din oficiu. #}
+{% set stampDuty = stamp_duty_amount|default(case.stampDuty|default('0')) %}
 {% set currency = case.currency|default('RON') %}
 {# Taxa de timbru e fixă în RON (OUG 80/2013 art. 6 alin. 2), indiferent de moneda creanței.
    Totalul în moneda creanței = principal + dobândă; taxa timbru afișată separat în RON. #}
@@ -142,6 +145,10 @@
             <td class="amount">{{ total_claim|number_format(2, ',', '.') }} {{ currency }}</td>
         </tr>
         {% if stampDuty and stampDuty != '0' and stampDuty != '0.00' %}
+        {# Doar cuantumul, fără nicio afirmație despre dovadă: statutul plății se
+           declară O SINGURĂ DATĂ, condiționat, în secțiunea de cheltuieli de mai jos.
+           Eticheta a spus cândva „(anexată)" necondiționat, ceea ce minte instanța pe
+           dosarele depuse cu timbrare la regularizare, unde dovada nu există în pachet. #}
         <tr>
             <td>{{ 'pdf.payment_order.amount_stamp_duty'|trans }}</td>
             <td class="amount">{{ stampDuty|number_format(2, ',', '.') }} RON</td>
@@ -149,6 +156,34 @@
         {% endif %}
     </tbody>
 </table>
+
+{# Petitum cheltuieli de judecată. Instanța NU le acordă din oficiu (CPC art. 453),
+   deci fără această cerere expresă creditorul câștigă procesul și rămâne cu taxa de
+   timbru și onorariul în sarcina sa.
+
+   Textul despre taxă urmează STAREA REALĂ a plății: cererea poate fi depusă și fără
+   dovadă, cu timbrare la regularizare (OUG 80/2013 art. 33 alin. 2), iar în acel caz
+   a afirma în fața instanței că taxa e „achitată conform dovezii anexate" ar fi o
+   afirmație falsă, contrazisă chiar de pachetul depus (dovada lipsește din ZIP). #}
+<h2>{{ 'pdf.payment_order.costs_title'|trans }}</h2>
+<p>{{ 'pdf.payment_order.costs_body'|trans }}</p>
+<ul>
+    {% if stampDuty and stampDuty != '0' and stampDuty != '0.00' %}
+    <li>
+        {% if case.stampDutyStatus.value == 'ACHITATA' %}
+            {{ 'pdf.payment_order.costs_stamp_duty_paid'|trans({'%amount%': stampDuty|number_format(2, ',', '.')}) }}
+        {% else %}
+            {{ 'pdf.payment_order.costs_stamp_duty_deferred'|trans({'%amount%': stampDuty|number_format(2, ',', '.')}) }}
+        {% endif %}
+    </li>
+    {% endif %}
+    {% if case.legalCostsFixed %}
+    <li>{{ 'pdf.payment_order.costs_lawyer_fee'|trans({
+        '%fixed%': case.legalCostsFixed|number_format(2, ',', '.'),
+        '%currency%': case.legalCostsCurrency|default('EUR'),
+    }) }}</li>
+    {% endif %}
+</ul>
 
 <h2>{{ 'pdf.payment_order.legal_basis_title'|trans }}</h2>
 <p>{{ 'pdf.payment_order.legal_basis_body'|trans }}</p>

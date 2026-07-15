@@ -44,7 +44,7 @@
                     <div class="flex items-center gap-2">
                         {% if entry_dto is not null and entry_dto.anafStatus is not null %}
                             <span class="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300 px-2 py-0.5 rounded-full"
-                                  data-debtor-anaf-lookup-target="badge">
+                                  data-party-anaf-lookup-target="badge">
                                 <svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                                 <span>{{ ('enum.anaf_status.' ~ entry_dto.anafStatus.value)|trans }}</span>
                             </span>
@@ -99,29 +99,29 @@
                 </div>
                 {% set _ = form_widget(entry.personType) %}
 
-                {# CUI input wired to debtor-anaf-lookup Stimulus controller.
+                {# CUI input wired to party-anaf-lookup Stimulus controller.
                    The controller-root wraps the whole entry so it can find
                    the name/address/badge targets — but Stimulus only triggers
-                   `blur->debtor-anaf-lookup#lookup` on the CUI input. #}
+                   `blur->party-anaf-lookup#lookup` on the CUI input. #}
                 {# URL generator validates against the route's `(RO)?\d{2,10}`
                    requirement, so `__CUI__` can't be passed directly. Build the
                    URL with a placeholder of 10 digits, then string-replace it
                    to the JS template token at render time. #}
                 {% set anaf_lookup_url = path('api_anaf_lookup', { cui: '0000000001' })|replace({ '0000000001': '__CUI__' }) %}
-                <div data-controller="debtor-anaf-lookup"
-                     data-debtor-anaf-lookup-url-value="{{ anaf_lookup_url }}"
-                     data-debtor-anaf-lookup-invalid-msg-value="{{ 'exception.anaf.cui_invalid'|trans }}"
-                     data-debtor-anaf-lookup-unavailable-msg-value="{{ 'exception.anaf.unavailable'|trans }}"
+                <div data-controller="party-anaf-lookup"
+                     data-party-anaf-lookup-url-value="{{ anaf_lookup_url }}"
+                     data-party-anaf-lookup-invalid-msg-value="{{ 'exception.anaf.cui_invalid'|trans }}"
+                     data-party-anaf-lookup-unavailable-msg-value="{{ 'exception.anaf.unavailable'|trans }}"
                      class="space-y-6">
                     <div class="relative" data-person-type-toggle-target="pjOnly">
                         {{ f.field_label(entry.cui, 'wizard.step2.field.cui', false, true) }}
                         {{ form_widget(entry.cui, { attr: {
                             class: f.input_classes(entry.cui, 'font-mono')|trim,
                             placeholder: 'RO12345678',
-                            'data-debtor-anaf-lookup-target': 'cui',
-                            'data-action': 'blur->debtor-anaf-lookup#lookup',
+                            'data-party-anaf-lookup-target': 'cui',
+                            'data-action': 'blur->party-anaf-lookup#lookup',
                         }}) }}
-                        <span data-debtor-anaf-lookup-target="spinner"
+                        <span data-party-anaf-lookup-target="spinner"
                               class="hidden absolute right-3 top-9 text-blue-600">
                             <svg class="size-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -137,7 +137,7 @@
                             {{ f.field_label(entry.name, 'wizard.step2.field.name', false, true) }}
                             {{ form_widget(entry.name, { attr: {
                                 class: f.input_classes(entry.name)|trim,
-                                'data-debtor-anaf-lookup-target': 'name',
+                                'data-party-anaf-lookup-target': 'name',
                             }}) }}
                             {{ f.field_errors(entry.name) }}
                         </div>
@@ -159,7 +159,7 @@
                             {{ form_widget(entry.address, { attr: {
                                 class: f.input_classes(entry.address)|trim,
                                 rows: 2,
-                                'data-debtor-anaf-lookup-target': 'address',
+                                'data-party-anaf-lookup-target': 'address',
                             }}) }}
                             {{ f.field_errors(entry.address) }}
                         </div>
@@ -170,7 +170,7 @@
                             {{ f.field_label(entry.addressCounty, 'wizard.step2.field.address_county', true) }}
                             {{ form_widget(entry.addressCounty, { attr: {
                                 class: f.input_classes(entry.addressCounty)|trim,
-                                'data-debtor-anaf-lookup-target': 'addressCounty',
+                                'data-party-anaf-lookup-target': 'addressCounty',
                             }}) }}
                             {{ f.field_errors(entry.addressCounty) }}
                         </div>
@@ -179,7 +179,7 @@
                             {{ f.field_label(entry.addressLocality, 'wizard.step2.field.address_locality', true) }}
                             {{ form_widget(entry.addressLocality, { attr: {
                                 class: f.input_classes(entry.addressLocality)|trim,
-                                'data-debtor-anaf-lookup-target': 'addressLocality',
+                                'data-party-anaf-lookup-target': 'addressLocality',
                             }}) }}
                             {{ f.field_errors(entry.addressLocality) }}
                         </div>
@@ -213,8 +213,8 @@
                        Both are unmapped HiddenType fields on Step2DebtorEntryType;
                        SUBMIT listener bridges the raw string back to the typed
                        DTO properties (`?AnafStatus`, `?DateTimeImmutable`). #}
-                    {{ form_widget(entry.anafStatus, { attr: { 'data-debtor-anaf-lookup-target': 'anafStatus' }}) }}
-                    {{ form_widget(entry.anafCheckedAt, { attr: { 'data-debtor-anaf-lookup-target': 'anafCheckedAt' }}) }}
+                    {{ form_widget(entry.anafStatus, { attr: { 'data-party-anaf-lookup-target': 'anafStatus' }}) }}
+                    {{ form_widget(entry.anafCheckedAt, { attr: { 'data-party-anaf-lookup-target': 'anafCheckedAt' }}) }}
                 </div>
 
                 {# BPI verification panel — unchanged from Pas 3.2. #}

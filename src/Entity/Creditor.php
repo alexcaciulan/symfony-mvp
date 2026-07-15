@@ -24,6 +24,21 @@ class Creditor
     #[ORM\JoinColumn(nullable: false)]
     private User $user;
 
+    /**
+     * Structured registered-office location, mirroring {@see Debtor}. Drives the
+     * stamp-duty payment UAT: the duty goes to the local budget of the UAT where
+     * the claimant has its registered office (OUG 80/2013 art. 40 alin. 1), which
+     * cannot be derived from the free-text `address`.
+     */
+    #[ORM\Column(length: 100, nullable: true)]
+    private ?string $addressCounty = null;
+
+    #[ORM\Column(length: 150, nullable: true)]
+    private ?string $addressLocality = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $anafCheckedAt = null;
+
     #[ORM\Column(length: 120, nullable: true)]
     private ?string $bankName = null;
 
@@ -66,6 +81,42 @@ class Creditor
     public function setUser(User $user): static
     {
         $this->user = $user;
+
+        return $this;
+    }
+
+    public function getAddressCounty(): ?string
+    {
+        return $this->addressCounty;
+    }
+
+    public function setAddressCounty(?string $addressCounty): static
+    {
+        $this->addressCounty = $addressCounty;
+
+        return $this;
+    }
+
+    public function getAddressLocality(): ?string
+    {
+        return $this->addressLocality;
+    }
+
+    public function setAddressLocality(?string $addressLocality): static
+    {
+        $this->addressLocality = $addressLocality;
+
+        return $this;
+    }
+
+    public function getAnafCheckedAt(): ?\DateTimeImmutable
+    {
+        return $this->anafCheckedAt;
+    }
+
+    public function setAnafCheckedAt(?\DateTimeImmutable $anafCheckedAt): static
+    {
+        $this->anafCheckedAt = $anafCheckedAt;
 
         return $this;
     }

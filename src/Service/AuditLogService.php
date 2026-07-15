@@ -35,6 +35,14 @@ class AuditLogService
     /** Payment-order petition + opis generation (SOMATIE_TRIMISA → CERERE_DEPUSA). */
     public const CATEGORY_PAYMENT_ORDER_GENERATED = 'PAYMENT_ORDER_GENERATED';
 
+    /**
+     * Judicial stamp duty: proof uploaded, payment deferred to the court's
+     * regularization procedure, or the court's notice date recorded. The platform
+     * never handles the money, so this trail is the only record of what the lawyer
+     * was told to pay and what they chose to do.
+     */
+    public const CATEGORY_STAMP_DUTY = 'STAMP_DUTY';
+
     /** portal.just.ro monitoring: activation, auto-applied transitions and proposed ones. */
     public const CATEGORY_PORTAL_MONITORING = 'PORTAL_MONITORING';
 

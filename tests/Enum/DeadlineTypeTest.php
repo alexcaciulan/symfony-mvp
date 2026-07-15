@@ -10,9 +10,9 @@ use PHPUnit\Framework\TestCase;
 
 class DeadlineTypeTest extends TestCase
 {
-    public function testHasSevenCases(): void
+    public function testHasEightCases(): void
     {
-        $this->assertCount(7, DeadlineType::cases());
+        $this->assertCount(8, DeadlineType::cases());
     }
 
     public function testAllCasesHaveLabels(): void

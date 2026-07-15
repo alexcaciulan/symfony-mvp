@@ -152,8 +152,8 @@ final class Step2DebtorsLiveComponentTest extends WebTestCase
     {
         // Match both attribute styles `data-controller="..."` and `data-controller='...'`
         // — the form widget rendering can vary.
-        $count = substr_count($html, '"debtor-anaf-lookup"')
-            + substr_count($html, "'debtor-anaf-lookup'");
+        $count = substr_count($html, '"party-anaf-lookup"')
+            + substr_count($html, "'party-anaf-lookup'");
         self::assertSame($expected, $count, "Expected {$expected} debtor cards in rendered HTML");
     }
 
