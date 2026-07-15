@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Tests\Controller;
 
 use App\Entity\User;
@@ -9,17 +11,17 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 class ProfileControllerTest extends WebTestCase
 {
+    protected function tearDown(): void
+    {
+        static::getContainer()->get('doctrine.orm.entity_manager')->getConnection()
+            ->executeStatement("DELETE FROM user WHERE email LIKE 'profile-test-%@test.com'");
+        parent::tearDown();
+    }
+
     private function createTestUser(EntityManagerInterface $em, UserPasswordHasherInterface $hasher): User
     {
-        // Remove existing test user if any
-        $existing = $em->getRepository(User::class)->findOneBy(['email' => 'profile-test@example.com']);
-        if ($existing) {
-            $em->remove($existing);
-            $em->flush();
-        }
-
         $user = new User();
-        $user->setEmail('profile-test@example.com');
+        $user->setEmail('profile-test-' . uniqid() . '@test.com');
         $user->setPassword($hasher->hashPassword($user, 'password123'));
         $user->setIsVerified(true);
 
@@ -50,7 +52,7 @@ class ProfileControllerTest extends WebTestCase
         $client->request('GET', '/profile');
 
         $this->assertResponseIsSuccessful();
-        $this->assertSelectorTextContains('body', 'profile-test@example.com');
+        $this->assertSelectorTextContains('body', $user->getEmail());
     }
 
     public function testProfileEditSavesData(): void
@@ -79,6 +81,34 @@ class ProfileControllerTest extends WebTestCase
         $this->assertSame('Ion', $updated->getFirstName());
         $this->assertSame('Popescu', $updated->getLastName());
         $this->assertSame('0721000000', $updated->getPhone());
+    }
+
+    public function testProfileEditSavesFiscalDataAndSatisfiesGate(): void
+    {
+        $client = static::createClient();
+        $em = $client->getContainer()->get('doctrine.orm.entity_manager');
+        $hasher = $client->getContainer()->get('security.user_password_hasher');
+
+        $user = $this->createTestUser($em, $hasher);
+        $this->assertFalse($user->hasCompleteFiscalData(), 'starts without fiscal data');
+        $client->loginUser($user);
+
+        $crawler = $client->request('GET', '/profile/edit');
+        $form = $crawler->filter('form button[type="submit"]')->form([
+            'profile_edit[companyName]' => 'Cabinet de Avocat Popescu',
+            'profile_edit[cui]' => 'RO12345678',
+            'profile_edit[street]' => 'Str. Test',
+            'profile_edit[streetNumber]' => '1',
+            'profile_edit[city]' => 'București',
+        ]);
+        $client->submit($form);
+        $this->assertResponseRedirects('/profile');
+
+        $em->clear();
+        $updated = $em->getRepository(User::class)->find($user->getId());
+        $this->assertSame('RO12345678', $updated->getCui());
+        $this->assertSame('Cabinet de Avocat Popescu', $updated->getCompanyName());
+        $this->assertTrue($updated->hasCompleteFiscalData(), 'gate is satisfied after saving fiscal data');
     }
 
     public function testChangePasswordWithCorrectCurrent(): void

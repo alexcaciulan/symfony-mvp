@@ -66,7 +66,7 @@ final class OblioPingCommand extends Command
 
             return Command::FAILURE;
         }
-        $io->success('OAuth OK — token obtained (expires_in=' . ($tokenData['expires_in'] ?? '?') . 's).');
+        $io->success('OAuth OK. Token obtained (expires_in=' . ($tokenData['expires_in'] ?? '?') . 's).');
 
         // 2. Read-only nomenclatures (clients truncated: could be a long list).
         foreach (['companies', 'series', 'vat_rates', 'clients'] as $resource) {

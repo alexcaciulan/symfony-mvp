@@ -383,22 +383,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
      */
     public function hasCompleteFiscalData(): bool
     {
-        if (null === $this->type) {
-            return false;
-        }
-
-        $hasAddress = '' !== trim((string) $this->street) && '' !== trim((string) $this->city);
-        if (!$hasAddress) {
-            return false;
-        }
-
-        if (in_array($this->type, [UserType::PJ, UserType::AVOCAT], true)) {
-            return '' !== trim((string) $this->cui) && '' !== trim((string) $this->companyName);
-        }
-
-        return '' !== trim((string) $this->cnp)
-            && '' !== trim((string) $this->firstName)
-            && '' !== trim((string) $this->lastName);
+        // Clients are law practices/companies, always identified by CIF (+ name
+        // and address). Natural-person (CNP) billing is not offered.
+        return '' !== trim((string) $this->cui)
+            && '' !== trim((string) $this->companyName)
+            && '' !== trim((string) $this->street)
+            && '' !== trim((string) $this->city);
     }
 
     public function getDeletedAt(): ?\DateTimeImmutable

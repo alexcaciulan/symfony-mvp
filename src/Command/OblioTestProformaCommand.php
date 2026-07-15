@@ -113,7 +113,7 @@ final class OblioTestProformaCommand extends Command
                 'seriesName' => $seriesName,
                 'number' => $number,
             ]]);
-            $io->writeln(null !== $deleted ? '<info>Deleted.</info>' : '<comment>Delete failed — remove it manually in Oblio.</comment>');
+            $io->writeln(null !== $deleted ? '<info>Deleted.</info>' : '<comment>Delete failed: remove it manually in Oblio.</comment>');
         }
 
         return Command::SUCCESS;

@@ -36,6 +36,23 @@
                 </div>
             </dl>
 
+            {% set address = [user.street, user.streetNumber, user.city, user.county, user.postalCode]|filter(v => v is not empty)|join(', ') %}
+            <h2 class="text-sm font-bold uppercase tracking-wider text-gray-500 mt-8 pt-6 border-t border-gray-200">{{ 'profile.show.fiscal_section'|trans }}</h2>
+            <dl class="space-y-4 mt-4">
+                <div class="flex justify-between text-sm">
+                    <dt class="text-gray-500">{{ 'profile.show.company_name'|trans }}</dt>
+                    <dd class="text-gray-800">{{ user.companyName ?: '—' }}</dd>
+                </div>
+                <div class="flex justify-between text-sm border-t border-gray-100 pt-4">
+                    <dt class="text-gray-500">{{ 'profile.show.cui'|trans }}</dt>
+                    <dd class="text-gray-800">{{ user.cui ?: '—' }}</dd>
+                </div>
+                <div class="flex justify-between text-sm border-t border-gray-100 pt-4">
+                    <dt class="text-gray-500">{{ 'profile.show.address'|trans }}</dt>
+                    <dd class="text-gray-800 text-right">{{ address ?: '—' }}</dd>
+                </div>
+            </dl>
+
             <div class="flex flex-col sm:flex-row gap-3 mt-8 pt-6 border-t border-gray-200">
                 <a href="{{ path('app_profile_edit') }}" class="px-4 py-2 bg-primary-light text-white rounded-lg font-medium hover:bg-primary transition-colors no-underline text-sm text-center">
                     {{ 'profile.show.edit_button'|trans }}

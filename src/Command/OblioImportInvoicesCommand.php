@@ -219,6 +219,8 @@ final class OblioImportInvoicesCommand extends Command
 
     private function normalizeCif(string $cif): string
     {
-        return ltrim(strtoupper(trim($cif)), 'RO');
+        $upper = strtoupper(trim($cif));
+
+        return str_starts_with($upper, 'RO') ? substr($upper, 2) : $upper;
     }
 }

@@ -10,14 +10,14 @@ namespace App\Service\Extraction;
  *
  * Formula: `sum(per_field_confidences) / TOTAL_EXPECTED_FIELDS`
  *
- * The denominator is the count of fields the wizard expects to be prefilled
- * end-to-end — 10 creditor + 10 debtor + 5 claim = 25. That number must stay
- * in lockstep with:
- *   - `Step1CreditorData` (10 user-editable properties + `autoFilled` + `creditorId`)
- *   - `Step2DebtorEntry`  (10 user-editable properties + ANAF/BPI metadata + `autoFilled`)
- *   - `Step3ClaimData`    (5 user-editable properties + `autoFilled`)
- *   - the sidecard template (`_step0_sidecard_partial.html.twig`) which uses
- *     the same `{expected: 10/10/5}` triple for the per-section coverage badge.
+ * The denominator (`EXTRACTION_TOTAL_EXPECTED = 25`) is the core-field count
+ * that drives the CASCADE short-circuit threshold. It is deliberately decoupled
+ * from the sidecard's per-section display triple (`_step0_sidecard_partial.html
+ * .twig`, 11/12/12): the sidecard counts ALL prefillable fields to answer "how
+ * complete is the extraction for the wizard", whereas this calculator counts
+ * only CORE fields (see the allow-list below) so that adding optional metadata
+ * never shifts which strategy wins the cascade. The two metrics answer different
+ * questions and are intentionally allowed to diverge.
  *
  * Cascade implication: with EXTRACTION_CONFIDENCE_THRESHOLD = 0.6, a strategy
  * needs `sum / 25 ≥ 0.6`, i.e. ≥ 15 fields at confidence 1.0 (or 25 fields at

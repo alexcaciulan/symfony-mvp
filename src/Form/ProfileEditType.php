@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Form;
 
 use App\Entity\User;
@@ -24,6 +26,38 @@ class ProfileEditType extends AbstractType
             ->add('phone', TextType::class, [
                 'required' => false,
                 'label' => 'profile.edit.phone',
+            ])
+            // Fiscal data — required to issue invoices (see User::hasCompleteFiscalData()).
+            // Clients are law practices/companies, always identified by CIF.
+            ->add('companyName', TextType::class, [
+                'required' => false,
+                'label' => 'profile.edit.company_name',
+                'help' => 'profile.edit.company_name_help',
+            ])
+            ->add('cui', TextType::class, [
+                'required' => false,
+                'label' => 'profile.edit.cui',
+                'help' => 'profile.edit.cui_help',
+            ])
+            ->add('street', TextType::class, [
+                'required' => false,
+                'label' => 'profile.edit.street',
+            ])
+            ->add('streetNumber', TextType::class, [
+                'required' => false,
+                'label' => 'profile.edit.street_number',
+            ])
+            ->add('city', TextType::class, [
+                'required' => false,
+                'label' => 'profile.edit.city',
+            ])
+            ->add('county', TextType::class, [
+                'required' => false,
+                'label' => 'profile.edit.county',
+            ])
+            ->add('postalCode', TextType::class, [
+                'required' => false,
+                'label' => 'profile.edit.postal_code',
             ]);
     }
 

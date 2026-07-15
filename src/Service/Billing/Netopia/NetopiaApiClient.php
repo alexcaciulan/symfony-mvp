@@ -10,7 +10,6 @@ use App\DTO\Billing\Netopia\NetopiaStartResult;
 use App\Entity\Invoice;
 use App\Entity\Subscription;
 use App\Entity\User;
-use App\Enum\UserType;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Symfony\Component\HttpFoundation\Request;
@@ -296,14 +295,14 @@ class NetopiaApiClient
     }
 
     /**
-     * @wire Netopia billing block. Uses the company identity for lawyers/companies
-     * (PJ/AVOCAT), the natural-person name otherwise.
+     * @wire Netopia billing block. Uses the company identity when a company name
+     * is set (the normal case), a person name otherwise.
      *
      * @return array<string, mixed>
      */
     private function buildBilling(User $user): array
     {
-        $isCompany = in_array($user->getType(), [UserType::PJ, UserType::AVOCAT], true);
+        $isCompany = '' !== trim((string) $user->getCompanyName());
         $addressParts = array_filter([
             $user->getStreet(),
             $user->getStreetNumber(),

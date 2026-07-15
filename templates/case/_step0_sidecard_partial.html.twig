@@ -20,21 +20,26 @@
             <div class="px-5 py-4 space-y-5 text-sm">
                 {# Expected field counts per section — used to compute the coverage
                    percentage shown next to each section title. These match the
-                   wizard DTOs (Step1CreditorData / Step2DebtorEntry / Step3ClaimData)
-                   so the percentage answers "how many of the prefillable wizard
-                   inputs did we manage to extract", which is what the lawyer
-                   actually cares about (not the average confidence of the few
-                   fields the parser happened to pick up). #}
+                   number of prefillable fields each wizard DTO exposes
+                   (Step1CreditorData / Step2DebtorEntry / Step3ClaimData), so the
+                   percentage answers "how many of the prefillable wizard inputs did
+                   we manage to extract", which is what the lawyer actually cares
+                   about (not the average confidence of the few fields the parser
+                   happened to pick up). Keep in lockstep with those DTOs: creditor
+                   adds bankName; debtor adds addressCounty/addressLocality; claim
+                   adds invoice/contract/penalty metadata. #}
                 {% set sections = [
-                    { key: 'creditor', accent: 'blue',  dto: creditor_preview, expected: 10 },
-                    { key: 'debtor',   accent: 'orange', dto: debtor_preview,  expected: 10 },
-                    { key: 'claim',    accent: 'green',  dto: claim_preview,   expected: 5 },
+                    { key: 'creditor', accent: 'blue',  dto: creditor_preview, expected: 11 },
+                    { key: 'debtor',   accent: 'orange', dto: debtor_preview,  expected: 12 },
+                    { key: 'claim',    accent: 'green',  dto: claim_preview,   expected: 12 },
                 ] %}
                 {% for section in sections %}
                     {% set dto = section.dto %}
                     {% set filled_count = dto.autoFilled is defined ? dto.autoFilled|length : 0 %}
                     {% set has_data = filled_count > 0 %}
-                    {% set coverage_pct = (filled_count / section.expected * 100)|round %}
+                    {# min(100) guards against future field additions outrunning the
+                       expected count before this triple is bumped. #}
+                    {% set coverage_pct = min([(filled_count / section.expected * 100)|round, 100]) %}
                     <div>
                         <div class="flex items-center justify-between mb-2">
                             <div class="text-[10px] font-bold uppercase tracking-wide

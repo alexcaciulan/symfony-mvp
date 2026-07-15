@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\DTO\Billing;
 
 use App\Entity\User;
-use App\Enum\UserType;
 
 /**
  * Immutable snapshot of one party (supplier or buyer) frozen onto a fiscal
@@ -65,9 +64,11 @@ final readonly class PartySnapshot
     /** Build the buyer snapshot from the account holder's fiscal profile. */
     public static function fromUser(User $user): self
     {
-        $isCompany = in_array($user->getType(), [UserType::PJ, UserType::AVOCAT], true);
-        $name = $isCompany && null !== $user->getCompanyName()
-            ? $user->getCompanyName()
+        // Clients are companies/law practices identified by their company name;
+        // fall back to a person name only defensively.
+        $company = (string) $user->getCompanyName();
+        $name = '' !== trim($company)
+            ? $company
             : trim(($user->getFirstName() ?? '') . ' ' . ($user->getLastName() ?? ''));
 
         return new self(
