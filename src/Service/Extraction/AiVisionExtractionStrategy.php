@@ -352,7 +352,7 @@ Returnează JSON cu această schemă (toate câmpurile opționale dacă nu apar 
     "iban": "RO + 22 caractere",
     "legalRepresentative": "...",
     "bankName": "denumirea băncii unde e deschis contul creditorului, ex: Banca Transilvania",
-    "confidencePerField": {"name": 0.95, "cui": 0.99, "bankName": 0.9}
+    "confidencePerField": {"personType": 0.98, "name": 0.95, "cui": 0.99, "onrcNumber": 0.92, "address": 0.9, "iban": 0.9, "bankName": 0.9}
   },
   "debtor": {
     "personType": "PJ"|"PF",
@@ -368,7 +368,7 @@ Returnează JSON cu această schemă (toate câmpurile opționale dacă nu apar 
     "phone": "format compact RO",
     "iban": "RO + 22 caractere",
     "administrator": "nume reprezentant legal / administrator (PJ)",
-    "confidencePerField": {}
+    "confidencePerField": {"personType": 0.98, "name": 0.95, "cui": 0.99, "onrcNumber": 0.92, "address": 0.9}
   },
   "claim": {
     "amount": 5000.50,
@@ -383,7 +383,7 @@ Returnează JSON cu această schemă (toate câmpurile opționale dacă nu apar 
     "contractReference": "denumirea/obiectul contractului, ex: contract de prestări servicii",
     "penaltyType": "{$penaltyTypes}",
     "contractualPenaltyRate": 0.1,
-    "confidencePerField": {}
+    "confidencePerField": {"amount": 0.98, "currency": 0.98, "dueDate": 0.9, "invoiceNumber": 0.92}
   },
   "globalConfidence": 0.85
 }
@@ -391,8 +391,13 @@ Returnează JSON cu această schemă (toate câmpurile opționale dacă nu apar 
 Confidence per câmp: 0..1, reflectă cât de sigur ești pe baza vizuală
 (text + sigil clare = 0.95+; text obscurat parțial sau ambiguu = 0.5-0.7;
 ghicit din context = 0.3-0.5).
+OBLIGATORIU: pentru FIECARE câmp pe care îl completezi cu o valoare non-null
+(inclusiv onrcNumber, personType, address, iban etc., nu doar câmpurile din
+exemple), adaugă o intrare corespunzătoare în `confidencePerField`. Câmpurile
+fără scor de confidence sunt IGNORATE la pre-completarea formularului.
 Pentru email/phone returnează `null` dacă nu apar explicit — nu inventa.
-Pentru onrcNumber respectă format `J40/1234/2025`.
+Pentru onrcNumber respectă format `J40/1234/2025` (acceptă și „Nr. ORC",
+„Reg. Com.", „J40/...", „C.U.I./J..." din antetul documentului).
 
 PENALITĂȚI (penaltyType + contractualPenaltyRate):
   • Returnează `penaltyType="CONTRACTUAL"` ȘI `contractualPenaltyRate` (rata zilnică
