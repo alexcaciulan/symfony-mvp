@@ -8,6 +8,15 @@ framework:
     #esi: true
     #fragments: true
 
+when@dev:
+    framework:
+        # Trust the docker/reverse-proxy chain (nginx + Cloudflare tunnel) so that
+        # X-Forwarded-Proto/Host are honored. Without this, requests tunneled over
+        # HTTPS are seen as HTTP and the stateless same-origin CSRF check rejects
+        # login/register forms. Private ranges cover the docker network only.
+        trusted_proxies: '127.0.0.1,::1,private_ranges'
+        trusted_headers: ['x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto', 'x-forwarded-port']
+
 when@test:
     framework:
         test: true

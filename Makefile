@@ -1,4 +1,4 @@
-.PHONY: help build up down restart logs shell composer test migrate db-create tailwind tailwind-watch
+.PHONY: help build up down restart logs shell composer test migrate db-create tailwind tailwind-watch expose
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -75,6 +75,9 @@ monitor-cases: ## Monitor court cases via portal.just.ro
 
 import-portal-codes: ## Import portal.just.ro institution codes for courts
 	docker compose exec php php bin/console app:import-court-portal-codes --no-interaction
+
+expose: ## Expose app + Mailpit publicly via Cloudflare tunnels
+	./scripts/expose-app.sh
 
 clean: down ## Stop containers and remove volumes
 	docker compose down -v

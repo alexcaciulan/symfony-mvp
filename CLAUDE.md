@@ -66,6 +66,19 @@ Nu folosi `0.0.0.0` (auto mode classifier blochează expunerea în rețea).
 Rulează în background ca task; oprește-l cu `kill <PID>` sau prin task manager
 când nu mai e nevoie.
 
+### Expunere publică (Cloudflare tunnel)
+Pentru a arăta aplicația live cuiva din exterior, `scripts/expose-app.sh`
+deschide două quick tunnels Cloudflare peste stack-ul Docker deja pornit:
+aplicația (http://localhost:8080) și Mailpit (http://localhost:8025).
+```bash
+brew install cloudflared        # o singură dată
+make up                         # stack-ul trebuie să răspundă pe 8080/8025
+make expose                     # sau direct: scripts/expose-app.sh
+```
+Ține Mac-ul treaz (caffeinate) și repornește fiecare tunel dacă pică. Ctrl+C oprește tot.
+ATENȚIE: URL-urile `*.trycloudflare.com` se schimbă la fiecare repornire a tunelului
+și expun aplicația reală public cât timp rulează.
+
 ### Dependencies and Setup
 ```bash
 # With Docker:
