@@ -7,6 +7,7 @@ namespace App\Tests\Service\Notification;
 use App\Entity\Notification;
 use App\Entity\User;
 use App\Enum\NotificationType;
+use App\Repository\NotificationRepository;
 use App\Service\Notification\NotificationDispatch;
 use App\Service\Notification\NotificationDispatcher;
 use Doctrine\ORM\EntityManagerInterface;
@@ -26,7 +27,7 @@ final class NotificationDispatcherTest extends TestCase
         $em->expects(self::once())->method('persist')->with(self::isInstanceOf(Notification::class));
         $em->expects(self::once())->method('flush');
 
-        $dispatcher = new NotificationDispatcher($mailer, $em, $this->translator(), 'noreply@x.test', new NullLogger());
+        $dispatcher = new NotificationDispatcher($mailer, $em, $this->notifications(), $this->translator(), 'noreply@x.test', new NullLogger());
         $dispatcher->dispatch($this->request(persistInApp: true, emailSubject: 'Subject'));
 
         self::assertCount(1, $mailer->sent);
@@ -39,7 +40,7 @@ final class NotificationDispatcherTest extends TestCase
         $em->expects(self::once())->method('persist');
         $em->expects(self::once())->method('flush');
 
-        $dispatcher = new NotificationDispatcher($mailer, $em, $this->translator(), 'noreply@x.test', new NullLogger());
+        $dispatcher = new NotificationDispatcher($mailer, $em, $this->notifications(), $this->translator(), 'noreply@x.test', new NullLogger());
         $dispatcher->dispatch($this->request(persistInApp: true, emailSubject: null));
 
         self::assertCount(0, $mailer->sent);
@@ -52,7 +53,7 @@ final class NotificationDispatcherTest extends TestCase
         $em->expects(self::never())->method('persist');
         $em->expects(self::never())->method('flush');
 
-        $dispatcher = new NotificationDispatcher($mailer, $em, $this->translator(), 'noreply@x.test', new NullLogger());
+        $dispatcher = new NotificationDispatcher($mailer, $em, $this->notifications(), $this->translator(), 'noreply@x.test', new NullLogger());
         $dispatcher->dispatch($this->request(persistInApp: false, emailSubject: 'Subject'));
 
         self::assertCount(1, $mailer->sent);
@@ -64,7 +65,7 @@ final class NotificationDispatcherTest extends TestCase
         $em->expects(self::once())->method('persist');
         $em->expects(self::once())->method('flush');
 
-        $dispatcher = new NotificationDispatcher(new ThrowingMailer(), $em, $this->translator(), 'noreply@x.test', new NullLogger());
+        $dispatcher = new NotificationDispatcher(new ThrowingMailer(), $em, $this->notifications(), $this->translator(), 'noreply@x.test', new NullLogger());
         // Email blows up, but the in-app row still persists (fault isolation).
         $dispatcher->dispatch($this->request(persistInApp: true, emailSubject: 'Subject'));
     }
@@ -78,7 +79,7 @@ final class NotificationDispatcherTest extends TestCase
             $captured = $n;
         });
 
-        $dispatcher = new NotificationDispatcher($mailer, $em, $this->translator(), 'noreply@x.test', new NullLogger());
+        $dispatcher = new NotificationDispatcher($mailer, $em, $this->notifications(), $this->translator(), 'noreply@x.test', new NullLogger());
         $dispatcher->dispatch($this->request(persistInApp: true, emailSubject: null, dedupKey: 'payment:tx-1:charged'));
 
         self::assertInstanceOf(Notification::class, $captured);
@@ -124,6 +125,14 @@ final class NotificationDispatcherTest extends TestCase
         (new \ReflectionProperty(User::class, 'id'))->setValue($user, 5);
 
         return $user;
+    }
+
+    private function notifications(): NotificationRepository
+    {
+        $repository = $this->createStub(NotificationRepository::class);
+        $repository->method('findOneByDedupKey')->willReturn(null);
+
+        return $repository;
     }
 
     private function translator(): TranslatorInterface

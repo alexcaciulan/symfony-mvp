@@ -16,6 +16,12 @@ class NotificationRepository extends ServiceEntityRepository
         parent::__construct($registry, Notification::class);
     }
 
+    /** Idempotency lookup: returns the row already emitted for this dedup key, if any. */
+    public function findOneByDedupKey(string $dedupKey): ?Notification
+    {
+        return $this->findOneBy(['dedupKey' => $dedupKey]);
+    }
+
     public function countUnreadByUser(User $user): int
     {
         return (int) $this->createQueryBuilder('n')

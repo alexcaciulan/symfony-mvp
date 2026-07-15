@@ -1770,6 +1770,8 @@ enum:
         deadline_alert: 'Deadline'
         missing_communication_date: 'Missing service date'
         portal_event: 'Portal activity'
+        payment_failed: 'Payment failed'
+        token_expired: 'Card expired'
     person_type:
         PF: 'Individual'
         PJ: 'Legal entity'
@@ -2090,6 +2092,12 @@ notification:
     missing_communication_date:
         title: 'Enter service date: %case%'
         message: 'Enter the payment order service date on case %case% to start the annulment request term.'
+    payment_failed:
+        title: 'Subscription renewal could not be charged'
+        message: 'We could not automatically charge your monthly subscription. The saved card was declined or has insufficient funds. Update your payment method and resume the payment from your account.'
+    token_expired:
+        title: 'The card saved for automatic payment has expired'
+        message: 'The card saved for automatic payment has expired, so we could not charge the monthly subscription. Re-authorize your payment method from your account.'
 
 # =============================================================================
 # Notifications page (notifications/index.html.twig)

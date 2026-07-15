@@ -19,6 +19,8 @@ enum NotificationType: string
     case DEADLINE_ALERT = 'deadline_alert';
     case MISSING_COMMUNICATION_DATE = 'missing_communication_date';
     case PORTAL_EVENT = 'portal_event';
+    case PAYMENT_FAILED = 'payment_failed';
+    case TOKEN_EXPIRED = 'token_expired';
 
     public function label(): string
     {
@@ -33,6 +35,8 @@ enum NotificationType: string
             self::DEADLINE_ALERT => 'clock',
             self::MISSING_COMMUNICATION_DATE => 'calendar',
             self::PORTAL_EVENT => 'globe',
+            self::PAYMENT_FAILED => 'card',
+            self::TOKEN_EXPIRED => 'card',
         };
     }
 

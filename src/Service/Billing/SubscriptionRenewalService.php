@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace App\Service\Billing;
 
 use App\Entity\Subscription;
+use App\Enum\NotificationType;
 use App\Repository\SubscriptionRepository;
 use App\Service\Billing\Netopia\NetopiaException;
+use App\Service\Notification\NotificationDispatch;
+use App\Service\Notification\NotificationDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
-use Symfony\Bridge\Twig\Mime\TemplatedEmail;
-use Symfony\Component\Mailer\MailerInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
@@ -35,9 +36,8 @@ final class SubscriptionRenewalService
         private readonly SubscriptionService $subscriptionService,
         private readonly InvoicingService $invoicing,
         private readonly NetopiaPaymentGateway $gateway,
-        private readonly MailerInterface $mailer,
+        private readonly NotificationDispatcherInterface $dispatcher,
         private readonly TranslatorInterface $translator,
-        private readonly string $mailerFrom,
         private readonly string $appBaseUrl,
         private readonly LoggerInterface $logger = new NullLogger(),
     ) {}
@@ -51,7 +51,21 @@ final class SubscriptionRenewalService
 
         foreach ($this->subscriptions->findDueForRenewal($on) as $subscription) {
             ++$summary['processed'];
-            ++$summary[$this->renewOne($subscription, $on)];
+            try {
+                ++$summary[$this->renewOne($subscription, $on)];
+            } catch (\Throwable $e) {
+                // A persistence failure for one subscription can close the shared
+                // EntityManager (Doctrine closes it on any commit error), which would
+                // make every later subscription in this loop throw. Stop cleanly and
+                // let the next cron run resume the untouched subscriptions instead of
+                // crashing the whole batch.
+                $this->logger->error('renewal.batch_aborted', [
+                    'subscriptionId' => $subscription->getId(),
+                    'exceptionClass' => $e::class,
+                ]);
+
+                break;
+            }
         }
 
         return $summary;
@@ -66,7 +80,7 @@ final class SubscriptionRenewalService
         // ask the client to re-enter their card. Do NOT roll the period.
         if (!$subscription->hasChargeableToken($on)) {
             $this->subscriptionService->markPastDue($subscription, 'token_expired');
-            $this->sendActionRequired($subscription, 'token_expired');
+            $this->sendActionRequired($subscription, 'token_expired', $on);
 
             return 'reauth';
         }
@@ -81,7 +95,7 @@ final class SubscriptionRenewalService
                 'reason' => $e->getMessage(),
             ]);
             $this->subscriptionService->markPastDue($subscription, 'charge_error');
-            $this->sendActionRequired($subscription, 'charge_failed');
+            $this->sendActionRequired($subscription, 'charge_failed', $on);
 
             return 'past_due';
         }
@@ -92,7 +106,7 @@ final class SubscriptionRenewalService
                 'status' => $result->status,
             ]);
             $this->subscriptionService->markPastDue($subscription, 'charge_declined');
-            $this->sendActionRequired($subscription, 'charge_failed');
+            $this->sendActionRequired($subscription, 'charge_failed', $on);
 
             return 'past_due';
         }
@@ -106,30 +120,40 @@ final class SubscriptionRenewalService
         return 'charged';
     }
 
-    private function sendActionRequired(Subscription $subscription, string $reason): void
+    /**
+     * Dunning: warn the client that action is needed (re-authorize card / update
+     * payment) via the notification dispatcher, which fans out to email + an in-app
+     * row and isolates any channel failure so the renewal loop is never aborted.
+     *
+     * @param 'token_expired'|'charge_failed' $reason
+     */
+    private function sendActionRequired(Subscription $subscription, string $reason, \DateTimeImmutable $on): void
     {
         $user = $subscription->getUser();
 
-        $email = (new TemplatedEmail())
-            ->from($this->mailerFrom)
-            ->to((string) $user->getEmail())
-            ->subject($this->translator->trans('email.subscription_action_required.subject'))
-            ->htmlTemplate('email/subscription_action_required.html.twig')
-            ->context([
+        // 'charge_failed' covers both a declined card and a gateway error; both need
+        // the same "update your payment" action, so they share one notification type.
+        $type = $reason === 'token_expired' ? NotificationType::TOKEN_EXPIRED : NotificationType::PAYMENT_FAILED;
+        $copyKey = $type->value;
+
+        $this->dispatcher->dispatch(new NotificationDispatch(
+            user: $user,
+            legalCase: null,
+            type: $type,
+            title: $this->translator->trans("notification.$copyKey.title"),
+            message: $this->translator->trans("notification.$copyKey.message"),
+            resourceLink: '/subscription',
+            variant: 'error',
+            emailSubject: $this->translator->trans('email.subscription_action_required.subject'),
+            emailTemplate: 'emails/subscription_action_required.html.twig',
+            emailContext: [
                 'reason' => $reason,
                 'subscriptionUrl' => rtrim($this->appBaseUrl, '/') . '/subscription',
                 'userName' => $user->getFullName() ?? (string) $user->getEmail(),
-            ]);
-
-        try {
-            $this->mailer->send($email);
-        } catch (\Throwable $e) {
-            // A dunning email failure must not abort the renewal run for the rest
-            // of the subscriptions; the PAST_DUE flag already gates access.
-            $this->logger->error('renewal.dunning_email_failed', [
-                'subscriptionId' => $subscription->getId(),
-                'exceptionClass' => $e::class,
-            ]);
-        }
+            ],
+            // One dunning notice per subscription, reason, and cron run day; a cron
+            // re-attempt on the same day is a no-op (dispatcher dedup guard).
+            dedupKey: sprintf('dunning:%d:%s:%s', $subscription->getId(), $reason, $on->format('Y-m-d')),
+        ));
     }
 }

@@ -5,6 +5,7 @@
     clock: 'heroicons:clock',
     calendar: 'heroicons:calendar-days',
     globe: 'heroicons:globe-alt',
+    card: 'heroicons:credit-card',
 } %}
 {% set icon = type ? (icon_map[type.icon()] ?? 'heroicons:bell') : 'heroicons:bell' %}
 {% set is_unread = not notification.isRead %}

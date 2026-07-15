@@ -1771,6 +1771,8 @@ enum:
         deadline_alert: 'Termen'
         missing_communication_date: 'Dată comunicare lipsă'
         portal_event: 'Activitate portal'
+        payment_failed: 'Plată eșuată'
+        token_expired: 'Card expirat'
     person_type:
         PF: 'Persoană fizică'
         PJ: 'Persoană juridică'
@@ -2091,6 +2093,12 @@ notification:
     missing_communication_date:
         title: 'Completează data comunicării: %case%'
         message: 'Introdu data comunicării ordonanței pe dosarul %case% pentru a porni termenul cererii în anulare.'
+    payment_failed:
+        title: 'Reînnoirea abonamentului nu a putut fi încasată'
+        message: 'Nu am reușit să încasăm automat abonamentul lunar. Cardul salvat a fost refuzat sau nu are fonduri suficiente. Actualizează metoda de plată și reia plata din contul tău.'
+    token_expired:
+        title: 'Cardul salvat pentru plata automată a expirat'
+        message: 'Cardul salvat pentru plata automată a expirat, așa că nu am putut încasa abonamentul lunar. Reautorizează metoda de plată din contul tău.'
 
 # =============================================================================
 # Notifications page (notifications/index.html.twig)

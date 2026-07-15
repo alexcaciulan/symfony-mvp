@@ -6,6 +6,7 @@ namespace App\Service\Notification;
 
 use App\Entity\Notification;
 use App\Enum\NotificationChannel;
+use App\Repository\NotificationRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -28,6 +29,7 @@ final class NotificationDispatcher implements NotificationDispatcherInterface
     public function __construct(
         private readonly MailerInterface $mailer,
         private readonly EntityManagerInterface $em,
+        private readonly NotificationRepository $notifications,
         private readonly TranslatorInterface $translator,
         #[Autowire('%app.mailer_from%')]
         private readonly string $mailerFrom,
@@ -66,6 +68,13 @@ final class NotificationDispatcher implements NotificationDispatcherInterface
     private function persistInApp(NotificationDispatch $request): void
     {
         if (!$request->persistInApp) {
+            return;
+        }
+
+        // Retry-safe: if a producer re-runs (cron re-attempt), an already-delivered
+        // row under the same dedup key is a no-op. The DB UNIQUE index is the hard
+        // guard; this lookup avoids the wasted persist/flush and the caught violation.
+        if ($request->dedupKey !== null && $this->notifications->findOneByDedupKey($request->dedupKey) !== null) {
             return;
         }
 
