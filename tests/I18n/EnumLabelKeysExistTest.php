@@ -11,6 +11,7 @@ use App\Enum\DocumentType;
 use App\Enum\ExtractionStatus;
 use App\Enum\InterestKind;
 use App\Enum\NotificationChannel;
+use App\Enum\NotificationType;
 use App\Enum\PersonType;
 use App\Enum\PortalEventType;
 use App\Enum\RelationshipType;
@@ -81,6 +82,7 @@ class EnumLabelKeysExistTest extends KernelTestCase
             'ExtractionStatus'    => [ExtractionStatus::class],
             'InterestKind'        => [InterestKind::class],
             'NotificationChannel' => [NotificationChannel::class],
+            'NotificationType'    => [NotificationType::class],
             'PersonType'          => [PersonType::class],
             'PortalEventType'     => [PortalEventType::class],
             'RelationshipType'    => [RelationshipType::class],

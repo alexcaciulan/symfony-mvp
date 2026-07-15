@@ -6,6 +6,7 @@ namespace App\EventSubscriber;
 
 use App\Entity\LegalCase;
 use App\Enum\DeadlineType;
+use App\Enum\NotificationType;
 use App\Event\DeadlineAlertEvent;
 use App\Event\MissingCommunicationDateEvent;
 use App\Event\PortalEventDetectedEvent;
@@ -86,7 +87,7 @@ final class EmailNotificationSubscriber
         $this->dispatcher->dispatch(new NotificationDispatch(
             user: $case->getUser(),
             legalCase: $case,
-            type: 'deadline_alert',
+            type: NotificationType::DEADLINE_ALERT,
             title: $title,
             message: $message,
             resourceLink: $this->caseLink($case),
@@ -120,7 +121,7 @@ final class EmailNotificationSubscriber
         $this->dispatcher->dispatch(new NotificationDispatch(
             user: $case->getUser(),
             legalCase: $case,
-            type: 'missing_communication_date',
+            type: NotificationType::MISSING_COMMUNICATION_DATE,
             title: $title,
             message: $message,
             resourceLink: $this->caseLink($case),
@@ -153,7 +154,7 @@ final class EmailNotificationSubscriber
         $this->dispatcher->dispatch(new NotificationDispatch(
             user: $case->getUser(),
             legalCase: $case,
-            type: 'portal_update',
+            type: NotificationType::PORTAL_EVENT,
             title: $title,
             message: $message,
             resourceLink: $this->caseLink($case),
@@ -172,7 +173,7 @@ final class EmailNotificationSubscriber
                 'heading' => $this->translator->trans('email.portal_event.heading', $params),
                 'body' => $this->translator->trans('email.portal_event.body', $params),
             ],
-            // CaseMonitoringService already persists the in-app portal_update row.
+            // CaseMonitoringService already persists the in-app portal_event row.
             persistInApp: false,
         ));
     }
@@ -191,7 +192,7 @@ final class EmailNotificationSubscriber
         $this->dispatcher->dispatch(new NotificationDispatch(
             user: $case->getUser(),
             legalCase: $case,
-            type: 'case_status',
+            type: NotificationType::CASE_STATUS,
             title: $title,
             message: $message,
             resourceLink: $this->caseLink($case),

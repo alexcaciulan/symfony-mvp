@@ -8,6 +8,7 @@ use App\Entity\CourtPortalEvent;
 use App\Entity\LegalCase;
 use App\Entity\Notification;
 use App\Enum\NotificationChannel;
+use App\Enum\NotificationType;
 use App\Event\PortalEventDetectedEvent;
 use App\Service\AuditLogService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -140,7 +141,7 @@ class CaseMonitoringService
         $notification = new Notification();
         $notification->setUser($case->getUser());
         $notification->setLegalCase($case);
-        $notification->setType('portal_update');
+        $notification->setType(NotificationType::PORTAL_EVENT->value);
         $notification->setChannel(NotificationChannel::IN_APP);
         $notification->setTitle(sprintf(
             'Actualizare dosar %s: %s',

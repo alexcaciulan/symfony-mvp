@@ -74,6 +74,9 @@ class AuditLogService
     /** Billing events: slot consumption, invoice creation, payment, trial, renew/cancel. */
     public const CATEGORY_BILLING = 'BILLING';
 
+    /** Notification center read actions (single mark-read, bulk mark-all-read). */
+    public const CATEGORY_NOTIFICATION = 'NOTIFICATION';
+
     public function __construct(
         private EntityManagerInterface $em,
         private Security $security,

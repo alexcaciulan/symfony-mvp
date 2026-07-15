@@ -9,6 +9,7 @@ use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Entity\User;
 use App\Enum\DeadlineType;
+use App\Enum\NotificationType;
 use App\Enum\PortalEventType;
 use App\Event\DeadlineAlertEvent;
 use App\Event\MissingCommunicationDateEvent;
@@ -32,7 +33,7 @@ final class EmailNotificationSubscriberTest extends TestCase
         $this->subscriber($spy)->onDeadlineAlert(new DeadlineAlertEvent($deadline, 5));
 
         $request = $spy->last();
-        self::assertSame('deadline_alert', $request->type);
+        self::assertSame(NotificationType::DEADLINE_ALERT, $request->type);
         self::assertSame('warning', $request->variant);
         self::assertSame('notification.deadline_alert.prescriptie.title', $request->title);
         self::assertSame('notification.deadline_alert.prescriptie.upcoming', $request->message);
@@ -69,7 +70,7 @@ final class EmailNotificationSubscriberTest extends TestCase
         $this->subscriber($spy)->onPortalEventDetected(new PortalEventDetectedEvent($case, $portalEvent));
 
         $request = $spy->last();
-        self::assertSame('portal_update', $request->type);
+        self::assertSame(NotificationType::PORTAL_EVENT, $request->type);
         self::assertSame('emails/portal_event.html.twig', $request->emailTemplate);
         self::assertFalse($request->persistInApp);
     }
@@ -81,7 +82,7 @@ final class EmailNotificationSubscriberTest extends TestCase
         $this->subscriber($spy)->onOrdonantaEmisa(new EnteredEvent($this->case(), new Marking()));
 
         $request = $spy->last();
-        self::assertSame('case_status', $request->type);
+        self::assertSame(NotificationType::CASE_STATUS, $request->type);
         self::assertSame('success', $request->variant);
         self::assertSame('notification.case_status.ordonanta_emisa.title', $request->title);
         self::assertSame('emails/case_status.html.twig', $request->emailTemplate);
@@ -95,7 +96,7 @@ final class EmailNotificationSubscriberTest extends TestCase
         $this->subscriber($spy)->onMissingCommunicationDate(new MissingCommunicationDateEvent($this->case()));
 
         $request = $spy->last();
-        self::assertSame('missing_communication_date', $request->type);
+        self::assertSame(NotificationType::MISSING_COMMUNICATION_DATE, $request->type);
         self::assertSame('warning', $request->variant);
         self::assertSame('emails/missing_communication_date.html.twig', $request->emailTemplate);
     }

@@ -159,6 +159,7 @@ registration:
 # =============================================================================
 common:
     close: 'Close'
+    loading: 'Loading...'
 
 # =============================================================================
 # Flash messages (RegistrationController)
@@ -1764,6 +1765,11 @@ enum:
     notification_channel:
         email: 'Email'
         in_app: 'In-app'
+    notification_type:
+        case_status: 'Case status'
+        deadline_alert: 'Deadline'
+        missing_communication_date: 'Missing service date'
+        portal_event: 'Portal activity'
     person_type:
         PF: 'Individual'
         PJ: 'Legal entity'
@@ -2029,6 +2035,15 @@ notifications:
     title: 'Notifications'
     heading: 'Notifications'
     subtitle: 'All your account notifications, with filtering and sorting.'
+    unread_count: '%count% unread'
+    mark_all_read: 'Mark all as read'
+    see_all: 'See all'
+    bell:
+        aria: 'Notifications (%count% unread)'
+    toast:
+        new: 'You have a new notification'
+    empty:
+        title: 'No notifications yet'
 
 # =============================================================================
 # Cases list page (cases/index.html.twig)
@@ -2082,6 +2097,12 @@ table:
             created_at: 'Date'
             type: 'Type'
             title: 'Title'
+            read: 'Read'
+            actions: 'Actions'
+        filter:
+            type_placeholder: 'Filter by type'
+            read_placeholder: 'Read / unread'
+            unread: 'Unread'
             read: 'Read'
     cases:
         columns:

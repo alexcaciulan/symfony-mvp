@@ -7,6 +7,8 @@ use App\Repository\NotificationRepository;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: NotificationRepository::class)]
+#[ORM\Index(name: 'idx_notification_user_read', columns: ['user_id', 'is_read'])]
+#[ORM\Index(name: 'idx_notification_user_created', columns: ['user_id', 'created_at'])]
 class Notification
 {
     #[ORM\Id]
@@ -42,6 +44,16 @@ class Notification
 
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $readAt = null;
+
+    /**
+     * Stable idempotency key for retry-prone producers (Phase C). Unique so a
+     * resent webhook/IPN or a re-run worker cannot persist a duplicate row.
+     */
+    #[ORM\Column(length: 191, unique: true, nullable: true)]
+    private ?string $dedupKey = null;
 
     public function __construct()
     {
@@ -145,6 +157,13 @@ class Notification
     public function setIsRead(bool $isRead): static
     {
         $this->isRead = $isRead;
+        // readAt is the honest cross-device "when read" source; isRead stays the
+        // fast filter. Set on first read, cleared when marked unread.
+        if ($isRead) {
+            $this->readAt ??= new \DateTimeImmutable();
+        } else {
+            $this->readAt = null;
+        }
 
         return $this;
     }
@@ -152,5 +171,22 @@ class Notification
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    public function getReadAt(): ?\DateTimeImmutable
+    {
+        return $this->readAt;
+    }
+
+    public function getDedupKey(): ?string
+    {
+        return $this->dedupKey;
+    }
+
+    public function setDedupKey(?string $dedupKey): static
+    {
+        $this->dedupKey = $dedupKey;
+
+        return $this;
     }
 }

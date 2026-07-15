@@ -47,6 +47,14 @@ class NotificationRepositoryTest extends KernelTestCase
         return $notif;
     }
 
+    private function backdated(bool $isRead, string $modifier): Notification
+    {
+        $notif = $this->createNotification($isRead);
+        (new \ReflectionProperty(Notification::class, 'createdAt'))->setValue($notif, new \DateTimeImmutable($modifier));
+
+        return $notif;
+    }
+
     public function testCountUnreadByUserFiltersCorrectly(): void
     {
         $this->createNotification(false); // unread
@@ -99,6 +107,56 @@ class NotificationRepositoryTest extends KernelTestCase
                 $result[$i]->getCreatedAt()->getTimestamp()
             );
         }
+    }
+
+    public function testFindOneByIdAndUserRejectsForeignOwner(): void
+    {
+        $hasher = static::getContainer()->get(UserPasswordHasherInterface::class);
+        $other = new User();
+        $other->setEmail($this->testPrefix . '-foreign@test.com');
+        $other->setPassword($hasher->hashPassword($other, 'test'));
+        $other->setIsVerified(true);
+        $this->em->persist($other);
+
+        $mine = $this->createNotification();
+        $this->em->flush();
+
+        $this->assertNotNull($this->repo->findOneByIdAndUser((int) $mine->getId(), $this->user));
+        $this->assertNull($this->repo->findOneByIdAndUser((int) $mine->getId(), $other));
+    }
+
+    public function testMarkAllReadByUserFlipsOnlyUnreadAndSetsReadAt(): void
+    {
+        $this->createNotification(false);
+        $this->createNotification(false);
+        $this->createNotification(true);
+        $this->em->flush();
+
+        $affected = $this->repo->markAllReadByUser($this->user);
+        $this->assertSame(2, $affected);
+
+        $this->em->clear();
+        $this->assertSame(0, $this->repo->countUnreadByUser($this->user));
+        foreach ($this->repo->findRecentByUser($this->user) as $notif) {
+            $this->assertTrue($notif->isRead());
+            $this->assertNotNull($notif->getReadAt());
+        }
+    }
+
+    public function testPruneObsoleteDeletesReadOldAndAnyVeryOldOnly(): void
+    {
+        $this->backdated(true, '-100 days');   // read + past retention -> deleted
+        $this->backdated(false, '-100 days');  // unread + past retention but under cap -> kept
+        $this->backdated(true, '-10 days');    // read + recent -> kept
+        $this->backdated(false, '-400 days');  // unread but past hard cap -> deleted
+        $this->em->flush();
+
+        $readCutoff = new \DateTimeImmutable('-90 days');
+        $anyCutoff = new \DateTimeImmutable('-365 days');
+
+        $this->assertSame(2, $this->repo->countObsolete($readCutoff, $anyCutoff));
+        $this->assertSame(2, $this->repo->pruneObsolete($readCutoff, $anyCutoff));
+        $this->assertSame(2, $this->repo->count(['user' => $this->user]));
     }
 
     protected function tearDown(): void

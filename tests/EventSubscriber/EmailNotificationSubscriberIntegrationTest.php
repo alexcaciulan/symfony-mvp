@@ -111,7 +111,7 @@ final class EmailNotificationSubscriberIntegrationTest extends KernelTestCase
         // persistInApp is false for portal events (CaseMonitoringService owns the in-app row).
         $notifications = $this->em->getRepository(Notification::class)->findBy([
             'legalCase' => $case,
-            'type' => 'portal_update',
+            'type' => 'portal_event',
         ]);
         self::assertCount(0, $notifications);
     }

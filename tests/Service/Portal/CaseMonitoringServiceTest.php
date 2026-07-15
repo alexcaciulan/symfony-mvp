@@ -117,7 +117,7 @@ class CaseMonitoringServiceTest extends KernelTestCase
         // Verify notification was created
         $notifications = $this->em->getRepository(Notification::class)->findBy([
             'legalCase' => $case,
-            'type' => 'portal_update',
+            'type' => 'portal_event',
         ]);
         $this->assertCount(1, $notifications);
         $this->assertStringContainsString('200/211/2026', $notifications[0]->getTitle());
@@ -181,7 +181,7 @@ class CaseMonitoringServiceTest extends KernelTestCase
         // does not persist a second one for the dispatched event.
         $notifications = $this->em->getRepository(Notification::class)->findBy([
             'legalCase' => $case,
-            'type' => 'portal_update',
+            'type' => 'portal_event',
         ]);
         $this->assertCount(1, $notifications);
     }

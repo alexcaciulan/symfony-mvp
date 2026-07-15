@@ -159,6 +159,7 @@ registration:
 # =============================================================================
 common:
     close: 'Închide'
+    loading: 'Se încarcă...'
 
 # =============================================================================
 # Flash messages (RegistrationController)
@@ -1765,6 +1766,11 @@ enum:
     notification_channel:
         email: 'Email'
         in_app: 'În aplicație'
+    notification_type:
+        case_status: 'Status dosar'
+        deadline_alert: 'Termen'
+        missing_communication_date: 'Dată comunicare lipsă'
+        portal_event: 'Activitate portal'
     person_type:
         PF: 'Persoană fizică'
         PJ: 'Persoană juridică'
@@ -2030,6 +2036,15 @@ notifications:
     title: 'Notificări'
     heading: 'Notificări'
     subtitle: 'Toate notificările contului tău, cu filtrare și sortare.'
+    unread_count: '%count% necitite'
+    mark_all_read: 'Marchează toate ca citite'
+    see_all: 'Vezi toate'
+    bell:
+        aria: 'Notificări (%count% necitite)'
+    toast:
+        new: 'Ai o notificare nouă'
+    empty:
+        title: 'Nicio notificare încă'
 
 # =============================================================================
 # Cases list page (cases/index.html.twig)
@@ -2084,6 +2099,12 @@ table:
             type: 'Tip'
             title: 'Titlu'
             read: 'Citită'
+            actions: 'Acțiuni'
+        filter:
+            type_placeholder: 'Filtrează după tip'
+            read_placeholder: 'Citite / necitite'
+            unread: 'Necitite'
+            read: 'Citite'
     cases:
         columns:
             number: 'Nr. dosar'

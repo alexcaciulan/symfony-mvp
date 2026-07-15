@@ -1,0 +1,47 @@
+{# @var notification App\Entity\Notification #}
+{% set type = notification_type(notification.type) %}
+{% set icon_map = {
+    scale: 'heroicons:scale',
+    clock: 'heroicons:clock',
+    calendar: 'heroicons:calendar-days',
+    globe: 'heroicons:globe-alt',
+} %}
+{% set icon = type ? (icon_map[type.icon()] ?? 'heroicons:bell') : 'heroicons:bell' %}
+{% set is_unread = not notification.isRead %}
+{% set body_classes = 'flex items-start gap-3 px-4 py-3 w-full text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/60 ' ~ (is_unread ? 'bg-blue-50/40 dark:bg-blue-950/20' : '') %}
+
+<li class="border-b border-slate-100 dark:border-slate-800 last:border-0" data-notification-id="{{ notification.id }}">
+    {% set inner %}
+        <span class="mt-0.5 shrink-0 inline-flex items-center justify-center size-8 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400" aria-hidden="true">
+            <twig:ux:icon name="{{ icon }}" class="size-4" />
+        </span>
+        <span class="flex-1 min-w-0">
+            <span class="flex items-center gap-2">
+                {% if is_unread %}
+                    <span data-unread-dot class="shrink-0 size-2 rounded-full bg-blue-500" aria-hidden="true"></span>
+                {% endif %}
+                <span class="{{ is_unread ? 'font-semibold' : 'font-medium' }} text-sm text-slate-800 dark:text-slate-100 truncate">{{ notification.title }}</span>
+            </span>
+            <span class="block text-xs text-slate-600 dark:text-slate-400 mt-0.5 line-clamp-2">{{ notification.message }}</span>
+            <time datetime="{{ notification.createdAt|date('c') }}"
+                  title="{{ notification.createdAt|date('d.m.Y H:i') }}"
+                  class="block text-[11px] text-slate-400 dark:text-slate-500 mt-1">{{ notification.createdAt|date('d.m.Y, H:i') }}</time>
+            {% if type %}<span class="sr-only">{{ type.label()|trans }}</span>{% endif %}
+        </span>
+    {% endset %}
+
+    {% if is_unread %}
+        {# Unread: a normal link (smooth Turbo navigation) that marks itself read in
+           the background on click via the notification-link controller. #}
+        <a href="{{ notification.resourceLink ?? path('app_notifications') }}"
+           class="{{ body_classes }} no-underline"
+           data-controller="notification-link"
+           data-notification-link-url-value="{{ path('app_notification_read', { id: notification.id }) }}"
+           data-notification-link-token-value="{{ csrf_token('notification_read') }}"
+           data-action="notification-link#mark">{{ inner }}</a>
+    {% elseif notification.resourceLink %}
+        <a href="{{ notification.resourceLink }}" class="{{ body_classes }} no-underline">{{ inner }}</a>
+    {% else %}
+        <div class="{{ body_classes }}">{{ inner }}</div>
+    {% endif %}
+</li>

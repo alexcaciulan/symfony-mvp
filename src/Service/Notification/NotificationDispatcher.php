@@ -6,22 +6,22 @@ namespace App\Service\Notification;
 
 use App\Entity\Notification;
 use App\Enum\NotificationChannel;
-use App\Service\Mercure\MercureTokenService;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Mailer\MailerInterface;
-use Symfony\Component\Mercure\HubInterface;
-use Symfony\Component\Mercure\Update;
 use Symfony\Component\Mime\Address;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
- * Fans a {@see NotificationDispatch} out to email, an in-app Notification, and a
- * Mercure toast. Each channel is fault-isolated (failures logged, not propagated)
- * and the service is headless-safe (no request/session/Security) for cron/worker.
+ * Fans a {@see NotificationDispatch} out to email and an in-app Notification row.
+ * Each channel is fault-isolated (failures logged, not propagated) and the service
+ * is headless-safe (no request/session/Security) for cron/worker.
+ *
+ * Real-time surfacing is handled client-side by polling the durable row (see the
+ * notification center), so this service does not push to Mercure.
  */
 final class NotificationDispatcher implements NotificationDispatcherInterface
 {
@@ -31,7 +31,6 @@ final class NotificationDispatcher implements NotificationDispatcherInterface
         private readonly TranslatorInterface $translator,
         #[Autowire('%app.mailer_from%')]
         private readonly string $mailerFrom,
-        private readonly ?HubInterface $hub = null,
         private readonly LoggerInterface $logger = new NullLogger(),
     ) {}
 
@@ -39,7 +38,6 @@ final class NotificationDispatcher implements NotificationDispatcherInterface
     {
         $this->sendEmail($request);
         $this->persistInApp($request);
-        $this->publishToast($request);
     }
 
     private function sendEmail(NotificationDispatch $request): void
@@ -59,7 +57,7 @@ final class NotificationDispatcher implements NotificationDispatcherInterface
             $this->mailer->send($email);
         } catch (\Throwable $e) {
             $this->logger->warning('notification.email.failed', [
-                'type' => $request->type,
+                'type' => $request->type->value,
                 'exceptionClass' => $e::class,
             ]);
         }
@@ -75,39 +73,17 @@ final class NotificationDispatcher implements NotificationDispatcherInterface
             $notification = (new Notification())
                 ->setUser($request->user)
                 ->setLegalCase($request->legalCase)
-                ->setType($request->type)
+                ->setType($request->type->value)
                 ->setChannel(NotificationChannel::IN_APP)
                 ->setTitle($request->title)
                 ->setMessage($request->message)
-                ->setResourceLink($request->resourceLink);
+                ->setResourceLink($request->resourceLink)
+                ->setDedupKey($request->dedupKey);
             $this->em->persist($notification);
             $this->em->flush();
         } catch (\Throwable $e) {
             $this->logger->warning('notification.in_app.failed', [
-                'type' => $request->type,
-                'exceptionClass' => $e::class,
-            ]);
-        }
-    }
-
-    private function publishToast(NotificationDispatch $request): void
-    {
-        if ($this->hub === null) {
-            return;
-        }
-
-        try {
-            $this->hub->publish(new Update(
-                topics: MercureTokenService::userNotificationTopic($request->user),
-                data: json_encode(
-                    ['type' => 'toast', 'variant' => $request->variant, 'message' => $request->title],
-                    \JSON_THROW_ON_ERROR,
-                ),
-                private: true,
-            ));
-        } catch (\Throwable $e) {
-            $this->logger->warning('notification.mercure.failed', [
-                'type' => $request->type,
+                'type' => $request->type->value,
                 'exceptionClass' => $e::class,
             ]);
         }

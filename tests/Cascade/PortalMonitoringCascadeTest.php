@@ -120,7 +120,7 @@ class PortalMonitoringCascadeTest extends KernelTestCase
         $this->assertCount(1, $events);
         $this->assertCount(1, $this->em->getRepository(Notification::class)->findBy([
             'legalCase' => $case,
-            'type' => 'portal_update',
+            'type' => 'portal_event',
         ]));
 
         // Tranziție AUTO aplicată + termen JUDECATA creat de applier.

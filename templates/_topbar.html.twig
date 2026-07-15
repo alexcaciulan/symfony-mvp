@@ -22,6 +22,31 @@
             {%- endif -%}
         </ol>
 
+        {# Notification bell — server-rendered badge, client poller keeps it live. #}
+        {% set unread = unread_notifications_count() %}
+        <div class="hs-dropdown relative inline-flex"
+             data-controller="notification-center"
+             data-notification-center-unread-count-url-value="{{ path('app_notifications_unread_count') }}"
+             data-notification-center-dropdown-url-value="{{ path('app_notifications_dropdown') }}"
+             data-notification-center-interval-value="45000"
+             data-notification-center-new-message-value="{{ 'notifications.toast.new'|trans }}">
+            <button type="button"
+                    class="hs-dropdown-toggle relative p-2 rounded-lg text-slate-500 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    aria-label="{{ 'notifications.bell.aria'|trans({ '%count%': unread }) }}"
+                    aria-haspopup="menu">
+                <svg class="size-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+                <span data-notification-center-target="badge"
+                      id="notification-bell-badge"
+                      class="{{ unread > 0 ? '' : 'hidden' }} absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 inline-flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-semibold leading-none">{{ unread > 9 ? '9+' : unread }}</span>
+            </button>
+            <div class="hs-dropdown-menu transition-[opacity,margin] duration-150 hs-dropdown-open:opacity-100 opacity-0 hidden z-50 mt-2 rounded-xl bg-white dark:bg-slate-900 shadow-card border border-slate-200 dark:border-slate-800 overflow-hidden"
+                 role="menu">
+                <div data-notification-center-target="panel">
+                    <div class="w-80 max-w-[90vw] px-4 py-8 text-center text-sm text-slate-400 dark:text-slate-500">{{ 'common.loading'|trans }}</div>
+                </div>
+            </div>
+        </div>
+
         {# Dark mode toggle #}
         <button type="button"
                 data-controller="dark-mode-toggle"
