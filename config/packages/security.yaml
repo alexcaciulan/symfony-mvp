@@ -16,6 +16,9 @@ security:
         main:
             lazy: true
             provider: app_user_provider
+            # Blocks soft-deleted accounts at authentication (email verification is
+            # gated separately at request time by EmailVerificationSubscriber).
+            user_checker: App\Security\UserChecker
             form_login:
                 login_path: app_login
                 check_path: app_login

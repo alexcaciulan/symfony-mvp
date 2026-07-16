@@ -58,10 +58,11 @@ final class Pas27DesignSystemSmokeTest extends WebTestCase
     public function testAuthenticatedDashboardRendersSidebarTopbarAndKpis(): void
     {
         $userRepository = static::getContainer()->get(UserRepository::class);
-        $user = $userRepository->findOneBy([]);
+        // A verified user: the dashboard is behind the email-verification gate.
+        $user = $userRepository->findOneBy(['isVerified' => true]);
 
         if (!$user instanceof User) {
-            $this->markTestSkipped('No user available — run app:create-test-users.');
+            $this->markTestSkipped('No verified user available. Run app:create-test-users.');
         }
 
         $this->client->loginUser($user);
