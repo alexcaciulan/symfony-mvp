@@ -1774,6 +1774,7 @@ enum:
         token_expired: 'Card expired'
         payment_succeeded: 'Payment received'
         invoice_issued: 'Invoice issued'
+        slot_overage: 'Extra case billed'
     person_type:
         PF: 'Individual'
         PJ: 'Legal entity'
@@ -2106,6 +2107,9 @@ notification:
     invoice_issued:
         title: 'Your invoice is available'
         message: 'The invoice for your subscription has been issued and you can download it from the Invoices section.'
+    slot_overage:
+        title: 'Extra case billed'
+        message: 'You activated a case beyond your plan''s included limit, so an invoice was generated for the extra case. You can find it in the Invoices section.'
 
 # =============================================================================
 # Notifications page (notifications/index.html.twig)

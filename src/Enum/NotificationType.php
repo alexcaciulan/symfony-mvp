@@ -23,6 +23,7 @@ enum NotificationType: string
     case TOKEN_EXPIRED = 'token_expired';
     case PAYMENT_SUCCEEDED = 'payment_succeeded';
     case INVOICE_ISSUED = 'invoice_issued';
+    case SLOT_OVERAGE = 'slot_overage';
 
     public function label(): string
     {
@@ -41,6 +42,7 @@ enum NotificationType: string
             self::TOKEN_EXPIRED => 'card',
             self::PAYMENT_SUCCEEDED => 'card',
             self::INVOICE_ISSUED => 'document',
+            self::SLOT_OVERAGE => 'card',
         };
     }
 

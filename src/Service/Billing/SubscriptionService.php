@@ -10,11 +10,16 @@ use App\Entity\LegalCase;
 use App\Entity\Plan;
 use App\Entity\Subscription;
 use App\Entity\User;
+use App\Enum\NotificationType;
+use App\Enum\SubscriptionSlotConsumptionOutcome;
 use App\Enum\SubscriptionStatus;
 use App\Repository\PlanRepository;
 use App\Repository\SubscriptionRepository;
 use App\Service\AuditLogService;
+use App\Service\Notification\NotificationDispatch;
+use App\Service\Notification\NotificationDispatcherInterface;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Subscription lifecycle + the hybrid "included + overage" consumption logic.
@@ -38,6 +43,8 @@ class SubscriptionService
         private readonly PlanRepository $plans,
         private readonly InvoicingService $invoicing,
         private readonly AuditLogService $auditLog,
+        private readonly NotificationDispatcherInterface $notifier,
+        private readonly TranslatorInterface $translator,
     ) {}
 
     public function getCurrentSubscription(User $user): ?Subscription
@@ -67,7 +74,7 @@ class SubscriptionService
             return SubscriptionSlotConsumption::trialExhausted($subscription);
         }
 
-        return $this->em->wrapInTransaction(function () use ($case, $subscription, $plan, $hasFreeSlot, $isTrial): SubscriptionSlotConsumption {
+        $result = $this->em->wrapInTransaction(function () use ($case, $subscription, $plan, $hasFreeSlot, $isTrial): SubscriptionSlotConsumption {
             $subscription->incrementCasesConsumed();
 
             if ($isTrial) {
@@ -97,6 +104,27 @@ class SubscriptionService
 
             return $result;
         });
+
+        // Notify the user of the extra charge POST-COMMIT: the overage slot and its
+        // CASE_EXTRA invoice are already committed, so a notification-persist failure
+        // (fault-isolated by the dispatcher, dedup-guarded on the invoice id) can
+        // never roll the billed slot back. Same pattern as InvoicingService::markPaid.
+        if (SubscriptionSlotConsumptionOutcome::OVERAGE_INVOICE_CREATED === $result->outcome && null !== $result->invoice) {
+            $this->notifier->dispatch(new NotificationDispatch(
+                user: $case->getUser(),
+                legalCase: null,
+                type: NotificationType::SLOT_OVERAGE,
+                title: $this->translator->trans('notification.slot_overage.title'),
+                message: $this->translator->trans('notification.slot_overage.message'),
+                resourceLink: '/invoices',
+                variant: 'warning',
+                emailSubject: null,
+                emailTemplate: null,
+                dedupKey: sprintf('slot_overage:%d', $result->invoice->getId()),
+            ));
+        }
+
+        return $result;
     }
 
     /**

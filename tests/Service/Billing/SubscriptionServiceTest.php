@@ -5,14 +5,18 @@ declare(strict_types=1);
 namespace App\Tests\Service\Billing;
 
 use App\Entity\LegalCase;
+use App\Entity\Notification;
 use App\Entity\Plan;
 use App\Entity\Subscription;
 use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\InvoiceType;
+use App\Enum\NotificationType;
 use App\Enum\SubscriptionSlotConsumptionOutcome;
 use App\Enum\SubscriptionStatus;
 use App\Service\Billing\SubscriptionService;
+use App\Service\Notification\NotificationDispatch;
+use App\Service\Notification\NotificationDispatcherInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
@@ -113,6 +117,56 @@ class SubscriptionServiceTest extends KernelTestCase
         $this->assertSame('25.00', $result->invoice->getAmount());
         $this->assertSame($this->user->getId(), $result->invoice->getUser()->getId());
         $this->assertSame(6, $sub->getCasesConsumed());
+    }
+
+    public function testActiveExhaustedPersistsDurableSlotOverageNotificationRow(): void
+    {
+        $plan = $this->createPlan(includedCases: 5, pricePerExtra: '25.00');
+        $this->createSubscription($plan, SubscriptionStatus::ACTIVE, casesConsumed: 5);
+
+        $result = $this->service->consumeCaseSlot($this->createCase());
+        $invoiceId = $result->invoice->getId();
+
+        $this->em->clear();
+
+        $notification = $this->em->getRepository(Notification::class)
+            ->findOneBy(['dedupKey' => 'slot_overage:' . $invoiceId]);
+
+        self::assertNotNull($notification, 'a durable in-app notification row must land for a billed overage');
+        self::assertSame(NotificationType::SLOT_OVERAGE->value, $notification->getType());
+        self::assertSame($this->user->getId(), $notification->getUser()->getId());
+        self::assertNull($notification->getLegalCase());
+    }
+
+    public function testSlotOverageDedupKeyDoesNotDoublePersist(): void
+    {
+        $plan = $this->createPlan(includedCases: 5, pricePerExtra: '25.00');
+        $this->createSubscription($plan, SubscriptionStatus::ACTIVE, casesConsumed: 5);
+
+        // First overage persists exactly one durable row keyed on the invoice id.
+        $result = $this->service->consumeCaseSlot($this->createCase());
+        $dedupKey = 'slot_overage:' . $result->invoice->getId();
+
+        // Re-dispatch the identical event (same dedupKey) through the real dispatcher:
+        // the dedup guard must no-op, leaving a single row.
+        $dispatcher = static::getContainer()->get(NotificationDispatcherInterface::class);
+        $dispatcher->dispatch(new NotificationDispatch(
+            user: $this->user,
+            legalCase: null,
+            type: NotificationType::SLOT_OVERAGE,
+            title: 'x',
+            message: 'y',
+            resourceLink: '/invoices',
+            variant: 'warning',
+            emailSubject: null,
+            emailTemplate: null,
+            dedupKey: $dedupKey,
+        ));
+
+        $this->em->clear();
+
+        $rows = $this->em->getRepository(Notification::class)->findBy(['dedupKey' => $dedupKey]);
+        self::assertCount(1, $rows, 'a second dispatch with the same dedupKey must not double-persist');
     }
 
     public function testTrialConsumedWhenFreeSlot(): void
@@ -304,6 +358,7 @@ class SubscriptionServiceTest extends KernelTestCase
         $conn->executeStatement('DELETE s FROM subscription s JOIN user u ON s.user_id = u.id WHERE u.email LIKE ?', [$this->testPrefix . '%']);
         $conn->executeStatement('DELETE lc FROM legal_case lc JOIN user u ON lc.user_id = u.id WHERE u.email LIKE ?', [$this->testPrefix . '%']);
         $conn->executeStatement('DELETE FROM plan WHERE name LIKE ?', [$this->testPrefix . '%']);
+        $conn->executeStatement('DELETE n FROM notification n JOIN user u ON n.user_id = u.id WHERE u.email LIKE ?', [$this->testPrefix . '%']);
         $conn->executeStatement('DELETE FROM user WHERE email LIKE ?', [$this->testPrefix . '%']);
         parent::tearDown();
     }
