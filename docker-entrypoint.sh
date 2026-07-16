@@ -16,6 +16,20 @@ if [ ! -f "bin/console" ]; then
     exit 1
 fi
 
+# Production trust-boundary sanity check (non-fatal). TRUSTED_PROXIES must be pinned
+# to the real ingress CIDR outside dev; the dev default (private_ranges) overlaps the
+# Docker bridge, so any container on the shared network could spoof X-Forwarded-*.
+if [ "$APP_ENV" != "dev" ] && [ "$APP_ENV" != "test" ]; then
+    if [ -z "$TRUSTED_PROXIES" ] || [ "$TRUSTED_PROXIES" = "127.0.0.1,::1,private_ranges" ]; then
+        echo "############################################################"
+        echo "WARNING: TRUSTED_PROXIES is unset or on the dev default while"
+        echo "APP_ENV=$APP_ENV. Pin it to the exact Traefik/Coolify ingress"
+        echo "CIDR, or X-Forwarded-* headers can be spoofed (rate-limit"
+        echo "bypass, wrong client IP, Secure-cookie confusion)."
+        echo "############################################################"
+    fi
+fi
+
 # Wait for database to be ready using a simpler method first
 echo "Waiting for database to be ready..."
 max_attempts=30

@@ -5,14 +5,17 @@ declare(strict_types=1);
 namespace App\Tests\Twig\Components;
 
 use App\DTO\Wizard\Step3ClaimData;
+use App\Entity\User;
 use App\Enum\RelationshipType;
 use App\Twig\Components\Step3ClaimLiveComponent;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Session\Session;
 use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
 use Symfony\UX\LiveComponent\Test\InteractsWithLiveComponents;
+use Symfony\UX\LiveComponent\Test\TestLiveComponent;
 
 /**
  * Pas 3.3 — Step3ClaimLiveComponent recomputes BNR interest + fixed stamp
@@ -31,9 +34,23 @@ final class Step3ClaimLiveComponentTest extends WebTestCase
 {
     use InteractsWithLiveComponents;
 
+    private User $user;
+
     protected function setUp(): void
     {
         static::createClient();
+
+        // The `/_components` endpoint is behind the deny-by-default firewall, and
+        // in production this component only ever renders inside the authenticated
+        // wizard. Persist a user and drive every mount through actingAs().
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        $this->user = new User();
+        $this->user->setEmail('live-step3-' . uniqid() . '@test.com');
+        $this->user->setPassword('x');
+        $this->user->setIsVerified(true);
+        $em->persist($this->user);
+        $em->flush();
+
         // Step3ClaimType has CSRF protection; the component instantiates the
         // form OUTSIDE an HTTP request so the token storage needs a session
         // to read/write. Push a synthetic Request with an in-memory session
@@ -44,16 +61,28 @@ final class Step3ClaimLiveComponentTest extends WebTestCase
         $stack->push($request);
     }
 
+    protected function tearDown(): void
+    {
+        static::getContainer()->get(EntityManagerInterface::class)
+            ->getConnection()
+            ->executeStatement('DELETE FROM user WHERE email LIKE ?', ['live-step3-%']);
+        parent::tearDown();
+    }
+
+    private function mount(Step3ClaimData $data): TestLiveComponent
+    {
+        return $this->createLiveComponent('Step3ClaimLiveComponent', ['initialFormData' => $data])
+            ->actingAs($this->user);
+    }
+
     public function testPropChangeRecomputesInterest(): void
     {
-        $testComponent = $this->createLiveComponent('Step3ClaimLiveComponent', [
-            'initialFormData' => new Step3ClaimData(
+        $testComponent = $this->mount(new Step3ClaimData(
                 amount: 10000.0,
                 currency: 'RON',
                 dueDate: new \DateTimeImmutable('-30 days'),
                 relationshipType: RelationshipType::COMERCIAL,
-            ),
-        ]);
+            ));
 
         /** @var Step3ClaimLiveComponent $component */
         $component = $testComponent->component();
@@ -65,14 +94,12 @@ final class Step3ClaimLiveComponentTest extends WebTestCase
 
     public function testFutureDueDateReturnsNullInterest(): void
     {
-        $testComponent = $this->createLiveComponent('Step3ClaimLiveComponent', [
-            'initialFormData' => new Step3ClaimData(
+        $testComponent = $this->mount(new Step3ClaimData(
                 amount: 5000.0,
                 currency: 'RON',
                 dueDate: new \DateTimeImmutable('+10 days'),
                 relationshipType: RelationshipType::COMERCIAL,
-            ),
-        ]);
+            ));
 
         /** @var Step3ClaimLiveComponent $component */
         $component = $testComponent->component();
@@ -83,14 +110,12 @@ final class Step3ClaimLiveComponentTest extends WebTestCase
 
     public function testEurCurrencyReturnsNullInterest(): void
     {
-        $testComponent = $this->createLiveComponent('Step3ClaimLiveComponent', [
-            'initialFormData' => new Step3ClaimData(
+        $testComponent = $this->mount(new Step3ClaimData(
                 amount: 1000.0,
                 currency: 'EUR',
                 dueDate: new \DateTimeImmutable('-60 days'),
                 relationshipType: RelationshipType::COMERCIAL,
-            ),
-        ]);
+            ));
 
         /** @var Step3ClaimLiveComponent $component */
         $component = $testComponent->component();
@@ -108,14 +133,12 @@ final class Step3ClaimLiveComponentTest extends WebTestCase
         // client (or a future DTO that allows CIVIL) by mutating `formValues`
         // directly. The getInterest() path must still swallow the DomainException
         // defensively, otherwise a bad value would crash the sidebar.
-        $testComponent = $this->createLiveComponent('Step3ClaimLiveComponent', [
-            'initialFormData' => new Step3ClaimData(
+        $testComponent = $this->mount(new Step3ClaimData(
                 amount: 1000.0,
                 currency: 'RON',
                 dueDate: new \DateTimeImmutable('-60 days'),
                 relationshipType: RelationshipType::COMERCIAL,
-            ),
-        ]);
+            ));
 
         /** @var Step3ClaimLiveComponent $component */
         $component = $testComponent->component();
@@ -130,9 +153,7 @@ final class Step3ClaimLiveComponentTest extends WebTestCase
 
     public function testStampDutyAlwaysReturnsFixedAmount(): void
     {
-        $testComponent = $this->createLiveComponent('Step3ClaimLiveComponent', [
-            'initialFormData' => new Step3ClaimData(),
-        ]);
+        $testComponent = $this->mount(new Step3ClaimData());
 
         /** @var Step3ClaimLiveComponent $component */
         $component = $testComponent->component();
@@ -147,14 +168,12 @@ final class Step3ClaimLiveComponentTest extends WebTestCase
         // must carry the `data-model="on(change)|*"` auto-applied by
         // ComponentWithFormTrait, otherwise the sidebar wouldn't recompute
         // when the user edits amount/dueDate/currency.
-        $testComponent = $this->createLiveComponent('Step3ClaimLiveComponent', [
-            'initialFormData' => new Step3ClaimData(
+        $testComponent = $this->mount(new Step3ClaimData(
                 amount: 1000.0,
                 currency: 'RON',
                 dueDate: new \DateTimeImmutable('-30 days'),
                 relationshipType: RelationshipType::COMERCIAL,
-            ),
-        ]);
+            ));
 
         $html = $testComponent->render()->toString();
 
@@ -164,14 +183,12 @@ final class Step3ClaimLiveComponentTest extends WebTestCase
 
     public function testMissingAmountReturnsNullInterest(): void
     {
-        $testComponent = $this->createLiveComponent('Step3ClaimLiveComponent', [
-            'initialFormData' => new Step3ClaimData(
+        $testComponent = $this->mount(new Step3ClaimData(
                 amount: null,
                 currency: 'RON',
                 dueDate: new \DateTimeImmutable('-30 days'),
                 relationshipType: RelationshipType::COMERCIAL,
-            ),
-        ]);
+            ));
 
         /** @var Step3ClaimLiveComponent $component */
         $component = $testComponent->component();

@@ -18,3 +18,9 @@ framework:
     messenger:
         transports:
             async: 'in-memory://'
+
+        # Keep email sending synchronous in tests: MailerAssertionsTrait observes
+        # messages at send time, and the in-memory `async` transport would otherwise
+        # swallow SendEmailMessage (never consumed), breaking assertEmailCount.
+        routing:
+            Symfony\Component\Mailer\Messenger\SendEmailMessage: sync

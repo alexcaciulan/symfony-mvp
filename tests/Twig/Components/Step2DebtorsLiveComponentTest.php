@@ -6,13 +6,16 @@ namespace App\Tests\Twig\Components;
 
 use App\DTO\Wizard\Step2DebtorEntry;
 use App\DTO\Wizard\Step2DebtorsData;
+use App\Entity\User;
 use App\Enum\PersonType;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Session\Session;
 use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
 use Symfony\UX\LiveComponent\Test\InteractsWithLiveComponents;
+use Symfony\UX\LiveComponent\Test\TestLiveComponent;
 
 /**
  * Pas 3.3 — Step2DebtorsLiveComponent uses `LiveCollectionTrait` from the
@@ -32,11 +35,24 @@ final class Step2DebtorsLiveComponentTest extends WebTestCase
 {
     use InteractsWithLiveComponents;
 
+    private User $user;
+
     protected function setUp(): void
     {
         // Boot KernelBrowser so the LiveComponent test client has session
         // middleware initialized.
         static::createClient();
+
+        // `/_components` is behind the deny-by-default firewall; in production this
+        // component only renders inside the authenticated wizard. Persist a user and
+        // drive every mount through actingAs().
+        $em = static::getContainer()->get(EntityManagerInterface::class);
+        $this->user = new User();
+        $this->user->setEmail('live-step2-' . uniqid() . '@test.com');
+        $this->user->setPassword('x');
+        $this->user->setIsVerified(true);
+        $em->persist($this->user);
+        $em->flush();
 
         // Step2DebtorsType uses session-based CSRF (token_id `wizard_step2_debtors`
         // is NOT in framework.csrf_protection.stateless_token_ids — only `submit`
@@ -51,13 +67,24 @@ final class Step2DebtorsLiveComponentTest extends WebTestCase
         $stack->push($request);
     }
 
+    protected function tearDown(): void
+    {
+        static::getContainer()->get(EntityManagerInterface::class)
+            ->getConnection()
+            ->executeStatement('DELETE FROM user WHERE email LIKE ?', ['live-step2-%']);
+        parent::tearDown();
+    }
+
+    private function mount(Step2DebtorsData $initial): TestLiveComponent
+    {
+        return $this->createLiveComponent('Step2DebtorsLiveComponent', ['initialFormData' => $initial])
+            ->actingAs($this->user);
+    }
+
     public function testAddCollectionItemAppendsEmptyEntry(): void
     {
         $initial = new Step2DebtorsData([$this->makeEntry('First Debtor')]);
-        $testComponent = $this->createLiveComponent(
-            'Step2DebtorsLiveComponent',
-            ['initialFormData' => $initial],
-        );
+        $testComponent = $this->mount($initial);
 
         $beforeHtml = $testComponent->render()->toString();
         $this->assertDebtorCardCount(1, $beforeHtml);
@@ -74,10 +101,7 @@ final class Step2DebtorsLiveComponentTest extends WebTestCase
             $this->makeEntry('Alpha'),
             $this->makeEntry('Beta'),
         ]);
-        $testComponent = $this->createLiveComponent(
-            'Step2DebtorsLiveComponent',
-            ['initialFormData' => $initial],
-        );
+        $testComponent = $this->mount($initial);
 
         $testComponent->call('addCollectionItem', ['name' => 'step2_debtors[debtors]']);
 
@@ -95,10 +119,7 @@ final class Step2DebtorsLiveComponentTest extends WebTestCase
             $this->makeEntry('Beta'),
             $this->makeEntry('Gamma'),
         ]);
-        $testComponent = $this->createLiveComponent(
-            'Step2DebtorsLiveComponent',
-            ['initialFormData' => $initial],
-        );
+        $testComponent = $this->mount($initial);
 
         $testComponent->call('removeCollectionItem', [
             'name' => 'step2_debtors[debtors]',
@@ -118,10 +139,7 @@ final class Step2DebtorsLiveComponentTest extends WebTestCase
             $this->makeEntry('Alpha'),
             $this->makeEntry('Beta'),
         ]);
-        $testComponent = $this->createLiveComponent(
-            'Step2DebtorsLiveComponent',
-            ['initialFormData' => $initial],
-        );
+        $testComponent = $this->mount($initial);
 
         $html = $testComponent->render()->toString();
         $this->assertDebtorCardCount(2, $html);
@@ -135,10 +153,7 @@ final class Step2DebtorsLiveComponentTest extends WebTestCase
             fn (int $i) => $this->makeEntry('Debtor ' . $i),
             range(1, 5),
         ));
-        $testComponent = $this->createLiveComponent(
-            'Step2DebtorsLiveComponent',
-            ['initialFormData' => $initial],
-        );
+        $testComponent = $this->mount($initial);
 
         $html = $testComponent->render()->toString();
         $this->assertDebtorCardCount(5, $html);

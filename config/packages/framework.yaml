@@ -2,20 +2,23 @@
 framework:
     secret: '%env(APP_SECRET)%'
 
-    # Note that the session will be started ONLY if you read or write from it.
-    session: true
+    # Honor X-Forwarded-* from the proxy chain (nginx dev, Traefik/Coolify prod) so
+    # TLS is detected (Secure cookie) and getClientIp() keys rate limiters per real
+    # client. Env-driven so prod pins the exact ingress CIDR (see TRUSTED_PROXIES).
+    trusted_proxies: '%env(TRUSTED_PROXIES)%'
+    trusted_headers: ['x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto', 'x-forwarded-port']
+
+    session:
+        cookie_secure: auto        # Secure once isSecure() is true behind the TLS ingress
+        cookie_httponly: true
+        cookie_samesite: lax
+        cookie_lifetime: 0         # browser-session cookie
+        # Marks sessions idle > 30 min as GC-eligible; the actual sweep is probabilistic
+        # (gc_probability/gc_divisor). A hard absolute ceiling is a later, code-level add.
+        gc_maxlifetime: 1800
 
     #esi: true
     #fragments: true
-
-when@dev:
-    framework:
-        # Trust the docker/reverse-proxy chain (nginx + Cloudflare tunnel) so that
-        # X-Forwarded-Proto/Host are honored. Without this, requests tunneled over
-        # HTTPS are seen as HTTP and the stateless same-origin CSRF check rejects
-        # login/register forms. Private ranges cover the docker network only.
-        trusted_proxies: '127.0.0.1,::1,private_ranges'
-        trusted_headers: ['x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto', 'x-forwarded-port']
 
 when@test:
     framework:

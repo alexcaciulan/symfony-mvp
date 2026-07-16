@@ -21,7 +21,10 @@ framework:
             messenger.bus.default: []
 
         routing:
-            Symfony\Component\Mailer\Messenger\SendEmailMessage: sync
+            # Async so the request never blocks on SMTP and the forgot-password
+            # existing-user branch is no slower than not-found (closes an enumeration
+            # timing channel). Test env overrides back to sync for MailerAssertions.
+            Symfony\Component\Mailer\Messenger\SendEmailMessage: async
             Symfony\Component\Notifier\Message\ChatMessage: async
             Symfony\Component\Notifier\Message\SmsMessage: async
 
