@@ -1773,6 +1773,8 @@ enum:
         portal_event: 'Activitate portal'
         payment_failed: 'Plată eșuată'
         token_expired: 'Card expirat'
+        payment_succeeded: 'Plată înregistrată'
+        invoice_issued: 'Factură emisă'
     person_type:
         PF: 'Persoană fizică'
         PJ: 'Persoană juridică'
@@ -2099,6 +2101,12 @@ notification:
     token_expired:
         title: 'Cardul salvat pentru plata automată a expirat'
         message: 'Cardul salvat pentru plata automată a expirat, așa că nu am putut încasa abonamentul lunar. Reautorizează metoda de plată din contul tău.'
+    payment_succeeded:
+        title: 'Plata abonamentului a fost înregistrată'
+        message: 'Am încasat cu succes abonamentul lunar, iar abonamentul tău a fost reînnoit. Nu trebuie să faci nimic.'
+    invoice_issued:
+        title: 'Factura ta este disponibilă'
+        message: 'Factura pentru abonamentul tău a fost emisă și o poți descărca din secțiunea Facturi.'
 
 # =============================================================================
 # Notifications page (notifications/index.html.twig)

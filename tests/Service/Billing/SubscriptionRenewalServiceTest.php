@@ -67,7 +67,7 @@ final class SubscriptionRenewalServiceTest extends TestCase
 
     public function testChargesSuccessfulRenewal(): void
     {
-        $sub = $this->subscription(new \DateTimeImmutable('+1 year'));
+        $sub = $this->subscription(new \DateTimeImmutable('2027-07-15'));
         $this->subscriptions->method('findDueForRenewal')->willReturn([$sub]);
 
         $this->subscriptionService->expects(self::once())->method('renewSubscription')->willReturn(new Invoice());
@@ -84,7 +84,7 @@ final class SubscriptionRenewalServiceTest extends TestCase
 
     public function testDunsDeclinedCharge(): void
     {
-        $sub = $this->subscription(new \DateTimeImmutable('+1 year'));
+        $sub = $this->subscription(new \DateTimeImmutable('2027-07-15'));
         $this->subscriptions->method('findDueForRenewal')->willReturn([$sub]);
 
         $this->subscriptionService->method('renewSubscription')->willReturn(new Invoice());
@@ -105,7 +105,7 @@ final class SubscriptionRenewalServiceTest extends TestCase
 
     public function testDunsGatewayError(): void
     {
-        $sub = $this->subscription(new \DateTimeImmutable('+1 year'));
+        $sub = $this->subscription(new \DateTimeImmutable('2027-07-15'));
         $this->subscriptions->method('findDueForRenewal')->willReturn([$sub]);
 
         $this->subscriptionService->method('renewSubscription')->willReturn(new Invoice());
@@ -125,7 +125,7 @@ final class SubscriptionRenewalServiceTest extends TestCase
 
     public function testAsksReauthorizationForExpiredToken(): void
     {
-        $sub = $this->subscription(new \DateTimeImmutable('-1 day'));
+        $sub = $this->subscription(new \DateTimeImmutable('2026-07-14'));
         $this->subscriptions->method('findDueForRenewal')->willReturn([$sub]);
 
         $this->subscriptionService->expects(self::never())->method('renewSubscription');
@@ -151,7 +151,7 @@ final class SubscriptionRenewalServiceTest extends TestCase
      */
     public function testDunningDispatchUsesExistingTemplatePath(): void
     {
-        $sub = $this->subscription(new \DateTimeImmutable('-1 day'));
+        $sub = $this->subscription(new \DateTimeImmutable('2026-07-14'));
         $this->subscriptions->method('findDueForRenewal')->willReturn([$sub]);
         $this->subscriptionService->method('markPastDue');
         $captured = $this->captureDispatch();
@@ -170,8 +170,8 @@ final class SubscriptionRenewalServiceTest extends TestCase
     {
         // A persistence failure inside renewOne (e.g. a closed EntityManager) must
         // not crash the whole batch: the loop stops and the next cron run resumes.
-        $sub1 = $this->subscription(new \DateTimeImmutable('-1 day'));
-        $sub2 = $this->subscription(new \DateTimeImmutable('-1 day'));
+        $sub1 = $this->subscription(new \DateTimeImmutable('2026-07-14'));
+        $sub2 = $this->subscription(new \DateTimeImmutable('2026-07-14'));
         $this->subscriptions->method('findDueForRenewal')->willReturn([$sub1, $sub2]);
         $this->subscriptionService->method('markPastDue')->willThrowException(new \RuntimeException('EM closed'));
 

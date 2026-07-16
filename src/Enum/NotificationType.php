@@ -21,6 +21,8 @@ enum NotificationType: string
     case PORTAL_EVENT = 'portal_event';
     case PAYMENT_FAILED = 'payment_failed';
     case TOKEN_EXPIRED = 'token_expired';
+    case PAYMENT_SUCCEEDED = 'payment_succeeded';
+    case INVOICE_ISSUED = 'invoice_issued';
 
     public function label(): string
     {
@@ -37,6 +39,8 @@ enum NotificationType: string
             self::PORTAL_EVENT => 'globe',
             self::PAYMENT_FAILED => 'card',
             self::TOKEN_EXPIRED => 'card',
+            self::PAYMENT_SUCCEEDED => 'card',
+            self::INVOICE_ISSUED => 'document',
         };
     }
 

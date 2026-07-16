@@ -1772,6 +1772,8 @@ enum:
         portal_event: 'Portal activity'
         payment_failed: 'Payment failed'
         token_expired: 'Card expired'
+        payment_succeeded: 'Payment received'
+        invoice_issued: 'Invoice issued'
     person_type:
         PF: 'Individual'
         PJ: 'Legal entity'
@@ -2098,6 +2100,12 @@ notification:
     token_expired:
         title: 'The card saved for automatic payment has expired'
         message: 'The card saved for automatic payment has expired, so we could not charge the monthly subscription. Re-authorize your payment method from your account.'
+    payment_succeeded:
+        title: 'Your subscription payment was received'
+        message: 'We successfully charged your monthly subscription and your subscription has been renewed. No action is needed.'
+    invoice_issued:
+        title: 'Your invoice is available'
+        message: 'The invoice for your subscription has been issued and you can download it from the Invoices section.'
 
 # =============================================================================
 # Notifications page (notifications/index.html.twig)

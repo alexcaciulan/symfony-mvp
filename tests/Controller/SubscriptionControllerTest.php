@@ -259,6 +259,9 @@ final class SubscriptionControllerTest extends WebTestCase
         $conn->executeStatement('DELETE i FROM invoice i JOIN `user` u ON i.user_id = u.id WHERE u.email LIKE ?', [$this->prefix . '%']);
         $conn->executeStatement('DELETE s FROM subscription s JOIN `user` u ON s.user_id = u.id WHERE u.email LIKE ?', [$this->prefix . '%']);
         $conn->executeStatement('DELETE a FROM audit_log a JOIN `user` u ON a.user_id = u.id WHERE u.email LIKE ?', [$this->prefix . '%']);
+        // Settling a payment now persists a PAYMENT_SUCCEEDED notification for the
+        // user; clear it before the user FK is removed.
+        $conn->executeStatement('DELETE n FROM notification n JOIN `user` u ON n.user_id = u.id WHERE u.email LIKE ?', [$this->prefix . '%']);
         $conn->executeStatement('DELETE FROM `user` WHERE email LIKE ?', [$this->prefix . '%']);
         $conn->executeStatement('DELETE FROM plan WHERE name LIKE ?', [$this->prefix . '%']);
         parent::tearDown();

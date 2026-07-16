@@ -10,12 +10,16 @@ use App\Entity\Subscription;
 use App\Entity\User;
 use App\Enum\InvoiceStatus;
 use App\Enum\InvoiceType;
+use App\Enum\NotificationType;
 use App\Message\IssueFiscalInvoiceMessage;
 use App\Repository\InvoiceRepository;
 use App\Service\AuditLogService;
+use App\Service\Notification\NotificationDispatch;
+use App\Service\Notification\NotificationDispatcherInterface;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Messenger\MessageBusInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Creates and settles invoices. Invoices are internal billing records, NOT
@@ -30,6 +34,8 @@ class InvoicingService
         private readonly InvoiceRepository $invoices,
         private readonly AuditLogService $auditLog,
         private readonly MessageBusInterface $bus,
+        private readonly NotificationDispatcherInterface $notifier,
+        private readonly TranslatorInterface $translator,
     ) {}
 
     /** Recurring subscription charge for the plan's monthly price. */
@@ -125,9 +131,34 @@ class InvoicingService
 
         // Issue the fiscal invoice asynchronously ONLY on the settling call. The
         // transaction has committed the PAID state, so the worker reads it fresh.
+        // Runs post-commit (never inside the transaction) to keep settlement atomic:
+        // the notification fan-out and the async dispatch are side effects that must
+        // not roll the PAID state back if a channel misbehaves.
         if ($settled && null !== $invoice->getId()) {
             $this->bus->dispatch(new IssueFiscalInvoiceMessage($invoice->getId()));
+            $this->notifyPaymentSucceeded($invoice);
         }
+    }
+
+    /**
+     * Confirms to the client that the subscription charge went through. In-app only
+     * (no dedicated email template yet); the dispatcher is fault-isolated and the
+     * dedup key makes a webhook/reconciliation double-settle a no-op.
+     */
+    private function notifyPaymentSucceeded(Invoice $invoice): void
+    {
+        $this->notifier->dispatch(new NotificationDispatch(
+            user: $invoice->getUser(),
+            legalCase: null,
+            type: NotificationType::PAYMENT_SUCCEEDED,
+            title: $this->translator->trans('notification.payment_succeeded.title'),
+            message: $this->translator->trans('notification.payment_succeeded.message'),
+            resourceLink: '/subscription',
+            variant: 'success',
+            emailSubject: null,
+            emailTemplate: null,
+            dedupKey: sprintf('payment_succeeded:%d', $invoice->getId()),
+        ));
     }
 
     /**

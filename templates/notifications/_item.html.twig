@@ -6,6 +6,7 @@
     calendar: 'heroicons:calendar-days',
     globe: 'heroicons:globe-alt',
     card: 'heroicons:credit-card',
+    document: 'heroicons:document-text',
 } %}
 {% set icon = type ? (icon_map[type.icon()] ?? 'heroicons:bell') : 'heroicons:bell' %}
 {% set is_unread = not notification.isRead %}

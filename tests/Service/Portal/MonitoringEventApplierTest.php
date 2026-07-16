@@ -338,6 +338,13 @@ class MonitoringEventApplierTest extends KernelTestCase
             "DELETE csh FROM case_status_history csh JOIN legal_case lc ON csh.legal_case_id = lc.id JOIN user u ON lc.user_id = u.id WHERE u.email LIKE ?",
             [$this->testPrefix . '%'],
         );
+        // Status transitions applied here now fire case_status notifications
+        // (linked to the case) via EmailNotificationSubscriber; clear them before
+        // the case FK is removed.
+        $conn->executeStatement(
+            "DELETE n FROM notification n JOIN user u ON n.user_id = u.id WHERE u.email LIKE ?",
+            [$this->testPrefix . '%'],
+        );
         $conn->executeStatement(
             "DELETE lc FROM legal_case lc JOIN user u ON lc.user_id = u.id WHERE u.email LIKE ?",
             [$this->testPrefix . '%'],

@@ -119,6 +119,8 @@ class InvoicingServiceTest extends KernelTestCase
     protected function tearDown(): void
     {
         $conn = $this->em->getConnection();
+        // markPaid dispatches a PAYMENT_SUCCEEDED in-app notification (user FK, no cascade).
+        $conn->executeStatement('DELETE n FROM notification n JOIN user u ON n.user_id = u.id WHERE u.email LIKE ?', [$this->testPrefix . '%']);
         $conn->executeStatement('DELETE i FROM invoice i JOIN user u ON i.user_id = u.id WHERE u.email LIKE ?', [$this->testPrefix . '%']);
         $conn->executeStatement('DELETE s FROM subscription s JOIN user u ON s.user_id = u.id WHERE u.email LIKE ?', [$this->testPrefix . '%']);
         $conn->executeStatement('DELETE lc FROM legal_case lc JOIN user u ON lc.user_id = u.id WHERE u.email LIKE ?', [$this->testPrefix . '%']);
