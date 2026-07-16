@@ -6,9 +6,6 @@ namespace App\Service\Portal;
 
 use App\Entity\CourtPortalEvent;
 use App\Entity\LegalCase;
-use App\Entity\Notification;
-use App\Enum\NotificationChannel;
-use App\Enum\NotificationType;
 use App\Event\PortalEventDetectedEvent;
 use App\Service\AuditLogService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -103,8 +100,6 @@ class CaseMonitoringService
             $this->em->persist($event);
             $persistedEvents[] = $event;
 
-            $this->createNotification($case, $event);
-
             $this->auditLogService->log(
                 'portal_event_detected',
                 'CourtPortalEvent',
@@ -121,9 +116,9 @@ class CaseMonitoringService
         $case->setLastPortalCheckAt(new \DateTimeImmutable());
         $this->em->flush();
 
-        // Notify the lawyer (email + toast) per persisted event. Dispatched after
-        // flush so each CourtPortalEvent has an id; the in-app notification was
-        // already created above, so the listener does not persist a second one.
+        // Notify the lawyer per persisted event. Dispatched after flush so each
+        // CourtPortalEvent has an id; the subscriber fans out email + toast and
+        // persists the single in-app portal_event row via the dispatcher.
         foreach ($persistedEvents as $portalEvent) {
             $this->eventDispatcher->dispatch(new PortalEventDetectedEvent($case, $portalEvent));
         }
@@ -134,22 +129,5 @@ class CaseMonitoringService
         $this->eventApplier->applyEvents($case, $persistedEvents);
 
         return count($newEvents);
-    }
-
-    private function createNotification(LegalCase $case, CourtPortalEvent $event): void
-    {
-        $notification = new Notification();
-        $notification->setUser($case->getUser());
-        $notification->setLegalCase($case);
-        $notification->setType(NotificationType::PORTAL_EVENT->value);
-        $notification->setChannel(NotificationChannel::IN_APP);
-        $notification->setTitle(sprintf(
-            'Actualizare dosar %s: %s',
-            $case->getCourtCaseNumber() ?? $case->getCaseNumber(),
-            $event->getEventType()->label(),
-        ));
-        $notification->setMessage($event->getDescription());
-        $notification->setResourceLink('/case/' . $case->getId());
-        $this->em->persist($notification);
     }
 }

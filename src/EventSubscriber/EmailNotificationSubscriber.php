@@ -237,8 +237,6 @@ final class EmailNotificationSubscriber
                 'heading' => $this->translator->trans('email.portal_event.heading', $params),
                 'body' => $this->translator->trans('email.portal_event.body', $params),
             ],
-            // CaseMonitoringService already persists the in-app portal_event row.
-            persistInApp: false,
         ));
     }
 

@@ -15,6 +15,8 @@ FOLLOW-UPS (separate from the notification slice):
 - `PortalEventType::APPEAL_FILED` is terminologically wrong (the OP procedure has no appeal, art. 1024 alin. 8); rename to `ANNULMENT_REQUEST_FILED` (with value migration if stored) or clarify in a docblock. Noted, not touched.
 - Copy caveat: the effect of annulment on an already-started enforcement is common-law enforcement (likely CPC art. 703, unverified); keep the prudent "verifică oprirea executării" wording without an article citation until re-verified.
 
+Update 2026-07-16 (scope decision, extraction): rows 20/31/32 (AI extraction failed / low-confidence / completed) are INTENTIONALLY SKIPPED. The wizard (Pas 3.0) already alerts on a failed extraction with a live Mercure toast ('wizard.step0.toast.failed' = "Extracția a eșuat pentru un document. Completează câmpurile manual.") plus a FAILED status badge on the document card. A durable in-app notification would only add persistence + away-from-wizard reach, judged marginal vs the higher-value gaps (portal sensitive rulings, security). Revisit only if lawyers report missing async results after leaving the wizard.
+
 Update 2026-07-15 (retention): notifications are transient pointers (durable record = case + LegalDeadline + AuditLog), so they are pruned. Cron `app:prune-notifications` deletes read notifications older than 90 days and any notification older than 365 days (hard cap); `--read-days`, `--max-days`, `--dry-run` options. Repo methods `pruneObsolete` / `countObsolete`. Wire into the deploy cron surface (Faza 9.1) alongside `app:check-deadlines`.
 -->
 

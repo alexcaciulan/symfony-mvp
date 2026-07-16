@@ -8,19 +8,32 @@ use App\Entity\AuditLog;
 use App\Entity\Court;
 use App\Entity\CourtPortalEvent;
 use App\Entity\LegalCase;
+use App\Entity\Notification;
 use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\CaseTransition;
 use App\Enum\CourtType;
 use App\Enum\DeadlineType;
+use App\Enum\NotificationType;
 use App\Enum\PortalEventType;
 use App\Repository\LegalDeadlineRepository;
+use App\Service\AuditLogService;
+use App\Service\Case\CaseWorkflowService;
+use App\Service\Deadline\DeadlineService;
+use App\Service\Deadline\WorkingDayResolver;
+use App\Service\Notification\NotificationDispatch;
+use App\Service\Notification\NotificationDispatcherInterface;
 use App\Service\Portal\MonitoringEventApplier;
+use App\Service\Portal\RulingProposalResolver;
 use App\Tests\Support\CountyFixtureTrait;
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
+#[AllowMockObjectsWithoutExpectations]
 class MonitoringEventApplierTest extends KernelTestCase
 {
     use CountyFixtureTrait;
@@ -313,6 +326,125 @@ class MonitoringEventApplierTest extends KernelTestCase
 
         $this->assertSame(CaseStatus::DOSAR_INREGISTRAT, $case->getStatus());
         $this->assertNull($this->deadlines->findOneByCaseAndType($case, DeadlineType::JUDECATA));
+    }
+
+    /**
+     * Builds an applier whose only substituted dependency is the notification
+     * dispatcher, replaced by a spy that records every {@see NotificationDispatch}
+     * into the given by-reference array. All other collaborators come from the
+     * real container. Manual construction is required because the applier holds
+     * the dispatcher as a readonly property (not swappable via reflection).
+     *
+     * @param list<NotificationDispatch> $captured
+     */
+    private function applierWithSpyDispatcher(array &$captured): MonitoringEventApplier
+    {
+        $spy = $this->createMock(NotificationDispatcherInterface::class);
+        $spy->method('dispatch')->willReturnCallback(
+            static function (NotificationDispatch $request) use (&$captured): void {
+                $captured[] = $request;
+            },
+        );
+
+        $c = static::getContainer();
+
+        return new MonitoringEventApplier(
+            $c->get(CaseWorkflowService::class),
+            $c->get(DeadlineService::class),
+            $c->get(LegalDeadlineRepository::class),
+            $c->get(WorkingDayResolver::class),
+            $c->get(AuditLogService::class),
+            $c->get(RulingProposalResolver::class),
+            $spy,
+            $c->get(TranslatorInterface::class),
+            $c->get(UrlGeneratorInterface::class),
+            $this->em,
+        );
+    }
+
+    public function testRulingProposalDispatchesRulingConfirmationNotification(): void
+    {
+        // A sensitive ruling (RULING_ISSUED) stays proposal-only for the workflow,
+        // but it must also notify the lawyer that a portal ruling needs manual
+        // confirmation of the new case status (UI Pas 7.2).
+        $case = $this->createCase(CaseStatus::TERMEN_FIXAT);
+        $event = $this->event(
+            $case,
+            PortalEventType::RULING_ISSUED,
+            new \DateTime('2026-09-21'),
+            'Respinge cererea ca neîntemeiată.',
+        );
+
+        $captured = [];
+        $applier = $this->applierWithSpyDispatcher($captured);
+        $applier->applyEvents($case, [$event]);
+
+        $confirmations = [];
+        foreach ($captured as $dispatch) {
+            if ($dispatch->type === NotificationType::PORTAL_RULING_CONFIRMATION) {
+                $confirmations[] = $dispatch;
+            }
+        }
+
+        $this->assertCount(1, $confirmations);
+        $dispatch = $confirmations[0];
+        $this->assertSame($this->user->getId(), $dispatch->user->getId());
+        $this->assertSame($case->getId(), $dispatch->legalCase?->getId());
+        $this->assertSame(
+            sprintf('portal_ruling:%d:%d', $case->getId(), $event->getId()),
+            $dispatch->dedupKey,
+        );
+        $this->assertSame('warning', $dispatch->variant);
+    }
+
+    public function testSafeAutoTransitionDoesNotDispatchRulingConfirmation(): void
+    {
+        // HEARING_SCHEDULED is a safe AUTO transition (fixeaza_termen). It must not
+        // ask the lawyer to confirm a ruling: no PORTAL_RULING_CONFIRMATION here.
+        $case = $this->createCase(CaseStatus::DOSAR_INREGISTRAT);
+        $event = $this->event($case, PortalEventType::HEARING_SCHEDULED, new \DateTime('2026-09-15'));
+
+        $captured = [];
+        $applier = $this->applierWithSpyDispatcher($captured);
+        $applier->applyEvents($case, [$event]);
+
+        $this->assertSame(CaseStatus::TERMEN_FIXAT, $case->getStatus());
+
+        $confirmations = [];
+        foreach ($captured as $dispatch) {
+            if ($dispatch->type === NotificationType::PORTAL_RULING_CONFIRMATION) {
+                $confirmations[] = $dispatch;
+            }
+        }
+        $this->assertCount(0, $confirmations);
+    }
+
+    public function testRulingConfirmationPersistsDurableRowOnceAcrossReplay(): void
+    {
+        // Durable + dedup: the real dispatcher persists exactly one in-app row for
+        // the ruling confirmation, and a replay (cron re-run) does not double it.
+        $case = $this->createCase(CaseStatus::TERMEN_FIXAT);
+        $event = $this->event(
+            $case,
+            PortalEventType::HEARING_COMPLETED,
+            new \DateTime('2026-09-20'),
+            'Admite cererea. Emite ordonanța de plată.',
+        );
+
+        $expectedDedupKey = sprintf('portal_ruling:%d:%d', $case->getId(), $event->getId());
+
+        $this->applier->applyEvents($case, [$event]);
+        // Replay the same event: the dedup guard must prevent a second row.
+        $this->applier->applyEvents($case, [$event]);
+
+        $rows = $this->em->getRepository(Notification::class)->findBy([
+            'legalCase' => $case,
+            'type' => NotificationType::PORTAL_RULING_CONFIRMATION->value,
+        ]);
+
+        $this->assertCount(1, $rows);
+        $this->assertSame($expectedDedupKey, $rows[0]->getDedupKey());
+        $this->assertSame($this->user->getId(), $rows[0]->getUser()->getId());
     }
 
     protected function tearDown(): void

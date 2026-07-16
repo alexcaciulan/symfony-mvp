@@ -131,7 +131,7 @@ final class EmailNotificationSubscriberIntegrationTest extends KernelTestCase
         self::assertSame(NotificationChannel::IN_APP, $notifications[0]->getChannel());
     }
 
-    public function testPortalEventSendsEmailButDoesNotPersistInApp(): void
+    public function testPortalEventSendsEmailAndPersistsInApp(): void
     {
         $case = $this->persistCase();
         $portalEvent = new CourtPortalEvent();
@@ -144,12 +144,12 @@ final class EmailNotificationSubscriberIntegrationTest extends KernelTestCase
         $this->subscriber->onPortalEventDetected(new PortalEventDetectedEvent($case, $portalEvent));
 
         $this->assertEmailCount(1);
-        // persistInApp is false for portal events (CaseMonitoringService owns the in-app row).
+        // After consolidation the dispatcher persists the single in-app portal_event row.
         $notifications = $this->em->getRepository(Notification::class)->findBy([
             'legalCase' => $case,
             'type' => 'portal_event',
         ]);
-        self::assertCount(0, $notifications);
+        self::assertCount(1, $notifications);
     }
 
     private function persistCase(): LegalCase

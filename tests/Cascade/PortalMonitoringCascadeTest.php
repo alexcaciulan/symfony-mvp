@@ -14,6 +14,7 @@ use App\Enum\CaseStatus;
 use App\Enum\CaseTransition;
 use App\Enum\CourtType;
 use App\Enum\DeadlineType;
+use App\Enum\NotificationType;
 use App\Repository\LegalDeadlineRepository;
 use App\Service\Portal\CaseMonitoringService;
 use App\Service\Portal\PortalJustClient;
@@ -166,6 +167,13 @@ class PortalMonitoringCascadeTest extends KernelTestCase
             CaseTransition::EMITE_ORDONANTA->value,
             $proposals[0]->getNewData()['suggestedTransition'],
         );
+
+        // The sensitive ruling also lands a durable in-app confirmation row for the
+        // lawyer to review + confirm the status manually (dispatched by the applier).
+        $this->assertCount(1, $this->em->getRepository(Notification::class)->findBy([
+            'legalCase' => $case,
+            'type' => NotificationType::PORTAL_RULING_CONFIRMATION->value,
+        ]));
     }
 
     protected function tearDown(): void

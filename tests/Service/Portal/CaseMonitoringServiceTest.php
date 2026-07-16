@@ -114,13 +114,22 @@ class CaseMonitoringServiceTest extends KernelTestCase
         $this->assertSame(PortalEventType::HEARING_SCHEDULED, $events[0]->getEventType());
         $this->assertTrue($events[0]->isNotified());
 
-        // Verify notification was created
+        // Exactly one in-app portal_event row, now persisted by the dispatcher with
+        // the translated notification.portal_event.* copy. The old hardcoded-Romanian
+        // "Actualizare dosar %s: %s" row built directly by CaseMonitoringService is gone.
         $notifications = $this->em->getRepository(Notification::class)->findBy([
             'legalCase' => $case,
             'type' => 'portal_event',
         ]);
         $this->assertCount(1, $notifications);
-        $this->assertStringContainsString('200/211/2026', $notifications[0]->getTitle());
+        $title = $notifications[0]->getTitle();
+        $this->assertStringContainsString('200/211/2026', $title);
+        $this->assertStringNotContainsString('Actualizare dosar', $title);
+        $translator = static::getContainer()->get('translator');
+        $this->assertSame(
+            $translator->trans('notification.portal_event.title', ['%case%' => '200/211/2026']),
+            $title,
+        );
 
         // Verify lastPortalCheckAt was updated
         $this->em->refresh($case);
@@ -177,8 +186,9 @@ class CaseMonitoringServiceTest extends KernelTestCase
         self::assertCount(1, $captured);
         self::assertSame($case->getId(), $captured[0]->case->getId());
 
-        // CaseMonitoringService still owns the single in-app row; the subscriber
-        // does not persist a second one for the dispatched event.
+        // After consolidation the dispatcher (via the subscriber) persists the single
+        // in-app portal_event row; CaseMonitoringService no longer creates one, so
+        // there is exactly one row per event, not a duplicate.
         $notifications = $this->em->getRepository(Notification::class)->findBy([
             'legalCase' => $case,
             'type' => 'portal_event',

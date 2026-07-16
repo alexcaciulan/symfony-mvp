@@ -8,15 +8,20 @@ use App\Entity\CourtPortalEvent;
 use App\Entity\LegalCase;
 use App\Enum\CaseTransition;
 use App\Enum\DeadlineType;
+use App\Enum\NotificationType;
 use App\Enum\PortalEventType;
 use App\Repository\LegalDeadlineRepository;
 use App\Service\AuditLogService;
 use App\Service\Case\CaseWorkflowService;
 use App\Service\Deadline\DeadlineService;
 use App\Service\Deadline\WorkingDayResolver;
+use App\Service\Notification\NotificationDispatch;
+use App\Service\Notification\NotificationDispatcherInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Pas 6.1 — propagă evenimentele detectate pe portal.just.ro în workflow-ul
@@ -47,6 +52,9 @@ final class MonitoringEventApplier
         private readonly WorkingDayResolver $workingDayResolver,
         private readonly AuditLogService $auditLogService,
         private readonly RulingProposalResolver $proposalResolver,
+        private readonly NotificationDispatcherInterface $notificationDispatcher,
+        private readonly TranslatorInterface $translator,
+        private readonly UrlGeneratorInterface $urlGenerator,
         private readonly EntityManagerInterface $em,
         private readonly LoggerInterface $logger = new NullLogger(),
     ) {}
@@ -149,6 +157,33 @@ final class MonitoringEventApplier
             'caseId' => $case->getId(),
             'suggestedTransition' => $suggested,
         ]);
+
+        $this->notifyRulingConfirmation($case, $event);
+    }
+
+    /**
+     * A sensitive court ruling was detected on the portal. It may change the case
+     * status (including enforcement suspension, CPC art. 1024 alin. 5), but the
+     * exact outcome depends on free-text interpretation, so the lawyer must review
+     * and confirm the new status manually. The notification is neutral
+     * and action-oriented: it asserts no outcome. In-app only, no email template.
+     */
+    private function notifyRulingConfirmation(LegalCase $case, CourtPortalEvent $event): void
+    {
+        $params = ['%case%' => $case->getCourtCaseNumber() ?? $case->getCaseNumber()];
+
+        $this->notificationDispatcher->dispatch(new NotificationDispatch(
+            user: $case->getUser(),
+            legalCase: $case,
+            type: NotificationType::PORTAL_RULING_CONFIRMATION,
+            title: $this->translator->trans('notification.portal_ruling_confirmation.title', $params),
+            message: $this->translator->trans('notification.portal_ruling_confirmation.message', $params),
+            resourceLink: $this->urlGenerator->generate('case_overview', ['id' => $case->getId()]),
+            variant: 'warning',
+            emailSubject: null,
+            emailTemplate: null,
+            dedupKey: sprintf('portal_ruling:%d:%d', $case->getId(), $event->getId()),
+        ));
     }
 
     private function applyTransitionIfPossible(LegalCase $case, CaseTransition $transition, CourtPortalEvent $event): void

@@ -59,8 +59,10 @@ final class EmailNotificationSubscriberTest extends TestCase
         self::assertTrue($request->emailContext['isExpired']);
     }
 
-    public function testPortalEventDoesNotPersistInApp(): void
+    public function testPortalEventPersistsInApp(): void
     {
+        // After consolidation the single in-app portal_event row is owned by the
+        // dispatcher (persistInApp: true), not by CaseMonitoringService.
         $case = $this->case();
         $portalEvent = (new CourtPortalEvent())
             ->setLegalCase($case)
@@ -73,7 +75,7 @@ final class EmailNotificationSubscriberTest extends TestCase
         $request = $spy->last();
         self::assertSame(NotificationType::PORTAL_EVENT, $request->type);
         self::assertSame('emails/portal_event.html.twig', $request->emailTemplate);
-        self::assertFalse($request->persistInApp);
+        self::assertTrue($request->persistInApp);
     }
 
     public function testWorkflowOrdonantaEmisaMapsToSuccessStatusNotification(): void
