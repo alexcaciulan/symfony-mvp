@@ -1771,6 +1771,7 @@ enum:
         missing_communication_date: 'Missing service date'
         portal_event: 'Portal activity'
         portal_ruling_confirmation: 'Ruling, confirmation required'
+        portal_query_failed: 'Portal monitoring stopped'
         payment_failed: 'Payment failed'
         token_expired: 'Card expired'
         payment_succeeded: 'Payment received'
@@ -2096,6 +2097,9 @@ notification:
     portal_ruling_confirmation:
         title: 'Portal ruling, confirmation required'
         message: 'A court ruling that may change the case status was detected on portal.just.ro for case %case%. Review the court solution and confirm the new status manually.'
+    portal_query_failed:
+        title: 'Portal monitoring stopped'
+        message: 'Automatic monitoring of case %case% was stopped after 5 consecutive failed queries on portal.just.ro. Check the case number or re-activate monitoring from the case.'
     missing_communication_date:
         title: 'Enter service date: %case%'
         message: 'Enter the payment order service date on case %case% to start the annulment request term.'

@@ -232,6 +232,15 @@ class LegalCase
     #[ORM\Column(options: ['default' => false])]
     private bool $portalMonitoringActive = false;
 
+    /**
+     * Count of consecutive failed portal queries. Incremented on each portal
+     * query failure (including Messenger retries), reset to 0 on any successful
+     * query. When it reaches the monitoring service threshold, monitoring is
+     * deactivated and the lawyer is notified.
+     */
+    #[ORM\Column(options: ['default' => 0])]
+    private int $portalConsecutiveFailures = 0;
+
     /** @var Collection<int, Document> */
     #[ORM\OneToMany(targetEntity: Document::class, mappedBy: 'legalCase', fetch: 'EXTRA_LAZY')]
     private Collection $documents;
@@ -867,6 +876,25 @@ class LegalCase
     public function setPortalMonitoringActive(bool $portalMonitoringActive): static
     {
         $this->portalMonitoringActive = $portalMonitoringActive;
+
+        return $this;
+    }
+
+    public function getPortalConsecutiveFailures(): int
+    {
+        return $this->portalConsecutiveFailures;
+    }
+
+    public function incrementPortalConsecutiveFailures(): static
+    {
+        ++$this->portalConsecutiveFailures;
+
+        return $this;
+    }
+
+    public function resetPortalConsecutiveFailures(): static
+    {
+        $this->portalConsecutiveFailures = 0;
 
         return $this;
     }

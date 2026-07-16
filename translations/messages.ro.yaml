@@ -1772,6 +1772,7 @@ enum:
         missing_communication_date: 'Dată comunicare lipsă'
         portal_event: 'Activitate portal'
         portal_ruling_confirmation: 'Hotărâre, confirmare necesară'
+        portal_query_failed: 'Monitorizare portal oprită'
         payment_failed: 'Plată eșuată'
         token_expired: 'Card expirat'
         payment_succeeded: 'Plată înregistrată'
@@ -2097,6 +2098,9 @@ notification:
     portal_ruling_confirmation:
         title: 'Hotărâre pe portal, necesită confirmare'
         message: 'Pe dosarul %case% a fost detectată o hotărâre pe portal.just.ro care poate schimba statusul dosarului. Verifică soluția instanței și confirmă manual noul status.'
+    portal_query_failed:
+        title: 'Monitorizare portal oprită'
+        message: 'Am oprit monitorizarea automată a dosarului %case% după 5 verificări eșuate consecutive pe portal.just.ro. Verifică numărul de dosar sau reactivează monitorizarea din dosar.'
     missing_communication_date:
         title: 'Completează data comunicării: %case%'
         message: 'Introdu data comunicării ordonanței pe dosarul %case% pentru a porni termenul cererii în anulare.'

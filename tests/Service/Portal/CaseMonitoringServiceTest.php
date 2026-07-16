@@ -10,8 +10,11 @@ use App\Entity\Notification;
 use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\CourtType;
+use App\Enum\NotificationType;
 use App\Enum\PortalEventType;
 use App\Event\PortalEventDetectedEvent;
+use App\Service\Notification\NotificationDispatch;
+use App\Service\Notification\NotificationDispatcherInterface;
 use App\Service\Portal\CaseMonitoringService;
 use App\Service\Portal\PortalJustClient;
 use App\Service\Portal\PortalJustException;
@@ -308,6 +311,138 @@ class CaseMonitoringServiceTest extends KernelTestCase
         ]);
         $this->assertNotEmpty($logs);
         $this->assertSame('hearing_scheduled', $logs[0]->getNewData()['eventType']);
+    }
+
+    private function createServiceWithThrowingClient(): CaseMonitoringService
+    {
+        $mockClient = $this->createStub(PortalJustClient::class);
+        $mockClient->method('searchByCaseNumber')->willThrowException(new PortalJustException('SOAP down'));
+
+        $service = static::getContainer()->get(CaseMonitoringService::class);
+        (new \ReflectionClass($service))->getProperty('portalClient')->setValue($service, $mockClient);
+
+        return $service;
+    }
+
+    /**
+     * Replace the dispatcher with an object spy that records every dispatch by
+     * reference (no closure, no email/in-app side effects). Returns the spy so
+     * callers can assert on its public $dispatches array.
+     */
+    private function injectDispatcherSpy(CaseMonitoringService $service): object
+    {
+        $spy = new class implements NotificationDispatcherInterface {
+            /** @var NotificationDispatch[] */
+            public array $dispatches = [];
+
+            public function dispatch(NotificationDispatch $request): void
+            {
+                $this->dispatches[] = $request;
+            }
+        };
+        (new \ReflectionClass($service))->getProperty('notificationDispatcher')->setValue($service, $spy);
+
+        return $spy;
+    }
+
+    private function setPortalFailures(LegalCase $case, int $count): void
+    {
+        (new \ReflectionProperty(LegalCase::class, 'portalConsecutiveFailures'))->setValue($case, $count);
+        $this->em->flush();
+    }
+
+    public function testMonitorCaseIncrementsFailuresAndRethrowsBelowThreshold(): void
+    {
+        $case = $this->createSubmittedCase();
+        $service = $this->createServiceWithThrowingClient();
+
+        try {
+            $service->monitorCase($case);
+            $this->fail('Expected PortalJustException below the failure threshold');
+        } catch (PortalJustException) {
+            // expected: streak below MAX propagates for async retry
+        }
+
+        $this->em->refresh($case);
+        $this->assertSame(1, $case->getPortalConsecutiveFailures());
+        $this->assertTrue($case->isPortalMonitoringActive());
+    }
+
+    public function testMonitorCaseResetsFailuresOnSuccessfulQuery(): void
+    {
+        $case = $this->createSubmittedCase();
+        $this->setPortalFailures($case, 3);
+
+        // Empty response is a successful query: it must clear the streak.
+        $service = $this->createServiceWithMockClient([]);
+        $service->monitorCase($case);
+
+        $this->em->refresh($case);
+        $this->assertSame(0, $case->getPortalConsecutiveFailures());
+        $this->assertTrue($case->isPortalMonitoringActive());
+    }
+
+    public function testMonitorCaseBelowThresholdDoesNotStopOrNotify(): void
+    {
+        $case = $this->createSubmittedCase();
+        $this->setPortalFailures($case, 2);
+
+        $service = $this->createServiceWithThrowingClient();
+        $spy = $this->injectDispatcherSpy($service);
+
+        try {
+            $service->monitorCase($case);
+            $this->fail('Expected PortalJustException below the failure threshold');
+        } catch (PortalJustException) {
+            // expected
+        }
+
+        $this->em->refresh($case);
+        $this->assertSame(3, $case->getPortalConsecutiveFailures());
+        $this->assertTrue($case->isPortalMonitoringActive());
+        $this->assertCount(0, $spy->dispatches);
+    }
+
+    public function testMonitorCaseStopsMonitoringAndNotifiesOnFifthFailure(): void
+    {
+        $case = $this->createSubmittedCase();
+        $this->setPortalFailures($case, 4);
+
+        $service = $this->createServiceWithThrowingClient();
+        $spy = $this->injectDispatcherSpy($service);
+
+        // The fifth consecutive failure stops the retry chain: returns instead
+        // of re-throwing.
+        $this->assertSame(0, $service->monitorCase($case));
+
+        $this->em->refresh($case);
+        $this->assertSame(5, $case->getPortalConsecutiveFailures());
+        $this->assertFalse($case->isPortalMonitoringActive());
+
+        $this->assertCount(1, $spy->dispatches);
+        $dispatch = $spy->dispatches[0];
+        $this->assertSame(NotificationType::PORTAL_QUERY_FAILED, $dispatch->type);
+        $this->assertSame('error', $dispatch->variant);
+        $this->assertSame($this->user->getId(), $dispatch->user->getId());
+        $this->assertSame($case->getId(), $dispatch->legalCase->getId());
+    }
+
+    public function testMonitorCasePersistsPortalQueryFailedNotificationOnDeactivation(): void
+    {
+        $case = $this->createSubmittedCase();
+        $this->setPortalFailures($case, 4);
+
+        // Real dispatcher from the container: assert the durable in-app row.
+        $service = $this->createServiceWithThrowingClient();
+
+        $this->assertSame(0, $service->monitorCase($case));
+
+        $notifications = $this->em->getRepository(Notification::class)->findBy([
+            'legalCase' => $case,
+            'type' => 'portal_query_failed',
+        ]);
+        $this->assertCount(1, $notifications);
+        $this->assertSame($this->user->getId(), $notifications[0]->getUser()->getId());
     }
 
     protected function tearDown(): void

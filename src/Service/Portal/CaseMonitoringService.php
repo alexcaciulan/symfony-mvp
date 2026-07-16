@@ -6,14 +6,22 @@ namespace App\Service\Portal;
 
 use App\Entity\CourtPortalEvent;
 use App\Entity\LegalCase;
+use App\Enum\NotificationType;
 use App\Event\PortalEventDetectedEvent;
 use App\Service\AuditLogService;
+use App\Service\Notification\NotificationDispatch;
+use App\Service\Notification\NotificationDispatcherInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 class CaseMonitoringService
 {
+    /** Consecutive portal failures after which monitoring is stopped. */
+    private const MAX_PORTAL_FAILURES = 5;
+
     public function __construct(
         private PortalJustClient $portalClient,
         private PortalEventDetector $eventDetector,
@@ -22,6 +30,9 @@ class CaseMonitoringService
         private AuditLogService $auditLogService,
         private EventDispatcherInterface $eventDispatcher,
         private LoggerInterface $logger,
+        private NotificationDispatcherInterface $notificationDispatcher,
+        private TranslatorInterface $translator,
+        private UrlGeneratorInterface $urlGenerator,
     ) {}
 
     /**
@@ -59,6 +70,8 @@ class CaseMonitoringService
                 'error' => $e->getMessage(),
             ]);
 
+            $case->incrementPortalConsecutiveFailures();
+
             $this->auditLogService->log(
                 'portal_query_failed',
                 'LegalCase',
@@ -66,6 +79,18 @@ class CaseMonitoringService
                 null,
                 ['error' => $e->getMessage()],
             );
+
+            if ($case->getPortalConsecutiveFailures() >= self::MAX_PORTAL_FAILURES) {
+                // Threshold reached: stop monitoring, notify the lawyer, and end
+                // the retry chain by returning instead of re-throwing.
+                $case->setPortalMonitoringActive(false);
+                $this->em->flush();
+
+                $this->notifyMonitoringStopped($case);
+
+                return 0;
+            }
+
             $this->em->flush();
 
             // Propagate so the async handler can retry. Synchronous callers
@@ -73,6 +98,10 @@ class CaseMonitoringService
             // so there is no regression.
             throw $e;
         }
+
+        // A successful query clears the failure streak so a recovered case
+        // starts clean; persisted with the flush(es) below.
+        $case->resetPortalConsecutiveFailures();
 
         if (empty($dosarList)) {
             $case->setLastPortalCheckAt(new \DateTimeImmutable());
@@ -129,5 +158,29 @@ class CaseMonitoringService
         $this->eventApplier->applyEvents($case, $persistedEvents);
 
         return count($newEvents);
+    }
+
+    /**
+     * Portal monitoring was automatically stopped after too many consecutive
+     * failed queries. Notify the lawyer so they can fix the case number or
+     * re-activate monitoring. In-app only, no email template. Dispatched after
+     * flush. Fires exactly once per deactivation (the cron only dispatches for
+     * cases with monitoring active, which is now off), so no dedupKey is needed.
+     */
+    private function notifyMonitoringStopped(LegalCase $case): void
+    {
+        $params = ['%case%' => $case->getCourtCaseNumber() ?? $case->getCaseNumber()];
+
+        $this->notificationDispatcher->dispatch(new NotificationDispatch(
+            user: $case->getUser(),
+            legalCase: $case,
+            type: NotificationType::PORTAL_QUERY_FAILED,
+            title: $this->translator->trans('notification.portal_query_failed.title', $params),
+            message: $this->translator->trans('notification.portal_query_failed.message', $params),
+            resourceLink: $this->urlGenerator->generate('case_overview', ['id' => $case->getId()]),
+            variant: 'error',
+            emailSubject: null,
+            emailTemplate: null,
+        ));
     }
 }
