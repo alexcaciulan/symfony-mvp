@@ -9,20 +9,20 @@
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-        <script>
+        <script nonce="{{ csp_nonce() }}">
             // Apply dark mode before paint to avoid FOUC.
             if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
                 document.documentElement.classList.add('dark');
             }
         </script>
         {% if app.user is defined and app.user %}
-            <script>
+            <script nonce="{{ csp_nonce() }}">
                 window.MERCURE_PUBLIC_URL = {{ mercure_public_url()|json_encode|raw }};
             </script>
         {% endif %}
         {% block stylesheets %}{% endblock %}
         {% block javascripts %}
-            {% block importmap %}{{ importmap('app') }}{% endblock %}
+            {% block importmap %}{{ importmap('app', { nonce: csp_nonce() }) }}{% endblock %}
         {% endblock %}
     </head>
     <body data-controller="preline-init"

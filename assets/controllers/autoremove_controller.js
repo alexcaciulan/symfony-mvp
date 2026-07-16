@@ -24,4 +24,10 @@ export default class extends Controller {
     disconnect() {
         if (this._timer) clearTimeout(this._timer);
     }
+
+    // Manual dismiss (close button). Replaces an inline onclick handler that a
+    // nonce-based CSP would block.
+    dismiss() {
+        this.element.remove();
+    }
 }

@@ -66,9 +66,8 @@
             </a>
 
             {# Termene — coming soon (Pas 4.3). Mockup parity vizual; aria-disabled + tooltip pentru semantica corectă. #}
-            <a href="#" aria-disabled="true" title="{{ 'layout.sidebar.coming_soon'|trans }}"
-               class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition no-underline"
-               onclick="event.preventDefault()">
+            <a aria-disabled="true" title="{{ 'layout.sidebar.coming_soon'|trans }}"
+               class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition no-underline cursor-default">
                 <svg class="size-[18px] text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                 {{ 'layout.sidebar.nav.deadlines'|trans }}
             </a>
@@ -93,9 +92,8 @@
                 <svg class="size-[18px] {{ is_creditors ? '' : 'text-slate-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"/></svg>
                 {{ 'layout.sidebar.nav.creditors'|trans }}
             </a>
-            <a href="#" aria-disabled="true" title="{{ 'layout.sidebar.coming_soon'|trans }}"
-               class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition no-underline"
-               onclick="event.preventDefault()">
+            <a aria-disabled="true" title="{{ 'layout.sidebar.coming_soon'|trans }}"
+               class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition no-underline cursor-default">
                 <svg class="size-[18px] text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                 {{ 'layout.sidebar.nav.debtors'|trans }}
             </a>

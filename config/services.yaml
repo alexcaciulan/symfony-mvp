@@ -89,6 +89,8 @@ services:
             $netopiaIsLive: '%env(bool:NETOPIA_IS_LIVE)%'
             $netopiaNotifyUrl: '%env(NETOPIA_NOTIFY_URL)%'
             $netopiaReturnUrl: '%env(NETOPIA_RETURN_URL)%'
+            # Mercure hub public origin, allowed in the CSP connect-src for EventSource.
+            $mercurePublicUrl: '%env(MERCURE_PUBLIC_URL)%'
 
     # interface-based auto-tagging (Strategy + Tagged Iterator pattern)
     _instanceof:
