@@ -72,6 +72,21 @@ framework:
             policy: sliding_window
             limit: 120
             interval: '1 hour'
+        # Login throttling tiers consumed by App\Security\LoginRateLimiter (audit #16).
+        # global = per client IP; local = per IP+username (Symfony default shape);
+        # username = per account across ALL IPs, to stop a botnet rotating IPs.
+        login_global:
+            policy: sliding_window
+            limit: 25
+            interval: '1 minute'
+        login_local:
+            policy: sliding_window
+            limit: 5
+            interval: '1 minute'
+        login_username:
+            policy: sliding_window
+            limit: 10
+            interval: '15 minutes'
 
 when@test:
     framework:
@@ -103,4 +118,10 @@ when@test:
             subscription_checkout:
                 policy: no_limit
             payment_webhook:
+                policy: no_limit
+            login_global:
+                policy: no_limit
+            login_local:
+                policy: no_limit
+            login_username:
                 policy: no_limit

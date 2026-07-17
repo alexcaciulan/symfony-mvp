@@ -7,6 +7,7 @@ use App\Form\ChangePasswordType;
 use App\Form\ProfileEditType;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
@@ -51,7 +52,7 @@ class ProfileController extends AbstractController
     }
 
     #[Route('/change-password', name: 'app_profile_change_password', methods: ['GET', 'POST'])]
-    public function changePassword(Request $request, UserPasswordHasherInterface $passwordHasher): Response
+    public function changePassword(Request $request, UserPasswordHasherInterface $passwordHasher, Security $security): Response
     {
         /** @var User $user */
         $user = $this->getUser();
@@ -69,9 +70,15 @@ class ProfileController extends AbstractController
 
             $newPassword = $form->get('newPassword')->getData();
             $user->setPassword($passwordHasher->hashPassword($user, $newPassword));
+            $user->regenerateSecurityStamp();
             $this->em->flush();
 
+            // The new stamp/hash lazily logs out every OTHER session on its next request;
+            // re-login the current one so the acting device carries the fresh stamp.
+            $security->login($user, 'form_login', 'main');
+
             $this->addFlash('success', $this->translator->trans('profile.flash.password_changed'));
+            $this->addFlash('info', $this->translator->trans('logged_out_other_devices', [], 'security'));
 
             return $this->redirectToRoute('app_profile');
         }

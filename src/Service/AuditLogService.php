@@ -46,6 +46,8 @@ class AuditLogService
     /** portal.just.ro monitoring: activation, auto-applied transitions and proposed ones. */
     public const CATEGORY_PORTAL_MONITORING = 'PORTAL_MONITORING';
 
+    public const CATEGORY_SECURITY = 'SECURITY';
+
     /** Automatic transition to DEFINITIVA after the annulment window lapses (CPC art. 1024). */
     public const CATEGORY_AUTO_FINALIZED = 'AUTO_FINALIZED';
 

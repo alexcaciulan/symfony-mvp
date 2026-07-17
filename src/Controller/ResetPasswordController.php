@@ -130,6 +130,9 @@ class ResetPasswordController extends AbstractController
             $this->resetPasswordHelper->removeResetRequest($token);
 
             $user->setPassword($passwordHasher->hashPassword($user, (string) $form->get('plainPassword')->getData()));
+            // Revoke every pre-existing session of this account (reset is the classic
+            // "account compromised" flow). Reset runs anonymously, so no re-login.
+            $user->regenerateSecurityStamp();
             $this->userRepository->getEntityManager()->flush();
 
             $this->cleanSessionAfterReset();

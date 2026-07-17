@@ -9,6 +9,7 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
+use Symfony\Component\Security\Core\User\EquatableInterface;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Validator\Constraints as Assert;
@@ -20,7 +21,7 @@ use Symfony\Component\Validator\Constraints as Assert;
 #[ORM\Entity(repositoryClass: UserRepository::class)]
 #[ORM\UniqueConstraint(name: 'UNIQ_IDENTIFIER_EMAIL', fields: ['email'])]
 #[UniqueEntity(fields: ['email'], message: 'validators.user.email_already_exists', groups: ['admin'])]
-class User implements UserInterface, PasswordAuthenticatedUserInterface
+class User implements UserInterface, PasswordAuthenticatedUserInterface, EquatableInterface
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -94,6 +95,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $deletedAt = null;
 
+    // Random per-user token folded into the session-equality check. Regenerated on a
+    // password change/reset so every other session is lazily revoked. Nullable so sessions
+    // serialized before this field existed stay valid (isEqualTo skips the null case).
+    #[ORM\Column(length: 32, nullable: true)]
+    private ?string $securityStamp = null;
+
     #[ORM\Column(length: 20, enumType: ExtractionMode::class, options: ['default' => 'LOCAL_ONLY'])]
     private ExtractionMode $extractionMode = ExtractionMode::LOCAL_ONLY;
 
@@ -109,6 +116,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     {
         $this->legalCases = new ArrayCollection();
         $this->notifications = new ArrayCollection();
+        $this->securityStamp = bin2hex(random_bytes(16));
     }
 
 
@@ -168,6 +176,55 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $data["\0".self::class."\0password"] = hash('crc32c', $this->password);
 
         return $data;
+    }
+
+    /**
+     * Session-freshness check. Implementing EquatableInterface makes Symfony's ContextListener
+     * delegate the whole comparison here and skip its own crc32c password guard, so we
+     * reproduce that guard (defense in depth) alongside the securityStamp check: a password
+     * change on any future path still revokes sessions even if the stamp bump is forgotten.
+     * $this is the (deserialized) session user, so $this->password is the crc32c digest.
+     */
+    public function isEqualTo(UserInterface $user): bool
+    {
+        if (!$user instanceof self) {
+            return false;
+        }
+
+        // Null-tolerant: sessions serialized before securityStamp existed skip this branch.
+        if ($this->securityStamp !== null && $this->securityStamp !== $user->getSecurityStamp()) {
+            return false;
+        }
+
+        $original = $this->password;
+        $fresh = $user->getPassword();
+        if ($original !== null && $fresh !== $original) {
+            if (\strlen($original) !== 8 || hash('crc32c', $fresh ?? $original) !== $original) {
+                return false;
+            }
+        }
+
+        // Mirror ContextListener's native role guard (bypassed once EquatableInterface is in play):
+        // a revoked role must deauthenticate the user's live sessions, not wait for expiry.
+        $originalRoles = $this->getRoles();
+        $freshRoles = $user->getRoles();
+        if (\count($originalRoles) !== \count($freshRoles) || array_diff($originalRoles, $freshRoles)) {
+            return false;
+        }
+
+        return $this->getUserIdentifier() === $user->getUserIdentifier();
+    }
+
+    public function getSecurityStamp(): ?string
+    {
+        return $this->securityStamp;
+    }
+
+    public function regenerateSecurityStamp(): static
+    {
+        $this->securityStamp = bin2hex(random_bytes(16));
+
+        return $this;
     }
 
     #[\Deprecated]

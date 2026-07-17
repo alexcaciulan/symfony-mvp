@@ -24,8 +24,9 @@ security:
                 check_path: app_login
                 enable_csrf: true
             login_throttling:
-                max_attempts: 5
-                interval: '1 minute'
+                # Custom limiter adds a per-username tier (audit #16); thresholds live in
+                # rate_limiter.yaml (login_global / login_local / login_username).
+                limiter: App\Security\LoginRateLimiter
             logout:
                 path: app_logout
                 enable_csrf: true

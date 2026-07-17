@@ -10,3 +10,6 @@ parameters:
     # Product brand name, single source of truth. Exposed to Twig as the `brand_name`
     # global (config/packages/twig.yaml) so templates and emails never hardcode it.
     app.brand_name: 'LexRecovery'
+    # Absolute session lifetime in seconds (12h): forced re-login regardless of activity,
+    # on top of the 30-min idle expiry. Injected into AbsoluteSessionTimeoutSubscriber.
+    app.session.absolute_ttl: 43200

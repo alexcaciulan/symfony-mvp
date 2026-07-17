@@ -91,6 +91,8 @@ services:
             $netopiaReturnUrl: '%env(NETOPIA_RETURN_URL)%'
             # Mercure hub public origin, allowed in the CSP connect-src for EventSource.
             $mercurePublicUrl: '%env(MERCURE_PUBLIC_URL)%'
+            # Absolute session lifetime, injected into AbsoluteSessionTimeoutSubscriber.
+            $absoluteSessionTtl: '%app.session.absolute_ttl%'
 
     # interface-based auto-tagging (Strategy + Tagged Iterator pattern)
     _instanceof:
