@@ -152,7 +152,14 @@ registration:
         confirm_button: 'Confirmă adresa de email'
         expiry_note: 'Acest link expiră în %expiry%.'
         ignore_note: 'Dacă nu ai creat un cont pe platforma noastră, te rugăm să ignori acest email.'
-    sender_name: 'Recuperare Creanțe'
+    duplicate_attempt:
+        subject: 'Tentativă de creare cont cu adresa ta'
+        heading: 'Tentativă de creare cont'
+        body: 'Cineva a încercat să creeze un cont %brand% folosind această adresă de email. Ai deja un cont asociat acestei adrese, așa că nu am creat unul nou.'
+        login_button: 'Autentifică-te'
+        reset_note: 'Dacă ți-ai uitat parola, folosește opțiunea de resetare a parolei.'
+        ignore_note: 'Dacă nu ai fost tu, poți ignora acest mesaj în siguranță. Nu s-a făcut nicio modificare a contului tău.'
+        signature: 'Echipa %brand%'
 
 # =============================================================================
 # Common UI primitives (reusable across the app — toast close button etc.)
@@ -165,10 +172,10 @@ common:
 # Flash messages (RegistrationController)
 # =============================================================================
 flash:
-    email_already_verified: 'Adresa de email este deja verificată.'
-    verification_resent: 'Email-ul de verificare a fost retrimis.'
+    verification_resent_generic: 'Dacă există un cont neverificat asociat acestei adrese, i-am retrimis link-ul de verificare.'
     verification_throttle: 'Te rugăm să aștepți un minut înainte de a retrimite email-ul.'
     email_verified_success: 'Adresa de email a fost verificată cu succes.'
+    email_verify_invalid: 'Link de verificare invalid sau expirat. Te rugăm să încerci din nou.'
 
 # =============================================================================
 # Form labels (RegistrationFormType)

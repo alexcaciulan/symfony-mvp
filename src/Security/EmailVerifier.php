@@ -21,10 +21,13 @@ class EmailVerifier
 
     public function sendEmailConfirmation(string $verifyEmailRouteName, User $user, TemplatedEmail $email): void
     {
+        // `id` is added to the URL (and folded into the signature) so verification can
+        // resolve the user without a prior login, which keeps registration anonymous.
         $signatureComponents = $this->verifyEmailHelper->generateSignature(
             $verifyEmailRouteName,
             (string) $user->getId(),
-            (string) $user->getEmail()
+            (string) $user->getEmail(),
+            ['id' => (string) $user->getId()]
         );
 
         $context = $email->getContext();

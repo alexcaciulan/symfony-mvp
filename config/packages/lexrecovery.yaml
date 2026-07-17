@@ -7,3 +7,6 @@
 # prorogă identic cu sărbătorile fixe.
 parameters:
     lexrecovery.working_days.additional_holidays: []
+    # Product brand name, single source of truth. Exposed to Twig as the `brand_name`
+    # global (config/packages/twig.yaml) so templates and emails never hardcode it.
+    app.brand_name: 'LexRecovery'

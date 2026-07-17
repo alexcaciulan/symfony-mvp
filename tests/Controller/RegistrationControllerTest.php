@@ -7,11 +7,17 @@ use App\Entity\Subscription;
 use App\Entity\User;
 use App\Enum\SubscriptionStatus;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Bundle\FrameworkBundle\KernelBrowser;
+use Symfony\Bundle\FrameworkBundle\Test\MailerAssertionsTrait;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\BrowserKit\Cookie;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
+use SymfonyCasts\Bundle\VerifyEmail\VerifyEmailHelperInterface;
 
 class RegistrationControllerTest extends WebTestCase
 {
+    use MailerAssertionsTrait;
+
     private const TEST_EMAIL = 'register-test@example.com';
 
     private function createTestUser(EntityManagerInterface $em, UserPasswordHasherInterface $hasher, bool $verified = true): User
@@ -31,6 +37,18 @@ class RegistrationControllerTest extends WebTestCase
         $em->flush();
 
         return $user;
+    }
+
+    /**
+     * Seeds the `registration_pending_email` session marker that the (now anonymous)
+     * check-email / resend flow keys on, mirroring what register() sets.
+     */
+    private function setPendingEmail(KernelBrowser $client, string $email): void
+    {
+        $session = $client->getContainer()->get('session.factory')->createSession();
+        $session->set('registration_pending_email', $email);
+        $session->save();
+        $client->getCookieJar()->set(new Cookie($session->getName(), $session->getId()));
     }
 
     private function cleanupTestUsers(EntityManagerInterface $em): void
@@ -126,7 +144,7 @@ class RegistrationControllerTest extends WebTestCase
         $conn->executeStatement('DELETE FROM plan WHERE id = ?', [$trialPlan->getId()]);
     }
 
-    public function testRegisterWithDuplicateEmail(): void
+    public function testRegisterWithDuplicateEmailIsEnumerationSafe(): void
     {
         $client = static::createClient();
         $em = $client->getContainer()->get('doctrine.orm.entity_manager');
@@ -141,9 +159,55 @@ class RegistrationControllerTest extends WebTestCase
             'registration_form[plainPassword][first]' => 'password123',
             'registration_form[plainPassword][second]' => 'password123',
         ]);
-
         $client->submit($form);
-        $this->assertResponseStatusCodeSame(422);
+
+        // Same outcome as a fresh registration (no 422 "email exists" leak).
+        $this->assertResponseRedirects('/register/check-email');
+        // A notice was sent to the real owner, and no duplicate account was created.
+        $this->assertEmailCount(1);
+        self::assertSame(1, $em->getRepository(User::class)->count(['email' => self::TEST_EMAIL]));
+
+        // The check-email page shows the submitted address exactly like the new-user path,
+        // and the existing account was never logged in (no auto-login oracle).
+        $client->followRedirect();
+        $this->assertResponseIsSuccessful();
+        self::assertStringContainsString(self::TEST_EMAIL, (string) $client->getResponse()->getContent());
+
+        $client->request('GET', '/dashboard');
+        $this->assertResponseRedirects();
+        self::assertStringContainsString('/login', (string) $client->getResponse()->headers->get('Location'));
+
+        $this->cleanupTestUsers($em);
+    }
+
+    public function testInvalidFormReturnsSameStatusForExistingAndNewEmail(): void
+    {
+        $client = static::createClient();
+        $em = $client->getContainer()->get('doctrine.orm.entity_manager');
+        $hasher = $client->getContainer()->get('security.user_password_hasher');
+
+        $this->createTestUser($em, $hasher);
+
+        // Same invalid payload (mismatched passwords) for an existing vs a brand-new email:
+        // the status must be identical, or it leaks whether the address is registered.
+        $submit = static function (string $email) use ($client): int {
+            $crawler = $client->request('GET', '/register');
+            $form = $crawler->filter('form button[type="submit"]')->form([
+                'registration_form[email]' => $email,
+                'registration_form[agreeTerms]' => true,
+                'registration_form[plainPassword][first]' => 'password123',
+                'registration_form[plainPassword][second]' => 'does-not-match',
+            ]);
+            $client->submit($form);
+
+            return $client->getResponse()->getStatusCode();
+        };
+
+        $existingStatus = $submit(self::TEST_EMAIL);
+        $newStatus = $submit('brand-new-' . uniqid() . '@example.com');
+
+        self::assertSame(422, $existingStatus, 'An invalid form must render errors, not a fake success, even for an existing email.');
+        self::assertSame($existingStatus, $newStatus, 'Response status must not reveal whether the email is registered.');
 
         $this->cleanupTestUsers($em);
     }
@@ -226,7 +290,7 @@ class RegistrationControllerTest extends WebTestCase
         $hasher = $client->getContainer()->get('security.user_password_hasher');
 
         $user = $this->createTestUser($em, $hasher, false);
-        $client->loginUser($user);
+        $this->setPendingEmail($client, $user->getEmail());
 
         $client->request('GET', '/register/resend-verification');
         $this->assertResponseRedirects('/register/check-email');
@@ -241,12 +305,12 @@ class RegistrationControllerTest extends WebTestCase
         $hasher = $client->getContainer()->get('security.user_password_hasher');
 
         $user = $this->createTestUser($em, $hasher, true);
-        $client->loginUser($user);
+        $this->setPendingEmail($client, $user->getEmail());
 
+        // A verified address gets the same generic outcome (no leak that it exists).
         $client->request('GET', '/register/resend-verification');
         $this->assertResponseRedirects('/register/check-email');
 
-        // Follow redirect and check for "already verified" flash
         $client->followRedirect();
         $this->assertResponseIsSuccessful();
 
@@ -261,26 +325,53 @@ class RegistrationControllerTest extends WebTestCase
         $this->assertResponseRedirects('/register');
     }
 
-    public function testVerifyEmailRequiresAuth(): void
+    public function testVerifyEmailSucceedsAnonymouslyViaSignedUrl(): void
     {
         $client = static::createClient();
-        $client->request('GET', '/verify/email');
+        $em = $client->getContainer()->get('doctrine.orm.entity_manager');
+        $hasher = $client->getContainer()->get('security.user_password_hasher');
+        $helper = $client->getContainer()->get(VerifyEmailHelperInterface::class);
 
-        $this->assertResponseRedirects();
-        $this->assertStringContainsString('/login', $client->getResponse()->headers->get('Location'));
+        $user = $this->createTestUser($em, $hasher, false);
+        self::assertFalse($user->isVerified());
+
+        $signature = $helper->generateSignature(
+            'app_verify_email',
+            (string) $user->getId(),
+            $user->getEmail(),
+            ['id' => (string) $user->getId()],
+        );
+
+        // No login: the signed URL alone must verify the account.
+        $client->request('GET', $signature->getSignedUrl());
+        $this->assertResponseRedirects('/login');
+
+        $em->clear();
+        $reloaded = $em->getRepository(User::class)->find($user->getId());
+        self::assertTrue($reloaded->isVerified(), 'The signed link must verify the account anonymously.');
+
+        $this->cleanupTestUsers($em);
     }
 
-    public function testVerifyEmailWithInvalidToken(): void
+    public function testVerifyEmailWithoutIdRedirectsToRegister(): void
+    {
+        $client = static::createClient();
+        // No `id` in the URL: the anonymous verify flow has no user to validate against.
+        $client->request('GET', '/verify/email');
+
+        $this->assertResponseRedirects('/register');
+    }
+
+    public function testVerifyEmailWithInvalidSignature(): void
     {
         $client = static::createClient();
         $em = $client->getContainer()->get('doctrine.orm.entity_manager');
         $hasher = $client->getContainer()->get('security.user_password_hasher');
 
         $user = $this->createTestUser($em, $hasher, false);
-        $client->loginUser($user);
 
-        // Call verify/email with no valid signature params - should catch exception and redirect
-        $client->request('GET', '/verify/email?expires=1&signature=invalid&token=bad');
+        // Valid id but tampered signature: handleEmailConfirmation throws, redirect to register.
+        $client->request('GET', '/verify/email?id=' . $user->getId() . '&expires=1&signature=invalid&token=bad');
         $this->assertResponseRedirects('/register');
 
         $this->cleanupTestUsers($em);

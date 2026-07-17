@@ -13,9 +13,13 @@ use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Validator\Constraints as Assert;
 
+// Uniqueness is validated only in the `admin` group (EasyAdmin opts in), NOT in the
+// Default group that registration uses: registration checks uniqueness manually AFTER
+// validation so an existing address never changes the response (a validation error there
+// would re-open the enumeration oracle). The DB unique index stays the integrity backstop.
 #[ORM\Entity(repositoryClass: UserRepository::class)]
 #[ORM\UniqueConstraint(name: 'UNIQ_IDENTIFIER_EMAIL', fields: ['email'])]
-#[UniqueEntity(fields: ['email'], message: 'validators.user.email_already_exists')]
+#[UniqueEntity(fields: ['email'], message: 'validators.user.email_already_exists', groups: ['admin'])]
 class User implements UserInterface, PasswordAuthenticatedUserInterface
 {
     #[ORM\Id]

@@ -1,0 +1,26 @@
+<div style="max-width:600px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;color:#333;">
+    <h2 style="color:#1e293b;margin-bottom:16px;">{{ 'registration.duplicate_attempt.heading'|trans }}</h2>
+
+    <p style="font-size:15px;line-height:1.6;">
+        {{ 'registration.duplicate_attempt.body'|trans({'%brand%': brand_name}) }}
+    </p>
+
+    <p style="text-align:center;margin:32px 0;">
+        <a href="{{ login_url }}"
+           style="display:inline-block;padding:14px 28px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:6px;font-size:16px;font-weight:bold;">
+            {{ 'registration.duplicate_attempt.login_button'|trans }}
+        </a>
+    </p>
+
+    <p style="font-size:14px;color:#666;line-height:1.5;">
+        {{ 'registration.duplicate_attempt.reset_note'|trans }}
+    </p>
+
+    <p style="font-size:13px;color:#999;margin-top:24px;">
+        {{ 'registration.duplicate_attempt.ignore_note'|trans }}
+    </p>
+
+    <p style="font-size:13px;color:#999;margin-top:16px;">
+        {{ 'registration.duplicate_attempt.signature'|trans({'%brand%': brand_name}) }}
+    </p>
+</div>

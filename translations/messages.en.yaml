@@ -152,7 +152,14 @@ registration:
         confirm_button: 'Confirm email address'
         expiry_note: 'This link expires in %expiry%.'
         ignore_note: 'If you did not create an account on our platform, please ignore this email.'
-    sender_name: 'Recuperare Creanțe'
+    duplicate_attempt:
+        subject: 'Account creation attempt with your address'
+        heading: 'Account creation attempt'
+        body: 'Someone tried to create a %brand% account using this email address. You already have an account linked to it, so we did not create a new one.'
+        login_button: 'Log in'
+        reset_note: 'If you forgot your password, use the password reset option.'
+        ignore_note: 'If this was not you, you can safely ignore this message. No changes were made to your account.'
+        signature: 'The %brand% team'
 
 # =============================================================================
 # Common UI primitives (reusable across the app — toast close button etc.)
@@ -165,10 +172,10 @@ common:
 # Flash messages (RegistrationController)
 # =============================================================================
 flash:
-    email_already_verified: 'Your email address is already verified.'
-    verification_resent: 'The verification email has been resent.'
+    verification_resent_generic: 'If an unverified account exists for this address, we have resent the verification link.'
     verification_throttle: 'Please wait one minute before resending the email.'
     email_verified_success: 'Your email address has been verified successfully.'
+    email_verify_invalid: 'Invalid or expired verification link. Please try again.'
 
 # =============================================================================
 # Form labels (RegistrationFormType)

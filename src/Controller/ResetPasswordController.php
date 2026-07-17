@@ -28,6 +28,8 @@ class ResetPasswordController extends AbstractController
         private TranslatorInterface $translator,
         #[Autowire('%app.mailer_from%')]
         private string $mailerFrom,
+        #[Autowire('%app.brand_name%')]
+        private string $brandName,
     ) {}
 
     #[Route('/forgot-password', name: 'app_forgot_password')]
@@ -50,7 +52,7 @@ class ResetPasswordController extends AbstractController
                     $resetToken = $this->resetPasswordHelper->generateResetToken($user);
 
                     $emailMessage = (new TemplatedEmail())
-                        ->from(new Address($this->mailerFrom, $this->translator->trans('registration.sender_name')))
+                        ->from(new Address($this->mailerFrom, $this->brandName))
                         ->to($user->getEmail())
                         ->subject($this->translator->trans('reset_password.email.subject'))
                         ->htmlTemplate('reset_password/email.html.twig')

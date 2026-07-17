@@ -1,5 +1,9 @@
 twig:
     file_name_pattern: '*.twig'
+    globals:
+        # Product brand name (see config/packages/lexrecovery.yaml). Use `brand_name`
+        # in templates/emails instead of hardcoding the product name.
+        brand_name: '%app.brand_name%'
     # Storage stays UTC (PHP + Doctrine run on UTC); only the display is converted
     # to Romanian local time for the `|date` filter / `date()` function.
     date:
