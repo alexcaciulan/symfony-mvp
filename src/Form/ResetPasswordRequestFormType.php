@@ -12,7 +12,7 @@ use Symfony\Component\Validator\Constraints\NotBlank;
 
 /**
  * Forgot-password form. Being a FormType gives it automatic CSRF protection, closing the
- * cross-site forced reset-email dispatch (audit #13).
+ * cross-site forced reset-email dispatch.
  */
 final class ResetPasswordRequestFormType extends AbstractType
 {

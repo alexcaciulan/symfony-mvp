@@ -11,7 +11,7 @@ use Symfony\Component\Form\FormBuilderInterface;
 
 /**
  * Sets a new password from a reset link. Being a FormType gives automatic CSRF protection
- * (closing the account-takeover vector, audit #4) and applies the shared password policy.
+ * (closing the account-takeover vector) and applies the shared password policy.
  */
 final class ResetPasswordFormType extends AbstractType
 {
@@ -21,12 +21,12 @@ final class ResetPasswordFormType extends AbstractType
             'type' => PasswordType::class,
             'invalid_message' => 'reset_password.flash.passwords_mismatch',
             'first_options' => [
-                'label' => 'reset_password.new_password',
+                'label' => 'reset_password.reset.password_label',
                 'attr' => ['autocomplete' => 'new-password'],
                 'constraints' => PasswordConstraints::forNewPassword(),
             ],
             'second_options' => [
-                'label' => 'reset_password.confirm_password',
+                'label' => 'reset_password.reset.password_confirm_label',
                 'attr' => ['autocomplete' => 'new-password'],
             ],
         ]);

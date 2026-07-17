@@ -26,7 +26,7 @@ when@test:
         session:
             storage_factory_id: session.storage.factory.mock_file
         # Skip the HaveIBeenPwned network call in tests (flaky, non-deterministic); the
-        # length + PasswordStrength constraints still run locally.
+        # length constraint still runs locally.
         validation:
             not_compromised_password:
                 enabled: false
