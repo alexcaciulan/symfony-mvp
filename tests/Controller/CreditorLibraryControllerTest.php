@@ -113,7 +113,7 @@ final class CreditorLibraryControllerTest extends WebTestCase
         $crawler = $this->client->request('GET', '/creditors/new');
         self::assertResponseIsSuccessful();
 
-        $form = $crawler->filter('form')->form();
+        $form = $crawler->filter('form:not([action="/logout"])')->form();
         $form['creditor[personType]'] = PersonType::PJ->value;
         $form['creditor[name]'] = 'Newly Added SRL';
         $form['creditor[cui]'] = 'RO15193236';
@@ -137,7 +137,7 @@ final class CreditorLibraryControllerTest extends WebTestCase
         $crawler = $this->client->request('GET', '/creditors/' . $creditor->getId() . '/edit');
         self::assertResponseIsSuccessful();
 
-        $form = $crawler->filter('form')->form();
+        $form = $crawler->filter('form:not([action="/logout"])')->form();
         $form['creditor[name]'] = 'After Rename SRL';
         $form['creditor[onrcNumber]'] = 'J40/9999/2021';
         $this->client->submit($form);
@@ -175,7 +175,7 @@ final class CreditorLibraryControllerTest extends WebTestCase
         $this->client->loginUser($user);
 
         $crawler = $this->client->request('GET', '/creditors/new');
-        $form = $crawler->filter('form')->form();
+        $form = $crawler->filter('form:not([action="/logout"])')->form();
         $form['creditor[personType]'] = PersonType::PJ->value;
         $form['creditor[name]'] = 'Duplicate SRL';
         $form['creditor[cui]'] = 'RO15193236';

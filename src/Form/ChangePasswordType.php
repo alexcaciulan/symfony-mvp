@@ -7,7 +7,6 @@ use Symfony\Component\Form\Extension\Core\Type\PasswordType;
 use Symfony\Component\Form\Extension\Core\Type\RepeatedType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
-use Symfony\Component\Validator\Constraints\Length;
 use Symfony\Component\Validator\Constraints\NotBlank;
 
 class ChangePasswordType extends AbstractType
@@ -27,10 +26,7 @@ class ChangePasswordType extends AbstractType
                 'first_options' => [
                     'label' => 'profile.change_password.new',
                     'attr' => ['autocomplete' => 'new-password'],
-                    'constraints' => [
-                        new NotBlank(),
-                        new Length(min: 6, max: 4096),
-                    ],
+                    'constraints' => PasswordConstraints::forNewPassword(),
                 ],
                 'second_options' => [
                     'label' => 'profile.change_password.confirm',

@@ -84,8 +84,8 @@ class RegistrationControllerTest extends WebTestCase
         $form = $crawler->filter('form button[type="submit"]')->form([
             'registration_form[email]' => 'new-user-reg@example.com',
             'registration_form[agreeTerms]' => true,
-            'registration_form[plainPassword][first]' => 'securepass123',
-            'registration_form[plainPassword][second]' => 'securepass123',
+            'registration_form[plainPassword][first]' => 'Zx9mKp2Lq7Rw',
+            'registration_form[plainPassword][second]' => 'Zx9mKp2Lq7Rw',
         ]);
 
         $client->submit($form);
@@ -98,7 +98,7 @@ class RegistrationControllerTest extends WebTestCase
         $this->assertFalse($user->isVerified());
 
         // Verify password is hashed (not plaintext)
-        $this->assertNotSame('securepass123', $user->getPassword());
+        $this->assertNotSame('Zx9mKp2Lq7Rw', $user->getPassword());
 
         // Cleanup (registration may have started a trial subscription → FK rows first).
         $this->cleanupTestUsers($em);
@@ -124,8 +124,8 @@ class RegistrationControllerTest extends WebTestCase
         $form = $crawler->filter('form button[type="submit"]')->form([
             'registration_form[email]' => $email,
             'registration_form[agreeTerms]' => true,
-            'registration_form[plainPassword][first]' => 'securepass123',
-            'registration_form[plainPassword][second]' => 'securepass123',
+            'registration_form[plainPassword][first]' => 'Zx9mKp2Lq7Rw',
+            'registration_form[plainPassword][second]' => 'Zx9mKp2Lq7Rw',
         ]);
         $client->submit($form);
         $this->assertResponseRedirects('/register/check-email');
@@ -156,8 +156,8 @@ class RegistrationControllerTest extends WebTestCase
         $form = $crawler->filter('form button[type="submit"]')->form([
             'registration_form[email]' => self::TEST_EMAIL,
             'registration_form[agreeTerms]' => true,
-            'registration_form[plainPassword][first]' => 'password123',
-            'registration_form[plainPassword][second]' => 'password123',
+            'registration_form[plainPassword][first]' => 'Zx9mKp2Lq7Rw',
+            'registration_form[plainPassword][second]' => 'Zx9mKp2Lq7Rw',
         ]);
         $client->submit($form);
 
@@ -195,7 +195,7 @@ class RegistrationControllerTest extends WebTestCase
             $form = $crawler->filter('form button[type="submit"]')->form([
                 'registration_form[email]' => $email,
                 'registration_form[agreeTerms]' => true,
-                'registration_form[plainPassword][first]' => 'password123',
+                'registration_form[plainPassword][first]' => 'Zx9mKp2Lq7Rw',
                 'registration_form[plainPassword][second]' => 'does-not-match',
             ]);
             $client->submit($form);
@@ -220,7 +220,7 @@ class RegistrationControllerTest extends WebTestCase
         $form = $crawler->filter('form button[type="submit"]')->form([
             'registration_form[email]' => 'mismatch-test@example.com',
             'registration_form[agreeTerms]' => true,
-            'registration_form[plainPassword][first]' => 'password123',
+            'registration_form[plainPassword][first]' => 'Zx9mKp2Lq7Rw',
             'registration_form[plainPassword][second]' => 'differentpass',
         ]);
 
@@ -251,8 +251,8 @@ class RegistrationControllerTest extends WebTestCase
         $crawler = $client->request('GET', '/register');
         $form = $crawler->filter('form button[type="submit"]')->form([
             'registration_form[email]' => 'no-terms@example.com',
-            'registration_form[plainPassword][first]' => 'password123',
-            'registration_form[plainPassword][second]' => 'password123',
+            'registration_form[plainPassword][first]' => 'Zx9mKp2Lq7Rw',
+            'registration_form[plainPassword][second]' => 'Zx9mKp2Lq7Rw',
         ]);
         // Do NOT check agreeTerms
 

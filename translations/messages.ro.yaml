@@ -186,6 +186,10 @@ form:
         password: 'Parolă'
         password_confirm: 'Confirmă parola'
         agree_terms: 'Sunt de acord cu termenii și condițiile'
+    password:
+        required: 'Introdu o parolă.'
+        min_length: 'Parola trebuie să aibă cel puțin {{ limit }} caractere.'
+        compromised: 'Această parolă a apărut într-o scurgere de date cunoscută. Te rugăm să alegi alta.'
 
 # =============================================================================
 # Language switcher
@@ -1468,6 +1472,7 @@ reset_password:
         title: 'Resetare parolă'
         description: 'Introdu adresa de email și îți vom trimite un link de resetare.'
         email_label: 'Email'
+        email_required: 'Introdu adresa de email.'
         submit: 'Trimite linkul de resetare'
         back_to_login: 'Înapoi la autentificare'
     check_email:
@@ -1488,7 +1493,6 @@ reset_password:
         ignore_note: 'Dacă nu ai solicitat resetarea parolei, poți ignora acest email.'
     flash:
         token_invalid: 'Linkul de resetare este invalid sau a expirat. Încearcă din nou.'
-        password_too_short: 'Parola trebuie să aibă cel puțin 6 caractere.'
         passwords_mismatch: 'Parolele nu se potrivesc.'
         success: 'Parola a fost schimbată cu succes. Te poți autentifica acum.'
 

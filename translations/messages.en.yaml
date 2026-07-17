@@ -186,6 +186,10 @@ form:
         password: 'Password'
         password_confirm: 'Confirm password'
         agree_terms: 'I agree to the terms and conditions'
+    password:
+        required: 'Please enter a password.'
+        min_length: 'The password must be at least {{ limit }} characters long.'
+        compromised: 'This password has appeared in a known data breach. Please choose another one.'
 
 # =============================================================================
 # Language switcher
@@ -1467,6 +1471,7 @@ reset_password:
         title: 'Reset password'
         description: 'Enter your email address and we will send you a reset link.'
         email_label: 'Email'
+        email_required: 'Please enter your email address.'
         submit: 'Send reset link'
         back_to_login: 'Back to sign in'
     check_email:
@@ -1487,7 +1492,6 @@ reset_password:
         ignore_note: 'If you did not request a password reset, you can ignore this email.'
     flash:
         token_invalid: 'The reset link is invalid or has expired. Please try again.'
-        password_too_short: 'Password must be at least 6 characters.'
         passwords_mismatch: 'Passwords do not match.'
         success: 'Your password has been changed successfully. You can now sign in.'
 

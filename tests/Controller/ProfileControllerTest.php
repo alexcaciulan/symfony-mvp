@@ -67,7 +67,7 @@ class ProfileControllerTest extends WebTestCase
         $crawler = $client->request('GET', '/profile/edit');
         $this->assertResponseIsSuccessful();
 
-        $form = $crawler->filter('form button[type="submit"]')->form([
+        $form = $crawler->filter('form:not([action="/logout"]) button[type="submit"]')->form([
             'profile_edit[firstName]' => 'Ion',
             'profile_edit[lastName]' => 'Popescu',
             'profile_edit[phone]' => '0721000000',
@@ -94,7 +94,7 @@ class ProfileControllerTest extends WebTestCase
         $client->loginUser($user);
 
         $crawler = $client->request('GET', '/profile/edit');
-        $form = $crawler->filter('form button[type="submit"]')->form([
+        $form = $crawler->filter('form:not([action="/logout"]) button[type="submit"]')->form([
             'profile_edit[companyName]' => 'Cabinet de Avocat Popescu',
             'profile_edit[cui]' => 'RO12345678',
             'profile_edit[street]' => 'Str. Test',
@@ -123,10 +123,10 @@ class ProfileControllerTest extends WebTestCase
         $crawler = $client->request('GET', '/profile/change-password');
         $this->assertResponseIsSuccessful();
 
-        $form = $crawler->filter('form button[type="submit"]')->form([
+        $form = $crawler->filter('form:not([action="/logout"]) button[type="submit"]')->form([
             'change_password[currentPassword]' => 'password123',
-            'change_password[newPassword][first]' => 'newpass456',
-            'change_password[newPassword][second]' => 'newpass456',
+            'change_password[newPassword][first]' => 'Nw8pKm3Lq7Rz',
+            'change_password[newPassword][second]' => 'Nw8pKm3Lq7Rz',
         ]);
 
         $client->submit($form);
@@ -144,10 +144,10 @@ class ProfileControllerTest extends WebTestCase
 
         $crawler = $client->request('GET', '/profile/change-password');
 
-        $form = $crawler->filter('form button[type="submit"]')->form([
+        $form = $crawler->filter('form:not([action="/logout"]) button[type="submit"]')->form([
             'change_password[currentPassword]' => 'wrongpassword',
-            'change_password[newPassword][first]' => 'newpass456',
-            'change_password[newPassword][second]' => 'newpass456',
+            'change_password[newPassword][first]' => 'Nw8pKm3Lq7Rz',
+            'change_password[newPassword][second]' => 'Nw8pKm3Lq7Rz',
         ]);
 
         $client->submit($form);

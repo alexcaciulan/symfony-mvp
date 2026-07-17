@@ -10,8 +10,6 @@ use Symfony\Component\Form\Extension\Core\Type\RepeatedType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints\IsTrue;
-use Symfony\Component\Validator\Constraints\Length;
-use Symfony\Component\Validator\Constraints\NotBlank;
 
 class RegistrationFormType extends AbstractType
 {
@@ -37,16 +35,7 @@ class RegistrationFormType extends AbstractType
                 'first_options' => [
                     'label' => 'form.registration.password',
                     'attr' => ['autocomplete' => 'new-password'],
-                    'constraints' => [
-                        new NotBlank(
-                            message: 'form.registration.password_required',
-                        ),
-                        new Length(
-                            min: 6,
-                            max: 4096,
-                            minMessage: 'form.registration.password_min_length',
-                        ),
-                    ],
+                    'constraints' => PasswordConstraints::forNewPassword(),
                 ],
                 'second_options' => [
                     'label' => 'form.registration.password_confirm',

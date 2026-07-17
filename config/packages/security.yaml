@@ -28,6 +28,7 @@ security:
                 interval: '1 minute'
             logout:
                 path: app_logout
+                enable_csrf: true
                 # where to redirect after logout
                 # target: app_any_route
 

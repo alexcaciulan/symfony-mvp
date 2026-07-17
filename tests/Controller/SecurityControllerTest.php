@@ -92,10 +92,49 @@ class SecurityControllerTest extends WebTestCase
         $user = $this->createTestUser($em, $hasher);
         $client->loginUser($user);
 
-        $client->request('GET', '/logout');
+        // Logout is now CSRF-protected: submit the form (which carries the token).
+        $crawler = $client->request('GET', '/');
+        $client->submit($crawler->filter('form[action="/logout"] button')->form());
         $this->assertResponseRedirects();
 
         // Clean up
+        $em->getConnection()->executeStatement("DELETE FROM user WHERE email = 'security-test@example.com'");
+    }
+
+    public function testLogoutViaGetIsRejected(): void
+    {
+        $client = static::createClient();
+        $em = $client->getContainer()->get('doctrine.orm.entity_manager');
+        $hasher = $client->getContainer()->get('security.user_password_hasher');
+
+        $user = $this->createTestUser($em, $hasher);
+        $client->loginUser($user);
+
+        // A plain GET (e.g. <img src="/logout">) must not log the user out.
+        $client->request('GET', '/logout');
+        self::assertSame(403, $client->getResponse()->getStatusCode());
+
+        $em->getConnection()->executeStatement("DELETE FROM user WHERE email = 'security-test@example.com'");
+    }
+
+    public function testLogoutRejectsForgedCrossOriginPost(): void
+    {
+        $client = static::createClient();
+        $em = $client->getContainer()->get('doctrine.orm.entity_manager');
+        $hasher = $client->getContainer()->get('security.user_password_hasher');
+
+        $user = $this->createTestUser($em, $hasher);
+        $client->loginUser($user);
+
+        // The real CSRF attack shape: an attacker page auto-submits a POST to /logout with
+        // a foreign Origin/Referer and no valid double-submit cookie. The same-origin CSRF
+        // check must reject it.
+        $client->request('POST', '/logout', [], [], [
+            'HTTP_REFERER' => 'https://evil.example.com/',
+            'HTTP_ORIGIN' => 'https://evil.example.com',
+        ]);
+        self::assertSame(403, $client->getResponse()->getStatusCode());
+
         $em->getConnection()->executeStatement("DELETE FROM user WHERE email = 'security-test@example.com'");
     }
 

@@ -38,7 +38,10 @@
                 {% if app.user %}
                     <div class="mb-4 px-4 py-3 rounded-lg bg-blue-50 text-blue-800 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-200 dark:border-blue-900 text-sm">
                         {{ 'login.logged_in_as'|trans }} <strong>{{ app.user.userIdentifier }}</strong>.
-                        <a href="{{ path('app_logout') }}" class="font-semibold underline">{{ 'login.logout'|trans }}</a>
+                        <form method="post" action="{{ path('app_logout') }}" class="inline">
+                            <input type="hidden" name="_csrf_token" data-controller="csrf-protection" value="{{ csrf_token('logout') }}">
+                            <button type="submit" class="font-semibold underline bg-transparent border-0 p-0 cursor-pointer text-inherit">{{ 'login.logout'|trans }}</button>
+                        </form>
                     </div>
                 {% endif %}
 
