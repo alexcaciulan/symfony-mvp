@@ -47,6 +47,8 @@
         'data-controller': 'person-type-toggle party-anaf-lookup',
         'data-party-anaf-lookup-url-value': anaf_lookup_url,
         'data-party-anaf-lookup-invalid-msg-value': 'exception.anaf.cui_invalid'|trans,
+        'data-party-anaf-lookup-rate-limited-msg-value': 'exception.anaf.rate_limited'|trans,
+        'data-party-anaf-lookup-not-found-msg-value': 'exception.anaf.not_found'|trans,
         'data-party-anaf-lookup-unavailable-msg-value': 'exception.anaf.unavailable'|trans,
     }}) }}
         {% if has_form_errors %}
@@ -110,13 +112,15 @@
             </div>
 
             <div data-person-type-toggle-target="pjOnly">
-                {{ f.field_label(form.cui, 'wizard.step1.field.cui', false, true) }}
+                <div class="flex items-center justify-between gap-2">
+                    {{ f.field_label(form.cui, 'wizard.step1.field.cui', false, true) }}
+                    {{ f.anaf_sync_button() }}
+                </div>
                 <div class="relative">
                     {{ form_widget(form.cui, { attr: {
                         class: f.input_classes(form.cui, 'font-mono')|trim,
                         placeholder: 'RO12345678',
                         'data-party-anaf-lookup-target': 'cui',
-                        'data-action': 'blur->party-anaf-lookup#lookup',
                     }}) }}
                     <span data-party-anaf-lookup-target="spinner"
                           class="hidden absolute right-3 top-1/2 -translate-y-1/2 size-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"

@@ -22,17 +22,19 @@ use Symfony\Component\Form\FormView;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
 /**
- * Pas 3.1 wizard step 2 form — one debtor entry inside the collection.
+ * Wizard step 2 form — one debtor entry inside the collection. Used as the
+ * `entry_type` of {@see Step2DebtorsType}, whose surrounding collection is a
+ * Live Component (add/remove actions).
  *
- * Used as the `entry_type` of {@see Step2DebtorsType}. In Pas 3.3 the
- * surrounding collection becomes a Live Component (add/remove actions);
- * this entry type stays unchanged.
- *
- * `inInsolvency` and `insolvencyCheckedAt` map the C7 BPI workflow — the
- * lawyer must tick "Verificat BPI azi" (the controller, Pas 3.2, sets
- * `insolvencyCheckedAt = now()` on tick). The ANAF metadata fields are
- * populated by the Stimulus controller in Pas 3.3 via lookup endpoint and
- * are not editable from the form; we omit them here.
+ * The BPI attestation is collected via the unmapped `bpiVerifiedToday`
+ * checkbox, bridged to the DTO's `insolvencyCheckedAt` timestamp by the SUBMIT
+ * listener; it is mandatory for PJ debtors only, since BPI (Legea 85/2014) is
+ * searched by CUI and the wizard collects a CUI only for PJ (see the caveat on
+ * professional-individual debtors in {@see Step2DebtorEntry}).
+ * The `Debtor::$inInsolvency` flag is no longer written from the wizard (a
+ * lawyer who finds the debtor in BPI must not file); it stays on the admin
+ * surface. The ANAF metadata fields (`anafStatus`, `anafCheckedAt`) are hidden
+ * inputs the party-anaf-lookup Stimulus controller fills on an explicit sync.
  */
 final class Step2DebtorEntryType extends AbstractType
 {
@@ -100,21 +102,17 @@ final class Step2DebtorEntryType extends AbstractType
                 'label' => 'wizard.step2.field.administrator',
                 'required' => false,
             ])
-            ->add('inInsolvency', CheckboxType::class, [
-                'label' => 'wizard.step2.field.in_insolvency',
-                'required' => false,
-            ])
-            // Virtual checkbox — "Am verificat BPI azi". Maps to a timestamp
-            // on the DTO via the SUBMIT listener below. The OpAdmissibilityValidator
-            // emits OP_INSOLVENCY_NOT_VERIFIED (ERROR) when `insolvencyCheckedAt`
-            // is null, so the user MUST tick this for any PJ debtor to pass step 4.
+            // Virtual checkbox — the BPI attestation. Maps to the
+            // `insolvencyCheckedAt` timestamp on the DTO via the SUBMIT listener
+            // below; the NotNull on that property (relayed here by
+            // `error_mapping`) is what blocks step 2 until it is ticked.
             ->add('bpiVerifiedToday', CheckboxType::class, [
                 'mapped' => false,
                 'label' => 'wizard.step2.field.bpi_verified_today',
                 'required' => false,
             ])
-            // ANAF metadata, populated client-side by the
-            // `party-anaf-lookup` Stimulus controller on CUI blur. Declared as
+            // ANAF metadata, populated client-side by the `party-anaf-lookup`
+            // Stimulus controller when the user hits the sync button. Declared as
             // unmapped HiddenType (the DTO has typed `?AnafStatus` and
             // `?\DateTimeImmutable` properties — direct Form-to-DTO mapping
             // would need a transformer). The SUBMIT listener below converts the
@@ -157,6 +155,9 @@ final class Step2DebtorEntryType extends AbstractType
                 // a previous PJ selection may have populated.
                 $data['anafStatus'] = null;
                 $data['anafCheckedAt'] = null;
+                // BPI is a Legea 85/2014 (PJ) concept; a PF debtor never carries
+                // the attestation, so drop a tick left over from a PJ selection.
+                unset($data['bpiVerifiedToday']);
             } elseif ($personType === PersonType::PJ->value) {
                 $data['personalId'] = null;
             }
@@ -164,12 +165,22 @@ final class Step2DebtorEntryType extends AbstractType
             $event->setData($data);
         });
 
+        // POST_SET_DATA — re-tick the virtual checkbox when the DTO already
+        // carries an attestation. It is unmapped, so it would otherwise render
+        // blank on back-navigation and the mandatory NotNull would fire against
+        // a debtor the lawyer already verified.
+        $builder->addEventListener(FormEvents::POST_SET_DATA, static function (FormEvent $event): void {
+            $entry = $event->getData();
+            if ($entry instanceof Step2DebtorEntry && $entry->insolvencyCheckedAt !== null) {
+                $event->getForm()->get('bpiVerifiedToday')->setData(true);
+            }
+        });
+
         // SUBMIT listener — convert the virtual `bpiVerifiedToday` checkbox to
-        // the real `insolvencyCheckedAt` timestamp on the DTO. We deliberately
-        // never reset an existing timestamp when the box is unticked — the user
-        // may have verified BPI on a previous session and we don't want a stale
-        // re-render to wipe that. If they want to invalidate, they tick the
-        // "Debitor în insolvență" box instead, which is the ERROR path.
+        // the real `insolvencyCheckedAt` timestamp on the DTO. Unticking clears
+        // the timestamp, which the NotNull then rejects: the attestation is a
+        // statement about the debtor's current BPI state, so it cannot be left
+        // standing once the lawyer withdraws it.
         $builder->addEventListener(FormEvents::SUBMIT, static function (FormEvent $event): void {
             $entry = $event->getData();
             if (!$entry instanceof Step2DebtorEntry) {
@@ -178,9 +189,9 @@ final class Step2DebtorEntryType extends AbstractType
             $form = $event->getForm();
 
             $checkbox = $form->get('bpiVerifiedToday')->getData();
-            if ($checkbox === true) {
-                $entry->insolvencyCheckedAt = new \DateTimeImmutable();
-            }
+            $entry->insolvencyCheckedAt = $checkbox === true
+                ? $entry->insolvencyCheckedAt ?? new \DateTimeImmutable()
+                : null;
 
             // Map raw HTML form values (populated by the Stimulus ANAF lookup)
             // back to the typed DTO properties. Empty strings → null so a fresh
@@ -219,6 +230,9 @@ final class Step2DebtorEntryType extends AbstractType
             // CSRF is owned by the wrapping Step2DebtorsType — entries are
             // children of the collection and inherit no token of their own.
             'csrf_protection' => false,
+            // `insolvencyCheckedAt` has no widget of its own — surface its
+            // violation on the checkbox the lawyer actually sees.
+            'error_mapping' => ['insolvencyCheckedAt' => 'bpiVerifiedToday'],
         ]);
     }
 }

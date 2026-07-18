@@ -81,6 +81,8 @@ final class Step2DebtorsDataTest extends KernelTestCase
             cui: '14186770',
             onrcNumber: 'J40/8765/2019',
             address: 'Bd. Test 2, Cluj-Napoca',
+            // Mandatory BPI attestation — a debtor without it never validates.
+            insolvencyCheckedAt: new \DateTimeImmutable(),
         );
     }
 }

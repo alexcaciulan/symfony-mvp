@@ -47,6 +47,7 @@ wizard:
             cui_required: 'CUI-ul debitorului este obligatoriu pentru persoană juridică.'
             onrc_required: 'Numărul ONRC al debitorului este obligatoriu pentru persoană juridică.'
             cnp_required: 'CNP-ul debitorului este obligatoriu pentru persoană fizică.'
+            bpi_verification_required: 'Confirmă verificarea BPI pentru a continua. Ordonanța de plată nu poate fi depusă împotriva unui debitor aflat în insolvență.'
             at_least_one_debtor: 'Trebuie să adaugi cel puțin un debitor.'
             too_many_debtors: 'Poți adăuga maxim 5 debitori într-un singur dosar.'
     step3:

@@ -36,6 +36,10 @@ final readonly class ExtractedDocumentData
                 'personalId' => $this->creditor->personalId,
                 'onrcNumber' => $this->creditor->onrcNumber,
                 'address' => $this->creditor->address,
+                // county/locality select the stamp-duty town hall and are read
+                // back by PrefillFromExtractionService; they must round-trip here.
+                'county' => $this->creditor->county,
+                'locality' => $this->creditor->locality,
                 'email' => $this->creditor->email,
                 'phone' => $this->creditor->phone,
                 'iban' => $this->creditor->iban,

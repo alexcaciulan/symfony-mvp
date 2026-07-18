@@ -8,7 +8,7 @@ use App\DTO\StampDuty\StampDutyPaymentTarget;
 use App\Entity\LegalCase;
 use App\Enum\StampDutyTargetStatus;
 use App\Repository\CityRepository;
-use App\Service\Court\LocalityNormalizer;
+use App\Service\Court\RomanianAddressNormalizer;
 
 /**
  * Resolves the UAT whose local budget collects the judicial stamp duty: the one
@@ -29,8 +29,15 @@ final class StampDutyUatResolver
         $creditor = $case->getCreditor();
         $courtName = $case->getCourt()?->getName();
 
-        $county = LocalityNormalizer::normalize($creditor?->getAddressCounty());
-        $locality = LocalityNormalizer::normalize($creditor?->getAddressLocality());
+        // Both ANAF and the AI extraction feed this field, and they decorate the
+        // registered office differently: ANAF answers "MUNICIPIUL BUCUREŞTI" /
+        // "Sector 6 Mun. Bucureşti", the AI returns bare "București" / "Sector 6".
+        // RomanianAddressNormalizer reconciles either spelling with the SIRUTA
+        // nomenclature (strips county qualifiers, extracts the Bucharest sector,
+        // and resolves an ANAF village like "Sat Dancu Com. Holboca" to its
+        // commune, the UAT that actually collects the duty per art. 40 alin. 1).
+        $county = RomanianAddressNormalizer::normalizeCounty($creditor?->getAddressCounty());
+        $locality = RomanianAddressNormalizer::normalizeLocality($creditor?->getAddressLocality(), $county);
 
         if ($county === null || $locality === null) {
             return new StampDutyPaymentTarget(StampDutyTargetStatus::LOCATION_MISSING, courtName: $courtName);
@@ -38,37 +45,10 @@ final class StampDutyUatResolver
 
         $uat = $this->cityRepository->findOneByCountyNameAndNormalizedName($county, $locality);
 
-        // ANAF reports the village, not the UAT that collects the duty: a company seated
-        // in Dancu comes back as "Sat Dancu Com. Holboca", while the budget account
-        // belongs to the commune of Holboca. Without this, every rural registered office
-        // would land on "locality unknown" and force the lawyer to correct it by hand.
-        if ($uat === null) {
-            $commune = $this->communeFromVillageAddress($locality);
-            if ($commune !== null) {
-                $uat = $this->cityRepository->findOneByCountyNameAndNormalizedName($county, $commune);
-            }
-        }
-
         if ($uat === null) {
             return new StampDutyPaymentTarget(StampDutyTargetStatus::UNMATCHED, courtName: $courtName);
         }
 
         return new StampDutyPaymentTarget(StampDutyTargetStatus::RESOLVED, $uat, $courtName);
-    }
-
-    /**
-     * Pulls the commune out of an ANAF-style village address ("sat dancu com. holboca"
-     * → "holboca"). Returns null when the value carries no commune marker, so a plain
-     * town name is never mangled.
-     */
-    private function communeFromVillageAddress(string $normalizedLocality): ?string
-    {
-        if (preg_match('/\bcom(?:\.|una)?\s+(.+)$/u', $normalizedLocality, $matches) !== 1) {
-            return null;
-        }
-
-        $commune = trim($matches[1]);
-
-        return $commune !== '' ? $commune : null;
     }
 }

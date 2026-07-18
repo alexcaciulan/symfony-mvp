@@ -33,6 +33,7 @@ final class Step2DebtorsTypeTest extends KernelTestCase
                     'cui' => '14186770',
                     'onrcNumber' => 'J40/8765/2019',
                     'address' => 'Bd. Test 2',
+                    'bpiVerifiedToday' => '1',
                 ],
             ],
         ]);
@@ -49,8 +50,8 @@ final class Step2DebtorsTypeTest extends KernelTestCase
         $form = $this->buildForm();
         $form->submit([
             'debtors' => [
-                ['personType' => 'PJ', 'name' => 'SC Bar SRL', 'cui' => '14186770', 'onrcNumber' => 'J40/8765/2019', 'address' => 'Bd. Test 2'],
-                ['personType' => 'PJ', 'name' => 'SC Baz SRL', 'cui' => '15193236', 'onrcNumber' => 'J40/1234/2018', 'address' => 'Str. Test 3'],
+                ['personType' => 'PJ', 'name' => 'SC Bar SRL', 'cui' => '14186770', 'onrcNumber' => 'J40/8765/2019', 'address' => 'Bd. Test 2', 'bpiVerifiedToday' => '1'],
+                ['personType' => 'PJ', 'name' => 'SC Baz SRL', 'cui' => '15193236', 'onrcNumber' => 'J40/1234/2018', 'address' => 'Str. Test 3', 'bpiVerifiedToday' => '1'],
             ],
         ]);
 
@@ -62,7 +63,7 @@ final class Step2DebtorsTypeTest extends KernelTestCase
     {
         $entries = [];
         for ($i = 0; $i < 6; $i++) {
-            $entries[] = ['personType' => 'PJ', 'name' => "SC X{$i}", 'cui' => '14186770', 'onrcNumber' => 'J40/8765/2019', 'address' => "Addr {$i}"];
+            $entries[] = ['personType' => 'PJ', 'name' => "SC X{$i}", 'cui' => '14186770', 'onrcNumber' => 'J40/8765/2019', 'address' => "Addr {$i}", 'bpiVerifiedToday' => '1'];
         }
 
         $form = $this->buildForm();
@@ -95,7 +96,7 @@ final class Step2DebtorsTypeTest extends KernelTestCase
         // setter (this is what `by_reference: false` enables on the DTO).
         $form->submit([
             'debtors' => [
-                ['personType' => 'PJ', 'name' => 'A', 'cui' => '14186770', 'onrcNumber' => 'J40/8765/2019', 'address' => 'X'],
+                ['personType' => 'PJ', 'name' => 'A', 'cui' => '14186770', 'onrcNumber' => 'J40/8765/2019', 'address' => 'X', 'bpiVerifiedToday' => '1'],
             ],
         ]);
 

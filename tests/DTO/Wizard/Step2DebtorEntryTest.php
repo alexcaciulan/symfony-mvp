@@ -31,6 +31,7 @@ final class Step2DebtorEntryTest extends KernelTestCase
             cui: '14186770',
             onrcNumber: 'J40/8765/2019',
             address: 'Bd. Test 2, Cluj-Napoca',
+            insolvencyCheckedAt: new \DateTimeImmutable(),
         );
 
         $violations = $this->validator->validate($dto);
@@ -38,7 +39,13 @@ final class Step2DebtorEntryTest extends KernelTestCase
         self::assertCount(0, $violations, (string) $violations);
     }
 
-    public function testValidPfDebtorPasses(): void
+    /**
+     * A PF debtor is valid WITHOUT a BPI attestation: BPI (Legea 85/2014) covers
+     * legal entities searchable by CUI, while an individual's insolvency lives in
+     * BIPF (Legea 151/2015) with no CUI lookup, so requiring the attestation for a
+     * PF debtor would compel a false statement.
+     */
+    public function testValidPfDebtorPassesWithoutBpiAttestation(): void
     {
         $dto = new Step2DebtorEntry(
             personType: PersonType::PF,
@@ -50,6 +57,26 @@ final class Step2DebtorEntryTest extends KernelTestCase
         $violations = $this->validator->validate($dto);
 
         self::assertCount(0, $violations, (string) $violations);
+    }
+
+    /**
+     * The BPI attestation gates step 2 for a PJ debtor so the lawyer learns about
+     * an insolvent company now, rather than after filling in three more steps and
+     * hitting OpAdmissibilityValidator at step 4.
+     */
+    public function testDebtorWithoutBpiConfirmationIsInvalid(): void
+    {
+        $dto = new Step2DebtorEntry(
+            personType: PersonType::PJ,
+            name: 'SC Bar SRL',
+            cui: '14186770',
+            onrcNumber: 'J40/8765/2019',
+            address: 'Bd. Test 2, Cluj-Napoca',
+        );
+
+        $violations = $this->validator->validate($dto);
+
+        self::assertViolation($violations, 'insolvencyCheckedAt', 'wizard.step2.error.bpi_verification_required');
     }
 
     public function testMissingPersonTypeIsInvalid(): void

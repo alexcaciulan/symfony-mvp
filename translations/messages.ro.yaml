@@ -212,6 +212,10 @@ wizard:
         optional_suffix: '(opțional)'
         auto: 'auto'
         auto_filled_tooltip: 'Auto-completat din documente'
+    # Shared by the creditor (step 1) and debtor (step 2) ANAF sync button.
+    anaf:
+        sync_button: 'Sincronizează info ANAF'
+        synced: 'Date sincronizate din ANAF'
     stepper:
         label: 'Etape wizard'
         completed: 'Pas finalizat'
@@ -229,7 +233,7 @@ wizard:
             title: 'Despre acest pas'
             body: 'Dacă creditorul este deja salvat în catalogul tău (cabinet), îl poți selecta. Altfel completează manual câmpurile principale: tip persoană, denumire, adresă. CUI și ONRC sunt opționale pentru persoane fizice.'
             iban_format: 'Format: RO + 2 cifre + 4 litere bancă + 16 cifre cont. Spațiile sunt permise (le ignorăm la validare).'
-            anaf_lookup: 'La ieșirea din câmp, datele firmei se completează automat din ANAF.'
+            anaf_lookup: 'Apasă „Sincronizează info ANAF" ca să completezi datele firmei din registrul ANAF.'
             stamp_duty_uat: 'Localitatea sediului stabilește primăria unde se achită taxa de timbru (OUG 80/2013 art. 40).'
         toggle:
             existing: 'Selectează creditor existent'
@@ -282,7 +286,7 @@ wizard:
         flash:
             max_debtors_reached: 'Maxim 5 debitori per dosar (limită produs).'
         help:
-            anaf_pas33: 'Introdu CUI-ul și apasă în afară. Verificarea ANAF rulează automat.'
+            anaf_lookup: 'Apasă „Sincronizează info ANAF" ca să verifici debitorul și să completezi datele din registrul ANAF.'
         anaf:
             verified: 'ANAF verificat'
             lookup_loading: 'Verificare ANAF...'
@@ -326,9 +330,8 @@ wizard:
             phone: 'Telefon'
             iban: 'IBAN'
             administrator: 'Administrator'
-            in_insolvency: 'Debitor în insolvență (Legea 85/2014)'
             in_insolvency_short: 'Insolvență'
-            bpi_verified_today: 'Am verificat BPI azi; debitorul NU este în insolvență'
+            bpi_verified_today: 'Am verificat BPI; debitorul NU este în insolvență'
         placeholder:
             person_type: '-- Selectează tip persoană --'
     step3:

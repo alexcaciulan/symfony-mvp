@@ -14,6 +14,7 @@ use App\Enum\PersonType;
 use App\Enum\StampDutyTargetStatus;
 use App\Repository\CityRepository;
 use App\Service\StampDuty\StampDutyUatResolver;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -93,6 +94,39 @@ final class StampDutyUatResolverTest extends TestCase
         $target = (new StampDutyUatResolver($repository))->resolve($this->makeCase('Cluj', 'Cluj-Napoca'));
 
         self::assertSame('Cluj-Napoca', $target->uatName());
+    }
+
+    /**
+     * A Bucharest claimant reaches the sector town hall regardless of spelling.
+     * ANAF answers "MUNICIPIUL BUCUREŞTI" / "Sector 6 Mun. Bucureşti" (its live
+     * form), which before the address normalizer matched no UAT and forced the
+     * lawyer to correct the office by hand. The AI extraction's bare "București"
+     * / "Sector 6" must resolve to the same row.
+     */
+    #[DataProvider('bucharestOfficeSpellings')]
+    public function testResolvesBucharestSectorRegardlessOfSpelling(string $county, string $locality): void
+    {
+        $bucuresti = $this->makeCounty('București', 'bucuresti');
+        $sector = $this->makeCity('Sector 6', 'sector 6', $bucuresti);
+
+        $repository = $this->createMock(CityRepository::class);
+        $repository->expects(self::once())
+            ->method('findOneByCountyNameAndNormalizedName')
+            ->with('bucuresti', 'sector 6')
+            ->willReturn($sector);
+
+        $target = (new StampDutyUatResolver($repository))->resolve($this->makeCase($county, $locality));
+
+        self::assertTrue($target->isResolved());
+        self::assertSame('Sector 6', $target->uatName());
+    }
+
+    /** @return iterable<string, array{string, string}> */
+    public static function bucharestOfficeSpellings(): iterable
+    {
+        yield 'anaf spelling' => ['MUNICIPIUL BUCUREŞTI', 'Sector 6 Mun. Bucureşti'];
+        yield 'ai spelling' => ['București', 'Sector 6'];
+        yield 'e-factura spelling' => ['BUCUREŞTI', 'SECTOR6'];
     }
 
     public function testReportsLocationMissingWhenCreditorHasNoStructuredOffice(): void

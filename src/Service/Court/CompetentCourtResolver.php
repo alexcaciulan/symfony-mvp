@@ -95,16 +95,16 @@ final class CompetentCourtResolver
             return new CourtResolveResult($specialized[0], [], 'court.resolver.matched_tribunal_specializat', $breakdown);
         }
         if (count($specialized) > 1) {
-            return new CourtResolveResult(null, array_values($specialized), 'court.resolver.tribunal_ambiguous', $breakdown);
+            return new CourtResolveResult(null, array_values($specialized), 'court.resolver.tribunal_ambiguous', $breakdown, ['%county%' => $county]);
         }
 
         $candidates = $this->courtRepository->findActiveByTypeAndCounty(CourtType::TRIBUNAL, $county);
 
         if (count($candidates) === 0) {
-            return new CourtResolveResult(null, [], 'court.resolver.tribunal_missing', $breakdown);
+            return new CourtResolveResult(null, [], 'court.resolver.tribunal_missing', $breakdown, ['%county%' => $county]);
         }
         if (count($candidates) > 1) {
-            return new CourtResolveResult(null, array_values($candidates), 'court.resolver.tribunal_ambiguous', $breakdown);
+            return new CourtResolveResult(null, array_values($candidates), 'court.resolver.tribunal_ambiguous', $breakdown, ['%county%' => $county]);
         }
 
         return new CourtResolveResult($candidates[0], [], 'court.resolver.matched_tribunal', $breakdown);
@@ -118,10 +118,15 @@ final class CompetentCourtResolver
         $candidates = $this->courtRepository->findActiveByTypeAndCounty(CourtType::JUDECATORIE, $county);
 
         if (count($candidates) === 0) {
-            return new CourtResolveResult(null, [], 'court.resolver.no_judecatorie_in_county', $breakdown);
+            return new CourtResolveResult(null, [], 'court.resolver.no_judecatorie_in_county', $breakdown, ['%county%' => $county]);
         }
 
-        $normalizedLocality = LocalityNormalizer::normalize($locality);
+        // Normalized in the county's context: Bucharest localities carry the
+        // sector, which is what `city` actually stores there.
+        $normalizedLocality = RomanianAddressNormalizer::normalizeLocality(
+            $locality,
+            RomanianAddressNormalizer::normalizeCounty($county),
+        );
         if ($normalizedLocality === null) {
             return new CourtResolveResult(null, array_values($candidates), 'court.resolver.locality_unmatched_pick_manually', $breakdown);
         }

@@ -115,7 +115,7 @@ final class PrefillFromExtractionService
                 continue;
             }
             $confidence = is_array($creditor['confidencePerField'] ?? null) ? $creditor['confidencePerField'] : [];
-            foreach (['personType', 'name', 'cui', 'personalId', 'onrcNumber', 'address', 'email', 'phone', 'iban', 'legalRepresentative', 'bankName'] as $field) {
+            foreach (['personType', 'name', 'cui', 'personalId', 'onrcNumber', 'address', 'county', 'locality', 'email', 'phone', 'iban', 'legalRepresentative', 'bankName'] as $field) {
                 $this->captureCandidate($bag, $field, $creditor[$field] ?? null, $confidence[$field] ?? null);
             }
         }
@@ -224,13 +224,32 @@ final class PrefillFromExtractionService
             personalId: $this->toStringOrNull($v['personalId'] ?? null),
             onrcNumber: $this->toStringOrNull($v['onrcNumber'] ?? null),
             address: $this->toStringOrNull($v['address'] ?? null),
+            addressCounty: $this->toStringOrNull($v['county'] ?? null),
+            addressLocality: $this->toStringOrNull($v['locality'] ?? null),
             email: $this->toStringOrNull($v['email'] ?? null),
             phone: $this->toStringOrNull($v['phone'] ?? null),
             iban: $this->toStringOrNull($v['iban'] ?? null),
             legalRepresentative: $this->toStringOrNull($v['legalRepresentative'] ?? null),
             bankName: $this->toStringOrNull($v['bankName'] ?? null),
-            autoFilled: $picked['autoFilled'],
+            autoFilled: $this->remapAddressFields($picked['autoFilled']),
         );
+    }
+
+    /**
+     * Extraction emits `county`/`locality`; both wizard forms expose them as
+     * `addressCounty`/`addressLocality`. Remap so the ⚡ auto-filled badge lands
+     * on the right inputs (AutoFilledMarker matches by field name).
+     *
+     * @param  list<string> $autoFilled
+     * @return list<string>
+     */
+    private function remapAddressFields(array $autoFilled): array
+    {
+        return array_map(static fn (string $f): string => match ($f) {
+            'county' => 'addressCounty',
+            'locality' => 'addressLocality',
+            default => $f,
+        }, $autoFilled);
     }
 
     /**
@@ -240,15 +259,6 @@ final class PrefillFromExtractionService
     {
         $picked = $this->pickBest($candidates);
         $v = $picked['values'];
-
-        // Extraction emits `county`/`locality`; the form fields are
-        // `addressCounty`/`addressLocality`. Remap so the ⚡ auto-filled badge
-        // lands on the right inputs (AutoFilledMarker matches by field name).
-        $autoFilled = array_map(static fn (string $f): string => match ($f) {
-            'county' => 'addressCounty',
-            'locality' => 'addressLocality',
-            default => $f,
-        }, $picked['autoFilled']);
 
         return new Step2DebtorEntry(
             personType: $this->toPersonType($v['personType'] ?? null),
@@ -263,7 +273,7 @@ final class PrefillFromExtractionService
             phone: $this->toStringOrNull($v['phone'] ?? null),
             iban: $this->toStringOrNull($v['iban'] ?? null),
             administrator: $this->toStringOrNull($v['administrator'] ?? null),
-            autoFilled: $autoFilled,
+            autoFilled: $this->remapAddressFields($picked['autoFilled']),
         );
     }
 

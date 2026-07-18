@@ -20,11 +20,11 @@ use Symfony\Component\Security\Http\Attribute\CurrentUser;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 /**
- * Internal JSON endpoint used by the `party-anaf-lookup` Stimulus controller. Hit on
- * CUI blur for the debtor in Step 2 and the creditor in Step 1, to populate
- * name/address plus the structured county/locality. Those two feed different
- * decisions: the competent court for the debtor, the stamp-duty payment UAT for the
- * creditor (OUG 80/2013 art. 40 alin. 1).
+ * Internal JSON endpoint used by the `party-anaf-lookup` Stimulus controller. Hit
+ * when the user presses the explicit "sync from ANAF" button on the debtor in
+ * Step 2 or the creditor in Step 1, to populate name/address plus the structured
+ * county/locality. Those two feed different decisions: the competent court for the
+ * debtor, the stamp-duty payment UAT for the creditor (OUG 80/2013 art. 40 alin. 1).
  *
  * Session-authenticated (firewall `main` covers `/api`); rate-limited via the
  * existing `company_lookup` factory (10/hour/user). The endpoint never proxies

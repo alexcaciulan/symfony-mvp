@@ -281,7 +281,7 @@
                 <strong class="text-white">
                     {% if court is null or court.court is null %}{{ 'wizard.step3.sidebar.court_placeholder'|trans }}{% else %}{{ court.court.name }} · {{ court.court.county.name }}{% endif %}
                 </strong>
-                {% if court is not null %}<span class="text-white/50">· {{ court.explanationKey|trans }}</span>{% endif %}
+                {% if court is not null %}<span class="text-white/50">· {{ court.explanationKey|trans(court.explanationParams) }}</span>{% endif %}
             </span>
         </div>
     </section>

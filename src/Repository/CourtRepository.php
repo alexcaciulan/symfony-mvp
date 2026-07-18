@@ -6,7 +6,7 @@ use App\Entity\Court;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\CourtType;
-use App\Service\Court\LocalityNormalizer;
+use App\Service\Court\RomanianAddressNormalizer;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -58,7 +58,7 @@ class CourtRepository extends ServiceEntityRepository
             ->addSelect('cc')
             ->where('co.normalizedName = :county')
             ->andWhere('c.active = true')
-            ->setParameter('county', LocalityNormalizer::normalize($county))
+            ->setParameter('county', RomanianAddressNormalizer::normalizeCounty($county))
             ->orderBy('c.name', 'ASC')
             ->getQuery()
             ->getResult();
@@ -75,7 +75,7 @@ class CourtRepository extends ServiceEntityRepository
             ->andWhere('co.normalizedName = :county')
             ->andWhere('c.active = true')
             ->setParameter('type', $type)
-            ->setParameter('county', LocalityNormalizer::normalize($county))
+            ->setParameter('county', RomanianAddressNormalizer::normalizeCounty($county))
             ->orderBy('c.name', 'ASC')
             ->getQuery()
             ->getResult();

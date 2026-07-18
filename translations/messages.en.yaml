@@ -212,6 +212,10 @@ wizard:
         optional_suffix: '(optional)'
         auto: 'auto'
         auto_filled_tooltip: 'Auto-filled from documents'
+    # Shared by the creditor (step 1) and debtor (step 2) ANAF sync button.
+    anaf:
+        sync_button: 'Sync ANAF data'
+        synced: 'Data synced from ANAF'
     stepper:
         label: 'Wizard steps'
         completed: 'Step completed'
@@ -229,7 +233,7 @@ wizard:
             title: 'About this step'
             body: 'If the creditor is already in your cabinet catalog you can pick them. Otherwise fill in the manual fields: person type, name, address. CUI and ONRC are optional for individuals.'
             iban_format: 'Format: RO + 2 digits + 4 bank letters + 16 account digits. Spaces are allowed (stripped on validation).'
-            anaf_lookup: 'On leaving the field, company data is filled automatically from ANAF.'
+            anaf_lookup: 'Press "Sync ANAF data" to fill in the company details from the ANAF registry.'
             stamp_duty_uat: 'The locality of the registered office decides the town hall where the stamp duty is paid (OUG 80/2013 art. 40).'
         toggle:
             existing: 'Pick existing creditor'
@@ -282,7 +286,7 @@ wizard:
         flash:
             max_debtors_reached: 'Max 5 debtors per case (product cap).'
         help:
-            anaf_pas33: 'Type the fiscal code and tab out. ANAF verification runs automatically.'
+            anaf_lookup: 'Press "Sync ANAF data" to verify the debtor and fill in the details from the ANAF registry.'
         anaf:
             verified: 'ANAF verified'
             lookup_loading: 'Verifying with ANAF...'
@@ -326,9 +330,8 @@ wizard:
             phone: 'Phone'
             iban: 'IBAN'
             administrator: 'Administrator'
-            in_insolvency: 'Debtor in insolvency (Law 85/2014)'
             in_insolvency_short: 'Insolvency'
-            bpi_verified_today: 'I checked BPI today; debtor is NOT in insolvency'
+            bpi_verified_today: 'I checked BPI; the debtor is NOT in insolvency'
         placeholder:
             person_type: '-- Select person type --'
     step3:

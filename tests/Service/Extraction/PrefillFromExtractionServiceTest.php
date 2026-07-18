@@ -206,6 +206,8 @@ final class PrefillFromExtractionServiceTest extends TestCase
                 'personalId' => null,
                 'onrcNumber' => 'J40/1234/2025',
                 'address' => 'Bd. Demo 100, București',
+                'county' => 'București',
+                'locality' => 'Sector 1',
                 'email' => 'contact@tehno.ro',
                 'phone' => '0721234567',
                 'iban' => 'RO49AAAA1B31007593840000',
@@ -217,6 +219,8 @@ final class PrefillFromExtractionServiceTest extends TestCase
                     'cui' => 0.99,
                     'onrcNumber' => 0.92,
                     'address' => 0.88,
+                    'county' => 0.91,
+                    'locality' => 0.89,
                     'email' => 0.90,
                     'phone' => 0.85,
                     'iban' => 0.93,
@@ -264,13 +268,17 @@ final class PrefillFromExtractionServiceTest extends TestCase
         self::assertSame('12345678', $creditor->cui);
         self::assertSame('J40/1234/2025', $creditor->onrcNumber);
         self::assertSame('Bd. Demo 100, București', $creditor->address);
+        // county/locality select the stamp-duty town hall (OUG 80/2013 art. 40
+        // alin. 1) and reach the form as addressCounty/addressLocality.
+        self::assertSame('București', $creditor->addressCounty);
+        self::assertSame('Sector 1', $creditor->addressLocality);
         self::assertSame('contact@tehno.ro', $creditor->email);
         self::assertSame('0721234567', $creditor->phone);
         self::assertSame('RO49AAAA1B31007593840000', $creditor->iban);
         self::assertSame('Popescu Ion', $creditor->legalRepresentative);
         self::assertSame('Banca Transilvania', $creditor->bankName);
         self::assertEqualsCanonicalizing(
-            ['personType', 'name', 'cui', 'onrcNumber', 'address', 'email', 'phone', 'iban', 'legalRepresentative', 'bankName'],
+            ['personType', 'name', 'cui', 'onrcNumber', 'address', 'addressCounty', 'addressLocality', 'email', 'phone', 'iban', 'legalRepresentative', 'bankName'],
             $creditor->autoFilled,
         );
 
@@ -402,6 +410,36 @@ final class PrefillFromExtractionServiceTest extends TestCase
 
         self::assertNull($creditor->name);
         self::assertSame([], $creditor->autoFilled);
+    }
+
+    /**
+     * A partial confidence map is the dangerous case: the strategy returns a
+     * value, the map simply omits its score, and the field vanishes with no
+     * error anywhere. This is what left `addressCounty` null on real invoices
+     * (the AI Vision confidencePerField example listed no county/locality, so
+     * the model scored neither), which surfaced to the lawyer as "Instanță
+     * nedeterminată". Pinned here so the prompt-to-gate contract is explicit:
+     * every field the prompt asks for must also appear in its scoring example.
+     */
+    public function testExtractedValuesWithoutTheirConfidenceEntryAreDropped(): void
+    {
+        $document = $this->buildDocumentWithExtractedData([
+            'debtor' => [
+                'name' => 'Datornic Trans SA',
+                'county' => 'Ilfov',
+                'locality' => 'București',
+                // Map present, but scores only `name`.
+                'confidencePerField' => ['name' => 0.95],
+            ],
+        ]);
+
+        $service = $this->buildServiceFor([$document]);
+        $debtor = $service->aggregateForDebtor([1]);
+
+        self::assertSame('Datornic Trans SA', $debtor->name);
+        self::assertNull($debtor->addressCounty);
+        self::assertNull($debtor->addressLocality);
+        self::assertSame(['name'], $debtor->autoFilled);
     }
 
     public function testAllConfidencesBelowThresholdReturnsEmptyDtos(): void

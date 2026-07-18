@@ -20,9 +20,11 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
  * required; for PF, `personalId` (CNP) is required — enforced by the
  * `validateConditionalRequiredFields` callback.
  *
- * ANAF/BPI metadata (`anafStatus`, `anafCheckedAt`, `inInsolvency`,
- * `insolvencyCheckedAt`) is filled in Pas 3.3 by the ANAF lookup Stimulus
- * controller + BPI manual confirmation checkbox.
+ * `anafStatus` / `anafCheckedAt` are filled by the ANAF lookup Stimulus
+ * controller; `insolvencyCheckedAt` by the mandatory BPI confirmation checkbox.
+ * `inInsolvency` is no longer writable from the wizard (a lawyer who finds the
+ * debtor in BPI must not file at all) but is still read by
+ * OpAdmissibilityValidator and writable from the admin surface.
  */
 class Step2DebtorEntry
 {
@@ -58,6 +60,14 @@ class Step2DebtorEntry
         public ?AnafStatus $anafStatus = null,
         public ?\DateTimeImmutable $anafCheckedAt = null,
         public bool $inInsolvency = false,
+        // Set from the `bpiVerifiedToday` checkbox by Step2DebtorEntryType. The
+        // attestation is mandatory only for a PJ debtor (enforced in the callback
+        // below): BPI (Legea 85/2014) is searched by CUI, which the wizard only
+        // collects for PJ. The PF path relies on the manual-check WARNING that
+        // OpAdmissibilityValidator emits at step 4, rather than a mandatory tick
+        // here. (A PFA/II/IF debtor is a professionist that does appear in BPI,
+        // but is still modelled as PersonType::PF in this MVP with no CUI field;
+        // treating it as a full professional debtor is deferred, see backlog.)
         public ?\DateTimeImmutable $insolvencyCheckedAt = null,
         public array $autoFilled = [],
     ) {}
@@ -80,6 +90,14 @@ class Step2DebtorEntry
             if ($this->onrcNumber === null || $this->onrcNumber === '') {
                 $context->buildViolation('wizard.step2.error.onrc_required')
                     ->atPath('onrcNumber')
+                    ->addViolation();
+            }
+            // BPI attestation, mandatory for legal entities only (see the
+            // property comment). Routed to the `bpiVerifiedToday` checkbox by
+            // the form's error_mapping.
+            if ($this->insolvencyCheckedAt === null) {
+                $context->buildViolation('wizard.step2.error.bpi_verification_required')
+                    ->atPath('insolvencyCheckedAt')
                     ->addViolation();
             }
         } elseif ($this->personType === PersonType::PF) {

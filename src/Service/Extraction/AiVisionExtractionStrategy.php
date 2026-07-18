@@ -347,12 +347,14 @@ Returnează JSON cu această schemă (toate câmpurile opționale dacă nu apar 
     "personalId": "13 cifre CNP dacă e persoană fizică",
     "onrcNumber": "format canonic J/F + jud/seq/an, ex: J40/1234/2025",
     "address": "...",
+    "county": "județul din adresă, ex: Cluj (fără prefix jud.)",
+    "locality": "localitatea din adresă, ex: Cluj-Napoca (fără prefix mun./oraș/comuna)",
     "email": "format valid email",
     "phone": "format compact RO: 0XXXXXXXXX sau +40XXXXXXXXX",
     "iban": "RO + 22 caractere",
     "legalRepresentative": "...",
     "bankName": "denumirea băncii unde e deschis contul creditorului, ex: Banca Transilvania",
-    "confidencePerField": {"personType": 0.98, "name": 0.95, "cui": 0.99, "onrcNumber": 0.92, "address": 0.9, "iban": 0.9, "bankName": 0.9}
+    "confidencePerField": {"personType": 0.98, "name": 0.95, "cui": 0.99, "onrcNumber": 0.92, "address": 0.9, "county": 0.9, "locality": 0.9, "iban": 0.9, "bankName": 0.9}
   },
   "debtor": {
     "personType": "PJ"|"PF",
@@ -368,7 +370,7 @@ Returnează JSON cu această schemă (toate câmpurile opționale dacă nu apar 
     "phone": "format compact RO",
     "iban": "RO + 22 caractere",
     "administrator": "nume reprezentant legal / administrator (PJ)",
-    "confidencePerField": {"personType": 0.98, "name": 0.95, "cui": 0.99, "onrcNumber": 0.92, "address": 0.9}
+    "confidencePerField": {"personType": 0.98, "name": 0.95, "cui": 0.99, "onrcNumber": 0.92, "address": 0.9, "county": 0.9, "locality": 0.9}
   },
   "claim": {
     "amount": 5000.50,
@@ -398,6 +400,21 @@ fără scor de confidence sunt IGNORATE la pre-completarea formularului.
 Pentru email/phone returnează `null` dacă nu apar explicit — nu inventa.
 Pentru onrcNumber respectă format `J40/1234/2025` (acceptă și „Nr. ORC",
 „Reg. Com.", „J40/...", „C.U.I./J..." din antetul documentului).
+
+ADRESĂ (`county` + `locality`) — se extrag pentru AMBELE părți:
+  • `county` alege instanța competentă pentru debitor și primăria care încasează
+    taxa de timbru pentru creditor. O valoare greșită trimite dosarul la instanța
+    greșită, deci NU ghici: dacă județul nu apare explicit sau nu rezultă fără
+    dubiu din localitate, returnează `null`.
+  • NU deduce județul din prefixul telefonic, din CUI sau din seria ONRC.
+  • Facturile e-Factura codifică județul ca ISO 3166-2 în câmpul „Regiune"
+    (ex: „RO-B" = București, „RO-CJ" = Cluj, „RO-IF" = Ilfov, „RO-TM" = Timiș).
+    Convertește codul în denumirea județului, nu îl copia ca atare.
+  • București: `county` este „București" (NU „Ilfov", care e alt județ, și nu
+    „Municipiul București"). Sectoarele apar adesea lipite sau cu sufix
+    („SECTOR1", „Sector 1 Mun. București", „Sectorul 1"): normalizează
+    `locality` la forma „Sector 1" … „Sector 6".
+  • Orice adresă care conține un sector are `county` = „București".
 
 PENALITĂȚI (penaltyType + contractualPenaltyRate):
   • Returnează `penaltyType="CONTRACTUAL"` ȘI `contractualPenaltyRate` (rata zilnică
@@ -478,6 +495,8 @@ PROMPT;
             personalId: $this->coerceString($raw['personalId'] ?? null),
             onrcNumber: $this->coerceString($raw['onrcNumber'] ?? null),
             address: $this->coerceString($raw['address'] ?? null),
+            county: $this->coerceString($raw['county'] ?? null),
+            locality: $this->coerceString($raw['locality'] ?? null),
             email: $this->coerceEmail($raw['email'] ?? null),
             phone: $this->coercePhone($raw['phone'] ?? null),
             iban: $this->coerceString($raw['iban'] ?? null),

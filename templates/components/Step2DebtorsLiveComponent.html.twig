@@ -42,9 +42,12 @@
                         {{ 'wizard.step2.entry_heading'|trans({ '%index%': loop.index }) }}
                     </h3>
                     <div class="flex items-center gap-2">
+                        {# Reflects the persisted status only. The live "synced" badge is
+                           rendered inside the party-anaf-lookup scope below, since Stimulus
+                           resolves targets within the controller element and this header is
+                           a sibling of it. #}
                         {% if entry_dto is not null and entry_dto.anafStatus is not null %}
-                            <span class="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300 px-2 py-0.5 rounded-full"
-                                  data-party-anaf-lookup-target="badge">
+                            <span class="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300 px-2 py-0.5 rounded-full">
                                 <svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                                 <span>{{ ('enum.anaf_status.' ~ entry_dto.anafStatus.value)|trans }}</span>
                             </span>
@@ -99,10 +102,10 @@
                 </div>
                 {% set _ = form_widget(entry.personType) %}
 
-                {# CUI input wired to party-anaf-lookup Stimulus controller.
-                   The controller-root wraps the whole entry so it can find
-                   the name/address/badge targets — but Stimulus only triggers
-                   `blur->party-anaf-lookup#lookup` on the CUI input. #}
+                {# Field order mirrors Step 1 (creditor) exactly: name, cui,
+                   onrcNumber, personalId, representative, address, county,
+                   locality, iban, email, phone. Same concept, same position on
+                   both screens. #}
                 {# URL generator validates against the route's `(RO)?\d{2,10}`
                    requirement, so `__CUI__` can't be passed directly. Build the
                    URL with a placeholder of 10 digits, then string-replace it
@@ -112,26 +115,9 @@
                      data-party-anaf-lookup-url-value="{{ anaf_lookup_url }}"
                      data-party-anaf-lookup-invalid-msg-value="{{ 'exception.anaf.cui_invalid'|trans }}"
                      data-party-anaf-lookup-unavailable-msg-value="{{ 'exception.anaf.unavailable'|trans }}"
+                     data-party-anaf-lookup-rate-limited-msg-value="{{ 'exception.anaf.rate_limited'|trans }}"
+                     data-party-anaf-lookup-not-found-msg-value="{{ 'exception.anaf.not_found'|trans }}"
                      class="space-y-6">
-                    <div class="relative" data-person-type-toggle-target="pjOnly">
-                        {{ f.field_label(entry.cui, 'wizard.step2.field.cui', false, true) }}
-                        {{ form_widget(entry.cui, { attr: {
-                            class: f.input_classes(entry.cui, 'font-mono')|trim,
-                            placeholder: 'RO12345678',
-                            'data-party-anaf-lookup-target': 'cui',
-                            'data-action': 'blur->party-anaf-lookup#lookup',
-                        }}) }}
-                        <span data-party-anaf-lookup-target="spinner"
-                              class="hidden absolute right-3 top-9 text-blue-600">
-                            <svg class="size-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                        </span>
-                        <p class="mt-1.5 text-[11px] text-slate-500">{{ 'wizard.step2.help.anaf_pas33'|trans }}</p>
-                        {{ f.field_errors(entry.cui) }}
-                    </div>
-
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="md:col-span-2">
                             {{ f.field_label(entry.name, 'wizard.step2.field.name', false, true) }}
@@ -140,6 +126,29 @@
                                 'data-party-anaf-lookup-target': 'name',
                             }}) }}
                             {{ f.field_errors(entry.name) }}
+                        </div>
+
+                        <div data-person-type-toggle-target="pjOnly">
+                            <div class="flex items-center justify-between gap-2">
+                                {{ f.field_label(entry.cui, 'wizard.step2.field.cui', false, true) }}
+                                {{ f.anaf_sync_button() }}
+                            </div>
+                            <div class="relative">
+                                {{ form_widget(entry.cui, { attr: {
+                                    class: f.input_classes(entry.cui, 'font-mono')|trim,
+                                    placeholder: 'RO12345678',
+                                    'data-party-anaf-lookup-target': 'cui',
+                                }}) }}
+                                <span data-party-anaf-lookup-target="spinner"
+                                      class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-blue-600">
+                                    <svg class="size-4 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                </span>
+                            </div>
+                            <p class="mt-1.5 text-[11px] text-slate-500">{{ 'wizard.step2.help.anaf_lookup'|trans }}</p>
+                            {{ f.field_errors(entry.cui) }}
                         </div>
 
                         <div data-person-type-toggle-target="pjOnly">
@@ -154,6 +163,14 @@
                             {{ f.field_errors(entry.personalId) }}
                         </div>
 
+                        {# Creditor's counterpart at this position is legalRepresentative;
+                           kept pjOnly because a natural-person debtor has no administrator. #}
+                        <div data-person-type-toggle-target="pjOnly">
+                            {{ f.field_label(entry.administrator, 'wizard.step2.field.administrator', true) }}
+                            {{ form_widget(entry.administrator, { attr: { class: f.input_classes(entry.administrator)|trim }}) }}
+                            {{ f.field_errors(entry.administrator) }}
+                        </div>
+
                         <div class="md:col-span-2">
                             {{ f.field_label(entry.address, 'wizard.step2.field.address', false, true) }}
                             {{ form_widget(entry.address, { attr: {
@@ -165,7 +182,8 @@
                         </div>
 
                         {# County + locality drive competent-court resolution at step 4.
-                           Auto-filled by the ANAF lookup; editable as manual fallback. #}
+                           Filled by the AI extraction, overwritten by an explicit ANAF
+                           sync; editable as manual fallback. #}
                         <div>
                             {{ f.field_label(entry.addressCounty, 'wizard.step2.field.address_county', true) }}
                             {{ form_widget(entry.addressCounty, { attr: {
@@ -184,10 +202,10 @@
                             {{ f.field_errors(entry.addressLocality) }}
                         </div>
 
-                        <div class="md:col-span-2" data-person-type-toggle-target="pjOnly">
-                            {{ f.field_label(entry.administrator, 'wizard.step2.field.administrator', true) }}
-                            {{ form_widget(entry.administrator, { attr: { class: f.input_classes(entry.administrator)|trim }}) }}
-                            {{ f.field_errors(entry.administrator) }}
+                        <div class="md:col-span-2">
+                            {{ f.field_label(entry.iban, 'wizard.step2.field.iban', true) }}
+                            {{ form_widget(entry.iban, { attr: { class: f.input_classes(entry.iban, 'font-mono')|trim, placeholder: 'RO49 RNCB 0082 0044 8001 0001' }}) }}
+                            {{ f.field_errors(entry.iban) }}
                         </div>
 
                         <div>
@@ -201,12 +219,14 @@
                             {{ form_widget(entry.phone, { attr: { class: f.input_classes(entry.phone)|trim }}) }}
                             {{ f.field_errors(entry.phone) }}
                         </div>
+                    </div>
 
-                        <div class="md:col-span-2">
-                            {{ f.field_label(entry.iban, 'wizard.step2.field.iban', true) }}
-                            {{ form_widget(entry.iban, { attr: { class: f.input_classes(entry.iban, 'font-mono')|trim, placeholder: 'RO49 RNCB 0082 0044 8001 0001' }}) }}
-                            {{ f.field_errors(entry.iban) }}
-                        </div>
+                    {# Lives inside the controller scope so the lookup can unhide it;
+                       the pre-filled variant in the card header cannot be a target. #}
+                    <div data-party-anaf-lookup-target="badge"
+                         class="{% if entry_dto is null or entry_dto.anafStatus is null %}hidden {% endif %}flex items-center gap-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+                        <svg class="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        <span>{{ 'wizard.anaf.synced'|trans }}</span>
                     </div>
 
                     {# ANAF metadata — populated by Stimulus on successful lookup.
@@ -217,8 +237,16 @@
                     {{ form_widget(entry.anafCheckedAt, { attr: { 'data-party-anaf-lookup-target': 'anafCheckedAt' }}) }}
                 </div>
 
-                {# BPI verification panel — unchanged from Pas 3.2. #}
-                <div class="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-lg p-4 space-y-3">
+                {# BPI verification panel, shown for PJ debtors only. BPI (Legea 85/2014)
+                   is searched by CUI, which the wizard collects only for PJ; the PF path
+                   falls back to the manual-check WARNING OpAdmissibilityValidator emits at
+                   step 4. For PJ the confirmation is mandatory: filing against an insolvent
+                   debtor is inadmissible, so the lawyer must attest the check before the
+                   case can move on. The former "debtor is insolvent" checkbox was removed
+                   from the wizard (a lawyer who finds insolvency must not file at all);
+                   Debtor::$inInsolvency itself stays, written from the admin surface. #}
+                <div class="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-lg p-4 space-y-3"
+                     data-person-type-toggle-target="pjOnly">
                     <div class="flex items-start gap-2.5">
                         <svg class="size-5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"/></svg>
                         <div class="text-sm">
@@ -231,15 +259,12 @@
                         {{ form_widget(entry.bpiVerifiedToday, { attr: {
                             'class': 'mt-0.5 rounded border-amber-400 text-amber-600 focus:ring-amber-500',
                         }}) }}
-                        <span class="text-sm font-medium text-amber-900 dark:text-amber-200">{{ 'wizard.step2.field.bpi_verified_today'|trans }}</span>
+                        <span class="text-sm font-medium text-amber-900 dark:text-amber-200">
+                            {{ 'wizard.step2.field.bpi_verified_today'|trans }}
+                            <span class="text-red-500 dark:text-red-400 ml-0.5" aria-hidden="true">*</span>
+                        </span>
                     </label>
-
-                    <label class="flex items-start gap-2 cursor-pointer pt-2 border-t border-amber-200 dark:border-amber-900/40">
-                        {{ form_widget(entry.inInsolvency, { attr: {
-                            'class': 'mt-0.5 rounded border-red-400 text-red-600 focus:ring-red-500',
-                        }}) }}
-                        <span class="text-sm text-red-700 dark:text-red-300">{{ 'wizard.step2.field.in_insolvency'|trans }}</span>
-                    </label>
+                    {{ f.field_errors(entry.bpiVerifiedToday) }}
                 </div>
 
                 {% if loop.last %}

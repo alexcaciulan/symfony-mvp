@@ -30,9 +30,97 @@ final class Step2DebtorEntryTypeTest extends KernelTestCase
             'cui' => '14186770',
             'onrcNumber' => 'J40/8765/2019',
             'address' => 'Bd. Test 2',
+            'bpiVerifiedToday' => '1',
         ]);
 
         self::assertTrue($form->isValid(), (string) $form->getErrors(true));
+    }
+
+    /**
+     * The BPI attestation is mandatory: without it the entry must not validate,
+     * and the violation has to surface on the checkbox the lawyer sees rather
+     * than on the widget-less `insolvencyCheckedAt` property.
+     */
+    public function testSubmitWithoutBpiConfirmationIsInvalid(): void
+    {
+        $form = $this->buildForm();
+        $form->submit([
+            'personType' => 'PJ',
+            'name' => 'SC Bar SRL',
+            'cui' => '14186770',
+            'onrcNumber' => 'J40/8765/2019',
+            'address' => 'Bd. Test 2',
+            // bpiVerifiedToday unticked
+        ]);
+
+        self::assertFalse($form->isValid());
+        self::assertGreaterThan(0, $form->get('bpiVerifiedToday')->getErrors()->count());
+        self::assertNull($form->getData()->insolvencyCheckedAt);
+    }
+
+    public function testTickingBpiConfirmationStampsTheTimestamp(): void
+    {
+        $form = $this->buildForm();
+        $form->submit([
+            'personType' => 'PJ',
+            'name' => 'SC Bar SRL',
+            'cui' => '14186770',
+            'onrcNumber' => 'J40/8765/2019',
+            'address' => 'Bd. Test 2',
+            'bpiVerifiedToday' => '1',
+        ]);
+
+        self::assertInstanceOf(\DateTimeImmutable::class, $form->getData()->insolvencyCheckedAt);
+    }
+
+    /**
+     * The attestation states the debtor is not in insolvency right now, so
+     * withdrawing it must clear the timestamp rather than leave the earlier
+     * confirmation standing.
+     */
+    public function testUntickingBpiConfirmationClearsAnExistingTimestamp(): void
+    {
+        $dto = new Step2DebtorEntry(
+            personType: PersonType::PJ,
+            name: 'SC Bar SRL',
+            cui: '14186770',
+            onrcNumber: 'J40/8765/2019',
+            address: 'Bd. Test 2',
+            insolvencyCheckedAt: new \DateTimeImmutable('-1 day'),
+        );
+
+        $form = $this->buildForm($dto);
+        $form->submit([
+            'personType' => 'PJ',
+            'name' => 'SC Bar SRL',
+            'cui' => '14186770',
+            'onrcNumber' => 'J40/8765/2019',
+            'address' => 'Bd. Test 2',
+            // bpiVerifiedToday unticked
+        ]);
+
+        self::assertFalse($form->isValid());
+        self::assertNull($form->getData()->insolvencyCheckedAt);
+    }
+
+    /**
+     * The checkbox is unmapped, so it renders blank on back-navigation unless
+     * the form re-ticks it from the DTO — otherwise returning to step 2 would
+     * block a debtor the lawyer already verified.
+     */
+    public function testExistingAttestationReticksTheCheckbox(): void
+    {
+        $dto = new Step2DebtorEntry(
+            personType: PersonType::PJ,
+            name: 'SC Bar SRL',
+            cui: '14186770',
+            address: 'Bd. Test 2',
+            insolvencyCheckedAt: new \DateTimeImmutable(),
+        );
+
+        $form = $this->buildForm($dto);
+
+        self::assertTrue($form->get('bpiVerifiedToday')->getData());
     }
 
     public function testSubmitPjMissingOnrcIsInvalid(): void
@@ -86,6 +174,7 @@ final class Step2DebtorEntryTypeTest extends KernelTestCase
             'administrator' => 'Ion Popescu', // stale (PF has no administrator)
             'personalId' => '1980715221232',
             'address' => 'Bd. Test 2',
+            'bpiVerifiedToday' => '1',        // stale — BPI does not apply to PF
         ]);
 
         self::assertTrue($form->isValid(), (string) $form->getErrors(true));
@@ -96,7 +185,27 @@ final class Step2DebtorEntryTypeTest extends KernelTestCase
         self::assertNull($dto->administrator, 'administrator must be cleared for PF');
         self::assertNull($dto->anafStatus, 'anafStatus must be cleared for PF (ANAF only applies to PJ)');
         self::assertNull($dto->anafCheckedAt, 'anafCheckedAt must be cleared for PF');
+        self::assertNull($dto->insolvencyCheckedAt, 'BPI attestation must be dropped for PF (Legea 85/2014 covers PJ)');
         self::assertSame('1980715221232', $dto->personalId);
+    }
+
+    /**
+     * A PF debtor validates without the BPI attestation: BPI (Legea 85/2014)
+     * covers PJ searchable by CUI, so the mandatory tick is PJ-only.
+     */
+    public function testPfDebtorIsValidWithoutBpiAttestation(): void
+    {
+        $form = $this->buildForm();
+        $form->submit([
+            'personType' => 'PF',
+            'name' => 'Ion Popescu',
+            'personalId' => '1980715221232',
+            'address' => 'Bd. Test 2',
+            // bpiVerifiedToday unticked
+        ]);
+
+        self::assertTrue($form->isValid(), (string) $form->getErrors(true));
+        self::assertNull($form->getData()->insolvencyCheckedAt);
     }
 
     public function testPersonTypePjClearsPersonalIdOnSubmit(): void
@@ -109,6 +218,7 @@ final class Step2DebtorEntryTypeTest extends KernelTestCase
             'onrcNumber' => 'J40/8765/2019',
             'address' => 'Bd. Test 2',
             'personalId' => '1980715221232', // stale from previous PF selection
+            'bpiVerifiedToday' => '1',
         ]);
 
         self::assertTrue($form->isValid(), (string) $form->getErrors(true));
@@ -129,6 +239,7 @@ final class Step2DebtorEntryTypeTest extends KernelTestCase
             'address' => 'Bd. Test 2',
             'addressCounty' => 'Cluj',
             'addressLocality' => 'Cluj-Napoca',
+            'bpiVerifiedToday' => '1',
         ]);
 
         self::assertTrue($form->isValid(), (string) $form->getErrors(true));
@@ -147,6 +258,7 @@ final class Step2DebtorEntryTypeTest extends KernelTestCase
             'onrcNumber' => 'J40/8765/2019',
             'address' => 'Bd. Test 2',
             // addressCounty + addressLocality omitted
+            'bpiVerifiedToday' => '1',
         ]);
 
         self::assertTrue($form->isValid(), (string) $form->getErrors(true));

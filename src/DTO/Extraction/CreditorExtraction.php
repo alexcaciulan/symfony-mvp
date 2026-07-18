@@ -20,6 +20,11 @@ final readonly class CreditorExtraction
         public ?string $personalId = null,
         public ?string $onrcNumber = null,
         public ?string $address = null,
+        // County + locality select the town hall that collects the stamp duty
+        // (OUG 80/2013 art. 40 alin. 1). Plain strings, not resolved against the
+        // County/City nomenclature. Null when the document does not carry them.
+        public ?string $county = null,
+        public ?string $locality = null,
         public ?string $email = null,
         public ?string $phone = null,
         public ?string $iban = null,

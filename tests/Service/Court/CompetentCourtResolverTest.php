@@ -206,6 +206,57 @@ class CompetentCourtResolverTest extends TestCase
         $this->assertNull($result->court);
         $this->assertCount(2, $result->alternatives);
         $this->assertSame('court.resolver.tribunal_ambiguous', $result->explanationKey);
+        // The message renders "%county%"; the resolver must supply the param.
+        $this->assertSame(['%county%' => 'Cluj'], $result->explanationParams);
+    }
+
+    /**
+     * When no tribunal exists in the county, the message names the county via a
+     * `%county%` placeholder, so the resolver must carry the substitution param.
+     * Guards the previously-broken literal-placeholder bug.
+     */
+    public function testTribunalMissingCarriesCountyParam(): void
+    {
+        $resolver = $this->makeResolver(
+            courts: [$this->makeJudecatorie('Judecătoria Cluj-Napoca', 'Cluj', ['Cluj-Napoca'])],
+            rates: [$this->makeRateConfig('2024-01-01', '6.00')],
+        );
+
+        $sameDate = new \DateTimeImmutable('2024-06-01');
+        $result = $resolver->resolve(
+            principal: 300_000.0,
+            dueDate: $sameDate,
+            referenceDate: $sameDate,
+            relationshipType: RelationshipType::COMERCIAL,
+            debtorCounty: 'Cluj',
+            debtorLocality: 'Cluj-Napoca',
+        );
+
+        $this->assertNull($result->court);
+        $this->assertSame('court.resolver.tribunal_missing', $result->explanationKey);
+        $this->assertSame(['%county%' => 'Cluj'], $result->explanationParams);
+    }
+
+    public function testNoJudecatorieInCountyCarriesCountyParam(): void
+    {
+        $resolver = $this->makeResolver(
+            courts: [$this->makeTribunal('Tribunalul Cluj', 'Cluj')],
+            rates: [$this->makeRateConfig('2024-01-01', '6.00')],
+        );
+
+        $sameDate = new \DateTimeImmutable('2024-06-01');
+        $result = $resolver->resolve(
+            principal: 5_000.0,
+            dueDate: $sameDate,
+            referenceDate: $sameDate,
+            relationshipType: RelationshipType::COMERCIAL,
+            debtorCounty: 'Cluj',
+            debtorLocality: 'Cluj-Napoca',
+        );
+
+        $this->assertNull($result->court);
+        $this->assertSame('court.resolver.no_judecatorie_in_county', $result->explanationKey);
+        $this->assertSame(['%county%' => 'Cluj'], $result->explanationParams);
     }
 
     public function testTribunalCountyWithoutSpecializedFallsBackToCommonTribunal(): void
