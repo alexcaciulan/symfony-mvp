@@ -38,6 +38,14 @@ final class CreditorAutocompleteType extends AbstractType
                 $c->getCui() ?? '—',
             ),
             'searchable_fields' => ['name', 'cui'],
+            // Don't query the library on open: wait for 2 typed characters. Keeps
+            // the dropdown from listing the whole cabinet up front and spares a
+            // round-trip on every focus. `preload` defaults to 'focus', which
+            // fires an empty-query load the moment the field is focused, so it
+            // must be turned off for `min_characters` to actually gate the first
+            // request.
+            'min_characters' => 2,
+            'preload' => false,
             'query_builder' => function (CreditorRepository $repo) {
                 $user = $this->security->getUser();
                 if (!$user instanceof User) {

@@ -155,12 +155,11 @@ final class Step1CreditorType extends AbstractType
             $event->setData($data);
         });
 
-        // POST_SUBMIT — bridge from the unmapped `creditorEntity` autocomplete
-        // field to the DTO's int `creditorId`. The autocomplete emits a
-        // Creditor entity (or null) — we copy its id back onto the DTO so the
-        // `validation_groups` closure in configureOptions sees `creditorId !==
-        // null` and drops the `manual` group (skipping NotBlank/Callback on
-        // the manual fields).
+        // POST_SUBMIT bridge: copy the picked `creditorEntity` id onto the DTO's
+        // `creditorId` so `validation_groups` drops the `manual` group. Priority 10
+        // runs this before the validator's own POST_SUBMIT listener (priority 0),
+        // which reads `creditorId`; without it the two tie at 0, the validator wins,
+        // and submit stays blocked on the empty manual fields after a library pick.
         $builder->addEventListener(FormEvents::POST_SUBMIT, static function (FormEvent $event): void {
             $form = $event->getForm();
             if (!$form->has('creditorEntity')) {
@@ -178,7 +177,7 @@ final class Step1CreditorType extends AbstractType
             // whatever it was rendered as (the hidden field round-trips it).
             // The manual fill path then satisfies the `manual` group via
             // per-property NotBlank + the conditional Callback on the DTO.
-        });
+        }, priority: 10);
     }
 
     public function finishView(FormView $view, FormInterface $form, array $options): void

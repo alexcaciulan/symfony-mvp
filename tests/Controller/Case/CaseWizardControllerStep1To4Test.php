@@ -133,6 +133,38 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         );
     }
 
+    /**
+     * Picking an existing creditor (the `creditorEntity` autocomplete) must
+     * advance to step 2 without the manual fields. Regression: the bridge that
+     * sets `creditorId` tied the validator's POST_SUBMIT priority, so
+     * `validation_groups` saw it null, kept the `manual` group active, and
+     * "Continuă" silently failed on the empty fields (fixed via listener priority).
+     */
+    public function testCreditorPostWithLibraryPickAdvancesWithoutManualFields(): void
+    {
+        $existing = new Creditor();
+        $existing->setUser($this->user);
+        $existing->setPersonType(PersonType::PJ);
+        $existing->setName('Library Creditor SRL');
+        $existing->setAddress('Str. Bibliotecă nr. 2, Cluj-Napoca');
+        $existing->setCui('RO15193236');
+        $this->em->persist($existing);
+        $this->em->flush();
+
+        $crawler = $this->client->request('GET', '/case/new/creditor');
+        $token = $crawler->filter('form input[name="step1_creditor[_token]"]')->first()->attr('value');
+
+        // Only the autocomplete value is submitted — no name/cui/onrc/address.
+        $this->client->request('POST', '/case/new/creditor', [
+            'step1_creditor' => [
+                '_token' => $token,
+                'creditorEntity' => (string) $existing->getId(),
+            ],
+        ]);
+
+        self::assertResponseRedirects('/case/new/debtor');
+    }
+
     public function testDebtorPostWithEmptyFieldsRendersValidationErrorsAndDoesNotAdvance(): void
     {
         // Regression: previously the controller validated correctly (isValid=false
