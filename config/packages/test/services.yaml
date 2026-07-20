@@ -28,3 +28,13 @@ services:
     # dar nu are caller direct; test idempotency-ului apelează manual `onSomatieTrimisa`.
     App\EventSubscriber\DeadlineCreationSubscriber:
         public: true
+
+    # Replace the real Mercure hub with an in-memory recorder so the suite never
+    # POSTs to the hub over the network. Without this, kernel/web tests that run
+    # the real event flow (e.g. WizardStep0CascadeTest -> ExtractionMercurePublisher)
+    # publish live to the hub container. Public so tests can assert the payloads.
+    App\Tests\Support\RecordingHub:
+        public: true
+    Symfony\Component\Mercure\HubInterface:
+        alias: App\Tests\Support\RecordingHub
+        public: true

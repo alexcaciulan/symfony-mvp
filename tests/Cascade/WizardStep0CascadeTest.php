@@ -34,9 +34,10 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
  *   DataExtractedEvent dispatched →
  *   ExtractionMercurePublisher publishes metadata-only update to the hub.
  *
- * The Mercure hub is replaced by a recording test double registered via
- * services_test.yaml so we can assert the URL + payload shape without
- * actually opening an EventSource. The cascade is REAL — no strategy mocks.
+ * The Mercure hub is replaced by an in-memory recorder ({@see RecordingHub},
+ * aliased over HubInterface in config/packages/test/services.yaml) so the
+ * publish never leaves the process — no network egress to the hub. The cascade
+ * is REAL — no strategy mocks.
  */
 final class WizardStep0CascadeTest extends WebTestCase
 {
