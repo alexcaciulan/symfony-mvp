@@ -15,8 +15,13 @@ use App\Repository\InvoiceRepository;
 use App\Service\AuditLogService;
 use App\Service\Billing\InvoicingService;
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 
+// Each test wires the handler with a mix of behaviour-verified mocks (->expects)
+// and plain collaborator doubles; the latter intentionally carry no expectations,
+// so opt out of PHPUnit's mock-without-expectations notice.
+#[AllowMockObjectsWithoutExpectations]
 final class ProcessPaymentWebhookMessageHandlerTest extends TestCase
 {
     private function invoice(InvoiceStatus $status, ?Subscription $subscription = null): Invoice

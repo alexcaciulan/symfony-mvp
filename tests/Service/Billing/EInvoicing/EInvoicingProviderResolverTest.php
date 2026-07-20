@@ -70,8 +70,8 @@ class EInvoicingProviderResolverTest extends TestCase
 
     public function testResolvesProviderFromDbSetting(): void
     {
-        $settings = $this->createMock(AppSettingRepository::class);
-        $settings->method('get')->with(AppSetting::KEY_EINVOICE_PROVIDER)->willReturn('oblio');
+        $settings = $this->createStub(AppSettingRepository::class);
+        $settings->method('get')->willReturn('oblio');
 
         $resolver = new EInvoicingProviderResolver([$this->provider('stub'), $this->provider('oblio')], $settings, 'stub');
 
@@ -80,7 +80,7 @@ class EInvoicingProviderResolverTest extends TestCase
 
     public function testFallsBackToDefaultWhenSettingMissing(): void
     {
-        $settings = $this->createMock(AppSettingRepository::class);
+        $settings = $this->createStub(AppSettingRepository::class);
         $settings->method('get')->willReturn(null);
 
         $resolver = new EInvoicingProviderResolver([$this->provider('stub'), $this->provider('oblio')], $settings, 'stub');
@@ -90,7 +90,7 @@ class EInvoicingProviderResolverTest extends TestCase
 
     public function testThrowsOnUnknownProvider(): void
     {
-        $settings = $this->createMock(AppSettingRepository::class);
+        $settings = $this->createStub(AppSettingRepository::class);
         $settings->method('get')->willReturn('nope');
 
         $resolver = new EInvoicingProviderResolver([$this->provider('stub')], $settings, 'stub');

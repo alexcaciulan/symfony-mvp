@@ -45,7 +45,7 @@ final class NetopiaPaymentGatewayTest extends TestCase
 
     public function testStartCheckoutRejectsUnpersistedInvoice(): void
     {
-        $client = $this->createMock(NetopiaApiClient::class);
+        $client = $this->createStub(NetopiaApiClient::class);
 
         $this->expectException(NetopiaException::class);
         (new NetopiaPaymentGateway($client))->startCheckout(new Invoice());
@@ -53,7 +53,7 @@ final class NetopiaPaymentGatewayTest extends TestCase
 
     public function testHandleWebhookMapsIpnToWebhookResult(): void
     {
-        $client = $this->createMock(NetopiaApiClient::class);
+        $client = $this->createStub(NetopiaApiClient::class);
         $client->method('verifyIpn')->willReturn(new NetopiaIpnResult(
             orderId: 'INV-42-xyz',
             status: 3,

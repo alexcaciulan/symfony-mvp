@@ -15,6 +15,7 @@ use App\Service\Company\AnafLookupException;
 use App\Service\Company\AnafLookupService;
 use App\Tests\Support\CountyFixtureTrait;
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\MockObject\MockObject;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -32,6 +33,7 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
  * tripping the 10/h ceiling. A dedicated rate-limit test is left as a backlog
  * follow-up (see Pas 3.2 memory).
  */
+#[AllowMockObjectsWithoutExpectations]
 final class LookupControllerTest extends WebTestCase
 {
     private KernelBrowser $client;

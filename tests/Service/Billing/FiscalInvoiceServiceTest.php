@@ -26,9 +26,14 @@ use App\Service\Billing\FiscalInvoiceFactory;
 use App\Service\Billing\FiscalInvoiceService;
 use App\Service\Billing\VatCalculator;
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
+// Each test constructs the service with a mix of behaviour-verified mocks
+// (->expects) and plain collaborator doubles; the latter intentionally carry no
+// expectations, so opt out of PHPUnit's mock-without-expectations notice.
+#[AllowMockObjectsWithoutExpectations]
 class FiscalInvoiceServiceTest extends TestCase
 {
     private function factory(): FiscalInvoiceFactory

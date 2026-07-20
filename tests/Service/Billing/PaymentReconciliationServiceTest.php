@@ -13,8 +13,13 @@ use App\Service\Billing\Netopia\NetopiaApiClient;
 use App\Service\Billing\Netopia\NetopiaException;
 use App\Service\Billing\InvoicingService;
 use App\Service\Billing\PaymentReconciliationService;
+use PHPUnit\Framework\Attributes\AllowMockObjectsWithoutExpectations;
 use PHPUnit\Framework\TestCase;
 
+// Each test wires the service with a mix of behaviour-verified mocks (->expects)
+// and plain collaborator doubles; the latter intentionally carry no expectations,
+// so opt out of PHPUnit's mock-without-expectations notice.
+#[AllowMockObjectsWithoutExpectations]
 final class PaymentReconciliationServiceTest extends TestCase
 {
     private function invoice(): Invoice

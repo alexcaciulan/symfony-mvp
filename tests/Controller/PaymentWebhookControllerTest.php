@@ -16,7 +16,7 @@ final class PaymentWebhookControllerTest extends WebTestCase
     {
         $client = static::createClient();
 
-        $gateway = $this->createMock(PaymentGatewayInterface::class);
+        $gateway = $this->createStub(PaymentGatewayInterface::class);
         $gateway->method('handleWebhook')->willReturn(
             new WebhookResult(invoiceId: 5, paid: true, externalRef: 'NTP-5', status: 3),
         );
@@ -36,7 +36,7 @@ final class PaymentWebhookControllerTest extends WebTestCase
     {
         $client = static::createClient();
 
-        $gateway = $this->createMock(PaymentGatewayInterface::class);
+        $gateway = $this->createStub(PaymentGatewayInterface::class);
         $gateway->method('handleWebhook')->willThrowException(new NetopiaException('bad signature'));
         self::getContainer()->set(PaymentGatewayInterface::class, $gateway);
 
@@ -53,7 +53,7 @@ final class PaymentWebhookControllerTest extends WebTestCase
     {
         $client = static::createClient();
 
-        $gateway = $this->createMock(PaymentGatewayInterface::class);
+        $gateway = $this->createStub(PaymentGatewayInterface::class);
         $gateway->method('handleWebhook')->willReturn(
             new WebhookResult(invoiceId: null, paid: true, externalRef: 'NTP-x', status: 3),
         );
