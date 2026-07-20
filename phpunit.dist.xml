@@ -13,6 +13,11 @@
     <php>
         <ini name="display_errors" value="1" />
         <ini name="error_reporting" value="-1" />
+        <!-- The full suite accumulates memory across 1500+ tests; the real-PDF
+             parsing (smalot/pdfparser) in the extraction tests pushes it past the
+             default 256M and aborts the run mid-suite. Raise the ceiling so the
+             whole suite completes. -->
+        <ini name="memory_limit" value="1024M" />
         <server name="APP_ENV" value="test" force="true" />
         <server name="SHELL_VERBOSITY" value="-1" />
     </php>
