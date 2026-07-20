@@ -19,11 +19,11 @@
             </tr>
             <tr>
                 <td style="padding: 4px 8px; color: #6b7280;">Reclamant:</td>
-                <td style="padding: 4px 8px;">{{ case.claimantName ?? '—' }}</td>
+                <td style="padding: 4px 8px;">{{ case.creditor ? case.creditor.name : '—' }}</td>
             </tr>
             <tr>
                 <td style="padding: 4px 8px; color: #6b7280;">Sumă:</td>
-                <td style="padding: 4px 8px;">{{ case.claimAmount ? (case.claimAmount|number_format(2, ',', '.') ~ ' RON') : '—' }}</td>
+                <td style="padding: 4px 8px;">{{ case.amount ? (case.amount|number_format(2, ',', '.') ~ ' ' ~ case.currency) : '—' }}</td>
             </tr>
             <tr>
                 <td style="padding: 4px 8px; color: #6b7280;">Status curent:</td>

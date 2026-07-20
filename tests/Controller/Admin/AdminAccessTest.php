@@ -6,6 +6,7 @@ use App\Entity\AuditLog;
 use App\Entity\Court;
 use App\Entity\LegalCase;
 use App\Entity\User;
+use App\Enum\CaseStatus;
 use App\Enum\CourtType;
 use App\Tests\Support\CountyFixtureTrait;
 use Doctrine\ORM\EntityManagerInterface;
@@ -80,7 +81,7 @@ class AdminAccessTest extends WebTestCase
         $this->assertResponseIsSuccessful();
         $content = $this->client->getResponse()->getContent();
         $this->assertStringContainsString('Total dosare', $content);
-        $this->assertStringContainsString('Venituri luna curentă', $content);
+        $this->assertStringContainsString('Active', $content);
         $this->assertStringContainsString('Total', $content);
     }
 
@@ -102,7 +103,7 @@ class AdminAccessTest extends WebTestCase
     public function testChangeStatusPageAccessibleByAdmin(): void
     {
         $this->client->loginUser($this->admin);
-        $case = $this->createTestCase('paid');
+        $case = $this->createTestCase(CaseStatus::AMIABIL);
 
         $this->client->request('GET', '/admin/case/' . $case->getId() . '/change-status');
 
@@ -113,7 +114,7 @@ class AdminAccessTest extends WebTestCase
     public function testChangeStatusAppliesTransition(): void
     {
         $this->client->loginUser($this->admin);
-        $case = $this->createTestCase('paid');
+        $case = $this->createTestCase(CaseStatus::AMIABIL);
         $caseId = $case->getId();
 
         // GET the form page first to get CSRF token
@@ -121,7 +122,7 @@ class AdminAccessTest extends WebTestCase
         $csrfToken = $crawler->filter('input[name="_token"]')->attr('value');
 
         $this->client->request('POST', '/admin/case/' . $caseId . '/change-status', [
-            'transition' => 'submit_to_court',
+            'transition' => 'trimite_somatie',
             'reason' => 'Test tranziție',
             '_token' => $csrfToken,
         ]);
@@ -131,7 +132,7 @@ class AdminAccessTest extends WebTestCase
         // Re-fetch entity from fresh EM after client request
         $freshEm = static::getContainer()->get(EntityManagerInterface::class);
         $updatedCase = $freshEm->getRepository(LegalCase::class)->find($caseId);
-        $this->assertSame('submitted_to_court', $updatedCase->getStatus());
+        $this->assertSame(CaseStatus::SOMATIE_TRIMISA, $updatedCase->getStatus());
 
         // Verify AuditLog was created
         $auditLogs = $freshEm->getRepository(AuditLog::class)->findBy([
@@ -144,14 +145,15 @@ class AdminAccessTest extends WebTestCase
     public function testChangeStatusRejectsInvalidTransition(): void
     {
         $this->client->loginUser($this->admin);
-        $case = $this->createTestCase('draft');
+        $case = $this->createTestCase(CaseStatus::AMIABIL);
         $caseId = $case->getId();
 
         $crawler = $this->client->request('GET', '/admin/case/' . $caseId . '/change-status');
         $csrfToken = $crawler->filter('input[name="_token"]')->attr('value');
 
+        // emite_ordonanta is not enabled from AMIABIL, so the controller rejects it.
         $this->client->request('POST', '/admin/case/' . $caseId . '/change-status', [
-            'transition' => 'accept',
+            'transition' => 'emite_ordonanta',
             'reason' => '',
             '_token' => $csrfToken,
         ]);
@@ -160,17 +162,17 @@ class AdminAccessTest extends WebTestCase
 
         $freshEm = static::getContainer()->get(EntityManagerInterface::class);
         $updatedCase = $freshEm->getRepository(LegalCase::class)->find($caseId);
-        $this->assertSame('draft', $updatedCase->getStatus());
+        $this->assertSame(CaseStatus::AMIABIL, $updatedCase->getStatus());
     }
 
     public function testChangeStatusRejectsInvalidCsrf(): void
     {
         $this->client->loginUser($this->admin);
-        $case = $this->createTestCase('paid');
+        $case = $this->createTestCase(CaseStatus::AMIABIL);
         $caseId = $case->getId();
 
         $this->client->request('POST', '/admin/case/' . $caseId . '/change-status', [
-            'transition' => 'submit_to_court',
+            'transition' => 'trimite_somatie',
             'reason' => '',
             '_token' => 'invalid-token',
         ]);
@@ -179,13 +181,13 @@ class AdminAccessTest extends WebTestCase
 
         $freshEm = static::getContainer()->get(EntityManagerInterface::class);
         $updatedCase = $freshEm->getRepository(LegalCase::class)->find($caseId);
-        $this->assertSame('paid', $updatedCase->getStatus());
+        $this->assertSame(CaseStatus::AMIABIL, $updatedCase->getStatus());
     }
 
     public function testChangeStatusForbiddenForRegularUser(): void
     {
         $this->client->loginUser($this->admin);
-        $case = $this->createTestCase('paid');
+        $case = $this->createTestCase(CaseStatus::AMIABIL);
         $caseId = $case->getId();
 
         // Now login as regular user
@@ -239,7 +241,7 @@ class AdminAccessTest extends WebTestCase
         $this->assertStringContainsString('Monetizare', $content);
     }
 
-    private function createTestCase(string $status): LegalCase
+    private function createTestCase(CaseStatus $status): LegalCase
     {
         $court = new Court();
         $court->setName('Judecătoria Admin ' . uniqid());
@@ -252,7 +254,8 @@ class AdminAccessTest extends WebTestCase
         $case->setUser($this->regularUser);
         $case->setCourt($court);
         $case->setStatus($status);
-        $case->setClaimAmount('1000.00');
+        $case->setAmount('1000.00');
+        $case->setCurrency('RON');
         $this->em->persist($case);
         $this->em->flush();
 

@@ -6,6 +6,7 @@ use App\Entity\AuditLog;
 use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\User;
+use App\Enum\CaseStatus;
 use App\Enum\DocumentType;
 use App\Service\Document\DocumentUploadService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -42,8 +43,8 @@ class DocumentUploadServiceTest extends KernelTestCase
     {
         $case = new LegalCase();
         $case->setUser($this->user);
-        $case->setStatus('paid');
-        $case->setCurrentStep(6);
+        $case->setStatus(CaseStatus::AMIABIL);
+        $case->setCurrency('RON');
         $this->em->persist($case);
         $this->em->flush();
 
@@ -52,10 +53,14 @@ class DocumentUploadServiceTest extends KernelTestCase
 
     private function createTempUploadedFile(): UploadedFile
     {
-        $tempFile = tempnam(sys_get_temp_dir(), 'test_upload_');
-        file_put_contents($tempFile, 'test file content for upload');
+        // The service sniffs the MIME server-side and only accepts PDF/images, so
+        // upload a real PDF. Copy the fixture to a temp file first because the
+        // service moves the uploaded file, which would otherwise consume the fixture.
+        $source = \dirname(__DIR__) . '/fixtures/extraction/loan-individual.pdf';
+        $tempFile = tempnam(sys_get_temp_dir(), 'test_upload_') . '.pdf';
+        copy($source, $tempFile);
 
-        return new UploadedFile($tempFile, 'test-document.txt', 'text/plain', null, true);
+        return new UploadedFile($tempFile, 'test-document.pdf', 'application/pdf', null, true);
     }
 
     public function testUploadCreatesDocumentEntity(): void
@@ -67,7 +72,7 @@ class DocumentUploadServiceTest extends KernelTestCase
 
         $this->assertInstanceOf(Document::class, $document);
         $this->assertNotNull($document->getId());
-        $this->assertSame('test-document.txt', $document->getOriginalFilename());
+        $this->assertSame('test-document.pdf', $document->getOriginalFilename());
         $this->assertSame(DocumentType::DOVADA, $document->getDocumentType());
     }
 
@@ -84,7 +89,7 @@ class DocumentUploadServiceTest extends KernelTestCase
             'action' => 'document_upload',
         ]);
         $this->assertNotEmpty($logs);
-        $this->assertSame('test-document.txt', $logs[0]->getNewData()['originalFilename']);
+        $this->assertSame('test-document.pdf', $logs[0]->getNewData()['originalFilename']);
     }
 
     public function testDeleteCreatesAuditLog(): void
