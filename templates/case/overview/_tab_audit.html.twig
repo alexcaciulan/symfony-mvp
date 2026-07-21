@@ -61,7 +61,7 @@
                                 <div class="text-[11px] text-slate-500 dark:text-slate-400 tnum">
                                     {{ entry.createdAt|date('d.m.Y H:i') }}
                                     <span class="mx-1 text-slate-300 dark:text-slate-700">•</span>
-                                    {{ entry.user ? entry.user.email : 'case_overview.audit.user_system'|trans }}
+                                    <!--email_off-->{{ entry.user ? entry.user.email : 'case_overview.audit.user_system'|trans }}<!--/email_off-->
                                 </div>
                             </div>
                             <svg class="size-4 text-slate-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
