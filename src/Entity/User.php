@@ -101,8 +101,8 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, Equatab
     #[ORM\Column(length: 32, nullable: true)]
     private ?string $securityStamp = null;
 
-    #[ORM\Column(length: 20, enumType: ExtractionMode::class, options: ['default' => 'LOCAL_ONLY'])]
-    private ExtractionMode $extractionMode = ExtractionMode::LOCAL_ONLY;
+    #[ORM\Column(length: 20, enumType: ExtractionMode::class, options: ['default' => 'MAX_ACCURACY'])]
+    private ExtractionMode $extractionMode = ExtractionMode::MAX_ACCURACY;
 
     /** @var Collection<int, LegalCase> */
     #[ORM\OneToMany(targetEntity: LegalCase::class, mappedBy: 'user')]

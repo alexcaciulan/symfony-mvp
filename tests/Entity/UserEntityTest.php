@@ -101,11 +101,11 @@ class UserEntityTest extends TestCase
         $this->assertSame('Ion Popescu', (string) $user);
     }
 
-    public function testExtractionModeDefaultsToLocalOnly(): void
+    public function testExtractionModeDefaultsToMaxAccuracy(): void
     {
         $user = new User();
 
-        $this->assertSame(ExtractionMode::LOCAL_ONLY, $user->getExtractionMode());
+        $this->assertSame(ExtractionMode::MAX_ACCURACY, $user->getExtractionMode());
     }
 
     public function testExtractionModeSetterAndGetter(): void
