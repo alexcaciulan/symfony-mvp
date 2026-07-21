@@ -90,6 +90,47 @@ class FiscalInvoiceFactoryTest extends KernelTestCase
         $this->assertSame('49.00', $fiscal->getNetTotal());
     }
 
+    public function testPlanChangeInvoiceDescriptionUsesTheTargetPlan(): void
+    {
+        $sub = (new Subscription())->setPlan((new Plan())->setName('Starter'));
+        $invoice = (new Invoice())
+            ->setUser($this->companyUser())
+            ->setSubscription($sub)
+            ->setTargetPlan((new Plan())->setName('Pro'))
+            ->setType(InvoiceType::PLAN_CHANGE)
+            ->setAmount('299.00');
+
+        // Regression: adding a case to InvoiceType left both match expressions in
+        // this factory non-exhaustive, so a paid upgrade threw UnhandledMatchError
+        // and its fiscal invoice was never issued.
+        $fiscal = $this->factory->buildDraft($invoice);
+
+        $description = $fiscal->getLines()->first()->getDescription();
+        // The subscription still holds the old plan at issuance, since the change
+        // is applied on settlement.
+        $this->assertStringContainsString('Pro', $description);
+        $this->assertStringNotContainsString('Starter', $description);
+        $this->assertSame('299.00', $fiscal->getNetTotal());
+    }
+
+    public function testEveryInvoiceTypeCanBuildADraft(): void
+    {
+        // Guards the two match expressions against a future enum case being added
+        // without a corresponding branch here.
+        foreach (InvoiceType::cases() as $type) {
+            $invoice = (new Invoice())
+                ->setUser($this->companyUser())
+                ->setSubscription((new Subscription())->setPlan((new Plan())->setName('Starter')))
+                ->setLegalCase((new LegalCase())->setCaseNumber('DOS-1'))
+                ->setTargetPlan((new Plan())->setName('Pro'))
+                ->setType($type)
+                ->setAmount('99.00');
+
+            $fiscal = $this->factory->buildDraft($invoice);
+            $this->assertNotSame('', $fiscal->getLines()->first()->getDescription(), $type->value);
+        }
+    }
+
     public function testBuildIssueRequestCarriesClientLinesCollectAndIdempotencyKey(): void
     {
         $invoice = $this->subscriptionInvoice($this->companyUser(), 'Starter', '99.00');

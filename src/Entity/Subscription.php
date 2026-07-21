@@ -24,6 +24,19 @@ class Subscription
     #[ORM\JoinColumn(nullable: false)]
     private Plan $plan;
 
+    /**
+     * Plan scheduled to take over at the next renewal. Used for downgrades, which
+     * are deferred to the end of the paid period so no refund is owed and the
+     * consumed-case counter can never exceed the new plan's included cases.
+     * An upgrade does not use this: it applies on payment, via Invoice::$targetPlan.
+     */
+    #[ORM\ManyToOne(targetEntity: Plan::class)]
+    #[ORM\JoinColumn(nullable: true)]
+    private ?Plan $pendingPlan = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $planChangedAt = null;
+
     #[ORM\Column(length: 20, enumType: SubscriptionStatus::class)]
     private SubscriptionStatus $status = SubscriptionStatus::ACTIVE;
 
@@ -98,6 +111,30 @@ class Subscription
     public function setPlan(Plan $plan): static
     {
         $this->plan = $plan;
+
+        return $this;
+    }
+
+    public function getPendingPlan(): ?Plan
+    {
+        return $this->pendingPlan;
+    }
+
+    public function setPendingPlan(?Plan $pendingPlan): static
+    {
+        $this->pendingPlan = $pendingPlan;
+
+        return $this;
+    }
+
+    public function getPlanChangedAt(): ?\DateTimeImmutable
+    {
+        return $this->planChangedAt;
+    }
+
+    public function setPlanChangedAt(?\DateTimeImmutable $planChangedAt): static
+    {
+        $this->planChangedAt = $planChangedAt;
 
         return $this;
     }

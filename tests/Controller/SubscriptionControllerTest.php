@@ -104,6 +104,215 @@ final class SubscriptionControllerTest extends WebTestCase
         self::assertSelectorExists('.bg-amber-50', 'Upgrade nudge shown once the plan is exhausted (5/5).');
     }
 
+    private function proPlan(): Plan
+    {
+        return $this->em->getRepository(Plan::class)->findOneBy(['name' => $this->prefix . '-pro']);
+    }
+
+    public function testIndexRendersPlansForPaidSubscriber(): void
+    {
+        $this->createActiveSubscription(casesConsumed: 0);
+        $this->client->loginUser($this->user);
+
+        $crawler = $this->client->request('GET', '/subscription');
+
+        self::assertResponseIsSuccessful();
+        // The grid used to disappear entirely on a paid plan, stranding the user.
+        self::assertSelectorTextContains('body', $this->proPlan()->getName());
+        self::assertGreaterThan(
+            0,
+            $crawler->filter('form[action="/subscription/change-plan/' . $this->proPlan()->getId() . '"]')->count(),
+        );
+    }
+
+    public function testIndexMarksCurrentPlanAsCurrent(): void
+    {
+        $this->createActiveSubscription(casesConsumed: 0);
+        $this->client->loginUser($this->user);
+
+        $crawler = $this->client->request('GET', '/subscription');
+
+        self::assertResponseIsSuccessful();
+        // The current plan gets no actionable form, only a disabled button.
+        self::assertSame(0, $crawler->filter('form[action="/subscription/change-plan/' . $this->plan->getId() . '"]')->count());
+        self::assertSelectorExists('button[disabled]');
+    }
+
+    public function testChangePlanRedirectsToCheckoutForUpgrade(): void
+    {
+        $this->createActiveSubscription(casesConsumed: 3);
+        $pro = $this->proPlan();
+        $this->client->loginUser($this->user);
+
+        $crawler = $this->client->request('GET', '/subscription');
+        $token = $crawler
+            ->filter('form[action="/subscription/change-plan/' . $pro->getId() . '"] input[name="_token"]')
+            ->first()->attr('value');
+
+        $this->client->request('POST', '/subscription/change-plan/' . $pro->getId(), ['_token' => $token]);
+
+        self::assertResponseRedirects();
+
+        $this->em->clear();
+        $invoices = $this->em->getRepository(Invoice::class)->findBy([
+            'user' => $this->user->getId(),
+            'type' => InvoiceType::PLAN_CHANGE,
+        ]);
+        self::assertCount(1, $invoices);
+        self::assertSame('299.00', $invoices[0]->getAmount());
+        self::assertSame($pro->getId(), $invoices[0]->getTargetPlan()->getId());
+
+        // The plan itself must not move before the invoice is settled.
+        $subs = $this->em->getRepository(Subscription::class)->findBy(['user' => $this->user->getId()]);
+        self::assertCount(1, $subs);
+        self::assertSame($this->plan->getId(), $subs[0]->getPlan()->getId());
+    }
+
+    public function testCheckoutUsesTheInvoiceCreatedByThePlanChange(): void
+    {
+        $sub = $this->createActiveSubscription(casesConsumed: 0);
+        $pro = $this->proPlan();
+
+        // An older open invoice on the same subscription. The controller used to
+        // re-query the user's pending invoices and take the first, which with
+        // one-second createdAt granularity could pick this one instead.
+        $stale = $this->createInvoice($this->user);
+        $stale->setSubscription($sub);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/subscription');
+        $token = $crawler
+            ->filter('form[action="/subscription/change-plan/' . $pro->getId() . '"] input[name="_token"]')
+            ->first()->attr('value');
+
+        $this->client->request('POST', '/subscription/change-plan/' . $pro->getId(), ['_token' => $token]);
+
+        $this->em->clear();
+        $planChange = $this->em->getRepository(Invoice::class)->findOneBy([
+            'user' => $this->user->getId(),
+            'type' => InvoiceType::PLAN_CHANGE,
+        ]);
+        // The stub gateway checks out in-app, so the redirect names the invoice.
+        self::assertResponseRedirects('http://localhost/subscription/checkout/' . $planChange->getId());
+    }
+
+    public function testChangePlanSchedulesDowngradeAndRedirectsBack(): void
+    {
+        $sub = $this->createActiveSubscription(casesConsumed: 0);
+        $pro = $this->proPlan();
+        // Start from the dearer plan so the cheaper one is a downgrade.
+        $sub->setPlan($pro);
+        $this->em->flush();
+        $this->client->loginUser($this->user);
+
+        $crawler = $this->client->request('GET', '/subscription');
+        $token = $crawler
+            ->filter('form[action="/subscription/change-plan/' . $this->plan->getId() . '"] input[name="_token"]')
+            ->first()->attr('value');
+
+        $this->client->request('POST', '/subscription/change-plan/' . $this->plan->getId(), ['_token' => $token]);
+
+        self::assertResponseRedirects('/subscription');
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(Subscription::class)->find($sub->getId());
+        self::assertSame($this->plan->getId(), $refreshed->getPendingPlan()->getId());
+        self::assertSame($pro->getId(), $refreshed->getPlan()->getId());
+        self::assertCount(0, $this->em->getRepository(Invoice::class)->findBy([
+            'user' => $this->user->getId(),
+            'type' => InvoiceType::PLAN_CHANGE,
+        ]));
+    }
+
+    public function testChangePlanRequiresValidCsrfToken(): void
+    {
+        $this->createActiveSubscription(casesConsumed: 0);
+        $this->client->loginUser($this->user);
+
+        $this->client->request('POST', '/subscription/change-plan/' . $this->proPlan()->getId(), ['_token' => 'bogus']);
+
+        self::assertResponseRedirects('/subscription');
+        $this->em->clear();
+        self::assertCount(0, $this->em->getRepository(Invoice::class)->findBy(['user' => $this->user->getId()]));
+    }
+
+    public function testChangePlanRequiresCompleteFiscalData(): void
+    {
+        $this->createActiveSubscription(casesConsumed: 0);
+        $pro = $this->proPlan();
+        $this->client->loginUser($this->user);
+
+        $crawler = $this->client->request('GET', '/subscription');
+        $token = $crawler
+            ->filter('form[action="/subscription/change-plan/' . $pro->getId() . '"] input[name="_token"]')
+            ->first()->attr('value');
+
+        $this->user->setCui(null);
+        $this->em->flush();
+
+        $this->client->request('POST', '/subscription/change-plan/' . $pro->getId(), ['_token' => $token]);
+
+        self::assertResponseRedirects('/profile/edit');
+    }
+
+    public function testUpgradeNudgeRendersActionableCta(): void
+    {
+        $this->createActiveSubscription(casesConsumed: 5); // exhausted
+        $this->client->loginUser($this->user);
+
+        $crawler = $this->client->request('GET', '/subscription');
+
+        self::assertResponseIsSuccessful();
+        // The nudge used to be text only, pointing at a plan the user could not pick.
+        // Which plan it recommends depends on the seeded catalogue, so assert the
+        // CTA exists and targets the change-plan route rather than a specific id.
+        $cta = $crawler->filter('.bg-amber-50 form');
+        self::assertGreaterThan(0, $cta->count());
+        self::assertStringStartsWith('/subscription/change-plan/', $cta->first()->attr('action'));
+    }
+
+    public function testCancelPlanChangeDropsTheScheduledPlan(): void
+    {
+        $sub = $this->createActiveSubscription(casesConsumed: 0);
+        $sub->setPendingPlan($this->proPlan());
+        $this->em->flush();
+        $this->client->loginUser($this->user);
+
+        $crawler = $this->client->request('GET', '/subscription');
+        $token = $crawler
+            ->filter('form[action="/subscription/cancel-plan-change"] input[name="_token"]')
+            ->first()->attr('value');
+
+        $this->client->request('POST', '/subscription/cancel-plan-change', ['_token' => $token]);
+
+        self::assertResponseRedirects('/subscription');
+        $this->em->clear();
+        self::assertNull($this->em->getRepository(Subscription::class)->find($sub->getId())->getPendingPlan());
+    }
+
+    public function testCancelSubscriptionRouteCancelsAndRedirects(): void
+    {
+        $sub = $this->createActiveSubscription(casesConsumed: 0);
+        $sub->setRecurringToken('tok-drop-me');
+        $this->em->flush();
+        $this->client->loginUser($this->user);
+
+        $crawler = $this->client->request('GET', '/subscription');
+        $token = $crawler
+            ->filter('form[action="/subscription/cancel"] input[name="_token"]')
+            ->first()->attr('value');
+
+        $this->client->request('POST', '/subscription/cancel', ['_token' => $token]);
+
+        self::assertResponseRedirects('/subscription');
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(Subscription::class)->find($sub->getId());
+        self::assertSame(SubscriptionStatus::CANCELED, $refreshed->getStatus());
+        self::assertNull($refreshed->getRecurringToken());
+    }
+
     private function createInvoice(User $user, InvoiceStatus $status = InvoiceStatus::PENDING): Invoice
     {
         $invoice = (new Invoice())

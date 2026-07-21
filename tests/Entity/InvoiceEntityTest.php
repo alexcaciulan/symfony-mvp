@@ -4,6 +4,7 @@ namespace App\Tests\Entity;
 
 use App\Entity\Invoice;
 use App\Entity\LegalCase;
+use App\Entity\Plan;
 use App\Entity\Subscription;
 use App\Entity\User;
 use App\Enum\InvoiceStatus;
@@ -45,6 +46,23 @@ class InvoiceEntityTest extends TestCase
         $this->assertSame(InvoiceType::CASE_EXTRA, $invoice->getType());
         $this->assertSame(InvoiceStatus::CANCELED, $invoice->getStatus());
         $this->assertSame('in_xyz', $invoice->getExternalId());
+    }
+
+    public function testTargetPlanDefaultsToNull(): void
+    {
+        $this->assertNull((new Invoice())->getTargetPlan());
+    }
+
+    public function testTargetPlanGetterAndSetter(): void
+    {
+        $invoice = new Invoice();
+        $plan = new Plan();
+
+        $this->assertSame($invoice, $invoice->setTargetPlan($plan));
+        $this->assertSame($plan, $invoice->getTargetPlan());
+
+        $invoice->setTargetPlan(null);
+        $this->assertNull($invoice->getTargetPlan());
     }
 
     public function testMarkPaidSetsStatusAndTimestamp(): void

@@ -1579,6 +1579,20 @@ subscription:
         extra_case: '%price% RON per extra case'
         choose: 'Choose plan'
         recurring_disclosure: 'By subscribing, the card you enter is saved and charged automatically each month with %price% RON, until you cancel. You can cancel anytime from your account.'
+        current_badge: 'Your plan'
+        scheduled_badge: 'Scheduled'
+        upgrade_cta: 'Switch to %plan%'
+        upgrade_note: 'You are billed the full %price% RON and the billing period restarts today. The days left in your current period are not refunded. The plan applies once the payment is confirmed.'
+        downgrade_note: 'Takes effect on %date%, at the start of your next period. Nothing is charged now.'
+    scheduled_change:
+        message: 'The %plan% plan takes effect on %date%.'
+        cancel: 'Drop the change'
+    pending_change:
+        message: 'You have a change to the %plan% plan awaiting a %price% RON payment. You stay on your current plan until it is confirmed.'
+        pay: 'Pay now'
+    cancel:
+        button: 'Cancel subscription'
+        confirm: 'Cancel your subscription? It stays active until the end of the paid period, then it will not renew.'
     invoices:
         title: 'My invoices'
         back: 'Back to subscription'
@@ -1614,11 +1628,16 @@ subscription:
         overage: 'You exceeded your monthly plan. An invoice was issued for the extra case; find it under Invoices.'
     flash:
         csrf: 'Session expired. Please try again.'
-        already_subscribed: 'You already have an active subscription. Changing plans will be available soon.'
+        already_subscribed: 'You already have an active subscription. To move to another plan, use the button on the plan you want.'
         paid: 'Payment recorded successfully.'
         already_paid: 'This invoice is already paid.'
         payment_processing: 'Your payment is being processed. You will see the confirmation as soon as the processor completes it.'
         fiscal_data_required: 'Before paying, complete your fiscal data (tax ID, name, address) so we can issue the invoice.'
+        no_subscription: 'You have no active subscription to change.'
+        plan_change_rejected: 'The selected plan cannot be applied to your current subscription.'
+        plan_change_scheduled: 'The change is scheduled. It takes effect at the start of your next period.'
+        plan_change_canceled: 'The scheduled change was canceled. You stay on your current plan.'
+        canceled: 'Your subscription was canceled. It stays active until the end of the paid period and will not renew.'
 
 # =============================================================================
 # Fiscal invoice content (frozen onto the document at issuance)
@@ -1627,6 +1646,7 @@ invoice:
     line:
         subscription: 'Subscription %plan%'
         case_extra: 'Extra case processing %case%'
+        plan_change: 'Switch to %plan% subscription'
 
 fiscal_invoices:
     title: 'Fiscal invoices'
@@ -1677,6 +1697,11 @@ enum:
     invoice_type:
         subscription: 'Subscription'
         case_extra: 'Extra case'
+        plan_change: 'Plan change'
+    plan_change_outcome:
+        upgrade_pending_payment: 'Upgrade pending payment'
+        downgrade_scheduled: 'Downgrade scheduled'
+        change_scheduled: 'Change scheduled'
     einvoice_status:
         not_applicable: 'Not applicable'
         pending: 'Pending'

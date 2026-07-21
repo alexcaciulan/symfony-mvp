@@ -1580,6 +1580,20 @@ subscription:
         extra_case: '%price% RON pentru fiecare dosar suplimentar'
         choose: 'Alege planul'
         recurring_disclosure: 'Prin abonare, cardul introdus este salvat și debitat automat lunar cu %price% RON, până la anulare. Poți anula oricând din contul tău.'
+        current_badge: 'Planul tău'
+        scheduled_badge: 'Programat'
+        upgrade_cta: 'Treci la %plan%'
+        upgrade_note: 'Se facturează integral %price% RON, iar perioada de abonament repornește de azi. Zilele rămase din perioada curentă nu se rambursează. Planul se aplică după confirmarea plății.'
+        downgrade_note: 'Intră în vigoare la %date%, la începutul perioadei următoare. Nu se face nicio plată acum.'
+    scheduled_change:
+        message: 'Planul %plan% intră în vigoare la %date%.'
+        cancel: 'Renunță la schimbare'
+    pending_change:
+        message: 'Ai o schimbare pe planul %plan% în așteptarea plății de %price% RON. Până la confirmare rămâi pe planul curent.'
+        pay: 'Plătește acum'
+    cancel:
+        button: 'Anulează abonamentul'
+        confirm: 'Sigur anulezi abonamentul? Rămâne activ până la finalul perioadei plătite, apoi nu se mai reînnoiește.'
     invoices:
         title: 'Facturile mele'
         back: 'Înapoi la abonament'
@@ -1615,11 +1629,16 @@ subscription:
         overage: 'Ai depășit pachetul lunar. S-a emis o factură pentru dosarul suplimentar, o găsești la Facturi.'
     flash:
         csrf: 'Sesiune expirată. Reîncearcă.'
-        already_subscribed: 'Ai deja un abonament activ. Schimbarea planului va fi disponibilă în curând.'
+        already_subscribed: 'Ai deja un abonament activ. Pentru a trece pe alt plan, folosește butonul de pe planul dorit.'
         paid: 'Plata a fost înregistrată cu succes.'
         already_paid: 'Această factură este deja plătită.'
         payment_processing: 'Plata este în curs de procesare. Vei vedea confirmarea imediat ce procesatorul o finalizează.'
         fiscal_data_required: 'Înainte de plată, completează datele fiscale (CIF, denumire, adresă) ca să putem emite factura.'
+        no_subscription: 'Nu ai un abonament activ pe care să îl modifici.'
+        plan_change_rejected: 'Planul selectat nu poate fi aplicat abonamentului curent.'
+        plan_change_scheduled: 'Schimbarea a fost programată. Intră în vigoare la începutul perioadei următoare.'
+        plan_change_canceled: 'Schimbarea programată a fost anulată. Rămâi pe planul curent.'
+        canceled: 'Abonamentul a fost anulat. Rămâne activ până la finalul perioadei plătite și nu se va reînnoi.'
 
 # =============================================================================
 # Fiscal invoice content (frozen onto the document at issuance)
@@ -1628,6 +1647,7 @@ invoice:
     line:
         subscription: 'Abonament %plan%'
         case_extra: 'Procesare dosar suplimentar %case%'
+        plan_change: 'Trecere la abonament %plan%'
 
 fiscal_invoices:
     title: 'Facturi fiscale'
@@ -1678,6 +1698,11 @@ enum:
     invoice_type:
         subscription: 'Abonament'
         case_extra: 'Dosar suplimentar'
+        plan_change: 'Schimbare de plan'
+    plan_change_outcome:
+        upgrade_pending_payment: 'Upgrade în așteptarea plății'
+        downgrade_scheduled: 'Downgrade programat'
+        change_scheduled: 'Schimbare programată'
     einvoice_status:
         not_applicable: 'Neaplicabil'
         pending: 'În așteptare'

@@ -4,15 +4,19 @@ declare(strict_types=1);
 
 namespace App\Service\Billing;
 
+use App\DTO\Billing\PlanChangeResult;
 use App\DTO\Billing\SubscriptionSlotConsumption;
 use App\Entity\Invoice;
 use App\Entity\LegalCase;
 use App\Entity\Plan;
 use App\Entity\Subscription;
 use App\Entity\User;
+use App\Enum\InvoiceStatus;
+use App\Enum\InvoiceType;
 use App\Enum\NotificationType;
 use App\Enum\SubscriptionSlotConsumptionOutcome;
 use App\Enum\SubscriptionStatus;
+use App\Repository\InvoiceRepository;
 use App\Repository\PlanRepository;
 use App\Repository\SubscriptionRepository;
 use App\Service\AuditLogService;
@@ -34,14 +38,15 @@ class SubscriptionService
     /** Trial length in days. Placeholder for go-live; confirm with product. */
     public const TRIAL_DAYS = 30;
 
-    /** Paid billing-period length (DateTime modifier). */
-    private const SUBSCRIPTION_PERIOD = '+1 month';
+    /** Paid billing-period length (DateTime modifier). Also used by PlanChangeApplier. */
+    public const SUBSCRIPTION_PERIOD = '+1 month';
 
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly SubscriptionRepository $subscriptions,
         private readonly PlanRepository $plans,
         private readonly InvoicingService $invoicing,
+        private readonly InvoiceRepository $invoices,
         private readonly AuditLogService $auditLog,
         private readonly NotificationDispatcherInterface $notifier,
         private readonly TranslatorInterface $translator,
@@ -165,8 +170,8 @@ class SubscriptionService
     /**
      * Subscribes a user to a paid plan: creates an ACTIVE monthly subscription
      * and its pending invoice. Converts an existing trial (cancels it). Refuses
-     * if the user already has a paid subscription within its period (changing
-     * plans, with proration, is a separate upgrade flow).
+     * if the user already has a paid subscription within its period: moving
+     * between paid plans goes through {@see self::changePlan()} instead.
      *
      * @throws \DomainException when the user already has a paid subscription
      */
@@ -211,6 +216,150 @@ class SubscriptionService
     }
 
     /**
+     * Requests a move to another paid plan.
+     *
+     * An upgrade (dearer plan) is charged at the new plan's full price and only
+     * takes effect once that invoice is settled, applied by {@see PlanChangeApplier}
+     * on the settlement path. Until then the subscription stays on its old plan,
+     * so an abandoned checkout costs the user nothing.
+     *
+     * A downgrade (cheaper plan) is scheduled for the next renewal instead: applying
+     * it now would owe a refund and could leave casesConsumed above the new plan's
+     * included cases, turning already-activated cases into overage debt.
+     *
+     * Upgrade vs downgrade is decided on price, not includedCases: what matters here
+     * is who owes money now, and Plan carries no explicit tier.
+     *
+     * @throws \DomainException when the subscription is a trial, when the target plan
+     *                          is inactive or a trial, or when it is the current plan
+     */
+    public function changePlan(Subscription $subscription, Plan $newPlan): PlanChangeResult
+    {
+        if ($subscription->getPlan()->isTrial()) {
+            throw new \DomainException('Trials convert through subscribeToPlan, not changePlan.');
+        }
+        if (!$newPlan->isActive() || $newPlan->isTrial()) {
+            throw new \DomainException('Target plan is not a selectable paid plan.');
+        }
+        if ($newPlan->getId() === $subscription->getPlan()->getId()) {
+            throw new \DomainException('Target plan is already the current plan.');
+        }
+
+        return $this->em->wrapInTransaction(function () use ($subscription, $newPlan): PlanChangeResult {
+            // Supersede an unpaid earlier request, so a late payment on it cannot
+            // apply a plan the user has since moved away from.
+            foreach ($this->invoices->findPendingByType($subscription, InvoiceType::PLAN_CHANGE, forUpdate: true) as $stale) {
+                $stale->setStatus(InvoiceStatus::CANCELED);
+            }
+
+            $comparison = $newPlan->comparePriceTo($subscription->getPlan());
+
+            if ($comparison <= 0) {
+                $subscription->setPendingPlan($newPlan);
+
+                $this->auditLog->log(
+                    action: 'subscription_plan_change_scheduled',
+                    entityType: 'Subscription',
+                    entityId: (string) $subscription->getId(),
+                    oldData: ['plan' => $subscription->getPlan()->getName()],
+                    newData: [
+                        'pendingPlan' => $newPlan->getName(),
+                        'effectiveAt' => $subscription->getCurrentPeriodEnd()->format('Y-m-d'),
+                    ],
+                    category: AuditLogService::CATEGORY_BILLING,
+                );
+                $this->em->flush();
+
+                return $comparison < 0
+                    ? PlanChangeResult::downgradeScheduled($subscription, $newPlan)
+                    : PlanChangeResult::changeScheduled($subscription, $newPlan);
+            }
+
+            $invoice = $this->invoicing->createPlanChangeInvoice($subscription, $newPlan);
+
+            $this->auditLog->log(
+                action: 'subscription_plan_change_requested',
+                entityType: 'Subscription',
+                entityId: (string) $subscription->getId(),
+                oldData: ['plan' => $subscription->getPlan()->getName()],
+                newData: ['targetPlan' => $newPlan->getName(), 'invoiceId' => $invoice->getId()],
+                category: AuditLogService::CATEGORY_BILLING,
+            );
+            $this->em->flush();
+
+            return PlanChangeResult::upgradePendingPayment($subscription, $invoice);
+        });
+    }
+
+    /**
+     * Releases subscriptions whose checkout was abandoned, along with their
+     * still-open invoices.
+     *
+     * Without this, an abandoned checkout locks the account forever: the row stays
+     * ACTIVE and within its period, so it counts as the current subscription and
+     * every later plan choice is refused. PAST_DUE is not usable and is excluded
+     * from findCurrentForUser, which both gates access and frees the user to
+     * subscribe again.
+     *
+     * @return int number of subscriptions released
+     */
+    public function expireAbandonedCheckouts(\DateTimeImmutable $before): int
+    {
+        $stale = $this->subscriptions->findAbandonedCheckoutsCreatedBefore($before);
+        if ([] === $stale) {
+            return 0;
+        }
+
+        return $this->em->wrapInTransaction(function () use ($stale): int {
+            foreach ($stale as $subscription) {
+                $subscription->setStatus(SubscriptionStatus::PAST_DUE);
+
+                foreach ([InvoiceType::SUBSCRIPTION, InvoiceType::PLAN_CHANGE] as $type) {
+                    foreach ($this->invoices->findPendingByType($subscription, $type, forUpdate: true) as $invoice) {
+                        $invoice->setStatus(InvoiceStatus::CANCELED);
+                    }
+                }
+
+                $this->auditLog->log(
+                    action: 'subscription_expired_unpaid',
+                    entityType: 'Subscription',
+                    entityId: (string) $subscription->getId(),
+                    newData: ['plan' => $subscription->getPlan()->getName()],
+                    category: AuditLogService::CATEGORY_BILLING,
+                );
+            }
+
+            $this->em->flush();
+
+            return \count($stale);
+        });
+    }
+
+    /**
+     * Drops a downgrade scheduled for the next renewal, leaving the current plan
+     * in place. No-op when nothing is scheduled.
+     */
+    public function cancelScheduledPlanChange(Subscription $subscription): void
+    {
+        $pending = $subscription->getPendingPlan();
+        if (null === $pending) {
+            return;
+        }
+
+        $subscription->setPendingPlan(null);
+
+        $this->auditLog->log(
+            action: 'subscription_plan_change_canceled',
+            entityType: 'Subscription',
+            entityId: (string) $subscription->getId(),
+            oldData: ['pendingPlan' => $pending->getName()],
+            category: AuditLogService::CATEGORY_BILLING,
+        );
+
+        $this->em->flush();
+    }
+
+    /**
      * Voluntary cancellation. The subscription stays usable until
      * currentPeriodEnd (enforced by the date guard in findCurrentForUser);
      * it simply will not renew.
@@ -248,6 +397,26 @@ class SubscriptionService
     public function renewSubscription(Subscription $subscription): Invoice
     {
         return $this->em->wrapInTransaction(function () use ($subscription): Invoice {
+            // An unpaid upgrade offer dies with the period it was raised in. Left
+            // open it would be settled later against a period this renewal has
+            // already rolled and billed, charging the user twice and letting the
+            // applier overwrite the fresh period and case counter.
+            $supersededPlanChanges = 0;
+            foreach ($this->invoices->findPendingByType($subscription, InvoiceType::PLAN_CHANGE, forUpdate: true) as $stale) {
+                $stale->setStatus(InvoiceStatus::CANCELED);
+                ++$supersededPlanChanges;
+            }
+
+            // A scheduled downgrade takes over here, before the invoice is raised,
+            // so the renewal is billed at the new plan's price.
+            $pendingPlan = $subscription->getPendingPlan();
+            if (null !== $pendingPlan) {
+                $subscription
+                    ->setPlan($pendingPlan)
+                    ->setPendingPlan(null)
+                    ->setPlanChangedAt(new \DateTimeImmutable());
+            }
+
             $invoice = $this->invoicing->createSubscriptionInvoice($subscription);
 
             $newStart = $subscription->getCurrentPeriodEnd();
@@ -261,7 +430,12 @@ class SubscriptionService
                 action: 'subscription_renewed',
                 entityType: 'Subscription',
                 entityId: (string) $subscription->getId(),
-                newData: ['newPeriodEnd' => $subscription->getCurrentPeriodEnd()->format('Y-m-d')],
+                newData: [
+                    'newPeriodEnd' => $subscription->getCurrentPeriodEnd()->format('Y-m-d'),
+                    'plan' => $subscription->getPlan()->getName(),
+                    'appliedScheduledPlan' => null !== $pendingPlan,
+                    'supersededPlanChanges' => $supersededPlanChanges,
+                ],
                 category: AuditLogService::CATEGORY_BILLING,
             );
 

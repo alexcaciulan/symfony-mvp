@@ -12,6 +12,7 @@ use App\Entity\User;
 use App\Enum\InvoiceType;
 use App\Enum\NotificationType;
 use App\Enum\SubscriptionStatus;
+use App\Repository\InvoiceRepository;
 use App\Repository\PlanRepository;
 use App\Repository\SubscriptionRepository;
 use App\Service\AuditLogService;
@@ -105,6 +106,7 @@ final class SubscriptionServiceNotificationTest extends TestCase
             $subscriptions,
             $this->createMock(PlanRepository::class),
             $invoicing,
+            $this->createMock(InvoiceRepository::class),
             $this->createMock(AuditLogService::class),
             $notifier,
             $translator,

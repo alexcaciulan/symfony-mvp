@@ -73,6 +73,17 @@ class Plan
         return $this->priceMonthly;
     }
 
+    /**
+     * Orders this plan against another by monthly price, in integer bani so no
+     * float drift decides it. Single source of truth for "is this an upgrade",
+     * used by both the billing service and the plan cards.
+     */
+    public function comparePriceTo(self $other): int
+    {
+        return (int) round(((float) $this->priceMonthly) * 100)
+            <=> (int) round(((float) $other->getPriceMonthly()) * 100);
+    }
+
     public function setPriceMonthly(string $priceMonthly): static
     {
         $this->priceMonthly = $priceMonthly;

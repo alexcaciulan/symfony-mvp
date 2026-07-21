@@ -4,6 +4,7 @@ namespace App\Repository;
 
 use App\Entity\Subscription;
 use App\Entity\User;
+use App\Enum\InvoiceStatus;
 use App\Enum\SubscriptionStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -23,6 +24,9 @@ class SubscriptionRepository extends ServiceEntityRepository
             ->andWhere('s.status = :status')
             ->setParameter('user', $user)
             ->setParameter('status', SubscriptionStatus::ACTIVE)
+            // Newest first, so overlapping rows resolve the same way here as in
+            // findCurrentForUser instead of following the storage engine's order.
+            ->orderBy('s.id', 'DESC')
             ->setMaxResults(1)
             ->getQuery()
             ->getOneOrNullResult();
@@ -50,6 +54,36 @@ class SubscriptionRepository extends ServiceEntityRepository
     }
 
     /**
+     * ACTIVE subscriptions created before `$before` whose checkout was started but
+     * never completed: an invoice is still open and none has ever been settled.
+     * They hold the user's only subscription slot hostage, because findCurrentForUser
+     * keeps returning them and subscribeToPlan then refuses any other plan.
+     *
+     * Both halves of the predicate matter. Requiring no PAID invoice keeps failed
+     * renewals out of scope, since those belong to dunning
+     * ({@see \App\Service\Billing\SubscriptionRenewalService}). Requiring an open
+     * invoice keeps seeded or manually created subscriptions, which have no invoices
+     * at all, from being released as if their payment had been abandoned.
+     *
+     * @return Subscription[]
+     */
+    public function findAbandonedCheckoutsCreatedBefore(\DateTimeImmutable $before): array
+    {
+        return $this->createQueryBuilder('s')
+            ->where('s.status = :status')
+            ->andWhere('s.createdAt <= :before')
+            ->andWhere('NOT EXISTS (SELECT 1 FROM App\Entity\Invoice paid WHERE paid.subscription = s AND paid.status = :paid)')
+            ->andWhere('EXISTS (SELECT 1 FROM App\Entity\Invoice open WHERE open.subscription = s AND open.status = :pending)')
+            ->setParameter('status', SubscriptionStatus::ACTIVE)
+            ->setParameter('before', $before)
+            ->setParameter('paid', InvoiceStatus::PAID)
+            ->setParameter('pending', InvoiceStatus::PENDING)
+            ->orderBy('s.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * The user's currently usable subscription: a status that entitles case
      * activation ({@see SubscriptionStatus::isUsable()}, i.e. ACTIVE/TRIAL/CANCELED)
      * AND still within its billing period. This is what gates `trimite_somatie`.
@@ -69,6 +103,10 @@ class SubscriptionRepository extends ServiceEntityRepository
             ])
             ->setParameter('now', $now ?? new \DateTimeImmutable())
             ->orderBy('s.currentPeriodEnd', 'DESC')
+            // Tie-break: two rows can share a period end (a trial converted the
+            // same day), and picking a different one per query would split slot
+            // consumption from billing.
+            ->addOrderBy('s.id', 'DESC')
             ->setMaxResults(1)
             ->getQuery()
             ->getOneOrNullResult();

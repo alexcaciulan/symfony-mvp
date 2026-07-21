@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\Entity\Invoice;
+use App\Entity\Plan;
+use App\Entity\Subscription;
 use App\Entity\User;
 use App\Enum\InvoiceStatus;
 use App\Enum\InvoiceType;
+use App\Enum\PlanChangeOutcome;
 use App\Repository\InvoiceRepository;
 use App\Repository\PlanRepository;
 use App\Service\Billing\InvoicingService;
@@ -49,12 +53,47 @@ final class SubscriptionController extends AbstractController
             && !$current->getPlan()->isTrial()
             && $current->getCasesConsumed() >= $current->getPlan()->getIncludedCases();
 
+        // On a paid plan the grid stays on screen and each card says what it is
+        // relative to the current plan, so the user always has a way out of the
+        // plan they picked. Subscribing is only for the first paid plan.
+        $isOnPaidPlan = null !== $current && !$current->getPlan()->isTrial();
+
         return $this->render('subscription/index.html.twig', [
             'subscription' => $current,
             'recommended_upgrade' => $planExhausted ? $this->subscriptionService->recommendUpgrade($current) : null,
-            'plans' => array_values($paidPlans),
-            'can_subscribe' => null === $current || $current->getPlan()->isTrial(),
+            'plans' => $this->annotatePlans(array_values($paidPlans), $current),
+            'can_subscribe' => !$isOnPaidPlan,
+            'pending_plan_change' => $isOnPaidPlan
+                ? ($this->invoiceRepository->findPendingByType($current, InvoiceType::PLAN_CHANGE)[0] ?? null)
+                : null,
         ]);
+    }
+
+    /**
+     * Labels each plan card against the current subscription so the template can
+     * stay declarative.
+     *
+     * @param Plan[] $plans
+     *
+     * @return array<array{plan: Plan, is_current: bool, is_upgrade: bool, is_scheduled: bool}>
+     */
+    private function annotatePlans(array $plans, ?Subscription $current): array
+    {
+        $currentPlan = $current?->getPlan();
+        $onPaidPlan = null !== $currentPlan && !$currentPlan->isTrial();
+
+        return array_map(static function (Plan $plan) use ($current, $currentPlan, $onPaidPlan): array {
+            $isCurrent = $onPaidPlan && $plan->getId() === $currentPlan->getId();
+
+            return [
+                'plan' => $plan,
+                'is_current' => $isCurrent,
+                // Same comparison the service bills on, so a card can never
+                // promise an upgrade and produce a scheduled downgrade.
+                'is_upgrade' => !$isCurrent && $onPaidPlan && $plan->comparePriceTo($currentPlan) > 0,
+                'is_scheduled' => $plan->getId() === $current?->getPendingPlan()?->getId(),
+            ];
+        }, $plans);
     }
 
     #[Route('/invoices', name: 'app_subscription_invoices', methods: ['GET'])]
@@ -98,22 +137,139 @@ final class SubscriptionController extends AbstractController
         }
 
         try {
-            $this->subscriptionService->subscribeToPlan($user, $plan);
+            $subscription = $this->subscriptionService->subscribeToPlan($user, $plan);
         } catch (\DomainException) {
             $this->addFlash('warning', 'subscription.flash.already_subscribed');
 
             return $this->redirectToRoute('app_subscription');
         }
 
-        $invoice = $this->invoicingService->getInvoicesByUser($user, [
-            'status' => InvoiceStatus::PENDING,
-            'type' => InvoiceType::SUBSCRIPTION,
-        ])[0] ?? null;
+        // Scoped to the subscription just created, so this is the invoice that was
+        // raised for it and not some older pending one of the same type.
+        $invoice = $this->invoiceRepository->findPendingByType($subscription, InvoiceType::SUBSCRIPTION)[0] ?? null;
 
         if (null === $invoice) {
             return $this->redirectToRoute('app_invoices');
         }
 
+        return $this->startCheckout($invoice);
+    }
+
+    /**
+     * Moves an existing paid subscription to another paid plan. An upgrade goes to
+     * checkout and only applies once paid; a downgrade is scheduled for the next
+     * renewal and needs no payment.
+     */
+    #[Route('/change-plan/{planId}', name: 'app_subscription_change_plan', requirements: ['planId' => '\d+'], methods: ['POST'])]
+    public function changePlan(int $planId, Request $request, RateLimiterFactory $subscriptionCheckoutLimiter): Response
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        if (!$this->isCsrfTokenValid('change_plan_' . $planId, $request->getPayload()->getString('_token'))) {
+            $this->addFlash('error', 'subscription.flash.csrf');
+
+            return $this->redirectToRoute('app_subscription');
+        }
+
+        if (!$subscriptionCheckoutLimiter->create($user->getUserIdentifier())->consume()->isAccepted()) {
+            $this->addFlash('warning', 'rate_limit.subscription_checkout');
+
+            return $this->redirectToRoute('app_subscription');
+        }
+
+        $current = $this->subscriptionService->getCurrentSubscription($user);
+        if (null === $current) {
+            $this->addFlash('warning', 'subscription.flash.no_subscription');
+
+            return $this->redirectToRoute('app_subscription');
+        }
+
+        $plan = $this->planRepository->find($planId);
+        if (null === $plan || !$plan->isActive() || $plan->isTrial()) {
+            throw $this->createNotFoundException();
+        }
+
+        // Same gate as subscribe(): an upgrade ends in a real charge whose invoice
+        // needs the user's fiscal identity, and the webhook that settles it never
+        // passes back through a controller.
+        if (!$user->hasCompleteFiscalData()) {
+            $this->addFlash('warning', 'subscription.flash.fiscal_data_required');
+
+            return $this->redirectToRoute('app_profile_edit');
+        }
+
+        try {
+            $result = $this->subscriptionService->changePlan($current, $plan);
+        } catch (\DomainException) {
+            $this->addFlash('warning', 'subscription.flash.plan_change_rejected');
+
+            return $this->redirectToRoute('app_subscription');
+        }
+
+        if (PlanChangeOutcome::UPGRADE_PENDING_PAYMENT !== $result->outcome) {
+            $this->addFlash('success', 'subscription.flash.plan_change_scheduled');
+
+            return $this->redirectToRoute('app_subscription');
+        }
+
+        return $this->startCheckout($result->invoice);
+    }
+
+    #[Route('/cancel-plan-change', name: 'app_subscription_cancel_plan_change', methods: ['POST'])]
+    public function cancelPlanChange(Request $request): Response
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        if (!$this->isCsrfTokenValid('cancel_plan_change', $request->getPayload()->getString('_token'))) {
+            $this->addFlash('error', 'subscription.flash.csrf');
+
+            return $this->redirectToRoute('app_subscription');
+        }
+
+        $current = $this->subscriptionService->getCurrentSubscription($user);
+        if (null !== $current) {
+            $this->subscriptionService->cancelScheduledPlanChange($current);
+            $this->addFlash('success', 'subscription.flash.plan_change_canceled');
+        }
+
+        return $this->redirectToRoute('app_subscription');
+    }
+
+    #[Route('/cancel', name: 'app_subscription_cancel', methods: ['POST'])]
+    public function cancel(Request $request): Response
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        if (!$this->isCsrfTokenValid('cancel_subscription', $request->getPayload()->getString('_token'))) {
+            $this->addFlash('error', 'subscription.flash.csrf');
+
+            return $this->redirectToRoute('app_subscription');
+        }
+
+        $current = $this->subscriptionService->getCurrentSubscription($user);
+        if (null === $current || $current->getPlan()->isTrial()) {
+            $this->addFlash('warning', 'subscription.flash.no_subscription');
+
+            return $this->redirectToRoute('app_subscription');
+        }
+
+        $this->subscriptionService->cancelSubscription($current);
+        $this->addFlash('success', 'subscription.flash.canceled');
+
+        return $this->redirectToRoute('app_subscription');
+    }
+
+    /**
+     * Hands a specific invoice to the gateway. Takes the invoice as an argument
+     * rather than re-querying the user's pending ones: two invoices raised in the
+     * same second order unpredictably, which would send the user to pay the wrong
+     * amount.
+     */
+    private function startCheckout(Invoice $invoice): Response
+    {
         $session = $this->paymentGateway->startCheckout($invoice);
 
         // Persist the gateway transaction ref up front so reconciliation can

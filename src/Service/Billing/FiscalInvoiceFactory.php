@@ -127,7 +127,10 @@ final class FiscalInvoiceFactory
     private function seriesFor(Invoice $invoice): string
     {
         return match ($invoice->getType()) {
-            InvoiceType::SUBSCRIPTION => $this->invoiceSeriesSubscription,
+            // A plan change bills a plan's monthly price, so it belongs to the
+            // subscription series rather than a series of its own: keeping the
+            // numbering continuous is what matters for the fiscal register.
+            InvoiceType::SUBSCRIPTION, InvoiceType::PLAN_CHANGE => $this->invoiceSeriesSubscription,
             InvoiceType::CASE_EXTRA => $this->invoiceSeriesCaseExtra,
         };
     }
@@ -152,6 +155,12 @@ final class FiscalInvoiceFactory
             InvoiceType::CASE_EXTRA => $this->translator->trans('invoice.line.case_extra', [
                 '%case%' => $invoice->getLegalCase()?->getCaseNumber()
                     ?? ('#' . ($invoice->getLegalCase()?->getId() ?? $invoice->getId())),
+            ]),
+            // The target plan, not the subscription's current one: the change is
+            // only applied on settlement, so at issuance the subscription still
+            // carries the old plan.
+            InvoiceType::PLAN_CHANGE => $this->translator->trans('invoice.line.plan_change', [
+                '%plan%' => $invoice->getTargetPlan()?->getName() ?? '',
             ]),
         };
     }

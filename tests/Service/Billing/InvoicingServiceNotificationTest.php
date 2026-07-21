@@ -12,6 +12,7 @@ use App\Enum\NotificationType;
 use App\Repository\InvoiceRepository;
 use App\Service\AuditLogService;
 use App\Service\Billing\InvoicingService;
+use App\Service\Billing\PlanChangeApplier;
 use App\Service\Notification\NotificationDispatch;
 use App\Service\Notification\NotificationDispatcherInterface;
 use Doctrine\ORM\EntityManagerInterface;
@@ -65,6 +66,7 @@ final class InvoicingServiceNotificationTest extends TestCase
             $bus,
             $notifier,
             $translator,
+            new PlanChangeApplier($this->createMock(AuditLogService::class)),
         );
     }
 

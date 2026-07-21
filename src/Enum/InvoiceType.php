@@ -12,6 +12,9 @@ enum InvoiceType: string
     /** Per-case charge billed when the plan's included cases are exhausted. */
     case CASE_EXTRA = 'case_extra';
 
+    /** Full price of the plan a subscription moves to once this invoice is settled. */
+    case PLAN_CHANGE = 'plan_change';
+
     public function label(): string
     {
         return 'enum.invoice_type.' . $this->value;

@@ -29,6 +29,16 @@ class Invoice
     #[ORM\JoinColumn(nullable: true)]
     private ?LegalCase $legalCase = null;
 
+    /**
+     * Plan this invoice moves the subscription to once settled. Set only on
+     * {@see InvoiceType::PLAN_CHANGE}: the change intent rides on the invoice
+     * because settlement happens in InvoicingService::markPaid(), which receives
+     * an Invoice. A scheduled downgrade uses Subscription::$pendingPlan instead.
+     */
+    #[ORM\ManyToOne(targetEntity: Plan::class)]
+    #[ORM\JoinColumn(nullable: true)]
+    private ?Plan $targetPlan = null;
+
     #[ORM\Column(type: Types::DECIMAL, precision: 8, scale: 2)]
     private string $amount;
 
@@ -102,6 +112,18 @@ class Invoice
     public function setLegalCase(?LegalCase $legalCase): static
     {
         $this->legalCase = $legalCase;
+
+        return $this;
+    }
+
+    public function getTargetPlan(): ?Plan
+    {
+        return $this->targetPlan;
+    }
+
+    public function setTargetPlan(?Plan $targetPlan): static
+    {
+        $this->targetPlan = $targetPlan;
 
         return $this;
     }

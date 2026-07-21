@@ -6,6 +6,7 @@ namespace App\Service\Billing;
 
 use App\Entity\Invoice;
 use App\Entity\LegalCase;
+use App\Entity\Plan;
 use App\Entity\Subscription;
 use App\Entity\User;
 use App\Enum\InvoiceStatus;
@@ -36,6 +37,7 @@ class InvoicingService
         private readonly MessageBusInterface $bus,
         private readonly NotificationDispatcherInterface $notifier,
         private readonly TranslatorInterface $translator,
+        private readonly PlanChangeApplier $planChangeApplier,
     ) {}
 
     /** Recurring subscription charge for the plan's monthly price. */
@@ -47,6 +49,28 @@ class InvoicingService
             ->setType(InvoiceType::SUBSCRIPTION)
             ->setStatus(InvoiceStatus::PENDING)
             ->setAmount($subscription->getPlan()->getPriceMonthly());
+
+        $this->em->persist($invoice);
+        $this->em->flush();
+
+        return $invoice;
+    }
+
+    /**
+     * Full price of the plan a subscription is moving to. The change itself is
+     * deferred to settlement: {@see PlanChangeApplier} reads `targetPlan` off this
+     * invoice when it is paid, so an abandoned checkout leaves the subscription
+     * untouched on its old plan.
+     */
+    public function createPlanChangeInvoice(Subscription $subscription, Plan $targetPlan): Invoice
+    {
+        $invoice = (new Invoice())
+            ->setUser($subscription->getUser())
+            ->setSubscription($subscription)
+            ->setTargetPlan($targetPlan)
+            ->setType(InvoiceType::PLAN_CHANGE)
+            ->setStatus(InvoiceStatus::PENDING)
+            ->setAmount($targetPlan->getPriceMonthly());
 
         $this->em->persist($invoice);
         $this->em->flush();
@@ -110,6 +134,11 @@ class InvoicingService
             if (null !== $externalRef) {
                 $locked->setExternalId($externalRef);
             }
+
+            // Inside the transaction so settlement and the plan switch commit
+            // together: no window where the invoice reads PAID but the
+            // subscription still sits on the old plan. No-op for other types.
+            $this->planChangeApplier->applyPaidPlanChange($locked);
 
             $this->auditLog->log(
                 action: 'invoice_paid',

@@ -37,6 +37,7 @@ class InvoiceCrudController extends AbstractCrudController
         return [
             'Abonament' => InvoiceType::SUBSCRIPTION,
             'Dosar suplimentar' => InvoiceType::CASE_EXTRA,
+            'Schimbare de plan' => InvoiceType::PLAN_CHANGE,
         ];
     }
 

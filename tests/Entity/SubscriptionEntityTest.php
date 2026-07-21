@@ -44,6 +44,30 @@ class SubscriptionEntityTest extends TestCase
         $this->assertSame('sub_123', $sub->getExternalId());
     }
 
+    public function testPendingPlanDefaultsToNull(): void
+    {
+        $sub = new Subscription();
+
+        $this->assertNull($sub->getPendingPlan());
+        $this->assertNull($sub->getPlanChangedAt());
+    }
+
+    public function testPlanChangeGettersAndSetters(): void
+    {
+        $sub = new Subscription();
+        $plan = new Plan();
+        $changedAt = new \DateTimeImmutable('2026-07-16');
+
+        $this->assertSame($sub, $sub->setPendingPlan($plan));
+        $this->assertSame($sub, $sub->setPlanChangedAt($changedAt));
+
+        $this->assertSame($plan, $sub->getPendingPlan());
+        $this->assertSame($changedAt, $sub->getPlanChangedAt());
+
+        $sub->setPendingPlan(null);
+        $this->assertNull($sub->getPendingPlan());
+    }
+
     public function testIncrementCasesConsumed(): void
     {
         $sub = new Subscription();
