@@ -46,6 +46,12 @@ class NetopiaApiClient
     private const LIVE_BASE_URL = 'https://secure.mobilpay.ro';
 
     /** @wire v2 endpoints. */
+    // Hosted card page the browser is redirected to. It lives on a different
+    // host than the API base above (note the dash), and both must be allowed by
+    // the CSP form-action directive or the redirect is blocked.
+    private const SANDBOX_CHECKOUT_URL = 'https://secure-sandbox.netopia-payments.com';
+    private const LIVE_CHECKOUT_URL = 'https://secure.netopia-payments.com';
+
     private const PATH_START = '/payment/card/start';
     private const PATH_STATUS = '/operation/status';
 
@@ -239,6 +245,20 @@ class NetopiaApiClient
                 ?? $this->digString($data, ['payment', 'binding', 'panMasked'])
                 ?? $this->digString($data, ['payment', 'instrument', 'pan_masked']),
         );
+    }
+
+    /**
+     * Origins the browser may land on during checkout, for the CSP form-action
+     * directive. Only the origins of the environment actually in use: live
+     * deployments must not whitelist the sandbox.
+     *
+     * @return list<string>
+     */
+    public function checkoutOrigins(): array
+    {
+        return $this->netopiaIsLive
+            ? [self::LIVE_BASE_URL, self::LIVE_CHECKOUT_URL]
+            : [self::SANDBOX_BASE_URL, self::SANDBOX_CHECKOUT_URL];
     }
 
     public function isPaidStatus(int $status): bool

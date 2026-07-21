@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\EventSubscriber;
 
 use App\Security\CspNonceProvider;
+use App\Service\Billing\PaymentGatewayInterface;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpKernel\Event\ResponseEvent;
 use Symfony\Component\HttpKernel\KernelEvents;
@@ -21,6 +22,7 @@ final class SecurityHeadersSubscriber implements EventSubscriberInterface
     public function __construct(
         private readonly CspNonceProvider $nonceProvider,
         private readonly string $mercurePublicUrl,
+        private readonly PaymentGatewayInterface $paymentGateway,
     ) {
     }
 
@@ -78,7 +80,12 @@ final class SecurityHeadersSubscriber implements EventSubscriberInterface
             "connect-src {$connectSrc}",
             "frame-ancestors 'none'",
             "base-uri 'self'",
-            "form-action 'self'",
+            // Chrome enforces form-action across the redirect chain, so a checkout
+            // POST answering 302 to the processor is blocked under plain 'self'
+            // and the payment dies silently. The active gateway declares its own
+            // origins (empty for the stub), so this stays correct when the
+            // processor or the sandbox/live toggle changes.
+            trim("form-action 'self' " . implode(' ', $this->paymentGateway->checkoutOrigins())),
             "object-src 'none'",
         ]);
     }

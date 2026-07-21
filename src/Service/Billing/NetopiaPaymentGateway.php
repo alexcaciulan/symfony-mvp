@@ -34,6 +34,11 @@ class NetopiaPaymentGateway implements PaymentGatewayInterface
         private readonly NetopiaApiClient $client,
     ) {}
 
+    public function checkoutOrigins(): array
+    {
+        return $this->client->checkoutOrigins();
+    }
+
     public function startCheckout(Invoice $invoice): CheckoutSession
     {
         $invoiceId = $invoice->getId();

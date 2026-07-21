@@ -63,7 +63,11 @@
                             <li>{{ 'subscription.plans.included_cases'|trans({'%count%': plan.includedCases}) }}</li>
                             <li>{{ 'subscription.plans.extra_case'|trans({'%price%': plan.pricePerExtra|number_format(2, ',', '.')}) }}</li>
                         </ul>
-                        <form method="post" action="{{ path('app_subscription_subscribe', {planId: plan.id}) }}" class="mt-6">
+                        {# data-turbo=false: this POST answers 302 to the payment processor.
+                           Turbo would follow it with fetch(), which CSP connect-src blocks as
+                           cross-origin; a native submit navigates instead (allowed by the
+                           processor origins in form-action, see SecurityHeadersSubscriber). #}
+                        <form method="post" action="{{ path('app_subscription_subscribe', {planId: plan.id}) }}" class="mt-6" data-turbo="false">
                             <input type="hidden" name="_token" value="{{ csrf_token('subscribe_' ~ plan.id) }}">
                             <button type="submit" class="w-full px-4 py-2 bg-lex-navy text-white rounded-lg font-medium hover:opacity-90 transition text-sm">
                                 {{ 'subscription.plans.choose'|trans }}

@@ -21,4 +21,15 @@ interface PaymentGatewayInterface
 
     /** Verify and interpret a processor callback into a normalized result. */
     public function handleWebhook(Request $request): WebhookResult;
+
+    /**
+     * Origins the checkout POST may end up navigating to, for the CSP
+     * `form-action` directive. Chrome enforces that directive across the whole
+     * redirect chain, so a gateway that redirects off-site must declare where,
+     * otherwise the browser blocks the payment silently.
+     *
+     * @return list<string> scheme + host (+ port), no trailing slash; empty when
+     *                      checkout stays on this origin
+     */
+    public function checkoutOrigins(): array;
 }

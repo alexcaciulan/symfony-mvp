@@ -36,6 +36,11 @@ final class PaymentGatewayResolver implements PaymentGatewayInterface
         return $this->active()->handleWebhook($request);
     }
 
+    public function checkoutOrigins(): array
+    {
+        return $this->active()->checkoutOrigins();
+    }
+
     public function active(): PaymentGatewayInterface
     {
         return match ($this->paymentGatewayDefault) {

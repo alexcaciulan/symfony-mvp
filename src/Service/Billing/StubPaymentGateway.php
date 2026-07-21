@@ -21,6 +21,12 @@ final class StubPaymentGateway implements PaymentGatewayInterface
         private readonly UrlGeneratorInterface $urlGenerator,
     ) {}
 
+    /** Checkout never leaves this origin: the stub confirms in-app. */
+    public function checkoutOrigins(): array
+    {
+        return [];
+    }
+
     public function startCheckout(Invoice $invoice): CheckoutSession
     {
         $url = $this->urlGenerator->generate(

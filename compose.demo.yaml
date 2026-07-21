@@ -27,13 +27,23 @@ services:
       # therefore absent from the demo worktree. scripts/demo.sh feeds that file
       # to compose so these resolve; without the key AiVisionExtractionStrategy
       # reports supports() = false and the cascade silently falls back to
-      # PdfParser. Only extraction keys are forwarded on purpose: payment stays
-      # on whatever .env sets (stub), so the demo never talks to Netopia with
-      # stale tunnel callback URLs.
+      # PdfParser.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-6}
       EXTRACTION_FORCE_STRATEGY: ${EXTRACTION_FORCE_STRATEGY:-}
       EXTRACTION_SKIP_STRATEGIES: ${EXTRACTION_SKIP_STRATEGIES:-}
+      # Netopia sandbox, same credentials as dev. The callback URLs are the one
+      # thing NOT inherited: .env.local points them at an older tunnel, while
+      # Netopia must reach this stack's current public URL. expose-demo.sh keeps
+      # DEMO_PUBLIC_URL in step with the live tunnel and recreates these
+      # containers, so both stay correct across restarts.
+      PAYMENT_GATEWAY: ${PAYMENT_GATEWAY:-stub}
+      NETOPIA_IS_LIVE: ${NETOPIA_IS_LIVE:-false}
+      NETOPIA_POS_SIGNATURE: ${NETOPIA_POS_SIGNATURE:-}
+      NETOPIA_API_KEY: ${NETOPIA_API_KEY:-}
+      NETOPIA_PUBLIC_KEY: ${NETOPIA_PUBLIC_KEY:-}
+      NETOPIA_NOTIFY_URL: ${DEMO_PUBLIC_URL}/webhook/netopia
+      NETOPIA_RETURN_URL: ${DEMO_PUBLIC_URL}/subscription/return
 
   worker:
     container_name: lexdemo-worker
