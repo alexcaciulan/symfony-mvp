@@ -4,6 +4,10 @@ form:
         password_required: 'Please enter a password.'
         password_min_length: 'Your password must be at least {{ limit }} characters long.'
         agree_terms_required: 'You must agree to the terms and conditions.'
+    password:
+        required: 'Please enter a password.'
+        min_length: 'Your password must be at least {{ limit }} characters long.'
+        compromised: 'This password has appeared in a known data breach. Please choose another one.'
 
 validators:
     user:

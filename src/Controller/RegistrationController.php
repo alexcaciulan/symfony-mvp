@@ -43,15 +43,16 @@ class RegistrationController extends AbstractController
     }
 
     #[Route('/register', name: 'app_register')]
-    public function register(Request $request, UserPasswordHasherInterface $userPasswordHasher, EntityManagerInterface $entityManager, RateLimiterFactory $registrationLimiter): Response
+    public function register(Request $request, UserPasswordHasherInterface $userPasswordHasher, EntityManagerInterface $entityManager, RateLimiterFactory $registrationLimiter, RateLimiterFactory $registrationAttemptLimiter): Response
     {
-        if ($request->isMethod('POST')) {
-            $limiter = $registrationLimiter->create($request->getClientIp());
-            if (!$limiter->consume()->isAccepted()) {
-                $this->addFlash('warning', $this->translator->trans('rate_limit.registration'));
+        // A generous per-POST budget caps the cost of running full form validation, notably
+        // the synchronous NotCompromisedPassword breach lookup, so an invalid but expensive
+        // submission cannot be replayed without limit even though it never creates an account.
+        if ($request->isMethod('POST')
+            && !$registrationAttemptLimiter->create($request->getClientIp())->consume()->isAccepted()) {
+            $this->addFlash('warning', $this->translator->trans('rate_limit.registration'));
 
-                return $this->redirectToRoute('app_register');
-            }
+            return $this->redirectToRoute('app_register');
         }
 
         $user = new User();
@@ -62,6 +63,14 @@ class RegistrationController extends AbstractController
         // email exists (no UniqueEntity), so the divergence below only happens for an
         // otherwise-valid submission. This keeps the status code from leaking existence.
         if ($form->isSubmitted() && $form->isValid()) {
+            // The strict budget counts only completed account-creation attempts, so a legitimate
+            // user mistyping their password is not locked out of registering.
+            if (!$registrationLimiter->create($request->getClientIp())->consume()->isAccepted()) {
+                $this->addFlash('warning', $this->translator->trans('rate_limit.registration'));
+
+                return $this->redirectToRoute('app_register');
+            }
+
             $email = (string) $user->getEmail();
             /** @var string $plainPassword */
             $plainPassword = (string) $form->get('plainPassword')->getData();

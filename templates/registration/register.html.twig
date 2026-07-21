@@ -36,7 +36,12 @@
                     <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ 'registration.subheading'|trans }}</p>
                 </div>
 
-                {{ form_start(registrationForm, {'attr': {'novalidate': 'novalidate', 'class': 'space-y-4'}}) }}
+                {{ include('_auth_flashes.html.twig') }}
+
+                {# data-turbo=false: the rate-limit path redirects back to /register with a flash;
+                   Turbo treats the same-URL redirect as a morph refresh and drops the new flash node,
+                   so a full-page submit is what makes that feedback reliably visible. #}
+                {{ form_start(registrationForm, {'attr': {'novalidate': 'novalidate', 'class': 'space-y-4', 'data-turbo': 'false'}}) }}
                     {% if registrationForm.vars.errors|length > 0 %}
                         <div class="px-4 py-3 rounded-lg bg-red-50 text-red-800 border border-red-200 dark:bg-red-950/40 dark:text-red-200 dark:border-red-900 text-sm" role="alert">
                             {{ form_errors(registrationForm) }}
@@ -49,19 +54,19 @@
                     <div>
                         {{ form_label(registrationForm.email, null, {'label_attr': {'class': label_classes}}) }}
                         {{ form_widget(registrationForm.email, {'attr': {'class': input_classes}}) }}
-                        {{ form_errors(registrationForm.email) }}
+                        {% for e in registrationForm.email.vars.errors %}<p class="mt-1.5 text-sm text-red-600 dark:text-red-400">{{ e.message }}</p>{% endfor %}
                     </div>
 
                     <div>
                         {{ form_label(registrationForm.plainPassword.first, null, {'label_attr': {'class': label_classes}}) }}
                         {{ form_widget(registrationForm.plainPassword.first, {'attr': {'class': input_classes}}) }}
-                        {{ form_errors(registrationForm.plainPassword.first) }}
+                        {% for e in registrationForm.plainPassword.first.vars.errors %}<p class="mt-1.5 text-sm text-red-600 dark:text-red-400">{{ e.message }}</p>{% endfor %}
                     </div>
 
                     <div>
                         {{ form_label(registrationForm.plainPassword.second, null, {'label_attr': {'class': label_classes}}) }}
                         {{ form_widget(registrationForm.plainPassword.second, {'attr': {'class': input_classes}}) }}
-                        {{ form_errors(registrationForm.plainPassword) }}
+                        {% for e in registrationForm.plainPassword.vars.errors %}<p class="mt-1.5 text-sm text-red-600 dark:text-red-400">{{ e.message }}</p>{% endfor %}
                     </div>
 
                     <div class="pt-2">
@@ -69,7 +74,7 @@
                             {{ form_widget(registrationForm.agreeTerms, {'attr': {'class': 'mt-1 size-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-blue-500 bg-white dark:bg-slate-800'}}) }}
                             <span class="text-sm text-slate-600 dark:text-slate-400">{{ form_label(registrationForm.agreeTerms, null, {'label_attr': {'class': 'inline'}}) }}</span>
                         </label>
-                        {{ form_errors(registrationForm.agreeTerms) }}
+                        {% for e in registrationForm.agreeTerms.vars.errors %}<p class="mt-1.5 text-sm text-red-600 dark:text-red-400">{{ e.message }}</p>{% endfor %}
                     </div>
 
                     <button type="submit" class="w-full mt-2 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white font-semibold hover:from-lex-navy-dark hover:to-slate-900 transition shadow-sm">

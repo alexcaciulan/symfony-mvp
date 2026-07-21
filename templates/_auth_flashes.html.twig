@@ -1,0 +1,15 @@
+{# Flash rendering for the auth pages (login/register/reset), which override the base
+   `layout` block and therefore miss the shell's flash output. Without this, a redirect
+   with an addFlash (e.g. the registration rate limit) lands back on the page silently. #}
+{% for type, messages in app.flashes(['success', 'error', 'warning', 'info', 'verify_email_error']) %}
+    {% for message in messages %}
+        <div role="alert" class="mb-4 px-4 py-3 rounded-lg text-sm font-medium
+            {% if type == 'success' %} bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:border-emerald-900
+            {% elseif type == 'error' or type == 'verify_email_error' %} bg-red-50 text-red-800 border border-red-200 dark:bg-red-950/40 dark:text-red-200 dark:border-red-900
+            {% elseif type == 'warning' %} bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-900
+            {% else %} bg-blue-50 text-blue-800 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-200 dark:border-blue-900
+            {% endif %}">
+            {{ message|trans }}
+        </div>
+    {% endfor %}
+{% endfor %}

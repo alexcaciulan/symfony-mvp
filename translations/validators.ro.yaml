@@ -4,6 +4,10 @@ form:
         password_required: 'Introduceți o parolă.'
         password_min_length: 'Parola trebuie să aibă cel puțin {{ limit }} caractere.'
         agree_terms_required: 'Trebuie să fiți de acord cu termenii și condițiile.'
+    password:
+        required: 'Introduceți o parolă.'
+        min_length: 'Parola trebuie să aibă cel puțin {{ limit }} caractere.'
+        compromised: 'Această parolă a apărut într-o scurgere de date cunoscută. Alegeți alta.'
 
 validators:
     user:

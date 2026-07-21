@@ -50,13 +50,15 @@
                     <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ 'login.subheading'|trans }}</p>
                 </div>
 
+                {{ include('_auth_flashes.html.twig') }}
+
                 {% if error %}
                     <div class="px-4 py-3 mb-4 rounded-lg bg-red-50 text-red-800 border border-red-200 dark:bg-red-950/40 dark:text-red-200 dark:border-red-900 text-sm" role="alert">
                         {{ error.messageKey|trans(error.messageData, 'security') }}
                     </div>
                 {% endif %}
 
-                <form method="post" class="space-y-4">
+                <form method="post" class="space-y-4" data-turbo="false">
                     <div>
                         <label for="username" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'login.label_email'|trans }}</label>
                         <div class="relative">

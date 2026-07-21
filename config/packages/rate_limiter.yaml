@@ -4,6 +4,13 @@ framework:
             policy: sliding_window
             limit: 3
             interval: '1 hour'
+        # Generous per-request budget consumed on every POST /register, so replaying an
+        # invalid-but-expensive submission (which still runs the NotCompromisedPassword breach
+        # lookup) is bounded. The strict `registration` limit above only counts valid submissions.
+        registration_attempt:
+            policy: sliding_window
+            limit: 30
+            interval: '1 hour'
         forgot_password:
             policy: sliding_window
             limit: 3
@@ -93,6 +100,8 @@ when@test:
         rate_limiter:
             registration:
                 policy: no_limit
+            registration_attempt:
+                policy: no_limit
             forgot_password:
                 policy: no_limit
             case_creation:
@@ -124,4 +133,16 @@ when@test:
             login_local:
                 policy: no_limit
             login_username:
+                policy: no_limit
+
+# Loosen the public onboarding limiters locally so repeated manual testing of the
+# signup/reset flows is not throttled. Production keeps the real limits above.
+when@dev:
+    framework:
+        rate_limiter:
+            registration:
+                policy: no_limit
+            registration_attempt:
+                policy: no_limit
+            forgot_password:
                 policy: no_limit
