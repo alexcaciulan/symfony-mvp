@@ -79,6 +79,17 @@ make expose                     # sau direct: scripts/expose-app.sh
 ATENȚIE: URL-urile `*.trycloudflare.com` se schimbă la fiecare repornire a tunelului
 și expun aplicația reală public cât timp rulează.
 
+### Stack demo izolat (link stabil pentru avocat)
+Pentru a ține un demo public pe `lexrecovery` în timp ce dezvoltarea continuă pe
+alte branch-uri, există un al doilea stack complet separat (worktree propriu,
+containere `lexdemo-*`, DB proprie, porturi 8090/8035/3317) plus un named tunnel
+Cloudflare cu URL fix. Vezi `docs/LexRecovery/DEMO-STACK.md`.
+```bash
+make demo-setup     # o singură dată
+make demo-sync      # mută demo-ul pe vârful curent al lui lexrecovery
+make demo-expose    # tunel cu URL stabil
+```
+
 ### Dependencies and Setup
 ```bash
 # With Docker:

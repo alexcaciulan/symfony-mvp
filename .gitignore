@@ -37,3 +37,6 @@ bin/.phpunit.result.cache
 
 # Playwright MCP session data
 /.playwright-mcp/
+
+# Demo stack config (hostnames, tunnel name)
+/.env.demo

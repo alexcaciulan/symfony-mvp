@@ -1,0 +1,70 @@
+# Demo stack — a second, fully isolated copy of the app used for the public
+# Cloudflare tunnel, so day-to-day work on other branches never disturbs it.
+#
+# Always used together with compose.yaml and a dedicated project name, which is
+# what scripts/demo.sh does:
+#   docker compose -p lexdemo -f compose.yaml -f compose.demo.yaml ...
+#
+# Passing -f explicitly means compose.override.yaml is NOT auto-loaded, so the
+# dev port mappings (8080/8025/3307/3000) stay with the dev stack and the mailer
+# service is redefined here.
+#
+# Volumes are namespaced by the project name, so the demo database, vendor dir
+# and Mercure data are separate from dev by construction.
+
+services:
+  php:
+    container_name: lexdemo-php
+    environment: &demo_php_env
+      APP_ENV: ${DEMO_APP_ENV:-dev}
+      APP_BASE_URL: ${DEMO_PUBLIC_URL}
+      DEFAULT_URI: ${DEMO_PUBLIC_URL}
+      # Same-origin through the demo nginx (see docker/nginx/demo.conf), so one
+      # tunnel covers both the app and the SSE stream, and the CSP connect-src
+      # derived from this URL stays on the demo origin.
+      MERCURE_PUBLIC_URL: ${DEMO_PUBLIC_URL}/.well-known/mercure
+
+  worker:
+    container_name: lexdemo-worker
+    environment: *demo_php_env
+
+  nginx:
+    container_name: lexdemo-nginx
+    # !override — compose merges port lists by appending, so without it the
+    # demo nginx would also try to bind the dev stack's 8080.
+    ports: !override
+      - "${DEMO_APP_PORT:-8090}:80"
+    volumes:
+      - .:/var/www/html
+      - ./docker/nginx/demo.conf:/etc/nginx/conf.d/default.conf
+
+  database:
+    container_name: lexdemo-db
+    ports:
+      - "${DEMO_DB_PORT:-3317}:3306"
+
+  mercure:
+    container_name: lexdemo-mercure
+    environment:
+      SERVER_NAME: ':80'
+      MERCURE_PUBLISHER_JWT_KEY: '!ChangeThisInProd!aMinimum32CharsSecret!'
+      MERCURE_SUBSCRIBER_JWT_KEY: '!ChangeThisInProd!aMinimum32CharsSecret!'
+      MERCURE_EXTRA_DIRECTIVES: |
+        cors_origins ${DEMO_PUBLIC_URL}
+        anonymous
+
+  mailer:
+    image: axllent/mailpit
+    container_name: lexdemo-mailpit
+    restart: unless-stopped
+    ports:
+      - "${DEMO_MAIL_PORT:-8035}:8025"
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+      # Mailpit shows every message the app sends, including password-reset and
+      # email-verification links, so the public demo UI is behind basic auth.
+      # Format "user:password"; empty means no auth (local-only use).
+      MP_UI_AUTH: ${DEMO_MAIL_AUTH:-}
+    networks:
+      - symfony-network

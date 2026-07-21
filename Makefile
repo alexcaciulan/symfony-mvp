@@ -1,4 +1,4 @@
-.PHONY: help build up down restart logs shell composer test migrate db-create tailwind tailwind-watch expose
+.PHONY: help build up down restart logs shell composer test migrate db-create tailwind tailwind-watch expose demo-setup demo-up demo-down demo-sync demo-logs demo-db-copy demo-expose
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -81,3 +81,23 @@ expose: ## Expose app + Mailpit publicly via Cloudflare tunnels
 
 clean: down ## Stop containers and remove volumes
 	docker compose down -v
+demo-setup: ## Create the isolated demo stack (worktree pinned to lexrecovery) and seed it
+	./scripts/demo.sh setup
+
+demo-up: ## Start the demo stack
+	./scripts/demo.sh up -d
+
+demo-down: ## Stop the demo stack
+	./scripts/demo.sh down
+
+demo-sync: ## Move the demo stack to the current tip of lexrecovery and reload it
+	./scripts/demo.sh sync
+
+demo-logs: ## Show demo stack logs
+	./scripts/demo.sh logs -f
+
+demo-db-copy: ## Copy the dev database into the demo database (one-off)
+	./scripts/demo.sh db-copy
+
+demo-expose: ## Expose the demo stack over the named Cloudflare tunnel (stable URL)
+	./scripts/expose-demo.sh
