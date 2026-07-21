@@ -9,6 +9,11 @@
     <turbo-stream action="replace" target="case-tabs-nav">
         <template>{{ include('case/overview/_tabs_nav.html.twig', { active_tab: 'documente' }) }}</template>
     </turbo-stream>
+    {# The nav replace above only marks the tab active; a stream cannot toggle the
+       `hidden` class on the panels, so a tiny controller finishes the switch. #}
+    <turbo-stream action="append" target="toasts">
+        <template><div data-controller="activate-tab" data-activate-tab-tab-value="documente"></div></template>
+    </turbo-stream>
     {# Uploading the communication proof must clear the global amber alert immediately,
        not only on the next full reload. #}
     <turbo-stream action="update" target="summons-communication-alert">

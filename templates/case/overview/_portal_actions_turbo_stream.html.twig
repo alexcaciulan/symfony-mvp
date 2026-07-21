@@ -12,6 +12,11 @@
     <turbo-stream action="replace" target="case-tabs-nav">
         <template>{{ include('case/overview/_tabs_nav.html.twig', { active_tab: 'portal' }) }}</template>
     </turbo-stream>
+    {# The nav replace above only marks the tab active; a stream cannot toggle the
+       `hidden` class on the panels, so a tiny controller finishes the switch. #}
+    <turbo-stream action="append" target="toasts">
+        <template><div data-controller="activate-tab" data-activate-tab-tab-value="portal"></div></template>
+    </turbo-stream>
     <turbo-stream action="update" target="panel-portal">
         <template>{{ include('case/overview/_tab_portal.html.twig') }}</template>
     </turbo-stream>
