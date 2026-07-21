@@ -95,7 +95,7 @@ php bin/console app:import-cities --no-interaction
 
 # Import courts data
 echo "Importing courts..."
-php bin/console app:import-courts --no-interaction
+php bin/console app:import-courts --no-interaction || echo "  Court import reported issues (see above)"
 
 # Post-import territorial coverage audit (non-fatal, logs gaps/overlaps)
 php bin/console app:audit-court-coverage || echo "  Court coverage audit reported issues (see above)"

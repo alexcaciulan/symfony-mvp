@@ -8,6 +8,7 @@ use App\Enum\CourtType;
 use App\Repository\CityRepository;
 use App\Repository\CountyRepository;
 use App\Repository\CourtRepository;
+use App\Service\Court\CourtNameIndex;
 use App\Service\Court\LocalityNormalizer;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -43,6 +44,12 @@ class ImportCourtsCommand extends Command
             InputOption::VALUE_NONE,
             'Update existing courts (refresh covered cities / address / email / phone) instead of skipping them.',
         );
+        $this->addOption(
+            'strict',
+            null,
+            InputOption::VALUE_NONE,
+            'Also fail when the database holds courts the data file does not mention.',
+        );
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -50,6 +57,7 @@ class ImportCourtsCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $jsonPath = $this->projectDir . '/data/courts.json';
         $updateMode = (bool) $input->getOption('update');
+        $strict = (bool) $input->getOption('strict');
 
         if (!file_exists($jsonPath)) {
             $io->error('File not found: ' . $jsonPath);
@@ -65,6 +73,12 @@ class ImportCourtsCommand extends Command
         $created = 0;
         $updated = 0;
         $skipped = 0;
+        $renamed = [];
+        $ambiguous = [];
+        $missingCounties = [];
+
+        $index = new CourtNameIndex($this->courtRepository->findAll());
+        $matchedNames = [];
 
         foreach ($data as $entry) {
             $countyNormalized = LocalityNormalizer::normalize(
@@ -79,17 +93,38 @@ class ImportCourtsCommand extends Command
                     $entry['county'] ?? '',
                     $entry['name'] ?? '',
                 ));
+                $missingCounties[] = (string) ($entry['name'] ?? '');
                 $skipped++;
                 continue;
             }
 
-            $existing = $this->courtRepository->findOneBy(['name' => $entry['name']]);
+            $name = (string) $entry['name'];
+
+            // A name that resolves to several courts already means duplicates exist;
+            // picking one at random would spread the damage.
+            if ($index->isAmbiguous($name)) {
+                $io->warning(sprintf('"%s" matches several existing courts. Resolve the duplicate manually.', $name));
+                $ambiguous[] = $name;
+                $skipped++;
+                continue;
+            }
+
+            $existing = $index->find($name);
 
             if ($existing !== null) {
                 if (!$updateMode) {
+                    // Key on the stored name: without --update it keeps its own spelling.
+                    $matchedNames[$existing->getName()] = true;
                     $skipped++;
                     continue;
                 }
+                // Matched through normalization: adopt the spelling from the data
+                // file instead of creating a duplicate alongside the old one.
+                if ($existing->getName() !== $name) {
+                    $renamed[] = sprintf('"%s" to "%s"', $existing->getName(), $name);
+                    $existing->setName($name);
+                }
+                $matchedNames[$name] = true;
                 $existing->setCounty($county);
                 $this->applyEntry($existing, $entry, $county, $io);
                 $updated++;
@@ -97,24 +132,51 @@ class ImportCourtsCommand extends Command
             }
 
             $court = new Court();
-            $court->setName($entry['name']);
+            $court->setName($name);
             $court->setCounty($county);
             $court->setType(CourtType::from($entry['type']));
             $court->setActive(true);
             $this->applyEntry($court, $entry, $county, $io);
 
             $this->em->persist($court);
+            $matchedNames[$name] = true;
             $created++;
         }
 
         $this->em->flush();
 
+        foreach ($renamed as $message) {
+            $io->note('Renamed ' . $message . '.');
+        }
+
+        // Courts the data file no longer mentions: either a rename this import
+        // could not bridge, or a leftover duplicate. Both leave dossiers pointing
+        // at a court that will stop being maintained.
+        $orphans = [];
+        foreach ($this->courtRepository->findAll() as $court) {
+            $name = (string) $court->getName();
+            if (!isset($matchedNames[$name])) {
+                $orphans[] = $name;
+            }
+        }
+        foreach ($orphans as $name) {
+            $io->warning(sprintf('Court "%s" exists in the database but not in courts.json.', $name));
+        }
+
         $io->success(sprintf(
-            'Import finished: %d created, %d updated, %d skipped.',
+            'Import finished: %d created, %d updated, %d skipped, %d not in the data file.',
             $created,
             $updated,
             $skipped,
+            count($orphans),
         ));
+
+        // Fail loudly: a silent success here is what let courts drift out of the
+        // nomenclature unnoticed. Extra courts in the database are only reported,
+        // since adding one by hand is legitimate; --strict gates them too.
+        if ($ambiguous !== [] || $missingCounties !== [] || ($strict && $orphans !== [])) {
+            return Command::FAILURE;
+        }
 
         return Command::SUCCESS;
     }

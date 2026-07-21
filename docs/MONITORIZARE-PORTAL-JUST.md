@@ -113,10 +113,15 @@ Index compus pe `(legal_case_id, event_type, event_date)` pentru deduplicare rap
 
 Fiecare instanta (`Court`) are un camp `portalCode` care corespunde codului din API-ul portal.just.ro.
 
-Exemple:
-- `Judecatoria Sector 1 Bucuresti` → `JudecatoriaSECTORUL1BUCURESTI`
+Codurile sunt cele enumerate in `<s:simpleType name="Institutie">` din WSDL-ul
+`http://portalquery.just.ro/query.asmx?WSDL` (246 valori). Serviciul respinge orice alta
+valoare, deci codurile se extrag de acolo, nu se deduc din denumire.
+
+Exemple (denumirea din stanga e cea canonica din `data/courts.json`):
+- `Judecatoria Sectorului 1 Bucuresti` → `JudecatoriaSECTORUL1BUCURESTI`
 - `Tribunalul Bucuresti` → `TribunalulBUCURESTI`
 - `Judecatoria Cluj-Napoca` → `JudecatoriaCLUJNAPOCA`
+- `Tribunalul Specializat Cluj` → `TribunalulComercialCLUJ` (denumirea istorica de pe portal)
 
 Fisierul `data/court_portal_codes.json` contine maparea. Se importa cu:
 
