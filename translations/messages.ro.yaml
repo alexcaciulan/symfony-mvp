@@ -1615,6 +1615,8 @@ subscription:
         stub_notice: 'Mediu de test: plata nu este reală. Apasă butonul pentru a marca factura drept plătită.'
         mark_paid: 'Marchează ca plătită'
         processing: 'Plata este în curs de procesare. Vei fi redirecționat către procesatorul de plăți.'
+        resume_notice: 'Factura nu este încă achitată. Apasă butonul pentru a continua plata la procesator.'
+        pay_now: 'Continuă plata'
         already_paid: 'Această factură este deja plătită.'
         back: 'Înapoi la facturi'
     return:

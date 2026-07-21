@@ -272,6 +272,106 @@ final class SubscriptionControllerTest extends WebTestCase
         self::assertStringStartsWith('/subscription/change-plan/', $cta->first()->attr('action'));
     }
 
+    public function testPendingChangeBannerPostsToTheResumeRoute(): void
+    {
+        $sub = $this->createActiveSubscription(casesConsumed: 0);
+        $invoice = $this->createInvoice($this->user);
+        $invoice->setSubscription($sub)->setType(InvoiceType::PLAN_CHANGE)->setTargetPlan($this->proPlan());
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/subscription');
+
+        // A link to the checkout page is a dead end on a real gateway: that page
+        // only informs, the redirect to the processor happens on POST.
+        self::assertSame(0, $crawler->filter('a[href="/subscription/checkout/' . $invoice->getId() . '"]')->count());
+        self::assertGreaterThan(0, $crawler->filter('form[action="/subscription/pay/' . $invoice->getId() . '"]')->count());
+    }
+
+    public function testPayResumesCheckoutForAPendingInvoice(): void
+    {
+        $sub = $this->createActiveSubscription(casesConsumed: 0);
+        $invoice = $this->createInvoice($this->user);
+        $invoice->setSubscription($sub)->setType(InvoiceType::PLAN_CHANGE)->setTargetPlan($this->proPlan());
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/subscription');
+        $token = $crawler
+            ->filter('form[action="/subscription/pay/' . $invoice->getId() . '"] input[name="_token"]')
+            ->first()->attr('value');
+
+        $this->client->request('POST', '/subscription/pay/' . $invoice->getId(), ['_token' => $token]);
+
+        // Stub gateway checks out in-app, so the redirect names the same invoice.
+        self::assertResponseRedirects('http://localhost/subscription/checkout/' . $invoice->getId());
+    }
+
+    public function testCheckoutRefusesAnInvoiceOwnedBySomeoneElse(): void
+    {
+        $other = $this->createOtherUser();
+        $victimInvoice = $this->createInvoice($other);
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/subscription/checkout/' . $victimInvoice->getId());
+
+        self::assertResponseStatusCodeSame(Response::HTTP_FORBIDDEN);
+    }
+
+    private function createOtherUser(): User
+    {
+        $hasher = static::getContainer()->get(UserPasswordHasherInterface::class);
+        $other = new User();
+        $other->setEmail($this->prefix . '-other@test.com');
+        $other->setPassword($hasher->hashPassword($other, 'password'));
+        $other->setIsVerified(true);
+        $this->em->persist($other);
+        $this->em->flush();
+
+        return $other;
+    }
+
+    public function testPayWithAnotherSessionsTokenCannotStartCheckout(): void
+    {
+        $other = $this->createOtherUser();
+        $victimInvoice = $this->createInvoice($other);
+
+        // Token minted in the victim's session, then replayed by the intruder.
+        // It is refused before ownership is even considered, because CSRF tokens
+        // are session-bound; the ownership guard itself is covered by the
+        // checkout test above.
+        $this->client->loginUser($other);
+        $crawler = $this->client->request('GET', '/subscription/checkout/' . $victimInvoice->getId());
+        $token = $crawler->filter('input[name="_token"]')->first()->attr('value');
+
+        $this->client->loginUser($this->user);
+        $this->client->request('POST', '/subscription/pay/' . $victimInvoice->getId(), ['_token' => $token]);
+
+        self::assertResponseRedirects('/subscription');
+        self::assertStringNotContainsString(
+            '/subscription/checkout/' . $victimInvoice->getId(),
+            (string) $this->client->getResponse()->headers->get('Location'),
+        );
+    }
+
+    public function testPayOnAnAlreadyPaidInvoiceDoesNotStartCheckout(): void
+    {
+        $invoice = $this->createInvoice($this->user);
+        $this->client->loginUser($this->user);
+
+        $crawler = $this->client->request('GET', '/subscription/checkout/' . $invoice->getId());
+        $token = $crawler->filter('input[name="_token"]')->first()->attr('value');
+
+        // Settled between rendering the button and clicking it, e.g. the IPN landed
+        // while the page was open.
+        $invoice->markPaid();
+        $this->em->flush();
+
+        $this->client->request('POST', '/subscription/pay/' . $invoice->getId(), ['_token' => $token]);
+
+        self::assertResponseRedirects('/subscription');
+    }
+
     public function testCancelPlanChangeDropsTheScheduledPlan(): void
     {
         $sub = $this->createActiveSubscription(casesConsumed: 0);

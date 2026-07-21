@@ -216,6 +216,52 @@ final class SubscriptionController extends AbstractController
         return $this->startCheckout($result->invoice);
     }
 
+    /**
+     * Resumes payment for an invoice that is still open, by starting a fresh
+     * gateway checkout for it.
+     *
+     * A POST that ends in a redirect to the processor, not a link to the checkout
+     * page: on a real gateway that page is informational only, so linking to it
+     * leaves the user staring at "you will be redirected" with nothing to click.
+     */
+    #[Route('/pay/{invoiceId}', name: 'app_subscription_pay', requirements: ['invoiceId' => '\d+'], methods: ['POST'])]
+    public function resumePayment(int $invoiceId, Request $request, RateLimiterFactory $subscriptionCheckoutLimiter): Response
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        if (!$this->isCsrfTokenValid('pay_pending_' . $invoiceId, $request->getPayload()->getString('_token'))) {
+            $this->addFlash('error', 'subscription.flash.csrf');
+
+            return $this->redirectToRoute('app_subscription');
+        }
+
+        if (!$subscriptionCheckoutLimiter->create($user->getUserIdentifier())->consume()->isAccepted()) {
+            $this->addFlash('warning', 'rate_limit.subscription_checkout');
+
+            return $this->redirectToRoute('app_subscription');
+        }
+
+        $invoice = $this->invoiceRepository->find($invoiceId);
+        if (null === $invoice || $invoice->getUser() !== $user) {
+            throw $this->createAccessDeniedException();
+        }
+
+        if (InvoiceStatus::PENDING !== $invoice->getStatus()) {
+            $this->addFlash('info', 'subscription.flash.already_paid');
+
+            return $this->redirectToRoute('app_subscription');
+        }
+
+        if (!$user->hasCompleteFiscalData()) {
+            $this->addFlash('warning', 'subscription.flash.fiscal_data_required');
+
+            return $this->redirectToRoute('app_profile_edit');
+        }
+
+        return $this->startCheckout($invoice);
+    }
+
     #[Route('/cancel-plan-change', name: 'app_subscription_cancel_plan_change', methods: ['POST'])]
     public function cancelPlanChange(Request $request): Response
     {

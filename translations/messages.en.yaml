@@ -1614,6 +1614,8 @@ subscription:
         stub_notice: 'Test environment: this is not a real payment. Click the button to mark the invoice as paid.'
         mark_paid: 'Mark as paid'
         processing: 'Your payment is being processed. You will be redirected to the payment processor.'
+        resume_notice: 'This invoice is not paid yet. Use the button to continue the payment at the processor.'
+        pay_now: 'Continue payment'
         already_paid: 'This invoice is already paid.'
         back: 'Back to invoices'
     return:

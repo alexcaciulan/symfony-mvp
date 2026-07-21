@@ -33,7 +33,15 @@
                     </button>
                 </form>
             {% elseif invoice.status.value == 'pending' %}
-                <p class="mt-6 text-sm text-gray-600">{{ 'subscription.checkout.processing'|trans }}</p>
+                {# On a real gateway this page is informational, so it needs its own
+                   way back to the processor: the redirect only happens on POST. #}
+                <p class="mt-6 text-sm text-gray-600">{{ 'subscription.checkout.resume_notice'|trans }}</p>
+                <form method="post" action="{{ path('app_subscription_pay', {invoiceId: invoice.id}) }}" class="mt-4" data-turbo="false">
+                    <input type="hidden" name="_token" value="{{ csrf_token('pay_pending_' ~ invoice.id) }}">
+                    <button type="submit" class="w-full px-4 py-2.5 bg-lex-navy text-white rounded-lg font-medium hover:opacity-90 transition text-sm">
+                        {{ 'subscription.checkout.pay_now'|trans }}
+                    </button>
+                </form>
             {% else %}
                 <p class="mt-6 text-sm text-green-700 font-medium">{{ 'subscription.checkout.already_paid'|trans }}</p>
             {% endif %}
