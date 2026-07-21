@@ -119,6 +119,31 @@ să poată deschide link-ul. Mailpit-ul, în special, expune tot ce trimite
 aplicația și merită fie o politică Access, fie lăsat doar local
 (`DEMO_MAIL_HOST=` gol).
 
+## Extracția AI pe demo
+
+Trei condiții trebuie îndeplinite simultan ca extracția să meargă pe AI Vision:
+
+1. **Cheia Anthropic.** Stă în `.env.local` din checkout-ul principal, care este
+   gitignored și deci absent din worktree-ul demo. `scripts/demo.sh` pasează acel
+   fișier la compose, iar `compose.demo.yaml` propagă doar cheile de extracție.
+   Fără cheie, `AiVisionExtractionStrategy::supports()` întoarce `false` și
+   cascada cade tăcut pe `pdf_parser`.
+2. **`extraction_mode` al utilizatorului.** `LOCAL_ONLY` sare peste toate
+   strategiile AI (GDPR art. 25, privacy by default). Default-ul pentru conturi
+   noi este `MAX_ACCURACY`, dar utilizatorii creați înainte de acea schimbare au
+   rămas pe `LOCAL_ONLY`: migrarea schimbă valoarea implicită a coloanei, nu
+   rândurile existente.
+3. **`EXTRACTION_SKIP_STRATEGIES=pdf_parser,ocr_text`.** Altfel `pdf_parser`
+   (prioritate 100) răspunde primul pentru orice PDF cu strat de text și cascada
+   se oprește acolo, fără să ajungă la AI Vision.
+
+Verificare rapidă a strategiei folosite:
+
+```bash
+docker exec lexdemo-db mysql -u root -proot_password symfony_mvp \
+  -e "select id, original_filename, extraction_status, extraction_strategy, extraction_confidence from document order by id desc limit 5;"
+```
+
 ## Operare zilnică
 
 ```bash

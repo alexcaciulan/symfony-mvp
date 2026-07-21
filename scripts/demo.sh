@@ -26,10 +26,15 @@ if [ ! -f "${ENV_FILE}" ]; then
   exit 1
 fi
 
+# The demo worktree has no .env.local (gitignored), so secrets are read from the
+# main checkout. Later --env-file entries win, hence .env.demo comes last.
 compose() {
+  local env_args=(--env-file .env)
+  [ -f "${ROOT}/.env.local" ] && env_args+=(--env-file "${ROOT}/.env.local")
+  env_args+=(--env-file "${ENV_FILE}")
+
   ( cd "${WORKTREE}" && docker compose -p "${PROJECT}" \
-      -f compose.yaml -f compose.demo.yaml \
-      --env-file .env --env-file "${ENV_FILE}" "$@" )
+      -f compose.yaml -f compose.demo.yaml "${env_args[@]}" "$@" )
 }
 
 ensure_worktree() {
