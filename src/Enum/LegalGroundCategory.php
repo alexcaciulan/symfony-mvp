@@ -21,9 +21,9 @@ enum LegalGroundCategory: string
 
     /**
      * Whether this legal ground is admissible under the payment-order procedure
-     * (CPC art. 1014 — creanță certă, lichidă și exigibilă, constatată prin înscris).
+     * (CPC art. 1013: creanță certă, lichidă și exigibilă, constatată prin înscris).
      *
-     * All current categories are eligible — the helper is a future-proof guard
+     * All current categories are eligible; the helper is a future-proof guard
      * for cases that may need exclusion at a later revision.
      */
     public function isOpEligible(): bool

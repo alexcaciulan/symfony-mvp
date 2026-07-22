@@ -7,6 +7,7 @@ use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\ExtractionMode;
+use App\Enum\ExtractionPipeline;
 use App\Enum\ExtractionStatus;
 use App\Service\AuditLogService;
 use App\Service\Extraction\AiVisionExtractionStrategy;
@@ -17,6 +18,8 @@ use App\Service\Extraction\StubExtractionStrategy;
 use App\Service\Llm\AnthropicApiClient;
 use App\Service\Ocr\OcrServiceInterface;
 use App\Service\Ocr\TesseractOcrService;
+use App\Tests\Support\ExtractionPrompts;
+use App\Enum\DocumentType;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use Symfony\Component\HttpClient\MockHttpClient;
@@ -117,8 +120,8 @@ class CascadeIntegrationTest extends TestCase
         $result = $this->orchestrator->extract($document);
 
         $this->assertSame('pdf_parser', $result->strategy);
-        $this->assertNotNull($result->debtor);
-        $this->assertSame('1980715221232', $result->debtor->personalId);
+        $this->assertNotNull($result->primaryDebtor());
+        $this->assertSame('1980715221232', $result->primaryDebtor()->personalId);
 
         // Persisted JSON contains the CNP — Pas 2.5.4 will introduce PiiMasker
         // for AI prompts, but at this layer raw values are kept (the data never
@@ -313,8 +316,10 @@ class CascadeIntegrationTest extends TestCase
                 anthropicModel: 'claude-sonnet-4-6',
                 logger: new NullLogger(),
             ),
+            promptRegistry: ExtractionPrompts::registry(),
             auditLogService: $audit,
             extractionAiVisionLimiter: $this->noLimitFactory(),
+            extractionAiVisionBurstLimiter: $this->noLimitFactory(),
             // The fixture binary lives in tests/fixtures/ocr/clean-text.png —
             // FIXTURES_DIR is tests/fixtures/extraction, so we point uploadsDir
             // there and use a sibling-dir-relative name. Cleaner alternative
@@ -343,8 +348,10 @@ class CascadeIntegrationTest extends TestCase
                 anthropicModel: 'claude-sonnet-4-6',
                 logger: new NullLogger(),
             ),
+            promptRegistry: ExtractionPrompts::registry(),
             auditLogService: $audit,
             extractionAiVisionLimiter: $this->noLimitFactory(),
+            extractionAiVisionBurstLimiter: $this->noLimitFactory(),
             uploadsDir: self::FIXTURES_DIR . '/../ocr',
             anthropicApiKey: 'sk-ant-cascade-vision',
             logger: new NullLogger(),
@@ -501,9 +508,17 @@ TEXT;
         string $mime = 'application/pdf',
         ExtractionMode $userMode = ExtractionMode::LOCAL_ONLY,
         ?ExtractionMode $caseOverride = null,
+        ExtractionPipeline $pipeline = ExtractionPipeline::LEGACY_CASCADE,
     ): Document {
         $user = new User();
         $user->setExtractionMode($userMode);
+        // This class exercises the four-tier cascade end to end, which only the
+        // legacy pipeline runs; AI_ONLY has its own coverage in
+        // DataExtractionServiceTest.
+        $user->setExtractionPipeline($pipeline);
+        // AI-backed tiers also require the processing agreement, which is not
+        // what this class varies.
+        $user->setAiProcessingAgreementAt(new \DateTimeImmutable());
 
         $case = new LegalCase();
         $case->setUser($user);
@@ -512,6 +527,8 @@ TEXT;
         }
 
         $document = new Document();
+        // What the wizard stores when the lawyer did not declare a type.
+        $document->setDocumentType(DocumentType::ALT_DOCUMENT);
         $document->setLegalCase($case);
         // Pas 3.0: extraction strategies read user from Document.uploadedBy
         // (not via LegalCase->getUser()) so that wizard step 0 uploads —
@@ -577,8 +594,10 @@ TEXT;
                 anthropicModel: 'claude-sonnet-4-6',
                 logger: new NullLogger(),
             ),
+            promptRegistry: ExtractionPrompts::registry(),
             auditLogService: $audit,
             extractionAiVisionLimiter: $this->noLimitFactory(),
+            extractionAiVisionBurstLimiter: $this->noLimitFactory(),
             uploadsDir: self::FIXTURES_DIR . '/../ocr',
             anthropicApiKey: 'sk-fail-test',
             logger: new NullLogger(),
@@ -746,8 +765,10 @@ TEXT;
                 anthropicModel: 'claude-sonnet-4-6',
                 logger: new NullLogger(),
             ),
+            promptRegistry: ExtractionPrompts::registry(),
             auditLogService: $audit,
             extractionAiVisionLimiter: $exhaustedFactory,
+            extractionAiVisionBurstLimiter: $this->noLimitFactory(),
             uploadsDir: self::FIXTURES_DIR . '/../ocr',
             anthropicApiKey: 'sk-cascade-rate',
             logger: new NullLogger(),

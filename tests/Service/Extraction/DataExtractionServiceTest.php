@@ -6,12 +6,21 @@ use App\DTO\Extraction\ExtractedDocumentData;
 use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\User;
+use App\Enum\ExtractionFailureReason;
 use App\Enum\ExtractionMode;
+use App\Enum\ExtractionPipeline;
 use App\Enum\ExtractionStatus;
+use App\Service\AuditLogService;
+use App\Service\Extraction\AiVisionExtractionStrategy;
 use App\Service\Extraction\DataExtractionService;
 use App\Service\Extraction\ExtractionStrategyInterface;
 use App\Service\Extraction\StubExtractionStrategy;
 use PHPUnit\Framework\TestCase;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
+use Symfony\Component\RateLimiter\Storage\InMemoryStorage;
+use App\Service\Llm\LlmClientInterface;
+use App\Tests\Support\ExtractionPrompts;
+use App\Enum\DocumentType;
 
 class DataExtractionServiceTest extends TestCase
 {
@@ -54,6 +63,233 @@ class DataExtractionServiceTest extends TestCase
 
         $this->assertSame('fake_mid', $result->strategy);
         $this->assertSame(0.85, $result->globalConfidence);
+    }
+
+    public function testAiOnlyPipelineSkipsEveryStrategyExceptAiVision(): void
+    {
+        $service = new DataExtractionService([
+            $this->makeFake(priority: 100, confidence: 0.95, strategyKey: 'pdf_parser'),
+            $this->makeFake(priority: 70, confidence: 0.9, strategyKey: 'ocr_text', isAi: true),
+            $this->makeAiVisionDouble(confidence: 0.8),
+            new StubExtractionStrategy(),
+        ]);
+
+        $result = $service->extract($this->makeDocument(
+            userMode: ExtractionMode::BALANCED,
+            pipeline: ExtractionPipeline::AI_ONLY,
+        ));
+
+        $this->assertSame('ai_vision', $result->strategy);
+        $this->assertSame(0.8, $result->globalConfidence);
+    }
+
+    public function testLegacyCascadePipelineStillRunsTheNonAiTiers(): void
+    {
+        $service = new DataExtractionService([
+            $this->makeFake(priority: 100, confidence: 0.95, strategyKey: 'pdf_parser'),
+            $this->makeAiVisionDouble(confidence: 0.8),
+            new StubExtractionStrategy(),
+        ]);
+
+        $result = $service->extract($this->makeDocument(
+            userMode: ExtractionMode::BALANCED,
+            pipeline: ExtractionPipeline::LEGACY_CASCADE,
+        ));
+
+        $this->assertSame('pdf_parser', $result->strategy);
+    }
+
+    public function testAiOnlyWithLocalOnlyModeIsSkippedByPolicyNotFailed(): void
+    {
+        $service = new DataExtractionService([
+            $this->makeFake(priority: 50, confidence: 0.8, strategyKey: 'ai_vision', isAi: true),
+            new StubExtractionStrategy(),
+        ]);
+
+        $document = $this->makeDocument(
+            userMode: ExtractionMode::LOCAL_ONLY,
+            pipeline: ExtractionPipeline::AI_ONLY,
+        );
+        $result = $service->extract($document);
+
+        $this->assertSame(0.0, $result->globalConfidence);
+        $this->assertSame(ExtractionFailureReason::LOCAL_ONLY_MODE, $result->failureReason);
+        $this->assertSame(ExtractionStatus::SKIPPED_BY_POLICY, $document->getExtractionStatus());
+        $this->assertSame(
+            ExtractionFailureReason::LOCAL_ONLY_MODE,
+            $document->getExtractionFailureReason(),
+        );
+    }
+
+    public function testAiOnlyWithoutAnyVisionStrategyPersistsApiUnavailable(): void
+    {
+        // Mirrors production with an empty API key: AiVision::supports() returns
+        // false, and with no Stub below it nothing runs at all.
+        $service = new DataExtractionService([
+            $this->makeAiVisionDouble(confidence: 0.8, supports: false),
+            new StubExtractionStrategy(),
+        ]);
+
+        $document = $this->makeDocument(
+            userMode: ExtractionMode::BALANCED,
+            pipeline: ExtractionPipeline::AI_ONLY,
+        );
+        $result = $service->extract($document);
+
+        $this->assertSame('ai_vision', $result->strategy);
+        $this->assertSame(ExtractionStatus::FAILED, $document->getExtractionStatus());
+        $this->assertSame(
+            ExtractionFailureReason::API_UNAVAILABLE,
+            $document->getExtractionFailureReason(),
+        );
+    }
+
+    public function testPipelineFallsBackToUploaderWhenDocumentHasNoCase(): void
+    {
+        $service = new DataExtractionService([
+            $this->makeFake(priority: 100, confidence: 0.95, strategyKey: 'pdf_parser'),
+            $this->makeAiVisionDouble(confidence: 0.8),
+            new StubExtractionStrategy(),
+        ]);
+
+        // Wizard step 0 shape: the document exists before any LegalCase does.
+        $user = new User();
+        $user->setExtractionMode(ExtractionMode::BALANCED);
+        $user->setExtractionPipeline(ExtractionPipeline::AI_ONLY);
+        $user->setAiProcessingAgreementAt(new \DateTimeImmutable());
+        $document = new Document();
+        // What the wizard stores when the lawyer did not declare a type.
+        $document->setDocumentType(DocumentType::ALT_DOCUMENT);
+        $document->setUploadedBy($user);
+
+        $this->assertSame('ai_vision', $service->extract($document)->strategy);
+    }
+
+    /**
+     * The uploader leg is only a fallback. Once a case exists, the case owner
+     * decides, because that is the account the extraction is billed and audited
+     * against.
+     */
+    public function testPipelineComesFromTheCaseOwnerNotTheUploaderWhenACaseExists(): void
+    {
+        $service = new DataExtractionService([
+            $this->makeFake(priority: 100, confidence: 0.95, strategyKey: 'pdf_parser'),
+            $this->makeAiVisionDouble(confidence: 0.8),
+            new StubExtractionStrategy(),
+        ]);
+
+        $owner = new User();
+        $owner->setExtractionMode(ExtractionMode::BALANCED);
+        $owner->setExtractionPipeline(ExtractionPipeline::AI_ONLY);
+        $owner->setAiProcessingAgreementAt(new \DateTimeImmutable());
+
+        $uploader = new User();
+        $uploader->setExtractionMode(ExtractionMode::BALANCED);
+        $uploader->setExtractionPipeline(ExtractionPipeline::LEGACY_CASCADE);
+        $uploader->setAiProcessingAgreementAt(new \DateTimeImmutable());
+
+        $case = new LegalCase();
+        $case->setUser($owner);
+        $document = new Document();
+        // What the wizard stores when the lawyer did not declare a type.
+        $document->setDocumentType(DocumentType::ALT_DOCUMENT);
+        $document->setLegalCase($case);
+        $document->setUploadedBy($uploader);
+
+        $this->assertSame('ai_vision', $service->extract($document)->strategy);
+    }
+
+    /**
+     * The policy skip must short-circuit before the loop. Running a strategy
+     * and discarding its result would still have sent the document out.
+     */
+    public function testAiOnlyWithLocalOnlyModeRunsNoStrategyAtAll(): void
+    {
+        $recorder = $this->makeRecordingStrategy();
+        $service = new DataExtractionService([$recorder, new StubExtractionStrategy()]);
+
+        $service->extract($this->makeDocument(
+            userMode: ExtractionMode::LOCAL_ONLY,
+            pipeline: ExtractionPipeline::AI_ONLY,
+        ));
+
+        $this->assertSame(0, $recorder->extractCalls);
+        $this->assertSame(0, $recorder->supportsCalls);
+    }
+
+    /**
+     * The agreement is what covers sending a client's documents to a
+     * third-party processor. An account that has never given it must not have
+     * its documents leave the boundary, whatever the extraction mode says: the
+     * mode is a quality preference, the agreement is the legal basis.
+     *
+     * This is the state a freshly registered account is in, since nothing on
+     * the registration path touches either field.
+     */
+    public function testAiOnlyAccountWithoutTheProcessingAgreementDoesNotReachTheModel(): void
+    {
+        $recorder = $this->makeRecordingStrategy();
+        $service = new DataExtractionService([$recorder]);
+
+        $user = new User();
+        $user->setExtractionPipeline(ExtractionPipeline::AI_ONLY);
+        // Left at the registration defaults: AI is allowed by mode, and no
+        // agreement has ever been recorded.
+        self::assertFalse($user->hasAcceptedAiProcessing());
+
+        $case = new LegalCase();
+        $case->setUser($user);
+        $document = new Document();
+        // What the wizard stores when the lawyer did not declare a type.
+        $document->setDocumentType(DocumentType::ALT_DOCUMENT);
+        $document->setLegalCase($case);
+
+        $service->extract($document);
+
+        $this->assertSame(0, $recorder->extractCalls, 'No document may be sent before the agreement exists');
+        $this->assertSame(ExtractionStatus::SKIPPED_BY_POLICY, $document->getExtractionStatus());
+    }
+
+    /**
+     * SKIPPED_BY_POLICY belongs to AI_ONLY alone. A legacy account on
+     * LOCAL_ONLY still has PdfParser and Stub to run, so its outcome is a plain
+     * cascade result and the badge must not claim extraction was turned off.
+     */
+    public function testLegacyCascadeWithLocalOnlyModeIsNotSkippedByPolicy(): void
+    {
+        $service = new DataExtractionService([
+            $this->makeAiVisionDouble(confidence: 0.9),
+            new StubExtractionStrategy(),
+        ]);
+
+        $document = $this->makeDocument(
+            userMode: ExtractionMode::LOCAL_ONLY,
+            pipeline: ExtractionPipeline::LEGACY_CASCADE,
+        );
+        $result = $service->extract($document);
+
+        $this->assertSame(StubExtractionStrategy::STRATEGY_KEY, $result->strategy);
+        $this->assertSame(ExtractionStatus::FAILED, $document->getExtractionStatus());
+        $this->assertNull($document->getExtractionFailureReason());
+    }
+
+    /**
+     * A retry writes over a previous attempt on the same Document, so a stale
+     * cause must not survive a run that produced data.
+     */
+    public function testASuccessfulRunClearsAPreviouslyPersistedFailureReason(): void
+    {
+        $document = $this->makeDocument(
+            userMode: ExtractionMode::BALANCED,
+            pipeline: ExtractionPipeline::AI_ONLY,
+        );
+        $document->setExtractionFailureReason(ExtractionFailureReason::API_UNAVAILABLE);
+
+        $service = new DataExtractionService([$this->makeAiVisionDouble(confidence: 0.8)]);
+        $service->extract($document);
+
+        $this->assertSame(ExtractionStatus::COMPLETED, $document->getExtractionStatus());
+        $this->assertNull($document->getExtractionFailureReason());
     }
 
     public function testSkipsAiBackedStrategiesInLocalOnlyMode(): void
@@ -401,14 +637,192 @@ class DataExtractionServiceTest extends TestCase
         $this->assertSame('stub', $result->strategy);
     }
 
+    /**
+     * The two ways nothing can run under AI_ONLY need different answers: a
+     * provider outage is worth retrying, an unset API key is not. Reported as
+     * transient, a missing key would send every document of every account
+     * through the full retry budget and then park it in the failed transport.
+     */
+    public function testAiOnlyWithoutAnApiKeyReportsAConfigurationCauseNotAnOutage(): void
+    {
+        $service = new DataExtractionService([$this->makeUnconfiguredVisionStrategy()]);
+
+        $document = $this->makeDocument(
+            userMode: ExtractionMode::BALANCED,
+            pipeline: ExtractionPipeline::AI_ONLY,
+        );
+        $service->extract($document);
+
+        $this->assertSame(
+            ExtractionFailureReason::API_KEY_MISSING,
+            $document->getExtractionFailureReason(),
+        );
+        $this->assertFalse($document->getExtractionFailureReason()->isTransient());
+    }
+
+    /**
+     * The Stub ends every legacy cascade with an empty result, so a failed AI
+     * tier and the Stub meet at zero confidence and the document is FAILED
+     * either way. What must not happen is the empty result taking the
+     * explanation down with it: the handler reads the failure reason to decide
+     * whether another attempt is worth making, and the UI reads it to decide
+     * whether to offer the lawyer a retry. Dropping it turns a provider outage,
+     * which the next attempt would survive, into a document with no stated
+     * cause and no way forward. Retrying is safe to ask for because an
+     * exhausted budget now lands on a terminal FAILED of its own.
+     */
+    public function testAFailedAiTierKeepsItsCauseWhenTheStubAddsNothing(): void
+    {
+        $failingVision = new class implements ExtractionStrategyInterface {
+            public const STRATEGY_KEY = 'ai_vision';
+
+            public function priority(): int
+            {
+                return 50;
+            }
+
+            public function isAiBacked(): bool
+            {
+                return true;
+            }
+
+            public function supports(Document $document): bool
+            {
+                return true;
+            }
+
+            public function extract(Document $document): ExtractedDocumentData
+            {
+                return new ExtractedDocumentData(
+                    sourceDocumentId: (int) $document->getId(),
+                    strategy: self::STRATEGY_KEY,
+                    globalConfidence: 0.0,
+                    extractedAt: new \DateTimeImmutable(),
+                    failureReason: ExtractionFailureReason::API_UNAVAILABLE,
+                );
+            }
+        };
+
+        $service = new DataExtractionService([$failingVision, new StubExtractionStrategy()]);
+
+        $document = $this->makeDocument(
+            userMode: ExtractionMode::BALANCED,
+            pipeline: ExtractionPipeline::LEGACY_CASCADE,
+        );
+        $result = $service->extract($document);
+
+        // Provenance names what actually ran and failed, rather than the empty
+        // fallback that ran after it.
+        $this->assertSame('ai_vision', $result->strategy);
+        $this->assertSame(
+            ExtractionFailureReason::API_UNAVAILABLE,
+            $document->getExtractionFailureReason(),
+        );
+        $this->assertSame(ExtractionStatus::FAILED, $document->getExtractionStatus());
+    }
+
+    /**
+     * The reported bug, at the level where it was actually caused. A malformed
+     * answer is transient, so the lawyer is meant to get a retry button and the
+     * queue another attempt. Both are driven by the failure reason, and on a
+     * legacy cascade the Stub used to erase it, which is why an invoice that
+     * failed on auto-detected type left no way out but correcting the type by
+     * hand.
+     */
+    public function testAMalformedAiAnswerStaysRetryableThroughTheStubFallback(): void
+    {
+        $malformedVision = new class implements ExtractionStrategyInterface {
+            public const STRATEGY_KEY = 'ai_vision';
+
+            public function priority(): int
+            {
+                return 50;
+            }
+
+            public function isAiBacked(): bool
+            {
+                return true;
+            }
+
+            public function supports(Document $document): bool
+            {
+                return true;
+            }
+
+            public function extract(Document $document): ExtractedDocumentData
+            {
+                return new ExtractedDocumentData(
+                    sourceDocumentId: (int) $document->getId(),
+                    strategy: self::STRATEGY_KEY,
+                    globalConfidence: 0.0,
+                    extractedAt: new \DateTimeImmutable(),
+                    failureReason: ExtractionFailureReason::RESPONSE_MALFORMED,
+                );
+            }
+        };
+
+        $service = new DataExtractionService([$malformedVision, new StubExtractionStrategy()]);
+
+        $document = $this->makeDocument(
+            userMode: ExtractionMode::BALANCED,
+            pipeline: ExtractionPipeline::LEGACY_CASCADE,
+        );
+        $result = $service->extract($document);
+
+        $this->assertSame(ExtractionFailureReason::RESPONSE_MALFORMED, $result->failureReason);
+        $this->assertSame(
+            ExtractionFailureReason::RESPONSE_MALFORMED,
+            $document->getExtractionFailureReason(),
+        );
+        $this->assertTrue(
+            $document->getExtractionFailureReason()->isTransient(),
+            'A retry is only offered for a transient cause, so the reason has to survive the cascade.',
+        );
+    }
+
+    /**
+     * A real vision strategy with no credentials, which is what an installation
+     * without ANTHROPIC_API_KEY has. The double used elsewhere cannot stand in:
+     * the orchestrator asks the concrete strategy whether it is configured.
+     */
+    private function makeUnconfiguredVisionStrategy(): AiVisionExtractionStrategy
+    {
+        $noLimit = new RateLimiterFactory(
+            ['id' => 'test_no_limit', 'policy' => 'no_limit'],
+            new InMemoryStorage(),
+        );
+
+        return new AiVisionExtractionStrategy(
+            llmClient: $this->createStub(LlmClientInterface::class),
+            promptRegistry: ExtractionPrompts::registry(),
+            auditLogService: $this->createStub(AuditLogService::class),
+            extractionAiVisionLimiter: $noLimit,
+            extractionAiVisionBurstLimiter: $noLimit,
+            uploadsDir: sys_get_temp_dir(),
+            anthropicApiKey: '',
+        );
+    }
+
     // ----- helpers -----
 
+    /**
+     * The pipeline defaults to LEGACY_CASCADE because most tests in this class
+     * exercise cascade mechanics (ordering, thresholds, the dev knobs), which
+     * only exist on that pipeline. AI_ONLY behaviour has its own tests below and
+     * passes the value explicitly.
+     */
     private function makeDocument(
         ExtractionMode $userMode = ExtractionMode::LOCAL_ONLY,
         ?ExtractionMode $caseOverride = null,
+        ExtractionPipeline $pipeline = ExtractionPipeline::LEGACY_CASCADE,
     ): Document {
         $user = new User();
         $user->setExtractionMode($userMode);
+        $user->setExtractionPipeline($pipeline);
+        // The AI processing agreement is a precondition for every AI-backed
+        // strategy. These tests vary the mode and the pipeline, so the agreement
+        // is held constant at "given"; the tests that vary it say so explicitly.
+        $user->setAiProcessingAgreementAt(new \DateTimeImmutable());
 
         $case = new LegalCase();
         $case->setUser($user);
@@ -417,9 +831,97 @@ class DataExtractionServiceTest extends TestCase
         }
 
         $document = new Document();
+        // What the wizard stores when the lawyer did not declare a type.
+        $document->setDocumentType(DocumentType::ALT_DOCUMENT);
         $document->setLegalCase($case);
 
         return $document;
+    }
+
+    /**
+     * An ai_vision double that counts how often the orchestrator touched it, so
+     * a test can assert a strategy was never reached rather than only that its
+     * result was discarded.
+     */
+    private function makeRecordingStrategy(): ExtractionStrategyInterface
+    {
+        return new class implements ExtractionStrategyInterface {
+            public const STRATEGY_KEY = 'ai_vision';
+
+            public int $supportsCalls = 0;
+            public int $extractCalls = 0;
+
+            public function priority(): int
+            {
+                return 50;
+            }
+
+            public function isAiBacked(): bool
+            {
+                return true;
+            }
+
+            public function supports(Document $document): bool
+            {
+                ++$this->supportsCalls;
+
+                return true;
+            }
+
+            public function extract(Document $document): ExtractedDocumentData
+            {
+                ++$this->extractCalls;
+
+                return new ExtractedDocumentData(
+                    sourceDocumentId: (int) $document->getId(),
+                    strategy: self::STRATEGY_KEY,
+                    globalConfidence: 0.9,
+                    extractedAt: new \DateTimeImmutable(),
+                );
+            }
+        };
+    }
+
+    /**
+     * Stand-in for AiVisionExtractionStrategy. Unlike {@see self::makeFake()} it
+     * declares the STRATEGY_KEY class constant, which is what the AI_ONLY filter
+     * reads; a double without it is treated as an unknown tier and skipped.
+     */
+    private function makeAiVisionDouble(float $confidence, bool $supports = true): ExtractionStrategyInterface
+    {
+        return new class($confidence, $supports) implements ExtractionStrategyInterface {
+            public const STRATEGY_KEY = 'ai_vision';
+
+            public function __construct(
+                private float $confidenceValue,
+                private bool $supportsValue,
+            ) {}
+
+            public function priority(): int
+            {
+                return 50;
+            }
+
+            public function isAiBacked(): bool
+            {
+                return true;
+            }
+
+            public function supports(Document $document): bool
+            {
+                return $this->supportsValue;
+            }
+
+            public function extract(Document $document): ExtractedDocumentData
+            {
+                return new ExtractedDocumentData(
+                    sourceDocumentId: (int) $document->getId(),
+                    strategy: self::STRATEGY_KEY,
+                    globalConfidence: $this->confidenceValue,
+                    extractedAt: new \DateTimeImmutable(),
+                );
+            }
+        };
     }
 
     private function makeFake(

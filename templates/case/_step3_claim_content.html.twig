@@ -13,7 +13,21 @@
 {% block wizard_breadcrumb_step %} · {{ 'wizard.step.claim'|trans }}{% endblock %}
 
 {% block wizard_step_content %}
-    {{ component('Step3ClaimLiveComponent', { initialFormData: dto, form: form }) }}
+    {{ include('case/_prefill_conflicts.html.twig', { conflicts_form_id: 'step3-claim-form' }) }}
+
+    {# The sidebar shows the positions' figures when the file has any: the scalar
+       amount on the form is no longer what the claim is made of. #}
+    {% set items_summary = claim_items_summary|default(null) %}
+    {{ component('Step3ClaimLiveComponent', {
+        initialFormData: dto,
+        form: form,
+        positionCount: items_summary ? items_summary.countedRows : 0,
+        positionPrincipal: items_summary and items_summary.countedRows > 0 ? items_summary.principal : null,
+        positionAccessory: items_summary and items_summary.countedRows > 0 ? items_summary.accessory : null,
+        positionDueDate: items_summary and items_summary.earliestDueDate ? items_summary.earliestDueDate|date('Y-m-d') : null,
+    }) }}
+
+    {{ include('case/_step3_claim_items.html.twig') }}
 
     {# Navigation bar — outside the LiveComponent. Continue submits via
        form="step3-claim-form" (HTML5 form attribute on the button). #}

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Service\Document;
 
+use App\Entity\ClaimItem;
 use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Enum\DocumentType;
@@ -72,6 +73,28 @@ final class OpisGeneratorService extends AbstractPdfGenerator
         return [
             ...parent::templateContext($case),
             'documents' => array_values($documents),
+            'claim_items_by_document' => $this->claimItemsByDocument($case),
         ];
+    }
+
+    /**
+     * Which claim positions each annex proves, so the court can tie a filed
+     * invoice to the sum asked for it. Excluded and unconfirmed positions are
+     * not in the claim, so they are not in the index either.
+     *
+     * @return array<int, list<ClaimItem>>
+     */
+    private function claimItemsByDocument(LegalCase $case): array
+    {
+        $byDocument = [];
+        foreach ($case->getCountingClaimItems() as $item) {
+            $documentId = $item->getSourceDocument()?->getId();
+            if ($documentId === null) {
+                continue;
+            }
+            $byDocument[$documentId][] = $item;
+        }
+
+        return $byDocument;
     }
 }

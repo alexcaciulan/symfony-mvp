@@ -31,6 +31,7 @@ class DocumentUploadService
     public function __construct(
         private EntityManagerInterface $em,
         private AuditLogService $auditLogService,
+        private FileContentHasher $contentHasher,
         private string $uploadsDir,
     ) {}
 
@@ -81,7 +82,14 @@ class DocumentUploadService
             ));
         }
 
+        // Fingerprint the file that actually landed on disk, after the MIME
+        // sniff cleared it: hashing the temporary upload instead would leave a
+        // hash on rejected content, and hashing before the move would tie the
+        // value to bytes we have not accepted yet.
+        $contentHash = $this->contentHasher->hashFile($absolutePath);
+
         $document = new Document();
+        $document->setContentHash($contentHash);
         $document->setLegalCase($case);
         $document->setDocumentType($type);
         $document->setOriginalFilename($clientOriginalName);

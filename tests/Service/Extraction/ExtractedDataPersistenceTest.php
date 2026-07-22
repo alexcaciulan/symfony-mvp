@@ -97,7 +97,7 @@ class ExtractedDataPersistenceTest extends KernelTestCase
                 isVatPayer: true,
                 confidencePerField: ['name' => 0.95, 'cui' => 0.99, 'iban' => 0.0],
             ),
-            debtor: null, // exercise null sub-DTO branch in toArray
+            debtors: [], // exercise the empty-list branch in toArray
             claim: new ClaimExtraction(
                 amount: 6009.50,
                 currency: 'RON',

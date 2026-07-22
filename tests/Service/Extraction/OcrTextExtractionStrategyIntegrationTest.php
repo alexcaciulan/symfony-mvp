@@ -199,9 +199,9 @@ TEXT;
         $this->assertSame('15193236', $result->creditor->cui);
         $this->assertSame('RO49AAAA1B31007593840000', $result->creditor->iban, 'IBAN must be restored from placeholder');
 
-        $this->assertNotNull($result->debtor);
-        $this->assertSame('Popescu Maria', $result->debtor->name);
-        $this->assertSame('1980715221232', $result->debtor->personalId, 'CNP must be restored from placeholder');
+        $this->assertNotNull($result->primaryDebtor());
+        $this->assertSame('Popescu Maria', $result->primaryDebtor()->name);
+        $this->assertSame('1980715221232', $result->primaryDebtor()->personalId, 'CNP must be restored from placeholder');
 
         $this->assertNotNull($result->claim);
         $this->assertSame(6009.50, $result->claim->amount);
@@ -226,8 +226,14 @@ TEXT;
         // invalid_request_error from Anthropic.
         $this->assertCount(1, $body['messages']);
         $this->assertSame('user', $body['messages'][0]['role']);
+        // The system prompt travels as a list of text blocks rather than a
+        // plain string, because a cache breakpoint attaches to a block. This
+        // caller asks for no caching, so the blocks carry no `cache_control`.
         $this->assertArrayHasKey('system', $body);
-        $this->assertStringContainsString('JSON', $body['system']);
+        $this->assertIsArray($body['system']);
+        $this->assertSame('text', $body['system'][0]['type']);
+        $this->assertArrayNotHasKey('cache_control', $body['system'][0]);
+        $this->assertStringContainsString('JSON', $body['system'][0]['text']);
         $this->assertStringContainsString('TEXT OCR:', $body['messages'][0]['content']);
     }
 

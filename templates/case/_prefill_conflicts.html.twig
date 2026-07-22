@@ -1,0 +1,138 @@
+{# What the uploaded documents say differently about the same thing, and where
+   the lawyer settles it.
+
+   The aggregation picks one document per group of fields and never mixes two,
+   but where documents genuinely disagree the choice is the lawyer's: an address
+   decides the competent court, a registration number decides who the party is.
+   Choosing a value pins its document, so the whole group of fields follows that
+   file and the choice cannot rebuild a party out of two of them.
+
+   Blocking conflicts wait for the choice itself. Where there is nothing to
+   choose between, because the answer is whether this is one file or two, the
+   step waits for an acknowledgement instead. Both post into the step form via
+   the `form` attribute, because the live components own the <form> tag.
+
+   Rendered read-only in the step 0 side card and on the confirmation screen:
+   there the documents may still be processing, or the decision belongs to a
+   step already behind. #}
+{% set conflicts = prefill_conflicts|default([]) %}
+{% set resolutions = prefill_conflict_resolutions|default({}) %}
+{% set document_names = prefill_conflict_documents|default({}) %}
+{% set readonly = conflicts_readonly|default(false) %}
+{% set rejected = prefill_conflict_rejected|default([]) %}
+{% if conflicts|length > 0 %}
+    {% set blocking = conflicts|filter(c => c.blocks)|length > 0 %}
+    <section class="rounded-2xl border {{ blocking ? 'border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30' : 'border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30' }} p-5 mb-6" role="alert" data-testid="prefill-conflicts">
+        <div class="flex items-start gap-3">
+            <svg class="size-5 shrink-0 mt-0.5 {{ blocking ? 'text-red-600' : 'text-amber-600' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+            <div class="flex-1 min-w-0">
+                <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ 'wizard.conflict.title'|trans }}</h2>
+                <p class="text-xs text-slate-600 dark:text-slate-300 mt-0.5">{{ readonly ? 'wizard.conflict.intro_readonly'|trans : 'wizard.conflict.intro'|trans }}</p>
+
+                <ul class="mt-3 space-y-4">
+                    {% for conflict in conflicts %}
+                        {% set resolution = resolutions[conflict.key]|default(null) %}
+                        <li class="text-sm text-slate-800 dark:text-slate-100" data-testid="prefill-conflict">
+                            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold mr-2 {{ conflict.severity.value == 'ERROR' ? 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300' : (conflict.severity.value == 'WARNING' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300') }}">
+                                {{ ('wizard.conflict.severity.' ~ conflict.severity.value)|trans }}
+                            </span>
+                            {{ conflict.messageKey|trans }}
+
+                            {% if conflict.options|length > 0 %}
+                                {% if readonly %}
+                                    <ul class="mt-1 ml-1 space-y-0.5">
+                                        {% for option in conflict.options %}
+                                            <li class="text-xs text-slate-600 dark:text-slate-300">
+                                                <span class="font-medium text-slate-900 dark:text-slate-100">{{ option.displayValue }}</span>
+                                                <span class="text-slate-400">·</span>
+                                                {{ include('case/_prefill_conflict_source.html.twig', { option: option, document_names: document_names }) }}
+                                            </li>
+                                        {% endfor %}
+                                    </ul>
+                                    {% if resolution is not null %}
+                                        <p class="mt-1 text-xs font-medium text-emerald-700 dark:text-emerald-400" data-testid="prefill-conflict-chosen">
+                                            {{ 'wizard.conflict.chosen'|trans({'%value%': resolution.displayValue}) }}
+                                        </p>
+                                    {% endif %}
+                                {% else %}
+                                    <fieldset class="mt-2 space-y-1.5">
+                                        <legend class="sr-only">{{ conflict.messageKey|trans }}</legend>
+                                        {% for option in conflict.options %}
+                                            {% set is_chosen = resolution is not null and not resolution.manual and resolution.optionIndex == loop.index0 %}
+                                            {% set is_suggested = conflict.suggestedIndex == loop.index0 %}
+                                            {# The suggestion is labelled, never ticked. A preselected radio
+                                               posts itself, so an untouched panel would record decisions the
+                                               lawyer never made, and on a party it would pin one field to one
+                                               document while they were answering about another. Until they
+                                               choose, the aggregation's own answer stands and says so. #}
+                                            <label class="flex items-start gap-2 rounded-lg border {{ is_chosen ? 'border-blue-400 bg-blue-50/70 dark:bg-blue-950/30' : 'border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/40' }} px-3 py-2 cursor-pointer">
+                                                <input type="radio"
+                                                       form="{{ conflicts_form_id }}"
+                                                       name="prefill_conflict[{{ conflict.key }}]"
+                                                       value="{{ loop.index0 }}"
+                                                       class="mt-0.5 size-4"
+                                                       data-testid="prefill-conflict-option"
+                                                       {% if is_chosen %}checked{% endif %}>
+                                                <span class="min-w-0">
+                                                    <span class="font-medium text-slate-900 dark:text-slate-100 break-words">{{ option.displayValue }}</span>
+                                                    {% if is_suggested %}
+                                                        <span class="ml-1 inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-300">{{ 'wizard.conflict.suggested'|trans }}</span>
+                                                    {% endif %}
+                                                    <span class="block text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                                        {{ include('case/_prefill_conflict_source.html.twig', { option: option, document_names: document_names }) }}
+                                                    </span>
+                                                </span>
+                                            </label>
+                                        {% endfor %}
+
+                                        <label class="flex items-start gap-2 rounded-lg border {{ resolution is not null and resolution.manual ? 'border-blue-400 bg-blue-50/70 dark:bg-blue-950/30' : 'border-slate-200 dark:border-slate-700 bg-white/70 dark:bg-slate-900/40' }} px-3 py-2 cursor-pointer">
+                                            <input type="radio"
+                                                   form="{{ conflicts_form_id }}"
+                                                   name="prefill_conflict[{{ conflict.key }}]"
+                                                   value="manual"
+                                                   class="mt-0.5 size-4"
+                                                   data-testid="prefill-conflict-manual-choice"
+                                                   {% if resolution is not null and resolution.manual %}checked{% endif %}>
+                                            <span class="min-w-0 flex-1">
+                                                <span class="font-medium text-slate-900 dark:text-slate-100">{{ 'wizard.conflict.manual'|trans }}</span>
+                                                <input type="text"
+                                                       form="{{ conflicts_form_id }}"
+                                                       name="prefill_conflict_manual[{{ conflict.key }}]"
+                                                       value="{{ resolution is not null and resolution.manual ? resolution.displayValue : '' }}"
+                                                       placeholder="{{ 'wizard.conflict.manual_placeholder'|trans }}"
+                                                       class="mt-1 block w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-sm"
+                                                       data-testid="prefill-conflict-manual-value">
+                                            </span>
+                                        </label>
+
+                                        {% if conflict.key in rejected %}
+                                            <p class="text-xs font-medium text-red-700 dark:text-red-400" data-testid="prefill-conflict-rejected">
+                                                {{ 'wizard.conflict.value_rejected'|trans }}
+                                            </p>
+                                        {% endif %}
+                                    </fieldset>
+                                {% endif %}
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+
+                {# Said on the panel and not only in a flash: the step re-renders
+                   inside its Turbo frame, and a message outside the frame is one
+                   the lawyer never sees. #}
+                {% if not readonly and conflicts|filter(c => c.blocks and c.options|length > 0 and resolutions[c.key] is not defined)|length > 0 %}
+                    <p class="mt-4 text-sm font-medium text-red-700 dark:text-red-400" data-testid="prefill-conflicts-choice-required">
+                        {{ 'wizard.conflict.choice_required'|trans }}
+                    </p>
+                {% endif %}
+
+                {% if not readonly and conflicts|filter(c => c.blocks and c.options|length == 0)|length > 0 %}
+                    <label class="flex items-start gap-2 mt-4 text-sm text-slate-800 dark:text-slate-100">
+                        <input type="checkbox" form="{{ conflicts_form_id }}" name="prefill_conflicts_acknowledged" value="1"{% if prefill_conflicts_acknowledged|default(false) %} checked{% endif %} class="mt-0.5 size-4 rounded border-slate-300 dark:border-slate-600" data-testid="prefill-conflicts-ack">
+                        <span>{{ 'wizard.conflict.acknowledge'|trans }}</span>
+                    </label>
+                {% endif %}
+            </div>
+        </div>
+    </section>
+{% endif %}

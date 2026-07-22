@@ -194,6 +194,73 @@ class AnthropicApiClientTest extends TestCase
         $client->complete([['role' => 'user', 'content' => 'x']]);
     }
 
+    public function testCompleteFlagsCreditBalance400AsProviderUnavailable(): void
+    {
+        // Anthropic returns insufficient credits as a 400 invalid_request_error,
+        // otherwise indistinguishable from a genuine bad request. It is the
+        // platform's problem, not the document's, so it must be retriable and
+        // flagged provider-unavailable rather than a permanent rejection.
+        $body = json_encode([
+            'type' => 'error',
+            'error' => [
+                'type' => 'invalid_request_error',
+                'message' => 'Your credit balance is too low to access the Anthropic API.',
+            ],
+        ]);
+        $client = $this->makeClient([
+            new MockResponse((string) $body, ['http_code' => 400]),
+        ]);
+
+        try {
+            $client->complete([['role' => 'user', 'content' => 'x']]);
+            self::fail('Expected LlmException');
+        } catch (LlmException $e) {
+            self::assertTrue($e->isProviderUnavailable());
+            self::assertTrue($e->isTransient());
+            self::assertSame(400, $e->getStatusCode());
+        }
+    }
+
+    public function testCompleteKeepsGenuineBadRequestAsPermanentRejection(): void
+    {
+        $body = json_encode([
+            'type' => 'error',
+            'error' => ['type' => 'invalid_request_error', 'message' => 'model: unknown model claude-x'],
+        ]);
+        $client = $this->makeClient([
+            new MockResponse((string) $body, ['http_code' => 400]),
+        ]);
+
+        try {
+            $client->complete([['role' => 'user', 'content' => 'x']]);
+            self::fail('Expected LlmException');
+        } catch (LlmException $e) {
+            self::assertFalse($e->isProviderUnavailable());
+            self::assertFalse($e->isTransient());
+        }
+    }
+
+    public function testCompleteDoesNotFlagAmbiguousBadRequestAsProviderUnavailable(): void
+    {
+        // A genuine validation error that happens to contain a marker word must
+        // stay a permanent rejection, not a retriable outage.
+        $body = json_encode([
+            'type' => 'error',
+            'error' => ['type' => 'invalid_request_error', 'message' => 'insufficient parameters in request body'],
+        ]);
+        $client = $this->makeClient([
+            new MockResponse((string) $body, ['http_code' => 400]),
+        ]);
+
+        try {
+            $client->complete([['role' => 'user', 'content' => 'x']]);
+            self::fail('Expected LlmException');
+        } catch (LlmException $e) {
+            self::assertFalse($e->isProviderUnavailable());
+            self::assertFalse($e->isTransient());
+        }
+    }
+
     public function testCompleteThrowsLlmExceptionOnMalformedJsonResponse(): void
     {
         $client = $this->makeClient([
@@ -339,5 +406,216 @@ class AnthropicApiClientTest extends TestCase
             $decoded = json_decode((string) file_get_contents($path), true);
             $this->assertIsArray($decoded, "Fixture {$filename} is not valid JSON");
         }
+    }
+
+    // ---------- prompt caching and constrained decoding ----------
+
+    /**
+     * Sends one request through a client built on the given model and returns
+     * the decoded request body.
+     *
+     * @param array<string, mixed>|null $outputSchema
+     *
+     * @return array<string, mixed>
+     */
+    private function captureBody(
+        string $model,
+        bool $cacheSystemPrompt = false,
+        ?array $outputSchema = null,
+    ): array {
+        $captured = null;
+        $mockClient = new MockHttpClient(function (string $method, string $url, array $options) use (&$captured) {
+            $captured = $options['body'] ?? null;
+
+            return new MockResponse($this->fixture('anthropic-success-text.json'), ['http_code' => 200]);
+        });
+
+        $client = new AnthropicApiClient(
+            httpClient: $mockClient,
+            anthropicApiKey: 'test-key',
+            anthropicModel: $model,
+            logger: new NullLogger(),
+        );
+
+        $client->complete(
+            messages: [
+                ['role' => 'system', 'content' => 'stable instructions'],
+                ['role' => 'user', 'content' => 'extract this'],
+            ],
+            cacheSystemPrompt: $cacheSystemPrompt,
+            outputSchema: $outputSchema,
+        );
+
+        $body = json_decode((string) $captured, true);
+        $this->assertIsArray($body);
+
+        return $body;
+    }
+
+    public function testTheSystemPromptTravelsAsTextBlocks(): void
+    {
+        $body = $this->captureBody('claude-opus-4-8');
+
+        // A plain string cannot carry a cache breakpoint, which is why the
+        // shape changed even for callers that do not ask for caching.
+        $this->assertSame([['type' => 'text', 'text' => 'stable instructions']], $body['system']);
+    }
+
+    public function testACacheBreakpointIsPlacedOnTheLastSystemBlock(): void
+    {
+        $body = $this->captureBody('claude-opus-4-8', cacheSystemPrompt: true);
+
+        $last = $body['system'][count($body['system']) - 1];
+        $this->assertSame(['type' => 'ephemeral'], $last['cache_control']);
+    }
+
+    public function testNoBreakpointIsSentWhenCachingIsNotRequested(): void
+    {
+        $body = $this->captureBody('claude-opus-4-8', cacheSystemPrompt: false);
+
+        $this->assertArrayNotHasKey('cache_control', $body['system'][0]);
+    }
+
+    public function testASchemaIsSentOnAModelThatSupportsConstrainedDecoding(): void
+    {
+        $schema = ['type' => 'object', 'properties' => [], 'required' => [], 'additionalProperties' => false];
+
+        $body = $this->captureBody('claude-opus-4-8', outputSchema: $schema);
+
+        $this->assertSame('json_schema', $body['output_config']['format']['type']);
+        $this->assertSame($schema, $body['output_config']['format']['schema']);
+    }
+
+    public function testASchemaIsOmittedOnAModelWithoutConstrainedDecoding(): void
+    {
+        // The previously configured model. Sending the parameter there would be
+        // rejected outright, so the call degrades to unconstrained JSON instead.
+        $body = $this->captureBody('claude-sonnet-4-6', outputSchema: ['type' => 'object']);
+
+        $this->assertArrayNotHasKey('output_config', $body);
+    }
+
+    public function testASchemaWiderThanTheGrammarLimitIsNotSent(): void
+    {
+        // The provider compiles the schema into a grammar and rejects one with
+        // more than 24 optional or 16 union-typed parameters with a 400. An
+        // extraction payload is far wider than that, so sending it costs a whole
+        // extraction rather than a guarantee; the copy in the prompt still tells
+        // the model what shape to produce.
+        $properties = [];
+        foreach (range(1, 30) as $i) {
+            $properties['field' . $i] = ['type' => 'string'];
+        }
+        $body = $this->captureBody('claude-opus-4-8', outputSchema: [
+            'type' => 'object',
+            'properties' => $properties,
+            'additionalProperties' => false,
+        ]);
+
+        $this->assertArrayNotHasKey('output_config', $body);
+        $this->assertStringContainsString('field30', implode("\n", array_column($body['system'], 'text')));
+    }
+
+    public function testASchemaWithinTheGrammarLimitIsStillSent(): void
+    {
+        $body = $this->captureBody('claude-opus-4-8', outputSchema: [
+            'type' => 'object',
+            'properties' => ['a' => ['type' => 'string'], 'b' => ['type' => 'number']],
+            'required' => ['a'],
+            'additionalProperties' => false,
+        ]);
+
+        $this->assertArrayHasKey('output_config', $body);
+    }
+
+    public function testTooManyNullableFieldsAlsoBlockTheSchema(): void
+    {
+        // The union cap is lower than the optional one: twenty nullable fields
+        // fit the optional budget and still exceed the union budget.
+        $properties = [];
+        foreach (range(1, 20) as $i) {
+            $properties['field' . $i] = ['anyOf' => [['type' => 'string'], ['type' => 'null']]];
+        }
+        $body = $this->captureBody('claude-opus-4-8', outputSchema: [
+            'type' => 'object',
+            'properties' => $properties,
+            'required' => array_keys($properties),
+            'additionalProperties' => false,
+        ]);
+
+        $this->assertArrayNotHasKey('output_config', $body);
+    }
+
+    public function testTheSchemaAlsoTravelsAsPromptTextSoADegradedCallStillKnowsTheShape(): void
+    {
+        // Degrading to unconstrained JSON must not degrade to unspecified
+        // JSON: on a model without constrained decoding the schema in the
+        // prompt is the only description of the response the model gets.
+        $schema = [
+            'type' => 'object',
+            'properties' => ['creditor' => ['type' => 'string']],
+            'required' => ['creditor'],
+            'additionalProperties' => false,
+        ];
+
+        $body = $this->captureBody('claude-sonnet-4-6', outputSchema: $schema);
+
+        $systemText = implode("\n", array_column($body['system'], 'text'));
+        $this->assertStringContainsString('"creditor"', $systemText);
+        $this->assertStringContainsString('JSON Schema', $systemText);
+    }
+
+    public function testTheSchemaBlockSitsInsideTheCachedPrefix(): void
+    {
+        // The schema is identical for every document read with the same
+        // prompt, so it belongs before the breakpoint. Placed after it, it
+        // would be re-billed at full price on every document in a batch.
+        $body = $this->captureBody(
+            'claude-opus-4-8',
+            cacheSystemPrompt: true,
+            outputSchema: ['type' => 'object', 'properties' => [], 'required' => [], 'additionalProperties' => false],
+        );
+
+        $this->assertCount(2, $body['system']);
+        $this->assertArrayNotHasKey('cache_control', $body['system'][0]);
+        $this->assertSame(['type' => 'ephemeral'], $body['system'][1]['cache_control']);
+        $this->assertStringContainsString('JSON Schema', $body['system'][1]['text']);
+    }
+
+    public function testNoOutputConfigIsSentWhenNoSchemaIsRequested(): void
+    {
+        $this->assertArrayNotHasKey('output_config', $this->captureBody('claude-opus-4-8'));
+    }
+
+    public function testCacheUsageIsReportedBackToTheCaller(): void
+    {
+        $payload = json_encode([
+            'content' => [['type' => 'text', 'text' => '{}']],
+            'stop_reason' => 'end_turn',
+            'usage' => [
+                'input_tokens' => 120,
+                'output_tokens' => 40,
+                'cache_read_input_tokens' => 4200,
+                'cache_creation_input_tokens' => 0,
+            ],
+        ]);
+        $client = $this->makeClient([new MockResponse($payload, ['http_code' => 200])]);
+
+        $response = $client->complete([['role' => 'user', 'content' => 'x']]);
+
+        $this->assertSame(4200, $response->cacheReadInputTokens);
+        $this->assertSame(0, $response->cacheCreationInputTokens);
+    }
+
+    public function testCacheUsageDefaultsToZeroWhenTheProviderReportsNone(): void
+    {
+        $client = $this->makeClient([
+            new MockResponse($this->fixture('anthropic-success-text.json'), ['http_code' => 200]),
+        ]);
+
+        $response = $client->complete([['role' => 'user', 'content' => 'x']]);
+
+        $this->assertSame(0, $response->cacheReadInputTokens);
+        $this->assertSame(0, $response->cacheCreationInputTokens);
     }
 }

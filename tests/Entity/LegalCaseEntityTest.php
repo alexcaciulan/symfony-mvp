@@ -46,6 +46,17 @@ class LegalCaseEntityTest extends TestCase
         $this->assertSame('RON', $case->getCurrency());
     }
 
+    public function testClaimDescriptionRoundTrips(): void
+    {
+        $case = new LegalCase();
+
+        $this->assertNull($case->getClaimDescription());
+
+        $case->setClaimDescription('Contravaloare 2 facturi neachitate: TES 0036, TES 0038.');
+
+        $this->assertSame('Contravaloare 2 facturi neachitate: TES 0036, TES 0038.', $case->getClaimDescription());
+    }
+
     public function testCollectionsInitializedEmpty(): void
     {
         $case = new LegalCase();

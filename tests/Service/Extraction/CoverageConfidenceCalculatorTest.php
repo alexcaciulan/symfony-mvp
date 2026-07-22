@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Service\Extraction;
 
+use App\Enum\DocumentType;
 use App\Service\Extraction\CoverageConfidenceCalculator;
 use PHPUnit\Framework\TestCase;
 
@@ -144,5 +145,79 @@ final class CoverageConfidenceCalculatorTest extends TestCase
             + CoverageConfidenceCalculator::EXPECTED_CLAIM_FIELDS,
             CoverageConfidenceCalculator::EXPECTED_TOTAL_FIELDS,
         );
+    }
+
+    // ---------- per-type coverage ----------
+
+    public function testUnknownTypeFallsBackToTheFullFieldSet(): void
+    {
+        $creditor = ['name' => 1.0, 'cui' => 1.0];
+
+        $this->assertSame(
+            CoverageConfidenceCalculator::compute($creditor, null, null),
+            CoverageConfidenceCalculator::computeForType(null, $creditor, null, null),
+        );
+    }
+
+    public function testATypeWithNoNarrowerExpectationKeepsTheFullFieldSet(): void
+    {
+        $creditor = ['name' => 1.0];
+
+        $this->assertSame(
+            CoverageConfidenceCalculator::compute($creditor, null, null),
+            CoverageConfidenceCalculator::computeForType(DocumentType::ANEXA, $creditor, null, null),
+        );
+    }
+
+    public function testABankStatementIsScoredOnWhatABankStatementCarries(): void
+    {
+        // Everything a statement can legitimately provide: account holder plus
+        // the payment lines. Under the full field set this reads as a poor
+        // extraction; it is in fact a complete one.
+        $creditor = ['name' => 1.0, 'iban' => 1.0, 'bankName' => 1.0];
+        $debtor = ['name' => 1.0, 'cui' => 1.0];
+        $claim = ['description' => 1.0];
+
+        $full = CoverageConfidenceCalculator::compute($creditor, $debtor, $claim);
+        $typed = CoverageConfidenceCalculator::computeForType(DocumentType::EXTRAS_CONT, $creditor, $debtor, $claim);
+
+        $this->assertSame(1.0, $typed);
+        $this->assertLessThan(0.6, $full);
+    }
+
+    public function testAPartiallyReadBankStatementStillScoresBelowAFullOne(): void
+    {
+        $score = CoverageConfidenceCalculator::computeForType(
+            DocumentType::EXTRAS_CONT,
+            ['name' => 1.0],
+            null,
+            null,
+        );
+
+        // One of the six expected fields.
+        $this->assertEqualsWithDelta(1 / 6, $score, 0.0001);
+    }
+
+    public function testTheScoreIsClampedAtOne(): void
+    {
+        $this->assertSame(
+            1.0,
+            CoverageConfidenceCalculator::computeForType(
+                DocumentType::TITLU_VALOARE,
+                ['name' => 1.0, 'cui' => 1.0],
+                ['name' => 1.0, 'cui' => 1.0],
+                ['amount' => 1.0, 'currency' => 1.0, 'dueDate' => 1.0],
+            ),
+        );
+    }
+
+    public function testTheLegacyStaticEntryPointIsUnchanged(): void
+    {
+        // PdfParser and OcrText still call compute() and must keep working for
+        // accounts on the legacy cascade.
+        $this->assertTrue(method_exists(CoverageConfidenceCalculator::class, 'compute'));
+        $reflection = new \ReflectionMethod(CoverageConfidenceCalculator::class, 'compute');
+        $this->assertTrue($reflection->isStatic());
+        $this->assertSame(3, $reflection->getNumberOfParameters());
     }
 }

@@ -8,16 +8,22 @@ use App\Entity\LegalCase;
 use App\Enum\AnafStatus;
 use App\Enum\IssueSeverity;
 use App\Enum\PersonType;
+use App\Service\Case\ClaimTextSignals;
 
 /**
  * Validează admisibilitatea unei cereri de ordonanță de plată față de fiecare debitor
- * (CPC art. 1014 + Legea 85/2014).
+ * (CPC art. 1013 + Legea 85/2014).
  *
  * Returnează lista de issue-uri (ERROR / WARNING) pe care wizard-ul (Pas 3.x)
  * și PDF generator-ul (Pas 5.x) le consumă pentru a bloca / preveni acțiuni inadmisibile.
  *
- * Regula la nivel de dosar (CPC art. 1013 — exigibilitate):
- *   0. dueDate în viitor                  → ERROR  OP_DEBT_NOT_YET_DUE
+ * Claim-level rules, evaluated per claim position when the case has positions
+ * and on the case scalar otherwise:
+ *   0.  due date in the future            → ERROR   OP_DEBT_NOT_YET_DUE / OP_ITEM_NOT_YET_DUE
+ *   0b. position with no due date         → WARNING OP_ITEM_DUE_DATE_MISSING
+ *   0c. due date older than 3 years       → WARNING OP_ITEM_PRESCRIBED
+ *   0d. payment recorded, not imputed     → WARNING OP_ITEM_UNIMPUTED_PAYMENT
+ *   0e. deduction stated on the document   → WARNING OP_ITEM_STATED_DEDUCTION
  *
  * Regulile per debitor (post-N4 din 2026-05-09 — verificare BPI obligatorie):
  *   1. PJ + anafStatus = RADIAT          → ERROR  OP_BLOCKED_DEREGISTERED
@@ -48,6 +54,9 @@ final class OpAdmissibilityValidator
      */
     private const INSOLVENCY_STALE_DAYS = 7;
 
+    /** General prescription term for a claim (Civil Code art. 2517). */
+    private const PRESCRIPTION_YEARS = 3;
+
     /**
      * @return list<AdmissibilityIssue>
      */
@@ -56,23 +65,134 @@ final class OpAdmissibilityValidator
         $now ??= new \DateTimeImmutable();
         $issues = [];
 
-        // CPC art. 1013: the claim must be certain, liquid and EXIGIBLE. A due
-        // date in the future means the debt is not yet payable, so the OP
-        // petition is inadmissible regardless of the debtor's standing.
-        $dueDate = $case->getDueDate();
-        if ($dueDate !== null
-            && \DateTimeImmutable::createFromInterface($dueDate)->setTime(0, 0, 0) > $now->setTime(0, 0, 0)) {
-            $issues[] = new AdmissibilityIssue(
-                IssueSeverity::ERROR,
-                'OP_DEBT_NOT_YET_DUE',
-                'validation.op_admissibility.OP_DEBT_NOT_YET_DUE',
-            );
+        foreach ($this->validateExigibility($case, $now) as $issue) {
+            $issues[] = $issue;
         }
 
         foreach ($case->getDebtors() as $debtor) {
             foreach ($this->validateDebtor($debtor, $now) as $issue) {
                 $issues[] = $issue;
             }
+        }
+
+        return $issues;
+    }
+
+    /**
+     * CPC art. 1013: the claim must be certain, liquid and EXIGIBLE. A due date
+     * in the future means the debt is not yet payable, so the petition is
+     * inadmissible regardless of the debtor's standing.
+     *
+     * Evaluated per claim position once the case has any, and on the case scalar
+     * otherwise. The two must not both run: `LegalCase::$dueDate` is the earliest
+     * position's due date, so a case with one overdue invoice and one not yet due
+     * would pass the case-level check while a position is plainly not exigible.
+     * The rule stays here, in the one place that owns admissibility.
+     *
+     * @return list<AdmissibilityIssue>
+     */
+    private function validateExigibility(LegalCase $case, \DateTimeImmutable $now): array
+    {
+        $today = $now->setTime(0, 0, 0);
+        $items = $case->getCountingClaimItems();
+
+        if ($items === []) {
+            $dueDate = $case->getDueDate();
+            if ($dueDate !== null
+                && \DateTimeImmutable::createFromInterface($dueDate)->setTime(0, 0, 0) > $today) {
+                return [new AdmissibilityIssue(
+                    IssueSeverity::ERROR,
+                    'OP_DEBT_NOT_YET_DUE',
+                    'validation.op_admissibility.OP_DEBT_NOT_YET_DUE',
+                )];
+            }
+
+            return [];
+        }
+
+        $issues = [];
+        foreach ($items as $item) {
+            $dueDate = $item->getDueDate();
+            if ($dueDate === null) {
+                // No due date at all: nothing proves the sum is payable, and the
+                // position is already left out of every accessory calculation.
+                $issues[] = new AdmissibilityIssue(
+                    IssueSeverity::WARNING,
+                    'OP_ITEM_DUE_DATE_MISSING',
+                    'validation.op_admissibility.OP_ITEM_DUE_DATE_MISSING',
+                );
+
+                continue;
+            }
+
+            if ($dueDate->setTime(0, 0, 0) > $today) {
+                $issues[] = new AdmissibilityIssue(
+                    IssueSeverity::ERROR,
+                    'OP_ITEM_NOT_YET_DUE',
+                    'validation.op_admissibility.OP_ITEM_NOT_YET_DUE',
+                );
+
+                continue;
+            }
+
+            // Each position prescribes on its own, three years from its own due
+            // date (Civil Code art. 2517 + art. 2523-2524). A WARNING and not an
+            // ERROR because the court does not apply prescription of its own
+            // motion (art. 2512): keeping the head is the lawyer's call, made
+            // knowingly.
+            if ($dueDate->setTime(0, 0, 0)->modify('+' . self::PRESCRIPTION_YEARS . ' years') < $today) {
+                $issues[] = new AdmissibilityIssue(
+                    IssueSeverity::WARNING,
+                    'OP_ITEM_PRESCRIBED',
+                    'validation.op_admissibility.OP_ITEM_PRESCRIBED',
+                );
+            }
+        }
+
+        foreach ($this->validateImputation($items) as $issue) {
+            $issues[] = $issue;
+        }
+
+        return $issues;
+    }
+
+    /**
+     * A sum already partly settled is not certain in the amount claimed
+     * (CPC art. 1013 alin. 1). The deduction is never applied here: imputation
+     * follows Civil Code art. 1507-1509 and belongs to the lawyer. What is owed
+     * is that they be told the position states one.
+     *
+     * @param  list<\App\Entity\ClaimItem> $items
+     * @return list<AdmissibilityIssue>
+     */
+    private function validateImputation(array $items): array
+    {
+        $hasPayment = false;
+        $hasStatedDeduction = false;
+
+        foreach ($items as $item) {
+            if ($item->hasUnimputedPayment()) {
+                $hasPayment = true;
+            }
+            if (ClaimTextSignals::mentionsDeduction($item->getDescription())) {
+                $hasStatedDeduction = true;
+            }
+        }
+
+        $issues = [];
+        if ($hasPayment) {
+            $issues[] = new AdmissibilityIssue(
+                IssueSeverity::WARNING,
+                'OP_ITEM_UNIMPUTED_PAYMENT',
+                'validation.op_admissibility.OP_ITEM_UNIMPUTED_PAYMENT',
+            );
+        }
+        if ($hasStatedDeduction) {
+            $issues[] = new AdmissibilityIssue(
+                IssueSeverity::WARNING,
+                'OP_ITEM_STATED_DEDUCTION',
+                'validation.op_admissibility.OP_ITEM_STATED_DEDUCTION',
+            );
         }
 
         return $issues;

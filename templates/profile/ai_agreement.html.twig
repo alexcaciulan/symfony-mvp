@@ -1,0 +1,71 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ 'profile.ai_agreement.title'|trans }}{% endblock %}
+
+{% block body %}
+    <div class="max-w-2xl mx-auto px-4 py-8 sm:py-12">
+        <div class="mb-4">
+            <a href="{{ path('app_profile') }}" class="text-sm text-primary-light hover:text-primary no-underline">&larr; {{ 'profile.ai_agreement.back'|trans }}</a>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-8">
+            <h1 class="text-2xl font-bold text-gray-900 mb-2">{{ 'profile.ai_agreement.title'|trans }}</h1>
+            <p class="text-sm text-gray-500 mb-6">{{ 'profile.ai_agreement.subtitle'|trans }}</p>
+
+            {# The legal wording is not final; the notice says so plainly rather
+               than letting a draft read as a signed agreement. #}
+            <div class="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <p class="text-sm font-semibold text-amber-900">{{ 'profile.ai_agreement.draft_notice_title'|trans }}</p>
+                <p class="mt-1 text-sm text-amber-800">{{ 'profile.ai_agreement.draft_notice_body'|trans }}</p>
+            </div>
+
+            {% if user.hasAcceptedAiProcessing %}
+                <div class="mb-6 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+                    {{ 'profile.ai_agreement.already_accepted'|trans({
+                        '%date%': user.aiProcessingAgreementAt|date('d.m.Y H:i'),
+                        '%version%': user.aiProcessingAgreementVersion,
+                    }) }}
+                </div>
+            {% endif %}
+
+            <div class="space-y-4 text-sm text-gray-700">
+                <p>{{ 'profile.ai_agreement.body.intro'|trans }}</p>
+                <ul class="list-disc pl-5 space-y-2">
+                    <li>{{ 'profile.ai_agreement.body.roles'|trans }}</li>
+                    <li>{{ 'profile.ai_agreement.body.transfer'|trans }}</li>
+                    <li>{{ 'profile.ai_agreement.body.unmasked'|trans }}</li>
+                    <li>{{ 'profile.ai_agreement.body.secrecy'|trans }}</li>
+                    <li>{{ 'profile.ai_agreement.body.retention'|trans }}</li>
+                    <li>{{ 'profile.ai_agreement.body.information'|trans }}</li>
+                </ul>
+                <p>{{ 'profile.ai_agreement.body.revocable'|trans }}</p>
+                <p class="text-gray-600">{{ 'profile.ai_agreement.body.decline_is_valid'|trans }}</p>
+            </div>
+
+            {{ form_start(form, {'attr': {'novalidate': 'novalidate'}}) }}
+                <div class="mt-6 pt-6 border-t border-gray-200">
+                    <label class="flex items-start gap-3 text-sm text-gray-800">
+                        {{ form_widget(form.accepted, {'attr': {'class': 'mt-0.5'}}) }}
+                        <span>{{ 'profile.ai_agreement.accept_label'|trans }}</span>
+                    </label>
+                    {{ form_errors(form.accepted) }}
+                </div>
+
+                <p class="mt-3 text-xs text-gray-500">{{ 'profile.ai_agreement.version_note'|trans({'%version%': agreementVersion}) }}</p>
+
+                <button type="submit" class="w-full mt-6 py-3 bg-primary-light text-white font-semibold rounded-lg hover:bg-primary transition">
+                    {{ 'profile.ai_agreement.submit'|trans }}
+                </button>
+            {{ form_end(form) }}
+
+            {# Declining has to be an action on this screen, not just the absence
+               of one, or the lawyer never learns that manual entry stays open. #}
+            <form method="post" action="{{ path('app_profile_ai_agreement_withdraw') }}" class="mt-3">
+                <input type="hidden" name="_token" value="{{ csrf_token('ai_processing_agreement_withdraw') }}">
+                <button type="submit" class="w-full py-3 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition">
+                    {{ user.hasAcceptedAiProcessing ? 'profile.ai_agreement.withdraw'|trans : 'profile.ai_agreement.decline'|trans }}
+                </button>
+            </form>
+        </div>
+    </div>
+{% endblock %}

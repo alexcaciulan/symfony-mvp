@@ -56,13 +56,37 @@
                                 {{ filled_count }}/{{ section.expected }} · {{ coverage_pct }}%
                             </span>
                         </div>
+                        {# With several invoices the claim is their sum, not the one
+                           invoice the aggregation happened to keep. Showing that
+                           figure alone reads as if the others had been missed. #}
+                        {% set positions = claim_positions_preview|default(null) %}
+                        {% if section.key == 'claim' and positions %}
+                            <div class="mb-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 px-2.5 py-2">
+                                <div class="flex justify-between gap-3">
+                                    <span class="text-slate-600 dark:text-slate-300">{{ 'wizard.step0.detected_data.positions_total'|trans({ '%count%': positions.count }) }}</span>
+                                    <span class="font-semibold text-slate-900 dark:text-slate-100 tabular-nums">{{ positions.principal|number_format(2, ',', '.') }} {{ positions.currency }}</span>
+                                </div>
+                                {% if positions.earliestDueDate %}
+                                    <div class="flex justify-between gap-3 mt-0.5">
+                                        <span class="text-slate-500 dark:text-slate-400">{{ 'wizard.step0.detected_data.earliest_due_date'|trans }}</span>
+                                        <span class="text-slate-700 dark:text-slate-200 tabular-nums">{{ positions.earliestDueDate|date('d.m.Y') }}</span>
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                        {# When the total banner is shown, the per-invoice figures
+                           (sum, due date, invoice number/date) belong to one
+                           invoice and contradict it; the table on step 3 carries
+                           each one. Keep only the fields that describe the claim
+                           as a whole (currency, basis, description). #}
+                        {% set per_invoice_fields = ['amount', 'dueDate', 'invoiceNumber', 'invoiceDate'] %}
                         {% if not has_data %}
                             <p class="text-xs text-slate-400 dark:text-slate-500 italic">—</p>
                         {% else %}
                             <dl class="space-y-1.5">
                                 {% for field in dto.autoFilled %}
                                     {% set field_value = attribute(dto, field) %}
-                                    {% if field_value is not null %}
+                                    {% if field_value is not null and not (section.key == 'claim' and positions and field in per_invoice_fields) %}
                                         <div class="flex justify-between gap-3">
                                             <dt class="text-slate-500 dark:text-slate-400 truncate">{{ ('wizard.step0.detected_data.field.' ~ field)|trans }}</dt>
                                             <dd class="font-medium text-slate-900 dark:text-slate-100 text-right truncate ml-2">
@@ -108,5 +132,14 @@
                 {% endfor %}
             </div>
         {% endif %}
+    </div>
+
+    {# The divergences, as soon as they exist. Read only here: the remaining
+       documents may still be processing, so the set is not final, and the value
+       is settled on the step that owns the field. What it buys is the lawyer
+       learning that two files describe the party differently before they have
+       filled three steps on one of them. #}
+    <div class="mt-4">
+        {{ include('case/_prefill_conflicts.html.twig', { conflicts_readonly: true }) }}
     </div>
 </turbo-frame>

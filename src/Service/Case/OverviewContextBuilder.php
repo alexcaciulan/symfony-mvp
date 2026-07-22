@@ -4,13 +4,18 @@ declare(strict_types=1);
 
 namespace App\Service\Case;
 
+use App\DTO\Calculation\AggregatedAccessoryResult;
+use App\Entity\ClaimItem;
 use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Enum\DocumentType;
+use App\Enum\PenaltyType;
+use App\Enum\RelationshipType;
 use App\Repository\AuditLogRepository;
 use App\Repository\CourtPortalEventRepository;
 use App\Repository\LegalDeadlineRepository;
+use App\Service\Calculation\ClaimInterestAggregator;
 use App\Service\Calculation\InterestCalculatorService;
 use App\Service\Calculation\StampDutyCalculator;
 use App\Service\Deadline\DeadlineService;
@@ -34,6 +39,7 @@ final class OverviewContextBuilder
         private readonly RulingProposalResolver $rulingProposalResolver,
         private readonly StampDutyUatResolver $stampDutyUatResolver,
         private readonly StampDutyCalculator $stampDutyCalculator,
+        private readonly ClaimInterestAggregator $accessoryAggregator,
     ) {}
 
     /**
@@ -48,6 +54,7 @@ final class OverviewContextBuilder
         $deadlines = $this->deadlines->findByCase($case);
         $portalEvents = $this->portalEvents->findByLegalCase($case);
         [$interestBreakdown, $breakdownError] = $this->computeBreakdown($case);
+        $countingItems = $case->getCountingClaimItems();
 
         return array_merge([
             'case' => $case,
@@ -59,6 +66,11 @@ final class OverviewContextBuilder
             'portal_ruling_proposal' => $this->rulingProposalResolver->actionableProposal($case, $portalEvents),
             'interest_breakdown' => $interestBreakdown,
             'breakdown_error' => $breakdownError,
+            // The positions replace the per-period accordion on a multi-position
+            // case: one aggregate breakdown from the earliest due date would show
+            // the very figure the positions exist to stop claiming.
+            'claim_items' => $countingItems,
+            'claim_item_accessories' => $this->computeItemAccessories($case, $countingItems),
             'has_communication_proof' => $this->hasCommunicationProof($case),
             'payment_term_expired' => $this->deadlineService->isPaymentTermExpired($case, new \DateTimeImmutable('today')),
             'execution_recommended_date' => $this->deadlineService->recommendedExecutionDate($case),
@@ -71,6 +83,34 @@ final class OverviewContextBuilder
             'stamp_duty_amount' => (float) ($case->getStampDuty() ?? $this->stampDutyCalculator->calculate()->amount),
             'just_created' => false,
         ], $extra);
+    }
+
+    /**
+     * Accessory per position, at the same reference date as the stored
+     * `calculatedInterest` (the case creation date), so the per-position figures
+     * add up to the total shown in the stats instead of drifting past it.
+     *
+     * @param list<ClaimItem> $items
+     */
+    private function computeItemAccessories(LegalCase $case, array $items): ?AggregatedAccessoryResult
+    {
+        if (count($items) < 2) {
+            return null;
+        }
+
+        $rate = $case->getContractualPenaltyRate();
+
+        try {
+            return $this->accessoryAggregator->aggregate(
+                items: $items,
+                referenceDate: $case->getCreatedAt(),
+                relationshipType: $case->getRelationshipType() ?? RelationshipType::COMERCIAL,
+                penaltyType: $case->getPenaltyType() ?? PenaltyType::LEGAL_PENALIZATOARE,
+                contractualDailyRate: $rate !== null ? (float) $rate : null,
+            );
+        } catch (\DomainException | \RuntimeException | \InvalidArgumentException) {
+            return null;
+        }
     }
 
     /**
@@ -105,6 +145,13 @@ final class OverviewContextBuilder
      */
     private function computeBreakdown(LegalCase $case): array
     {
+        // With several positions, one aggregate breakdown from the earliest due
+        // date would claim interest nobody owes, so the accordion shows periods
+        // only for a single-position case and the positions themselves otherwise.
+        if (count($case->getCountingClaimItems()) > 1) {
+            return [null, false];
+        }
+
         if ($case->getAmount() === null || $case->getDueDate() === null || $case->getRelationshipType() === null) {
             return [null, false];
         }

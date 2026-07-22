@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace App\Tests\Service\Extraction;
 
+use App\DTO\Extraction\CreditorExtraction;
+use App\DTO\Extraction\DocumentClassification;
+use App\DTO\Extraction\ExtractedDocumentData;
 use App\Entity\Document;
+use App\Enum\DocumentType;
 use App\Enum\LegalGroundCategory;
 use App\Enum\PersonType;
 use App\Repository\DocumentRepository;
@@ -518,6 +522,10 @@ final class PrefillFromExtractionServiceTest extends TestCase
         // extractedData payload matters. Reflection sets id only to satisfy
         // findBy contract when we use a mock that ignores it.
         $document = new Document();
+        // The aggregator ranks claim figures by the kind of document they came
+        // from, so a fixture without a type is not a document the wizard can
+        // produce. ALT_DOCUMENT is what an upload carries until a type is set.
+        $document->setDocumentType(DocumentType::ALT_DOCUMENT);
         if ($extractedData !== null) {
             $document->setExtractedData($extractedData);
         }
@@ -536,5 +544,61 @@ final class PrefillFromExtractionServiceTest extends TestCase
         $repo->method('findBy')->willReturn($documents);
 
         return new PrefillFromExtractionService($repo);
+    }
+
+    public function testAPayloadWrittenBeforeClassificationExistedStillPrefills(): void
+    {
+        // Exactly what an extraction persisted before the classification work
+        // looks like: no `schemaVersion`, no `classification`. No migration
+        // rewrites those rows, so this shape has to keep working.
+        $legacyPayload = [
+            'sourceDocumentId' => 5,
+            'strategy' => 'pdf_parser',
+            'globalConfidence' => 0.62,
+            'extractedAt' => '2026-01-04T10:00:00+00:00',
+            'creditor' => [
+                'name' => 'Vechi SRL',
+                'cui' => 'RO11112222',
+                'confidencePerField' => ['name' => 0.95, 'cui' => 0.95],
+            ],
+            'debtor' => [
+                'name' => 'Datornic Vechi SRL',
+                'confidencePerField' => ['name' => 0.9],
+            ],
+            'claim' => [
+                'amount' => 4200.0,
+                'currency' => 'RON',
+                'confidencePerField' => ['amount' => 0.93, 'currency' => 0.93],
+            ],
+            'rawOcrText' => null,
+        ];
+        $service = $this->buildServiceFor([$this->buildDocumentWithExtractedData($legacyPayload)]);
+
+        self::assertSame(1, ExtractedDocumentData::schemaVersionOf($legacyPayload));
+        self::assertSame('Vechi SRL', $service->aggregateForCreditor([5])->name);
+        self::assertSame('Datornic Vechi SRL', $service->aggregateForDebtor([5])->name);
+        self::assertSame(4200.0, $service->aggregateForClaim([5])->amount);
+    }
+
+    public function testTheNewPayloadShapePrefillsIdentically(): void
+    {
+        $current = (new ExtractedDocumentData(
+            sourceDocumentId: 6,
+            strategy: 'ai_vision',
+            globalConfidence: 0.8,
+            extractedAt: new \DateTimeImmutable('2026-07-21T10:00:00+00:00'),
+            creditor: new CreditorExtraction(
+                name: 'Nou SRL',
+                cui: 'RO33334444',
+                confidencePerField: ['name' => 0.95, 'cui' => 0.95],
+            ),
+            classification: new DocumentClassification(DocumentType::FACTURA, 0.9),
+        ))->toArray();
+        $service = $this->buildServiceFor([$this->buildDocumentWithExtractedData($current)]);
+
+        self::assertSame(2, ExtractedDocumentData::schemaVersionOf($current));
+        // The added keys sit alongside the ones the aggregator reads; it stays
+        // agnostic about which extractor produced the payload.
+        self::assertSame('Nou SRL', $service->aggregateForCreditor([6])->name);
     }
 }

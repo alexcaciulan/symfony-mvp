@@ -53,6 +53,46 @@
                 </div>
             </dl>
 
+            <h2 class="text-sm font-bold uppercase tracking-wider text-gray-500 mt-8 pt-6 border-t border-gray-200">{{ 'profile.show.ai_section'|trans }}</h2>
+            <dl class="space-y-4 mt-4">
+                {# The state that matters is "is AI extraction running right now",
+                   which needs both the agreement and a mode that allows it. A
+                   date alone left the lawyer guessing. #}
+                {% set ai_active = user.hasAcceptedAiProcessing and user.extractionMode.isAiAllowed %}
+                <div class="flex justify-between text-sm">
+                    <dt class="text-gray-500">{{ 'profile.show.ai_status'|trans }}</dt>
+                    <dd>
+                        {% if ai_active %}
+                            <span class="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800">{{ 'profile.show.ai_status_active'|trans }}</span>
+                        {% else %}
+                            <span class="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-700">{{ 'profile.show.ai_status_local'|trans }}</span>
+                        {% endif %}
+                    </dd>
+                </div>
+                <div class="flex justify-between text-sm border-t border-gray-100 pt-4">
+                    <dt class="text-gray-500">{{ 'profile.show.ai_agreement'|trans }}</dt>
+                    <dd>
+                        {% if user.hasAcceptedAiProcessing %}
+                            <span class="text-gray-800">{{ user.aiProcessingAgreementAt|date('d.m.Y') }}</span>
+                        {% else %}
+                            <a href="{{ path('app_profile_ai_agreement') }}" class="text-sm text-primary-light hover:text-primary">{{ 'profile.show.ai_agreement_missing'|trans }}</a>
+                        {% endif %}
+                    </dd>
+                </div>
+                {% if user.hasAcceptedAiProcessing %}
+                    <div class="flex justify-between text-sm border-t border-gray-100 pt-4">
+                        <dt class="text-gray-500">{{ 'profile.show.ai_manage'|trans }}</dt>
+                        <dd class="flex gap-3">
+                            <a href="{{ path('app_profile_ai_agreement') }}" class="text-sm text-primary-light hover:text-primary">{{ 'profile.show.ai_agreement_view'|trans }}</a>
+                            <form method="post" action="{{ path('app_profile_ai_agreement_withdraw') }}">
+                                <input type="hidden" name="_token" value="{{ csrf_token('ai_processing_agreement_withdraw') }}">
+                                <button type="submit" class="text-sm text-gray-600 hover:text-gray-900 underline">{{ 'profile.show.ai_withdraw'|trans }}</button>
+                            </form>
+                        </dd>
+                    </div>
+                {% endif %}
+            </dl>
+
             <div class="flex flex-col sm:flex-row gap-3 mt-8 pt-6 border-t border-gray-200">
                 <a href="{{ path('app_profile_edit') }}" class="px-4 py-2 bg-primary-light text-white rounded-lg font-medium hover:bg-primary transition-colors no-underline text-sm text-center">
                     {{ 'profile.show.edit_button'|trans }}

@@ -4,15 +4,20 @@ declare(strict_types=1);
 
 namespace App\Service\Document;
 
+use App\DTO\Calculation\AggregatedAccessoryResult;
 use App\Entity\LegalCase;
 use App\Enum\DocumentType;
+use App\Enum\InterestKind;
+use App\Enum\PenaltyType;
+use App\Enum\RelationshipType;
+use App\Service\Calculation\ClaimInterestAggregator;
 use App\Service\Calculation\StampDutyCalculator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Twig\Environment;
 
 /**
- * Generează cererea de ordonanță de plată (CPC art. 1014-1024).
+ * Generează cererea de ordonanță de plată (CPC art. 1013-1024).
  *
  * Documentul cu care creditorul se adresează instanței competente după ce
  * somația (CPC art. 1015) a fost comunicată debitorului fără rezultat. Conține
@@ -28,6 +33,7 @@ final class PaymentOrderRequestGeneratorService extends AbstractPdfGenerator
         Security $security,
         string $uploadsDir,
         private readonly StampDutyCalculator $stampDutyCalculator,
+        private readonly ClaimInterestAggregator $accessoryAggregator,
     ) {
         parent::__construct($twig, $em, $security, $uploadsDir);
     }
@@ -41,10 +47,56 @@ final class PaymentOrderRequestGeneratorService extends AbstractPdfGenerator
      */
     protected function templateContext(LegalCase $case): array
     {
+        $items = $case->getCountingClaimItems();
+        $rate = $case->getContractualPenaltyRate();
+
         return [
             ...parent::templateContext($case),
             'stamp_duty_amount' => (float) ($case->getStampDuty() ?? $this->stampDutyCalculator->calculate()->amount),
+            // CPC art. 1016 alin. (1) lit. c: the sums and what they rest on. A
+            // file with several invoices states each of them, with its own
+            // interest, instead of one merged figure the debtor cannot check.
+            'claim_items' => $items,
+            'claim_item_accessories' => $this->accessories($case, $items, $rate),
         ];
+    }
+
+    /**
+     * @param list<\App\Entity\ClaimItem> $items
+     */
+    private function accessories(LegalCase $case, array $items, ?string $rate): ?AggregatedAccessoryResult
+    {
+        if ($items === []) {
+            return null;
+        }
+
+        try {
+            return $this->accessoryAggregator->aggregate(
+                items: $items,
+                referenceDate: $this->accessoryReferenceDate($case),
+                relationshipType: $case->getRelationshipType() ?? RelationshipType::COMERCIAL,
+                penaltyType: $case->getPenaltyType() ?? PenaltyType::LEGAL_PENALIZATOARE,
+                contractualDailyRate: $rate !== null ? (float) $rate : null,
+                kind: InterestKind::PENALIZATOARE,
+            );
+        } catch (\DomainException) {
+            // The petition still has to generate; without a per-position
+            // accessory it falls back to the stored figure and the single row.
+            return null;
+        }
+    }
+
+    /**
+     * The petition claims what the summons announced, so the accessory is shown
+     * as of the notice date when there is one; otherwise as of today.
+     */
+    private function accessoryReferenceDate(LegalCase $case): \DateTimeImmutable
+    {
+        $notice = $case->getPaymentNoticeDate();
+
+        return $notice !== null
+            ? \DateTimeImmutable::createFromInterface($notice)
+            : new \DateTimeImmutable();
     }
 
     protected function templatePath(): string

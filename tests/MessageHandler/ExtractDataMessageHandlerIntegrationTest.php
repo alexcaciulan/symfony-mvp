@@ -147,6 +147,10 @@ class ExtractDataMessageHandlerIntegrationTest extends KernelTestCase
         $user->setEmail($this->emailMarker);
         $user->setPassword('hashed');
         $user->setIsVerified(true);
+        // These tests are about the handler lifecycle, so the account has to be
+        // past the policy gate: without the processing agreement the cascade
+        // stops at SKIPPED_BY_POLICY and never reaches the strategies.
+        $user->setAiProcessingAgreementAt(new \DateTimeImmutable());
         $this->em->persist($user);
 
         $case = new LegalCase();
@@ -277,18 +281,15 @@ class ExtractDataMessageHandlerIntegrationTest extends KernelTestCase
             $this->em->clear();
             $refetched = $this->em->find(Document::class, $documentId);
             $this->assertNotNull($refetched);
-            // The cascade ran end-to-end: must reach a terminal status. The
-            // exact outcome (COMPLETED vs FAILED) depends on whether the
-            // test container has a working AnthropicApiClient bound — in CI
-            // it doesn't, and the cascade falls through to Stub on AI calls,
-            // landing on FAILED. Locally with a mocked HTTP client, COMPLETED.
-            // Either way: NOT stuck in PROCESSING.
+            // The cascade ran end-to-end against a stubbed LLM client that
+            // refuses permanently, so the outcome is deterministic: a terminal
+            // status and a single ACK. A retry here would mean a permanent
+            // provider error was misread as transient.
             $this->assertContains(
                 $refetched->getExtractionStatus(),
                 [ExtractionStatus::COMPLETED, ExtractionStatus::FAILED],
                 'Real cascade through real worker must reach a terminal status',
             );
-            // ACK happened — no infrastructure-level error.
             $this->assertCount(1, $this->asyncTransport->getAcknowledged());
             $this->assertCount(0, $this->asyncTransport->getRejected());
         } finally {

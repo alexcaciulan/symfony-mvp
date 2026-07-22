@@ -4,7 +4,10 @@ namespace App\Service\Extraction;
 
 use App\DTO\Extraction\ExtractedDocumentData;
 use App\Entity\Document;
+use App\Entity\User;
+use App\Enum\ExtractionFailureReason;
 use App\Enum\ExtractionMode;
+use App\Enum\ExtractionPipeline;
 use App\Enum\ExtractionStatus;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -38,26 +41,30 @@ class DataExtractionService
     /**
      * Coverage-based threshold — see {@see CoverageConfidenceCalculator}.
      * 0.6 ≈ 15 of 25 wizard fields extracted at confidence 1.0 (or proportionally
-     * more at lower confidence). Empirically PdfParser on realistic Romanian
-     * invoices/contracts yields ~0.25–0.45 coverage (it can't see emails,
-     * phones, administrators, ONRC numbers reliably), so it falls below and the
-     * AI tier gets a chance to fill the missing 14+ fields. AI typically
-     * returns 0.55–0.85 coverage and short-circuits. If both AI tiers fail
-     * (LOCAL_ONLY, missing API key, rate limit), the best-below-threshold
-     * fallback still persists the PdfParser partial — nothing is lost.
+     * more at lower confidence).
      *
-     * Tune via `EXTRACTION_CONFIDENCE_THRESHOLD`: lower for cheaper extraction
-     * (PdfParser-only when it covers enough); higher to favour AI even when
-     * PdfParser did decently — lawyer time > AI cost is the operational bet.
+     * It means two different things per pipeline. On LEGACY_CASCADE it is the
+     * short-circuit point: PdfParser on realistic Romanian invoices/contracts
+     * yields ~0.25–0.45 coverage (it can't see emails, phones, administrators,
+     * ONRC numbers reliably), falls below, and the AI tier gets a chance at the
+     * missing fields; AI typically returns 0.55–0.85 and stops the chain. On
+     * AI_ONLY there is no next tier to hand off to, so it only marks the result
+     * as needing the lawyer's review, which is what the name says.
      *
      * Precedence: at runtime, the value injected via `services.yaml`
-     * (`$confidenceThreshold`, bound from `EXTRACTION_CONFIDENCE_THRESHOLD`)
+     * (`$confidenceThreshold`, bound from `EXTRACTION_REVIEW_THRESHOLD`)
      * takes priority. This PHP constant is the code-level fallback for tests
      * or for direct calls that pass `null` as the threshold argument. Keep the
      * two values in sync — the `.env` default and this constant should always
      * match so a fresh checkout behaves the same with or without env loading.
      */
-    public const DEFAULT_CONFIDENCE_THRESHOLD = 0.6;
+    public const DEFAULT_REVIEW_THRESHOLD = 0.6;
+
+    /**
+     * Written to `Document.extractionStrategy` when the cascade stopped before
+     * any strategy ran (policy skip). Keeps provenance honest.
+     */
+    public const NO_STRATEGY = 'none';
 
     /** @var list<ExtractionStrategyInterface> */
     private array $sortedStrategies;
@@ -118,20 +125,57 @@ class DataExtractionService
      * any data was extracted: FAILED when globalConfidence is 0.0, COMPLETED
      * otherwise (including partial results).
      *
-     * @param ?float $confidenceThreshold null = use {@see self::DEFAULT_CONFIDENCE_THRESHOLD}
+     * @param ?float $confidenceThreshold null = use {@see self::DEFAULT_REVIEW_THRESHOLD}
      */
     public function extract(Document $document, ?float $confidenceThreshold = null): ExtractedDocumentData
     {
-        $threshold = $confidenceThreshold ?? self::DEFAULT_CONFIDENCE_THRESHOLD;
+        $threshold = $confidenceThreshold ?? self::DEFAULT_REVIEW_THRESHOLD;
         $mode = $this->resolveExtractionMode($document);
-        $aiAllowed = $mode->isAiAllowed();
+        $pipeline = $this->resolvePipeline($document);
+
+        // Two independent conditions must both hold before a document may reach
+        // an AI provider: the privacy mode must allow it, and the account holder
+        // must have accepted sub-processing. The agreement is the one that
+        // carries legal weight (professional secrecy, art. 28 GDPR), so it gates
+        // every pipeline, not just AI_ONLY.
+        $agreementGiven = $this->resolveOwner($document)->hasAcceptedAiProcessing();
+        $aiAllowed = $mode->isAiAllowed() && $agreementGiven;
+
+        // AI-only with no permitted strategy leaves nothing to run. That is a
+        // settings choice, not a malfunction, so it gets its own status: FAILED
+        // would send the lawyer looking for a broken document.
+        if ($pipeline === ExtractionPipeline::AI_ONLY && !$aiAllowed) {
+            // Name the deliberate choice first: an account parked on LOCAL_ONLY
+            // asked for this, while a missing agreement means it was never asked.
+            $reason = $mode->isAiAllowed()
+                ? ExtractionFailureReason::AGREEMENT_MISSING
+                : ExtractionFailureReason::LOCAL_ONLY_MODE;
+            $this->logger->info('extraction.skipped_by_policy', [
+                'documentId' => $document->getId(),
+                'mode' => $mode->value,
+                'reason' => $reason->value,
+            ]);
+            $result = new ExtractedDocumentData(
+                sourceDocumentId: (int) $document->getId(),
+                // No strategy ran, and extractionStrategy is provenance
+                // evidence: naming one here would claim work that never happened.
+                strategy: self::NO_STRATEGY,
+                globalConfidence: 0.0,
+                extractedAt: new \DateTimeImmutable(),
+                failureReason: $reason,
+            );
+            $this->persistResult($document, $result, ExtractionStatus::SKIPPED_BY_POLICY);
+
+            return $result;
+        }
 
         $bestSoFar = null;
         foreach ($this->sortedStrategies as $strategy) {
             if (!$aiAllowed && $strategy->isAiBacked()) {
-                $this->logger->debug('extraction.skip_ai_local_only', [
+                $this->logger->debug('extraction.skip_ai_not_permitted', [
                     'documentId' => $document->getId(),
                     'strategy' => $strategy::class,
+                    'agreementGiven' => $agreementGiven,
                 ]);
                 continue;
             }
@@ -144,6 +188,17 @@ class DataExtractionService
             $strategyKey = defined($strategy::class . '::STRATEGY_KEY')
                 ? $strategy::STRATEGY_KEY
                 : null;
+
+            // AI-only accounts run vision and nothing else: no PdfParser, no
+            // OcrText, and no Stub safety net below them.
+            if ($pipeline === ExtractionPipeline::AI_ONLY
+                && $strategyKey !== AiVisionExtractionStrategy::STRATEGY_KEY) {
+                $this->logger->debug('extraction.skip_non_ai_pipeline', [
+                    'documentId' => $document->getId(),
+                    'strategy' => $strategyKey ?? $strategy::class,
+                ]);
+                continue;
+            }
 
             // Dev-only knob: when EXTRACTION_FORCE_STRATEGY is set, skip every
             // strategy whose STRATEGY_KEY doesn't match. Lets us exercise a
@@ -207,11 +262,17 @@ class DataExtractionService
                     'strategy' => $strategy::class,
                     'exceptionClass' => $e::class,
                     'code' => $e->getCode(),
+                    // The class alone does not say what broke, and this arm
+                    // catches programming errors as readily as provider ones:
+                    // without the message an operator sees a document stuck on
+                    // a transient reason and nothing to act on.
+                    'message' => $e->getMessage(),
+                    'origin' => $e->getFile() . ':' . $e->getLine(),
                 ]);
                 continue;
             }
 
-            if ($bestSoFar === null || $result->globalConfidence > $bestSoFar->globalConfidence) {
+            if ($this->isBetter($result, $bestSoFar)) {
                 $bestSoFar = $result;
             }
 
@@ -234,15 +295,29 @@ class DataExtractionService
             ]);
         }
 
-        // Cascade exhausted without meeting threshold. In production the Stub
-        // strategy (priority 10, supports() = true, isAiBacked = false) ensures
-        // $bestSoFar is never null. Defensive fallback for unusual test/DI configs.
+        // Cascade exhausted without meeting the threshold. On LEGACY_CASCADE the
+        // Stub strategy (priority 10, supports() = true, isAiBacked = false)
+        // keeps $bestSoFar non-null. On AI_ONLY there is no Stub, so a null here
+        // is the normal shape of "vision did not run at all" (missing API key,
+        // unsupported mime) and this fallback is the real path, not a defensive
+        // one. Every uploadable mime is one vision accepts, so under AI_ONLY the
+        // remaining cause is the missing-API-key gate in supports().
         if ($bestSoFar === null) {
             $bestSoFar = new ExtractedDocumentData(
                 sourceDocumentId: (int) $document->getId(),
-                strategy: StubExtractionStrategy::STRATEGY_KEY,
+                strategy: $pipeline === ExtractionPipeline::AI_ONLY
+                    ? AiVisionExtractionStrategy::STRATEGY_KEY
+                    : StubExtractionStrategy::STRATEGY_KEY,
                 globalConfidence: 0.0,
                 extractedAt: new \DateTimeImmutable(),
+                // A missing API key and a provider outage look identical from
+                // here, yet only one of them is worth retrying. Ask the vision
+                // strategy which one it is.
+                failureReason: $pipeline === ExtractionPipeline::AI_ONLY
+                    ? ($this->visionConfigured()
+                        ? ExtractionFailureReason::API_UNAVAILABLE
+                        : ExtractionFailureReason::API_KEY_MISSING)
+                    : null,
             );
         }
 
@@ -271,19 +346,115 @@ class DataExtractionService
         return $document->getUploadedBy()->getExtractionMode();
     }
 
-    private function persistResult(Document $document, ExtractedDocumentData $result): void
+    /**
+     * The case owner when the document belongs to a case, the uploader
+     * otherwise. There is no per-case pipeline override: unlike the extraction
+     * mode, the pipeline is a property of the account. The uploader leg is not a
+     * fallback for odd data, it is the normal path for wizard step 0, where
+     * documents are uploaded before any LegalCase exists.
+     */
+    private function resolvePipeline(Document $document): ExtractionPipeline
     {
+        return $this->resolveOwner($document)->getExtractionPipeline();
+    }
+
+    /**
+     * The account whose settings and agreement govern this document.
+     */
+    private function resolveOwner(Document $document): User
+    {
+        return $document->getLegalCase()?->getUser() ?? $document->getUploadedBy();
+    }
+
+    /**
+     * Whether the AI Vision strategy has credentials. Without them it declines
+     * every document in `supports()`, which is a configuration problem rather
+     * than a transient outage and must not be retried.
+     */
+    private function visionConfigured(): bool
+    {
+        foreach ($this->sortedStrategies as $strategy) {
+            if ($strategy instanceof AiVisionExtractionStrategy) {
+                return $strategy->isConfigured();
+            }
+        }
+
+        // No vision strategy registered at all (unit tests with hand-built
+        // cascades). Nothing here can be fixed by an operator key, so treat it
+        // as the outage case and let the existing retry policy decide.
+        return true;
+    }
+
+    /**
+     * Whether a fresh result should replace the best one seen so far.
+     *
+     * Confidence decides first. On a tie the question is what the two results
+     * carry, and that splits in two.
+     *
+     * Where both carry data, the clean one wins: keeping a stale reason next to
+     * a usable extraction would have the message handler queue a retry for a
+     * cascade that already succeeded.
+     *
+     * Where neither carries data, nothing is being chosen between except the
+     * explanation, and the result that has one is worth strictly more. The Stub
+     * fallback ends every legacy cascade with an empty, reasonless result, so
+     * the opposite rule silently erased the diagnosis the vision strategy had
+     * just recorded. A malformed AI answer would then reach the lawyer as a
+     * bare failure: the handler never sees a transient reason, so no retry is
+     * queued, and the UI hides its retry button because nothing says the
+     * failure was retryable. That is a dead end for a document that only needed
+     * asking again.
+     */
+    private function isBetter(ExtractedDocumentData $candidate, ?ExtractedDocumentData $current): bool
+    {
+        if ($current === null) {
+            return true;
+        }
+        if ($candidate->globalConfidence !== $current->globalConfidence) {
+            return $candidate->globalConfidence > $current->globalConfidence;
+        }
+
+        if ($candidate->globalConfidence === 0.0) {
+            // First diagnosis wins, and the cascade runs in priority order, so
+            // the surviving reason is the most capable strategy's.
+            return $candidate->failureReason !== null && $current->failureReason === null;
+        }
+
+        return $candidate->failureReason === null && $current->failureReason !== null;
+    }
+
+    /**
+     * @param ?ExtractionStatus $forcedStatus set only when the caller already
+     *        knows the outcome is not a plain success/failure (policy skip)
+     */
+    private function persistResult(
+        Document $document,
+        ExtractedDocumentData $result,
+        ?ExtractionStatus $forcedStatus = null,
+    ): void {
         // confidence == 0.0 = no data extracted (Stub fallback or all strategies failed) → FAILED.
         // Any positive confidence (including below threshold) = some data extracted → COMPLETED.
         // Downstream consumers (Pas 3.0 wizard pre-fill) must check both status and confidence
         // to decide whether to display extracted values or prompt manual entry.
-        $status = $result->globalConfidence > 0.0
+        $status = $forcedStatus ?? ($result->globalConfidence > 0.0
             ? ExtractionStatus::COMPLETED
-            : ExtractionStatus::FAILED;
+            : ExtractionStatus::FAILED);
+
+        // What the model believes the document is, kept next to the type the
+        // lawyer picked instead of replacing it. Only written when a classifying
+        // prompt actually ran: a specialised prompt returns no classification,
+        // and clearing the column there would erase the earlier detection on
+        // every reprocess.
+        $classification = $result->classification;
+        if ($classification !== null) {
+            $document->setDetectedType($classification->type);
+            $document->setDetectedTypeConfidence(number_format($classification->confidence, 2, '.', ''));
+        }
 
         $document->setExtractedData($result->toArray());
         $document->setExtractionStatus($status);
         $document->setExtractionConfidence(number_format($result->globalConfidence, 2, '.', ''));
         $document->setExtractionStrategy($result->strategy);
+        $document->setExtractionFailureReason($result->failureReason);
     }
 }

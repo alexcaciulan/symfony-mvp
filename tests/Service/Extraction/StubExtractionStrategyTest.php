@@ -36,7 +36,7 @@ class StubExtractionStrategyTest extends TestCase
         $this->assertSame('stub', $result->strategy);
         $this->assertSame(0.0, $result->globalConfidence);
         $this->assertNull($result->creditor);
-        $this->assertNull($result->debtor);
+        $this->assertNull($result->primaryDebtor());
         $this->assertNull($result->claim);
         $this->assertNull($result->rawOcrText);
         $this->assertSame(StubExtractionStrategy::STRATEGY_KEY, $result->strategy);

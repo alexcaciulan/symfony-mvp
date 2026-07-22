@@ -23,7 +23,7 @@ class LegalGroundCategoryTest extends TestCase
     public function testAllCasesAreOpEligible(): void
     {
         foreach (LegalGroundCategory::cases() as $case) {
-            $this->assertTrue($case->isOpEligible(), "Expected {$case->name} eligible per CPC art. 1014");
+            $this->assertTrue($case->isOpEligible(), "Expected {$case->name} eligible per CPC art. 1013");
         }
     }
 

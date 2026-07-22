@@ -59,7 +59,16 @@
             {% for doc in documents %}
                 <tr>
                     <td class="nr">{{ loop.index }}</td>
-                    <td>{{ doc.originalFilename }}</td>
+                    <td>{{ doc.originalFilename }}
+                        {% set docItems = claim_items_by_document is defined ? (claim_items_by_document[doc.id]|default([])) : [] %}
+                        {% if docItems|length > 0 %}
+                            {% set labels = [] %}
+                            {% for item in docItems %}
+                                {% set labels = labels|merge([(item.documentNumber|default('—')) ~ ' · ' ~ item.amountRon|number_format(2, ',', '.') ~ ' RON']) %}
+                            {% endfor %}
+                            <div class="meta">{{ 'pdf.document_index.claim_items'|trans({'%items%': labels|join('; ')}) }}</div>
+                        {% endif %}
+                    </td>
                     <td class="type">{{ doc.documentType.label()|trans }}</td>
                     <td class="date">{{ doc.createdAt|date('d.m.Y') }}</td>
                 </tr>

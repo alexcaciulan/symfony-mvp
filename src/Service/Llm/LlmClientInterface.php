@@ -37,7 +37,18 @@ interface LlmClientInterface
      *        calls. null = text-only completion. Implementations are
      *        responsible for splicing these into the request body in their
      *        provider-specific shape.
+     * @param bool $cacheSystemPrompt asks the provider to cache the stable
+     *        prefix of the request (the system blocks) so a batch of documents
+     *        sharing the same instructions pays for them once. Implementations
+     *        without a prompt cache ignore it. Only pass true when the system
+     *        blocks really are byte-identical across calls: a prefix that
+     *        changes per call costs the cache-write premium and never gets read.
+     * @param array<string, mixed>|null $outputSchema JSON Schema the response
+     *        must conform to. Implementations that support constrained decoding
+     *        enforce it; the rest ignore it, so callers must still validate what
+     *        they parse.
      *
+
      * @note GDPR — callers MUST mask personal data (CNP, IBAN, address) in the
      *       message contents BEFORE invoking this method. The request body
      *       leaves the server boundary; once at Anthropic (or any other LLM
@@ -53,5 +64,7 @@ interface LlmClientInterface
         array $messages,
         int $maxTokens = 2048,
         ?array $documentParts = null,
+        bool $cacheSystemPrompt = false,
+        ?array $outputSchema = null,
     ): LlmResponse;
 }

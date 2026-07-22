@@ -1,8 +1,14 @@
-{# CPC art. 1014-1024: cerere de ordonanță de plată. Conținut obligatoriu per art. 1016: instanță competentă, părți, fapte, sume cerute, temei juridic, anexe. NU modifica fără confirmare juridică. #}
+{# CPC art. 1013-1024: cerere de ordonanță de plată. Conținut obligatoriu per art. 1016: instanță competentă, părți, fapte, sume cerute, temei juridic, anexe. NU modifica fără confirmare juridică. #}
 {% set creditor = case.creditor %}
 {% set debtors = case.debtors %}
 {% set principal = case.amount|default('0') %}
-{% set interest = case.calculatedInterest|default('0') %}
+{# One interest figure for the whole petition. The per-position rows are computed
+   as of the notice date; taking the total from the frozen `calculatedInterest`
+   (written at wizard submit, at a different date) made the rows fail to add up to
+   the total, and the sum asked of the court was the older one. #}
+{% set items_accessory = (claim_item_accessories is defined and claim_item_accessories and not claim_item_accessories.isEmpty) ? claim_item_accessories.total : null %}
+{% set itemized = claim_items is defined and claim_items|length > 1 %}
+{% set interest = (itemized and items_accessory is not null) ? items_accessory : case.calculatedInterest|default('0') %}
 {# Suma legală, nu doar cea persistată: taxa e datorată și pe dosarele create înainte
    ca acest câmp să existe, iar omiterea ei din cheltuielile solicitate l-ar costa pe
    creditor 200 lei pe care instanța nu îi acordă din oficiu. #}
@@ -114,11 +120,14 @@
 }) }}</p>
 
 <h2>{{ 'pdf.payment_order.facts_title'|trans }}</h2>
-<p>{{ 'pdf.payment_order.facts_body'|trans({
+{# With several documents the claim has several due dates. Declaring the earliest
+   one as "the" due date contradicts the table printed right below it. #}
+<p>{{ (itemized ? 'pdf.payment_order.facts_body_items' : 'pdf.payment_order.facts_body')|trans({
     '%due_date%': case.dueDate ? case.dueDate|date('d.m.Y') : '—',
     '%notice_date%': case.paymentNoticeDate ? case.paymentNoticeDate|date('d.m.Y') : '—',
     '%amount%': principal|number_format(2, ',', '.'),
     '%currency%': currency,
+    '%count%': claim_items is defined ? claim_items|length : 1,
 }) }}</p>
 
 <h2>{{ 'pdf.payment_order.amounts_table_title'|trans }}</h2>
@@ -130,10 +139,41 @@
         </tr>
     </thead>
     <tbody>
+        {# Several documents: each claim is shown on its own, with its own sum and its
+           own interest (CPC art. 1016 alin. 1 lit. c). A single position keeps the
+           existing one-line rendering, so filed cases print exactly as before. #}
+        {% if itemized %}
+            {% for item in claim_items %}
+                {% set itemAccessory = claim_item_accessories ? claim_item_accessories.forItem(item.id) : null %}
+                <tr>
+                    <td>{{ 'pdf.payment_order.amount_principal_item'|trans({
+                        '%number%': item.documentNumber|default('—'),
+                        '%date%': item.documentDate ? item.documentDate|date('d.m.Y') : '—',
+                        '%due_date%': item.dueDate ? item.dueDate|date('d.m.Y') : '—',
+                    }) }}
+                    {% if item.currency != 'RON' and item.exchangeRate %}
+                        {# The debtor is entitled to check the equivalent opposed to them. #}
+                        <br><span class="meta">{{ 'pdf.payment_order.amount_principal_item_fx'|trans({
+                            '%amount%': item.amount|number_format(2, ',', '.'),
+                            '%currency%': item.currency,
+                            '%rate%': item.exchangeRate|number_format(4, ',', '.'),
+                            '%rate_date%': item.exchangeRateDate ? item.exchangeRateDate|date('d.m.Y') : '—',
+                        }) }}</span>
+                    {% endif %}
+                    {% if item.description %}<br><span class="meta">{{ item.description }}</span>{% endif %}</td>
+                    <td class="amount">{{ item.signedAmountRon|number_format(2, ',', '.') }} {{ currency }}<br><span class="meta">{% if itemAccessory %}{{ 'pdf.payment_order.amount_interest_item'|trans({'%sum%': itemAccessory.total|number_format(2, ',', '.'), '%currency%': currency}) }}{% elseif item.dueDate and not item.isCreditNote %}{{ 'pdf.payment_order.amount_interest_item_unavailable'|trans }}{% endif %}</span></td>
+                </tr>
+            {% endfor %}
+            <tr>
+                <td>{{ 'pdf.payment_order.amount_principal_total'|trans }}</td>
+                <td class="amount">{{ principal|number_format(2, ',', '.') }} {{ currency }}</td>
+            </tr>
+        {% else %}
         <tr>
             <td>{{ 'pdf.payment_order.amount_principal'|trans }}</td>
             <td class="amount">{{ principal|number_format(2, ',', '.') }} {{ currency }}</td>
         </tr>
+        {% endif %}
         {% if interest and interest != '0' and interest != '0.00' %}
         <tr>
             <td>{{ 'pdf.payment_order.amount_interest'|trans }}</td>
@@ -156,6 +196,11 @@
         {% endif %}
     </tbody>
 </table>
+{% if itemized %}
+    {# Without this, the registry reads one total above the threshold and the plea of
+       material incompetence follows. Art. 99 is why the total is valued as one head. #}
+    <p class="meta">{{ 'pdf.payment_order.art99_note'|trans }}</p>
+{% endif %}
 
 {# Petitum cheltuieli de judecată. Instanța NU le acordă din oficiu (CPC art. 453),
    deci fără această cerere expresă creditorul câștigă procesul și rămâne cu taxa de

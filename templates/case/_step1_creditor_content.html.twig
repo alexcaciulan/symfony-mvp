@@ -16,6 +16,8 @@
 {% set has_form_errors = form.vars.errors|length > 0 %}
 
 {% block wizard_step_content %}
+    {{ include('case/_prefill_conflicts.html.twig', { conflicts_form_id: 'step1-creditor-form' }) }}
+
     <div data-controller="creditor-mode">
         {# Pas 3.3 — UX Autocomplete picker for creditors from the user's library.
            The select sits at the top of the form; manual fields below auto-hide

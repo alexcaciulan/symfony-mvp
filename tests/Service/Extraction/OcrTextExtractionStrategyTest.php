@@ -86,7 +86,7 @@ class OcrTextExtractionStrategyTest extends TestCase
             public string $cannedContent = '{}';
             public ?\Throwable $throw = null;
 
-            public function complete(array $messages, int $maxTokens = 2048, ?array $documentParts = null): LlmResponse
+            public function complete(array $messages, int $maxTokens = 2048, ?array $documentParts = null, bool $cacheSystemPrompt = false, ?array $outputSchema = null): LlmResponse
             {
                 $this->lastMessages = $messages;
                 $this->lastMaxTokens = $maxTokens;
@@ -346,7 +346,7 @@ class OcrTextExtractionStrategyTest extends TestCase
         // actually covers.
         $this->assertGreaterThan(0.0, $result->globalConfidence);
         $this->assertSame($iban, $result->creditor?->iban, 'IBAN should be restored from placeholder');
-        $this->assertSame($cnp, $result->debtor?->personalId, 'CNP should be restored from placeholder');
+        $this->assertSame($cnp, $result->primaryDebtor()?->personalId, 'CNP should be restored from placeholder');
 
         // rawOcrText is persisted as Document.extractedData JSON — GDPR data minimisation
         // requires CNP and IBAN masked at the persistence boundary. Structured fields
@@ -397,7 +397,7 @@ class OcrTextExtractionStrategyTest extends TestCase
     {
         $strategy = $this->makeStrategy(
             ocrService: $this->fakeOcrService(text: str_repeat('payload ', 50), confidence: 0.92),
-            llmClient: $this->fakeLlmClient(content: '{}', throw: new LlmException('Anthropic 503 overloaded')),
+            llmClient: $this->fakeLlmClient(content: '{}', throw: LlmException::transient('Anthropic 503 overloaded', 503)),
         );
 
         $result = $strategy->extract($this->makeDocument(40, 'image/png'));

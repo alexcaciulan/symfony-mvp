@@ -217,7 +217,7 @@ final class OcrTextExtractionStrategy implements ExtractionStrategyInterface
             globalConfidence: $globalConfidence,
             extractedAt: new \DateTimeImmutable(),
             creditor: $creditor,
-            debtor: $debtor,
+            debtors: $debtor !== null ? [$debtor] : [],
             claim: $claim,
             // GDPR art. 5(1)(c) — data minimisation. The DTO is persisted as
             // `Document.extractedData` JSON, so any CNP/IBAN left in `rawOcrText`

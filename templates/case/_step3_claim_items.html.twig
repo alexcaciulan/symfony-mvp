@@ -1,0 +1,141 @@
+{# Claim positions table. The inputs post with the step 3 form through the HTML5
+   `form` attribute, because the table sits outside the Live Component. One tick
+   confirms the whole table; rows carrying a risk need their own.
+   Rows are identified by their dedup key, never by their position in the table. #}
+{% if claim_items|length > 0 %}
+    {% set summary = claim_items_summary|default({'accessoryByRow': {}, 'unavailableRows': [], 'principal': 0, 'accessory': 0, 'earliestDueDate': null, 'countedRows': 0}) %}
+    <section class="mt-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+        <header class="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+            <h2 class="text-sm font-semibold text-slate-800 dark:text-slate-100">{{ 'wizard.step3.claim_items.title'|trans }}</h2>
+            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ 'wizard.step3.claim_items.help'|trans }}</p>
+        </header>
+
+        {% if claim_items_errors|default([])|length > 0 %}
+            <ul class="mx-4 mt-3 rounded-lg bg-red-50 dark:bg-red-950/40 px-3 py-2 text-xs text-red-700 dark:text-red-300">
+                {% for error in claim_items_errors %}
+                    <li>{{ error|trans }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    <tr class="border-b border-slate-200 dark:border-slate-700">
+                        <th class="px-4 py-2 text-left">{{ 'wizard.step3.claim_items.column.number'|trans }}</th>
+                        <th class="px-4 py-2 text-left">{{ 'wizard.step3.claim_items.column.document_date'|trans }}</th>
+                        <th class="px-4 py-2 text-left">{{ 'wizard.step3.claim_items.column.due_date'|trans }}</th>
+                        <th class="px-4 py-2 text-right">{{ 'wizard.step3.claim_items.column.amount'|trans }}</th>
+                        <th class="px-4 py-2 text-right">{{ 'wizard.step3.claim_items.column.interest'|trans }}</th>
+                        <th class="px-4 py-2 text-left">{{ 'wizard.step3.claim_items.column.cause'|trans }}</th>
+                        <th class="px-4 py-2 text-left">{{ 'wizard.step3.claim_items.column.description'|trans }}</th>
+                        <th class="px-4 py-2 text-left">{{ 'wizard.step3.claim_items.column.source'|trans }}</th>
+                        <th class="px-4 py-2 text-center">{{ 'wizard.step3.claim_items.column.confirm'|trans }}</th>
+                        <th class="px-4 py-2 text-center">{{ 'wizard.step3.claim_items.column.exclude'|trans }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for index, item in claim_items %}
+                        {% set needsOwnTick = item.requiresIndividualConfirmation(claim_items_review_threshold) %}
+                        {% set rowAccessory = summary.accessoryByRow[index]|default(null) %}
+                        <tr class="border-b border-slate-100 dark:border-slate-800{% if item.excluded %} opacity-60{% endif %}" data-testid="claim-item-row">
+                            <td class="px-4 py-2 font-medium text-slate-800 dark:text-slate-100">
+                                {{ item.documentNumber|default('—') }}
+                                {% if item.isCreditNote %}
+                                    <div class="text-[11px] font-normal text-rose-600 dark:text-rose-400">{{ ('enum.claim_item_kind.' ~ item.kind.value)|trans }}</div>
+                                {% endif %}
+                                <input type="hidden" form="step3-claim-form" name="claim_items[{{ index }}][key]" value="{{ item.dedupKey }}">
+                            </td>
+                            <td class="px-4 py-2 text-slate-600 dark:text-slate-300">{{ item.documentDate ? item.documentDate|date('d.m.Y') : '—' }}</td>
+                            {# Due date and amount are editable: a misread figure would
+                               otherwise leave the lawyer with no way to file at all,
+                               and the due date is what the interest accrues from. #}
+                            <td class="px-4 py-2">
+                                <input type="date" form="step3-claim-form"
+                                       name="claim_items[{{ index }}][dueDate]"
+                                       value="{{ item.dueDate ? item.dueDate|date('Y-m-d') : '' }}"
+                                       aria-label="{{ 'wizard.step3.claim_items.column.due_date'|trans }}"
+                                       class="w-36 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 text-sm tnum">
+                            </td>
+                            <td class="px-4 py-2 text-right text-slate-800 dark:text-slate-100" data-testid="claim-item-amount">
+                                <div class="flex items-center justify-end gap-1">
+                                    <input type="text" inputmode="decimal" form="step3-claim-form"
+                                           name="claim_items[{{ index }}][amount]"
+                                           value="{{ item.amount|number_format(2, '.', '') }}"
+                                           aria-label="{{ 'wizard.step3.claim_items.column.amount'|trans }}"
+                                           class="w-28 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-1 text-sm text-right tnum">
+                                    <span class="text-xs text-slate-500 dark:text-slate-400">{{ item.currency }}</span>
+                                </div>
+                                {% if item.amountRon is not null and item.currency != 'RON' %}
+                                    <div class="text-xs text-slate-500 dark:text-slate-400">
+                                        {{ item.amountRon|number_format(2, ',', '.') }} RON
+                                        {% if item.exchangeRate is not null %}
+                                            <span class="block">{{ item.exchangeRate|number_format(4, ',', '.') }} · {{ item.exchangeRateDate ? item.exchangeRateDate|date('d.m.Y') : '—' }}</span>
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-2 text-right tnum text-amber-700 dark:text-amber-400" data-testid="claim-item-interest">
+                                {% if rowAccessory is not null %}
+                                    {{ rowAccessory|number_format(2, ',', '.') }}
+                                {% elseif index in summary.unavailableRows %}
+                                    <span class="text-xs text-amber-600 dark:text-amber-400" title="{{ 'wizard.step3.claim_items.no_interest_hint'|trans }}">{{ 'wizard.step3.claim_items.interest_unavailable'|trans }}</span>
+                                {% else %}
+                                    <span class="text-slate-400">{{ 'wizard.step3.claim_items.interest_none'|trans }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-2">
+                                <input type="text" form="step3-claim-form" name="claim_items[{{ index }}][cause]"
+                                       value="{{ item.causeReference|default('') }}"
+                                       maxlength="150"
+                                       aria-label="{{ 'wizard.step3.claim_items.column.cause'|trans }}"
+                                       class="w-40 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-950 px-2 py-1 text-xs text-slate-800 dark:text-slate-100">
+                            </td>
+                            <td class="px-4 py-2 text-xs text-slate-600 dark:text-slate-300 max-w-[16rem]">{{ item.description|default('—') }}</td>
+                            <td class="px-4 py-2 text-xs text-slate-500 dark:text-slate-400">
+                                {{ item.sourceDocumentId ? 'wizard.step3.claim_items.source_document'|trans({'%id%': item.sourceDocumentId}) : 'wizard.step3.claim_items.source_manual'|trans }}
+                                {% for warning in item.warningKeys %}
+                                    <div class="mt-1 text-amber-600 dark:text-amber-400">{{ warning|trans }}</div>
+                                {% endfor %}
+                            </td>
+                            <td class="px-4 py-2 text-center">
+                                {% if needsOwnTick %}
+                                    <input type="checkbox" form="step3-claim-form" name="claim_items[{{ index }}][confirmed]" value="1"{% if item.confirmed %} checked{% endif %} class="size-4 rounded border-slate-300 dark:border-slate-600">
+                                    <div class="text-[11px] text-amber-600 dark:text-amber-400">{{ 'wizard.step3.claim_items.needs_own_check'|trans }}</div>
+                                {% else %}
+                                    <span class="text-xs text-slate-400">{{ 'wizard.step3.claim_items.covered_by_table'|trans }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-2 text-center">
+                                <input type="checkbox" form="step3-claim-form" name="claim_items[{{ index }}][excluded]" value="1"{% if item.excluded %} checked{% endif %} class="size-4 rounded border-slate-300 dark:border-slate-600">
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+                {% if summary.countedRows > 0 %}
+                    <tfoot class="border-t-2 border-slate-200 dark:border-slate-700 text-sm font-semibold text-slate-800 dark:text-slate-100">
+                        <tr>
+                            <td class="px-4 py-2" colspan="3">
+                                {{ 'wizard.step3.claim_items.total_principal'|trans }}
+                                {% if summary.earliestDueDate %}
+                                    <div class="text-[11px] font-normal text-slate-500 dark:text-slate-400">{{ 'wizard.step3.claim_items.earliest_due_date'|trans({'%date%': summary.earliestDueDate|date('d.m.Y')}) }}</div>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-2 text-right tnum" data-testid="claim-items-total-principal">{{ summary.principal|number_format(2, ',', '.') }} RON</td>
+                            <td class="px-4 py-2 text-right tnum text-amber-700 dark:text-amber-400" data-testid="claim-items-total-interest">{{ summary.accessory|number_format(2, ',', '.') }} RON</td>
+                            <td class="px-4 py-2 text-xs font-normal text-slate-500 dark:text-slate-400" colspan="5">{{ 'wizard.step3.claim_items.total_interest'|trans }}</td>
+                        </tr>
+                    </tfoot>
+                {% endif %}
+            </table>
+        </div>
+
+        <footer class="px-4 py-3 border-t border-slate-200 dark:border-slate-700 space-y-2">
+            <p class="text-xs text-slate-500 dark:text-slate-400">{{ 'wizard.step3.claim_items.cause_help'|trans }}</p>
+            <label class="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
+                <input type="checkbox" form="step3-claim-form" name="claim_items_table_confirmed" value="1"{% if claim_items_table_confirmed %} checked{% endif %} class="mt-0.5 size-4 rounded border-slate-300 dark:border-slate-600">
+                <span>{{ 'wizard.step3.claim_items.confirm_table'|trans }}</span>
+            </label>
+        </footer>
+    </section>
+{% endif %}

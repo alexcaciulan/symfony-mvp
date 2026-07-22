@@ -165,6 +165,59 @@ final class CaseWizardControllerStep0Test extends WebTestCase
         self::assertStringContainsString('RO12345678', $html);
     }
 
+    public function testStep0CardShowsTheInvoiceTotalNotOneInvoiceSum(): void
+    {
+        // Two invoices for the same debtor: the card must show their sum, and
+        // the per-invoice sum/due-date/number rows must not sit under the total
+        // contradicting it (the failure the lawyer reported).
+        $ids = [];
+        foreach ([['FF 0036', '2026-02-06', 493.30], ['FF 0038', '2026-03-11', 493.23]] as $i => [$number, $due, $amount]) {
+            $doc = new Document();
+            $doc->setOriginalFilename('invoice-' . $i . '.pdf');
+            $doc->setStoredFilename('seed/' . $i . '.pdf');
+            $doc->setFileSize(26000);
+            $doc->setMimeType('application/pdf');
+            $doc->setDocumentType(DocumentType::FACTURA);
+            $doc->setDetectedType(DocumentType::FACTURA);
+            $doc->setUploadedBy($this->em->getReference(User::class, $this->user->getId()));
+            $doc->setContentHash(hash('sha256', 'invoice-' . $i));
+            $doc->setExtractionStatus(ExtractionStatus::COMPLETED);
+            $doc->setExtractionConfidence('0.95');
+            $doc->setExtractedData([
+                'schemaVersion' => 2,
+                'creditor' => ['name' => 'Techedge SRL', 'cui' => 'RO49932252', 'confidencePerField' => ['name' => 0.98, 'cui' => 0.97]],
+                'debtors' => [['name' => 'LH Consultancy SRL', 'cui' => 'RO44844397', 'confidencePerField' => ['name' => 0.98, 'cui' => 0.97]]],
+                'claim' => [
+                    'amount' => $amount, 'currency' => 'RON', 'dueDate' => $due . 'T00:00:00+00:00',
+                    'legalGround' => 'FACTURA_ACCEPTATA', 'description' => 'Servicii software',
+                    'invoiceNumber' => $number, 'invoiceDate' => '2026-01-22T00:00:00+00:00',
+                    'confidencePerField' => ['amount' => 0.98, 'currency' => 0.98, 'dueDate' => 0.9, 'legalGround' => 0.85, 'description' => 0.9, 'invoiceNumber' => 0.97, 'invoiceDate' => 0.97],
+                ],
+            ]);
+            $this->em->persist($doc);
+            $this->em->flush();
+            $ids[] = $doc->getId();
+        }
+
+        // Establish the session, then prime the bag with both documents.
+        $this->client->request('GET', '/case/new/documents');
+        $session = $this->client->getRequest()->getSession();
+        $bag = $session->get('case_wizard_data');
+        $bag['documentIds'] = $ids;
+        $session->set('case_wizard_data', $bag);
+        $session->save();
+
+        $this->client->request('GET', '/case/new/documents');
+        self::assertResponseIsSuccessful();
+        $html = $this->client->getResponse()->getContent();
+
+        // The aggregate is shown: sum of the two invoices.
+        self::assertStringContainsString('986,53', $html);
+        // The single-invoice figure that used to sit under it is gone.
+        self::assertStringNotContainsString('493,30', $html);
+        self::assertStringNotContainsString('493.30', $html);
+    }
+
     public function testSkipClearsSessionAndRedirectsToCreditor(): void
     {
         // Establish session via GET, harvest CSRF, POST skip.
@@ -265,6 +318,138 @@ final class CaseWizardControllerStep0Test extends WebTestCase
         $this->em->getConnection()->executeStatement('DELETE FROM `user` WHERE id = :id', ['id' => $other->getId()]);
     }
 
+    public function testSecondUploadOfTheSameFileIsSkippedAsDuplicate(): void
+    {
+        $this->uploadOneFile();
+        /** @var InMemoryTransport $transport */
+        $transport = static::getContainer()->get('messenger.transport.async');
+        self::assertCount(1, $transport->getSent(), 'precondition: first upload dispatched extraction');
+
+        $this->uploadOneFile();
+
+        $documents = $this->em->getRepository(Document::class)->findBy(['uploadedBy' => $this->user]);
+        self::assertCount(1, $documents, 'Identical content must not create a second Document');
+        // The transport is per-request in the test kernel, so this counts what
+        // the duplicate upload alone dispatched.
+        /** @var InMemoryTransport $transport */
+        $transport = static::getContainer()->get('messenger.transport.async');
+        self::assertCount(0, $transport->getSent(), 'Duplicate must not cost a second extraction call');
+
+        $this->client->followRedirect();
+        self::assertStringContainsString('Fișier ignorat (wizard-upload.pdf)', $this->client->getResponse()->getContent());
+    }
+
+    public function testDuplicateUploadOverTurboReturnsWarningToast(): void
+    {
+        $this->uploadOneFile();
+
+        $crawler = $this->client->request('GET', '/case/new/documents');
+        $token = $crawler->filter('form input[name="step0_documents[_token]"]')->first()->attr('value');
+        $this->client->request(
+            'POST',
+            '/case/new/documents',
+            parameters: ['step0_documents' => ['_token' => $token]],
+            files: ['step0_documents' => ['documents' => [$this->makePdfUpload()]]],
+            server: [
+                'HTTP_TURBO_FRAME' => 'step0-dynamic',
+                'HTTP_ACCEPT' => 'text/vnd.turbo-stream.html, text/html',
+            ],
+        );
+
+        self::assertResponseIsSuccessful();
+        $body = $this->client->getResponse()->getContent();
+        self::assertStringContainsString('bg-amber-50', $body, 'Duplicate is a warning, not a success');
+        self::assertStringContainsString('Fișier ignorat (wizard-upload.pdf)', $body);
+    }
+
+    public function testMixedBatchStoresOnlyTheNewFile(): void
+    {
+        $this->uploadOneFile();
+
+        $crawler = $this->client->request('GET', '/case/new/documents');
+        $token = $crawler->filter('form input[name="step0_documents[_token]"]')->first()->attr('value');
+        $this->client->request(
+            'POST',
+            '/case/new/documents',
+            parameters: ['step0_documents' => ['_token' => $token]],
+            files: ['step0_documents' => ['documents' => [
+                $this->makePdfUpload(),
+                $this->makePdfUpload('another-file.pdf', "\n%% variant\n"),
+            ]]],
+        );
+
+        $documents = $this->em->getRepository(Document::class)->findBy(['uploadedBy' => $this->user]);
+        self::assertCount(2, $documents, 'Only the new file of the batch is stored');
+        $names = array_map(static fn (Document $d) => $d->getOriginalFilename(), $documents);
+        sort($names);
+        self::assertSame(['another-file.pdf', 'wizard-upload.pdf'], $names);
+
+        // Per-request transport: only the new file of the second batch was queued.
+        /** @var InMemoryTransport $transport */
+        $transport = static::getContainer()->get('messenger.transport.async');
+        self::assertCount(1, $transport->getSent());
+    }
+
+    public function testTwoIdenticalFilesInOneBatchStoreOnlyOne(): void
+    {
+        $crawler = $this->client->request('GET', '/case/new/documents');
+        $token = $crawler->filter('form input[name="step0_documents[_token]"]')->first()->attr('value');
+        $this->client->request(
+            'POST',
+            '/case/new/documents',
+            parameters: ['step0_documents' => ['_token' => $token]],
+            files: ['step0_documents' => ['documents' => [
+                $this->makePdfUpload(),
+                $this->makePdfUpload('copy-of-invoice.pdf'),
+            ]]],
+        );
+
+        $documents = $this->em->getRepository(Document::class)->findBy(['uploadedBy' => $this->user]);
+        self::assertCount(1, $documents);
+
+        /** @var InMemoryTransport $transport */
+        $transport = static::getContainer()->get('messenger.transport.async');
+        self::assertCount(1, $transport->getSent());
+    }
+
+    /**
+     * A frame-scoped submission makes Turbo keep only the matching frame of the
+     * response and silently drop every stream aimed elsewhere, so the outcome
+     * toasts (duplicate skipped, rate limit, rejected file) never reached the
+     * page. The upload form must therefore stay unscoped.
+     */
+    public function testUploadFormIsNotScopedToATurboFrame(): void
+    {
+        $crawler = $this->client->request('GET', '/case/new/documents');
+
+        self::assertResponseIsSuccessful();
+        $form = $crawler->filter('form[name="step0_documents"]');
+        self::assertCount(1, $form);
+        self::assertNull($form->attr('data-turbo-frame'));
+    }
+
+    public function testReuploadIsAllowedAfterTheDocumentWasDeleted(): void
+    {
+        $this->uploadOneFile();
+        $first = $this->em->getRepository(Document::class)->findOneBy(['uploadedBy' => $this->user]);
+        self::assertNotNull($first);
+
+        // Deletion is a hard delete, so the fingerprint leaves the draft with
+        // the row: the same file must be uploadable again afterwards.
+        $this->em->getConnection()->executeStatement('DELETE FROM audit_log WHERE entity_type = :t AND entity_id = :id', [
+            't' => 'Document',
+            'id' => (string) $first->getId(),
+        ]);
+        $this->em->getConnection()->executeStatement('DELETE FROM document WHERE id = :id', ['id' => $first->getId()]);
+        $this->em->clear();
+
+        $this->uploadOneFile();
+
+        $documents = $this->em->getRepository(Document::class)->findBy(['uploadedBy' => $this->user]);
+        self::assertCount(1, $documents, 'Re-upload after deletion must create a fresh Document');
+        self::assertNotSame($first->getId(), $documents[0]->getId());
+    }
+
     /**
      * Drives the wizard step-0 POST with a single PDF attached. We GO around
      * the DomCrawler form-builder because it can't auto-discover an sr-only
@@ -272,20 +457,25 @@ final class CaseWizardControllerStep0Test extends WebTestCase
      * with the $files array is the canonical Symfony pattern for multipart
      * uploads in tests.
      */
-    private function uploadOneFile(): void
+    private function uploadOneFile(?DocumentType $declaredType = null): void
     {
         $crawler = $this->client->request('GET', '/case/new/documents');
         $token = $crawler->filter('form input[name="step0_documents[_token]"]')->first()->attr('value');
 
+        $parameters = ['_token' => $token];
+        if ($declaredType !== null) {
+            $parameters['documentType'] = $declaredType->value;
+        }
+
         $this->client->request(
             'POST',
             '/case/new/documents',
-            parameters: ['step0_documents' => ['_token' => $token]],
+            parameters: ['step0_documents' => $parameters],
             files: ['step0_documents' => ['documents' => [$this->makePdfUpload()]]],
         );
     }
 
-    private function makePdfUpload(): UploadedFile
+    private function makePdfUpload(string $clientName = 'wizard-upload.pdf', string $contentSuffix = ''): UploadedFile
     {
         $tmp = tempnam(sys_get_temp_dir(), 'wizard-pdf-');
         // Minimal but well-formed PDF so DocumentUploadService's finfo MIME
@@ -296,9 +486,135 @@ final class CaseWizardControllerStep0Test extends WebTestCase
             . "1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
             . "2 0 obj<</Type/Pages/Count 0/Kids[]>>endobj\n"
             . "xref\n0 3\n0000000000 65535 f\n0000000010 00000 n\n0000000060 00000 n\n"
-            . "trailer<</Size 3/Root 1 0 R>>\nstartxref\n110\n%%EOF\n",
+            . "trailer<</Size 3/Root 1 0 R>>\nstartxref\n110\n%%EOF\n"
+            . $contentSuffix,
         );
 
-        return new UploadedFile($tmp, 'wizard-upload.pdf', 'application/pdf', UPLOAD_ERR_OK, true);
+        return new UploadedFile($tmp, $clientName, 'application/pdf', UPLOAD_ERR_OK, true);
+    }
+
+    // ---------- declaring and correcting the document type ----------
+
+    public function testTheUploadFormOffersTheDocumentTypes(): void
+    {
+        $crawler = $this->client->request('GET', '/case/new/documents');
+
+        $options = $crawler->filter('select[name="step0_documents[documentType]"] option')
+            ->each(static fn ($node) => $node->attr('value'));
+
+        self::assertContains(DocumentType::FACTURA->value, $options);
+        self::assertContains(DocumentType::EXTRAS_CONT->value, $options);
+        // The auto-detect entry, which is the default and stores the wizard's
+        // placeholder type.
+        self::assertSame(DocumentType::ALT_DOCUMENT->value, $options[0]);
+        // Generated filings are not uploadable and must not be offered.
+        self::assertNotContains(DocumentType::CERERE_OP->value, $options);
+    }
+
+    public function testADeclaredTypeIsStoredOnTheUploadedDocument(): void
+    {
+        $this->uploadOneFile(DocumentType::FACTURA);
+
+        /** @var DocumentRepository $docRepo */
+        $docRepo = static::getContainer()->get(DocumentRepository::class);
+        $documents = $docRepo->findBy(['uploadedBy' => $this->user]);
+
+        self::assertCount(1, $documents);
+        self::assertSame(DocumentType::FACTURA, $documents[0]->getDocumentType());
+    }
+
+    public function testNoDeclaredTypeLeavesThePlaceholderForTheClassifier(): void
+    {
+        $this->uploadOneFile();
+
+        /** @var DocumentRepository $docRepo */
+        $docRepo = static::getContainer()->get(DocumentRepository::class);
+        $documents = $docRepo->findBy(['uploadedBy' => $this->user]);
+
+        self::assertSame(DocumentType::ALT_DOCUMENT, $documents[0]->getDocumentType());
+    }
+
+    public function testCorrectingTheTypeRequeuesTheExtraction(): void
+    {
+        $this->uploadOneFile();
+        /** @var DocumentRepository $docRepo */
+        $docRepo = static::getContainer()->get(DocumentRepository::class);
+        $document = $docRepo->findBy(['uploadedBy' => $this->user])[0];
+        $document->setExtractionStatus(ExtractionStatus::COMPLETED);
+        $this->em->flush();
+
+        $crawler = $this->client->request('GET', '/case/new/documents');
+        $token = $crawler->filter('form[action$="/type"] input[name="_token"]')->first()->attr('value');
+        $this->client->request('POST', '/case/new/documents/' . $document->getId() . '/type', [
+            '_token' => $token,
+            'documentType' => DocumentType::CONTRACT->value,
+        ]);
+
+        self::assertResponseRedirects('/case/new/documents');
+        // Refetched rather than refreshed: the kernel reboots between requests,
+        // so the instance held here is detached.
+        $reloaded = $docRepo->find($document->getId());
+        self::assertSame(DocumentType::CONTRACT, $reloaded->getDocumentType());
+        // Reprocessing is the point of the correction: the document is read
+        // again, this time with the instructions written for a contract.
+        self::assertSame(ExtractionStatus::PENDING, $reloaded->getExtractionStatus());
+        /** @var InMemoryTransport $transport */
+        $transport = static::getContainer()->get('messenger.transport.async');
+        $sent = $transport->getSent();
+        self::assertCount(1, $sent);
+        self::assertSame($document->getId(), $sent[0]->getMessage()->documentId);
+    }
+
+    public function testCorrectingTheTypeRejectsAGeneratedType(): void
+    {
+        $this->uploadOneFile();
+        /** @var DocumentRepository $docRepo */
+        $docRepo = static::getContainer()->get(DocumentRepository::class);
+        $document = $docRepo->findBy(['uploadedBy' => $this->user])[0];
+
+        $crawler = $this->client->request('GET', '/case/new/documents');
+        $token = $crawler->filter('form[action$="/type"] input[name="_token"]')->first()->attr('value');
+        $this->client->request('POST', '/case/new/documents/' . $document->getId() . '/type', [
+            '_token' => $token,
+            'documentType' => DocumentType::CERERE_OP->value,
+        ]);
+
+        self::assertSame(DocumentType::ALT_DOCUMENT, $docRepo->find($document->getId())->getDocumentType());
+    }
+
+    public function testCorrectingTheTypeRejectsATypeWithItsOwnUploadFlow(): void
+    {
+        // The stamp-duty proof carries payment state that only the stamp-duty
+        // controller records, which is why the dropdown never offers it. The
+        // route has to refuse it too, or a form post produces a proof of
+        // payment with no payment behind it.
+        $this->uploadOneFile();
+        /** @var DocumentRepository $docRepo */
+        $docRepo = static::getContainer()->get(DocumentRepository::class);
+        $document = $docRepo->findBy(['uploadedBy' => $this->user])[0];
+
+        $crawler = $this->client->request('GET', '/case/new/documents');
+        $token = $crawler->filter('form[action$="/type"] input[name="_token"]')->first()->attr('value');
+        $this->client->request('POST', '/case/new/documents/' . $document->getId() . '/type', [
+            '_token' => $token,
+            'documentType' => DocumentType::DOVADA_TAXA_TIMBRU->value,
+        ]);
+
+        self::assertSame(DocumentType::ALT_DOCUMENT, $docRepo->find($document->getId())->getDocumentType());
+    }
+
+    public function testCorrectingTheTypeRequiresAValidToken(): void
+    {
+        $this->uploadOneFile();
+        /** @var DocumentRepository $docRepo */
+        $docRepo = static::getContainer()->get(DocumentRepository::class);
+        $document = $docRepo->findBy(['uploadedBy' => $this->user])[0];
+
+        $this->client->request('POST', '/case/new/documents/' . $document->getId() . '/type', [
+            '_token' => 'wrong',
+            'documentType' => DocumentType::CONTRACT->value,
+        ]);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_FORBIDDEN);
     }
 }

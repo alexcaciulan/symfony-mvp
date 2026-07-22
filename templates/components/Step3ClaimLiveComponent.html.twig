@@ -47,16 +47,25 @@
                        per-field data-model needed (and ones referencing standalone
                        LiveProps would silently no-op now that the props live in
                        `formValues`). #}
+                    {# With positions the scalar amount is a denormalisation of their
+                       sum, not an independent figure: showing it editable let the
+                       field disagree with both the table and what gets persisted. #}
+                    {% set derived_from_positions = this.isPositionDriven %}
                     <div>
                         {{ f.field_label(form.amount, 'wizard.step3.field.amount', false, true) }}
                         <div class="relative">
                             {{ form_widget(form.amount, { attr: {
-                                class: f.input_classes(form.amount, 'pr-14 tnum')|trim,
+                                class: f.input_classes(form.amount, 'pr-14 tnum' ~ (derived_from_positions ? ' bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300' : ''))|trim,
                                 inputmode: 'decimal',
                                 placeholder: '47500.00',
+                                readonly: derived_from_positions,
+                                value: derived_from_positions ? this.positionPrincipal|number_format(2, '.', '') : null,
                             }}) }}
-                            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500 dark:text-slate-400 pointer-events-none">{{ currency }}</span>
+                            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500 dark:text-slate-400 pointer-events-none">{{ derived_from_positions ? 'RON' : currency }}</span>
                         </div>
+                        {% if derived_from_positions %}
+                            <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{{ 'wizard.step3.derived_from_positions.amount'|trans({ '%count%': this.positionCount }) }}</p>
+                        {% endif %}
                         {{ f.field_errors(form.amount) }}
                     </div>
 
@@ -71,9 +80,13 @@
                     <div>
                         {{ f.field_label(form.dueDate, 'wizard.step3.field.due_date', false, true) }}
                         {{ form_widget(form.dueDate, { attr: {
-                            class: f.input_classes(form.dueDate)|trim,
+                            class: f.input_classes(form.dueDate, derived_from_positions ? 'bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300' : '')|trim,
+                            readonly: derived_from_positions,
+                            value: derived_from_positions and this.positionDueDate ? this.positionDueDate : null,
                         }}) }}
-                        <p class="mt-1 text-[11px] text-slate-500">{{ 'wizard.step3.help.due_date'|trans }}</p>
+                        <p class="mt-1 text-[11px] text-slate-500">
+                            {{ derived_from_positions ? 'wizard.step3.derived_from_positions.due_date'|trans : 'wizard.step3.help.due_date'|trans }}
+                        </p>
                         {{ f.field_errors(form.dueDate) }}
                     </div>
 
@@ -160,17 +173,31 @@
             <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-5 shadow-soft">
                 <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">{{ 'wizard.step3.section.invoice_contract'|trans }}</h3>
 
+                {# Invoice number and date are per invoice: with several of them
+                   each one already appears in the positions table above, so a
+                   single value here would name one and hide the rest. The
+                   contract is shared across the invoices (the art. 99 cause), so
+                   it stays. #}
+                {% set per_invoice_in_table = this.isPositionDriven %}
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        {{ f.field_label(form.invoiceNumber, 'wizard.step3.field.invoice_number', true) }}
-                        {{ form_widget(form.invoiceNumber, { attr: { class: f.input_classes(form.invoiceNumber)|trim }}) }}
-                        {{ f.field_errors(form.invoiceNumber) }}
-                    </div>
-                    <div>
-                        {{ f.field_label(form.invoiceDate, 'wizard.step3.field.invoice_date', true) }}
-                        {{ form_widget(form.invoiceDate, { attr: { class: f.input_classes(form.invoiceDate)|trim }}) }}
-                        {{ f.field_errors(form.invoiceDate) }}
-                    </div>
+                    {% if per_invoice_in_table %}
+                        <div class="sm:col-span-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 px-3 py-2.5 text-xs text-slate-600 dark:text-slate-300">
+                            {{ 'wizard.step3.invoice_in_table'|trans({ '%count%': this.positionCount }) }}
+                        </div>
+                        {{ form_widget(form.invoiceNumber, { attr: { class: 'hidden' }}) }}
+                        {{ form_widget(form.invoiceDate, { attr: { class: 'hidden' }}) }}
+                    {% else %}
+                        <div>
+                            {{ f.field_label(form.invoiceNumber, 'wizard.step3.field.invoice_number', true) }}
+                            {{ form_widget(form.invoiceNumber, { attr: { class: f.input_classes(form.invoiceNumber)|trim }}) }}
+                            {{ f.field_errors(form.invoiceNumber) }}
+                        </div>
+                        <div>
+                            {{ f.field_label(form.invoiceDate, 'wizard.step3.field.invoice_date', true) }}
+                            {{ form_widget(form.invoiceDate, { attr: { class: f.input_classes(form.invoiceDate)|trim }}) }}
+                            {{ f.field_errors(form.invoiceDate) }}
+                        </div>
+                    {% endif %}
                     <div>
                         {{ f.field_label(form.contractNumber, 'wizard.step3.field.contract_number', true) }}
                         {{ form_widget(form.contractNumber, { attr: { class: f.input_classes(form.contractNumber)|trim }}) }}
@@ -231,8 +258,12 @@
                 {# Foreign currency is converted to RON first; the whole sidebar
                    then displays RON so the principal/interest/total stay consistent. #}
                 {% set conv = this.getConversion %}
-                {% set display_currency = conv is not null ? 'RON' : currency %}
-                {% set display_principal = conv is not null ? conv.ronAmount : amount %}
+                {% set positions_mode = this.isPositionDriven %}
+                {% set display_currency = (positions_mode or conv is not null) ? 'RON' : currency %}
+                {% set display_principal = positions_mode ? this.positionPrincipal : (conv is not null ? conv.ronAmount : amount) %}
+                {# With positions, the accessory is their sum, computed once by the
+                   controller on exactly the rows the submit path will persist. #}
+                {% set accessory_total = positions_mode ? this.positionAccessory : (interest is not null ? interest.total : null) %}
                 <div>
                     <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.principal_label'|trans }}</div>
                     {% if display_principal is not null and display_principal > 0 %}
@@ -247,7 +278,14 @@
 
                 <div>
                     <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.interest_label'|trans }}</div>
-                    {% if interest is null %}
+                    {% if positions_mode %}
+                        {% if accessory_total is null %}
+                            <div class="mt-1 text-xs text-white/60">{{ 'wizard.step3.sidebar.interest_placeholder'|trans }}</div>
+                        {% else %}
+                            <div class="mt-1 text-2xl font-bold tnum text-amber-300">+ {{ accessory_total|number_format(2, '.', ',') }} <span class="text-sm font-normal text-white/70">{{ display_currency }}</span></div>
+                            <div class="mt-1 text-[11px] text-white/50">{{ 'wizard.step3.sidebar.interest_from_positions'|trans({'%count%': this.positionCount}) }}</div>
+                        {% endif %}
+                    {% elseif interest is null %}
                         {% if due_in_future %}
                             <div class="mt-1 text-xs text-amber-300">{{ 'wizard.step3.live.error.due_date_future'|trans }}</div>
                         {% elseif currency != 'RON' and conv is null %}
@@ -264,10 +302,10 @@
                     {% endif %}
                 </div>
 
-                {% if interest is not null and display_principal is not null %}
+                {% if accessory_total is not null and display_principal is not null %}
                     <div class="pt-3 border-t border-white/10">
                         <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.total_label'|trans }}</div>
-                        <div class="mt-1 text-3xl font-bold tnum text-green-300">{{ (display_principal + interest.total)|number_format(2, '.', ',') }} <span class="text-base font-normal text-white/70">{{ display_currency }}</span></div>
+                        <div class="mt-1 text-3xl font-bold tnum text-green-300">{{ (display_principal + accessory_total)|number_format(2, '.', ',') }} <span class="text-base font-normal text-white/70">{{ display_currency }}</span></div>
                     </div>
                 {% endif %}
 
@@ -310,10 +348,10 @@
                         <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.stamp_duty_label'|trans }}</div>
                         <div class="mt-0.5 text-base font-semibold tnum">{{ stamp_duty.amount|number_format(2, '.', ',') }}</div>
                     </div>
-                    {% if interest is not null and display_principal is not null %}
+                    {% if accessory_total is not null and display_principal is not null %}
                         <div>
                             <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.total_plus_stamp'|trans }}</div>
-                            <div class="mt-0.5 text-base font-semibold tnum">{{ (display_principal + interest.total + stamp_duty.amount)|number_format(2, '.', ',') }}</div>
+                            <div class="mt-0.5 text-base font-semibold tnum">{{ (display_principal + accessory_total + stamp_duty.amount)|number_format(2, '.', ',') }}</div>
                         </div>
                     {% endif %}
                 </div>

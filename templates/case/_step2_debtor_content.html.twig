@@ -13,6 +13,8 @@
 {% block wizard_breadcrumb_step %} · {{ 'wizard.step.debtor'|trans }}{% endblock %}
 
 {% block wizard_step_content %}
+    {{ include('case/_prefill_conflicts.html.twig', { conflicts_form_id: 'step2-debtors-form' }) }}
+
     {# Toggle bar — "Selectează debitor existent" disabled (cabinet library is post-MVP, Pas 6.x). #}
     <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 mb-6 shadow-soft">
         <div class="grid grid-cols-2 gap-2">

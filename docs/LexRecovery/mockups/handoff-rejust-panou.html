@@ -1,0 +1,486 @@
+<title>Handoff asistat rejust.ro — LexRecovery</title>
+<style>
+  :root {
+    --ground: #eef0f3;
+    --surface: #ffffff;
+    --surface-2: #f7f8fa;
+    --ink: #1a2230;
+    --muted: #58626f;
+    --faint: #8a94a1;
+    --hair: #dde1e7;
+    --accent: #0d6e64;
+    --accent-ink: #0a534b;
+    --accent-weak: #e2efed;
+    --rejust: #33425c;
+    --rejust-hair: #d3d8e0;
+    --rejust-field: #fbfcfd;
+    --ok: #1f8a5b;
+    --ok-weak: #e6f4ec;
+    --warn: #b4731a;
+    --shadow: 0 1px 2px rgba(20,30,48,.06), 0 8px 24px rgba(20,30,48,.07);
+    --radius: 10px;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --serif: Georgia, "Times New Roman", serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground: #10141a;
+      --surface: #1a2029;
+      --surface-2: #151b23;
+      --ink: #e7ebf1;
+      --muted: #9aa5b3;
+      --faint: #6b7683;
+      --hair: #2a3140;
+      --accent: #3fb9aa;
+      --accent-ink: #63cabd;
+      --accent-weak: #123330;
+      --rejust: #26314420;
+      --rejust-hair: #313a4b;
+      --rejust-field: #141922;
+      --ok: #4bbd85;
+      --ok-weak: #113126;
+      --warn: #d69a4a;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"] {
+    --ground: #eef0f3; --surface: #ffffff; --surface-2: #f7f8fa; --ink: #1a2230;
+    --muted: #58626f; --faint: #8a94a1; --hair: #dde1e7; --accent: #0d6e64;
+    --accent-ink: #0a534b; --accent-weak: #e2efed; --rejust: #33425c; --rejust-hair: #d3d8e0;
+    --rejust-field: #fbfcfd; --ok: #1f8a5b; --ok-weak: #e6f4ec; --warn: #b4731a;
+    --shadow: 0 1px 2px rgba(20,30,48,.06), 0 8px 24px rgba(20,30,48,.07);
+  }
+  :root[data-theme="dark"] {
+    --ground: #10141a; --surface: #1a2029; --surface-2: #151b23; --ink: #e7ebf1;
+    --muted: #9aa5b3; --faint: #6b7683; --hair: #2a3140; --accent: #3fb9aa;
+    --accent-ink: #63cabd; --accent-weak: #123330; --rejust: #263144; --rejust-hair: #313a4b;
+    --rejust-field: #141922; --ok: #4bbd85; --ok-weak: #113126; --warn: #d69a4a;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 64px; }
+
+  /* Scene header */
+  .scene {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 14px;
+    margin-bottom: 6px;
+  }
+  .scene h1 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: clamp(20px, 3vw, 27px);
+    letter-spacing: -.01em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .scene .tag {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .09em;
+    color: var(--accent-ink); background: var(--accent-weak);
+    padding: 3px 9px; border-radius: 999px; font-weight: 600;
+    white-space: nowrap;
+  }
+  .lede {
+    color: var(--muted); max-width: 66ch; margin: 0 0 22px;
+    font-size: 15px;
+  }
+  .lede b { color: var(--ink); font-weight: 600; }
+
+  /* Split */
+  .split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    align-items: start;
+  }
+  @media (max-width: 860px) { .split { grid-template-columns: 1fr; } }
+
+  .pane {
+    background: var(--surface);
+    border: 1px solid var(--hair);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .pane-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--hair);
+  }
+  .pane-head .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .pane-head .who { font-size: 12px; font-weight: 600; letter-spacing: .02em; }
+  .pane-head .sub { font-size: 11.5px; color: var(--faint); margin-left: auto; }
+
+  /* ---- Left: external rejust form ---- */
+  .rejust .pane-head { background: var(--rejust); border-bottom-color: transparent; }
+  .rejust .pane-head .who, .rejust .pane-head .sub { color: #eef1f6; }
+  .rejust .pane-head .sub { color: #b9c2d2; }
+  .rejust .dot { background: #9fb0cc; }
+  .rejust-body { padding: 16px 16px 18px; }
+  .rejust-title {
+    font-family: var(--serif); font-size: 16px; font-weight: 600;
+    margin: 2px 0 14px; color: var(--ink);
+  }
+  .field { margin-bottom: 12px; }
+  .field > label {
+    display: block; font-size: 11.5px; color: var(--muted);
+    margin-bottom: 4px; font-weight: 600;
+  }
+  .field .box {
+    height: 34px; border: 1px solid var(--rejust-hair); border-radius: 7px;
+    background: var(--rejust-field); display: flex; align-items: center;
+    padding: 0 10px; font-size: 13px; color: var(--faint);
+    transition: border-color .18s, box-shadow .18s, background .18s, color .18s;
+  }
+  .field.two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 0 12px; }
+  .field.two > div { min-width: 0; }
+  .field.is-target .box {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-weak);
+    background: var(--surface);
+  }
+  .field.is-filled .box { color: var(--ink); background: var(--surface); border-color: var(--rejust-hair); }
+  .uploads { margin-top: 16px; }
+  .uploads > .cap { font-size: 11.5px; color: var(--muted); font-weight: 600; margin-bottom: 8px; }
+  .slot {
+    border: 1.5px dashed var(--rejust-hair); border-radius: 8px;
+    padding: 12px; text-align: center; font-size: 12px; color: var(--faint);
+    margin-bottom: 8px; transition: border-color .18s, background .18s;
+  }
+  .slot.is-target { border-color: var(--accent); background: var(--accent-weak); color: var(--accent-ink); }
+  .btn-next {
+    margin-top: 14px; width: 100%; height: 38px; border: none; border-radius: 7px;
+    background: #e07a2c; color: #fff; font-weight: 600; font-size: 13px; cursor: not-allowed;
+    opacity: .85; font-family: var(--sans);
+  }
+
+  /* ---- Right: LexRecovery guide ---- */
+  .lex .dot { background: var(--accent); }
+  .lex .wordmark { font-family: var(--serif); font-weight: 600; }
+  .lex-body { padding: 8px 8px 14px; }
+  .guide-title {
+    font-family: var(--serif); font-size: 15px; font-weight: 600;
+    padding: 8px 10px 4px; color: var(--ink);
+  }
+  .guide-note { font-size: 12px; color: var(--muted); padding: 0 10px 8px; }
+
+  .row {
+    display: grid;
+    grid-template-columns: 96px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    cursor: default;
+    transition: background .15s;
+  }
+  .row + .row { border-top: 1px solid var(--hair); }
+  .row:hover, .row:focus-within { background: var(--surface-2); }
+  .row .k { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+  .row .v {
+    font-size: 13.5px; color: var(--ink); font-weight: 500;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .row .v.static { color: var(--muted); font-weight: 400; }
+  .copy {
+    border: 1px solid var(--hair); background: var(--surface);
+    color: var(--accent-ink); border-radius: 7px; height: 30px; padding: 0 10px;
+    font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex;
+    align-items: center; gap: 6px; font-family: var(--sans);
+    transition: background .15s, border-color .15s, transform .06s;
+    white-space: nowrap;
+  }
+  .copy:hover { background: var(--accent-weak); border-color: var(--accent); }
+  .copy:active { transform: translateY(1px); }
+  .copy:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .copy svg { width: 13px; height: 13px; }
+  .copy.done { color: #fff; background: var(--ok); border-color: var(--ok); }
+
+  .files { margin: 12px 6px 0; border-top: 1px solid var(--hair); padding-top: 12px; }
+  .files > .cap {
+    font-size: 11.5px; color: var(--muted); font-weight: 600; padding: 0 4px 8px;
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .files .total {
+    font-variant-numeric: tabular-nums; font-weight: 600;
+    color: var(--ok); background: var(--ok-weak); padding: 2px 8px; border-radius: 999px;
+    font-size: 11px;
+  }
+  .file {
+    display: grid; grid-template-columns: 22px 1fr auto auto; align-items: center;
+    gap: 10px; padding: 8px 4px;
+  }
+  .file + .file { border-top: 1px solid var(--hair); }
+  .file .idx {
+    width: 22px; height: 22px; border-radius: 6px; background: var(--accent-weak);
+    color: var(--accent-ink); font-size: 11px; font-weight: 700; display: grid; place-items: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .file .name { font-size: 13px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file .size { font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+  .dl {
+    border: 1px solid var(--hair); background: var(--surface); color: var(--ink);
+    border-radius: 7px; height: 28px; padding: 0 10px; font-size: 12px; font-weight: 600;
+    cursor: pointer; font-family: var(--sans); transition: background .15s, border-color .15s;
+  }
+  .dl:hover { background: var(--surface-2); border-color: var(--accent); color: var(--accent-ink); }
+  .dl:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .disclaim {
+    margin: 14px 6px 2px; padding: 10px 12px; border-radius: 8px;
+    background: var(--surface-2); border: 1px solid var(--hair);
+    font-size: 11.5px; color: var(--muted); line-height: 1.45;
+  }
+  .disclaim b { color: var(--ink); font-weight: 600; }
+
+  .footnote {
+    margin-top: 22px; font-size: 12px; color: var(--faint);
+    display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center;
+  }
+  .footnote .k {
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+  /* toast */
+  .toast {
+    position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(20px);
+    background: var(--ink); color: var(--ground);
+    padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 500;
+    box-shadow: var(--shadow); opacity: 0; pointer-events: none;
+    transition: opacity .2s, transform .2s; z-index: 20; max-width: 82vw;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+  <div class="scene">
+    <h1>Handoff asistat către rejust.ro</h1>
+    <span class="tag">Mockup UI</span>
+  </div>
+  <p class="lede">
+    Platforma <b>nu completează și nu depune</b> formularul (portalul e protejat, nu se poate
+    automatiza fără riscuri). În schimb, îi pune avocatului sub ochi exact ce să scrie în fiecare câmp
+    și fișierele gata pregătite. Treci cu mouse-ul peste un rând din dreapta ca să vezi ce câmp din
+    stânga îi corespunde, apoi apasă <b>Copiază</b> și lipește în rejust.
+  </p>
+
+  <div class="split">
+    <!-- LEFT: external rejust form -->
+    <section class="pane rejust" aria-label="Formularul rejust.ro (extern)">
+      <div class="pane-head">
+        <span class="dot"></span>
+        <span class="who">registratura.rejust.ro</span>
+        <span class="sub">site extern &middot; formular gol</span>
+      </div>
+      <div class="rejust-body">
+        <div class="rejust-title">Înregistrează un dosar nou pe rolul instanței</div>
+
+        <div class="field" data-field="instanta">
+          <label>Instanța *</label>
+          <div class="box">Selectați o opțiune</div>
+        </div>
+        <div class="field" data-field="sectia">
+          <label>Secția *</label>
+          <div class="box">Selectați o opțiune</div>
+        </div>
+        <div class="field" data-field="tip">
+          <label>Tip persoană *</label>
+          <div class="box">Persoană fizică / juridică</div>
+        </div>
+        <div class="field two">
+          <div class="field" data-field="denumire" style="margin:0">
+            <label>Nume / Denumire *</label>
+            <div class="box">&nbsp;</div>
+          </div>
+          <div class="field" data-field="cui" style="margin:0">
+            <label>CUI / CNP *</label>
+            <div class="box">&nbsp;</div>
+          </div>
+        </div>
+        <div class="field" data-field="email">
+          <label>Adresă e-mail *</label>
+          <div class="box">&nbsp;</div>
+        </div>
+        <div class="field" data-field="taxa">
+          <label>Cuantum taxă de timbru *</label>
+          <div class="box">&nbsp;</div>
+        </div>
+
+        <div class="uploads">
+          <div class="cap">Documente (max. 3 fișiere, 13 MB total)</div>
+          <div class="slot" data-slot="1">1. Click sau trage fișierul aici</div>
+          <div class="slot" data-slot="2">2. Urcă document (opțional)</div>
+          <div class="slot" data-slot="3">3. Urcă document (opțional)</div>
+        </div>
+
+        <button class="btn-next" disabled title="Butonul aparține portalului rejust">Mai departe</button>
+      </div>
+    </section>
+
+    <!-- RIGHT: LexRecovery guide panel -->
+    <section class="pane lex" aria-label="Panoul de completare LexRecovery">
+      <div class="pane-head">
+        <span class="dot"></span>
+        <span class="who"><span class="wordmark">LexRecovery</span> &middot; dosar 2026/0417</span>
+        <span class="sub">ghid de completare</span>
+      </div>
+      <div class="lex-body">
+        <div class="guide-title">Completează pe rejust</div>
+        <div class="guide-note">Valorile sunt luate din dosar. Copiază-le pe rând în câmpurile din stânga.</div>
+
+        <div class="row" tabindex="0" data-target="instanta" data-value="Judecătoria Sectorului 2 București">
+          <span class="k">Instanța</span>
+          <span class="v">Judecătoria Sectorului 2 București</span>
+          <button class="copy" aria-label="Copiază instanța">Copiază</button>
+        </div>
+        <div class="row" tabindex="0" data-target="sectia" data-value="Secția Civilă">
+          <span class="k">Secția</span>
+          <span class="v">Secția Civilă</span>
+          <button class="copy" aria-label="Copiază secția">Copiază</button>
+        </div>
+        <div class="row" data-target="tip">
+          <span class="k">Tip persoană</span>
+          <span class="v static">Persoană juridică</span>
+          <span></span>
+        </div>
+        <div class="row" tabindex="0" data-target="denumire" data-value="Alpha Construct S.R.L.">
+          <span class="k">Denumire</span>
+          <span class="v">Alpha Construct S.R.L.</span>
+          <button class="copy" aria-label="Copiază denumirea">Copiază</button>
+        </div>
+        <div class="row" tabindex="0" data-target="cui" data-value="RO12345678">
+          <span class="k">CUI</span>
+          <span class="v">RO12345678</span>
+          <button class="copy" aria-label="Copiază CUI">Copiază</button>
+        </div>
+        <div class="row" tabindex="0" data-target="email" data-value="av.ionescu@cabinet-ionescu.ro">
+          <span class="k">E-mail</span>
+          <span class="v">av.ionescu@cabinet-ionescu.ro</span>
+          <button class="copy" aria-label="Copiază e-mailul">Copiază</button>
+        </div>
+        <div class="row" tabindex="0" data-target="taxa" data-value="200">
+          <span class="k">Taxă timbru</span>
+          <span class="v">200 lei</span>
+          <button class="copy" aria-label="Copiază taxa">Copiază</button>
+        </div>
+
+        <div class="files">
+          <div class="cap">
+            <span>Fișiere de urcat (în ordine)</span>
+            <span class="total">total 4,4 MB &middot; sub 13 MB</span>
+          </div>
+          <div class="file" data-slot="1">
+            <span class="idx">1</span>
+            <span class="name">Cerere_ordonanta_plata.pdf</span>
+            <span class="size">0,4 MB</span>
+            <button class="dl">Descarcă</button>
+          </div>
+          <div class="file" data-slot="2">
+            <span class="idx">2</span>
+            <span class="name">Opis_somatie_si_anexe.pdf</span>
+            <span class="size">3,8 MB</span>
+            <button class="dl">Descarcă</button>
+          </div>
+          <div class="file" data-slot="3">
+            <span class="idx">3</span>
+            <span class="name">Dovada_taxa_timbru.pdf</span>
+            <span class="size">0,2 MB</span>
+            <button class="dl">Descarcă</button>
+          </div>
+        </div>
+
+        <div class="disclaim">
+          <b>Depunerea o face avocatul.</b> Platforma pregătește pachetul și ghidează completarea.
+          Actul de sesizare este trimis de avocat, în sesiunea lui pe rejust. După depunere, revino
+          și apasă „Am depus" ca să înregistrăm data și canalul.
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="footnote">
+    <span class="k"><span class="swatch" style="background:var(--rejust)"></span> site extern rejust</span>
+    <span class="k"><span class="swatch" style="background:var(--accent)"></span> panou LexRecovery</span>
+    <span class="k"><span class="swatch" style="background:var(--ok)"></span> pachet în limita de mărime</span>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+  (function () {
+    var toast = document.getElementById('toast');
+    var toastTimer = null;
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(function () { toast.classList.remove('show'); }, 1600);
+    }
+
+    function fieldEl(name) { return document.querySelector('.field[data-field="' + name + '"]'); }
+    function slotEls(n) { return document.querySelectorAll('[data-slot="' + n + '"]'); }
+
+    // Hover/focus a guide row -> highlight the matching empty form field
+    document.querySelectorAll('.row[data-target]').forEach(function (row) {
+      var target = row.getAttribute('data-target');
+      var f = fieldEl(target);
+      function on() { if (f) f.classList.add('is-target'); }
+      function off() { if (f) f.classList.remove('is-target'); }
+      row.addEventListener('mouseenter', on);
+      row.addEventListener('mouseleave', off);
+      row.addEventListener('focusin', on);
+      row.addEventListener('focusout', off);
+    });
+
+    // Copy buttons
+    document.querySelectorAll('.row .copy').forEach(function (btn) {
+      var row = btn.closest('.row');
+      var value = row.getAttribute('data-value') || '';
+      var target = row.getAttribute('data-target');
+      btn.addEventListener('click', function () {
+        var done = function () {
+          var original = btn.textContent;
+          btn.classList.add('done');
+          btn.textContent = 'Copiat';
+          showToast('Copiat: ' + value);
+          var f = fieldEl(target);
+          if (f) { f.classList.add('is-filled'); var b = f.querySelector('.box'); if (b) b.textContent = value; }
+          setTimeout(function () { btn.classList.remove('done'); btn.textContent = original; }, 1200);
+        };
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(value).then(done, done);
+          } else { done(); }
+        } catch (e) { done(); }
+      });
+    });
+
+    // Download buttons -> mark matching slot as "filled" (demo only)
+    document.querySelectorAll('.file .dl').forEach(function (btn) {
+      var file = btn.closest('.file');
+      var n = file.getAttribute('data-slot');
+      var name = file.querySelector('.name').textContent;
+      btn.addEventListener('click', function () {
+        slotEls(n).forEach(function (el) {
+          if (el.classList.contains('slot')) { el.classList.add('is-target'); el.textContent = n + '. ' + name; }
+        });
+        showToast('Fișier pregătit: ' + name);
+      });
+    });
+  })();
+</script>

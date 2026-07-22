@@ -2,6 +2,10 @@
 
 namespace App\MessageHandler;
 
+use App\DTO\Extraction\ExtractedDocumentData;
+use App\Entity\Document;
+use App\Enum\DocumentType;
+use App\Enum\ExtractionFailureReason;
 use App\Enum\ExtractionStatus;
 use App\Event\DataExtractedEvent;
 use App\Message\ExtractDataMessage;
@@ -12,6 +16,7 @@ use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
+use Symfony\Component\Messenger\Exception\RecoverableMessageHandlingException;
 
 /**
  * Async handler for {@see ExtractDataMessage}. Wraps the extraction cascade
@@ -25,14 +30,16 @@ use Symfony\Component\Messenger\Attribute\AsMessageHandler;
  *      NOT flush — that's by design (its docblock says caller decides
  *      lifecycle), so this handler owns the flush(es).
  *
- *   2. Failure containment: re-throwing from a Messenger handler triggers
- *      Symfony's retry strategy (3 attempts × exponential backoff) and
- *      eventually parks the message in the `failed` transport. For
- *      extraction failures that's the wrong shape — a corrupt PDF or a
- *      down-graded AI response will fail identically on every retry,
- *      consume rate-limit budget, and clutter the failed queue. We catch
- *      everything, leave the Document in a terminal state (FAILED), log,
- *      and ACK. Operator reconciliation is a manual workflow.
+ *   2. Failure containment, split by cause: re-throwing from a Messenger
+ *      handler triggers Symfony's retry strategy and eventually parks the
+ *      message in the `failed` transport. For a corrupt PDF or a malformed AI
+ *      response that's the wrong shape: they fail identically on every retry,
+ *      consume rate-limit budget, and clutter the failed queue, so those are
+ *      left in a terminal state (FAILED), logged, and ACKed. Operator
+ *      reconciliation is a manual workflow. A transient cause is different:
+ *      when the strategy reports one (see
+ *      {@see \App\Enum\ExtractionFailureReason::isTransient()}) the document is
+ *      moved to PENDING_RETRY and the message is re-thrown as recoverable.
  *
  *      Note: B1 fix in commit 8cab4ab made `DataExtractionService::extract()`
  *      itself catch \Throwable per-strategy, so the handler-level catch is
@@ -52,6 +59,9 @@ use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 #[AsMessageHandler]
 final class ExtractDataMessageHandler
 {
+    /** Fifteen minutes: enough for a per-minute or per-day window to move. */
+    private const RATE_LIMIT_RETRY_DELAY_MS = 900_000;
+
     public function __construct(
         private readonly DocumentRepository $documents,
         private readonly DataExtractionService $extractor,
@@ -88,8 +98,47 @@ final class ExtractDataMessageHandler
             // The orchestrator sets COMPLETED / FAILED + extractedData via
             // persistResult() but does not flush — we own that here so the
             // status transition is atomic with the data payload.
-            $this->extractor->extract($document);
+            $result = $this->extractor->extract($document);
+
+            // A transient cause (provider down, quota spent) is worth another
+            // attempt, so hand the message back to Messenger. Flip the status
+            // first: the orchestrator has already written FAILED, and leaving
+            // it there would show the lawyer a failure that the queue is still
+            // working on, then silently turn into COMPLETED.
+            $reason = $result->failureReason;
+            if ($reason !== null && $reason->isTransient()) {
+                $document->setExtractionStatus(ExtractionStatus::PENDING_RETRY);
+                $this->em->flush();
+                $this->logger->warning('extraction.handler.transient_failure_retrying', [
+                    'documentId' => $message->documentId,
+                    'reason' => $reason->value,
+                ]);
+                // Announce before re-throwing, otherwise the badge stays on
+                // PROCESSING until the retry lands.
+                $this->events->dispatch(new DataExtractedEvent($document));
+
+                throw new RecoverableMessageHandlingException(
+                    sprintf(
+                        'Transient extraction failure (%s) for document %d',
+                        $reason->value,
+                        $message->documentId,
+                    ),
+                    // An exhausted quota does not refill in the seconds the
+                    // default exponential backoff waits, so retrying that fast
+                    // just spends the remaining attempts for nothing.
+                    retryDelay: $reason === ExtractionFailureReason::RATE_LIMIT_EXCEEDED
+                        ? self::RATE_LIMIT_RETRY_DELAY_MS
+                        : null,
+                );
+            }
+
+            $this->promoteDetectedType($document, $result);
+
             $this->em->flush();
+        } catch (RecoverableMessageHandlingException $e) {
+            // Our own retry signal, which Messenger must see. Catching it in the
+            // \Throwable arm below would turn every retry into a silent ACK.
+            throw $e;
         } catch (\Throwable $e) {
             $this->logger->error('extraction.handler.unexpected_failure', [
                 'documentId' => $message->documentId,
@@ -124,5 +173,38 @@ final class ExtractDataMessageHandler
         if ($shouldAnnounce) {
             $this->events->dispatch(new DataExtractedEvent($document));
         }
+    }
+
+    /**
+     * Adopts the detected type as the document's own, under two conditions.
+     *
+     * The detection has to be confident, because a wrong type sends the next
+     * extraction into the wrong specialised prompt, and the document has to
+     * still be unclassified by the lawyer: a type someone chose is a decision,
+     * and a model that overrode it would silently relabel evidence. Both values
+     * stay on the document either way, so the two remain distinguishable when
+     * someone asks where a filing's data came from.
+     *
+     * A type the platform generates itself is refused outright. Nothing in the
+     * type system stops a classification from carrying one, and this is the
+     * step that writes, so this is where the line has to hold: a piece of
+     * evidence relabelled as a filing would be packaged as one.
+     */
+    private function promoteDetectedType(Document $document, ExtractedDocumentData $result): void
+    {
+        $classification = $result->classification;
+        if ($classification === null
+            || !$classification->isActionable()
+            || $classification->type->isAutoGenerated()
+            || $document->getDocumentType() !== DocumentType::ALT_DOCUMENT) {
+            return;
+        }
+
+        $document->setDocumentType($classification->type);
+        $this->logger->info('extraction.handler.detected_type_promoted', [
+            'documentId' => $document->getId(),
+            'detectedType' => $classification->type->value,
+            'confidence' => $classification->confidence,
+        ]);
     }
 }

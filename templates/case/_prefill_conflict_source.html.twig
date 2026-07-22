@@ -1,0 +1,10 @@
+{# Where one value in the conflicts panel was read from.
+
+   The file name first, because that is what the lawyer has open next to the
+   screen. The kind of document and the id are the fallback: a value whose source
+   cannot be named is one they would have to re-derive from the pile by hand. #}
+{% set name = option.documentId is not null ? document_names[option.documentId]|default(null) : null %}
+{% if name %}<span class="font-medium">{{ name }}</span>{% endif %}
+{% if option.documentType is not null %}{% if name %} · {% endif %}{{ option.documentType.label|trans }}{% elseif not name %}{{ 'wizard.conflict.unknown_document'|trans }}{% endif %}
+{% if option.documentId is not null and not name %} #{{ option.documentId }}{% endif %}
+{% if option.confidence > 0 %} · {{ 'wizard.conflict.confidence'|trans({'%percent%': (option.confidence * 100)|round}) }}{% endif %}

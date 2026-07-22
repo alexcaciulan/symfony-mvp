@@ -17,6 +17,13 @@
 {% import 'case/_wizard_macros.html.twig' as f %}
 
 {% block wizard_step_content %}
+{# For foreign-currency claims every figure on this screen is the RON-converted
+   one. With positions, the principal is theirs: it is the figure that gets
+   persisted, and showing the step 3 scalar next to an interest computed over
+   every position would put two different claims on one screen. #}
+{% set final_principal = claim_items_principal is defined and claim_items_principal is not null
+    ? claim_items_principal
+    : ((conversion is defined and conversion is not null) ? conversion.ronAmount : claim.amount) %}
     <div class="mb-6 inline-flex items-center gap-3 text-xs">
         <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300">
             <svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
@@ -27,6 +34,17 @@
             <span>{{ 'wizard.step4.legend.manual'|trans }}</span>
         </span>
     </div>
+
+    {# What the documents disagreed about, and what was retained. Read only: the
+       decision belongs to the step that owns the field, so anything still open
+       sends the lawyer back rather than offering a second place to decide it. #}
+    {% if prefill_conflicts_unsettled|default([])|length > 0 %}
+        <div class="rounded-2xl border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 p-4 mb-4 text-sm text-red-800 dark:text-red-300" data-testid="conflicts-unsettled">
+            <p class="font-semibold">{{ 'wizard.conflict.unsettled_at_confirmation'|trans }}</p>
+            <a href="{{ path('case_wizard_creditor') }}" class="underline">{{ 'wizard.conflict.back_to_resolve'|trans }}</a>
+        </div>
+    {% endif %}
+    {{ include('case/_prefill_conflicts.html.twig', { conflicts_readonly: true }) }}
 
     {# Admissibility ERROR/WARNING display — surfaced before the summary cards
        so the user notices the blocker before reviewing the data. #}
@@ -215,14 +233,26 @@
                 </div>
                 <a href="{{ path('case_wizard_claim') }}" class="text-xs font-medium text-blue-600 hover:underline no-underline">{{ 'wizard.step4.card.edit'|trans }}</a>
             </header>
+            {# With positions, the claim is their total and its earliest due date, not
+               the scalar prefilled from one document: those two belong to different
+               invoices, and this card is read as the summary of what gets saved. #}
+            {% set positions_drive = claim_items is defined and claim_items|length > 0 %}
+            {% set summary_due_date = positions_drive ? (claim_items|map(i => i.dueDate)|filter(d => d is not null)|sort|first) : claim.dueDate %}
             <div class="px-5 py-4 space-y-1.5 text-sm">
                 <div class="flex justify-between gap-2">
                     <span class="text-slate-500">{{ 'wizard.step3.field.amount'|trans }}</span>
                     <span class="font-bold tnum inline-flex items-center gap-1">
-                        <span>{{ claim.amount is null ? '—' : claim.amount|number_format(2, '.', ',') }} {{ claim.currency }}</span>
-                        {% if 'amount' in claim.autoFilled %}<span class="text-blue-500"><svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></span>{% endif %}
+                        <span>{{ positions_drive
+                            ? (final_principal is null ? '—' : final_principal|number_format(2, '.', ',') ~ ' RON')
+                            : (claim.amount is null ? '—' : claim.amount|number_format(2, '.', ',') ~ ' ' ~ claim.currency) }}</span>
+                        {% if not positions_drive and 'amount' in claim.autoFilled %}<span class="text-blue-500"><svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></span>{% endif %}
                     </span>
                 </div>
+                {% if positions_drive and claim_items|length > 1 %}
+                    <div class="flex justify-end">
+                        <span class="text-[11px] text-slate-500">{{ 'wizard.step4.claim_items.positions_note'|trans({'%count%': claim_items|length}) }}</span>
+                    </div>
+                {% endif %}
                 {% if conversion is defined and conversion is not null %}
                     <div class="flex justify-end">
                         <span class="text-[11px] text-slate-500">{{ 'wizard.step3.sidebar.conversion_line'|trans({ '%amount%': conversion.originalAmount|number_format(2, '.', ','), '%currency%': conversion.originalCurrency, '%rate%': conversion.rate|number_format(4, '.', ','), '%date%': conversion.rateDate ? conversion.rateDate|date('d.m.Y') : '', '%ron%': conversion.ronAmount|number_format(2, '.', ',') }) }}</span>
@@ -233,10 +263,10 @@
                     <span class="font-medium">{{ claim.relationshipType is null ? '—' : ('enum.relationship_type.' ~ claim.relationshipType.value)|trans }}</span>
                 </div>
                 <div class="flex justify-between gap-2">
-                    <span class="text-slate-500">{{ 'wizard.step3.field.due_date'|trans }}</span>
+                    <span class="text-slate-500">{{ positions_drive and claim_items|length > 1 ? 'wizard.step3.claim_items.earliest_due_date_label'|trans : 'wizard.step3.field.due_date'|trans }}</span>
                     <span class="font-medium tnum inline-flex items-center gap-1">
-                        <span>{{ claim.dueDate ? claim.dueDate|date('d.m.Y') : '—' }}</span>
-                        {% if 'dueDate' in claim.autoFilled %}<span class="text-blue-500"><svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></span>{% endif %}
+                        <span>{{ summary_due_date ? summary_due_date|date('d.m.Y') : '—' }}</span>
+                        {% if not positions_drive and 'dueDate' in claim.autoFilled %}<span class="text-blue-500"><svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></span>{% endif %}
                     </span>
                 </div>
                 {% if claim.legalGround %}
@@ -254,8 +284,6 @@
         <div class="px-5 py-4 border-b border-white/10">
             <h3 class="text-sm font-semibold">{{ 'wizard.step4.final_calculations.title'|trans }}</h3>
         </div>
-        {# For foreign-currency claims every figure here is the RON-converted one. #}
-        {% set final_principal = (conversion is defined and conversion is not null) ? conversion.ronAmount : claim.amount %}
         <div class="px-5 py-4 grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
                 <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.principal_label'|trans }}</div>
@@ -286,12 +314,78 @@
         </div>
     </section>
 
+    {# The positions the case will carry, itemized. A lawyer cannot sign off on an
+       aggregate they are unable to decompose (CPC art. 1016 alin. 1 lit. c asks
+       the petition to state the sum AND what each rests on). #}
+    {% if claim_items is defined and claim_items|length > 0 %}
+        <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft overflow-hidden mb-6">
+            <header class="px-5 py-3 border-b border-slate-200 dark:border-slate-800">
+                <h3 class="text-sm font-semibold text-slate-800 dark:text-slate-100">{{ 'wizard.step4.claim_items.title'|trans }}</h3>
+            </header>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        <tr class="border-b border-slate-200 dark:border-slate-700">
+                            <th class="px-5 py-2 text-left">{{ 'wizard.step3.claim_items.column.number'|trans }}</th>
+                            <th class="px-5 py-2 text-left">{{ 'wizard.step3.claim_items.column.document_date'|trans }}</th>
+                            <th class="px-5 py-2 text-left">{{ 'wizard.step3.claim_items.column.due_date'|trans }}</th>
+                            <th class="px-5 py-2 text-right">{{ 'wizard.step3.claim_items.column.amount'|trans }}</th>
+                            <th class="px-5 py-2 text-right">{{ 'wizard.step3.claim_items.column.interest'|trans }}</th>
+                            <th class="px-5 py-2 text-left">{{ 'wizard.step3.claim_items.column.cause'|trans }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for index, item in claim_items %}
+                            {% set itemAccessory = claim_item_accessories ? claim_item_accessories.forItem(item.id ?? -(index + 1)) : null %}
+                            <tr class="border-b border-slate-100 dark:border-slate-800" data-testid="step4-claim-item">
+                                <td class="px-5 py-2 font-medium text-slate-800 dark:text-slate-100">
+                                    {{ item.documentNumber|default('—') }}
+                                    {% if item.isCreditNote %}<div class="text-[11px] font-normal text-rose-600 dark:text-rose-400">{{ ('enum.claim_item_kind.' ~ item.kind.value)|trans }}</div>{% endif %}
+                                </td>
+                                <td class="px-5 py-2 text-slate-600 dark:text-slate-300">{{ item.documentDate ? item.documentDate|date('d.m.Y') : '—' }}</td>
+                                <td class="px-5 py-2 text-slate-600 dark:text-slate-300">{{ item.dueDate ? item.dueDate|date('d.m.Y') : '—' }}</td>
+                                <td class="px-5 py-2 text-right tnum text-slate-800 dark:text-slate-100">
+                                    {{ item.signedAmountRon|number_format(2, ',', '.') }} RON
+                                    {% if item.currency != 'RON' %}
+                                        <div class="text-[11px] text-slate-500">{{ item.amount|number_format(2, ',', '.') }} {{ item.currency }}{% if item.exchangeRate %} · {{ item.exchangeRate|number_format(4, ',', '.') }} · {{ item.exchangeRateDate ? item.exchangeRateDate|date('d.m.Y') : '' }}{% endif %}</div>
+                                    {% endif %}
+                                </td>
+                                <td class="px-5 py-2 text-right tnum text-amber-700 dark:text-amber-400">
+                                    {% if itemAccessory %}
+                                        {{ itemAccessory.total|number_format(2, ',', '.') }}
+                                    {% elseif item.dueDate and not item.isCreditNote %}
+                                        <span class="text-xs" title="{{ 'wizard.step3.claim_items.no_interest_hint'|trans }}">{{ 'wizard.step3.claim_items.interest_unavailable'|trans }}</span>
+                                    {% else %}
+                                        <span class="text-slate-400">{{ 'wizard.step3.claim_items.interest_none'|trans }}</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-5 py-2 text-xs text-slate-500 dark:text-slate-400">
+                                    {{ item.causeReference|default('—') }}
+                                    {% if item.description %}<div class="mt-0.5 text-slate-600 dark:text-slate-300">{{ item.description }}</div>{% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot class="text-sm font-semibold text-slate-800 dark:text-slate-100 border-t-2 border-slate-200 dark:border-slate-700">
+                        <tr>
+                            <td class="px-5 py-2" colspan="3">{{ 'wizard.step3.claim_items.total_principal'|trans }}</td>
+                            <td class="px-5 py-2 text-right tnum">{{ final_principal is null ? '—' : final_principal|number_format(2, ',', '.') }}</td>
+                            <td class="px-5 py-2 text-right tnum text-amber-700 dark:text-amber-400">{{ accessory_total|number_format(2, ',', '.') }}</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </section>
+    {% endif %}
+
     {# GDPR notice — Anthropic 30-day retention, AI extraction privacy. #}
     <div class="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-xl p-4 flex gap-3 mb-6">
         <svg class="size-5 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
         <div class="text-sm text-amber-900 dark:text-amber-200">
+            {% set ai_active = app.user is not null and app.user.hasAcceptedAiProcessing and app.user.extractionMode.isAiAllowed %}
             <div class="font-semibold">{{ 'wizard.step4.gdpr.title'|trans }}</div>
-            <p class="mt-0.5 text-amber-800 dark:text-amber-300/80">{{ 'wizard.step4.gdpr.body'|trans }}</p>
+            <p class="mt-0.5 text-amber-800 dark:text-amber-300/80">{{ (ai_active ? 'wizard.step4.gdpr.body_ai' : 'wizard.step4.gdpr.body_local')|trans }}</p>
         </div>
     </div>
 

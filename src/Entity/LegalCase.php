@@ -52,6 +52,13 @@ class LegalCase
     #[ORM\Column(length: 20, nullable: true, enumType: ExtractionMode::class)]
     private ?ExtractionMode $extractionModeOverride = null;
 
+    /**
+     * DENORMALIZATION. The source of truth for the claimed sum is the set of
+     * {@see ClaimItem} positions; this holds their total in RON, maintained by
+     * {@see \App\Service\Case\ClaimTotalsService::recalculate()}. Never assign it
+     * directly on a case that has positions: the next recalculation overwrites it
+     * and the two figures silently disagree in the meantime.
+     */
     #[ORM\Column(type: Types::DECIMAL, precision: 12, scale: 2, nullable: true)]
     private ?string $amount = null;
 
@@ -137,9 +144,24 @@ class LegalCase
     #[ORM\Column(length: 100, nullable: true)]
     private ?string $contractReference = null;
 
+    /**
+     * What the claim is for, in the lawyer's own words. Per-invoice wording
+     * lives on {@see ClaimItem::$description} and is what the petition itemises;
+     * this is the one-line object of the whole claim.
+     */
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
+    private ?string $claimDescription = null;
+
+    /**
+     * DENORMALIZATION, kept only so the existing templates still have one
+     * invoice to name. Taken from the position with the earliest due date by
+     * {@see \App\Service\Case\ClaimTotalsService::recalculate()}. The full list
+     * of invoices lives in {@see $claimItems}.
+     */
     #[ORM\Column(length: 100, nullable: true)]
     private ?string $invoiceNumber = null;
 
+    /** DENORMALIZATION, see {@see $invoiceNumber}. */
     #[ORM\Column(type: Types::DATE_MUTABLE, nullable: true)]
     private ?\DateTimeInterface $invoiceDate = null;
 
@@ -160,6 +182,13 @@ class LegalCase
     #[ORM\Column(type: Types::DECIMAL, precision: 5, scale: 2, nullable: true)]
     private ?string $legalCostsSuccessPercent = null;
 
+    /**
+     * DENORMALIZATION: the earliest due date across the positions, which is what
+     * matters for prescription and for the exigibility guard. Maintained by
+     * {@see \App\Service\Case\ClaimTotalsService::recalculate()}; interest is
+     * never computed from it once positions exist, because each position accrues
+     * from its own due date.
+     */
     #[ORM\Column(type: Types::DATE_MUTABLE, nullable: true)]
     private ?\DateTimeInterface $dueDate = null;
 
@@ -255,6 +284,15 @@ class LegalCase
     #[ORM\OrderBy(['eventDate' => 'DESC'])]
     private Collection $portalEvents;
 
+    /**
+     * The claim positions, source of truth for the claimed sum.
+     *
+     * @var Collection<int, ClaimItem>
+     */
+    #[ORM\OneToMany(targetEntity: ClaimItem::class, mappedBy: 'legalCase', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    #[ORM\OrderBy(['dueDate' => 'ASC', 'id' => 'ASC'])]
+    private Collection $claimItems;
+
     /** @var Collection<int, LegalDeadline> */
     #[ORM\OneToMany(targetEntity: LegalDeadline::class, mappedBy: 'legalCase', cascade: ['persist', 'remove'], orphanRemoval: true)]
     #[ORM\OrderBy(['deadlineDate' => 'ASC'])]
@@ -270,6 +308,7 @@ class LegalCase
         $this->portalEvents = new ArrayCollection();
         $this->debtors = new ArrayCollection();
         $this->deadlines = new ArrayCollection();
+        $this->claimItems = new ArrayCollection();
     }
 
     #[ORM\PreUpdate]
@@ -606,6 +645,18 @@ class LegalCase
         return $this;
     }
 
+    public function getClaimDescription(): ?string
+    {
+        return $this->claimDescription;
+    }
+
+    public function setClaimDescription(?string $claimDescription): static
+    {
+        $this->claimDescription = $claimDescription;
+
+        return $this;
+    }
+
     public function getInvoiceNumber(): ?string
     {
         return $this->invoiceNumber;
@@ -930,6 +981,46 @@ class LegalCase
     public function getPortalEvents(): Collection
     {
         return $this->portalEvents;
+    }
+
+    /** @return Collection<int, ClaimItem> */
+    public function getClaimItems(): Collection
+    {
+        return $this->claimItems;
+    }
+
+    public function addClaimItem(ClaimItem $item): static
+    {
+        if (!$this->claimItems->contains($item)) {
+            $this->claimItems->add($item);
+            $item->setLegalCase($this);
+        }
+
+        return $this;
+    }
+
+    public function removeClaimItem(ClaimItem $item): static
+    {
+        $this->claimItems->removeElement($item);
+
+        return $this;
+    }
+
+    /**
+     * Positions that enter the totals, the petition and the index.
+     *
+     * @return list<ClaimItem>
+     */
+    public function getCountingClaimItems(): array
+    {
+        $counting = [];
+        foreach ($this->claimItems as $item) {
+            if ($item->countsTowardsClaim()) {
+                $counting[] = $item;
+            }
+        }
+
+        return $counting;
     }
 
     /** @return Collection<int, LegalDeadline> */

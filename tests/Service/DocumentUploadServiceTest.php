@@ -122,6 +122,55 @@ class DocumentUploadServiceTest extends KernelTestCase
         $this->assertNull($found);
     }
 
+    public function testUploadStampsSha256OfTheStoredFile(): void
+    {
+        $case = $this->createCase();
+        $file = $this->createTempUploadedFile();
+
+        $document = $this->service->upload($case, $file, DocumentType::DOVADA, $this->user);
+
+        $storedPath = $this->uploadsDir . '/' . $document->getStoredFilename();
+        $this->assertFileExists($storedPath);
+        $this->assertSame(hash_file('sha256', $storedPath), $document->getContentHash());
+        $this->assertSame(64, \strlen((string) $document->getContentHash()));
+    }
+
+    public function testSameContentUploadedUnderDifferentNamesGivesTheSameHash(): void
+    {
+        $case = $this->createCase();
+
+        $first = $this->service->upload($case, $this->createTempUploadedFile(), DocumentType::DOVADA, $this->user);
+
+        $renamed = $this->createTempUploadedFile();
+        $renamedUpload = new UploadedFile($renamed->getPathname(), 'other-name.pdf', 'application/pdf', null, true);
+        $second = $this->service->upload($case, $renamedUpload, DocumentType::DOVADA, $this->user);
+
+        $this->assertNotSame($first->getOriginalFilename(), $second->getOriginalFilename());
+        $this->assertSame($first->getContentHash(), $second->getContentHash());
+    }
+
+    public function testDifferentContentGivesDifferentHash(): void
+    {
+        $case = $this->createCase();
+
+        $first = $this->service->upload($case, $this->createTempUploadedFile(), DocumentType::DOVADA, $this->user);
+
+        $otherSource = \dirname(__DIR__) . '/fixtures/extraction/loan-individual.pdf';
+        $otherPath = tempnam(sys_get_temp_dir(), 'test_upload_') . '.pdf';
+        copy($otherSource, $otherPath);
+        // Appending a PDF comment keeps the file a valid PDF for the MIME sniff
+        // while changing the bytes, which is exactly what the hash must notice.
+        file_put_contents($otherPath, "\n%% altered\n", FILE_APPEND);
+        $second = $this->service->upload(
+            $case,
+            new UploadedFile($otherPath, 'altered.pdf', 'application/pdf', null, true),
+            DocumentType::DOVADA,
+            $this->user,
+        );
+
+        $this->assertNotSame($first->getContentHash(), $second->getContentHash());
+    }
+
     protected function tearDown(): void
     {
         $conn = $this->em->getConnection();

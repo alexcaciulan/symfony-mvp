@@ -45,17 +45,47 @@
                             <div class="text-xs text-slate-500 dark:text-slate-400">
                                 {{ (document.fileSize / 1024)|number_format(0) }} KB · {{ document.mimeType }}
                             </div>
+                            {# What the document is, and who said so. The detected
+                               type is shown next to the current one rather than in
+                               place of it, so a wrong reading is visible instead of
+                               silently deciding which prompt runs next. Correcting
+                               it re-runs the extraction with the matching prompt. #}
+                            <form method="post"
+                                  action="{{ path('case_wizard_documents_type', {'id': document.id}) }}"
+                                  class="mt-1.5 flex flex-wrap items-center gap-2">
+                                <input type="hidden" name="_token" value="{{ csrf_token('wizard_step0_type_' ~ document.id) }}">
+                                <label class="sr-only" for="doc-type-{{ document.id }}">{{ 'wizard.step0.document_type.correct'|trans }}</label>
+                                <select id="doc-type-{{ document.id }}" name="documentType"
+                                        class="rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-xs text-slate-700 dark:text-slate-300">
+                                    {% for t in document_types %}
+                                        <option value="{{ t.value }}" {% if t == document.documentType %}selected{% endif %}>{{ ('document.type.' ~ t.value)|trans }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline">
+                                    {{ 'wizard.step0.document_type.correct'|trans }}
+                                </button>
+                                {% if document.detectedType is not null and document.detectedType != document.documentType %}
+                                    <span class="text-xs text-slate-500 dark:text-slate-400">
+                                        {{ 'wizard.step0.document_type.detected'|trans({
+                                            '{type}': ('document.type.' ~ document.detectedType.value)|trans,
+                                            '{confidence}': (document.detectedTypeConfidence * 100)|number_format(0),
+                                        }) }}
+                                    </span>
+                                {% endif %}
+                            </form>
                             <div class="mt-1.5">
                                 {% set badge_classes = {
                                     'PENDING': 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
                                     'PROCESSING': 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300',
+                                    'PENDING_RETRY': 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300',
                                     'COMPLETED': 'bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300',
                                     'FAILED': 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
+                                    'SKIPPED_BY_POLICY': 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
                                 } %}
                                 <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold transition-colors {{ badge_classes[status] ?? badge_classes['PENDING'] }}"
                                       data-wizard-step0-target="badge"
                                       data-status="{{ status }}">
-                                    {% if status == 'PROCESSING' %}
+                                    {% if status == 'PROCESSING' or status == 'PENDING_RETRY' %}
                                         <svg class="size-3 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/></svg>
                                     {% elseif status == 'COMPLETED' %}
                                         <svg class="size-3" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
@@ -64,6 +94,35 @@
                                     {% endif %}
                                     <span>{{ ('enum.extraction_status.' ~ status)|trans }}</span>
                                 </span>
+                                {# Cause plus next step. Without it the same amber
+                                   badge covers both an operations outage and a file
+                                   the lawyer can fix by re-exporting it smaller. #}
+                                {% set failure = document.extractionFailureReason %}
+                                {# A policy skip always carries a failure reason too,
+                                   so it has to be matched first or the generic
+                                   branch swallows it and the link to the setting
+                                   never renders. #}
+                                {% if status == 'SKIPPED_BY_POLICY' %}
+                                    <p class="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                                        {{ failure is not null
+                                            ? ('enum.extraction_failure_reason.' ~ failure.value)|trans
+                                            : 'wizard.step0.extraction_disabled'|trans }}
+                                        <a href="{{ path('app_profile_ai_agreement') }}" class="underline">{{ 'wizard.step0.extraction_disabled_link'|trans }}</a>
+                                    </p>
+                                {% elseif failure is not null and status != 'COMPLETED' %}
+                                    <p class="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                                        {{ ('enum.extraction_failure_reason.' ~ failure.value)|trans }}
+                                        <span class="text-slate-500 dark:text-slate-500">{{ ('wizard.step0.failure_action.' ~ failure.value)|trans }}</span>
+                                    </p>
+                                {% endif %}
+                                {% if failure is not null and failure.isTransient and status != 'PENDING_RETRY' %}
+                                    <form method="post" action="{{ path('case_wizard_documents_retry', {'id': document.id}) }}" class="mt-1.5 inline-flex">
+                                        <input type="hidden" name="_token" value="{{ csrf_token('wizard_step0_retry_' ~ document.id) }}">
+                                        <button type="submit" class="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline">
+                                            {{ 'wizard.step0.retry.button'|trans }}
+                                        </button>
+                                    </form>
+                                {% endif %}
                                 {# We deliberately don't surface the per-document
                                    confidence here. It's the mean of per-field
                                    confidences for the fields that DID extract
@@ -88,8 +147,16 @@
             <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
         </div>
         <div class="text-sm">
+            {# The notice has to match what actually happens to the file. With AI
+               extraction active the document itself leaves the server, CNP and
+               IBAN included; with it off nothing does. One fixed sentence cannot
+               be true in both states. #}
+            {% set ai_active = app.user is not null and app.user.hasAcceptedAiProcessing and app.user.extractionMode.isAiAllowed %}
             <div class="font-semibold text-amber-900 dark:text-amber-200">{{ 'wizard.step0.gdpr.title'|trans }}</div>
-            <p class="mt-0.5 text-amber-800 dark:text-amber-200/80">{{ 'wizard.step0.gdpr.body'|trans }}</p>
+            <p class="mt-0.5 text-amber-800 dark:text-amber-200/80">
+                {{ (ai_active ? 'wizard.step0.gdpr.body_ai' : 'wizard.step0.gdpr.body_local')|trans }}
+                <a href="{{ path('app_profile_ai_agreement') }}" class="underline">{{ 'wizard.step0.gdpr.settings_link'|trans }}</a>
+            </p>
         </div>
     </div>
 

@@ -145,8 +145,8 @@ class PdfParserExtractionStrategyTest extends TestCase
         $this->assertSame('15193236', $result->creditor->cui);
         $this->assertSame('RO49AAAA1B31007593840000', $result->creditor->iban);
 
-        $this->assertNotNull($result->debtor);
-        $this->assertSame('14186770', $result->debtor->cui);
+        $this->assertNotNull($result->primaryDebtor());
+        $this->assertSame('14186770', $result->primaryDebtor()->cui);
     }
 
     public function testExtractsAmountAndDueDateFromContract(): void
@@ -169,10 +169,10 @@ class PdfParserExtractionStrategyTest extends TestCase
         $result = $this->strategy->extract($document);
 
         $this->assertNotNull($result->creditor);
-        $this->assertNotNull($result->debtor);
-        $this->assertNotSame($result->creditor->cui, $result->debtor->cui, 'Creditor and debtor CUIs must differ');
+        $this->assertNotNull($result->primaryDebtor());
+        $this->assertNotSame($result->creditor->cui, $result->primaryDebtor()->cui, 'Creditor and debtor CUIs must differ');
         $this->assertSame('15193236', $result->creditor->cui, 'Creditor CUI = furnizor');
-        $this->assertSame('14186770', $result->debtor->cui, 'Debtor CUI = client');
+        $this->assertSame('14186770', $result->primaryDebtor()->cui, 'Debtor CUI = client');
     }
 
     public function testExtractsCnpFromDebtor(): void
@@ -181,8 +181,8 @@ class PdfParserExtractionStrategyTest extends TestCase
 
         $result = $this->strategy->extract($document);
 
-        $this->assertNotNull($result->debtor);
-        $this->assertSame('1980715221232', $result->debtor->personalId);
+        $this->assertNotNull($result->primaryDebtor());
+        $this->assertSame('1980715221232', $result->primaryDebtor()->personalId);
     }
 
     public function testGlobalConfidenceReflectsFieldsFound(): void
@@ -208,10 +208,10 @@ class PdfParserExtractionStrategyTest extends TestCase
 
         // The invalid CUI 12345678 (creditor side) must NOT be persisted anywhere.
         $this->assertNotSame('12345678', $result->creditor?->cui);
-        $this->assertNotSame('12345678', $result->debtor?->cui);
+        $this->assertNotSame('12345678', $result->primaryDebtor()?->cui);
         // The valid debtor CUI 14186770 should still be picked up.
-        $this->assertNotNull($result->debtor);
-        $this->assertSame('14186770', $result->debtor->cui);
+        $this->assertNotNull($result->primaryDebtor());
+        $this->assertSame('14186770', $result->primaryDebtor()->cui);
     }
 
     public function testInvalidCnpChecksumIsRejected(): void
@@ -221,7 +221,7 @@ class PdfParserExtractionStrategyTest extends TestCase
         $result = $this->strategy->extract($document);
 
         // CNP 1234567890123 has invalid checksum — must NOT be persisted.
-        $this->assertNotSame('1234567890123', $result->debtor?->personalId);
+        $this->assertNotSame('1234567890123', $result->primaryDebtor()?->personalId);
         $this->assertNotSame('1234567890123', $result->creditor?->personalId);
     }
 

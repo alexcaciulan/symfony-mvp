@@ -92,6 +92,33 @@
                 {{ icon_warning('size-4 text-amber-600 shrink-0 mt-0.5') }}
                 <span>{{ 'case_overview.claim.breakdown_error'|trans }}</span>
             </div>
+        {% elseif claim_items is defined and claim_items|length > 1 %}
+            {# Several positions: the per-period accordion would have to start from one
+               due date, so the claim is shown position by position instead. #}
+            <div class="border border-slate-200 dark:border-slate-800 rounded-lg overflow-x-auto">
+                <table class="w-full text-xs">
+                    <thead class="text-[10px] uppercase tracking-wide text-slate-500 border-b border-slate-200 dark:border-slate-800">
+                        <tr>
+                            <th class="text-left py-2 px-3 font-medium">{{ 'case_overview.claim.positions_number'|trans }}</th>
+                            <th class="text-left py-2 px-3 font-medium">{{ 'case_overview.claim.positions_due_date'|trans }}</th>
+                            <th class="text-right py-2 px-3 font-medium">{{ 'case_overview.claim.positions_amount'|trans }}</th>
+                            <th class="text-right py-2 px-3 font-medium">{{ 'case_overview.claim.positions_interest'|trans }}</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                        {% for item in claim_items %}
+                            {% set itemAccessory = claim_item_accessories is defined and claim_item_accessories ? claim_item_accessories.forItem(item.id) : null %}
+                            <tr>
+                                <td class="py-2 px-3 text-slate-700 dark:text-slate-300">{{ item.documentNumber|default('—') }}</td>
+                                <td class="py-2 px-3 text-slate-700 dark:text-slate-300">{{ item.dueDate ? item.dueDate|date('d.m.Y') : '—' }}</td>
+                                <td class="py-2 px-3 text-right tnum text-slate-900 dark:text-white">{{ item.signedAmountRon|number_format(2, ',', '.') }}</td>
+                                <td class="py-2 px-3 text-right tnum text-amber-600 dark:text-amber-400">{{ itemAccessory ? itemAccessory.total|number_format(2, ',', '.') : '—' }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <p class="mt-2 text-[11px] text-slate-500">{{ 'case_overview.claim.positions_hint'|trans }}</p>
         {% elseif interest_breakdown is null or interest_breakdown|length == 0 %}
             <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-950/30 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
                 {{ 'case_overview.claim.breakdown_zero'|trans }}

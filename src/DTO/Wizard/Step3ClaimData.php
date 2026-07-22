@@ -18,13 +18,21 @@ use Symfony\Component\Validator\Constraints as Assert;
  * form hides CIVIL from the dropdown until post-MVP B2C support.
  *
  * `dueDate` must be in the past or today — a not-yet-due claim cannot enter
- * the OP procedure (CPC art. 1014: "creanța să fie certă, lichidă și
+ * the OP procedure (CPC art. 1013: "creanța să fie certă, lichidă și
  * exigibilă"). The exact "today" cutoff uses Symfony's `LessThanOrEqual`
  * with `'today'` reference, which is UTC midnight; tests use explicit
  * relative dates (-1 day / +1 day) to stay deterministic across timezones.
  */
 class Step3ClaimData
 {
+    /**
+     * Currencies a claim may be filed in. The AI extraction schema offers the
+     * same list, so the model cannot prefill a value this DTO would reject.
+     *
+     * @var list<string>
+     */
+    public const SUPPORTED_CURRENCIES = ['RON', 'EUR'];
+
     /** @param list<string> $autoFilled */
     public function __construct(
         #[Assert\Sequentially([
@@ -34,7 +42,7 @@ class Step3ClaimData
         public ?float $amount = null,
         #[Assert\NotBlank(message: 'wizard.step3.error.currency_required')]
         #[Assert\Choice(
-            choices: ['RON', 'EUR'],
+            choices: self::SUPPORTED_CURRENCIES,
             message: 'wizard.step3.error.invalid_currency',
         )]
         public string $currency = 'RON',
@@ -85,7 +93,7 @@ class Step3ClaimData
         #[Assert\PositiveOrZero(message: 'wizard.step3.error.legal_costs_fixed_positive')]
         public ?float $legalCostsFixed = null,
         #[Assert\Choice(
-            choices: ['RON', 'EUR'],
+            choices: self::SUPPORTED_CURRENCIES,
             message: 'wizard.step3.error.invalid_currency',
         )]
         public ?string $legalCostsCurrency = 'EUR',

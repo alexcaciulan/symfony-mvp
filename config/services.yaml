@@ -47,10 +47,9 @@ services:
             $tesseractLanguages: '%env(OCR_LANGUAGES)%'
             $anthropicApiKey: '%env(ANTHROPIC_API_KEY)%'
             $anthropicModel: '%env(ANTHROPIC_MODEL)%'
-            # Bind ready for Pas 2.5.7 — DataExtractionService will pick this up
-            # via constructor `?float $confidenceThreshold = null` to override the
-            # internal DEFAULT_CONFIDENCE_THRESHOLD constant without redeploy.
-            $confidenceThreshold: '%env(float:EXTRACTION_CONFIDENCE_THRESHOLD)%'
+            # Overrides DataExtractionService::DEFAULT_REVIEW_THRESHOLD without a
+            # redeploy. Below it, an extraction is flagged as needing review.
+            $confidenceThreshold: '%env(float:EXTRACTION_REVIEW_THRESHOLD)%'
             # Auto-finalization buffer, injected into CaseAutoFinalizer.
             $autoFinalBufferDays: '%app.legal_deadlines.auto_final_buffer_days%'
             # Voluntary-payment window, injected into DeadlineService.
@@ -98,6 +97,8 @@ services:
     _instanceof:
         App\Service\Extraction\ExtractionStrategyInterface:
             tags: ['app.extraction_strategy']
+        App\Service\Extraction\Prompt\ExtractionPromptInterface:
+            tags: ['app.extraction_prompt']
         App\Service\Table\TableDefinitionInterface:
             tags: ['app.table_definition']
 
@@ -134,6 +135,10 @@ services:
             # (e.g. `ocr_text` or `ocr_text,ai_vision`). Cascade runs normally
             # but jumps over the listed tiers. Default '' = nothing skipped.
             $skipStrategyKeysCsv: '%env(default::EXTRACTION_SKIP_STRATEGIES)%'
+
+    App\Service\Extraction\Prompt\ExtractionPromptRegistry:
+        arguments:
+            $prompts: !tagged_iterator app.extraction_prompt
 
     App\Workflow\MarkingStore\EnumMarkingStore:
         arguments:

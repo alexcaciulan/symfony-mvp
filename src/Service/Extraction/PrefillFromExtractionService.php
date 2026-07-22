@@ -4,218 +4,456 @@ declare(strict_types=1);
 
 namespace App\Service\Extraction;
 
+use App\DTO\Extraction\AggregatedFields;
+use App\DTO\Extraction\ConflictResolution;
+use App\DTO\Extraction\DocumentClassification;
+use App\DTO\Extraction\ExtractedDocumentData;
+use App\DTO\Extraction\FieldSource;
+use App\DTO\Extraction\PrefillConflict;
+use App\DTO\Extraction\WizardPrefillResult;
 use App\DTO\Wizard\Step1CreditorData;
 use App\DTO\Wizard\Step2DebtorEntry;
 use App\DTO\Wizard\Step2DebtorsData;
 use App\DTO\Wizard\Step3ClaimData;
 use App\Entity\Document;
+use App\Enum\ConflictScope;
+use App\Enum\ConflictSeverity;
+use App\Enum\DocumentType;
+use App\Enum\FieldGroup;
 use App\Enum\LegalGroundCategory;
 use App\Enum\PenaltyType;
 use App\Enum\PersonType;
 use App\Repository\DocumentRepository;
 
 /**
- * Aggregates extracted data across N documents in a wizard session and produces
- * pre-populated Step DTOs for the wizard forms. For each field, the value with
- * the highest per-field confidence ≥ MIN_CONFIDENCE wins; fields below the
- * threshold are left empty so the lawyer fills them manually.
+ * Turns the extraction payloads of a wizard session into the prefilled step
+ * forms.
  *
- * Pas 3.0 builds this so the step-0 side-card ("Date detectate") can render
- * the cross-document preview before the user moves to step 1. Pas 3.1 reuses
- * the same service on entry to steps 1/2/3 to seed each form, and adds
- * Symfony Validator constraints onto the returned DTOs.
+ * The aggregation itself lives in {@see CoherentAggregator}: one source
+ * document per group of fields, taken whole, so the parties in the filing are
+ * parties some document actually describes. This class reads the payloads,
+ * splits the debtor candidates into as many parties as the documents name, and
+ * maps what comes back onto the wizard DTOs.
  *
- * **Structural contract** (refined in Pas 3.1):
+ * **Structural contract**:
  *   - `aggregateForCreditor()` / `aggregateForDebtor()` / `aggregateForClaim()`
- *     always return a populated DTO instance, possibly with all nullable
- *     fields left null when no document carries above-threshold confidence.
- *   - `aggregateForDebtors()` always returns a `Step2DebtorsData` with
- *     **exactly one** debtor entry, even when `documentIds === []` — so the
- *     form can render the primary debtor card without a "no debtor" branch.
- *     Pas 3.3 lets the user add secondary entries via Live Component.
- *   - `Step3ClaimData::$dueDate` is only marked `autoFilled` if the raw value
- *     parsed successfully into `\DateTimeImmutable`; malformed dates from the
- *     extraction payload are silently dropped (the lawyer picks manually).
+ *     always return a populated DTO instance, possibly with every nullable
+ *     field left null when no document carries an above-threshold value.
+ *   - `aggregateForDebtors()` always returns at least one entry, so the form
+ *     renders the primary debtor card without a "no debtor" branch, and one
+ *     entry per distinct party beyond that.
+ *   - `Step3ClaimData::$dueDate` is only marked `autoFilled` when the raw value
+ *     parsed into a `\DateTimeImmutable`; malformed dates are dropped and the
+ *     lawyer picks manually.
  *
- * Resilient to malformed extractedData JSON: tolerates missing keys, null
- * sub-DTOs, and confidence maps with missing fields. A document that's already
- * been deleted (id present in session but row gone) is skipped silently.
+ * Resilient to malformed payloads: missing keys, null sections and partial
+ * confidence maps are all tolerated, and a document whose row has since been
+ * deleted is skipped silently.
  */
 final class PrefillFromExtractionService
 {
     /**
-     * Below this threshold a field is considered "not confident enough to
-     * prefill" and is left empty in the resulting DTO. Aligned with the
-     * Document badge UX (`auto · N%`) — anything we'd label "auto" must be
-     * trustworthy enough for the lawyer to just glance and confirm.
+     * Below this threshold a field is not confident enough to prefill. Kept
+     * here as well as on the aggregator because callers and tests read it as
+     * the prefill contract rather than as an aggregation detail.
      */
-    public const MIN_CONFIDENCE = 0.8;
+    public const MIN_CONFIDENCE = CoherentAggregator::MIN_CONFIDENCE;
+
+    /** @var list<string> */
+    private const CREDITOR_FIELDS = [
+        'personType', 'name', 'cui', 'personalId', 'onrcNumber', 'address', 'county',
+        'locality', 'email', 'phone', 'iban', 'legalRepresentative', 'bankName',
+    ];
+
+    /** @var list<string> */
+    private const DEBTOR_FIELDS = [
+        'personType', 'name', 'cui', 'personalId', 'onrcNumber', 'address', 'county',
+        'locality', 'email', 'phone', 'iban', 'administrator',
+    ];
+
+    /** @var list<string> */
+    private const CLAIM_FIELDS = [
+        'amount', 'currency', 'dueDate', 'legalGround', 'description', 'invoiceNumber',
+        'invoiceDate', 'contractNumber', 'contractDate', 'contractReference',
+        'penaltyType', 'contractualPenaltyRate',
+    ];
 
     public function __construct(
         private readonly DocumentRepository $documents,
+        private readonly CoherentAggregator $aggregator = new CoherentAggregator(),
+        private readonly ConflictResolutionService $resolutionService = new ConflictResolutionService(),
     ) {}
 
     /**
-     * @param list<int> $documentIds
-     */
-    public function aggregateForCreditor(array $documentIds): Step1CreditorData
-    {
-        $candidates = $this->collectCreditorCandidates($documentIds);
-
-        return $this->buildCreditorData($candidates);
-    }
-
-    /**
-     * @param list<int> $documentIds
-     */
-    public function aggregateForDebtor(array $documentIds): Step2DebtorEntry
-    {
-        $candidates = $this->collectDebtorCandidates($documentIds);
-
-        return $this->buildDebtorEntry($candidates);
-    }
-
-    /**
-     * @param list<int> $documentIds
+     * Everything the wizard can prefill from one session's documents, with the
+     * conflicts and the provenance that go with it.
      *
-     * Pas 3.0 returns a single-entry collection (only the primary debtor is
-     * inferable from extraction). Pas 3.3 will let the user add secondary
-     * debtors via Step2DebtorsLiveComponent.
+     * @param list<int> $documentIds
+     * @param array<string, ConflictResolution> $resolutions what the lawyer has
+     *        already decided about the disagreements, applied over the ranking
      */
-    public function aggregateForDebtors(array $documentIds): Step2DebtorsData
+    public function aggregate(array $documentIds, array $resolutions = []): WizardPrefillResult
     {
-        return new Step2DebtorsData([$this->aggregateForDebtor($documentIds)]);
+        $documents = $this->loadDocuments($documentIds);
+
+        $creditor = $this->aggregator->aggregate(
+            $this->creditorSources($documents),
+            $this->fieldGroups(self::CREDITOR_FIELDS, FieldGroup::partyFieldMap()),
+            ConflictScope::CREDITOR,
+            null,
+            $this->resolutionService->pinsFor($resolutions, ConflictScope::CREDITOR),
+        );
+        $claim = $this->aggregator->aggregate(
+            $this->claimSources($documents),
+            $this->fieldGroups(self::CLAIM_FIELDS, FieldGroup::claimFieldMap()),
+            ConflictScope::CLAIM,
+            null,
+            $this->resolutionService->pinsFor($resolutions, ConflictScope::CLAIM),
+        );
+
+        $clusters = $this->clusterDebtors($documents);
+        $debtorEntries = [];
+        $debtorConflicts = [];
+        $debtorProvenance = [];
+        foreach ($clusters as $index => $cluster) {
+            $aggregated = $this->aggregator->aggregate(
+                $cluster,
+                $this->fieldGroups(self::DEBTOR_FIELDS, FieldGroup::partyFieldMap()),
+                ConflictScope::DEBTOR,
+                'debtor-' . $index,
+                $this->resolutionService->pinsFor($resolutions, ConflictScope::DEBTOR, 'debtor-' . $index),
+            );
+            $debtorEntries[] = $this->buildDebtorEntry($aggregated);
+            foreach ($aggregated->conflicts as $conflict) {
+                $debtorConflicts[] = $conflict;
+            }
+            foreach ($aggregated->provenance as $field => $documentId) {
+                $debtorProvenance['debtor-' . $index . '.' . $field] = $documentId;
+            }
+        }
+        if ($debtorEntries === []) {
+            $debtorEntries[] = $this->buildDebtorEntry(new AggregatedFields());
+        }
+
+        // Over the product cap the extra parties are reported, never dropped in
+        // silence: a debtor that disappears between the documents and the form
+        // is a party the lawyer never learns the documents named.
+        if (count($debtorEntries) > Step2DebtorsData::MAX_DEBTORS) {
+            $debtorConflicts[] = new PrefillConflict(
+                scope: ConflictScope::DEBTOR_SET,
+                severity: ConflictSeverity::ERROR,
+                messageKey: 'wizard.conflict.debtor_set.too_many',
+                field: 'debtors',
+            );
+            $debtorEntries = array_slice($debtorEntries, 0, Step2DebtorsData::MAX_DEBTORS);
+        } elseif (count($debtorEntries) > 1) {
+            $debtorConflicts[] = new PrefillConflict(
+                scope: ConflictScope::DEBTOR_SET,
+                severity: ConflictSeverity::INFO,
+                messageKey: 'wizard.conflict.debtor_set.multiple',
+                field: 'debtors',
+            );
+        }
+
+        // Sums owed by different debtors are different claims. A payment order
+        // adding them together states a debt nobody owes, and nothing in the
+        // documents says the debtors answer for one another, so the wizard must
+        // not settle it: either they are jointly liable (CPC art. 59) or these
+        // are separate cases with separate stamp duty.
+        $claimBearing = $this->claimBearingIds($documents);
+        if ($this->claimsSpanDebtors($claimBearing, $clusters)) {
+            $debtorConflicts[] = new PrefillConflict(
+                scope: ConflictScope::DEBTOR_SET,
+                severity: ConflictSeverity::ERROR,
+                messageKey: 'wizard.conflict.debtor_set.claims_span_debtors',
+                field: 'debtors',
+            );
+        }
+
+        return new WizardPrefillResult(
+            creditor: $this->buildCreditorData($creditor),
+            debtors: new Step2DebtorsData($debtorEntries),
+            claim: $this->buildClaimData($claim),
+            conflicts: array_values([
+                ...$creditor->conflicts,
+                ...$debtorConflicts,
+                ...$this->claimConflicts($claim->conflicts, count($claimBearing)),
+            ]),
+            provenance: [
+                'creditor' => $creditor->provenance,
+                'debtors' => $debtorProvenance,
+                'claim' => $claim->provenance,
+            ],
+        );
     }
 
     /**
      * @param list<int> $documentIds
+     * @param array<string, ConflictResolution> $resolutions
      */
-    public function aggregateForClaim(array $documentIds): Step3ClaimData
+    public function aggregateForCreditor(array $documentIds, array $resolutions = []): Step1CreditorData
     {
-        $candidates = $this->collectClaimCandidates($documentIds);
-
-        return $this->buildClaimData($candidates);
+        return $this->aggregate($documentIds, $resolutions)->creditor;
     }
 
     /**
-     * Reads all `extractedData.creditor` payloads from the given documents and
-     * returns a per-field bag of (value, confidence) tuples. Documents without
-     * a populated creditor sub-DTO are skipped silently.
+     * The primary debtor, for the surfaces that still show exactly one (the
+     * step-0 side card, the overview preview).
      *
-     * @param list<int>                                                                $documentIds
-     * @return array<string, list<array{value: mixed, confidence: float}>>
+     * @param list<int> $documentIds
+     * @param array<string, ConflictResolution> $resolutions
      */
-    private function collectCreditorCandidates(array $documentIds): array
+    public function aggregateForDebtor(array $documentIds, array $resolutions = []): Step2DebtorEntry
     {
-        $bag = [];
-        foreach ($this->loadDocuments($documentIds) as $document) {
-            $extracted = $document->getExtractedData();
-            $creditor = $extracted['creditor'] ?? null;
-            if (!is_array($creditor)) {
+        return $this->aggregate($documentIds, $resolutions)->debtors->debtors[0];
+    }
+
+    /**
+     * One entry per party the documents describe, capped at the product limit.
+     *
+     * @param list<int> $documentIds
+     * @param array<string, ConflictResolution> $resolutions
+     */
+    public function aggregateForDebtors(array $documentIds, array $resolutions = []): Step2DebtorsData
+    {
+        return $this->aggregate($documentIds, $resolutions)->debtors;
+    }
+
+    /**
+     * @param list<int> $documentIds
+     * @param array<string, ConflictResolution> $resolutions
+     */
+    public function aggregateForClaim(array $documentIds, array $resolutions = []): Step3ClaimData
+    {
+        return $this->aggregate($documentIds, $resolutions)->claim;
+    }
+
+    /**
+     * @param list<Document> $documents
+     * @return list<FieldSource>
+     */
+    private function creditorSources(array $documents): array
+    {
+        $sources = [];
+        foreach ($documents as $ordinal => $document) {
+            $section = $document->getExtractedData()['creditor'] ?? null;
+            if (!is_array($section)) {
                 continue;
             }
-            $confidence = is_array($creditor['confidencePerField'] ?? null) ? $creditor['confidencePerField'] : [];
-            foreach (['personType', 'name', 'cui', 'personalId', 'onrcNumber', 'address', 'county', 'locality', 'email', 'phone', 'iban', 'legalRepresentative', 'bankName'] as $field) {
-                $this->captureCandidate($bag, $field, $creditor[$field] ?? null, $confidence[$field] ?? null);
-            }
+            $sources[] = $this->toSource($document, $ordinal, $section, self::CREDITOR_FIELDS);
         }
 
-        return $bag;
+        return $sources;
     }
 
     /**
-     * @param list<int>                                                                $documentIds
-     * @return array<string, list<array{value: mixed, confidence: float}>>
+     * @param list<Document> $documents
+     * @return list<FieldSource>
      */
-    private function collectDebtorCandidates(array $documentIds): array
+    private function claimSources(array $documents): array
     {
-        $bag = [];
-        foreach ($this->loadDocuments($documentIds) as $document) {
-            $extracted = $document->getExtractedData();
-            $debtor = $extracted['debtor'] ?? null;
-            if (!is_array($debtor)) {
+        $sources = [];
+        foreach ($documents as $ordinal => $document) {
+            $section = $document->getExtractedData()['claim'] ?? null;
+            if (!is_array($section)) {
                 continue;
             }
-            $confidence = is_array($debtor['confidencePerField'] ?? null) ? $debtor['confidencePerField'] : [];
-            foreach (['personType', 'name', 'cui', 'personalId', 'onrcNumber', 'address', 'county', 'locality', 'email', 'phone', 'iban', 'administrator'] as $field) {
-                $this->captureCandidate($bag, $field, $debtor[$field] ?? null, $confidence[$field] ?? null);
-            }
+            $sources[] = $this->toSource($document, $ordinal, $section, self::CLAIM_FIELDS);
         }
 
-        return $bag;
+        return $sources;
     }
 
     /**
-     * @param list<int>                                                                $documentIds
-     * @return array<string, list<array{value: mixed, confidence: float}>>
+     * The debtor candidates, split into one cluster per party.
+     *
+     * Clustering, not "the best debtor": several documents describing one
+     * company must end up as one card with the union of what they say, and two
+     * documents describing two companies must end up as two cards. The
+     * threshold for declaring two candidates to be the same party is stricter
+     * than the one for filling a gap, because the two mistakes do not cost the
+     * same. Splitting one debtor in two costs the lawyer two clicks; merging
+     * two debtors into one produces a filing against a party nobody identified.
+     *
+     * @param list<Document> $documents
+     * @return list<list<FieldSource>>
      */
-    private function collectClaimCandidates(array $documentIds): array
+    private function clusterDebtors(array $documents): array
     {
-        $bag = [];
-        foreach ($this->loadDocuments($documentIds) as $document) {
-            $extracted = $document->getExtractedData();
-            $claim = $extracted['claim'] ?? null;
-            if (!is_array($claim)) {
+        $clusters = [];
+        foreach ($documents as $ordinal => $document) {
+            $payload = $document->getExtractedData();
+            if (!is_array($payload)) {
                 continue;
             }
-            $confidence = is_array($claim['confidencePerField'] ?? null) ? $claim['confidencePerField'] : [];
-            foreach (['amount', 'currency', 'dueDate', 'legalGround', 'description', 'invoiceNumber', 'invoiceDate', 'contractNumber', 'contractDate', 'contractReference', 'penaltyType', 'contractualPenaltyRate'] as $field) {
-                $this->captureCandidate($bag, $field, $claim[$field] ?? null, $confidence[$field] ?? null);
-            }
-        }
-
-        return $bag;
-    }
-
-    /**
-     * @param array<string, list<array{value: mixed, confidence: float}>> $bag
-     */
-    private function captureCandidate(array &$bag, string $field, mixed $value, mixed $confidence): void
-    {
-        if ($value === null) {
-            return;
-        }
-        if (!is_numeric($confidence)) {
-            return;
-        }
-        $bag[$field] ??= [];
-        $bag[$field][] = ['value' => $value, 'confidence' => (float) $confidence];
-    }
-
-    /**
-     * @param array<string, list<array{value: mixed, confidence: float}>> $candidates
-     * @return array{values: array<string, mixed>, autoFilled: list<string>}
-     */
-    private function pickBest(array $candidates): array
-    {
-        $values = [];
-        $autoFilled = [];
-        foreach ($candidates as $field => $items) {
-            $best = null;
-            foreach ($items as $item) {
-                if ($item['confidence'] < self::MIN_CONFIDENCE) {
+            foreach (ExtractedDocumentData::debtorPayloadsOf($payload) as $section) {
+                $source = $this->toSource($document, $ordinal, $section, self::DEBTOR_FIELDS);
+                if ($source->values === []) {
                     continue;
                 }
-                if ($best === null || $item['confidence'] > $best['confidence']) {
-                    $best = $item;
+
+                // First match wins, and the documents arrive ordered by id, so
+                // the same set of files always produces the same clusters in
+                // the same order.
+                $placed = false;
+                foreach ($clusters as $index => $cluster) {
+                    if ($this->aggregator->isSameIdentity($cluster[0], $source)) {
+                        $clusters[$index][] = $source;
+                        $placed = true;
+                        break;
+                    }
                 }
-            }
-            if ($best !== null) {
-                $values[$field] = $best['value'];
-                $autoFilled[] = $field;
+                if (!$placed) {
+                    $clusters[] = [$source];
+                }
             }
         }
 
-        return ['values' => $values, 'autoFilled' => $autoFilled];
+        return $clusters;
     }
 
     /**
-     * @param array<string, list<array{value: mixed, confidence: float}>> $candidates
+     * The claim disagreements worth showing.
+     *
+     * Several invoices state several sums and several due dates, and that is
+     * what a file with several invoices looks like: reporting it as a
+     * disagreement would put a blocking conflict on the ordinary case and teach
+     * the lawyer to tick the box without reading. Where one invoice is stated
+     * twice with two sums, the positions table raises it per position.
+     *
+     * @param list<PrefillConflict> $conflicts
+     * @return list<PrefillConflict>
      */
-    private function buildCreditorData(array $candidates): Step1CreditorData
+    private function claimConflicts(array $conflicts, int $claimBearingCount): array
     {
-        $picked = $this->pickBest($candidates);
-        $v = $picked['values'];
+        if ($claimBearingCount < 2) {
+            return $conflicts;
+        }
+
+        $perPosition = FieldGroup::claimFieldMap();
+
+        return array_values(array_filter(
+            $conflicts,
+            static fn (PrefillConflict $c): bool => $c->field === null
+                || ($perPosition[$c->field] ?? null) !== FieldGroup::CLAIM_AMOUNT,
+        ));
+    }
+
+    /**
+     * The documents that state a debt of their own, by id.
+     *
+     * @param list<Document> $documents
+     * @return array<int, true>
+     */
+    private function claimBearingIds(array $documents): array
+    {
+        $ids = [];
+        foreach ($documents as $ordinal => $document) {
+            $claim = $document->getExtractedData()['claim'] ?? null;
+            if (is_array($claim) && is_numeric($claim['amount'] ?? null) && (float) $claim['amount'] !== 0.0) {
+                $ids[$document->getId() ?? $ordinal] = true;
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * Whether the documents that state a debt describe more than one debtor.
+     *
+     * @param array<int, true> $claimBearing
+     * @param list<list<FieldSource>> $clusters
+     */
+    private function claimsSpanDebtors(array $claimBearing, array $clusters): bool
+    {
+        if (count($clusters) < 2) {
+            return false;
+        }
+
+        $touched = 0;
+        foreach ($clusters as $cluster) {
+            foreach ($cluster as $source) {
+                if (isset($claimBearing[$source->documentId])) {
+                    ++$touched;
+                    break;
+                }
+            }
+        }
+
+        return $touched > 1;
+    }
+
+    /**
+     * @param array<string, mixed> $section
+     * @param list<string> $fields
+     */
+    private function toSource(Document $document, int $ordinal, array $section, array $fields): FieldSource
+    {
+        $confidence = is_array($section['confidencePerField'] ?? null) ? $section['confidencePerField'] : [];
+        $values = [];
+        $scores = [];
+        foreach ($fields as $field) {
+            $value = $section[$field] ?? null;
+            if ($value === null || !is_numeric($confidence[$field] ?? null)) {
+                // A value with no score is not read: the prompts are explicit
+                // that a scored field is the only kind that gets used, and
+                // guessing a score here would silently promote one.
+                continue;
+            }
+            $values[$field] = $value;
+            $scores[$field] = (float) $confidence[$field];
+        }
+
+        return new FieldSource(
+            // The persisted id where there is one, the position in the ordered
+            // set otherwise, so the tie-break stays total either way.
+            documentId: $document->getId() ?? $ordinal,
+            documentType: $this->effectiveType($document),
+            values: $values,
+            confidence: $scores,
+        );
+    }
+
+    /**
+     * The type to reason about: what the lawyer declared, or what the
+     * extraction detected when they declared nothing and the detection was
+     * confident enough to be adopted.
+     */
+    private function effectiveType(Document $document): ?DocumentType
+    {
+        $declared = $document->getDocumentType();
+        if ($declared !== DocumentType::ALT_DOCUMENT) {
+            return $declared;
+        }
+        $detected = $document->getDetectedType();
+        $confidence = $document->getDetectedTypeConfidence();
+        if ($detected === null || $confidence === null) {
+            return null;
+        }
+
+        return (float) $confidence > DocumentClassification::ADOPTION_THRESHOLD ? $detected : null;
+    }
+
+    /**
+     * @param list<string> $fields
+     * @param array<string, FieldGroup> $map
+     * @return array<string, FieldGroup>
+     */
+    private function fieldGroups(array $fields, array $map): array
+    {
+        $groups = [];
+        foreach ($fields as $field) {
+            if (isset($map[$field])) {
+                $groups[$field] = $map[$field];
+            }
+        }
+
+        return $groups;
+    }
+
+    private function buildCreditorData(AggregatedFields $aggregated): Step1CreditorData
+    {
+        $v = $aggregated->values;
 
         return new Step1CreditorData(
             personType: $this->toPersonType($v['personType'] ?? null),
@@ -231,14 +469,14 @@ final class PrefillFromExtractionService
             iban: $this->toStringOrNull($v['iban'] ?? null),
             legalRepresentative: $this->toStringOrNull($v['legalRepresentative'] ?? null),
             bankName: $this->toStringOrNull($v['bankName'] ?? null),
-            autoFilled: $this->remapAddressFields($picked['autoFilled']),
+            autoFilled: $this->remapAddressFields($aggregated->autoFilled),
         );
     }
 
     /**
      * Extraction emits `county`/`locality`; both wizard forms expose them as
-     * `addressCounty`/`addressLocality`. Remap so the ⚡ auto-filled badge lands
-     * on the right inputs (AutoFilledMarker matches by field name).
+     * `addressCounty`/`addressLocality`. Remap so the auto-filled badge lands on
+     * the right inputs (AutoFilledMarker matches by field name).
      *
      * @param  list<string> $autoFilled
      * @return list<string>
@@ -252,13 +490,9 @@ final class PrefillFromExtractionService
         }, $autoFilled);
     }
 
-    /**
-     * @param array<string, list<array{value: mixed, confidence: float}>> $candidates
-     */
-    private function buildDebtorEntry(array $candidates): Step2DebtorEntry
+    private function buildDebtorEntry(AggregatedFields $aggregated): Step2DebtorEntry
     {
-        $picked = $this->pickBest($candidates);
-        $v = $picked['values'];
+        $v = $aggregated->values;
 
         return new Step2DebtorEntry(
             personType: $this->toPersonType($v['personType'] ?? null),
@@ -273,22 +507,18 @@ final class PrefillFromExtractionService
             phone: $this->toStringOrNull($v['phone'] ?? null),
             iban: $this->toStringOrNull($v['iban'] ?? null),
             administrator: $this->toStringOrNull($v['administrator'] ?? null),
-            autoFilled: $this->remapAddressFields($picked['autoFilled']),
+            autoFilled: $this->remapAddressFields($aggregated->autoFilled),
         );
     }
 
-    /**
-     * @param array<string, list<array{value: mixed, confidence: float}>> $candidates
-     */
-    private function buildClaimData(array $candidates): Step3ClaimData
+    private function buildClaimData(AggregatedFields $aggregated): Step3ClaimData
     {
-        $picked = $this->pickBest($candidates);
-        $v = $picked['values'];
-        $autoFilled = $picked['autoFilled'];
+        $v = $aggregated->values;
+        $autoFilled = $aggregated->autoFilled;
 
         // Date fields: parse tolerantly; drop the auto-filled badge when the
-        // extraction payload carried a malformed date (lawyer picks manually).
-        // Don't fail the whole prefill over a single bad date.
+        // payload carried a malformed date (the lawyer picks manually). Don't
+        // fail the whole prefill over a single bad date.
         $dueDate = $this->toDateOrNull($v['dueDate'] ?? null);
         $invoiceDate = $this->toDateOrNull($v['invoiceDate'] ?? null);
         $contractDate = $this->toDateOrNull($v['contractDate'] ?? null);
@@ -334,16 +564,22 @@ final class PrefillFromExtractionService
 
     /**
      * @param list<int> $documentIds
-     * @return iterable<Document>
+     * @return list<Document>
      */
-    private function loadDocuments(array $documentIds): iterable
+    private function loadDocuments(array $documentIds): array
     {
         if ($documentIds === []) {
             return [];
         }
-        // findBy preserves no order — caller doesn't depend on it because we
-        // pick across the whole set by confidence anyway.
-        return $this->documents->findBy(['id' => $documentIds]);
+
+        // Ordered by id. The aggregation breaks ties on the document id, so an
+        // unordered load would let the database decide which of two equally
+        // ranked documents wins, and two runs over the same case could produce
+        // two different filings.
+        /** @var list<Document> $found */
+        $found = $this->documents->findBy(['id' => $documentIds], ['id' => 'ASC']);
+
+        return $found;
     }
 
     private function toPersonType(mixed $raw): ?PersonType
@@ -375,6 +611,9 @@ final class PrefillFromExtractionService
 
     private function toDateOrNull(mixed $raw): ?\DateTimeImmutable
     {
+        if ($raw instanceof \DateTimeImmutable) {
+            return $raw;
+        }
         if (!is_string($raw) || $raw === '') {
             return null;
         }

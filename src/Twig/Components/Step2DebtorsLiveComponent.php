@@ -41,7 +41,8 @@ final class Step2DebtorsLiveComponent extends AbstractController
 
     public ?Step2DebtorsData $initialFormData = null;
 
-    public const MAX_DEBTORS = 5;
+    /** The cap the form enforces, owned by the DTO the form binds to. */
+    public const MAX_DEBTORS = Step2DebtorsData::MAX_DEBTORS;
 
     protected function instantiateForm(): FormInterface
     {

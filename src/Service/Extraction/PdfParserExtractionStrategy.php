@@ -104,7 +104,7 @@ final class PdfParserExtractionStrategy implements ExtractionStrategyInterface
             globalConfidence: $globalConfidence,
             extractedAt: new \DateTimeImmutable(),
             creditor: $creditor,
-            debtor: $debtor,
+            debtors: $debtor !== null ? [$debtor] : [],
             claim: $claim,
         );
     }

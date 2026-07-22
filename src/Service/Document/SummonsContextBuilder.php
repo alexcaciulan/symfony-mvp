@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace App\Service\Document;
 
+use App\DTO\Calculation\AggregatedAccessoryResult;
 use App\DTO\Calculation\InterestResult;
 use App\DTO\Calculation\PenaltyResult;
+use App\Entity\ClaimItem;
 use App\Entity\LegalCase;
 use App\Enum\InterestKind;
 use App\Enum\PenaltyType;
 use App\Enum\RelationshipType;
+use App\Service\Calculation\ClaimInterestAggregator;
 use App\Service\Calculation\ContractualPenaltyCalculator;
 use App\Service\Calculation\InterestCalculatorService;
 use Psr\Log\LoggerInterface;
@@ -32,6 +35,7 @@ final class SummonsContextBuilder
         private readonly InterestCalculatorService $interestCalculator,
         private readonly ContractualPenaltyCalculator $penaltyCalculator,
         private readonly LoggerInterface $logger = new NullLogger(),
+        private ?ClaimInterestAggregator $accessoryAggregator = null,
     ) {}
 
     /**
@@ -47,13 +51,31 @@ final class SummonsContextBuilder
         $interestResult = null;
         $penaltyResult = null;
 
-        if ($penaltyType === PenaltyType::CONTRACTUAL) {
-            $penaltyResult = $this->computeContractual($case, $principal, $dueDate, $refDate);
-        } else {
-            $interestResult = $this->computeLegalInterest($case, $principal, $dueDate, $refDate);
+        // The positions carry the accessory: each accrues from its own due date
+        // (Civil Code art. 1535), which is the whole point of having them.
+        $items = $case->getCountingClaimItems();
+        $itemAccessories = $this->computePerItem($case, $items, $penaltyType, $refDate);
+
+        if ($itemAccessories !== null && count($items) === 1) {
+            // A single position is the case as it always was; keep handing the
+            // template one result so nothing about an existing file changes.
+            // Unsaved positions are keyed by -(index+1), as the aggregator does.
+            $only = $itemAccessories->forItem($items[0]->getId() ?? -1);
+            $interestResult = $only instanceof InterestResult ? $only : null;
+            $penaltyResult = $only instanceof PenaltyResult ? $only : null;
         }
 
-        $accessoryTotal = $this->resolveAccessoryTotal($case, $interestResult, $penaltyResult);
+        if ($itemAccessories === null || $itemAccessories->isEmpty()) {
+            if ($penaltyType === PenaltyType::CONTRACTUAL) {
+                $penaltyResult = $this->computeContractual($case, $principal, $dueDate, $refDate);
+            } else {
+                $interestResult = $this->computeLegalInterest($case, $principal, $dueDate, $refDate);
+            }
+        }
+
+        $accessoryTotal = $itemAccessories !== null && !$itemAccessories->isEmpty()
+            ? $itemAccessories->total
+            : $this->resolveAccessoryTotal($case, $interestResult, $penaltyResult);
 
         return [
             'penaltyType' => $penaltyType,
@@ -61,6 +83,11 @@ final class SummonsContextBuilder
             'currency' => $case->getCurrency(),
             'interestResult' => $interestResult,
             'penaltyResult' => $penaltyResult,
+            // CPC art. 1016 alin. (1) lit. c requires the sum and its basis to be
+            // stated, so several invoices are listed one by one with their own
+            // interest rather than merged into a single figure.
+            'claimItems' => $items,
+            'claimItemAccessories' => $itemAccessories,
             'accessoryTotal' => $accessoryTotal,
             'grandTotal' => $principal + $accessoryTotal,
             'refDate' => $refDate,
@@ -72,6 +99,55 @@ final class SummonsContextBuilder
             'exchangeRate' => $case->getExchangeRate() !== null ? (float) $case->getExchangeRate() : null,
             'exchangeRateDate' => $case->getExchangeRateDate(),
         ];
+    }
+
+    /**
+     * Accessory per position. Null when the case carries no positions (nothing
+     * to iterate) so the caller falls back to the single-sum computation.
+     *
+     * @param list<ClaimItem> $items
+     */
+    private function computePerItem(
+        LegalCase $case,
+        array $items,
+        PenaltyType $penaltyType,
+        \DateTimeImmutable $refDate,
+    ): ?AggregatedAccessoryResult {
+        if ($items === []) {
+            return null;
+        }
+
+        $rate = $case->getContractualPenaltyRate();
+
+        try {
+            return $this->aggregator()->aggregate(
+                items: $items,
+                referenceDate: $refDate,
+                relationshipType: $case->getRelationshipType() ?? RelationshipType::COMERCIAL,
+                penaltyType: $penaltyType,
+                contractualDailyRate: $rate !== null ? (float) $rate : null,
+                kind: InterestKind::PENALIZATOARE,
+            );
+        } catch (\DomainException $e) {
+            // This builder's contract is that the document still generates. An
+            // unsupported claim type degrades to the stored lump sum, as a
+            // missing rate always has.
+            $this->logger->warning('Summons per-position accessory skipped: {reason}', [
+                'reason' => $e->getMessage(),
+                'caseId' => $case->getId(),
+            ]);
+
+            return null;
+        }
+    }
+
+    private function aggregator(): ClaimInterestAggregator
+    {
+        return $this->accessoryAggregator ??= new ClaimInterestAggregator(
+            $this->interestCalculator,
+            $this->penaltyCalculator,
+            $this->logger,
+        );
     }
 
     private function computeLegalInterest(

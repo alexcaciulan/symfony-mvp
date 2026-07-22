@@ -4,6 +4,7 @@ namespace App\Tests\Entity;
 
 use App\Entity\User;
 use App\Enum\ExtractionMode;
+use App\Enum\ExtractionPipeline;
 use PHPUnit\Framework\TestCase;
 
 class UserEntityTest extends TestCase
@@ -117,5 +118,62 @@ class UserEntityTest extends TestCase
 
         $user->setExtractionMode(ExtractionMode::MAX_ACCURACY);
         $this->assertSame(ExtractionMode::MAX_ACCURACY, $user->getExtractionMode());
+    }
+
+    /**
+     * The PHP-level default has to match the column default, because that is
+     * the whole mechanism by which new accounts get AI Vision: nothing calls
+     * setExtractionPipeline() on the registration path.
+     */
+    public function testExtractionPipelineDefaultsToAiOnly(): void
+    {
+        $user = new User();
+
+        $this->assertSame(ExtractionPipeline::AI_ONLY, $user->getExtractionPipeline());
+    }
+
+    public function testExtractionPipelineSetterAndGetter(): void
+    {
+        $user = new User();
+
+        $user->setExtractionPipeline(ExtractionPipeline::LEGACY_CASCADE);
+        $this->assertSame(ExtractionPipeline::LEGACY_CASCADE, $user->getExtractionPipeline());
+
+        $user->setExtractionPipeline(ExtractionPipeline::AI_ONLY);
+        $this->assertSame(ExtractionPipeline::AI_ONLY, $user->getExtractionPipeline());
+    }
+
+    public function testAiProcessingAgreementStartsUnrecorded(): void
+    {
+        $user = new User();
+
+        $this->assertNull($user->getAiProcessingAgreementAt());
+        $this->assertNull($user->getAiProcessingAgreementVersion());
+        $this->assertFalse($user->hasAcceptedAiProcessing());
+    }
+
+    public function testAiProcessingAgreementSettersRecordTimeAndVersion(): void
+    {
+        $user = new User();
+        $acceptedAt = new \DateTimeImmutable('2026-07-21 09:30:00');
+
+        $user->setAiProcessingAgreementAt($acceptedAt);
+        $user->setAiProcessingAgreementVersion('v1-draft');
+
+        $this->assertSame($acceptedAt, $user->getAiProcessingAgreementAt());
+        $this->assertSame('v1-draft', $user->getAiProcessingAgreementVersion());
+        $this->assertTrue($user->hasAcceptedAiProcessing());
+    }
+
+    /**
+     * The timestamp is what proves acceptance, so a version left behind by a
+     * withdrawn agreement must not keep the flag true on its own.
+     */
+    public function testAiProcessingAgreementIsDrivenByTheTimestampNotTheVersion(): void
+    {
+        $user = new User();
+        $user->setAiProcessingAgreementVersion('v1-draft');
+
+        $this->assertFalse($user->hasAcceptedAiProcessing());
     }
 }

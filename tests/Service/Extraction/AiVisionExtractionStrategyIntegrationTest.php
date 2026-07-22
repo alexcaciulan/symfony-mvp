@@ -8,6 +8,8 @@ use App\Entity\User;
 use App\Service\AuditLogService;
 use App\Service\Extraction\AiVisionExtractionStrategy;
 use App\Service\Llm\AnthropicApiClient;
+use App\Tests\Support\ExtractionPrompts;
+use App\Enum\DocumentType;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\NullLogger;
 use Symfony\Component\HttpClient\MockHttpClient;
@@ -58,14 +60,16 @@ class AiVisionExtractionStrategyIntegrationTest extends TestCase
         $anthropicClient = new AnthropicApiClient(
             httpClient: $mockHttp,
             anthropicApiKey: 'sk-ant-vision-integration',
-            anthropicModel: 'claude-sonnet-4-6',
+            anthropicModel: 'claude-opus-4-8',
             logger: new NullLogger(),
         );
 
         return new AiVisionExtractionStrategy(
             llmClient: $anthropicClient,
+            promptRegistry: ExtractionPrompts::registry(),
             auditLogService: $audit ?? $this->captureAuditLogService(),
             extractionAiVisionLimiter: $this->noLimitFactory(),
+            extractionAiVisionBurstLimiter: $this->noLimitFactory(),
             // uploadsDir points at the OCR fixtures dir so we reuse the existing
             // real PNG without copying it elsewhere.
             uploadsDir: self::OCR_FIXTURES_DIR,
@@ -118,6 +122,8 @@ class AiVisionExtractionStrategyIntegrationTest extends TestCase
         $case->setUser($user);
 
         $document = new Document();
+        // What the wizard stores when the lawyer did not declare a type.
+        $document->setDocumentType(DocumentType::ALT_DOCUMENT);
         $document->setLegalCase($case);
         $document->setStoredFilename($storedFilename);
         $document->setOriginalFilename($storedFilename);
@@ -145,7 +151,7 @@ class AiVisionExtractionStrategyIntegrationTest extends TestCase
         $this->assertSame('Alpha Servicii Comerciale SRL', $result->creditor?->name);
         $this->assertSame('15193236', $result->creditor?->cui);
         $this->assertSame('RO49AAAA1B31007593840000', $result->creditor?->iban);
-        $this->assertSame('Beta Distribution SRL', $result->debtor?->name);
+        $this->assertSame('Beta Distribution SRL', $result->primaryDebtor()?->name);
         $this->assertSame(7532.70, $result->claim?->amount);
         $this->assertEquals(new \DateTimeImmutable('2026-05-31'), $result->claim?->dueDate);
         $this->assertNull($result->rawOcrText);
@@ -160,8 +166,8 @@ class AiVisionExtractionStrategyIntegrationTest extends TestCase
 
         $body = json_decode((string) $captured['body'], true);
         $this->assertIsArray($body);
-        $this->assertSame('claude-sonnet-4-6', $body['model']);
-        $this->assertSame(2048, $body['max_tokens']);
+        $this->assertSame('claude-opus-4-8', $body['model']);
+        $this->assertSame(16000, $body['max_tokens']);
         // Anthropic Messages API contract: system prompt is top-level; only
         // `user`/`assistant` roles live in `messages`.
         $this->assertCount(1, $body['messages']);

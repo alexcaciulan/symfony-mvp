@@ -3,6 +3,7 @@
 namespace App\Entity;
 
 use App\Enum\ExtractionMode;
+use App\Enum\ExtractionPipeline;
 use App\Enum\UserType;
 use App\Repository\UserRepository;
 use Doctrine\Common\Collections\ArrayCollection;
@@ -103,6 +104,21 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, Equatab
 
     #[ORM\Column(length: 20, enumType: ExtractionMode::class, options: ['default' => 'MAX_ACCURACY'])]
     private ExtractionMode $extractionMode = ExtractionMode::MAX_ACCURACY;
+
+    // Column default is AI_ONLY so accounts created from now on go straight to
+    // AI Vision with no call-site change; the migration pins pre-existing rows
+    // to LEGACY_CASCADE so their extraction behaviour is untouched.
+    #[ORM\Column(length: 20, enumType: ExtractionPipeline::class, options: ['default' => 'AI_ONLY'])]
+    private ExtractionPipeline $extractionPipeline = ExtractionPipeline::AI_ONLY;
+
+    // Evidence that the lawyer accepted sub-processing by Anthropic and the
+    // attendant departure from professional secrecy. Not a GDPR consent: the
+    // data subject in the documents is the debtor, not this user.
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $aiProcessingAgreementAt = null;
+
+    #[ORM\Column(length: 20, nullable: true)]
+    private ?string $aiProcessingAgreementVersion = null;
 
     /** @var Collection<int, LegalCase> */
     #[ORM\OneToMany(targetEntity: LegalCase::class, mappedBy: 'user')]
@@ -498,6 +514,47 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, Equatab
         $this->extractionMode = $extractionMode;
 
         return $this;
+    }
+
+    public function getExtractionPipeline(): ExtractionPipeline
+    {
+        return $this->extractionPipeline;
+    }
+
+    public function setExtractionPipeline(ExtractionPipeline $extractionPipeline): static
+    {
+        $this->extractionPipeline = $extractionPipeline;
+
+        return $this;
+    }
+
+    public function getAiProcessingAgreementAt(): ?\DateTimeImmutable
+    {
+        return $this->aiProcessingAgreementAt;
+    }
+
+    public function setAiProcessingAgreementAt(?\DateTimeImmutable $aiProcessingAgreementAt): static
+    {
+        $this->aiProcessingAgreementAt = $aiProcessingAgreementAt;
+
+        return $this;
+    }
+
+    public function getAiProcessingAgreementVersion(): ?string
+    {
+        return $this->aiProcessingAgreementVersion;
+    }
+
+    public function setAiProcessingAgreementVersion(?string $aiProcessingAgreementVersion): static
+    {
+        $this->aiProcessingAgreementVersion = $aiProcessingAgreementVersion;
+
+        return $this;
+    }
+
+    public function hasAcceptedAiProcessing(): bool
+    {
+        return $this->aiProcessingAgreementAt !== null;
     }
 
     public function __toString(): string

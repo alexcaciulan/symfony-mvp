@@ -61,7 +61,7 @@ wizard:
             currency_required: 'Selectează moneda.'
             invalid_currency: 'Monedă acceptată: RON sau EUR.'
             due_date_required: 'Introdu data scadenței.'
-            due_date_not_future: 'Scadența nu poate fi în viitor; creanța nu e încă exigibilă (CPC art. 1014).'
+            due_date_not_future: 'Scadența nu poate fi în viitor; creanța nu e încă exigibilă (CPC art. 1013).'
             invoice_date_required_fx: 'Pentru creanțe în valută, data emiterii facturii este obligatorie: conversia în RON utilizează cursul de referință BNR publicat pentru acea dată.'
             invoice_date_not_future: 'Data emiterii facturii nu poate fi în viitor.'
             relationship_required: 'Selectează tipul raportului juridic.'

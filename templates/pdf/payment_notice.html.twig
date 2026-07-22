@@ -170,7 +170,48 @@
         '%ron%': principal|number_format(2, ',', '.'),
     }) }}</p>
 {% endif %}
-{% if case.invoiceNumber %}
+{# Several documents: each is shown on its own, with its own sum and its own
+   interest (CPC art. 1016 alin. 1 lit. c requires the sum and its basis). A single
+   position keeps the existing sentence, so filed cases print identically. #}
+{% if claimItems is defined and claimItems|length > 1 %}
+    <table class="breakdown">
+        <thead>
+            <tr>
+                <th>{{ 'pdf.summons.items_table_number'|trans }}</th>
+                <th>{{ 'pdf.summons.items_table_document_date'|trans }}</th>
+                <th>{{ 'pdf.summons.items_table_due_date'|trans }}</th>
+                <th>{{ 'pdf.summons.items_table_amount'|trans }}</th>
+                <th>{{ 'pdf.summons.items_table_accessory'|trans }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in claimItems %}
+                {% set itemAccessory = claimItemAccessories ? claimItemAccessories.forItem(item.id) : null %}
+                <tr>
+                    <td>{{ item.documentNumber|default('—') }}</td>
+                    <td>{{ item.documentDate ? item.documentDate|date('d.m.Y') : '—' }}</td>
+                    <td>{{ item.dueDate ? item.dueDate|date('d.m.Y') : '—' }}</td>
+                    <td>{{ item.signedAmountRon|number_format(2, ',', '.') }} {{ currency }}
+                        {% if item.currency != 'RON' and item.exchangeRate %}
+                            <br><span class="meta">{{ 'pdf.payment_order.amount_principal_item_fx'|trans({
+                                '%amount%': item.amount|number_format(2, ',', '.'),
+                                '%currency%': item.currency,
+                                '%rate%': item.exchangeRate|number_format(4, ',', '.'),
+                                '%rate_date%': item.exchangeRateDate ? item.exchangeRateDate|date('d.m.Y') : '—',
+                            }) }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{% if itemAccessory %}{{ itemAccessory.total|number_format(2, ',', '.') }} {{ currency }}{% elseif item.dueDate and not item.isCreditNote %}{{ 'pdf.payment_order.amount_interest_item_unavailable'|trans }}{% else %}—{% endif %}</td>
+                </tr>
+            {% endfor %}
+            <tr class="total">
+                <td colspan="3">{{ 'pdf.summons.items_table_total'|trans }}</td>
+                <td>{{ principal|number_format(2, ',', '.') }} {{ currency }}</td>
+                <td>{{ accessoryTotal|number_format(2, ',', '.') }} {{ currency }}</td>
+            </tr>
+        </tbody>
+    </table>
+{% elseif case.invoiceNumber %}
     {% set invDate = case.invoiceDate ? 'pdf.summons.principal_invoice_date'|trans({'%date%': case.invoiceDate|date('d.m.Y')}) : '' %}
     <p>{{ 'pdf.summons.principal_invoice'|trans({'%invoice%': case.invoiceNumber, '%date%': invDate}) }}</p>
 {% endif %}

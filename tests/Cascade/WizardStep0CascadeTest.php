@@ -6,6 +6,8 @@ namespace App\Tests\Cascade;
 
 use App\Entity\Document;
 use App\Entity\User;
+use App\Enum\ExtractionMode;
+use App\Enum\ExtractionPipeline;
 use App\Enum\ExtractionStatus;
 use App\Event\DataExtractedEvent;
 use App\Message\ExtractDataMessage;
@@ -57,6 +59,12 @@ final class WizardStep0CascadeTest extends WebTestCase
         $this->user->setIsVerified(true);
         $this->user->setFirstName('Cascade');
         $this->user->setLastName('Tester');
+        // This test walks the legacy four-tier cascade, so pin the pipeline
+        // instead of taking the AI_ONLY column default a new account gets.
+        // LOCAL_ONLY keeps the run deterministic: no AI tier is attempted, so
+        // the outcome does not depend on an API key being present.
+        $this->user->setExtractionPipeline(ExtractionPipeline::LEGACY_CASCADE);
+        $this->user->setExtractionMode(ExtractionMode::LOCAL_ONLY);
         $this->em->persist($this->user);
         $this->em->flush();
 

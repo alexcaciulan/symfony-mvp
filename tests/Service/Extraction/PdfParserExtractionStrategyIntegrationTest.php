@@ -48,8 +48,8 @@ class PdfParserExtractionStrategyIntegrationTest extends TestCase
         $this->assertSame('RO49AAAA1B31007593840000', $result->creditor->iban);
 
         // Debtor (Client): Beta Distribution SRL
-        $this->assertNotNull($result->debtor);
-        $this->assertSame('14186770', $result->debtor->cui);
+        $this->assertNotNull($result->primaryDebtor());
+        $this->assertSame('14186770', $result->primaryDebtor()->cui);
     }
 
     public function testRealisticInvoiceExtractsClaimAmountAndDueDate(): void
@@ -88,10 +88,10 @@ class PdfParserExtractionStrategyIntegrationTest extends TestCase
         // Page 1 introduces both parties. The section-based heuristic must keep them
         // attributed correctly even though the contract continues on page 2.
         $this->assertNotNull($result->creditor);
-        $this->assertNotNull($result->debtor);
+        $this->assertNotNull($result->primaryDebtor());
         $this->assertSame('15193236', $result->creditor->cui, 'Furnizor → creditor');
         $this->assertSame('RO49AAAA1B31007593840000', $result->creditor->iban);
-        $this->assertSame('14186770', $result->debtor->cui, 'Client → debtor');
+        $this->assertSame('14186770', $result->primaryDebtor()->cui, 'Client → debtor');
     }
 
     public function testLoanContractExtractsCnpForIndividualDebtor(): void
@@ -107,9 +107,9 @@ class PdfParserExtractionStrategyIntegrationTest extends TestCase
         $this->assertSame('15193236', $result->creditor->cui);
 
         // Imprumutat (debtor) is an individual identified by CNP, not CUI.
-        $this->assertNotNull($result->debtor);
-        $this->assertSame('1980715221232', $result->debtor->personalId);
-        $this->assertNull($result->debtor->cui, 'Individual debtor must NOT have a CUI assigned');
+        $this->assertNotNull($result->primaryDebtor());
+        $this->assertSame('1980715221232', $result->primaryDebtor()->personalId);
+        $this->assertNull($result->primaryDebtor()->cui, 'Individual debtor must NOT have a CUI assigned');
     }
 
     public function testGlobalConfidenceIsMeaningfulForRealDocuments(): void
@@ -146,8 +146,8 @@ class PdfParserExtractionStrategyIntegrationTest extends TestCase
         $this->assertNotNull($result->creditor);
         $this->assertTrue($result->creditor->isVatPayer, 'Creditor cu prefix RO trebuie marcat plătitor TVA');
 
-        $this->assertNotNull($result->debtor);
-        $this->assertTrue($result->debtor->isVatPayer, 'Debtor cu prefix RO trebuie marcat plătitor TVA');
+        $this->assertNotNull($result->primaryDebtor());
+        $this->assertTrue($result->primaryDebtor()->isVatPayer, 'Debtor cu prefix RO trebuie marcat plătitor TVA');
     }
 
     public function testFixturesAreCommittedAndReadable(): void

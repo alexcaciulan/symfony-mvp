@@ -50,6 +50,28 @@ final class Step3ClaimLiveComponent extends AbstractController
     #[LiveProp(writable: true)]
     public ?Step3ClaimData $initialFormData = null;
 
+    /**
+     * How many claim positions the file carries, and what they total.
+     *
+     * The positions, not the scalar amount on this form, are what the submit
+     * path computes on. When there are any, the sidebar shows their figures:
+     * a live total recomputed from a single amount and a single due date is a
+     * number the next screen will never produce, and it is the number the
+     * lawyer watches while filling the step.
+     */
+    #[LiveProp]
+    public int $positionCount = 0;
+
+    #[LiveProp]
+    public ?float $positionPrincipal = null;
+
+    #[LiveProp]
+    public ?float $positionAccessory = null;
+
+    /** Earliest due date across the positions, in Y-m-d. */
+    #[LiveProp]
+    public ?string $positionDueDate = null;
+
     public function __construct(
         private readonly InterestCalculatorService $interestService,
         private readonly StampDutyCalculator $stampDutyCalculator,
@@ -61,8 +83,20 @@ final class Step3ClaimLiveComponent extends AbstractController
         return $this->createForm(Step3ClaimType::class, $this->initialFormData);
     }
 
+    /** Whether the claim is described by positions rather than by this form's scalars. */
+    public function isPositionDriven(): bool
+    {
+        return $this->positionCount > 0;
+    }
+
     public function getInterest(): ?InterestResult
     {
+        if ($this->isPositionDriven()) {
+            // Each position accrues from its own due date; one aggregate figure
+            // from one due date is exactly the claim T4 exists to stop making.
+            return null;
+        }
+
         $amount = $this->floatFromFormValues('amount');
         if ($amount === null || $amount <= 0.0) {
             return null;

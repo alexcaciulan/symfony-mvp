@@ -159,7 +159,7 @@ final class PaymentNoticeGeneratorServiceTest extends KernelTestCase
         self::assertStringContainsString('Către', $html, 'Antetul „Către" (debitor) trebuie prezent.');
         self::assertStringContainsString('De la', $html, 'Antetul „De la" (creditor) trebuie prezent.');
         self::assertStringContainsString('* * *', $html, 'Separatorul „* * *" trebuie prezent.');
-        self::assertStringContainsString('1014', $html, 'Temeiul CPC art. 1014 (procedura OP) trebuie citat.');
+        self::assertStringContainsString('1013', $html, 'Temeiul CPC art. 1013 (procedura OP) trebuie citat.');
         self::assertStringContainsString('1522', $html, 'Temeiul CC art. 1522 (punere în întârziere) trebuie citat.');
         self::assertStringContainsString('Banca Transilvania', $html, 'Banca creditorului trebuie inclusă în identificare.');
     }

@@ -38,3 +38,20 @@ services:
     Symfony\Component\Mercure\HubInterface:
         alias: App\Tests\Support\RecordingHub
         public: true
+
+    # Same reasoning for the LLM provider: the test API key is a non-empty
+    # placeholder, so without this alias any test that runs the real cascade for
+    # an AI-allowed account uploads its fixture document to Anthropic over the
+    # network and its outcome depends on the connection.
+    App\Tests\Support\OfflineLlmClient:
+        public: true
+    App\Service\Llm\LlmClientInterface:
+        alias: App\Tests\Support\OfflineLlmClient
+        public: true
+
+    # The prompt registry has no public consumer either: it is injected into the
+    # vision strategy, which the cascade holds privately. Exposed so the DI test
+    # can confirm every tagged prompt really reached it.
+    test.public.extraction_prompt_registry:
+        alias: App\Service\Extraction\Prompt\ExtractionPromptRegistry
+        public: true

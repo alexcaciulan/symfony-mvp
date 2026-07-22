@@ -7,9 +7,21 @@ use PHPUnit\Framework\TestCase;
 
 class ExtractionStatusTest extends TestCase
 {
-    public function testHasFourCases(): void
+    public function testHasSixCases(): void
     {
-        $this->assertCount(4, ExtractionStatus::cases());
+        $this->assertCount(6, ExtractionStatus::cases());
+    }
+
+    public function testOnlySettledStatusesAreTerminal(): void
+    {
+        $this->assertTrue(ExtractionStatus::COMPLETED->isTerminal());
+        $this->assertTrue(ExtractionStatus::FAILED->isTerminal());
+        $this->assertTrue(ExtractionStatus::SKIPPED_BY_POLICY->isTerminal());
+
+        $this->assertFalse(ExtractionStatus::PENDING->isTerminal());
+        $this->assertFalse(ExtractionStatus::PROCESSING->isTerminal());
+        // The queue will come back to it, so the wizard must keep waiting.
+        $this->assertFalse(ExtractionStatus::PENDING_RETRY->isTerminal());
     }
 
     public function testAllCasesHaveLabels(): void

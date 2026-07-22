@@ -16,6 +16,11 @@ use App\Enum\LlmFinishReason;
  *   - `tokensIn`     — input token count, useful for cost telemetry / audit.
  *   - `tokensOut`    — output token count.
  *   - `finishReason` — neutral classification (see {@see LlmFinishReason}).
+ *   - `cacheReadInputTokens` / `cacheCreationInputTokens`: how much of the
+ *     input was served from, or written into, the provider's prompt cache.
+ *     Without them the effect of a caching change is invisible: total input
+ *     tokens barely move, only their price does. Providers without a prompt
+ *     cache report zero on both.
  */
 final readonly class LlmResponse
 {
@@ -24,5 +29,7 @@ final readonly class LlmResponse
         public int $tokensIn,
         public int $tokensOut,
         public LlmFinishReason $finishReason,
+        public int $cacheReadInputTokens = 0,
+        public int $cacheCreationInputTokens = 0,
     ) {}
 }

@@ -6,6 +6,7 @@ use App\DTO\Extraction\ClaimExtraction;
 use App\DTO\Extraction\CreditorExtraction;
 use App\DTO\Extraction\DebtorExtraction;
 use App\DTO\Extraction\ExtractedDocumentData;
+use App\Enum\ExtractionFailureReason;
 use App\Enum\LegalGroundCategory;
 use App\Enum\PersonType;
 use PHPUnit\Framework\TestCase;
@@ -27,9 +28,47 @@ class ExtractedDocumentDataTest extends TestCase
         $this->assertSame(0.0, $dto->globalConfidence);
         $this->assertSame($extractedAt, $dto->extractedAt);
         $this->assertNull($dto->creditor);
-        $this->assertNull($dto->debtor);
+        $this->assertNull($dto->primaryDebtor());
         $this->assertNull($dto->claim);
         $this->assertNull($dto->rawOcrText);
+        $this->assertNull($dto->failureReason);
+    }
+
+    /**
+     * The reason travels from the strategy to the orchestrator on this DTO, and
+     * is persisted alongside the payload. Serialising it as the backed value
+     * keeps stored JSON readable without a PHP enum to decode it.
+     */
+    public function testFailureReasonSurvivesSerialisationAsItsBackedValue(): void
+    {
+        $dto = new ExtractedDocumentData(
+            sourceDocumentId: 3,
+            strategy: 'ai_vision',
+            globalConfidence: 0.0,
+            extractedAt: new \DateTimeImmutable('2026-07-21 10:00:00+00:00'),
+            failureReason: ExtractionFailureReason::RESPONSE_TRUNCATED,
+        );
+
+        $array = $dto->toArray();
+
+        $this->assertSame('RESPONSE_TRUNCATED', $array['failureReason']);
+        $this->assertSame(
+            ExtractionFailureReason::RESPONSE_TRUNCATED,
+            ExtractionFailureReason::from($array['failureReason']),
+        );
+    }
+
+    public function testFailureReasonIsNullInTheArrayOnASuccessfulResult(): void
+    {
+        $dto = new ExtractedDocumentData(
+            sourceDocumentId: 4,
+            strategy: 'ai_vision',
+            globalConfidence: 0.8,
+            extractedAt: new \DateTimeImmutable('2026-07-21 10:00:00+00:00'),
+        );
+
+        $this->assertArrayHasKey('failureReason', $dto->toArray());
+        $this->assertNull($dto->toArray()['failureReason']);
     }
 
     public function testCanConstructWithAllSubDtos(): void
@@ -40,15 +79,15 @@ class ExtractedDocumentDataTest extends TestCase
             globalConfidence: 0.85,
             extractedAt: new \DateTimeImmutable('2026-05-09 12:00:00'),
             creditor: new CreditorExtraction(personType: PersonType::PJ, name: 'SC Foo SRL', cui: 'RO12345678'),
-            debtor: new DebtorExtraction(personType: PersonType::PJ, name: 'SC Bar SRL', cui: 'RO87654321'),
+            debtors: [new DebtorExtraction(personType: PersonType::PJ, name: 'SC Bar SRL', cui: 'RO87654321')],
             claim: new ClaimExtraction(amount: 5000.0, currency: 'RON', legalGround: LegalGroundCategory::FACTURA_ACCEPTATA),
             rawOcrText: 'sample text',
         );
 
         $this->assertNotNull($dto->creditor);
         $this->assertSame('SC Foo SRL', $dto->creditor->name);
-        $this->assertNotNull($dto->debtor);
-        $this->assertSame('SC Bar SRL', $dto->debtor->name);
+        $this->assertNotNull($dto->primaryDebtor());
+        $this->assertSame('SC Bar SRL', $dto->primaryDebtor()->name);
         $this->assertNotNull($dto->claim);
         $this->assertSame(5000.0, $dto->claim->amount);
         $this->assertSame(LegalGroundCategory::FACTURA_ACCEPTATA, $dto->claim->legalGround);
@@ -71,11 +110,11 @@ class ExtractedDocumentDataTest extends TestCase
                 iban: 'RO49AAAA1B31007593840000',
                 confidencePerField: ['name' => 0.95, 'cui' => 0.99],
             ),
-            debtor: new DebtorExtraction(
+            debtors: [new DebtorExtraction(
                 personType: PersonType::PF,
                 name: 'Ion Popescu',
                 personalId: '1234567890123',
-            ),
+            )],
             claim: new ClaimExtraction(
                 amount: 5000.0,
                 currency: 'RON',
@@ -123,11 +162,11 @@ class ExtractedDocumentDataTest extends TestCase
                 name: 'SC Creditor SRL',
                 bankName: 'Banca Transilvania',
             ),
-            debtor: new DebtorExtraction(
+            debtors: [new DebtorExtraction(
                 name: 'SC Debtor SRL',
                 county: 'Cluj',
                 locality: 'Cluj-Napoca',
-            ),
+            )],
             claim: new ClaimExtraction(
                 amount: 12000.0,
                 invoiceNumber: 'MJ 2026-00042',

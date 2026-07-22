@@ -7,18 +7,21 @@
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6"
      data-controller="wizard-step0"
      data-toast-completed="{{ 'wizard.step0.toast.completed'|trans }}"
-     data-toast-failed="{{ 'wizard.step0.toast.failed'|trans }}">
+     data-toast-failed="{{ 'wizard.step0.toast.failed'|trans }}"
+     data-toast-skipped="{{ 'wizard.step0.toast.skipped'|trans }}">
 
     <div class="lg:col-span-2 space-y-6">
-        {# Upload form — submits INTO the dynamic frame so the page stays put.
-           Turbo intercepts the POST automatically when `data-turbo-frame` matches
-           an existing frame on the page; the controller responds with a Turbo
-           Stream that swaps the frame + sidecard + appends a toast. No PRG
-           redirect, no scroll jump, no flash-message-vanishes-on-reload. #}
+        {# Upload form: the POST answers with a Turbo Stream that swaps the
+           documents frame, swaps the sidecard and appends the outcome toasts.
+           The submission is deliberately NOT scoped to a frame: a frame-scoped
+           submission makes Turbo keep only the matching frame of the response
+           and drop every stream element aimed elsewhere, which silently
+           swallowed the toasts (duplicate skipped, rate limit, rejected file).
+           Streams replace their targets in place, so the page still stays put:
+           no PRG redirect, no scroll jump, no flash lost on reload. #}
         {{ form_start(form, { attr: {
             'class': 'relative bg-white dark:bg-slate-900 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-600 transition p-12 text-center shadow-soft overflow-hidden',
             'enctype': 'multipart/form-data',
-            'data-turbo-frame': 'step0-dynamic',
         }}) }}
             <div class="absolute top-0 right-0 size-40 bg-gradient-to-br from-blue-100/40 to-transparent dark:from-blue-950/30 rounded-full blur-3xl pointer-events-none" aria-hidden="true"></div>
             <div class="relative">
@@ -32,6 +35,18 @@
                     <span>{{ 'wizard.step0.drop_zone.cta'|trans }}</span>
                     {{ form_widget(form.documents, { attr: { 'class': 'sr-only', 'data-action': 'change->wizard-step0#submitOnChange' }}) }}
                 </label>
+                {# Declaring the type before choosing files sends the batch to
+                   the prompt written for it. Left on "detect automatically",
+                   the extractor works out the type itself. #}
+                <div class="mt-4 max-w-sm mx-auto text-left">
+                    <label for="{{ form.documentType.vars.id }}" class="block text-xs font-medium text-slate-600 dark:text-slate-400">
+                        {{ 'wizard.step0.document_type.label'|trans }}
+                    </label>
+                    {{ form_widget(form.documentType, { attr: {
+                        'class': 'mt-1 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100',
+                    }}) }}
+                    <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ 'wizard.step0.document_type.help'|trans }}</p>
+                </div>
                 <div class="mt-3">
                     {{ form_errors(form.documents) }}
                 </div>

@@ -8,6 +8,7 @@ use App\Entity\LegalCase;
 use App\Enum\CaseStatus;
 use App\Enum\DebitAcknowledgedStatus;
 use App\Enum\DocumentType;
+use App\Enum\IssueSeverity;
 use App\Repository\DocumentRepository;
 use App\Repository\LegalCaseRepository;
 use App\Security\Voter\CaseVoter;
@@ -18,6 +19,7 @@ use App\Service\Deadline\DeadlineService;
 use App\Service\Document\CaseFilesPackager;
 use App\Service\Document\OpisGeneratorService;
 use App\Service\Document\PaymentOrderRequestGeneratorService;
+use App\Service\Validation\OpAdmissibilityValidator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -45,6 +47,7 @@ final class CasePaymentOrderController extends AbstractController
         private readonly OverviewContextBuilder $contextBuilder,
         private readonly DeadlineService $deadlineService,
         private readonly EntityManagerInterface $em,
+        private readonly OpAdmissibilityValidator $admissibility,
     ) {}
 
     #[Route('/case/{id}/payment-order/generate', name: 'case_payment_order_generate', requirements: ['id' => '\d+'], methods: ['POST'])]
@@ -93,6 +96,20 @@ final class CasePaymentOrderController extends AbstractController
         // law allows but puts a 10-day annulment clock on the case.
         if (!$case->getStampDutyStatus()->allowsFiling()) {
             return $this->respond($request, $case, false, 'error', 'case_overview.payment_order.flash_error_stamp_duty_missing');
+        }
+
+        // Exigibility is re-checked here and not only at the wizard: this is the
+        // boundary where a document leaves for the court. A claim position that is
+        // not yet due makes the petition inadmissible for that sum (CPC art. 1013),
+        // and a wizard POST cannot be the only thing standing between it and the
+        // registry. The debtor-standing rules are deliberately not re-run here:
+        // they are a condition of opening the case, already enforced at creation,
+        // and a stale BPI check must not silently block a filing in progress.
+        foreach ($this->admissibility->validate($case) as $issue) {
+            if ($issue->severity === IssueSeverity::ERROR
+                && in_array($issue->code, ['OP_DEBT_NOT_YET_DUE', 'OP_ITEM_NOT_YET_DUE'], true)) {
+                return $this->respond($request, $case, false, 'error', $issue->messageKey);
+            }
         }
 
         $user = $this->getUser();
