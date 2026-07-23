@@ -382,6 +382,10 @@ wizard:
             interest_unavailable: 'Nedeterminată'
             interest_none: '—'
             no_interest_hint: 'Dobânda nu a putut fi calculată pentru această poziție. Verifică scadența și rata BNR aplicabilă.'
+            counted_summary: '%count% poziții luate în calcul'
+            bnr_breakdown: 'Perioade BNR (%count%)'
+            issued: 'Emisă %date%'
+            cause_placeholder: 'ex. Contract 12/2024'
             error:
                 table_not_confirmed: 'Bifează „Am verificat pozițiile de creanță" înainte de a continua.'
                 individual_confirmation: 'Confirmă individual pozițiile marcate: au o problemă pe care confirmarea pe tabel nu o acoperă.'

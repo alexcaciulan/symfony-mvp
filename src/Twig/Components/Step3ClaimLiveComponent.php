@@ -7,12 +7,17 @@ namespace App\Twig\Components;
 use App\DTO\Calculation\CurrencyConversionResult;
 use App\DTO\Calculation\InterestResult;
 use App\DTO\Calculation\StampDutyResult;
+use App\DTO\Wizard\ClaimItemRow;
 use App\DTO\Wizard\Step3ClaimData;
+use App\Enum\ClaimItemKind;
+use App\Enum\PenaltyType;
 use App\Enum\RelationshipType;
 use App\Form\Wizard\Step3ClaimType;
 use App\Service\Calculation\CurrencyConverter;
 use App\Service\Calculation\InterestCalculatorService;
 use App\Service\Calculation\StampDutyCalculator;
+use App\Service\Case\ClaimPositionsSummarizer;
+use App\Util\RomanianAmountParser;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\Form\FormInterface;
 use Symfony\UX\LiveComponent\Attribute\AsLiveComponent;
@@ -51,31 +56,45 @@ final class Step3ClaimLiveComponent extends AbstractController
     public ?Step3ClaimData $initialFormData = null;
 
     /**
-     * How many claim positions the file carries, and what they total.
+     * The claim positions the lawyer edits, as plain arrays so their scalars
+     * (amount as a Romanian-typed string, dates as Y-m-d) round-trip through
+     * the live model without float or DateTime coercion. Writable and bound
+     * with `data-model` per field, so editing a sum or a due date re-renders
+     * the table and the sidebar off the same figures the submit path will use.
      *
-     * The positions, not the scalar amount on this form, are what the submit
-     * path computes on. When there are any, the sidebar shows their figures:
-     * a live total recomputed from a single amount and a single due date is a
-     * number the next screen will never produce, and it is the number the
-     * lawyer watches while filling the step.
+     * @var list<array<string, mixed>>
+     */
+    #[LiveProp(writable: true)]
+    public array $rows = [];
+
+    /** Confirmation threshold, needed to flag rows that require their own tick. */
+    #[LiveProp]
+    public float $reviewThreshold = 0.6;
+
+    /** The whole-table confirmation checkbox, kept so it survives re-renders. */
+    #[LiveProp(writable: true)]
+    public bool $tableConfirmed = false;
+
+    /**
+     * Errors from a rejected submit, shown on the full-page render. A live edit
+     * is a new state, so they clear on the next re-render.
+     *
+     * @var list<string>
      */
     #[LiveProp]
-    public int $positionCount = 0;
+    public array $claimItemsErrors = [];
 
-    #[LiveProp]
-    public ?float $positionPrincipal = null;
-
-    #[LiveProp]
-    public ?float $positionAccessory = null;
-
-    /** Earliest due date across the positions, in Y-m-d. */
-    #[LiveProp]
-    public ?string $positionDueDate = null;
+    /**
+     * @var array<string, mixed>|null Memoized within one render: the aggregator
+     *      is not free to run once per template getter.
+     */
+    private ?array $positionSummaryCache = null;
 
     public function __construct(
         private readonly InterestCalculatorService $interestService,
         private readonly StampDutyCalculator $stampDutyCalculator,
         private readonly CurrencyConverter $currencyConverter,
+        private readonly ClaimPositionsSummarizer $positionsSummarizer,
     ) {}
 
     protected function instantiateForm(): FormInterface
@@ -86,7 +105,135 @@ final class Step3ClaimLiveComponent extends AbstractController
     /** Whether the claim is described by positions rather than by this form's scalars. */
     public function isPositionDriven(): bool
     {
-        return $this->positionCount > 0;
+        return $this->rows !== [];
+    }
+
+    /**
+     * The rows the lawyer is looking at, for the template to iterate. Kept as
+     * arrays so the readonly fields render and the editable ones stay bound to
+     * `data-model`.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function getRows(): array
+    {
+        return $this->rows;
+    }
+
+    /**
+     * Per-row accessory, breakdown and totals recomputed from the current rows
+     * and the current relationship/penalty picked on the scalar form. This is
+     * the same computation the submit path runs, so the figure the lawyer edits
+     * toward matches the one that gets persisted.
+     *
+     * @return array<string, mixed>
+     */
+    public function getPositionSummary(): array
+    {
+        if ($this->positionSummaryCache !== null) {
+            return $this->positionSummaryCache;
+        }
+
+        $rows = array_map([$this, 'rowFromArray'], $this->rows);
+        $relationship = RelationshipType::tryFrom($this->stringFromFormValues('relationshipType') ?? '')
+            ?? RelationshipType::COMERCIAL;
+        $penalty = PenaltyType::tryFrom($this->stringFromFormValues('penaltyType') ?? '')
+            ?? PenaltyType::LEGAL_PENALIZATOARE;
+        $rate = $this->floatFromFormValues('contractualPenaltyRate');
+
+        return $this->positionSummaryCache = $this->positionsSummarizer->summarize($rows, $relationship, $penalty, $rate);
+    }
+
+    public function getPositionCount(): int
+    {
+        return $this->getPositionSummary()['countedRows'];
+    }
+
+    public function getPositionPrincipal(): ?float
+    {
+        return $this->getPositionSummary()['countedRows'] > 0 ? $this->getPositionSummary()['principal'] : null;
+    }
+
+    public function getPositionAccessory(): ?float
+    {
+        return $this->getPositionSummary()['countedRows'] > 0 ? $this->getPositionSummary()['accessory'] : null;
+    }
+
+    public function getPositionDueDate(): ?string
+    {
+        $earliest = $this->getPositionSummary()['earliestDueDate'];
+
+        return $earliest instanceof \DateTimeImmutable ? $earliest->format('Y-m-d') : null;
+    }
+
+    /**
+     * Rebuild a row DTO from its live array. The amount is parsed the same
+     * Romanian-aware way as the submit path, and the RON value follows it so a
+     * corrected sum flows straight into the totals; a blank or unparsable entry
+     * keeps the last known figure rather than zeroing the position.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function rowFromArray(array $row): ClaimItemRow
+    {
+        $currency = is_string($row['currency'] ?? null) && $row['currency'] !== '' ? $row['currency'] : 'RON';
+        $parsed = RomanianAmountParser::parse(is_string($row['amount'] ?? null) ? $row['amount'] : '');
+        $amount = $parsed ?? (is_numeric($row['fallbackAmount'] ?? null) ? (float) $row['fallbackAmount'] : 0.0);
+
+        $storedRon = is_numeric($row['amountRon'] ?? null) ? (float) $row['amountRon'] : null;
+        // RON positions convert one-to-one, so an edited sum is its own RON
+        // value; foreign currency keeps the rate-based figure resolved earlier.
+        $amountRon = $currency === 'RON' ? $amount : $storedRon;
+
+        return new ClaimItemRow(
+            dedupKey: (string) ($row['key'] ?? ''),
+            amount: $amount,
+            currency: $currency,
+            kind: ClaimItemKind::tryFrom(is_string($row['kind'] ?? null) ? $row['kind'] : '') ?? ClaimItemKind::INVOICE,
+            documentNumber: $this->nullableString($row['number'] ?? null),
+            documentDate: $this->immutableDate($row['documentDate'] ?? null),
+            dueDate: $this->immutableDate($row['dueDate'] ?? null),
+            amountRon: $amountRon,
+            exchangeRate: is_numeric($row['exchangeRate'] ?? null) ? (float) $row['exchangeRate'] : null,
+            exchangeRateDate: $this->immutableDate($row['exchangeRateDate'] ?? null),
+            needsManualFx: (bool) ($row['needsManualFx'] ?? false),
+            paidAmount: is_numeric($row['paidAmount'] ?? null) ? (float) $row['paidAmount'] : 0.0,
+            sourceDocumentId: is_numeric($row['sourceDocumentId'] ?? null) ? (int) $row['sourceDocumentId'] : null,
+            causeReference: $this->nullableString($row['cause'] ?? null),
+            causeDocumentId: is_numeric($row['causeDocumentId'] ?? null) ? (int) $row['causeDocumentId'] : null,
+            description: $this->nullableString($row['description'] ?? null),
+            confidence: is_numeric($row['confidence'] ?? null) ? (float) $row['confidence'] : 1.0,
+            confirmed: (bool) ($row['confirmed'] ?? false),
+            excluded: (bool) ($row['excluded'] ?? false),
+            warningKeys: is_array($row['warningKeys'] ?? null) ? array_values(array_filter($row['warningKeys'], 'is_string')) : [],
+            hasStatedDeduction: (bool) ($row['hasStatedDeduction'] ?? false),
+        );
+    }
+
+    /**
+     * Whether a row's own tick is required because the single table-wide
+     * checkbox may not confirm it on the lawyer's behalf.
+     *
+     * @param array<string, mixed> $row
+     */
+    public function rowRequiresConfirmation(array $row): bool
+    {
+        return $this->rowFromArray($row)->requiresIndividualConfirmation($this->reviewThreshold);
+    }
+
+    private function immutableDate(mixed $raw): ?\DateTimeImmutable
+    {
+        if (!is_string($raw) || trim($raw) === '') {
+            return null;
+        }
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', substr($raw, 0, 10));
+
+        return $date !== false ? $date : null;
+    }
+
+    private function nullableString(mixed $raw): ?string
+    {
+        return is_string($raw) && $raw !== '' ? $raw : null;
     }
 
     public function getInterest(): ?InterestResult

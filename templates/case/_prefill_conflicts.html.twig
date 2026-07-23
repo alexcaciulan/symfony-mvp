@@ -15,6 +15,14 @@
    Rendered read-only in the step 0 side card and on the confirmation screen:
    there the documents may still be processing, or the decision belongs to a
    step already behind. #}
+{# Enum-valued fields carry a code (CONTRACT_PRESTARI_SERVICII), not a phrase; show
+   the label the rest of the wizard uses so the lawyer reads what the value means,
+   not the field key it is stored under. Everything else prints as read. #}
+{% macro value_label(field, value, fallback) %}
+{%- set prefixes = {'legalGround': 'enum.legal_ground_category.', 'penaltyType': 'enum.penalty_type.', 'personType': 'enum.person_type.'} -%}
+{%- set prefix = prefixes[field]|default(null) -%}
+{%- if prefix and value is not null and value is not empty -%}{{ (prefix ~ value)|trans }}{%- else -%}{{ fallback }}{%- endif -%}
+{% endmacro %}
 {% set conflicts = prefill_conflicts|default([]) %}
 {% set resolutions = prefill_conflict_resolutions|default({}) %}
 {% set document_names = prefill_conflict_documents|default({}) %}
@@ -43,7 +51,7 @@
                                     <ul class="mt-1 ml-1 space-y-0.5">
                                         {% for option in conflict.options %}
                                             <li class="text-xs text-slate-600 dark:text-slate-300">
-                                                <span class="font-medium text-slate-900 dark:text-slate-100">{{ option.displayValue }}</span>
+                                                <span class="font-medium text-slate-900 dark:text-slate-100">{{ _self.value_label(conflict.field, option.value, option.displayValue) }}</span>
                                                 <span class="text-slate-400">·</span>
                                                 {{ include('case/_prefill_conflict_source.html.twig', { option: option, document_names: document_names }) }}
                                             </li>
@@ -51,7 +59,7 @@
                                     </ul>
                                     {% if resolution is not null %}
                                         <p class="mt-1 text-xs font-medium text-emerald-700 dark:text-emerald-400" data-testid="prefill-conflict-chosen">
-                                            {{ 'wizard.conflict.chosen'|trans({'%value%': resolution.displayValue}) }}
+                                            {{ 'wizard.conflict.chosen'|trans({'%value%': resolution.manual ? resolution.displayValue : _self.value_label(conflict.field, resolution.value, resolution.displayValue)}) }}
                                         </p>
                                     {% endif %}
                                 {% else %}
@@ -74,7 +82,7 @@
                                                        data-testid="prefill-conflict-option"
                                                        {% if is_chosen %}checked{% endif %}>
                                                 <span class="min-w-0">
-                                                    <span class="font-medium text-slate-900 dark:text-slate-100 break-words">{{ option.displayValue }}</span>
+                                                    <span class="font-medium text-slate-900 dark:text-slate-100 break-words">{{ _self.value_label(conflict.field, option.value, option.displayValue) }}</span>
                                                     {% if is_suggested %}
                                                         <span class="ml-1 inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-300">{{ 'wizard.conflict.suggested'|trans }}</span>
                                                     {% endif %}

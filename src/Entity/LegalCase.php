@@ -140,8 +140,12 @@ class LegalCase
     #[ORM\Column(type: Types::DECIMAL, precision: 5, scale: 3, nullable: true)]
     private ?string $contractualPenaltyRate = null;
 
-    /** Referința clauzei penale din contract (ex. „art. 3 din Contract"). */
-    #[ORM\Column(length: 100, nullable: true)]
+    /**
+     * Referința clauzei penale din contract (ex. „art. 3 din Contract"). AI
+     * extraction sometimes returns a longer descriptive phrase, so the column
+     * has headroom and the persist path caps it as a final guard.
+     */
+    #[ORM\Column(length: 255, nullable: true)]
     private ?string $contractReference = null;
 
     /**

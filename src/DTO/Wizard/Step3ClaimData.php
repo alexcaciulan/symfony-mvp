@@ -72,7 +72,11 @@ class Step3ClaimData
             ],
         )]
         public ?float $contractualPenaltyRate = null,
+        // Bounded to their column widths so an over-long value gets a validation
+        // message rather than being silently cut at persist.
+        #[Assert\Length(max: 255, maxMessage: 'wizard.step3.error.contract_reference_too_long')]
         public ?string $contractReference = null,
+        #[Assert\Length(max: 100, maxMessage: 'wizard.step3.error.invoice_number_too_long')]
         public ?string $invoiceNumber = null,
         // A foreign-currency claim is converted to RON at the BNR rate of the
         // invoice emission date, so that date is mandatory when currency != RON.
@@ -88,6 +92,7 @@ class Step3ClaimData
             ],
         )]
         public ?\DateTimeImmutable $invoiceDate = null,
+        #[Assert\Length(max: 100, maxMessage: 'wizard.step3.error.contract_number_too_long')]
         public ?string $contractNumber = null,
         public ?\DateTimeImmutable $contractDate = null,
         #[Assert\PositiveOrZero(message: 'wizard.step3.error.legal_costs_fixed_positive')]

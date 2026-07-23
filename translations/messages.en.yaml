@@ -362,6 +362,10 @@ wizard:
             interest_unavailable: 'Undetermined'
             interest_none: '—'
             no_interest_hint: 'Interest could not be computed for this position. Check the due date and the applicable NBR rate.'
+            counted_summary: '%count% positions counted'
+            bnr_breakdown: 'NBR periods (%count%)'
+            issued: 'Issued %date%'
+            cause_placeholder: 'e.g. Contract 12/2024'
             error:
                 table_not_confirmed: 'Tick "I have checked the claim positions" before continuing.'
                 individual_confirmation: 'Confirm the flagged positions one by one: they carry an issue the table confirmation does not cover.'

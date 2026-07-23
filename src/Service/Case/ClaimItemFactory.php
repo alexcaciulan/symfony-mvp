@@ -20,6 +20,7 @@ use App\Enum\DocumentType;
 use App\Repository\DocumentRepository;
 use App\Service\Calculation\CurrencyConverter;
 use App\Service\Extraction\ClaimItemDeduplicator;
+use App\Util\StringCapper;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
@@ -401,7 +402,7 @@ final class ClaimItemFactory
             $item = new ClaimItem();
             $item->setLegalCase($case);
             $item->setKind($row->kind);
-            $item->setDocumentNumber($row->documentNumber);
+            $item->setDocumentNumber(StringCapper::cap($row->documentNumber, 100));
             $item->setDocumentDate($row->documentDate);
             $item->setDueDate($row->dueDate);
             $item->setAmount(sprintf('%.2f', $row->amount));
@@ -415,6 +416,10 @@ final class ClaimItemFactory
             $item->setSourceDocument(
                 $row->sourceDocumentId !== null ? ($documentsById[$row->sourceDocumentId] ?? null) : null
             );
+            // Not truncated: causeKey() groups positions on the whole value for
+            // material competence (CPC art. 99), so a cut that made two distinct
+            // causes share a prefix would route the claim to the wrong court. The
+            // column has room (255); a value beyond it fails loud, not silently.
             $item->setCauseReference($row->causeReference);
             $item->setCauseDocument(
                 $row->causeDocumentId !== null ? ($documentsById[$row->causeDocumentId] ?? null) : null

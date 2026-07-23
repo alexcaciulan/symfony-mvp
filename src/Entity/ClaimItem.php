@@ -107,8 +107,13 @@ class ClaimItem
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?Document $sourceDocument = null;
 
-    /** Title or cause this position arises from; the grouping key for CPC art. 99. */
-    #[ORM\Column(length: 150, nullable: true)]
+    /**
+     * Title or cause this position arises from; the grouping key for CPC art. 99.
+     * Never truncated on the way in: causeKey() groups on the whole value, so a
+     * cut that made two distinct causes share a prefix would move the claim to
+     * the wrong court.
+     */
+    #[ORM\Column(length: 255, nullable: true)]
     private ?string $causeReference = null;
 
     #[ORM\ManyToOne(targetEntity: Document::class)]

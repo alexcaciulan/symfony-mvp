@@ -48,6 +48,9 @@ class Step1CreditorData
         public ?string $cui = null,
         #[ValidCnp]
         public ?string $personalId = null,
+        // Bounded to its column width so an over-long AI-extracted value gets a
+        // validation message rather than 500-ing the save on truncation.
+        #[Assert\Length(max: 50)]
         public ?string $onrcNumber = null,
         #[Assert\NotBlank(
             message: 'wizard.step1.error.address_required',
@@ -64,6 +67,7 @@ class Step1CreditorData
         public ?string $anafCheckedAt = null,
         #[Assert\Email(message: 'validation.email.invalid')]
         public ?string $email = null,
+        #[Assert\Length(max: 30)]
         public ?string $phone = null,
         // IBAN accepted with optional spaces (BCR/BT statements often show
         // RO49 RNCB 0082 ...). Strip + upper before regex via normalizer in

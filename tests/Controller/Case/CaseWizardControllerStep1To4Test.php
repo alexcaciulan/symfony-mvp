@@ -304,6 +304,32 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         self::assertCount(0, $cases, 'LegalCase must NOT be persisted when acknowledgedWarnings is missing');
     }
 
+    public function testAContractObjectLongerThanTheOldColumnSavesWithoutCrashing(): void
+    {
+        // The user's real case: AI put the contract's object phrase (over the old
+        // 100-char limit, within the widened 255) into contractReference, which
+        // used to 500 the save. It must now persist whole, since the same value
+        // flows into ClaimItem.causeReference that groups positions for CPC art. 99.
+        $reference = 'Servicii de dezvoltare software: realizare programe, cod sursa, documentatii tehnice si mentenanta lunara'; // ~104 chars
+        $this->primeSessionForStep4(
+            anafCheckedAt: new \DateTimeImmutable('-1 day'),
+            insolvencyCheckedAt: new \DateTimeImmutable('-1 day'),
+            contractReference: $reference,
+        );
+
+        $crawler = $this->client->request('GET', '/case/new/confirmation');
+        $token = $crawler->filter('form input[name="step4_confirmation[_token]"]')->first()->attr('value');
+        $this->client->request('POST', '/case/new/confirmation', [
+            'step4_confirmation' => ['_token' => $token, 'acceptTerms' => '1', 'acceptDataAccuracy' => '1'],
+        ]);
+        $this->em->clear();
+
+        $cases = $this->em->getRepository(LegalCase::class)->findBy(['user' => $this->user]);
+        self::assertCount(1, $cases, 'The case saves without a truncation 500');
+        // Stored whole, not cut: the cause key that decides competence reads it in full.
+        self::assertSame($reference, $cases[0]->getContractReference());
+    }
+
     public function testConfirmationSubmitHappyPathPersistsCaseDebtorAuditLogAndRedirects(): void
     {
         $this->primeSessionForStep4(
@@ -770,6 +796,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         array $documentIds = [],
         ?string $addressCounty = null,
         ?string $addressLocality = null,
+        ?string $contractReference = null,
     ): void {
         $anafCheckedAt ??= new \DateTimeImmutable('-1 day');
 
@@ -797,6 +824,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
             currency: 'RON',
             dueDate: new \DateTimeImmutable('-30 days'),
             relationshipType: RelationshipType::COMERCIAL,
+            contractReference: $contractReference,
         );
 
         // Prime session via the KernelBrowser. We use a direct request first

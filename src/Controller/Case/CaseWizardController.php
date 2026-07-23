@@ -50,6 +50,9 @@ use App\Service\Calculation\InterestCalculatorService;
 use App\Service\Calculation\StampDutyCalculator;
 use App\Service\Case\ClaimItemFactory;
 use App\Service\Case\ClaimTotalsService;
+use App\Util\ClaimRowLiveMapper;
+use App\Util\RomanianAmountParser;
+use App\Util\StringCapper;
 use App\Service\Court\CompetentCourtResolver;
 use App\Service\Document\DocumentUploadService;
 use App\Service\Document\UploadDeduplicator;
@@ -608,12 +611,11 @@ final class CaseWizardController extends AbstractController
             }
         }
 
-        // Pas 3.3 — sidebar calc is owned by `Step3ClaimLiveComponent`. The
-        // controller no longer pre-renders interest / stamp duty / court for
-        // the page template; the Live Component recomputes from props on
-        // every debounced input change. Step 4 still uses
-        // {@see safeComputeForSidebar()} to materialize the final figures.
-        $rowSummary = $this->summarizeRows($rows, $dto);
+        // Pas 3.3 — the sidebar AND the positions table are owned by
+        // `Step3ClaimLiveComponent`, which recomputes interest and totals from
+        // its `rows` prop on every debounced edit. The controller only hands it
+        // the initial rows; Step 4 uses {@see safeComputeForSidebar()} for the
+        // final figures.
         $this->saveBag($session, $bag);
 
         return $this->render('case/_step3_claim_content.html.twig', [
@@ -621,89 +623,12 @@ final class CaseWizardController extends AbstractController
             'form' => $form,
             'dto' => $dto,
             'claim_items' => $rows,
+            'claim_items_live' => ClaimRowLiveMapper::toArrays($rows),
             'claim_items_table_confirmed' => $tableConfirmed,
             'claim_items_review_threshold' => $this->confidenceThreshold,
             'claim_items_errors' => $rowErrors,
-            'claim_items_summary' => $rowSummary,
             ...$this->conflictViewVars($bag, $conflicts, 'claim', $rejected),
         ], $this->stepRejected($acknowledged));
-    }
-
-    /**
-     * Per-row accessory and totals for the step 3 table, so the lawyer sees the
-     * same figures the submit path will compute rather than a sidebar total on
-     * a single scalar amount.
-     *
-     * @param  list<ClaimItemRow> $rows
-     * @return array{accessoryByRow: array<int, ?float>, unavailableRows: list<int>, principal: float, accessory: float, earliestDueDate: ?\DateTimeImmutable, countedRows: int}
-     */
-    private function summarizeRows(array $rows, Step3ClaimData $claim): array
-    {
-        $summary = [
-            'accessoryByRow' => [],
-            'unavailableRows' => [],
-            'principal' => 0.0,
-            'accessory' => 0.0,
-            'earliestDueDate' => null,
-            'countedRows' => 0,
-        ];
-
-        if ($rows === []) {
-            return $summary;
-        }
-
-        $counting = [];
-        foreach ($rows as $index => $row) {
-            if (!$row->willCount()) {
-                continue;
-            }
-            $counting[$index] = $row;
-            $summary['principal'] += $row->signedAmountRon() ?? 0.0;
-            ++$summary['countedRows'];
-
-            $dueDate = $row->dueDate;
-            if ($dueDate !== null
-                && ($summary['earliestDueDate'] === null || $dueDate < $summary['earliestDueDate'])) {
-                $summary['earliestDueDate'] = $dueDate;
-            }
-        }
-
-        $summary['principal'] = round($summary['principal'], 2);
-        if ($counting === []) {
-            return $summary;
-        }
-
-        // Materialized against a throwaway case: the aggregator works on
-        // entities, and these rows are not persisted until step 4.
-        $items = $this->claimItemFactory->materialize(new LegalCase(), $rows);
-        $countingItems = array_intersect_key($items, $counting);
-
-        try {
-            $accessory = $this->accessoryAggregator->aggregate(
-                items: $countingItems,
-                referenceDate: new \DateTimeImmutable(),
-                relationshipType: $claim->relationshipType ?? RelationshipType::COMERCIAL,
-                penaltyType: $claim->penaltyType ?? PenaltyType::LEGAL_PENALIZATOARE,
-                contractualDailyRate: $claim->contractualPenaltyRate,
-            );
-        } catch (\DomainException | \RuntimeException $e) {
-            $this->logger->info('wizard.calc.items_accessory_failed', ['reason' => $e->getMessage()]);
-
-            return $summary;
-        }
-
-        $summary['accessory'] = $accessory->total;
-        foreach ($counting as $index => $row) {
-            $result = $accessory->forItem(-($index + 1));
-            $summary['accessoryByRow'][$index] = $result?->total;
-            // A position with a due date that produced nothing is a computation
-            // that failed, not a position that owes nothing. Say which.
-            if ($result === null && $row->dueDate !== null && !$row->isCreditNote()) {
-                $summary['unavailableRows'][] = $index;
-            }
-        }
-
-        return $summary;
     }
 
     /**
@@ -796,25 +721,7 @@ final class CaseWizardController extends AbstractController
      */
     private function postedAmount(mixed $raw): ?float
     {
-        if (!is_string($raw)) {
-            return null;
-        }
-        $normalized = str_replace(' ', '', trim($raw));
-        // Digits, comma and dot only: is_numeric() would otherwise accept "1e6"
-        // and turn a mistyped sum into a million, silently corrupting the
-        // principal filed with the court.
-        if ($normalized === '' || preg_match('/[^0-9.,]/', $normalized) === 1) {
-            return null;
-        }
-        if (str_contains($normalized, ',')) {
-            $normalized = str_replace(['.', ','], ['', '.'], $normalized);
-        }
-        if (!is_numeric($normalized)) {
-            return null;
-        }
-        $value = (float) $normalized;
-
-        return $value > 0.0 ? round($value, 2) : null;
+        return is_string($raw) ? RomanianAmountParser::parse($raw) : null;
     }
 
     private function postedDate(mixed $raw): ?\DateTimeImmutable
@@ -1457,11 +1364,14 @@ final class CaseWizardController extends AbstractController
         $case->setContractualPenaltyRate(
             $claimDto->contractualPenaltyRate !== null ? sprintf('%.3f', $claimDto->contractualPenaltyRate) : null
         );
-        $case->setContractReference($claimDto->contractReference);
+        // AI extraction can return a longer string than a column holds (a
+        // contract's object phrase lands in contractReference, say), so cap
+        // each to its column length rather than let the save 500.
+        $case->setContractReference(StringCapper::cap($claimDto->contractReference, 255));
         $case->setClaimDescription($claimDto->description);
-        $case->setInvoiceNumber($claimDto->invoiceNumber);
+        $case->setInvoiceNumber(StringCapper::cap($claimDto->invoiceNumber, 100));
         $case->setInvoiceDate($claimDto->invoiceDate !== null ? \DateTime::createFromImmutable($claimDto->invoiceDate) : null);
-        $case->setContractNumber($claimDto->contractNumber);
+        $case->setContractNumber(StringCapper::cap($claimDto->contractNumber, 100));
         $case->setContractDate($claimDto->contractDate !== null ? \DateTime::createFromImmutable($claimDto->contractDate) : null);
         $case->setLegalCostsFixed($claimDto->legalCostsFixed !== null ? sprintf('%.2f', $claimDto->legalCostsFixed) : null);
         $case->setLegalCostsCurrency($claimDto->legalCostsCurrency);

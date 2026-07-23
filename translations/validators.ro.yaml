@@ -71,6 +71,9 @@ wizard:
             penalty_rate_too_high: 'Rata zilnică pare prea mare (maxim 5%/zi). Verifică valoarea din contract.'
             legal_costs_fixed_positive: 'Onorariul fix nu poate fi negativ.'
             legal_costs_percent_range: 'Procentul onorariului de succes trebuie să fie între 0 și 100.'
+            contract_reference_too_long: 'Referința contractului este prea lungă (maxim 255 de caractere). Scurteaz-o.'
+            invoice_number_too_long: 'Numărul facturii este prea lung (maxim 100 de caractere).'
+            contract_number_too_long: 'Numărul contractului este prea lung (maxim 100 de caractere).'
     step4:
         error:
             must_accept_terms: 'Trebuie să accepți termenii de utilizare pentru a continua.'

@@ -177,6 +177,36 @@ final class CaseWizardClaimItemsFlowTest extends WebTestCase
         self::assertStringContainsString('FF-200', $html);
     }
 
+    public function testEachPositionShowsItsBnrRateBreakdown(): void
+    {
+        // A position whose interest window crosses BNR reference-rate changes
+        // (the 2024-07-08 and 2024-08-08 moves) must expose the per-period
+        // segmentation the scalar model showed before positions existed.
+        $rows = [new ClaimItemRow(
+            dedupKey: 'inv:FF-BNR',
+            amount: 10000.0,
+            currency: 'RON',
+            documentNumber: 'FF-BNR',
+            documentDate: new \DateTimeImmutable('2024-05-01'),
+            dueDate: new \DateTimeImmutable('2024-06-01'),
+            amountRon: 10000.0,
+            causeReference: 'Contract 1/2024',
+            confirmed: true,
+        )];
+        $this->primeSession($rows);
+
+        $this->client->request('GET', '/case/new/claim');
+
+        self::assertResponseIsSuccessful();
+        $html = (string) $this->client->getResponse()->getContent();
+        // The breakdown is present with more than one BNR period.
+        self::assertStringContainsString('Perioade BNR', $html);
+        // The two distinct applicable rates over the window (6.75 + 8 and
+        // 6.50 + 8) both appear.
+        self::assertStringContainsString('14.75%', $html);
+        self::assertStringContainsString('14.50%', $html);
+    }
+
     public function testStepThreeRefusesToAdvanceWithoutTheTableConfirmation(): void
     {
         $this->primeSession($this->threeRows());

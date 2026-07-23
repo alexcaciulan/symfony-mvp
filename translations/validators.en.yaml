@@ -71,6 +71,9 @@ wizard:
             penalty_rate_too_high: 'The daily rate seems too high (max 5%/day). Check the value in the contract.'
             legal_costs_fixed_positive: 'The fixed fee cannot be negative.'
             legal_costs_percent_range: 'The success fee percentage must be between 0 and 100.'
+            contract_reference_too_long: 'The contract reference is too long (max 255 characters). Shorten it.'
+            invoice_number_too_long: 'The invoice number is too long (max 100 characters).'
+            contract_number_too_long: 'The contract number is too long (max 100 characters).'
     step4:
         error:
             must_accept_terms: 'You must accept the terms of use to continue.'

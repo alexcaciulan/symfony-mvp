@@ -38,16 +38,22 @@ class Step2DebtorEntry
         public ?string $cui = null,
         #[ValidCnp]
         public ?string $personalId = null,
+        // Bounded to their column widths so an over-long AI-extracted value gets
+        // a validation message rather than 500-ing the save on truncation.
+        #[Assert\Length(max: 50)]
         public ?string $onrcNumber = null,
         #[Assert\NotBlank(message: 'wizard.step2.error.address_required')]
         public ?string $address = null,
         // County + locality drive competent-court resolution. Optional: when
         // missing the resolver returns court=null (manual pick at step 4).
         // Populated by the ANAF lookup, AI extraction, or manually.
+        #[Assert\Length(max: 100)]
         public ?string $addressCounty = null,
+        #[Assert\Length(max: 150)]
         public ?string $addressLocality = null,
         #[Assert\Email(message: 'validation.email.invalid')]
         public ?string $email = null,
+        #[Assert\Length(max: 30)]
         public ?string $phone = null,
         // IBAN accepted with optional spaces / lowercase — normalized to
         // upper + stripped by Step2DebtorEntryType before this regex fires.
