@@ -3,11 +3,16 @@
 namespace App\Tests\Controller\Admin;
 
 use App\Entity\AuditLog;
+use App\Entity\ClaimItem;
 use App\Entity\Court;
+use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\CaseStatus;
+use App\Enum\ClaimItemKind;
 use App\Enum\CourtType;
+use App\Enum\DocumentType;
+use App\Enum\ExtractionStatus;
 use App\Tests\Support\CountyFixtureTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -204,6 +209,8 @@ class AdminAccessTest extends WebTestCase
     {
         yield 'Creditor' => ['/admin/creditor'];
         yield 'Debtor' => ['/admin/debtor'];
+        yield 'ClaimItem' => ['/admin/claim-item'];
+        yield 'Document' => ['/admin/document'];
         yield 'LegalDeadline' => ['/admin/legal-deadline'];
         yield 'Plan' => ['/admin/plan'];
         yield 'Subscription' => ['/admin/subscription'];
@@ -227,6 +234,49 @@ class AdminAccessTest extends WebTestCase
         $this->client->request('GET', $indexPath);
 
         $this->assertResponseStatusCodeSame(403);
+    }
+
+    /**
+     * Detail render for the two new read-only CRUD controllers, with a real row.
+     * A foreign-currency position exercises MoneyField::setCurrencyPropertyPath,
+     * which reads the currency off the entity rather than a hardcoded RON.
+     */
+    public function testNewCrudDetailPagesRenderWithRows(): void
+    {
+        $this->client->loginUser($this->admin);
+        $case = $this->createTestCase(CaseStatus::AMIABIL);
+
+        $item = new ClaimItem();
+        $item->setLegalCase($case);
+        $item->setKind(ClaimItemKind::INVOICE);
+        $item->setDocumentNumber('F-2026-001');
+        $item->setDueDate(new \DateTimeImmutable('2026-01-15'));
+        $item->setAmount('1200.00');
+        $item->setCurrency('EUR');
+        $item->setAmountRon('5988.00');
+        $item->setDedupKey('dedup-' . uniqid());
+        $item->setConfirmedByLawyer(true);
+        $this->em->persist($item);
+
+        $document = new Document();
+        $document->setLegalCase($case);
+        $document->setDocumentType(DocumentType::FACTURA);
+        $document->setOriginalFilename('factura.pdf');
+        $document->setStoredFilename('stored.pdf');
+        $document->setFileSize(1024);
+        $document->setMimeType('application/pdf');
+        $document->setUploadedBy($this->regularUser);
+        $document->setExtractionStatus(ExtractionStatus::COMPLETED);
+        $document->setDetectedType(DocumentType::FACTURA);
+        $document->setContentHash(str_repeat('a', 64));
+        $this->em->persist($document);
+        $this->em->flush();
+
+        $this->client->request('GET', '/admin/claim-item?crudAction=detail&entityId=' . $item->getId());
+        $this->assertResponseIsSuccessful();
+
+        $this->client->request('GET', '/admin/document?crudAction=detail&entityId=' . $document->getId());
+        $this->assertResponseIsSuccessful();
     }
 
     public function testDashboardShowsBillingKpi(): void

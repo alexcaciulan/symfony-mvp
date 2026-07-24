@@ -137,7 +137,7 @@
                                     <a href="{{ path('case_overview', {id: case.id}) }}" class="font-mono font-medium hover:underline no-underline">#{{ case.id }}</a>
                                 </td>
                                 <td class="px-5 py-3 text-slate-700 dark:text-slate-300">{{ case.court ? case.court.name : '—' }}</td>
-                                <td class="px-5 py-3 text-right font-medium tnum">{{ case.amount ? (case.amount|number_format(2, ',', '.') ~ ' RON') : '—' }}</td>
+                                <td class="px-5 py-3 text-right font-medium tnum">{{ case.amount ? (case.amount|number_format(2, ',', '.') ~ ' ' ~ case.currency) : '—' }}</td>
                                 <td class="px-5 py-3">
                                     <twig:StatusBadge status="{{ case.status }}" />
                                 </td>

@@ -196,6 +196,34 @@ class LegalCaseRepositoryTest extends KernelTestCase
         $this->assertNotContains($deleted->getId(), $ids);
     }
 
+    /**
+     * The "În recuperare" KPI is labelled RON, so a case whose amount is still in
+     * a foreign currency (positions awaiting a manual exchange rate) must not be
+     * summed into the RON total. Terminal and soft-deleted cases are excluded too.
+     */
+    public function testSumActiveAmountByUserCountsOnlyRonActiveCases(): void
+    {
+        $ronActive = $this->createCase(CaseStatus::AMIABIL);
+        $ronActive->setAmount('10000.00');
+        $ronActive->setCurrency('RON');
+
+        $eurActive = $this->createCase(CaseStatus::AMIABIL);
+        $eurActive->setAmount('5000.00');
+        $eurActive->setCurrency('EUR');
+
+        $ronTerminal = $this->createCase(CaseStatus::INCHIS_SUCCES);
+        $ronTerminal->setAmount('7000.00');
+        $ronTerminal->setCurrency('RON');
+
+        $ronDeleted = $this->createCase(CaseStatus::AMIABIL, true);
+        $ronDeleted->setAmount('3000.00');
+        $ronDeleted->setCurrency('RON');
+
+        $this->em->flush();
+
+        self::assertSame(10000.0, $this->repo->sumActiveAmountByUser($this->user));
+    }
+
     protected function tearDown(): void
     {
         $conn = $this->em->getConnection();

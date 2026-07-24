@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Service\Deadline;
 
 use App\Entity\AuditLog;
+use App\Entity\ClaimItem;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Entity\User;
@@ -204,25 +205,73 @@ final class DeadlineServiceTest extends KernelTestCase
         $this->assertSame(DeadlinePriority::CRITICAL, $deadline->getPriority());
     }
 
-    public function testCreatePrescriptionDeadlineUses3YearsFromDueDate(): void
+    /**
+     * A case persisted with no due date is a no-op for the postPersist subscriber,
+     * so the prescription deadlines under test are only the ones this method
+     * creates, not one the subscriber added at persist time.
+     */
+    private function freshCaseWithoutSubscriberDeadline(): LegalCase
     {
-        // dueDate = 2024-03-15 (vineri) + 3 ani = 2027-03-15 (luni, zi lucrătoare)
-        $deadline = $this->service->createPrescriptionDeadline($this->case);
-
-        $this->assertSame('2027-03-15', $deadline->getDeadlineDate()->format('Y-m-d'));
-        $this->assertSame(DeadlineType::PRESCRIPTIE, $deadline->getType());
-        $this->assertSame(DeadlinePriority::CRITICAL, $deadline->getPriority());
-    }
-
-    public function testCreatePrescriptionDeadlineThrowsWhenDueDateNull(): void
-    {
-        $this->case->setDueDate(null);
+        $case = new LegalCase();
+        $case->setUser($this->user);
+        $case->setAmount('1500.00');
+        $case->setCurrency('RON');
+        $this->em->persist($case);
         $this->em->flush();
 
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessageMatches('/has no dueDate/');
+        return $case;
+    }
 
-        $this->service->createPrescriptionDeadline($this->case);
+    public function testCreatePrescriptionDeadlinesCreatesOnePerDistinctPositionDueDate(): void
+    {
+        $case = $this->freshCaseWithoutSubscriberDeadline();
+        foreach (['2024-03-15', '2024-06-20', '2024-09-10'] as $due) {
+            $item = new ClaimItem();
+            $item->setLegalCase($case);
+            $item->setDedupKey('svc-ci-' . uniqid('', true));
+            $item->setAmount('500.00');
+            $item->setCurrency('RON');
+            $item->setAmountRon('500.00');
+            $item->setDueDate(new \DateTimeImmutable($due));
+            $item->setConfirmedByLawyer(true);
+            $case->addClaimItem($item);
+            $this->em->persist($item);
+        }
+        $this->em->flush();
+
+        $created = $this->service->createPrescriptionDeadlines($case);
+
+        self::assertCount(3, $created);
+        $dates = array_map(static fn (LegalDeadline $d): string => $d->getDeadlineDate()->format('Y-m-d'), $created);
+        sort($dates);
+        self::assertSame(['2027-03-15', '2027-06-20', '2027-09-10'], $dates);
+        self::assertSame(DeadlinePriority::CRITICAL, $created[0]->getPriority());
+
+        // Idempotent per due date: a second call adds nothing.
+        self::assertSame([], $this->service->createPrescriptionDeadlines($case));
+    }
+
+    public function testCreatePrescriptionDeadlinesFallsBackToCaseDueDateWithoutPositions(): void
+    {
+        $case = $this->freshCaseWithoutSubscriberDeadline();
+        // Setting the due date after persist is a postUpdate, which the subscriber
+        // ignores, so the fallback path is what creates the single term here.
+        $case->setDueDate(new \DateTime('2024-03-15'));
+        $this->em->flush();
+
+        $created = $this->service->createPrescriptionDeadlines($case);
+
+        self::assertCount(1, $created);
+        self::assertSame('2027-03-15', $created[0]->getDeadlineDate()->format('Y-m-d'));
+    }
+
+    public function testCreatePrescriptionDeadlinesReturnsEmptyWhenNoDueDateAnywhere(): void
+    {
+        // No positions and no scalar due date: nothing to base a prescription term
+        // on, so the method is a graceful no-op rather than throwing.
+        $case = $this->freshCaseWithoutSubscriberDeadline();
+
+        self::assertSame([], $this->service->createPrescriptionDeadlines($case));
     }
 
     public function testCreateHearingDeadlineSetsDateAsIsWhenWorkingDay(): void

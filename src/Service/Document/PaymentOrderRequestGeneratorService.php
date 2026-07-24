@@ -12,6 +12,7 @@ use App\Enum\PenaltyType;
 use App\Enum\RelationshipType;
 use App\Service\Calculation\ClaimInterestAggregator;
 use App\Service\Calculation\StampDutyCalculator;
+use App\Service\Claim\ClaimCauseGrouper;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Twig\Environment;
@@ -34,6 +35,7 @@ final class PaymentOrderRequestGeneratorService extends AbstractPdfGenerator
         string $uploadsDir,
         private readonly StampDutyCalculator $stampDutyCalculator,
         private readonly ClaimInterestAggregator $accessoryAggregator,
+        private readonly ClaimCauseGrouper $causeGrouper,
     ) {
         parent::__construct($twig, $em, $security, $uploadsDir);
     }
@@ -58,6 +60,14 @@ final class PaymentOrderRequestGeneratorService extends AbstractPdfGenerator
             // interest, instead of one merged figure the debtor cannot check.
             'claim_items' => $items,
             'claim_item_accessories' => $this->accessories($case, $items, $rate),
+            // The art. 99 note declares the object value as the sum of heads on
+            // the premise of one legal relationship. The same grouping that
+            // routes the file to its court decides this, so the justification on
+            // the petition matches the competence it was filed under: an
+            // unlabelled invoice joins the single stated cause, it does not
+            // count as a distinct cause that would wrongly suppress the note.
+            'single_cause' => $this->causeGrouper->isSingleCause($items),
+            'claim_description' => $case->getClaimDescription(),
         ];
     }
 

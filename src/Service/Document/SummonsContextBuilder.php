@@ -88,6 +88,8 @@ final class SummonsContextBuilder
             // interest rather than merged into a single figure.
             'claimItems' => $items,
             'claimItemAccessories' => $itemAccessories,
+            // One-line object of the whole claim, in the lawyer's own words.
+            'claimDescription' => $case->getClaimDescription(),
             'accessoryTotal' => $accessoryTotal,
             'grandTotal' => $principal + $accessoryTotal,
             'refDate' => $refDate,

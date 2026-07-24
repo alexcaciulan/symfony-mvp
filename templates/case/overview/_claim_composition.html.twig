@@ -37,6 +37,14 @@
     </header>
 
     <div class="px-6 py-5">
+        {# Object of the claim (free text from the wizard). Hidden when empty. #}
+        {% if claim_description is defined and claim_description %}
+            <div class="mb-5">
+                <div class="text-[10px] font-medium uppercase tracking-wide text-slate-500">{{ 'case_overview.claim.description_label'|trans }}</div>
+                <p class="mt-0.5 text-sm text-slate-700 dark:text-slate-300">{{ claim_description }}</p>
+            </div>
+        {% endif %}
+
         {# Composition bar — only when total > 0 to avoid divide-by-zero artifacts. #}
         {% if total_value > 0 %}
             <div class="mb-5">
@@ -93,8 +101,9 @@
                 <span>{{ 'case_overview.claim.breakdown_error'|trans }}</span>
             </div>
         {% elseif claim_items is defined and claim_items|length > 1 %}
-            {# Several positions: the per-period accordion would have to start from one
-               due date, so the claim is shown position by position instead. #}
+            {# Several positions: a single aggregate accordion would have to start from one
+               due date, so the claim is shown position by position, with the BNR period
+               breakdown available per invoice in the expander below. #}
             <div class="border border-slate-200 dark:border-slate-800 rounded-lg overflow-x-auto">
                 <table class="w-full text-xs">
                     <thead class="text-[10px] uppercase tracking-wide text-slate-500 border-b border-slate-200 dark:border-slate-800">
@@ -119,6 +128,83 @@
                 </table>
             </div>
             <p class="mt-2 text-[11px] text-slate-500">{{ 'case_overview.claim.positions_hint'|trans }}</p>
+
+            {# Per-invoice BNR period breakdown, restored for multi-invoice claims. Each
+               interest-bearing invoice accrues from its own due date, so the periods are
+               grouped per invoice rather than as a single aggregate table. Count only the
+               invoices that actually have accrued periods, so the header matches the rows
+               below (a not-yet-due invoice carries an empty breakdown). #}
+            {% set bnr_invoice_count = 0 %}
+            {% if claim_item_accessories is defined and claim_item_accessories %}
+                {% for item in claim_items %}
+                    {% set _ii = claim_item_accessories.interestByItemId[item.id]|default(null) %}
+                    {% if _ii and _ii.breakdown|length > 0 %}{% set bnr_invoice_count = bnr_invoice_count + 1 %}{% endif %}
+                {% endfor %}
+            {% endif %}
+            {% if bnr_invoice_count > 0 %}
+                <div class="hs-accordion-group mt-3 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+                    <div class="hs-accordion" id="acc-bnr-breakdown-multi">
+                        <button type="button"
+                                class="hs-accordion-toggle hs-accordion-active:bg-slate-50 dark:hs-accordion-active:bg-slate-950/50 inline-flex items-center justify-between gap-x-3 w-full text-sm font-medium text-slate-700 dark:text-slate-300 py-3 px-4 hover:bg-slate-50 dark:hover:bg-slate-950/30 transition"
+                                aria-expanded="false"
+                                aria-controls="acc-bnr-breakdown-multi-content">
+                            <span class="inline-flex items-center gap-2">
+                                <span class="hs-accordion-active:rotate-90 transition-transform">{{ icon_chevron_right('size-4 text-slate-400') }}</span>
+                                {{ 'case_overview.claim.breakdown_toggle'|trans }}
+                            </span>
+                            <span class="text-xs text-slate-500 font-normal">{{ 'case_overview.claim.breakdown_summary_multi'|trans({'%count%': bnr_invoice_count}) }}</span>
+                        </button>
+                        <div id="acc-bnr-breakdown-multi-content"
+                             class="hs-accordion-content hidden w-full overflow-hidden transition-[height] duration-300"
+                             role="region"
+                             aria-labelledby="acc-bnr-breakdown-multi">
+                            <div class="px-4 pb-4 space-y-4">
+                                {% for item in claim_items %}
+                                    {% set itemInterest = claim_item_accessories.interestByItemId[item.id]|default(null) %}
+                                    {% if itemInterest and itemInterest.breakdown|length > 0 %}
+                                        {% set item_days = 0 %}
+                                        {% for period in itemInterest.breakdown %}{% set item_days = item_days + period.days %}{% endfor %}
+                                        <div>
+                                            <div class="text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">{{ 'case_overview.claim.breakdown_item_heading'|trans({'%doc%': item.documentNumber|default('—'), '%date%': item.dueDate ? item.dueDate|date('d.m.Y') : '—'}) }}</div>
+                                            <div class="overflow-x-auto">
+                                                <table class="w-full text-xs">
+                                                    <thead class="text-[10px] uppercase tracking-wide text-slate-500 border-b border-slate-200 dark:border-slate-800">
+                                                        <tr>
+                                                            <th class="text-left py-2 font-medium">{{ 'case_overview.claim.breakdown_period'|trans }}</th>
+                                                            <th class="text-right py-2 font-medium">{{ 'case_overview.claim.breakdown_bnr'|trans }}</th>
+                                                            <th class="text-right py-2 font-medium">{{ 'case_overview.claim.breakdown_applicable'|trans }}</th>
+                                                            <th class="text-right py-2 font-medium">{{ 'case_overview.claim.breakdown_days'|trans }}</th>
+                                                            <th class="text-right py-2 font-medium">{{ 'case_overview.claim.breakdown_interest'|trans }}</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                                                        {% for period in itemInterest.breakdown %}
+                                                            <tr>
+                                                                <td class="py-2 text-slate-700 dark:text-slate-300">{{ period.startDate|date('d.m.Y') }} → {{ period.endDate|date('d.m.Y') }}</td>
+                                                                <td class="py-2 text-right tnum">{{ period.nbrRate|number_format(2, ',', '.') }}%</td>
+                                                                <td class="py-2 text-right tnum font-medium">{{ period.applicableRate|number_format(2, ',', '.') }}%</td>
+                                                                <td class="py-2 text-right tnum text-slate-500">{{ period.days }}</td>
+                                                                <td class="py-2 text-right tnum font-semibold">{{ period.periodInterest|number_format(2, ',', '.') }}</td>
+                                                            </tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                    <tfoot class="border-t-2 border-slate-200 dark:border-slate-700 font-bold">
+                                                        <tr>
+                                                            <td colspan="3" class="py-2 text-slate-900 dark:text-white">{{ 'case_overview.claim.breakdown_total'|trans }}</td>
+                                                            <td class="py-2 text-right tnum text-slate-500">{{ item_days }}</td>
+                                                            <td class="py-2 text-right tnum text-amber-600 dark:text-amber-400">{{ itemInterest.total|number_format(2, ',', '.') }}</td>
+                                                        </tr>
+                                                    </tfoot>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
         {% elseif interest_breakdown is null or interest_breakdown|length == 0 %}
             <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-950/30 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
                 {{ 'case_overview.claim.breakdown_zero'|trans }}

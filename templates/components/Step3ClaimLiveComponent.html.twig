@@ -269,7 +269,7 @@
                         {% set needsOwnTick = this.rowRequiresConfirmation(row) %}
                         {% set rowAccessory = summary.accessoryByRow[index]|default(null) %}
                         {% set periods = summary.breakdownByRow[index]|default([]) %}
-                        {% set isCreditNote = row.kind == 'CREDIT_NOTE' %}
+                        {% set isCreditNote = row.kind == 'credit_note' %}
                         <article data-testid="claim-item-row"
                                  class="rounded-xl border bg-white dark:bg-slate-900 transition {% if row.excluded %}border-slate-200 dark:border-slate-800 opacity-55{% else %}border-slate-200 dark:border-slate-700 shadow-sm{% endif %}">
                             <input type="hidden" form="step3-claim-form" name="claim_items[{{ index }}][key]" value="{{ row.key }}">

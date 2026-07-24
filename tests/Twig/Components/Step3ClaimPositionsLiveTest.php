@@ -7,6 +7,7 @@ namespace App\Tests\Twig\Components;
 use App\DTO\Wizard\ClaimItemRow;
 use App\DTO\Wizard\Step3ClaimData;
 use App\Entity\User;
+use App\Enum\ClaimItemKind;
 use App\Enum\RelationshipType;
 use App\Util\ClaimRowLiveMapper;
 use Doctrine\ORM\EntityManagerInterface;
@@ -99,6 +100,42 @@ final class Step3ClaimPositionsLiveTest extends WebTestCase
 
         self::assertStringContainsString('200.00', $after);
         self::assertStringNotContainsString('700.00', $after);
+    }
+
+    public function testCreditNoteRowRendersItsKindBadge(): void
+    {
+        // Guards the badge whose condition matched the enum name ('CREDIT_NOTE')
+        // while the row carries the enum value ('credit_note'): the badge never
+        // rendered. The label comes from the claim_item_kind catalogue.
+        $creditNote = new ClaimItemRow(
+            dedupKey: 'cn:STORNO-1',
+            amount: 150.0,
+            currency: 'RON',
+            kind: ClaimItemKind::CREDIT_NOTE,
+            documentNumber: 'STORNO-1',
+            dueDate: new \DateTimeImmutable('2024-06-01'),
+            amountRon: 150.0,
+            confirmed: true,
+        );
+
+        $rows = ClaimRowLiveMapper::toArrays([
+            $this->row('TES 0036', 200.0, '2024-05-01'),
+            $creditNote,
+        ]);
+
+        $component = $this->createLiveComponent('Step3ClaimLiveComponent', [
+            'initialFormData' => new Step3ClaimData(currency: 'RON', relationshipType: RelationshipType::COMERCIAL),
+            'rows' => $rows,
+        ])->actingAs($this->user);
+
+        $html = (string) $component->render();
+
+        $translator = static::getContainer()->get('translator');
+        self::assertStringContainsString(
+            $translator->trans('enum.claim_item_kind.credit_note', locale: 'ro'),
+            $html,
+            'Credit-note position must show its kind badge in the live table.',
+        );
     }
 
     private function row(string $number, float $amount, string $due): ClaimItemRow

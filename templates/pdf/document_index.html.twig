@@ -64,7 +64,7 @@
                         {% if docItems|length > 0 %}
                             {% set labels = [] %}
                             {% for item in docItems %}
-                                {% set labels = labels|merge([(item.documentNumber|default('—')) ~ ' · ' ~ item.amountRon|number_format(2, ',', '.') ~ ' RON']) %}
+                                {% set labels = labels|merge([(item.documentNumber|default('—')) ~ ' · ' ~ (item.signedAmountRon ?? 0)|number_format(2, ',', '.') ~ ' RON']) %}
                             {% endfor %}
                             <div class="meta">{{ 'pdf.document_index.claim_items'|trans({'%items%': labels|join('; ')}) }}</div>
                         {% endif %}

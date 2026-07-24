@@ -151,6 +151,9 @@
     '%creditor%': creditor ? creditor.name : '—',
     '%debtor%': debtor ? debtor.name : '—',
 }) }}</p>
+{% if claimDescription %}
+    <p><strong>{{ 'pdf.summons.claim_object_label'|trans }}:</strong> {{ claimDescription }}</p>
+{% endif %}
 {% if debtor %}
     {% set dclauses = [] %}
     {% if debtor.onrcNumber %}{% set dclauses = dclauses|merge(['pdf.summons.clause_orc'|trans({'%onrc%': debtor.onrcNumber})]) %}{% endif %}

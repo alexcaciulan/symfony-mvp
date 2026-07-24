@@ -203,6 +203,11 @@ class LegalCaseRepository extends ServiceEntityRepository
     /**
      * Sum of principal claim amounts on active (non-terminal) cases for a user.
      * Used by dashboard KPI "În recuperare".
+     *
+     * Restricted to RON-denominated cases: the KPI is labelled RON, and a case
+     * whose positions all still await a manual exchange rate keeps its amount in
+     * the original currency (see ClaimTotalsService::recalculate). Summing those
+     * into a RON total would add unlike currencies under one label.
      */
     public function sumActiveAmountByUser(User $user): float
     {
@@ -216,8 +221,10 @@ class LegalCaseRepository extends ServiceEntityRepository
             ->where('lc.user = :user')
             ->andWhere('lc.deletedAt IS NULL')
             ->andWhere('lc.status NOT IN (:terminal)')
+            ->andWhere('lc.currency = :ron')
             ->setParameter('user', $user)
             ->setParameter('terminal', $terminal)
+            ->setParameter('ron', 'RON')
             ->getQuery()
             ->getSingleScalarResult();
 

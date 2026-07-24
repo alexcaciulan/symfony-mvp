@@ -49,7 +49,7 @@ class DashboardControllerTest extends WebTestCase
         $conn->executeStatement("DELETE FROM user WHERE email LIKE 'dashboard-test-%'");
     }
 
-    private function createCase(User $owner, string $courtName, CaseStatus $status = CaseStatus::AMIABIL): LegalCase
+    private function createCase(User $owner, string $courtName, CaseStatus $status = CaseStatus::AMIABIL, string $currency = 'RON'): LegalCase
     {
         $court = new Court();
         $court->setName($courtName);
@@ -62,7 +62,7 @@ class DashboardControllerTest extends WebTestCase
         $case->setCourt($court);
         $case->setStatus($status);
         $case->setAmount('5000.00');
-        $case->setCurrency('RON');
+        $case->setCurrency($currency);
         $this->em->persist($case);
         $this->em->flush();
 
@@ -89,6 +89,23 @@ class DashboardControllerTest extends WebTestCase
         $this->assertResponseIsSuccessful();
         $content = $this->client->getResponse()->getContent();
         $this->assertStringContainsString($courtName, $content);
+    }
+
+    /**
+     * The recent-cases amount cell reads the case currency, not a hardcoded RON,
+     * so a foreign-currency case (positions still awaiting a manual FX rate) is
+     * not mislabelled as lei on the dashboard.
+     */
+    public function testDashboardShowsCaseCurrencyInRecentCasesCell(): void
+    {
+        $this->createCase($this->user, 'DashTestCourt-' . uniqid(), CaseStatus::AMIABIL, 'EUR');
+
+        $this->client->request('GET', '/dashboard');
+
+        $this->assertResponseIsSuccessful();
+        $content = $this->client->getResponse()->getContent();
+        $this->assertStringContainsString('5.000,00 EUR', $content);
+        $this->assertStringNotContainsString('5.000,00 RON', $content);
     }
 
     public function testDashboardRendersKpiCards(): void

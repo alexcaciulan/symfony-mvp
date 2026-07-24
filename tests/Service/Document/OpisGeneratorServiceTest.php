@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Tests\Service\Document;
 
+use App\Entity\ClaimItem;
 use App\Entity\Creditor;
 use App\Entity\Debtor;
 use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\User;
+use App\Enum\ClaimItemKind;
 use App\Enum\DocumentType;
 use App\Enum\ExtractionStatus;
 use App\Enum\PersonType;
@@ -79,6 +81,7 @@ final class OpisGeneratorServiceTest extends KernelTestCase
         $conn = $this->em->getConnection();
         $conn->executeStatement('DELETE FROM audit_log WHERE user_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM audit_log WHERE user_id IS NULL', []);
+        $conn->executeStatement('DELETE ci FROM claim_item ci JOIN legal_case lc ON ci.legal_case_id = lc.id WHERE lc.user_id = ?', [$userId]);
         $conn->executeStatement('DELETE d FROM legal_deadline d JOIN legal_case lc ON d.legal_case_id = lc.id WHERE lc.user_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM document WHERE uploaded_by_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = ?)', [$userId]);
@@ -147,6 +150,34 @@ final class OpisGeneratorServiceTest extends KernelTestCase
         self::assertStringNotContainsString('Opis_vechi.pdf', $html, 'Opisul NU se include pe el însuși.');
         self::assertStringContainsString('Somatie.pdf', $html);
         self::assertStringContainsString('Total documente: 1', $html);
+    }
+
+    /**
+     * A credit note reduces the claim, so its RON figure in the index must carry
+     * the sign. Printing the unsigned amountRon made a storno read as a positive
+     * addition to the total.
+     */
+    public function testRenderHtmlShowsCreditNoteAmountSigned(): void
+    {
+        $doc = $this->attachDocument(DocumentType::FACTURA, 'Storno_CN-1.pdf');
+
+        $item = new ClaimItem();
+        $item->setLegalCase($this->case);
+        $item->setKind(ClaimItemKind::CREDIT_NOTE);
+        $item->setDocumentNumber('CN-1');
+        $item->setAmount('300.00');
+        $item->setCurrency('RON');
+        $item->setAmountRon('300.00');
+        $item->setConfirmedByLawyer(true);
+        $item->setSourceDocument($doc);
+        $item->setDedupKey('dedup-' . uniqid());
+        $this->em->persist($item);
+        $this->case->addClaimItem($item);
+        $this->em->flush();
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString('-300,00 RON', $html, 'Credit note must be printed as a negative RON figure.');
     }
 
     public function testGeneratePersistsDocumentWithTypeOpis(): void

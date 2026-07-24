@@ -20,6 +20,14 @@
     ? 'case_overview.kpi.interest_hint_civil'
     : 'case_overview.kpi.interest_hint_commercial' %}
 
+{# The "%days% zile" narrative only holds for a single-period breakdown from one due
+   date. On a multi-position claim interest is aggregated per position, so the same
+   signal that gates the hint in _claim_composition (no single first-period rate)
+   suppresses it here too; the lei figure above stays correct either way. #}
+{% set first_period_rate = (interest_breakdown is defined and interest_breakdown is not null and interest_breakdown|length > 0)
+    ? (interest_breakdown|first).applicableRate
+    : null %}
+
 {# Active deadline countdown in whole days. #}
 {% set deadline_days_remaining = null %}
 {% set deadline_expires_label = null %}
@@ -40,7 +48,9 @@
     <div class="bg-white dark:bg-slate-900 px-6 py-4 lg:px-8">
         <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ 'case_overview.kpi.interest'|trans }}</div>
         <div class="mt-1.5 text-2xl font-bold tnum text-amber-600 dark:text-amber-400">+ {{ interest }}</div>
-        <div class="mt-1 text-xs text-slate-500">{{ interest_hint_key|trans({'%days%': interest_days}) }}</div>
+        {% if first_period_rate is not null %}
+            <div class="mt-1 text-xs text-slate-500">{{ interest_hint_key|trans({'%days%': interest_days}) }}</div>
+        {% endif %}
     </div>
 
     <div class="bg-white dark:bg-slate-900 px-6 py-4 lg:px-8 relative">

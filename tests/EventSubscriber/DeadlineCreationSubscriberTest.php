@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Tests\EventSubscriber;
 
+use App\Entity\ClaimItem;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Entity\User;
 use App\Enum\CaseStatus;
+use App\Enum\ClaimItemKind;
 use App\Enum\DeadlineType;
 use App\EventSubscriber\DeadlineCreationSubscriber;
 use App\Service\Case\CaseWorkflowService;
@@ -123,6 +125,104 @@ final class DeadlineCreationSubscriberTest extends KernelTestCase
         ]);
 
         self::assertCount(0, $deadlines, 'Fără dueDate, PRESCRIPTIE nu trebuie creat (skip + log).');
+    }
+
+    private function addClaimItem(
+        LegalCase $case,
+        string $dueDate,
+        ClaimItemKind $kind = ClaimItemKind::INVOICE,
+        bool $excluded = false,
+    ): ClaimItem {
+        $item = new ClaimItem();
+        $item->setLegalCase($case);
+        $item->setDedupKey('ci-' . uniqid('', true));
+        $item->setKind($kind);
+        $item->setAmount('500.00');
+        $item->setCurrency('RON');
+        $item->setAmountRon('500.00');
+        $item->setDueDate(new \DateTimeImmutable($dueDate));
+        $item->setConfirmedByLawyer(true);
+        $item->setExcludedByLawyer($excluded);
+        $case->addClaimItem($item);
+
+        return $item;
+    }
+
+    public function testPostPersistCreatesOnePrescriptionDeadlinePerDistinctDueDate(): void
+    {
+        // Three invoices on the same file, each with its own due date: three
+        // prescription terms, each at due date + 3 years (NCC art. 2517).
+        $case = new LegalCase();
+        $case->setUser($this->user);
+        $case->setAmount('1500.00');
+        $case->setCurrency('RON');
+        $case->setDueDate(new \DateTime('2024-03-15')); // denormalized earliest
+        $this->addClaimItem($case, '2024-03-15');
+        $this->addClaimItem($case, '2024-06-20');
+        $this->addClaimItem($case, '2024-09-10');
+        $this->em->persist($case);
+        $this->em->flush();
+
+        $deadlines = $this->em->getRepository(LegalDeadline::class)->findBy([
+            'legalCase' => $case->getId(),
+            'type' => DeadlineType::PRESCRIPTIE,
+        ]);
+
+        self::assertCount(3, $deadlines, 'Fiecare scadență distinctă trebuie să genereze un termen PRESCRIPTIE.');
+
+        $dates = array_map(static fn (LegalDeadline $d): string => $d->getDeadlineDate()->format('Y-m-d'), $deadlines);
+        sort($dates);
+        self::assertSame(['2027-03-15', '2027-06-20', '2027-09-10'], $dates);
+
+        // The covered due date is surfaced in the description so the cards do not
+        // read as duplicates in the Tab Termene.
+        foreach ($deadlines as $deadline) {
+            self::assertNotNull($deadline->getDescription());
+            self::assertStringContainsString('2517', (string) $deadline->getDescription());
+        }
+    }
+
+    public function testPostPersistDedupesPrescriptionDeadlinesForSameDueDate(): void
+    {
+        $case = new LegalCase();
+        $case->setUser($this->user);
+        $case->setAmount('1000.00');
+        $case->setCurrency('RON');
+        $case->setDueDate(new \DateTime('2024-03-15'));
+        $this->addClaimItem($case, '2024-03-15');
+        $this->addClaimItem($case, '2024-03-15'); // same due date, second invoice
+        $this->em->persist($case);
+        $this->em->flush();
+
+        $deadlines = $this->em->getRepository(LegalDeadline::class)->findBy([
+            'legalCase' => $case->getId(),
+            'type' => DeadlineType::PRESCRIPTIE,
+        ]);
+
+        self::assertCount(1, $deadlines, 'Scadențe identice nu trebuie să dubleze termenul de prescripție.');
+        self::assertSame('2027-03-15', $deadlines[0]->getDeadlineDate()->format('Y-m-d'));
+    }
+
+    public function testPostPersistSkipsExcludedAndCreditNotePositionsForPrescription(): void
+    {
+        $case = new LegalCase();
+        $case->setUser($this->user);
+        $case->setAmount('500.00');
+        $case->setCurrency('RON');
+        $case->setDueDate(new \DateTime('2024-03-15'));
+        $this->addClaimItem($case, '2024-03-15'); // counts
+        $this->addClaimItem($case, '2024-06-20', ClaimItemKind::INVOICE, excluded: true); // excluded
+        $this->addClaimItem($case, '2024-09-10', ClaimItemKind::CREDIT_NOTE); // credit note
+        $this->em->persist($case);
+        $this->em->flush();
+
+        $deadlines = $this->em->getRepository(LegalDeadline::class)->findBy([
+            'legalCase' => $case->getId(),
+            'type' => DeadlineType::PRESCRIPTIE,
+        ]);
+
+        $dates = array_map(static fn (LegalDeadline $d): string => $d->getDeadlineDate()->format('Y-m-d'), $deadlines);
+        self::assertSame(['2027-03-15'], $dates, 'Pozițiile excluse și notele de credit nu generează termen de prescripție.');
     }
 
     public function testSomatieTrimisaCreatesPaymentNoticeDeadlineWithDisclaimer(): void

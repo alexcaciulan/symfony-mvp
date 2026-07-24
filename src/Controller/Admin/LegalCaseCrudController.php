@@ -68,8 +68,10 @@ class LegalCaseCrudController extends AbstractCrudController
         yield AssociationField::new('user', 'Avocat')->onlyOnDetail();
         yield AssociationField::new('creditor', 'Creditor');
         yield AssociationField::new('court', 'Instanța');
+        // Currency read from the case: a case whose positions all await a manual
+        // exchange rate keeps its amount in the original currency, not RON.
         yield MoneyField::new('amount', 'Sumă')
-            ->setCurrency('RON')
+            ->setCurrencyPropertyPath('currency')
             ->setStoredAsCents(false);
         yield ChoiceField::new('status', 'Status')
             ->setChoices($this->statusChoices())

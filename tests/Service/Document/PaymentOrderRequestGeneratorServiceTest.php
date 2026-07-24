@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Tests\Service\Document;
 
+use App\Entity\ClaimItem;
 use App\Entity\Court;
 use App\Entity\Creditor;
 use App\Entity\Debtor;
 use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\User;
+use App\Enum\ClaimItemKind;
 use App\Enum\CourtType;
 use App\Enum\DocumentType;
 use App\Enum\PersonType;
@@ -99,6 +101,7 @@ final class PaymentOrderRequestGeneratorServiceTest extends KernelTestCase
         $conn = $this->em->getConnection();
         $conn->executeStatement('DELETE FROM audit_log WHERE user_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM audit_log WHERE user_id IS NULL', []);
+        $conn->executeStatement('DELETE ci FROM claim_item ci JOIN legal_case lc ON ci.legal_case_id = lc.id WHERE lc.user_id = ?', [$userId]);
         $conn->executeStatement('DELETE d FROM legal_deadline d JOIN legal_case lc ON d.legal_case_id = lc.id WHERE lc.user_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM document WHERE uploaded_by_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = ?)', [$userId]);
@@ -187,6 +190,118 @@ final class PaymentOrderRequestGeneratorServiceTest extends KernelTestCase
         self::assertGreaterThan(0, $document->getFileSize());
         self::assertSame('application/pdf', $document->getMimeType());
         self::assertStringContainsString($this->case->getCaseNumber(), $document->getOriginalFilename());
+    }
+
+    /**
+     * The object of the claim (LegalCase::claimDescription), when the lawyer
+     * stated it, must appear on the petition so the court reads what is claimed
+     * for, not only the invoice figures.
+     */
+    public function testRenderHtmlShowsClaimObjectWhenDescriptionSet(): void
+    {
+        $this->case->setClaimDescription('Contravaloare servicii de consultanță IT');
+        $this->em->flush();
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString('Contravaloare servicii de consultanță IT', $html);
+    }
+
+    public function testRenderHtmlOmitsClaimObjectRowWhenDescriptionEmpty(): void
+    {
+        $this->case->setClaimDescription(null);
+        $this->em->flush();
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringNotContainsString('Obiectul creanței', $html);
+    }
+
+    /**
+     * The art. 99 note declares the object value as the sum of all heads on the
+     * premise of a single legal relationship. The resolver groups per cause and
+     * returns a court even when distinct causes fall to the same court type, so
+     * on two separate contracts the note would misstate the object value. It must
+     * be suppressed unless every position rests on the same cause.
+     */
+    public function testArt99NoteSuppressedWhenPositionsRestOnDifferentCauses(): void
+    {
+        $this->addClaimItem('FACT-1', '5000.00', 'Contract 10/2024');
+        $this->addClaimItem('FACT-2', '5000.00', 'Contract 99/2024');
+        $this->em->flush();
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringNotContainsString('același raport juridic', $html);
+    }
+
+    public function testArt99NotePresentWhenAllPositionsShareOneCause(): void
+    {
+        $this->addClaimItem('FACT-1', '5000.00', 'Contract 10/2024');
+        $this->addClaimItem('FACT-2', '5000.00', 'Contract 10/2024');
+        $this->em->flush();
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString('același raport juridic', $html);
+    }
+
+    /**
+     * A position that states no cause joins the file's single stated cause, so a
+     * labelled invoice plus an unlabelled one is one cause, not two. This is the
+     * exact grouping the competent-court resolver uses to route the file, so the
+     * note that justifies the cumulative object value must follow it: suppressing
+     * the note here would leave the tribunal with a cumulated total and no art. 99
+     * justification, inviting the plea of material incompetence.
+     */
+    public function testArt99NotePresentWhenUnlabelledPositionJoinsSingleStatedCause(): void
+    {
+        $this->addClaimItem('FACT-1', '5000.00', 'Contract 10/2024');
+        $this->addClaimItem('FACT-2', '5000.00', null);
+        $this->em->flush();
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString('același raport juridic', $html);
+    }
+
+    /**
+     * With a counting position the interest asked of the court is recomputed as
+     * of the notice date, not read from the frozen calculatedInterest written at
+     * wizard submit. The frozen value must not surface on the petition once a
+     * position drives the accessory, or the rows and the total would disagree.
+     */
+    public function testRenderHtmlUsesRecalculatedInterestNotFrozenFieldForSinglePosition(): void
+    {
+        // A value the recomputed accessory could never equal, so its total
+        // absence proves the petition ignored the frozen field.
+        $this->case->setCalculatedInterest('77777.00');
+        $this->addClaimItem('FACT-1', '10000.00', 'Contract 10/2024');
+        $this->em->flush();
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringNotContainsString('77.777,00', $html, 'The frozen calculatedInterest must not drive the petition once a position exists.');
+        self::assertStringContainsString('Dobândă acumulată', $html, 'The recalculated interest row is still shown.');
+    }
+
+    private function addClaimItem(string $documentNumber, string $amountRon, ?string $causeReference): ClaimItem
+    {
+        $item = new ClaimItem();
+        $item->setLegalCase($this->case);
+        $item->setKind(ClaimItemKind::INVOICE);
+        $item->setDocumentNumber($documentNumber);
+        $item->setDueDate(new \DateTimeImmutable('2024-06-15'));
+        $item->setAmount($amountRon);
+        $item->setCurrency('RON');
+        $item->setAmountRon($amountRon);
+        $item->setCauseReference($causeReference);
+        $item->setConfirmedByLawyer(true);
+        $item->setDedupKey('dedup-' . uniqid());
+        $this->em->persist($item);
+        $this->case->addClaimItem($item);
+
+        return $item;
     }
 
     public function testRenderHtmlWithNullCourtShowsPlaceholder(): void

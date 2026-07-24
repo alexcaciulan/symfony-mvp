@@ -14,6 +14,7 @@ use App\Repository\CourtRepository;
 use App\Service\Calculation\ClaimInterestAggregator;
 use App\Service\Calculation\ContractualPenaltyCalculator;
 use App\Service\Calculation\InterestCalculatorService;
+use App\Service\Claim\ClaimCauseGrouper;
 
 final class CompetentCourtResolver
 {
@@ -28,6 +29,7 @@ final class CompetentCourtResolver
         private CourtRepository $courtRepository,
         private InterestCalculatorService $interestCalculator,
         private ?ClaimInterestAggregator $accessoryAggregator = null,
+        private ?ClaimCauseGrouper $causeGrouper = null,
     ) {}
 
     /**
@@ -204,56 +206,23 @@ final class CompetentCourtResolver
     /**
      * Principal per cause, plus whether the grouping itself is uncertain.
      *
-     * Uncertain means the file names several causes AND carries positions that
-     * name none, so those cannot be attributed to any of them. Guessing either
-     * way changes the court, so the caller declines to pick one.
+     * Delegates to the shared {@see ClaimCauseGrouper} so the petition's art. 99
+     * note is decided on the same grouping that routes the file here. Uncertain
+     * means the file names several causes AND carries positions that name none,
+     * so those cannot be attributed to any of them: guessing either way changes
+     * the court, so the caller declines to pick one.
      *
      * @param  list<ClaimItem> $items
      * @return array{0: array<string, float>, 1: bool}
      */
     private function principalByCause(array $items): array
     {
-        $labelled = [];
-        $unlabelled = 0.0;
-        $hasUnlabelled = false;
+        return $this->causeGrouper()->group($items);
+    }
 
-        foreach ($items as $item) {
-            $amount = $item->signedAmountRon();
-            if ($amount === null) {
-                continue;
-            }
-
-            $cause = $item->causeKey();
-            if ($cause === '') {
-                $hasUnlabelled = true;
-                $unlabelled += $amount;
-
-                continue;
-            }
-
-            $labelled[$cause] = ($labelled[$cause] ?? 0.0) + $amount;
-        }
-
-        if (!$hasUnlabelled) {
-            return [$labelled, false];
-        }
-
-        if ($labelled === []) {
-            return [['' => $unlabelled], false];
-        }
-
-        if (count($labelled) === 1) {
-            // One stated cause on the file: the positions that name none are
-            // invoices of that same contract read without their header.
-            $only = array_key_first($labelled);
-            $labelled[$only] += $unlabelled;
-
-            return [$labelled, false];
-        }
-
-        $labelled[''] = $unlabelled;
-
-        return [$labelled, true];
+    private function causeGrouper(): ClaimCauseGrouper
+    {
+        return $this->causeGrouper ??= new ClaimCauseGrouper();
     }
 
     private function courtTypeFor(float $principal): CourtType

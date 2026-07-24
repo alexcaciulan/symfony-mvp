@@ -172,20 +172,17 @@ final class DeadlineCreationSubscriber
             return;
         }
 
-        if ($entity->getDueDate() === null) {
-            $this->logger->info('Skipping PRESCRIPTIE deadline: dueDate not set on case', [
-                'caseNumber' => $entity->getCaseNumber(),
-            ]);
-
-            return;
-        }
-
-        if ($this->hasDeadline($entity, DeadlineType::PRESCRIPTIE)) {
-            return;
-        }
-
+        // One PRESCRIPTIE deadline per distinct position due date (NCC art. 2517):
+        // the case due date is only the earliest of them, so a single deadline
+        // pinned to it would leave the later invoices unmonitored. The service is
+        // idempotent per due date, so a duplicate fire is a no-op.
         try {
-            $this->deadlineService->createPrescriptionDeadline($entity);
+            $created = $this->deadlineService->createPrescriptionDeadlines($entity);
+            if ($created === []) {
+                $this->logger->info('Skipping PRESCRIPTIE deadline: no due date on positions or case', [
+                    'caseNumber' => $entity->getCaseNumber(),
+                ]);
+            }
         } catch (\Throwable $e) {
             $this->logger->error('Failed to create PRESCRIPTIE deadline', [
                 'caseNumber' => $entity->getCaseNumber(),

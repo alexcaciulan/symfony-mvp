@@ -140,6 +140,16 @@ final class PaymentNoticeGeneratorServiceTest extends KernelTestCase
         self::assertNotNull($document->getId(), 'Document should be persisted with an ID after flush.');
     }
 
+    public function testRenderHtmlShowsClaimObjectWhenDescriptionSet(): void
+    {
+        $this->case->setClaimDescription('Contravaloare marfă livrată neachitată');
+        $this->em->flush();
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString('Contravaloare marfă livrată neachitată', $html);
+    }
+
     public function testRenderHtmlHandlesNullInterestWithoutCrashing(): void
     {
         $this->case->setCalculatedInterest(null);

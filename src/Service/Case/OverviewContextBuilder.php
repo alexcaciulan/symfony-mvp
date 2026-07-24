@@ -66,6 +66,9 @@ final class OverviewContextBuilder
             'portal_ruling_proposal' => $this->rulingProposalResolver->actionableProposal($case, $portalEvents),
             'interest_breakdown' => $interestBreakdown,
             'breakdown_error' => $breakdownError,
+            // Free-text description of what the claim is about, entered in the wizard.
+            // Shown on the claim card when present; empty on older cases predating it.
+            'claim_description' => $case->getClaimDescription(),
             // The positions replace the per-period accordion on a multi-position
             // case: one aggregate breakdown from the earliest due date would show
             // the very figure the positions exist to stop claiming.

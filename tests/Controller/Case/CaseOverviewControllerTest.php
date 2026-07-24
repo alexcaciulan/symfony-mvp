@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller\Case;
 
+use App\Entity\ClaimItem;
 use App\Entity\Court;
 use App\Entity\Creditor;
 use App\Entity\Debtor;
@@ -19,6 +20,7 @@ use App\Enum\CourtType;
 use App\Enum\DeadlinePriority;
 use App\Enum\DeadlineType;
 use App\Enum\DocumentType;
+use App\Enum\ExtractionFailureReason;
 use App\Enum\ExtractionStatus;
 use App\Enum\PersonType;
 use App\Enum\PortalEventType;
@@ -130,8 +132,14 @@ final class CaseOverviewControllerTest extends WebTestCase
      * Attach a Document to {@see self::$case} for Tab Documente tests. Defaults to a 100 KB
      * PDF with no extraction confidence — caller overrides via parameters as needed.
      */
-    private function attachDocument(DocumentType $type, ?float $confidence = null, string $filename = 'test-document.pdf', int $sizeBytes = 102400): Document
-    {
+    private function attachDocument(
+        DocumentType $type,
+        ?float $confidence = null,
+        string $filename = 'test-document.pdf',
+        int $sizeBytes = 102400,
+        ExtractionStatus $status = ExtractionStatus::COMPLETED,
+        ?ExtractionFailureReason $failureReason = null,
+    ): Document {
         $doc = new Document();
         $doc->setLegalCase($this->case);
         $doc->setDocumentType($type);
@@ -140,7 +148,8 @@ final class CaseOverviewControllerTest extends WebTestCase
         $doc->setFileSize($sizeBytes);
         $doc->setMimeType('application/pdf');
         $doc->setUploadedBy($this->user);
-        $doc->setExtractionStatus(ExtractionStatus::COMPLETED);
+        $doc->setExtractionStatus($status);
+        $doc->setExtractionFailureReason($failureReason);
         if ($confidence !== null) {
             $doc->setExtractionConfidence((string) $confidence);
         }
@@ -447,17 +456,70 @@ final class CaseOverviewControllerTest extends WebTestCase
         self::assertStringContainsString('7,5%', $html, 'Interest share rendered with Romanian decimal');
     }
 
-    public function testDetaliiCourtSummaryRendersCountyHint(): void
+    public function testDetaliiCourtSummaryRendersJudecatorieRationaleForSmallClaim(): void
     {
+        // enrichCase uses a JUDECATORIE court with a 47.500 RON claim (below threshold).
         $this->enrichCase();
 
         $this->client->loginUser($this->user);
         $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
-        // Rule hint dynamically interpolates `court.county` into the i18n string.
-        self::assertSelectorTextContains('body', 'în raza București');
-        self::assertSelectorTextContains('body', 'CPC art. 1015');
+        self::assertSelectorTextContains('#panel-detalii', 'Judecătorie competentă conform CPC art. 94');
+    }
+
+    public function testDetaliiCourtSummaryShowsTribunalRationaleForLargeClaim(): void
+    {
+        $this->enrichCase();
+        // A >200.000 RON claim routes to the tribunal; the rationale must reflect
+        // art. 95, not the judecătorie threshold text.
+        $this->case->getCourt()->setType(CourtType::TRIBUNAL);
+        $this->case->setAmount('236288.75');
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('#panel-detalii', 'Tribunal competent conform CPC art. 95');
+        self::assertSelectorTextContains('#panel-detalii', 'art. 98');
+        self::assertStringNotContainsString(
+            'art. 94 pct. 1 lit. k',
+            (string) $this->client->getResponse()->getContent(),
+        );
+    }
+
+    public function testDetaliiClaimCompositionShowsPerInvoiceBnrBreakdownForMultipleItems(): void
+    {
+        $this->enrichCase();
+        // Two interest-bearing invoices with distinct past due dates: the overview
+        // must expose the BNR period breakdown per invoice (restored for multi-invoice
+        // claims), not just the per-position summary row.
+        foreach ([['INV-A', '2024-01-15', '1000.00'], ['INV-B', '2024-06-20', '2000.00']] as [$doc, $due, $amt]) {
+            $item = new ClaimItem();
+            $item->setLegalCase($this->case);
+            $item->setDedupKey('ov-bnr-' . uniqid('', true));
+            $item->setDocumentNumber($doc);
+            $item->setAmount($amt);
+            $item->setCurrency('RON');
+            $item->setAmountRon($amt);
+            $item->setDueDate(new \DateTimeImmutable($due));
+            // Only lawyer-confirmed, RON-denominated positions count towards the claim.
+            $item->setConfirmedByLawyer(true);
+            $this->case->addClaimItem($item);
+            $this->em->persist($item);
+        }
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $html = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('2 facturi · OG 13/2011', $html);
+        self::assertStringContainsString('Factură INV-A', $html);
+        self::assertStringContainsString('Factură INV-B', $html);
+        self::assertSelectorTextContains('#panel-detalii', 'Rata BNR');
     }
 
     public function testDetaliiCourtSummaryFallbackWhenNull(): void
@@ -547,6 +609,78 @@ final class CaseOverviewControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('#panel-documente', 'extracție 95%');
+    }
+
+    public function testDocumenteSourceListShowsExtractionStatusBadge(): void
+    {
+        $this->attachDocument(DocumentType::CONTRACT, 0.95, 'contract-ok.pdf', status: ExtractionStatus::COMPLETED);
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('#panel-documente', 'Date extrase');
+    }
+
+    public function testDocumenteSourceListShowsFailureReasonWhenExtractionFailed(): void
+    {
+        $this->attachDocument(
+            DocumentType::FACTURA,
+            null,
+            'factura-fail.pdf',
+            status: ExtractionStatus::FAILED,
+            failureReason: ExtractionFailureReason::FILE_TOO_LARGE,
+        );
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('#panel-documente', 'Eșec extracție');
+        self::assertSelectorTextContains('#panel-documente', 'Fișier prea mare');
+    }
+
+    public function testDocumenteSourceListRendersColoredBadgeForNewDocumentType(): void
+    {
+        // extras_cont is one of the newer DocumentType values; its label must render
+        // and its badge must carry a dedicated (non-default) color class.
+        $this->attachDocument(DocumentType::EXTRAS_CONT, null, 'extras-cont.pdf');
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertGreaterThan(
+            0,
+            $crawler->filter('#panel-documente .bg-teal-50')->count(),
+            'extras_cont document should render its dedicated teal badge color',
+        );
+    }
+
+    public function testClaimDescriptionRenderedWhenPresent(): void
+    {
+        $this->case->setClaimDescription('Contravaloare servicii de consultanță neachitate');
+        $this->em->flush();
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('#panel-detalii', 'Contravaloare servicii de consultanță neachitate');
+    }
+
+    public function testClaimDescriptionHiddenWhenEmpty(): void
+    {
+        // No claim description set, so the label must not appear.
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextNotContains('#panel-detalii', 'Obiectul creanței');
     }
 
     public function testDocumenteCommunicationWarningShownWhenNoProof(): void

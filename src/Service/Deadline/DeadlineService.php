@@ -12,6 +12,7 @@ use App\Enum\DeadlineType;
 use App\Repository\LegalDeadlineRepository;
 use App\Service\AuditLogService;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Creează termene procedurale (LegalDeadline) cu date prorogate per CPC art. 181
@@ -32,6 +33,7 @@ final class DeadlineService
         private readonly WorkingDayResolver $workingDayResolver,
         private readonly AuditLogService $auditLogService,
         private readonly LegalDeadlineRepository $deadlineRepository,
+        private readonly TranslatorInterface $translator,
         private readonly int $voluntaryPaymentDays = 40,
     ) {}
 
@@ -210,35 +212,89 @@ final class DeadlineService
     }
 
     /**
-     * Termen prescripție: dueDate + 3 ani (NCC art. 2517). Prioritate CRITICAL.
-     * Aruncă InvalidArgumentException dacă dosarul nu are dueDate setat.
+     * Creates one PRESCRIPTIE deadline per DISTINCT due date among the case
+     * positions: each invoice prescribes three years from its OWN due date (NCC
+     * art. 2517), so a single deadline pinned to the earliest due date would
+     * leave the later invoices unmonitored once the oldest one is resolved.
      *
-     * **NU se prorogă la prima zi lucrătoare**: prescripția e termen de DREPT
-     * MATERIAL (NCC art. 2539-2541), nu termen procedural (CPC art. 181 alin. 2
-     * se aplică doar termenelor procedurale). Data se afișează exact —
-     * prorogarea ar produce dată mai târzie decât realitatea legală și ar putea
-     * face avocatul să depună cererea după implinire reală.
+     * No working-day prorogation: prescription is a substantive-law term (NCC art.
+     * 2539-2541), not a procedural one (CPC art. 181 para. 2 covers only procedural
+     * terms). The exact date is kept; prorogating it would show a date later than
+     * the real one and could make the lawyer file after the term has actually run.
+     *
+     * Idempotent per due date via {@see LegalDeadlineRepository::findOneByCaseTypeAndDate()},
+     * so a re-run only fills the uncovered due dates. When the case carries no
+     * positions (cases created before the multi-position model), it falls back to
+     * the denormalized case due date. Returns an empty array when no due date is
+     * known anywhere (neither on positions nor on the scalar).
+     *
+     * @return list<LegalDeadline> deadlines created by this call (existing ones skipped)
      */
-    public function createPrescriptionDeadline(LegalCase $legalCase): LegalDeadline
+    public function createPrescriptionDeadlines(LegalCase $legalCase): array
     {
-        $dueDate = $legalCase->getDueDate();
-        if ($dueDate === null) {
-            throw new \InvalidArgumentException(sprintf(
-                'Cannot create prescription deadline: LegalCase %s has no dueDate set.',
-                $legalCase->getCaseNumber(),
-            ));
+        $created = [];
+        foreach ($this->prescriptionDueDates($legalCase) as $dueDate) {
+            $deadlineDate = $dueDate->modify(self::PRESCRIPTION_INTERVAL);
+            if ($this->deadlineRepository->findOneByCaseTypeAndDate($legalCase, DeadlineType::PRESCRIPTIE, $deadlineDate) !== null) {
+                continue;
+            }
+
+            // Rendered to text so the Tab Termene card distinguishes the several
+            // prescription terms by the due date each one covers.
+            $description = $this->translator->trans(
+                'case_overview.deadlines.prescription_covers',
+                ['%date%' => $dueDate->format('d.m.Y')],
+            );
+
+            $created[] = $this->persistDeadline(
+                $legalCase,
+                DeadlineType::PRESCRIPTIE,
+                $deadlineDate,
+                baseDate: $dueDate,
+                rawDeadline: $deadlineDate,
+                description: $description,
+            );
         }
 
-        $baseDate = \DateTimeImmutable::createFromInterface($dueDate);
-        $deadlineDate = $baseDate->modify(self::PRESCRIPTION_INTERVAL);
+        return $created;
+    }
 
-        return $this->persistDeadline(
-            $legalCase,
-            DeadlineType::PRESCRIPTIE,
-            $deadlineDate,
-            baseDate: $baseDate,
-            rawDeadline: $deadlineDate,
-        );
+    /**
+     * Distinct due dates a prescription term must cover, keyed by Y-m-d to dedupe
+     * positions falling due the same day. Draws from the claim positions, skipping
+     * the ones the lawyer excluded and credit notes (which reduce, not form, the
+     * claim). Falls back to the denormalized case due date when the case has no
+     * positions.
+     *
+     * @return list<\DateTimeImmutable> ascending
+     */
+    private function prescriptionDueDates(LegalCase $legalCase): array
+    {
+        $dates = [];
+        foreach ($legalCase->getClaimItems() as $item) {
+            if ($item->isExcludedByLawyer() || $item->isCreditNote()) {
+                continue;
+            }
+
+            $dueDate = $item->getDueDate();
+            if ($dueDate === null) {
+                continue;
+            }
+
+            $dates[$dueDate->format('Y-m-d')] = $dueDate;
+        }
+
+        if ($dates === []) {
+            $caseDueDate = $legalCase->getDueDate();
+            if ($caseDueDate !== null) {
+                $immutable = \DateTimeImmutable::createFromInterface($caseDueDate);
+                $dates[$immutable->format('Y-m-d')] = $immutable;
+            }
+        }
+
+        ksort($dates);
+
+        return array_values($dates);
     }
 
     /**

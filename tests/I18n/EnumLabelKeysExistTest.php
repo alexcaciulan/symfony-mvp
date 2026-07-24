@@ -5,6 +5,7 @@ namespace App\Tests\I18n;
 use App\Enum\CaseStatus;
 use App\Enum\CaseTransition;
 use App\Enum\ClaimItemKind;
+use App\Enum\ConflictSeverity;
 use App\Enum\CourtType;
 use App\Enum\DeadlinePriority;
 use App\Enum\DeadlineType;
@@ -122,6 +123,31 @@ class EnumLabelKeysExistTest extends KernelTestCase
                 $key,
                 $this->translator->trans($key, locale: $locale),
                 sprintf('Upload label "%s" is missing in messages.%s.yaml', $key, $locale),
+            );
+        }
+    }
+
+    /**
+     * ConflictSeverity carries no label(): the conflict panel renders it inline
+     * as `wizard.conflict.severity.<value>` (_prefill_conflicts.html.twig). That
+     * key family is outside the label()-backed coverage above, so a new severity
+     * could ship with no label and fall through to the raw key in the wizard.
+     * Cover it in both catalogues here.
+     *
+     * ConflictScope is deliberately excluded: it routes a conflict to the step
+     * that owns it and is never rendered, so it has no user-facing key to assert.
+     *
+     * @param 'ro'|'en' $locale
+     */
+    #[DataProvider('locales')]
+    public function testConflictSeverityInlineKeysExist(string $locale): void
+    {
+        foreach (ConflictSeverity::cases() as $severity) {
+            $key = 'wizard.conflict.severity.' . $severity->value;
+            $this->assertNotSame(
+                $key,
+                $this->translator->trans($key, locale: $locale),
+                sprintf('Inline key "%s" (from ConflictSeverity::%s) is missing in messages.%s.yaml', $key, $severity->name, $locale),
             );
         }
     }

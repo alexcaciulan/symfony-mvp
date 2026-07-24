@@ -19,6 +19,7 @@ use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\Security\Core\User\UserInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * The proof upload commits on its own flush, outside the transaction that records the
@@ -49,6 +50,7 @@ final class StampDutyServiceTest extends TestCase
             new WorkingDayResolver(),
             $this->createStub(AuditLogService::class),
             $this->createStub(LegalDeadlineRepository::class),
+            $this->createStub(TranslatorInterface::class),
         );
 
         $service = new StampDutyService(

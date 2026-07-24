@@ -15,6 +15,7 @@
 {% block wizard_breadcrumb_step %} · {{ 'wizard.step.confirmation'|trans }}{% endblock %}
 
 {% import 'case/_wizard_macros.html.twig' as f %}
+{% import 'case/_prefill_conflicts.html.twig' as pc %}
 
 {% block wizard_step_content %}
 {# For foreign-currency claims every figure on this screen is the RON-converted
@@ -132,7 +133,7 @@
             <div class="px-5 py-4 space-y-1.5 text-sm">
                 <div class="flex justify-between gap-2">
                     <span class="text-slate-500">{{ 'wizard.step1.field.person_type'|trans }}</span>
-                    <span class="font-medium">{{ creditor.personType is null ? '—' : creditor.personType.value }}</span>
+                    <span class="font-medium">{{ creditor.personType is null ? '—' : pc.value_label('personType', creditor.personType.value, creditor.personType.value) }}</span>
                 </div>
                 <div class="flex justify-between gap-2">
                     <span class="text-slate-500">{{ 'wizard.step1.field.name'|trans }}</span>
@@ -179,7 +180,7 @@
                     <div class="{% if not loop.first %}pt-3 border-t border-slate-100 dark:border-slate-800{% endif %} space-y-1.5">
                         <div class="flex justify-between gap-2">
                             <span class="text-slate-500">{{ 'wizard.step2.field.person_type'|trans }}</span>
-                            <span class="font-medium">{{ entry.personType is null ? '—' : entry.personType.value }}</span>
+                            <span class="font-medium">{{ entry.personType is null ? '—' : pc.value_label('personType', entry.personType.value, entry.personType.value) }}</span>
                         </div>
                         <div class="flex justify-between gap-2">
                             <span class="text-slate-500">{{ 'wizard.step2.field.name'|trans }}</span>

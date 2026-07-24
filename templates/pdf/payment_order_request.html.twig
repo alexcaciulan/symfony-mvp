@@ -8,7 +8,7 @@
    the total, and the sum asked of the court was the older one. #}
 {% set items_accessory = (claim_item_accessories is defined and claim_item_accessories and not claim_item_accessories.isEmpty) ? claim_item_accessories.total : null %}
 {% set itemized = claim_items is defined and claim_items|length > 1 %}
-{% set interest = (itemized and items_accessory is not null) ? items_accessory : case.calculatedInterest|default('0') %}
+{% set interest = (items_accessory is not null) ? items_accessory : case.calculatedInterest|default('0') %}
 {# Suma legală, nu doar cea persistată: taxa e datorată și pe dosarele create înainte
    ca acest câmp să existe, iar omiterea ei din cheltuielile solicitate l-ar costa pe
    creditor 200 lei pe care instanța nu îi acordă din oficiu. #}
@@ -118,6 +118,9 @@
     '%creditor%': creditor ? creditor.name : '—',
     '%debtor%': debtor_names ?: '—',
 }) }}</p>
+{% if claim_description %}
+    <p><strong>{{ 'pdf.payment_order.claim_object_label'|trans }}:</strong> {{ claim_description }}</p>
+{% endif %}
 
 <h2>{{ 'pdf.payment_order.facts_title'|trans }}</h2>
 {# With several documents the claim has several due dates. Declaring the earliest
@@ -196,9 +199,9 @@
         {% endif %}
     </tbody>
 </table>
-{% if itemized %}
-    {# Without this, the registry reads one total above the threshold and the plea of
-       material incompetence follows. Art. 99 is why the total is valued as one head. #}
+{% if itemized and single_cause %}
+    {# Art. 99: the cumulative total is valued as one head only on a single cause.
+       Distinct causes are separate heads, so claiming otherwise misstates the object value. #}
     <p class="meta">{{ 'pdf.payment_order.art99_note'|trans }}</p>
 {% endif %}
 
