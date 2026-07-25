@@ -36,10 +36,13 @@ final class FiscalInvoiceTableDefinition implements TableDefinitionInterface
     public function getColumns(): array
     {
         return [
-            new Column('number', 'table.fiscal_invoices.columns.number', sortable: true, width: 140),
-            new Column('issuedAt', 'table.fiscal_invoices.columns.date', sortable: true, formatter: 'datetime', width: 140),
+            // No width on `number`: under fitColumns it absorbs the leftover
+            // space so the grid fills the container (same idiom as the cases
+            // table's court column). The rest are sized to fit their headers.
+            new Column('number', 'table.fiscal_invoices.columns.number', sortable: true),
+            new Column('issuedAt', 'table.fiscal_invoices.columns.date', sortable: true, formatter: 'datetime', width: 170),
             new Column('grossTotal', 'table.fiscal_invoices.columns.total', sortable: true, width: 140),
-            new Column('eInvoiceStatus', 'table.fiscal_invoices.columns.einvoice', sortable: true, formatter: 'status_badge', width: 160),
+            new Column('eInvoiceStatus', 'table.fiscal_invoices.columns.einvoice', sortable: true, formatter: 'status_badge', width: 180),
             new Column('actions', 'table.fiscal_invoices.columns.actions', formatter: 'open_link', width: 130),
         ];
     }
