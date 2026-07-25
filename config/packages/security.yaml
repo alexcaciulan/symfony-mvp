@@ -23,6 +23,9 @@ security:
                 login_path: app_login
                 check_path: app_login
                 enable_csrf: true
+                # With no saved target path (direct login, post email-verification),
+                # land on the dashboard instead of the marketing home at `/`.
+                default_target_path: app_dashboard
             login_throttling:
                 # Custom limiter adds a per-username tier (audit #16); thresholds live in
                 # rate_limiter.yaml (login_global / login_local / login_username).
