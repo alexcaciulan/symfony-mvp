@@ -68,16 +68,17 @@ link-ul.
 
 ## Tunel cu domeniu propriu (URL stabil)
 
-Precondiție: un domeniu adăugat în contul Cloudflare (nameserverele domeniului
-mutate la Cloudflare, plan Free e suficient). Cloudflare Registrar vinde `.com`
-și zona se configurează automat, dar nu vinde `.ro`: pentru `.ro` cumperi de la
-un registrar acreditat ROTLD, apoi în Cloudflare faci **Add a site** și muți
-nameserverele la cele indicate acolo.
+Domeniul folosit este `lexrecovery.ro`, adăugat în contul Cloudflare (nameservere
+mutate la Cloudflare, plan Free), zonă **Active**. Cloudflare Registrar nu vinde
+`.ro`, așa că domeniul e cumpărat de la un registrar acreditat ROTLD, iar în
+Cloudflare s-a făcut **Add a site** cu mutarea nameserverelor.
+
+Configurarea `cloudflared` se face o singură dată:
 
 ```bash
 brew install cloudflared
 
-# 1. Autentificare: se deschide browserul, alegi zona (domeniul).
+# 1. Autentificare: se deschide browserul, alegi zona lexrecovery.ro.
 #    Salvează un certificat în ~/.cloudflared/cert.pem
 cloudflared tunnel login
 
@@ -86,25 +87,28 @@ cloudflared tunnel login
 cloudflared tunnel create lexdemo
 
 # 3. Rutează subdomeniile spre tunel (creează automat recordurile DNS CNAME)
-cloudflared tunnel route dns lexdemo demo.domeniul-tau.ro
-cloudflared tunnel route dns lexdemo mail.demo.domeniul-tau.ro
+cloudflared tunnel route dns lexdemo app.lexrecovery.ro
+cloudflared tunnel route dns lexdemo mail.lexrecovery.ro
 ```
 
-Apoi în `.env.demo`:
+`.env.demo` este deja completat pentru acest domeniu:
 
 ```
-DEMO_PUBLIC_URL=https://demo.domeniul-tau.ro
-DEMO_MAIL_HOST=mail.demo.domeniul-tau.ro
+DEMO_PUBLIC_URL=https://app.lexrecovery.ro
+DEMO_MAIL_HOST=mail.lexrecovery.ro
 DEMO_TUNNEL_NAME=lexdemo
 ```
 
 `DEMO_PUBLIC_URL` ajunge în `APP_BASE_URL`, `DEFAULT_URI`, `MERCURE_PUBLIC_URL`
-și în `cors_origins` al hub-ului Mercure, deci după ce îl schimbi trebuie
-repornit stack-ul demo:
+și în `cors_origins` al hub-ului Mercure. Nu mai trebuie restart manual: dacă
+`DEMO_TUNNEL_NAME` e setat, `make demo-expose` rulează întâi `demo.sh up -d`
+pentru a alinia containerele la `DEMO_PUBLIC_URL` (compose recreează doar
+serviciile a căror configurație s-a schimbat), așteaptă ca aplicația să răspundă
+și abia apoi pornește tunelul:
 
 ```bash
-make demo-down && make demo-up
-make demo-expose        # pornește tunelul, link-ul rămâne același la restart
+make demo-up
+make demo-expose        # aliniază containerele, apoi tunel cu URL fix la restart
 ```
 
 Certificatul HTTPS îl emite Cloudflare automat pentru subdomeniu, nu trebuie

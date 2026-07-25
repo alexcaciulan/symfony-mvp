@@ -44,6 +44,24 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# Block until the demo app answers locally. Recreating php runs the entrypoint
+# again (migrations, assets, Tailwind), so nginx answers 502 for up to a minute.
+# Do not announce the public link before this returns.
+wait_for_demo() {
+  echo -n "Aștept ca demo-ul să răspundă"
+  for _ in $(seq 1 60); do
+    if curl -sf -o /dev/null "http://127.0.0.1:${APP_PORT}/login"; then
+      echo " gata."
+      return 0
+    fi
+    echo -n "."
+    sleep 2
+  done
+  echo ""
+  echo "ATENȚIE: demo-ul nu răspunde local pe portul ${APP_PORT}. Verifică: make demo-logs"
+  return 1
+}
+
 # Point the demo containers at the public URL. Compose only recreates the
 # services whose environment actually changed (php, worker, mercure).
 apply_public_url() {
@@ -56,19 +74,7 @@ apply_public_url() {
   sed -i '' "s|^DEMO_PUBLIC_URL=.*|DEMO_PUBLIC_URL=${url}|" "${ENV_FILE}"
   DEMO_PUBLIC_URL="${url}"
   "${ROOT}/scripts/demo.sh" up -d >/dev/null
-  # Recreating php runs the entrypoint again (migrations, assets, Tailwind), so
-  # nginx answers 502 for up to a minute. Do not announce the link before then.
-  echo -n "Aștept ca demo-ul să răspundă"
-  for _ in $(seq 1 60); do
-    if curl -sf -o /dev/null "http://127.0.0.1:${APP_PORT}/login"; then
-      echo " gata."
-      return 0
-    fi
-    echo -n "."
-    sleep 2
-  done
-  echo ""
-  echo "ATENȚIE: demo-ul nu răspunde local pe portul ${APP_PORT}. Verifică: make demo-logs"
+  wait_for_demo || true
 }
 
 # --- Named tunnel: stable hostname, nothing to discover at runtime. ---------
@@ -89,6 +95,13 @@ if [ -n "${DEMO_TUNNEL_NAME:-}" ]; then
     fi
     echo "  - service: http_status:404"
   } > "${CONFIG}"
+
+  # Ensure the containers were built with the current DEMO_PUBLIC_URL before the
+  # tunnel goes live (e.g. after switching away from a previous quick-tunnel URL).
+  # Idempotent: compose only recreates services whose environment changed.
+  echo "Aliniez stack-ul demo la https://${APP_HOST} ..."
+  "${ROOT}/scripts/demo.sh" up -d >/dev/null
+  wait_for_demo || true
 
   echo "Tunel numit '${DEMO_TUNNEL_NAME}'. URL stabil: https://${APP_HOST}"
   [ -n "${DEMO_MAIL_HOST:-}" ] && echo "Mailpit: https://${DEMO_MAIL_HOST}"
