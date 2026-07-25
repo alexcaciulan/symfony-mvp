@@ -74,7 +74,10 @@ export default class extends Controller {
         this._loadingPanel = true;
         try {
             const res = await fetch(this.dropdownUrlValue, {
-                headers: { Accept: 'text/html' },
+                // Mark as XHR so an unauthenticated background poll (tab left open
+                // after logout / session expiry) does not get saved by the firewall
+                // as the post-login target path, redirecting the next login to JSON.
+                headers: { Accept: 'text/html', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin',
             });
             if (!res.ok) return;
@@ -119,7 +122,10 @@ export default class extends Controller {
         this._fetching = true;
         try {
             const res = await fetch(this.unreadCountUrlValue, {
-                headers: { Accept: 'application/json' },
+                // XHR marker keeps this background poll from becoming the saved
+                // target path when the session is gone; without it the next login
+                // lands on this JSON endpoint instead of the dashboard.
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
                 credentials: 'same-origin',
             });
             if (!res.ok) return;
