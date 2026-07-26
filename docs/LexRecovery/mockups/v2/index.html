@@ -44,7 +44,7 @@
           <h1 class="text-xl font-bold tracking-tight">LexRecovery v2</h1>
           <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300">Sidebar + Preline</span>
         </div>
-        <p class="text-xs text-slate-500"><a href="../index.html" class="hover:underline">← Selector versiune</a> · 9 ecrane + 4 tab-uri funcționale · sidebar CMS + Preline</p>
+        <p class="text-xs text-slate-500"><a href="../index.html" class="hover:underline">← Selector versiune</a> · 10 ecrane + 5 tab-uri funcționale · sidebar CMS + Preline</p>
       </div>
     </div>
     <button onclick="toggleTheme()" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Toggle dark mode">
@@ -175,6 +175,40 @@
     </div>
   </section>
 
+  <section>
+    <div class="flex items-baseline gap-3 mb-4">
+      <h2 class="text-lg font-semibold">Termene</h2>
+      <span class="text-xs text-slate-500">1 ecran · agendă + registru + panou de detaliu</span>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <a href="05-termene/index.html" class="group bg-white dark:bg-slate-900 rounded-xl border-2 border-amber-300 dark:border-amber-700/50 hover:border-amber-500 hover:shadow-lg transition p-5 relative">
+        <span class="absolute top-3 right-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">nou</span>
+        <div class="text-xs uppercase tracking-wide font-semibold text-blue-600 mb-2">P1 #9 · cross-dosar</div>
+        <h3 class="text-base font-semibold group-hover:text-blue-600">Termene (agendă)</h3>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Pagina dedicată din sidebar. Bară de risc cu 4 contoare-filtru, zonă de blocaje (termene fatale fără dată generatoare), agendă grupată pe zile cu ordonare pe gravitatea consecinței, rail de prescripții, mod Registru și drawer de detaliu cu acțiuni.</p>
+        <div class="mt-3 flex flex-wrap gap-1.5">
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 font-semibold">Restante</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-semibold">Blocaje</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-semibold">Registru</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">Drawer detaliu</span>
+        </div>
+      </a>
+
+      <a href="05-termene/stari.html" class="group bg-white dark:bg-slate-900 rounded-xl border-2 border-slate-200 dark:border-slate-800 hover:border-blue-400 hover:shadow-lg transition p-5 relative">
+        <span class="absolute top-3 right-3 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">nou</span>
+        <div class="text-xs uppercase tracking-wide font-semibold text-blue-600 mb-2">P1 #9 · anexă</div>
+        <h3 class="text-base font-semibold group-hover:text-blue-600">Termene (stări și variante)</h3>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Cele șase situații care nu încap în ecranul principal: cont nou fără termene, registru curat, portofoliu de 246 de termene cu paginare și filtre active, degradarea monitorizării portal, vederea mobilă într-un cadru de 420 px și panoul de detaliu cu istoric și proveniență.</p>
+        <div class="mt-3 flex flex-wrap gap-1.5">
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">Stări goale</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-semibold">Degradare portal</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-semibold">Mobil</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">Proveniență</span>
+        </div>
+      </a>
+    </div>
+  </section>
+
   <section class="bg-slate-100 dark:bg-slate-900 rounded-xl p-6 text-sm">
     <h3 class="font-semibold mb-3">Ce nu e încă mockup-uit (runde viitoare)</h3>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-600 dark:text-slate-400">
@@ -196,7 +230,7 @@
 
 <footer class="border-t border-slate-200 dark:border-slate-800 mt-12">
   <div class="max-w-6xl mx-auto px-4 lg:px-8 py-6 text-xs text-slate-400 flex flex-wrap items-center justify-between gap-2">
-    <span>v2 · sidebar CMS layout · Preline UI free · 8 ecrane navigabile</span>
+    <span>v2 · sidebar CMS layout · Preline UI free · 9 ecrane navigabile</span>
     <a href="../index.html" class="hover:text-slate-600 dark:hover:text-slate-300">← Selector versiune</a>
   </div>
 </footer>

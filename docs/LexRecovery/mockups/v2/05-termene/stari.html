@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="ro" class="">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Termene · stări și variante · LexRecovery</title>
+  <script>
+    if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    }
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: {
+        colors: { 'lex-navy': '#1E3A5F', 'lex-navy-dark': '#162A45', 'lex-navy-light': '#2B4F7C', 'lex-blue': '#3B82F6' },
+        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+        boxShadow: {
+          'soft': '0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px -2px rgba(15, 23, 42, 0.05)',
+          'card': '0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -4px rgba(15, 23, 42, 0.06)',
+          'hero': '0 1px 3px rgba(15, 23, 42, 0.05), 0 12px 40px -8px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(15, 23, 42, 0.04)',
+        },
+      }},
+      plugins: [
+        // Preline variants registered manually so the Play CDN can process them.
+        function({ addVariant }) {
+          addVariant('hs-tab-active', '&.active');
+          addVariant('hs-dropdown-open', ['&.open > *', '.open &']);
+          addVariant('hs-accordion-active', ['&.active', '.active &']);
+          addVariant('hs-overlay-open', '&.open');
+          addVariant('hs-overlay-backdrop-open', '&.open');
+        }
+      ]
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    .tnum { font-variant-numeric: tabular-nums; }
+    .nav-active { background: linear-gradient(90deg, rgba(30,58,95,0.08) 0%, rgba(30,58,95,0.02) 100%); }
+    .dark .nav-active { background: linear-gradient(90deg, rgba(96,165,250,0.12) 0%, rgba(96,165,250,0.02) 100%); }
+
+    /* Risk pills act as toggleable filters. Pressed state uses ring + weight, never colour alone. */
+    .risk-pill { transition: box-shadow .12s ease, transform .12s ease; }
+    .risk-pill[aria-pressed="true"] { box-shadow: 0 0 0 2px currentColor inset; }
+    .risk-pill:focus-visible, .seg-btn:focus-visible, a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible {
+      outline: 2px solid #3B82F6; outline-offset: 2px;
+    }
+
+    /* Segmented switches reused from the main screen. */
+    .seg-btn[aria-pressed="true"] { background: #fff; color: #1E3A5F; box-shadow: 0 1px 2px rgba(15,23,42,.06); font-weight: 600; }
+    .dark .seg-btn[aria-pressed="true"] { background: #1e293b; color: #fff; }
+
+    /* Skeleton rows for lazy sections. */
+    .sk { background: linear-gradient(90deg, rgba(148,163,184,.18) 25%, rgba(148,163,184,.30) 37%, rgba(148,163,184,.18) 63%); background-size: 400% 100%; animation: sk 1.4s ease infinite; }
+    @keyframes sk { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+
+    .sr-only-focusable:not(:focus) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body class="font-sans antialiased min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+
+<a href="#main-content" class="sr-only-focusable absolute z-[100] m-2 px-3 py-2 rounded-lg bg-lex-navy text-white text-sm">Sari la conținut</a>
+
+<!-- ===================== SIDEBAR (identic cu Dashboard / Dosar / Termene) ===================== -->
+<aside class="hidden lg:flex flex-col fixed inset-y-0 left-0 w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 z-30">
+
+  <div class="h-16 flex items-center px-5 border-b border-slate-100 dark:border-slate-800">
+    <a href="../index.html" class="flex items-center gap-2 text-lex-navy dark:text-white font-bold text-lg tracking-tight">
+      <span class="inline-flex items-center justify-center size-8 rounded-lg bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white shadow-sm">
+        <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16l-3-3m3 3l3-3"/></svg>
+      </span>
+      LexRecovery
+    </a>
+  </div>
+
+  <div class="px-3 py-3 border-b border-slate-100 dark:border-slate-800">
+    <button type="button" class="w-full inline-flex items-center gap-2 py-2 px-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition" aria-label="Comută cabinetul">
+      <span class="inline-flex items-center justify-center size-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-xs font-bold shrink-0">CI</span>
+      <span class="flex-1 min-w-0 text-left">
+        <span class="block text-sm font-semibold text-slate-900 dark:text-white truncate">Cabinet Ionescu</span>
+        <span class="block text-[10px] text-slate-500 truncate">Plan Pro · 47/100 dosare</span>
+      </span>
+      <svg class="size-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+    </button>
+  </div>
+
+  <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+    <div class="space-y-0.5">
+      <a href="../02-dashboard/populated.html" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+        <svg class="size-[18px] text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        Dashboard
+      </a>
+      <a href="../04-dosar/overview.html" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+        <svg class="size-[18px] text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        Dosare
+        <span class="ml-auto inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-bold tnum">47</span>
+      </a>
+
+      <!-- Active entry. Badge source = restante counter only (single semantics). -->
+      <a href="index.html" class="nav-active flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-semibold text-lex-navy dark:text-blue-400 relative">
+        <span class="absolute left-0 top-2 bottom-2 w-0.5 bg-lex-navy dark:bg-blue-400 rounded-r"></span>
+        <svg class="size-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Termene
+        <span class="ml-auto inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-md bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300 text-[10px] font-bold tnum" title="6 termene restante">6</span>
+      </a>
+
+      <a href="#" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+        <svg class="size-[18px] text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+        Notificări
+        <span class="ml-auto inline-flex items-center justify-center size-4 rounded-full bg-red-500 text-white text-[9px] font-bold">3</span>
+      </a>
+    </div>
+
+    <div class="space-y-0.5">
+      <div class="px-2.5 mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Bibliotecă</div>
+      <a href="#" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"><svg class="size-[18px] text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"/></svg>Creditori<span class="ml-auto text-[10px] text-slate-400 tnum">28</span></a>
+      <a href="#" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"><svg class="size-[18px] text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>Debitori<span class="ml-auto text-[10px] text-slate-400 tnum">52</span></a>
+      <a href="#" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"><svg class="size-[18px] text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>Instanțe</a>
+    </div>
+
+    <div class="space-y-0.5">
+      <div class="px-2.5 mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Cabinet</div>
+      <a href="#" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"><svg class="size-[18px] text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>Abonament<span class="ml-auto text-[9px] font-bold uppercase tracking-wide text-blue-700 dark:text-blue-400 bg-blue-100 dark:bg-blue-950/50 px-1.5 py-0.5 rounded">Pro</span></a>
+      <a href="#" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"><svg class="size-[18px] text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Setări</a>
+    </div>
+  </nav>
+
+  <div class="border-t border-slate-100 dark:border-slate-800 p-3">
+    <div class="hs-dropdown relative inline-flex w-full">
+      <button type="button" class="hs-dropdown-toggle w-full inline-flex items-center gap-2.5 py-2 px-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition" aria-haspopup="menu" aria-expanded="false">
+        <span class="inline-flex items-center justify-center size-9 rounded-full bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white text-sm font-semibold shrink-0 ring-2 ring-white dark:ring-slate-900">MI</span>
+        <span class="flex-1 min-w-0 text-left">
+          <span class="block text-sm font-semibold text-slate-900 dark:text-white truncate">Av. Mihai Ionescu</span>
+          <span class="block text-[10px] text-slate-500 truncate">Baroul București</span>
+        </span>
+      </button>
+      <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-[230px] bg-white shadow-card rounded-xl border border-slate-200 dark:bg-slate-900 dark:border-slate-800 mb-1 p-1.5 z-40 bottom-full" role="menu">
+        <button type="button" onclick="toggleTheme()" class="w-full flex items-center gap-2.5 py-2 px-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 text-sm text-left text-slate-700 dark:text-slate-300"><span class="dark:hidden">Mod întunecat</span><span class="hidden dark:inline">Mod luminos</span></button>
+        <a href="../01-auth/login.html" class="flex items-center gap-2.5 py-2 px-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-sm text-red-600 dark:text-red-400">Deconectare</a>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- Mobile drawer nav -->
+<div id="hs-mobile-sidebar" class="hs-overlay hs-overlay-open:translate-x-0 -translate-x-full transition-all duration-300 transform hidden fixed top-0 start-0 bottom-0 z-[60] w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 lg:hidden" role="dialog" tabindex="-1">
+  <div class="h-16 flex items-center justify-between px-5 border-b border-slate-100 dark:border-slate-800">
+    <span class="font-bold text-lex-navy dark:text-white">LexRecovery</span>
+    <button type="button" data-hs-overlay="#hs-mobile-sidebar" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Închide meniul">
+      <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <nav class="p-3 space-y-1 text-sm">
+    <a href="../02-dashboard/populated.html" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800">Dashboard</a>
+    <a href="../04-dosar/overview.html" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800">Dosare <span class="ml-auto text-xs">47</span></a>
+    <a href="index.html" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 font-semibold">Termene <span class="ml-auto text-xs text-red-600">6</span></a>
+    <a href="#" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800">Notificări <span class="ml-auto text-xs text-red-600">3</span></a>
+    <a href="#" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800">Setări</a>
+  </nav>
+</div>
+
+<div class="lg:pl-64 min-h-screen flex flex-col">
+
+  <header class="sticky top-0 z-20 h-14 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+    <div class="h-full px-4 lg:px-8 flex items-center gap-4">
+      <button type="button" data-hs-overlay="#hs-mobile-sidebar" class="lg:hidden p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Deschide meniul">
+        <svg class="size-5 text-slate-600 dark:text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+
+      <ol class="flex items-center whitespace-nowrap text-xs flex-1 min-w-0" aria-label="Breadcrumb">
+        <li class="hidden sm:inline-flex items-center"><a href="../02-dashboard/populated.html" class="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300">Dashboard</a><svg class="shrink-0 mx-1.5 size-3 text-slate-300 dark:text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></li>
+        <li class="inline-flex items-center"><a href="index.html" class="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300">Termene</a><svg class="shrink-0 mx-1.5 size-3 text-slate-300 dark:text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></li>
+        <li class="inline-flex items-center font-medium text-slate-700 dark:text-slate-300" aria-current="page">Stări și variante</li>
+      </ol>
+
+      <div class="hidden md:flex items-center relative">
+        <svg class="absolute left-3 size-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <input type="search" placeholder="Caută dosar, debitor, CUI..." class="pl-9 pr-12 py-1.5 w-64 lg:w-80 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <kbd class="absolute right-3 hidden lg:inline-block px-1.5 py-0.5 text-[10px] font-mono text-slate-400 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded">⌘K</kbd>
+      </div>
+
+      <div class="flex items-center gap-1">
+        <button type="button" onclick="toggleTheme()" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Comută modul întunecat">
+          <svg class="size-[18px] dark:hidden text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+          <svg class="size-[18px] hidden dark:block text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        </button>
+        <a href="index.html" class="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg bg-lex-navy hover:bg-lex-navy-dark text-white text-sm font-semibold transition">
+          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+          <span class="hidden sm:inline">Înapoi la agendă</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main-content" class="flex-1 px-4 lg:px-8 py-6 space-y-8">
+
+    <!-- ===================== ANTET ===================== -->
+    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+      <div class="max-w-3xl">
+        <div class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Termene · anexă de mockup</div>
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight">Stări și variante</h1>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Cele șase situații care nu încap în ecranul principal, fiecare randată la dimensiune reală într-un cadru de previzualizare. Ziua de referință rămâne marți, 28.07.2026, ca în agendă.</p>
+      </div>
+      <a href="index.html" class="shrink-0 self-start inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+        <svg class="size-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+        Înapoi la ecranul principal
+      </a>
+    </div>
+
+    <!-- Jump nav -->
+    <nav aria-label="Sari la o stare" class="flex flex-wrap gap-1.5 pb-1 border-b border-slate-200 dark:border-slate-800">
+      <a href="#stare-1" class="px-2.5 py-1 rounded-lg text-xs font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition">1 · Cont nou</a>
+      <a href="#stare-2" class="px-2.5 py-1 rounded-lg text-xs font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition">2 · Registru curat</a>
+      <a href="#stare-3" class="px-2.5 py-1 rounded-lg text-xs font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition">3 · Portofoliu mare</a>
+      <a href="#stare-4" class="px-2.5 py-1 rounded-lg text-xs font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition">4 · Portal indisponibil</a>
+      <a href="#stare-5" class="px-2.5 py-1 rounded-lg text-xs font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition">5 · Mobil</a>
+      <a href="#stare-6" class="px-2.5 py-1 rounded-lg text-xs font-medium bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition">6 · Detaliu și proveniență</a>
+    </nav>
+
+
+    <!-- ============================================================= -->
+    <!-- STAREA 1 · cont nou, niciun termen                              -->
+    <!-- ============================================================= -->
+    <section id="stare-1" class="scroll-mt-20 space-y-3">
+      <div class="flex items-baseline gap-3">
+        <span class="tnum text-xs font-bold text-slate-500 dark:text-slate-400">01</span>
+        <h2 class="text-lg font-semibold tracking-tight">Cont nou, niciun termen</h2>
+        <span class="text-xs text-slate-500">0 dosare · 0 termene</span>
+      </div>
+
+      <div class="rounded-lg border border-slate-200 dark:border-slate-800 border-l-2 border-l-lex-navy dark:border-l-blue-500 bg-white dark:bg-slate-900 px-3.5 py-2.5">
+        <div class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Decizie de design</div>
+        <p class="mt-0.5 text-xs text-slate-600 dark:text-slate-400">Bara de risc și zona de blocaje nu se randează deloc. Patru contoare pe zero arată ca un ecran defect și nu spun nimic. În locul lor, ecranul explică ce termene va urmări aplicația, cu temeiul lor, pentru că exact asta cumpără avocatul. Este singurul loc din pagină unde se folosește butonul cu gradient.</p>
+      </div>
+
+      <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 overflow-hidden">
+        <div class="px-3 py-1.5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-[10px] uppercase tracking-wide font-semibold text-slate-400 flex items-center gap-2">
+          <span class="size-1.5 rounded-full bg-slate-300 dark:bg-slate-700"></span> Randare · lățime desktop
+        </div>
+
+        <div class="px-4 lg:px-8 py-12">
+          <div class="max-w-2xl mx-auto text-center">
+            <div class="relative inline-flex mb-6">
+              <div class="absolute inset-0 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-2xl blur-2xl opacity-20"></div>
+              <div class="relative inline-flex items-center justify-center size-20 rounded-2xl bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 text-blue-600 dark:text-blue-400 shadow-soft">
+                <svg class="size-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+              </div>
+            </div>
+            <h3 class="text-2xl md:text-3xl font-bold tracking-tight">Niciun termen de urmărit</h3>
+            <p class="mt-3 text-base text-slate-600 dark:text-slate-400 max-w-xl mx-auto">Termenele apar singure din primul dosar. Nu le introduci tu: aplicația le calculează din datele pe care le completezi în cerere și le mută dacă data faptului generator se schimbă.</p>
+            <div class="mt-7 flex flex-col sm:flex-row gap-3 justify-center">
+              <a href="../03-wizard/step0-documente.html" class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white font-semibold hover:shadow-lg hover:shadow-lex-navy/20 transition shadow-sm">
+                <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                Începe primul dosar
+              </a>
+              <button type="button" class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-medium border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition">
+                <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                Adaugă un memento propriu
+              </button>
+            </div>
+          </div>
+
+          <div class="mt-10 max-w-3xl mx-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-soft overflow-hidden">
+            <header class="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+              <h4 class="text-sm font-semibold">Ce va urmări aplicația în locul tău</h4>
+              <p class="text-xs text-slate-500 mt-0.5">Fiecare termen se creează automat în momentul în care apare faptul care îl declanșează.</p>
+            </header>
+            <ul class="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
+              <li class="px-4 py-2.5 flex items-start gap-3">
+                <span class="mt-1 size-1.5 rounded-full bg-sky-500 shrink-0"></span>
+                <span class="flex-1"><span class="font-medium">Răspuns la somație, 15 zile</span><span class="block text-xs text-slate-500">Din ziua comunicării somației. CPC art. 1015 alin. 1.</span></span>
+              </li>
+              <li class="px-4 py-2.5 flex items-start gap-3">
+                <span class="mt-1 size-1.5 rounded-full bg-red-500 shrink-0"></span>
+                <span class="flex-1"><span class="font-medium">Timbrare, 10 zile</span><span class="block text-xs text-slate-500">Din înștiințarea instanței. Netimbrarea atrage anularea cererii. OUG 80/2013 art. 33 alin. 2.</span></span>
+              </li>
+              <li class="px-4 py-2.5 flex items-start gap-3">
+                <span class="mt-1 size-1.5 rounded-full bg-red-500 shrink-0"></span>
+                <span class="flex-1"><span class="font-medium">Cerere în anulare, 10 zile</span><span class="block text-xs text-slate-500">Din comunicarea ordonanței. Termen de decădere. CPC art. 1024 alin. 1.</span></span>
+              </li>
+              <li class="px-4 py-2.5 flex items-start gap-3">
+                <span class="mt-1 size-1.5 rounded-full bg-red-500 shrink-0"></span>
+                <span class="flex-1"><span class="font-medium">Prescripție, 3 ani per scadență</span><span class="block text-xs text-slate-500">Câte un termen pentru fiecare factură. NCC art. 2517.</span></span>
+              </li>
+              <li class="px-4 py-2.5 flex items-start gap-3">
+                <span class="mt-1 size-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                <span class="flex-1"><span class="font-medium">Termene de judecată</span><span class="block text-xs text-slate-500">Preluate din portal.just.ro după ce dosarul primește număr de instanță.</span></span>
+              </li>
+            </ul>
+            <footer class="px-4 py-2.5 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500">
+              Alertele pe email pleacă zilnic la 07:00, la 7, 3 și 1 zi înainte și în ziua expirării.
+            </footer>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================= -->
+    <!-- STAREA 2 · registru curat                                       -->
+    <!-- ============================================================= -->
+    <section id="stare-2" class="scroll-mt-20 space-y-3">
+      <div class="flex items-baseline gap-3">
+        <span class="tnum text-xs font-bold text-slate-500 dark:text-slate-400">02</span>
+        <h2 class="text-lg font-semibold tracking-tight">Registru curat</h2>
+        <span class="text-xs text-slate-500">47 dosare · 0 restante · următorul termen peste 42 de zile</span>
+      </div>
+
+      <div class="rounded-lg border border-slate-200 dark:border-slate-800 border-l-2 border-l-lex-navy dark:border-l-blue-500 bg-white dark:bg-slate-900 px-3.5 py-2.5">
+        <div class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Decizie de design</div>
+        <p class="mt-0.5 text-xs text-slate-600 dark:text-slate-400">Aici există dosare, deci bara de risc nu dispare: se colapsează pe un singur rând verde care confirmă zeroul. Confirmarea explicită este scopul ecranului, pentru că fără ea avocatul nu poate distinge „nu am nimic azi” de „pagina nu s-a încărcat”. Linia „Următorul termen” încheie ziua, iar prescripțiile rămân vizibile în rail ca să fie clar că urmărirea continuă.</p>
+      </div>
+
+      <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 overflow-hidden">
+        <div class="px-3 py-1.5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-[10px] uppercase tracking-wide font-semibold text-slate-400 flex items-center gap-2">
+          <span class="size-1.5 rounded-full bg-emerald-500"></span> Randare · lățime desktop
+        </div>
+
+        <div class="p-4 lg:p-6 space-y-5">
+          <!-- antet de pagină, identic cu ecranul principal -->
+          <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+            <div>
+              <h3 class="text-2xl font-bold tracking-tight">Termene</h3>
+              <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Termenele din toate dosarele tale active, până la 27.08.2026. Alertele pe email rulează zilnic la 07:00.</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2 self-start">
+              <div role="group" aria-label="Mod de vizualizare" class="inline-flex p-0.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800">
+                <button type="button" aria-pressed="true" class="seg-btn px-3 py-1.5 rounded-md text-sm text-slate-600 dark:text-slate-300 transition">Agendă</button>
+                <button type="button" aria-pressed="false" class="seg-btn px-3 py-1.5 rounded-md text-sm text-slate-600 dark:text-slate-300 transition">Registru</button>
+              </div>
+              <button type="button" class="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+                <svg class="size-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                Adaugă termen
+              </button>
+            </div>
+          </div>
+
+          <!-- bara de risc colapsată -->
+          <div class="rounded-2xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/30 shadow-soft px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+            <span class="inline-flex items-center justify-center size-7 rounded-lg bg-white dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 shrink-0">
+              <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            </span>
+            <div class="flex-1 min-w-0">
+              <div class="text-sm font-semibold text-emerald-900 dark:text-emerald-200">Registru curat</div>
+              <p class="text-xs text-emerald-800 dark:text-emerald-300/90">Zero restante, zero termene care expiră azi, zero termene fatale în următoarele 30 de zile. Verificat la 28.07.2026, ora 08:14.</p>
+            </div>
+            <div class="flex items-center gap-3 shrink-0">
+              <label class="inline-flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" class="sr-only peer">
+                <span class="relative w-9 h-5 rounded-full bg-emerald-200 dark:bg-slate-700 ring-1 ring-emerald-600 dark:ring-slate-400 peer-checked:bg-emerald-600 transition after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:size-4 after:rounded-full after:bg-white after:shadow after:transition peer-checked:after:translate-x-4"></span>
+                <span class="text-xs text-emerald-900 dark:text-emerald-200">Arată finalizate (12)</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_20rem] gap-5 items-start">
+            <div class="min-w-0 space-y-4">
+              <!-- corpul: card cu bordură întreruptă -->
+              <div class="rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/40 px-6 py-10 text-center">
+                <div class="inline-flex items-center justify-center size-11 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 mb-3">
+                  <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                </div>
+                <h4 class="text-base font-semibold">Nimic de făcut până la 27.08.2026</h4>
+                <p class="mt-1 text-sm text-slate-600 dark:text-slate-400 max-w-md mx-auto">Cele 47 de dosare active sunt la zi. Următorul termen este pe 08.09.2026, în afara ferestrei agendei, care se oprește la 27.08.2026.</p>
+
+                <div class="mt-5 inline-flex flex-col sm:flex-row items-center gap-2 px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-left shadow-soft">
+                  <span class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 shrink-0">Următorul termen</span>
+                  <span class="text-sm tnum">
+                    <strong class="font-semibold">08.09.2026 (marți)</strong>
+                    <span class="text-slate-500 mx-1">·</span> în 42 de zile
+                    <span class="text-slate-500 mx-1">·</span> Termen de judecată
+                    <span class="text-slate-500 mx-1">·</span> <a href="../04-dosar/overview.html" class="font-mono hover:underline">2680/302/2026</a>
+                    <span class="text-slate-500 mx-1">·</span> Judecătoria Sectorului 5 București
+                  </span>
+                </div>
+              </div>
+
+              <div class="flex flex-wrap gap-2">
+                <button type="button" class="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition">Extinde fereastra la 90 de zile</button>
+                <button type="button" class="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition">Vezi cele 12 termene finalizate luna aceasta</button>
+              </div>
+            </div>
+
+            <aside class="space-y-4">
+              <section class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-soft overflow-hidden">
+                <header class="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+                  <h4 class="text-sm font-semibold">Prescripții, orizont lung</h4>
+                  <p class="mt-0.5 text-[11px] text-slate-500">Peste 30 de zile rămase. Urmărirea continuă și când agenda e goală.</p>
+                </header>
+                <div class="divide-y divide-slate-100 dark:divide-slate-800">
+                  <div class="px-4 py-2.5">
+                    <div class="flex items-baseline justify-between gap-2">
+                      <span class="text-xs font-semibold">Prescripție, factura F-2023-0688</span>
+                      <span class="text-[11px] tnum text-slate-500">în 66 de zile</span>
+                    </div>
+                    <div class="mt-0.5 text-[11px] text-slate-500 tnum">02.10.2026 · <a href="../04-dosar/overview.html" class="font-mono hover:underline">1476/211/2026</a> · Nord Agro Prod S.R.L.</div>
+                  </div>
+                  <div class="px-4 py-2.5">
+                    <div class="flex items-baseline justify-between gap-2">
+                      <span class="text-xs font-semibold">Prescripție executare</span>
+                      <span class="text-[11px] tnum text-slate-500">în 1 an și 10 luni</span>
+                    </div>
+                    <div class="mt-0.5 text-[11px] text-slate-500 tnum">30.05.2028 · <a href="../04-dosar/overview.html" class="font-mono hover:underline">3184/299/2026</a> · Vertigo Interiors S.R.L.</div>
+                  </div>
+                </div>
+                <footer class="px-4 py-2.5 border-t border-slate-100 dark:border-slate-800">
+                  <button type="button" class="text-xs font-medium text-lex-navy dark:text-blue-400 hover:underline">Vezi toate (7) în Registru</button>
+                </footer>
+              </section>
+
+              <section class="rounded-xl border border-blue-200 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-950/30 p-4">
+                <div class="flex items-start gap-2">
+                  <svg class="size-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                  <div class="text-xs text-blue-900 dark:text-blue-200">
+                    <div class="font-bold">Alerte pe email</div>
+                    <p class="mt-0.5 text-blue-800 dark:text-blue-300/90">Pleacă zilnic la 07:00, la 7, 3 și 1 zi înainte și în ziua expirării.</p>
+                  </div>
+                </div>
+              </section>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================= -->
+    <!-- STAREA 3 · portofoliu mare                                      -->
+    <!-- ============================================================= -->
+    <section id="stare-3" class="scroll-mt-20 space-y-3">
+      <div class="flex items-baseline gap-3">
+        <span class="tnum text-xs font-bold text-slate-500 dark:text-slate-400">03</span>
+        <h2 class="text-lg font-semibold tracking-tight">Portofoliu mare</h2>
+        <span class="text-xs text-slate-500">214 dosare active · 246 termene în fereastra de 30 de zile</span>
+      </div>
+
+      <div class="rounded-lg border border-slate-200 dark:border-slate-800 border-l-2 border-l-lex-navy dark:border-l-blue-500 bg-white dark:bg-slate-900 px-3.5 py-2.5">
+        <div class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Decizie de design</div>
+        <p class="mt-0.5 text-xs text-slate-600 dark:text-slate-400">Paginare explicită per secțiune (25 de rânduri plus „Arată încă N”), nu scroll infinit și nu virtualizare. Rândurile au înălțime variabilă, fiecare are ancoră proprie pentru actualizarea punctuală după închiderea unui termen, iar scrollul infinit face imposibilă întrebarea „am terminat cu ziua de azi”. „Filtrele salvate” sunt preseturi fixe plus ultimul filtru reținut local: vederile definite de utilizator ar cere o entitate nouă și nu intră în v1.</p>
+      </div>
+
+      <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 overflow-hidden">
+        <div class="px-3 py-1.5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-[10px] uppercase tracking-wide font-semibold text-slate-400 flex items-center gap-2">
+          <span class="size-1.5 rounded-full bg-amber-500"></span> Randare · lățime desktop
+        </div>
+
+        <div class="p-4 lg:p-6 space-y-4">
+
+          <!-- bara de risc cu contoare mari -->
+          <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-soft px-4 py-3">
+            <div class="flex items-center gap-3">
+              <div class="flex-1 min-w-0 flex gap-2 overflow-x-auto sm:flex-wrap sm:overflow-visible pb-1 sm:pb-0" role="group" aria-label="Filtre de risc">
+                <button type="button" aria-pressed="true" class="risk-pill shrink-0 text-left px-3 py-2 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 ring-1 ring-red-200 dark:ring-red-900/50">
+                  <span class="flex items-center gap-1.5">
+                    <svg class="size-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8.6 2h6.8L22 8.6v6.8L15.4 22H8.6L2 15.4V8.6L8.6 2z"/></svg>
+                    <span class="tnum text-lg font-bold leading-none">24</span>
+                  </span>
+                  <span class="block mt-1 text-[11px] uppercase tracking-wide font-semibold">Restante</span>
+                </button>
+                <button type="button" aria-pressed="false" class="risk-pill shrink-0 text-left px-3 py-2 rounded-xl bg-white dark:bg-slate-900 text-red-700 dark:text-red-300 ring-1 ring-red-300 dark:ring-red-800">
+                  <span class="flex items-center gap-1.5">
+                    <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7v5l3 2"/></svg>
+                    <span class="tnum text-lg font-bold leading-none">6</span>
+                  </span>
+                  <span class="block mt-1 text-[11px] uppercase tracking-wide font-semibold">Expiră azi</span>
+                  <span class="block text-[10px] font-normal text-slate-500 dark:text-slate-400">până la ora 24:00</span>
+                </button>
+                <button type="button" aria-pressed="true" class="risk-pill shrink-0 text-left px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 ring-1 ring-amber-200 dark:ring-amber-900/50">
+                  <span class="flex items-center gap-1.5">
+                    <svg class="size-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l10 19H2L12 2z"/></svg>
+                    <span class="tnum text-lg font-bold leading-none">41</span>
+                  </span>
+                  <span class="block mt-1 text-[11px] uppercase tracking-wide font-semibold">Fatale în 30 de zile</span>
+                </button>
+                <button type="button" aria-pressed="false" class="risk-pill shrink-0 text-left px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 ring-1 ring-slate-200 dark:ring-slate-700">
+                  <span class="flex items-center gap-1.5">
+                    <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 118 0v3"/></svg>
+                    <span class="tnum text-lg font-bold leading-none">12</span>
+                  </span>
+                  <span class="block mt-1 text-[11px] uppercase tracking-wide font-semibold">Blocate pe date lipsă</span>
+                  <span class="block text-[10px] font-normal text-slate-500 dark:text-slate-400">dosare, nu termene</span>
+                </button>
+              </div>
+              <div class="hidden sm:flex items-center gap-3 shrink-0">
+                <button type="button" class="inline-flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-lex-navy dark:hover:text-blue-400">
+                  <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+                  Filtre
+                </button>
+              </div>
+            </div>
+
+            <!-- preseturi + filtre active -->
+            <div class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center gap-2">
+              <span class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Preset</span>
+              <div role="group" aria-label="Preseturi" class="inline-flex p-0.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800">
+                <button type="button" aria-pressed="false" class="seg-btn px-2.5 py-1 rounded-md text-xs text-slate-600 dark:text-slate-300">Tot</button>
+                <button type="button" aria-pressed="true" class="seg-btn px-2.5 py-1 rounded-md text-xs text-slate-600 dark:text-slate-300">Doar fatale</button>
+                <button type="button" aria-pressed="false" class="seg-btn px-2.5 py-1 rounded-md text-xs text-slate-600 dark:text-slate-300">Termene de judecată</button>
+                </div>
+              <span class="text-[11px] text-slate-500">Presetul „Ale debitorului” intră abia după ce titularul termenului devine derivabil din model.</span>
+
+              <span class="w-px h-5 bg-slate-200 dark:bg-slate-700 mx-1"></span>
+
+              <span class="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs">
+                <span class="text-slate-500">Instanță:</span> Judecătoria Sectorului 3 București
+                <button type="button" class="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700" aria-label="Elimină filtrul de instanță"><svg class="size-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+              </span>
+              <span class="inline-flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs">
+                <span class="text-slate-500">Creditor:</span> Tehno Construct S.R.L.
+                <button type="button" class="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700" aria-label="Elimină filtrul de creditor"><svg class="size-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+              </span>
+              <button type="button" class="text-xs font-medium text-slate-500 hover:text-lex-navy dark:hover:text-blue-400 underline underline-offset-2">Golește filtrele</button>
+              <span class="ml-auto text-[11px] text-slate-500">Filtrul se reține pe acest calculator până îl golești.</span>
+            </div>
+          </div>
+
+          <!-- linia de volum -->
+          <p class="text-xs text-slate-500 px-1">Ai 246 de termene în următoarele 30 de zile, din care 63 după aplicarea filtrelor. Registrul permite filtrare pe tip, instanță și creditor, plus export CSV pe filtrul curent.</p>
+
+          <!-- secțiunea cu paginare -->
+          <section class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-soft overflow-hidden">
+            <header class="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center gap-2">
+              <h3 class="text-sm font-semibold">Următoarele 30 de zile <span class="tnum">(183)</span></h3>
+              <span class="text-xs text-slate-500">ordonate pe gravitatea consecinței în interiorul fiecărei zile</span>
+              <span class="ml-auto text-[11px] text-slate-500 tnum">1 la 25 din 183</span>
+            </header>
+
+            <div class="divide-y divide-slate-100 dark:divide-slate-800">
+              <article class="deadline-row relative flex flex-wrap gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                <span class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-red-500" aria-hidden="true"></span>
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-1.5">
+                    <span class="text-sm font-semibold">Timbrare 200 lei</span>
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-red-50 text-red-700 ring-1 ring-red-200 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900/50"><svg class="size-2.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8.6 2h6.8L22 8.6v6.8L15.4 22H8.6L2 15.4V8.6L8.6 2z"/></svg>Anularea cererii</span>
+                  </div>
+                  <div class="mt-1 text-xs text-slate-500 dark:text-slate-400 tnum">03.08.2026 (luni) · <span class="font-bold text-red-600 dark:text-red-400">în 6 zile</span> · <a href="../04-dosar/overview.html" class="font-mono hover:underline">9012/301/2026</a> · Judecătoria Sectorului 3 București · Tehno Construct S.R.L. (CUI 34120987) · principal 74.300 RON</div>
+                </div>
+                <div class="hidden sm:flex flex-col items-end gap-1.5 shrink-0">
+                  <div class="flex items-center gap-1">
+                    <button type="button" class="py-1 px-2.5 rounded-lg bg-lex-navy hover:bg-lex-navy-dark text-white text-xs font-semibold transition">Marchează timbrat</button>
+                    <button type="button" class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700" aria-label="Detalii termen"><svg class="size-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v.01M12 12v.01M12 19v.01"/></svg></button>
+                  </div>
+                </div>
+              </article>
+
+              <article class="deadline-row relative flex flex-wrap gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                <span class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-red-500" aria-hidden="true"></span>
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-1.5">
+                    <span class="text-sm font-semibold">Cerere în anulare</span>
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-red-50 text-red-700 ring-1 ring-red-200 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900/50"><svg class="size-2.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8.6 2h6.8L22 8.6v6.8L15.4 22H8.6L2 15.4V8.6L8.6 2z"/></svg>Decădere</span>
+                  </div>
+                  <div class="mt-1 text-xs text-slate-500 dark:text-slate-400 tnum">03.08.2026 (luni) · <span class="font-bold text-red-600 dark:text-red-400">în 6 zile</span> · <a href="../04-dosar/overview.html" class="font-mono hover:underline">9310/301/2026</a> · Judecătoria Sectorului 3 București · Tehno Construct S.R.L. (CUI 34120987) · principal 18.600 RON</div>
+                </div>
+                <div class="hidden sm:flex flex-col items-end gap-1.5 shrink-0">
+                  <div class="flex items-center gap-1">
+                    <button type="button" class="py-1 px-2.5 rounded-lg bg-lex-navy hover:bg-lex-navy-dark text-white text-xs font-semibold transition">Marchează finalizat</button>
+                    <button type="button" class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700" aria-label="Detalii termen"><svg class="size-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v.01M12 12v.01M12 19v.01"/></svg></button>
+                  </div>
+                </div>
+              </article>
+
+              <article class="deadline-row relative flex flex-wrap gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                <span class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-sky-500" aria-hidden="true"></span>
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-1.5">
+                    <span class="text-sm font-semibold">Termen de judecată</span>
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/50"><svg class="size-2.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l10 19H2L12 2z"/></svg>Prezentare</span>
+                  </div>
+                  <div class="mt-1 text-xs text-slate-500 dark:text-slate-400 tnum">03.08.2026 (luni) · <span class="font-medium text-slate-600 dark:text-slate-300">în 6 zile</span> · <a href="../04-dosar/overview.html" class="font-mono hover:underline">8877/301/2026</a> · Judecătoria Sectorului 3 București · Tehno Construct S.R.L. (CUI 34120987) · principal 55.900 RON</div>
+                </div>
+                <div class="hidden sm:flex flex-col items-end gap-1.5 shrink-0">
+                  <div class="flex items-center gap-1">
+                  <button type="button" title="Închide termenul în agendă și oprește alertele. Nu constituie dovada că actul a fost făcut." class="inline-flex items-center gap-1.5 py-1 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition"><svg class="size-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Marchează finalizat</button>
+                    <a href="../04-dosar/overview.html" class="py-1 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition">Deschide Portal</a>
+                    <button type="button" class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700" aria-label="Detalii termen"><svg class="size-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v.01M12 12v.01M12 19v.01"/></svg></button>
+                  </div>
+                </div>
+              </article>
+
+              <!-- rânduri schelet, încărcate lazy -->
+              <div class="px-4 py-3 flex gap-3" aria-hidden="true">
+                <div class="sk size-6 rounded-md shrink-0"></div>
+                <div class="flex-1 space-y-2 py-0.5"><div class="sk h-3 w-56 rounded"></div><div class="sk h-2.5 w-[28rem] max-w-full rounded"></div></div>
+              </div>
+              <div class="px-4 py-3 flex gap-3" aria-hidden="true">
+                <div class="sk size-6 rounded-md shrink-0"></div>
+                <div class="flex-1 space-y-2 py-0.5"><div class="sk h-3 w-44 rounded"></div><div class="sk h-2.5 w-[24rem] max-w-full rounded"></div></div>
+              </div>
+              <div class="px-4 py-3 flex gap-3" aria-hidden="true">
+                <div class="sk size-6 rounded-md shrink-0"></div>
+                <div class="flex-1 space-y-2 py-0.5"><div class="sk h-3 w-60 rounded"></div><div class="sk h-2.5 w-[30rem] max-w-full rounded"></div></div>
+              </div>
+              <p class="sr-only" role="status">Se încarcă încă 25 de termene.</p>
+            </div>
+
+            <footer class="px-4 py-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+              <span class="text-xs text-slate-500 tnum">Afișezi 25 din 183 de termene în această secțiune</span>
+              <button type="button" class="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+                <svg class="size-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                Arată încă 25 din 158
+              </button>
+            </footer>
+          </section>
+
+          <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+            <div class="flex-1 text-xs text-slate-600 dark:text-slate-400">
+              <span class="font-semibold text-slate-800 dark:text-slate-200">La acest volum, agenda este ecranul de triaj, nu ecranul de lucru.</span>
+              Pentru revizia completă, Registrul sortează pe gravitate și exportă CSV filtrul curent.
+            </div>
+            <button type="button" class="shrink-0 inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg bg-lex-navy hover:bg-lex-navy-dark text-white text-xs font-semibold transition">Deschide Registrul</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================= -->
+    <!-- STAREA 4 · portal indisponibil                                  -->
+    <!-- ============================================================= -->
+    <section id="stare-4" class="scroll-mt-20 space-y-3">
+      <div class="flex items-baseline gap-3">
+        <span class="tnum text-xs font-bold text-slate-500 dark:text-slate-400">04</span>
+        <h2 class="text-lg font-semibold tracking-tight">Monitorizare portal indisponibilă</h2>
+        <span class="text-xs text-slate-500">degradare parțială, nu eroare de pagină</span>
+      </div>
+
+      <div class="rounded-lg border border-slate-200 dark:border-slate-800 border-l-2 border-l-lex-navy dark:border-l-blue-500 bg-white dark:bg-slate-900 px-3.5 py-2.5">
+        <div class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Decizie de design</div>
+        <p class="mt-0.5 text-xs text-slate-600 dark:text-slate-400">Bannerul cere două câmpuri noi pe LegalCase, lastPortalCheckAt și lastPortalSuccessAt: azi există doar portalConsecutiveFailures, fără nicio marcă de timp, deci nici ora ultimei sincronizări, nici eticheta „Neconfirmat din portal” nu se pot construi. Bannerul spune explicit ce este afectat și ce nu, pentru că pe o pagină de termene tăcerea se citește ca „nu ai nimic”. Termenele de judecată rămân afișate, nu se ascund, dar primesc data ultimei confirmări din portal. Termenele calculate de aplicație nu sunt atinse și se spune asta cu subiect și predicat. Blocul căzut se înlocuiește local, cu buton de reîncercare, fără să prăbușească restul paginii.</p>
+      </div>
+
+      <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 overflow-hidden">
+        <div class="px-3 py-1.5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-[10px] uppercase tracking-wide font-semibold text-slate-400 flex items-center gap-2">
+          <span class="size-1.5 rounded-full bg-red-500"></span> Randare · lățime desktop
+        </div>
+
+        <div class="relative p-4 lg:p-6 space-y-4">
+
+          <!-- banner de degradare -->
+          <div class="rounded-2xl border border-amber-300 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 shadow-soft overflow-hidden">
+            <div class="px-4 py-3 flex flex-col lg:flex-row lg:items-start gap-3">
+              <span class="mt-0.5 inline-flex items-center justify-center size-7 rounded-lg bg-white dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 shrink-0">
+                <svg class="size-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l10 19H2L12 2z"/></svg>
+              </span>
+              <div class="flex-1 min-w-0">
+                <h3 class="text-sm font-semibold text-amber-900 dark:text-amber-200">Monitorizarea portal.just.ro nu răspunde</h3>
+                <p class="mt-0.5 text-xs text-amber-800 dark:text-amber-300/90 tnum">Ultima sincronizare reușită: azi, 06:12. De atunci, 3 încercări eșuate (ultima la 11:40, timeout după 30 s). 38 de dosare monitorizate sunt afectate.</p>
+                <div class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <div class="rounded-lg bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/50 px-3 py-2">
+                    <div class="text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">Ce poate lipsi</div>
+                    <p class="mt-0.5 text-xs text-slate-700 dark:text-slate-300">Termenele de judecată nou fixate și schimbările de stadiu apărute după ora 06:12. Un termen fixat azi de instanță poate să nu fie încă aici.</p>
+                  </div>
+                  <div class="rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-3 py-2">
+                    <div class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Ce nu este afectat</div>
+                    <p class="mt-0.5 text-xs text-slate-700 dark:text-slate-300">Timbrarea, cererea în anulare, răspunsul la somație și prescripțiile. Se calculează din datele tale, nu din portal, și rulează normal.</p>
+                  </div>
+                </div>
+                <p class="mt-2 text-xs font-semibold text-amber-900 dark:text-amber-200">Lipsa datelor din portal nu înseamnă lipsa termenelor. Verifică dosarele marcate mai jos direct pe portal.just.ro.</p>
+              </div>
+              <div class="flex lg:flex-col gap-2 shrink-0">
+                <button type="button" class="inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg bg-lex-navy hover:bg-lex-navy-dark text-white text-xs font-semibold transition">
+                  <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                  Reîncearcă acum
+                </button>
+                <button type="button" class="inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg border border-amber-300 dark:border-amber-900/60 bg-white dark:bg-slate-900 text-xs font-medium text-amber-900 dark:text-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition">Starea sincronizării</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- bara de risc, cu notă de incertitudine -->
+          <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-soft px-4 py-3">
+            <div class="flex flex-wrap gap-2">
+              <div class="px-3 py-2 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 ring-1 ring-red-200 dark:ring-red-900/50">
+                <span class="flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8.6 2h6.8L22 8.6v6.8L15.4 22H8.6L2 15.4V8.6L8.6 2z"/></svg><span class="tnum text-lg font-bold leading-none">6</span></span>
+                <span class="block mt-1 text-[11px] uppercase tracking-wide font-semibold">Restante</span>
+              </div>
+              <div class="px-3 py-2 rounded-xl bg-white dark:bg-slate-900 text-red-700 dark:text-red-300 ring-1 ring-red-300 dark:ring-red-800">
+                <span class="flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7v5l3 2"/></svg><span class="tnum text-lg font-bold leading-none">2</span></span>
+                <span class="block mt-1 text-[11px] uppercase tracking-wide font-semibold">Expiră azi</span>
+              </div>
+              <div class="px-3 py-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 ring-1 ring-amber-200 dark:ring-amber-900/50">
+                <span class="flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l10 19H2L12 2z"/></svg><span class="tnum text-lg font-bold leading-none">6</span></span>
+                <span class="block mt-1 text-[11px] uppercase tracking-wide font-semibold">Fatale în 30 de zile</span>
+              </div>
+              <div class="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 ring-1 ring-slate-200 dark:ring-slate-700">
+                <span class="flex items-center gap-1.5"><svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 118 0v3"/></svg><span class="tnum text-lg font-bold leading-none">3</span></span>
+                <span class="block mt-1 text-[11px] uppercase tracking-wide font-semibold">Blocate pe date lipsă</span>
+              </div>
+              <div class="flex-1 min-w-[14rem] flex items-center">
+                <p class="text-[11px] text-amber-800 dark:text-amber-300/90 px-2">Contoarele includ doar termenele confirmate până la ora 06:12. Un termen de judecată fixat azi nu este numărat.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- secțiune cu rând etichetat + bloc căzut -->
+          <section class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-soft overflow-hidden">
+            <header class="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+              <h3 class="text-sm font-semibold">Azi, marți 28 iulie <span class="tnum">(2)</span></h3>
+              <p class="mt-0.5 text-xs text-slate-500">Termenul se împlinește la ora 24:00 (CPC art. 182 alin. 1). Actul care se depune la instanță se împlinește însă la închiderea registraturii (art. 182 alin. 2); depunerea azi prin scrisoare recomandată sau curier rapid este în termen (art. 183 alin. 1).</p>
+            </header>
+            <div class="divide-y divide-slate-100 dark:divide-slate-800">
+
+              <article class="deadline-row relative flex flex-wrap gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                <span class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-sky-500" aria-hidden="true"></span>
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-1.5">
+                    <span class="text-sm font-semibold">Termen de judecată</span>
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/50"><svg class="size-2.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l10 19H2L12 2z"/></svg>Prezentare</span>
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide border border-dashed border-amber-400 text-amber-700 dark:text-amber-400"><svg class="size-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" d="M12 8v5m0 3v.01"/></svg>Neconfirmat din portal</span>
+                  </div>
+                  <div class="mt-1 text-xs text-slate-500 dark:text-slate-400 tnum">28.07.2026 (marți) · <span class="font-bold text-red-600 dark:text-red-400">expiră azi</span> · <a href="../04-dosar/overview.html" class="font-mono hover:underline">7734/303/2026</a> · Judecătoria Sectorului 6 București · Astra Frig Industrial S.R.L. (CUI 31450977) · principal 210.000 RON</div>
+                  <div class="mt-1 text-xs text-amber-700 dark:text-amber-400">Ultima confirmare din portal: 27.07.2026, ora 06:12. Dacă instanța a amânat între timp, aplicația nu a aflat încă. Verifică pe portal.just.ro.</div>
+                </div>
+                <div class="hidden sm:flex flex-col items-end gap-1.5 shrink-0">
+                  <div class="flex items-center gap-1">
+                  <button type="button" title="Închide termenul în agendă și oprește alertele. Nu constituie dovada că actul a fost făcut." class="inline-flex items-center gap-1.5 py-1 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition"><svg class="size-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Marchează finalizat</button>
+                    <a href="../04-dosar/overview.html" class="py-1 px-2.5 rounded-lg bg-lex-navy hover:bg-lex-navy-dark text-white text-xs font-semibold transition">Deschide Portal</a>
+                    <button type="button" class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700" aria-label="Detalii termen"><svg class="size-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v.01M12 12v.01M12 19v.01"/></svg></button>
+                  </div>
+                </div>
+              </article>
+
+              <article class="deadline-row relative flex flex-wrap gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                <span class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-amber-500" aria-hidden="true"></span>
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-1.5">
+                    <span class="text-sm font-semibold">Răspuns somație, termen al debitorului</span>
+                    <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-sky-50 text-sky-700 ring-1 ring-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-900/50"><svg class="size-2.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>Fără sancțiune</span>
+                    <span class="text-[10px] text-emerald-700 dark:text-emerald-400 font-semibold">calculat local, neafectat</span>
+                  </div>
+                  <div class="mt-1 text-xs text-slate-500 dark:text-slate-400 tnum">28.07.2026 (marți) · <span class="font-bold text-red-600 dark:text-red-400">expiră azi</span> · <a href="../04-dosar/overview.html" class="font-mono hover:underline">LR-2026-0221</a> <span class="text-slate-500">nr. intern</span> · instanță nedepusă · Prima Meridian Trade S.R.L. (CUI 42117690) · principal 58.300 RON</div>
+                </div>
+                <div class="hidden sm:flex flex-col items-end gap-1.5 shrink-0">
+                  <div class="flex items-center gap-1">
+                    <button type="button" class="py-1 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition">Marchează finalizat</button>
+                    <button type="button" class="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-700" aria-label="Detalii termen"><svg class="size-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 5v.01M12 12v.01M12 19v.01"/></svg></button>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </section>
+
+          <!-- bloc căzut, înlocuit local -->
+          <section class="rounded-2xl border border-red-300 dark:border-red-900/60 bg-white dark:bg-slate-900 shadow-soft overflow-hidden">
+            <header class="px-4 py-3 border-b border-slate-100 dark:border-slate-800">
+              <h3 class="text-sm font-semibold">Restul săptămânii, până duminică 2 august</h3>
+            </header>
+            <div class="px-4 py-6 text-center">
+              <div class="inline-flex items-center justify-center size-9 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 mb-2">
+                <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M5 19h14a2 2 0 001.84-2.75L13.74 4a2 2 0 00-3.48 0l-7.1 12.25A2 2 0 004.99 19z"/></svg>
+              </div>
+              <h4 class="text-sm font-semibold">Nu am putut încărca această secțiune</h4>
+              <p class="mt-1 text-xs text-slate-600 dark:text-slate-400 max-w-md mx-auto tnum">portal.just.ro nu a răspuns în 30 de secunde (cod 504). Restul paginii este încărcat și corect. Termenele din această secțiune există, doar afișarea lor a eșuat.</p>
+              <button type="button" class="mt-3 inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition">
+                <svg class="size-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                Reîncearcă
+              </button>
+            </div>
+          </section>
+
+          <!-- toast de eroare pe acțiune -->
+          <div class="flex justify-end">
+            <div role="alert" class="w-full sm:max-w-sm rounded-xl border border-red-200 dark:border-red-900/60 bg-white dark:bg-slate-900 shadow-card px-3.5 py-3 flex items-start gap-2.5">
+              <span class="mt-0.5 inline-flex items-center justify-center size-5 rounded-full bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 shrink-0">
+                <svg class="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+              </span>
+              <div class="flex-1 min-w-0">
+                <div class="text-xs font-semibold">Termenul nu a fost marcat finalizat</div>
+                <p class="mt-0.5 text-[11px] text-slate-600 dark:text-slate-400">Sesiunea a expirat în timpul acțiunii. Butonul a revenit la starea anterioară. Reconectează-te și încearcă din nou.</p>
+                <button type="button" class="mt-1.5 text-[11px] font-semibold text-lex-navy dark:text-blue-400 hover:underline">Reconectare</button>
+              </div>
+              <button type="button" class="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 shrink-0" aria-label="Închide notificarea"><svg class="size-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- ============================================================= -->
+    <!-- STAREA 5 · vederea mobilă                                       -->
+    <!-- ============================================================= -->
+    <section id="stare-5" class="scroll-mt-20 space-y-3">
+      <div class="flex items-baseline gap-3">
+        <span class="tnum text-xs font-bold text-slate-500 dark:text-slate-400">05</span>
+        <h2 class="text-lg font-semibold tracking-tight">Vederea mobilă</h2>
+        <span class="text-xs text-slate-500">cadru simulat de 420 px</span>
+      </div>
+
+      <div class="rounded-lg border border-slate-200 dark:border-slate-800 border-l-2 border-l-lex-navy dark:border-l-blue-500 bg-white dark:bg-slate-900 px-3.5 py-2.5">
+        <div class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Decizie de design</div>
+        <p class="mt-0.5 text-xs text-slate-600 dark:text-slate-400">Pe telefon rămâne doar Agenda: Registrul, exportul și selectorul de coloane se ascund, pentru că un tabel de 11 coloane pe 375 px este ilizibil. Rândul se reduce la două linii, iar linia juridică apare la tap, în același loc, fără navigare în dosar. Butonul de închidere a termenului urcă la 44 px, pe toată lățimea. „Setează data comunicării” rămâne disponibilă, pentru că exact ea se face în hol, între ședințe.</p>
+      </div>
+
+      <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900/60 overflow-hidden">
+        <div class="px-3 py-1.5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-[10px] uppercase tracking-wide font-semibold text-slate-400 flex items-center gap-2">
+          <span class="size-1.5 rounded-full bg-blue-500"></span> Randare · viewport 420 px
+        </div>
+
+        <div class="p-4 sm:p-6 flex justify-center">
+          <div class="w-full max-w-[420px] rounded-2xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 overflow-hidden shadow-card">
+
+            <!-- header mobil -->
+            <div class="h-14 px-3 flex items-center gap-2 bg-white/95 dark:bg-slate-900/95 border-b border-slate-200 dark:border-slate-800">
+              <button type="button" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Deschide meniul">
+                <svg class="size-5 text-slate-600 dark:text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+              </button>
+              <span class="text-sm font-semibold flex-1">Termene</span>
+              <span class="inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-md bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300 text-[10px] font-bold tnum" title="5 termene restante">5</span>
+              <button type="button" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Caută">
+                <svg class="size-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              </button>
+            </div>
+
+            <!-- pastile de risc, derulare orizontală -->
+            <div class="px-3 py-2 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+              <div class="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Filtre de risc">
+                <button type="button" aria-pressed="false" class="risk-pill shrink-0 text-left px-2.5 py-1.5 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 ring-1 ring-red-200 dark:ring-red-900/50">
+                  <span class="tnum text-base font-bold leading-none">5</span>
+                  <span class="block mt-0.5 text-[10px] uppercase tracking-wide font-semibold">Restante</span>
+                </button>
+                <button type="button" aria-pressed="false" class="risk-pill shrink-0 text-left px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 text-red-700 dark:text-red-300 ring-1 ring-red-300 dark:ring-red-800">
+                  <span class="tnum text-base font-bold leading-none">2</span>
+                  <span class="block mt-0.5 text-[10px] uppercase tracking-wide font-semibold">Expiră azi</span>
+                </button>
+                <button type="button" aria-pressed="true" class="risk-pill shrink-0 text-left px-2.5 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 ring-1 ring-amber-200 dark:ring-amber-900/50">
+                  <span class="tnum text-base font-bold leading-none">6</span>
+                  <span class="block mt-0.5 text-[10px] uppercase tracking-wide font-semibold">Fatale 30 z.</span>
+                </button>
+                <button type="button" aria-pressed="false" class="risk-pill shrink-0 text-left px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 ring-1 ring-slate-200 dark:ring-slate-700">
+                  <span class="tnum text-base font-bold leading-none">3</span>
+                  <span class="block mt-0.5 text-[10px] uppercase tracking-wide font-semibold">Blocate</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="p-3 space-y-3">
+
+              <!-- secțiune restante -->
+              <section class="rounded-xl border border-slate-200 dark:border-slate-800 border-l-2 border-l-red-500 bg-white dark:bg-slate-900 overflow-hidden">
+                <header class="px-3 py-2 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2">
+                  <svg class="size-3.5 text-red-600 dark:text-red-400 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8.6 2h6.8L22 8.6v6.8L15.4 22H8.6L2 15.4V8.6L8.6 2z"/></svg>
+                  <h3 class="text-xs font-semibold">Restante <span class="tnum">(5)</span></h3>
+                </header>
+                <div class="divide-y divide-slate-100 dark:divide-slate-800">
+
+                  <!-- rând colapsat -->
+                  <div class="relative flex gap-3 px-3 py-3">
+                    <span class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-red-500" aria-hidden="true"></span>
+                    <div class="min-w-0 flex-1">
+                      <button type="button" aria-expanded="false" aria-controls="row-detail-3184" onclick="toggleRow('3184', this)" class="text-left w-full">
+                        <span class="flex items-baseline justify-between gap-2">
+                          <span class="text-base font-semibold truncate">Timbrare 200 lei</span>
+                          <span class="text-xs font-bold text-red-600 dark:text-red-400 shrink-0 tnum">-4 z.</span>
+                        </span>
+                        <span class="mt-0.5 block text-xs text-slate-500 tnum truncate"><span class="font-mono">3184/299/2026</span> · Vertigo Interiors S.R.L.</span>
+                        <span class="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-red-50 text-red-700 ring-1 ring-red-200 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900/50"><svg class="size-2.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8.6 2h6.8L22 8.6v6.8L15.4 22H8.6L2 15.4V8.6L8.6 2z"/></svg>Anularea cererii</span>
+                      </button>
+                      <div id="row-detail-3184" class="hidden mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-400 space-y-1">
+                        <p class="tnum">10 zile de la înștiințarea din 14.07.2026 · OUG 80/2013 art. 33 alin. 2</p>
+                        <p class="tnum">Jud. Sectorului 1 București · principal 68.400 RON</p>
+                    </div>
+                      
+                      <button type="button" class="mt-2 inline-flex items-center justify-center gap-1.5 w-full min-h-11 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition" title="Închide termenul în agendă și oprește alertele. Nu constituie dovada că actul a fost făcut."><svg class="size-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Marchează finalizat</button>
+                    </div>
+                  </div>
+
+                  <!-- rând expandat prin tap -->
+                  <div class="relative flex flex-wrap gap-3 px-3 py-3 bg-slate-50 dark:bg-slate-800/40">
+                    <span class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-amber-500" aria-hidden="true"></span>
+                    <div class="min-w-0 flex-1">
+                      <button type="button" aria-expanded="true" aria-controls="row-detail-0240" onclick="toggleRow('0240', this)" class="text-left w-full">
+                        <span class="flex items-baseline justify-between gap-2">
+                          <span class="text-base font-semibold">Răspuns somație</span>
+                          <span class="text-xs font-semibold text-slate-600 dark:text-slate-300 shrink-0 tnum">-5 z.</span>
+                        </span>
+                        <span class="mt-0.5 block text-xs text-slate-500 tnum truncate"><span class="font-mono">LR-2026-0240</span> · Vega Print Media S.R.L.</span>
+                      </button>
+                      <div class="mt-1 flex flex-wrap gap-1">
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-sky-50 text-sky-700 ring-1 ring-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-900/50"><svg class="size-2.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>Fără sancțiune</span>
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide border border-dashed border-amber-400 text-amber-700 dark:text-amber-400">Estimat</span>
+                      </div>
+                      <!-- linia 3, apărută la tap -->
+                      <div id="row-detail-0240" class="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-400 space-y-1">
+                        <p class="tnum">15 zile de la comunicarea somației · CPC art. 1015 alin. 1</p>
+                        <p class="text-amber-700 dark:text-amber-400">Data comunicării lipsește, deci termenul este estimat. Cererea de ordonanță depusă prematur se respinge.</p>
+                        <p class="tnum">Instanță nedepusă · principal 8.450 RON</p>
+                      </div>
+                      <button type="button" class="mt-2 inline-flex items-center justify-center gap-1.5 w-full min-h-11 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition" title="Închide termenul în agendă și oprește alertele. Nu constituie dovada că actul a fost făcut."><svg class="size-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Marchează finalizat</button>
+                      <button type="button" class="mt-2.5 w-full py-2.5 px-3 rounded-lg bg-lex-navy hover:bg-lex-navy-dark text-white text-sm font-semibold transition">Setează data comunicării</button>
+                      <button type="button" onclick="toggleSheet()" class="mt-1.5 w-full py-2 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium transition">Alte acțiuni</button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+                <header class="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
+                  <h3 class="text-xs font-semibold">Azi, marți 28 iulie <span class="tnum">(2)</span></h3>
+                  <p class="mt-0.5 text-[11px] text-slate-500">Ora 24:00 (CPC art. 182 alin. 1), dar la instanță până la închiderea registraturii (alin. 2). Scrisoarea recomandată sau curierul rapid azi sunt în termen (art. 183 alin. 1).</p>
+                </header>
+                <div class="px-3 py-3 text-xs text-slate-400">Încă 2 termene. Derulează pentru restul zilei.</div>
+              </section>
+            </div>
+
+            <!-- bottom sheet -->
+            <div id="mobile-sheet" class="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-t-2xl">
+              <div class="pt-2 pb-1 flex justify-center"><span class="w-9 h-1 rounded-full bg-slate-300 dark:bg-slate-700"></span></div>
+              <div class="px-3 pb-3">
+                <div class="px-1 py-2">
+                  <div class="text-sm font-semibold">Răspuns somație</div>
+                  <div class="text-[11px] text-slate-500 tnum">LR-2026-0240 · Vega Print Media S.R.L.</div>
+                </div>
+                <div class="divide-y divide-slate-100 dark:divide-slate-800">
+                  <button type="button" class="w-full text-left py-3 px-1 text-sm font-medium">Corectează data comunicării somației</button>
+                  <button type="button" class="w-full text-left py-3 px-1 text-sm font-medium">Editează descrierea</button>
+                  <a href="../04-dosar/overview.html" class="block py-3 px-1 text-sm font-medium">Deschide dosarul</a>
+                  <div class="py-3 px-1 text-[11px] text-slate-500">Termen legal. Data se schimbă introducând data faptului generator, nu ștergând termenul.</div>
+                </div>
+                <button type="button" onclick="toggleSheet()" class="mt-2 w-full py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-semibold">Închide</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p class="px-4 pb-4 text-center text-[11px] text-slate-500">Cadrul de mai sus este o simulare în pagină. Sertarul de jos este afișat deschis intenționat, ca să se vadă conținutul meniului kebab.</p>
+      </div>
+    </section>
+
+
+    <!-- ============================================================= -->
+    <!-- STAREA 6 · detaliul termenului                                  -->
+    <!-- ============================================================= -->
+    <section id="stare-6" class="scroll-mt-20 space-y-3">
+      <div class="flex items-baseline gap-3">
+        <span class="tnum text-xs font-bold text-slate-500 dark:text-slate-400">06</span>
+        <h2 class="text-lg font-semibold tracking-tight">Detaliul unui termen, cu istoric și proveniență</h2>
+        <span class="text-xs text-slate-500">panou lateral</span>
+      </div>
+
+      <div class="rounded-lg border border-slate-200 dark:border-slate-800 border-l-2 border-l-lex-navy dark:border-l-blue-500 bg-white dark:bg-slate-900 px-3.5 py-2.5">
+        <div class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">Decizie de design</div>
+        <p class="mt-0.5 text-xs text-slate-600 dark:text-slate-400">Panoul preia tot textul juridic lung care nu încape în rândul dens. Istoricul se reconstituie din jurnalul de audit existent, care înregistrează deja crearea, editarea, finalizarea și prorogarea. Proveniența, în schimb, nu există azi ca dată stocată: cere un câmp nou pe termen. Până atunci nu se afirmă, se lasă pe „nedeclarată”, pentru că o proveniență ghicită este mai rea decât una absentă.</p>
+      </div>
+
+      <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 overflow-hidden">
+        <div class="px-3 py-1.5 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-[10px] uppercase tracking-wide font-semibold text-slate-400 flex items-center gap-2">
+          <span class="size-1.5 rounded-full bg-slate-300 dark:bg-slate-700"></span> Randare · panou 448 px, afișat în pagină
+        </div>
+
+        <div class="p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-[28rem_minmax(0,1fr)] gap-5 items-start">
+
+          <!-- panoul -->
+          <div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-card overflow-hidden">
+            <header class="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-start gap-3">
+              <span class="mt-0.5 inline-flex items-center justify-center size-7 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 shrink-0">
+                <svg class="size-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8.6 2h6.8L22 8.6v6.8L15.4 22H8.6L2 15.4V8.6L8.6 2z"/></svg>
+              </span>
+              <div class="flex-1 min-w-0">
+                <h3 class="text-sm font-semibold">Cerere în anulare</h3>
+                <p class="text-[11px] text-slate-500">Termen legal, dosar 1802/197/2026</p>
+              </div>
+              <button type="button" class="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Închide panoul">
+                <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </header>
+
+            <div class="px-4 py-4 space-y-4">
+
+              <div class="flex flex-wrap items-center gap-1.5">
+                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-red-50 text-red-700 ring-1 ring-red-200 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900/50"><svg class="size-2.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8.6 2h6.8L22 8.6v6.8L15.4 22H8.6L2 15.4V8.6L8.6 2z"/></svg>Decădere</span>
+                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide border border-slate-300 text-slate-600 dark:border-slate-600 dark:text-slate-400">Cert</span>
+              </div>
+
+              <div class="rounded-xl border border-slate-200 dark:border-slate-800 p-3">
+                <div class="text-2xl font-bold tnum">31.07.2026</div>
+                <div class="text-xs text-slate-500">vineri · <span class="font-semibold text-red-600 dark:text-red-400">în 3 zile</span></div>
+                <p class="mt-1 text-[11px] text-slate-600 dark:text-slate-400">Ora 24:00 (CPC art. 182 alin. 1). Actul depus la instanță se împlinește la închiderea registraturii (alin. 2); scrisoarea recomandată sau curierul rapid în ultima zi sunt în termen (art. 183 alin. 1).</p>
+              </div>
+
+              <div>
+                <h4 class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">Baza de calcul</h4>
+                <p class="text-xs text-slate-700 dark:text-slate-300">10 zile de la comunicarea ordonanței din 21.07.2026.</p>
+                <p class="mt-1 text-xs text-slate-500">Temei: CPC art. 1024 alin. 1 (calea debitorului). Pentru cererea creditorului împotriva încheierii de respingere sau a ordonanței date în parte, temeiul este art. 1024 alin. 2 raportat la alin. 1 și la art. 1021, de validat cu avocatul înainte de a fi afișat ca text de lege.</p>
+                <p class="mt-1 text-xs text-slate-500">Nu s-a aplicat prorogare: data legală cade într-o zi lucrătoare.</p>
+              </div>
+
+              <!-- PROVENIENȚĂ, cele trei variante -->
+              <div>
+                <h4 class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">Proveniență</h4>
+
+                <div role="group" aria-label="Variante de proveniență" class="inline-flex p-0.5 mb-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800">
+                  <button id="prov-btn-auto" type="button" aria-pressed="true" onclick="setProv('auto')" class="seg-btn px-2.5 py-1 rounded-md text-[11px] text-slate-600 dark:text-slate-300">Automat</button>
+                  <button id="prov-btn-manual" type="button" aria-pressed="false" onclick="setProv('manual')" class="seg-btn px-2.5 py-1 rounded-md text-[11px] text-slate-600 dark:text-slate-300">Manual</button>
+                  <button id="prov-btn-portal" type="button" aria-pressed="false" onclick="setProv('portal')" class="seg-btn px-2.5 py-1 rounded-md text-[11px] text-slate-600 dark:text-slate-300">Portal</button>
+                </div>
+
+                <div id="prov-auto" class="rounded-xl border border-slate-200 dark:border-slate-800 p-3">
+                  <div class="flex items-start gap-2.5">
+                    <span class="mt-0.5 inline-flex items-center justify-center size-6 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 shrink-0">
+                      <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    </span>
+                    <div class="text-xs">
+                      <div class="font-semibold">Calculat de aplicație</div>
+                      <p class="mt-0.5 text-slate-600 dark:text-slate-400">Creat la 21.07.2026, 14:22, când ai introdus data comunicării ordonanței. Regula aplicată: 10 zile, CPC art. 1024 alin. 1, cu prorogare la prima zi lucrătoare dacă este cazul.</p>
+                      <p class="mt-1 text-slate-500">Data nu se editează direct. Se schimbă corectând data comunicării pe dosar, iar termenul se recalculează.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div id="prov-manual" class="hidden rounded-xl border border-slate-200 dark:border-slate-800 p-3">
+                  <div class="flex items-start gap-2.5">
+                    <span class="mt-0.5 inline-flex items-center justify-center size-6 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0">
+                      <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                    </span>
+                    <div class="text-xs">
+                      <div class="font-semibold">Introdus manual</div>
+                      <p class="mt-0.5 text-slate-600 dark:text-slate-400">Adăugat de Av. Mihai Ionescu la 19.07.2026, 09:03, ca memento propriu. Aplicația nu îl recalculează și nu îi atașează niciun temei legal.</p>
+                      <p class="mt-1 text-slate-500">Doar termenele introduse manual pot fi șterse din agendă.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div id="prov-portal" class="hidden rounded-xl border border-slate-200 dark:border-slate-800 p-3">
+                  <div class="flex items-start gap-2.5">
+                    <span class="mt-0.5 inline-flex items-center justify-center size-6 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 shrink-0">
+                      <svg class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M3.6 9h16.8M3.6 15h16.8M12 3a15 15 0 010 18a15 15 0 010-18z"/></svg>
+                    </span>
+                    <div class="text-xs">
+                      <div class="font-semibold">Detectat pe portal.just.ro</div>
+                      <p class="mt-0.5 text-slate-600 dark:text-slate-400">Preluat la 22.07.2026, 06:12, din ședințele publicate pentru dosarul 1802/197/2026. Confirmat de tine la 22.07.2026, 08:40.</p>
+                      <p class="mt-1 text-slate-500">Portalul publică data ședinței, nu și ora. Ora se citește pe portal, aplicația nu o stochează.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ISTORIC -->
+              <div>
+                <h4 class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-2">Istoric</h4>
+                <ol class="relative pl-4 space-y-3 text-xs before:absolute before:left-[3px] before:top-1.5 before:bottom-1.5 before:w-px before:bg-slate-200 dark:before:bg-slate-800">
+                  <li class="relative">
+                    <span class="absolute -left-4 top-1 size-[7px] rounded-full bg-lex-navy dark:bg-blue-400 ring-2 ring-white dark:ring-slate-900"></span>
+                    <div class="font-medium">Termen creat, 31.07.2026</div>
+                    <div class="text-slate-500 tnum">21.07.2026, 14:22 · Av. Mihai Ionescu a introdus data comunicării ordonanței (21.07.2026)</div>
+                  </li>
+                  <li class="relative">
+                    <span class="absolute -left-4 top-1 size-[7px] rounded-full bg-slate-300 dark:bg-slate-600 ring-2 ring-white dark:ring-slate-900"></span>
+                    <div class="font-medium">Prorogare verificată</div>
+                    <div class="text-slate-500 tnum">21.07.2026, 14:22 · 31.07.2026 este vineri, zi lucrătoare. Nu s-a prelungit (CPC art. 181 alin. 2).</div>
+                  </li>
+                  <li class="relative">
+                    <span class="absolute -left-4 top-1 size-[7px] rounded-full bg-amber-500 ring-2 ring-white dark:ring-slate-900"></span>
+                    <div class="font-medium">Dată corectată, de la 29.07.2026 la 31.07.2026</div>
+                    <div class="text-slate-500 tnum">23.07.2026, 11:02 · Av. Mihai Ionescu a corectat data comunicării după dovada de comunicare. Alertele deja trimise au fost reprogramate.</div>
+                  </li>
+                  <li class="relative">
+                    <span class="absolute -left-4 top-1 size-[7px] rounded-full bg-slate-300 dark:bg-slate-600 ring-2 ring-white dark:ring-slate-900"></span>
+                    <div class="font-medium">Alertă trimisă, 7 zile înainte</div>
+                    <div class="text-slate-500 tnum">24.07.2026, 07:00 · email către mihai.ionescu@cabinet-ionescu.ro</div>
+                  </li>
+                </ol>
+                <a href="../04-dosar/overview.html" class="mt-2.5 inline-block text-[11px] font-medium text-lex-navy dark:text-blue-400 hover:underline">Vezi jurnalul complet în tab-ul Audit</a>
+                <p class="mt-1.5 text-[11px] text-slate-500">Intrarea „Alertă trimisă” este singura din listă care nu se poate construi azi: LegalDeadline reține patru booleeni, fără moment, iar Notification se leagă de dosar, nu de termen. Cere fie patru coloane de timestamp pe termen, fie dedupKey plus legătură către termen pe Notification.</p>
+              </div>
+
+              <div>
+                <h4 class="text-[10px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400 mb-1.5">Alerte</h4>
+                <ul class="text-xs space-y-1.5">
+                  <li class="flex items-center gap-2"><span class="size-1.5 rounded-full bg-slate-400 dark:bg-slate-500 shrink-0"></span>7 zile înainte, trimisă</li>
+                  <li class="flex items-center gap-2"><span class="size-1.5 rounded-full bg-slate-400 dark:bg-slate-500 shrink-0"></span>3 zile înainte, trimisă</li>
+                  <li class="flex items-center gap-2 tnum"><span class="size-1.5 rounded-full ring-1 ring-slate-300 dark:ring-slate-600 shrink-0"></span>1 zi înainte, programată 30.07.2026</li>
+                  <li class="flex items-center gap-2 tnum"><span class="size-1.5 rounded-full ring-1 ring-slate-300 dark:ring-slate-600 shrink-0"></span>ziua expirării, programată 31.07.2026</li>
+                </ul>
+              </div>
+            </div>
+
+            <footer class="px-4 py-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+              <div class="flex gap-2">
+                <button type="button" class="flex-1 py-2 px-3 rounded-lg bg-lex-navy hover:bg-lex-navy-dark text-white text-sm font-semibold transition">Marchează finalizat</button>
+                <button type="button" class="py-2 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition">Corectează data comunicării</button>
+              </div>
+              <a href="../04-dosar/overview.html" class="block text-center py-2 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition">Deschide dosarul</a>
+              <p class="text-[11px] text-slate-500">Termen legal. Ștergerea este disponibilă doar pentru mementourile proprii.</p>
+            </footer>
+          </div>
+
+          <!-- note de implementare -->
+          <div class="space-y-3">
+            <div class="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+              <h3 class="text-sm font-semibold">Ce se poate afișa azi și ce cere o schimbare de model</h3>
+              <ul class="mt-2 space-y-2 text-xs text-slate-600 dark:text-slate-400">
+                <li class="flex gap-2">
+                  <span class="mt-1 size-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                  <span><span class="font-semibold text-slate-800 dark:text-slate-200">Istoricul: disponibil.</span> Jurnalul de audit înregistrează deja crearea termenului (inclusiv prorogarea aplicată), editarea, finalizarea și ștergerea, cu utilizator și moment.</span>
+                </li>
+                <li class="flex gap-2">
+                  <span class="mt-1 size-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                  <span><span class="font-semibold text-slate-800 dark:text-slate-200">Baza de calcul și temeiul: disponibile.</span> Se derivă din tipul termenului și din datele dosarului, aceleași surse ca documentele generate.</span>
+                </li>
+                <li class="flex gap-2">
+                  <span class="mt-1 size-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                  <span><span class="font-semibold text-slate-800 dark:text-slate-200">Proveniența: cere un câmp nou.</span> Termenul nu stochează sursa. Deducerea ei din tip este fragilă: un termen de judecată poate veni din portal sau poate fi introdus manual după ședință, iar rezultatul ar arăta identic. Până la adăugarea câmpului, panoul nu afirmă proveniența.</span>
+                </li>
+                <li class="flex gap-2">
+                  <span class="mt-1 size-1.5 rounded-full bg-amber-500 shrink-0"></span>
+                  <span><span class="font-semibold text-slate-800 dark:text-slate-200">Ora ședinței: nu există.</span> Nici data termenului, nici evenimentul din portal nu au oră. Panoul trimite la portal.just.ro în loc să inventeze un interval orar.</span>
+                </li>
+              </ul>
+            </div>
+
+            <div class="rounded-xl border border-blue-200 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-950/30 p-4">
+              <div class="flex items-start gap-2">
+                <svg class="size-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <div class="text-xs text-blue-900 dark:text-blue-200">
+                  <div class="font-bold">Comutatorul de mai sus este un ajutor de review</div>
+                  <p class="mt-0.5 text-blue-800 dark:text-blue-300/90">În produs, un termen are o singură proveniență și blocul se randează o singură dată, fără comutator. Cele trei butoane există aici doar ca să se vadă toate variantele pe același ecran.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="pt-2 flex items-center justify-between gap-3 border-t border-slate-200 dark:border-slate-800">
+      <p class="pt-3 text-[11px] text-slate-500 dark:text-slate-400">Mockup static, date de exemplu. Ziua de referință: marți, 28.07.2026.</p>
+      <a href="index.html" class="mt-3 inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+        <svg class="size-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+        Înapoi la ecranul principal
+      </a>
+    </div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/preline@2.7.0/dist/preline.js"></script>
+<script>
+  function toggleTheme() {
+    const html = document.documentElement;
+    const isDark = html.classList.toggle('dark');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  }
+
+  // Mobile bottom sheet inside the 420px frame.
+  function toggleSheet() {
+    document.getElementById('mobile-sheet').classList.toggle('hidden');
+  }
+
+  // Mobile row: the legal line is revealed by a real button, not by a click handler
+  // on a div, so it works with the keyboard and announces its state.
+  function toggleRow(id, btn) {
+    const el = document.getElementById('row-detail-' + id);
+    const hidden = el.classList.toggle('hidden');
+    btn.setAttribute('aria-expanded', String(!hidden));
+  }
+
+  // Review helper: show one provenance variant at a time.
+  function setProv(kind) {
+    ['auto', 'manual', 'portal'].forEach((k) => {
+      document.getElementById('prov-' + k).classList.toggle('hidden', k !== kind);
+      document.getElementById('prov-btn-' + k).setAttribute('aria-pressed', String(k === kind));
+    });
+  }
+</script>
+</body>
+</html>
