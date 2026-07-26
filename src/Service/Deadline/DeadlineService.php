@@ -300,7 +300,7 @@ final class DeadlineService
     /**
      * Enforcement prescription deadline: definitiveDate + 3 years (CPC art. 706 para.
      * 1, runs from when the order became final). Priority CRITICAL. No prorogation:
-     * a years-based limitation is outside CPC art. 181 para. 4 (day-based terms).
+     * a years-based limitation is outside CPC art. 181 para. 1 pt. 2 (day-based terms).
      */
     public function createExecutionPrescriptionDeadline(LegalCase $legalCase, \DateTimeImmutable $definitiveDate): LegalDeadline
     {
