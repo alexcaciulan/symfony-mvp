@@ -1,0 +1,147 @@
+{# One agenda row. Two lines, one badge, nothing else.
+
+   Line 1: the act plus the badge naming the consequence of missing it.
+   Line 2: date, days left, case number, court, debtor, principal.
+   The calculation basis, the legal ground and the alert history stay off the row on
+   purpose: printed here they cost four lines each and make forty rows unreadable,
+   which defeats a triage screen. An estimated date is the single exception, because
+   uncertainty changes how the date itself is read, and it is written as short text
+   under the line, never as a second badge.
+
+   @var row           App\Service\Deadline\DeadlineRowView
+   @var filter_fields map active filter, carried by the forms of the row #}
+
+{% from 'deadlines/_icons.html.twig' import consequence as consequence_icon %}
+
+{% set item = row.item %}
+{% set deadline = row.deadline() %}
+{% set legal_case = row.legalCase() %}
+{% set action = row.action %}
+{% set days = item.daysRemaining %}
+{% set consumed = row.isConsequenceConsumed() %}
+{% set consequence = item.consequence.value %}
+
+{# Only on screen when the lawyer asked to see what was already dealt with. Stated
+   as a word on the second line, not as a badge: the row keeps its single badge. #}
+{% set closed = deadline.completed %}
+
+{# A debtor term that has expired is not a failure of the lawyer: it is the event
+   that opens the filing of the request (CPC art. 1015-1016). #}
+{% set unblocks_filing = consequence == 'NO_SANCTION' and days < 0 %}
+{% set neutral = consequence in ['NO_SANCTION', 'RECORD_KEEPING'] %}
+{% set irreversible = item.isIrreversible() %}
+
+{# Left band: DeadlinePriority::color(), the same source as the deadline tab inside
+   the case. Decorative only, the consequence is carried by the badge text. #}
+{% set band_map = { 'red': 'bg-red-500', 'amber': 'bg-amber-500', 'sky': 'bg-sky-500', 'slate': 'bg-slate-400' } %}
+{% set band = band_map[deadline.priority.color()]|default('bg-slate-400') %}
+
+{% set badge_map = {
+    'CASE_ANNULMENT': 'bg-red-50 text-red-700 ring-red-200 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900/50',
+    'FORFEITURE': 'bg-red-50 text-red-700 ring-red-200 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900/50',
+    'RIGHT_EXTINCTION': 'bg-red-50 text-red-700 ring-red-200 dark:bg-red-950/40 dark:text-red-300 dark:ring-red-900/50',
+    'APPEARANCE': 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/50',
+    'NO_SANCTION': 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-900/50',
+    'RECORD_KEEPING': 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700',
+} %}
+{% set badge_class = unblocks_filing
+    ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-900/50'
+    : badge_map[consequence]|default(badge_map['RECORD_KEEPING']) %}
+{% set badge_label = unblocks_filing ? 'deadlines.row.unblocks_filing'|trans : item.consequence.label()|trans %}
+
+{# The act. A manual reminder carries its own wording, so it becomes the title; a
+   legal term is named by its type. The stored description follows as a muted suffix
+   only when it adds something: descriptions that merely restate the type of the
+   deadline would double the line for nothing. #}
+{% set description = deadline.description|default('')|trim %}
+{% set type_label = deadline.type.label()|trans %}
+{% set is_custom = deadline.type.value == 'OTHER' and description is not empty %}
+{% set title = is_custom ? description : type_label %}
+{% set suffix = (is_custom or type_label|lower in description|lower) ? '' : description %}
+{% if suffix|length > 60 %}{% set suffix = suffix|slice(0, 60) ~ '...' %}{% endif %}
+
+{% if days < 0 %}
+    {% set days_text = (unblocks_filing ? 'deadlines.row.expired_by' : 'deadlines.row.overdue_by')|trans({ '%count%': days|abs }) %}
+{% elseif days == 0 %}
+    {% set days_text = 'deadlines.row.due_today'|trans %}
+{% else %}
+    {% set days_text = 'deadlines.row.due_in'|trans({ '%count%': days }) %}
+{% endif %}
+
+{% set urgent = not neutral and (days <= 0 or (irreversible and days <= 3)) %}
+{% set days_class = neutral
+    ? 'font-semibold text-slate-600 dark:text-slate-300'
+    : (urgent ? 'font-bold text-red-600 dark:text-red-400' : (days <= 7 ? 'font-semibold text-amber-700 dark:text-amber-400' : 'font-medium text-slate-600 dark:text-slate-300')) %}
+
+{% set primary_style = consumed ? 'primary' : (neutral ? 'secondary' : (irreversible and days <= 3 ? 'danger' : 'primary')) %}
+{% set debtor = legal_case.debtors|length > 0 ? legal_case.debtors|first : null %}
+
+<article id="deadline-row-{{ deadline.id }}"
+         class="relative flex flex-wrap items-start gap-3 px-4 py-3 {{ consumed or closed ? 'bg-slate-50/70 dark:bg-slate-800/25' : 'hover:bg-slate-50 dark:hover:bg-slate-800/40 transition' }}">
+    <span class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r {{ band }}" aria-hidden="true"></span>
+
+    <div class="min-w-0 flex-1">
+        <div class="flex flex-wrap items-center gap-1.5">
+            <span class="text-sm font-semibold {{ consumed or closed ? 'text-slate-600 dark:text-slate-400' : '' }}">{{ title }}</span>
+            {% if suffix %}<span class="text-xs text-slate-500 dark:text-slate-400">{{ suffix }}</span>{% endif %}
+            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ring-1 {{ badge_class }}"
+                  title="{{ 'deadlines.row.badge_aria'|trans({ '%consequence%': badge_label }) }}">
+                {{ consequence_icon(unblocks_filing ? 'NO_SANCTION' : consequence, 'size-2.5') }}{{ badge_label }}
+            </span>
+        </div>
+
+        <div class="mt-1 text-xs text-slate-500 dark:text-slate-400 tnum">
+            {{ deadline.deadlineDate|date('d.m.Y') }} ({{ ('deadlines.weekday.' ~ deadline.deadlineDate|date('N'))|trans }})
+            <span aria-hidden="true">·</span> <span class="{{ days_class }}">{{ days_text }}</span>
+            {% if closed %}
+                <span aria-hidden="true">·</span> <span class="font-semibold text-slate-600 dark:text-slate-300">{{ 'deadlines.row.completed'|trans }}</span>
+            {% elseif consumed %}
+                <span aria-hidden="true">·</span> <span class="font-semibold text-slate-600 dark:text-slate-300">{{ 'deadlines.row.consequence_consumed'|trans }}</span>
+            {% endif %}
+            <span aria-hidden="true">·</span>
+            <a href="{{ path('case_overview', { id: legal_case.id }) }}" class="font-mono hover:underline">{{ legal_case.courtCaseNumber ?: legal_case.caseNumber }}</a>
+            {% if not legal_case.courtCaseNumber %}<span class="text-slate-500 dark:text-slate-400">{{ 'deadlines.row.internal_number'|trans }}</span>{% endif %}
+            <span aria-hidden="true">·</span> {{ legal_case.court ? legal_case.court.name : 'deadlines.row.no_court'|trans }}
+            {% if debtor %}
+                <span aria-hidden="true">·</span> {{ debtor.name }}{% if debtor.cui %} (CUI {{ debtor.cui }}){% endif %}
+            {% endif %}
+            {% if legal_case.amount %}
+                <span aria-hidden="true">·</span> {{ 'deadlines.row.principal'|trans({ '%amount%': legal_case.amount|number_format(0, ',', '.'), '%currency%': legal_case.currency }) }}
+            {% endif %}
+        </div>
+
+        {# The marker is short by design; the full legal sentence lives in the title,
+           because the reason differs per type and one of them takes three lines. #}
+        {% if row.isEstimated() %}
+            {% set estimate = item.estimateReasonKey %}
+            <div class="mt-0.5 text-[11px] text-amber-700 dark:text-amber-400">
+                <span class="cursor-help border-b border-dotted border-amber-500/60" title="{{ (estimate ~ '.note')|trans }}">{{ (estimate ~ '.mark')|trans }}</span>
+            </div>
+        {% endif %}
+    </div>
+
+    {# Buttons. The close sits left of the primary on wide screens, always in the
+       same place; on a phone the primary comes first, where the thumb is. #}
+    <div class="basis-full sm:basis-auto sm:ml-auto shrink-0 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-1.5">
+        {% if action.close %}
+            {{ include('deadlines/_row_action.html.twig', {
+                button: action.close,
+                case_id: legal_case.id,
+                style: 'secondary',
+                icon: true,
+                extra: 'order-2 sm:order-1',
+                filter_fields: filter_fields|default({}),
+                confirmation: row.closeConfirmation,
+            }, with_context = false) }}
+        {% endif %}
+        {{ include('deadlines/_row_action.html.twig', {
+            button: action.primary,
+            case_id: legal_case.id,
+            style: primary_style,
+            icon: action.primaryClosesDeadline(),
+            extra: 'order-1 sm:order-2',
+            filter_fields: filter_fields|default({}),
+            confirmation: row.closeConfirmation,
+        }, with_context = false) }}
+    </div>
+</article>

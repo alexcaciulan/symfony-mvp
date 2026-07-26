@@ -14,6 +14,7 @@ use App\Service\AuditLogService;
 use App\Service\Billing\SubscriptionService;
 use App\Service\Case\CaseWorkflowService;
 use App\Service\Case\OverviewContextBuilder;
+use App\Service\Deadline\AgendaResponseFactory;
 use App\Service\Document\PaymentNoticeGeneratorService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -22,6 +23,12 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 
+/**
+ * Generating the summons. The route also serves the global agenda, where a limitation
+ * row on a case still in the amiable stage offers this act as its primary button.
+ * Which of the two is acting is told by the `_context` field the agenda posts; without
+ * it every answer is the one the case page has always received.
+ */
 final class CaseSummonsController extends AbstractController
 {
     private const C4_MODAL_ID = 'hs-modal-c4-summons';
@@ -33,6 +40,7 @@ final class CaseSummonsController extends AbstractController
         private readonly AuditLogService $auditLogService,
         private readonly SubscriptionService $subscriptionService,
         private readonly OverviewContextBuilder $contextBuilder,
+        private readonly AgendaResponseFactory $agendaResponses,
         private readonly EntityManagerInterface $em,
     ) {}
 
@@ -109,6 +117,14 @@ final class CaseSummonsController extends AbstractController
     /**
      * Turbo Stream (in-place, status regions refreshed) for Turbo clients, redirect
      * + flash otherwise. `$openModalId` surfaces the C4 memento on success.
+     *
+     * When the act came from the global agenda the answer describes that page
+     * instead: `case-hero`, `panel-documente` and the rest of the case regions do not
+     * exist there, so the standard stream would swap nothing at all and the lawyer
+     * would be left with no sign that the summons had been generated. The C4 memento
+     * is not carried over, having nothing to open there: the rebuilt agenda already
+     * shows the debtor's term with recording that communication date as its own
+     * primary act.
      */
     private function respond(
         Request $request,
@@ -119,6 +135,24 @@ final class CaseSummonsController extends AbstractController
         ?string $openModalId,
         ?string $extraToastKey,
     ): Response {
+        if ($this->agendaResponses->isAgendaRequest($request)) {
+            if ($this->agendaResponses->wantsTurboStream($request)) {
+                $user = $this->getUser();
+                if (!$user instanceof User) {
+                    throw $this->createAccessDeniedException();
+                }
+
+                return $this->agendaResponses->stream($request, $user, $toastVariant, $toastKey, null, $extraToastKey);
+            }
+
+            $this->addFlash($toastVariant, $toastKey);
+            if ($extraToastKey !== null) {
+                $this->addFlash('warning', $extraToastKey);
+            }
+
+            return $this->agendaResponses->redirect($request);
+        }
+
         if (str_contains((string) $request->headers->get('Accept', ''), 'text/vnd.turbo-stream.html')) {
             $context = $updateRegions ? $this->contextBuilder->build($case) : ['case' => $case];
             $context['update_regions'] = $updateRegions;

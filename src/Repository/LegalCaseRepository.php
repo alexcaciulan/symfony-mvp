@@ -5,9 +5,13 @@ declare(strict_types=1);
 namespace App\Repository;
 
 use App\Entity\LegalCase;
+use App\Entity\LegalDeadline;
 use App\Entity\User;
 use App\Enum\CaseStatus;
+use App\Enum\DeadlineType;
+use App\Enum\StampDutyStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
+use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
 
 /** @extends ServiceEntityRepository<LegalCase> */
@@ -72,6 +76,17 @@ class LegalCaseRepository extends ServiceEntityRepository
      */
     public function findActiveByUser(User $user): array
     {
+        return $this->activeByUserQueryBuilder($user)->getQuery()->getResult();
+    }
+
+    /**
+     * The query behind {@see self::findActiveByUser()}, unexecuted, for the form
+     * types that need the user's own cases as choices. Handing over the builder is
+     * what keeps the scoping of a case selector identical to the scoping of every
+     * other list of active cases, instead of restated per form.
+     */
+    public function activeByUserQueryBuilder(User $user): QueryBuilder
+    {
         $terminal = array_filter(
             CaseStatus::cases(),
             static fn (CaseStatus $s): bool => $s->isTerminal()
@@ -83,9 +98,7 @@ class LegalCaseRepository extends ServiceEntityRepository
             ->andWhere('lc.status NOT IN (:terminal)')
             ->setParameter('user', $user)
             ->setParameter('terminal', $terminal)
-            ->orderBy('lc.updatedAt', 'DESC')
-            ->getQuery()
-            ->getResult();
+            ->orderBy('lc.updatedAt', 'DESC');
     }
 
     /**
@@ -277,5 +290,100 @@ class LegalCaseRepository extends ServiceEntityRepository
             ->orderBy('lc.updatedAt', 'ASC')
             ->getQuery()
             ->getResult();
+    }
+
+    /**
+     * Cases whose summons was generated while the date the debtor received it was
+     * never recorded. The 15-day term runs from that receipt (CPC art. 1015 para. 1),
+     * so until the date exists the RASPUNS_SOMATIE deadline stays an estimate seeded
+     * from the generation date.
+     *
+     * Restricted to the statuses before filing: once the payment order request is
+     * out, recording the receipt no longer changes what the lawyer has to do next,
+     * and the row would sit in the blockage list forever.
+     *
+     * @return LegalCase[] oldest summons first, that being the one closest to filing
+     */
+    public function findAwaitingSummonsCommunicationDate(User $user): array
+    {
+        return $this->blockedCasesQueryBuilder($user)
+            ->andWhere('lc.status IN (:statuses)')
+            ->andWhere('lc.paymentNoticeDate IS NOT NULL')
+            ->andWhere('lc.paymentNoticeCommunicationDate IS NULL')
+            ->setParameter('statuses', [CaseStatus::AMIABIL, CaseStatus::SOMATIE_TRIMISA])
+            ->orderBy('lc.paymentNoticeDate', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * Cases where the order was issued and the date it was communicated is still
+     * missing. That date is the only thing the 10-day annulment term runs from
+     * (CPC art. 1024 para. 1), so without it the deadline is never created.
+     *
+     * Only ORDONANTA_EMISA qualifies: in IN_ANULARE the annulment request has already
+     * been filed, and past DEFINITIVA the window has closed, so in both the prompt
+     * would ask for a date that no longer unblocks anything.
+     *
+     * @return LegalCase[] oldest first
+     */
+    public function findAwaitingRulingCommunicationDate(User $user): array
+    {
+        return $this->blockedCasesQueryBuilder($user)
+            ->andWhere('lc.status = :status')
+            ->andWhere('lc.rulingCommunicationDate IS NULL')
+            ->setParameter('status', CaseStatus::ORDONANTA_EMISA)
+            ->orderBy('lc.updatedAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * Cases filed without proof of stamping and without the court notice that starts
+     * the 10-day term to stamp (OUG 80/2013 art. 33 para. 2). The notice date is not
+     * stored on the case, only in the audit log, so the evidence that it was recorded
+     * is the existence of the TIMBRARE deadline itself, the same reading
+     * {@see \App\Service\Deadline\DeadlineCertaintyResolver} relies on.
+     *
+     * Cases with the duty already paid are excluded on purpose: the court issues no
+     * regularization notice for them, so there is nothing missing.
+     *
+     * @return LegalCase[] oldest first
+     */
+    public function findAwaitingStampDutyCourtNotice(User $user): array
+    {
+        $withStampDutyDeadline = $this->getEntityManager()->createQueryBuilder()
+            ->select('1')
+            ->from(LegalDeadline::class, 'sd')
+            ->where('sd.legalCase = lc')
+            ->andWhere('sd.type = :stampDutyType');
+
+        $qb = $this->blockedCasesQueryBuilder($user);
+
+        return $qb
+            ->andWhere('lc.status IN (:statuses)')
+            ->andWhere('lc.stampDutyStatus IN (:stampDutyStatuses)')
+            ->andWhere($qb->expr()->not($qb->expr()->exists($withStampDutyDeadline->getDQL())))
+            ->setParameter('statuses', [CaseStatus::CERERE_DEPUSA, CaseStatus::DOSAR_INREGISTRAT, CaseStatus::TERMEN_FIXAT])
+            ->setParameter('stampDutyStatuses', [StampDutyStatus::NEACHITATA, StampDutyStatus::AMANATA_REGULARIZARE])
+            ->setParameter('stampDutyType', DeadlineType::TIMBRARE)
+            ->orderBy('lc.updatedAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * Base filter shared by the three blockage queries: the case belongs to the user
+     * and is still live. Debtors and court are fetch joined because every blockage
+     * row names the opposing party and the court it is filed at.
+     */
+    private function blockedCasesQueryBuilder(User $user): QueryBuilder
+    {
+        return $this->createQueryBuilder('lc')
+            ->leftJoin('lc.debtors', 'db')->addSelect('db')
+            ->leftJoin('lc.court', 'ct')->addSelect('ct')
+            ->where('lc.user = :user')
+            ->andWhere('lc.deletedAt IS NULL')
+            ->setParameter('user', $user);
     }
 }

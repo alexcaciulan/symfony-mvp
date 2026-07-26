@@ -80,22 +80,56 @@ class LegalDeadlineRepositoryTest extends KernelTestCase
     public function testCountOverdueByUserExcludesCompletedFutureAndTerminalCases(): void
     {
         $activeCase = $this->createCase();
-        $this->createDeadline($activeCase, new \DateTimeImmutable('-3 days')); // overdue, counts
+        $this->createDeadline($activeCase, new \DateTimeImmutable('-3 days'), DeadlineType::TIMBRARE); // overdue, counts
 
         // Future deadline does not count.
-        $this->createDeadline($activeCase, new \DateTimeImmutable('+3 days'));
+        $this->createDeadline($activeCase, new \DateTimeImmutable('+3 days'), DeadlineType::TIMBRARE);
 
         // Completed overdue deadline does not count.
-        $this->createDeadline($activeCase, new \DateTimeImmutable('-5 days'))->setCompleted(true);
+        $this->createDeadline($activeCase, new \DateTimeImmutable('-5 days'), DeadlineType::TIMBRARE)->setCompleted(true);
 
         // Overdue deadline on a terminal-status case does not count.
         $closedCase = $this->createCase();
         $closedCase->setStatus(CaseStatus::INCHIS_SUCCES);
-        $this->createDeadline($closedCase, new \DateTimeImmutable('-2 days'));
+        $this->createDeadline($closedCase, new \DateTimeImmutable('-2 days'), DeadlineType::TIMBRARE);
 
         $this->em->flush();
 
         self::assertSame(1, $this->repo->countOverdueByUser($this->user));
+    }
+
+    /**
+     * The debtor's own term (CPC art. 1015 para. 1) is not an arrear of the lawyer:
+     * its expiry is what opens the filing of the request. The dashboard KPI, the
+     * navigation badge and the "Restante" pill of the agenda are the same number in
+     * three places, so this exclusion has to hold on the counter too.
+     */
+    public function testCountOverdueByUserLeavesOutTheExpiredTermsOfTheDebtor(): void
+    {
+        $case = $this->createCase();
+        $this->createDeadline($case, new \DateTimeImmutable('-4 days'), DeadlineType::RASPUNS_SOMATIE);
+        $this->em->flush();
+
+        self::assertSame(0, $this->repo->countOverdueByUser($this->user));
+    }
+
+    /**
+     * The two readings of the arrears must be the same number, because the dashboard
+     * card links straight to the agenda that shows the other one.
+     */
+    public function testCountOverdueByUserAgreesWithTheAgendaBucket(): void
+    {
+        $case = $this->createCase();
+        $this->createDeadline($case, new \DateTimeImmutable('-4 days'), DeadlineType::RASPUNS_SOMATIE);
+        $this->createDeadline($case, new \DateTimeImmutable('-2 days'), DeadlineType::PRESCRIPTIE);
+        $this->createDeadline($case, new \DateTimeImmutable('-1 day'), DeadlineType::JUDECATA);
+        $this->em->flush();
+
+        self::assertSame(
+            $this->repo->countAgendaBuckets($this->user)['overdue'],
+            $this->repo->countOverdueByUser($this->user),
+        );
+        self::assertSame(2, $this->repo->countOverdueByUser($this->user));
     }
 
     public function testFindByCaseReturnsOnlyForCase(): void

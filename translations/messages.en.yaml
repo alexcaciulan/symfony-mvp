@@ -26,6 +26,7 @@ layout:
             dashboard: 'Dashboard'
             cases: 'Cases'
             deadlines: 'Deadlines'
+            deadlines_overdue: '%count% overdue deadlines'
             notifications: 'Notifications'
             creditors: 'Creditors'
             debtors: 'Debtors'
@@ -85,6 +86,7 @@ component:
         due_at: 'Due'
         in_x_days: 'in %days% days'
         overdue: 'overdue'
+        expired_unblocks: 'expired, the application can be filed'
     data_table:
         empty: 'No data.'
         error: 'Could not load data. Please retry.'
@@ -1993,6 +1995,16 @@ enum:
         PRESCRIPTIE: 'Statute of limitations'
         PRESCRIPTIE_EXECUTARE: 'Enforcement statute of limitations'
         OTHER: 'Other deadline'
+    deadline_consequence:
+        CASE_ANNULMENT: 'Claim annulled'
+        FORFEITURE: 'Forfeiture'
+        RIGHT_EXTINCTION: 'Right extinguished'
+        APPEARANCE: 'Attendance'
+        NO_SANCTION: 'No sanction'
+        RECORD_KEEPING: 'Record keeping'
+    deadline_certainty:
+        CERT: 'Confirmed date'
+        ESTIMAT: 'Estimated date'
     stamp_duty_status:
         NEACHITATA: 'Unpaid'
         ACHITATA: 'Paid'
@@ -2523,3 +2535,173 @@ table:
         filters:
             einvoice_placeholder: 'All statuses'
             period: 'Period'
+
+# =============================================================================
+# Deadlines agenda (deadlines/*.html.twig)
+# =============================================================================
+deadlines:
+    title: 'Deadlines'
+    heading: 'Deadlines'
+    window: 'Deadlines across all your active cases, through %date%. Email alerts run daily at 07:00.'
+    counter:
+        overdue: 'Overdue'
+        today: 'Due today'
+        fatal30: 'Fatal within 30 days'
+        blocked: 'Blocked cases'
+    action:
+        open_case: 'Open the case'
+        open_portal: 'Open Portal'
+        mark_done: 'Mark as done'
+        mark_stamped: 'Mark as stamped'
+        stop_tracking: 'Stop tracking'
+        send_summons: 'Send the summons'
+        generate_payment_order: 'Generate the payment order request'
+        set_summons_communication_date: 'Set the communication date'
+        note:
+            mark_done: 'Closes the deadline in the agenda and stops the alerts. It is not proof that the act was performed.'
+            stop_tracking: 'The limitation period runs regardless of this action. The button closes the deadline in the agenda and stops the alerts, with no legal effect.'
+    blockage:
+        SUMMONS_COMMUNICATION_MISSING:
+            label: 'The summons communication date is not recorded'
+            missing: 'Answer to the summons, 15 days'
+            legal_basis: 'CPC art. 1015 para. 1'
+            cause: 'The summons was generated, but the communication date is not recorded.'
+            consequence: 'The term is computed from the date the summons was generated, not from its receipt. It stays estimated until you record the communication date, and a payment order request filed on it may be dismissed as premature.'
+            action: 'Set the summons communication date'
+        RULING_COMMUNICATION_MISSING:
+            label: 'The ruling communication date is not recorded'
+            missing: 'Annulment request, 10 days'
+            legal_basis: 'CPC art. 1024 para. 1'
+            cause: 'The order was issued, but the ruling communication date is not recorded.'
+            consequence: 'The term is one of forfeiture. Without the date it is never created and raises no alert.'
+            action: 'Set the ruling communication date'
+        STAMP_DUTY_NOTICE_MISSING:
+            label: 'The stamping notice date is not recorded'
+            missing: 'Stamp duty, 10 days'
+            legal_basis: 'OUG 80/2013 art. 33 para. 2'
+            cause: 'The claim was filed with the duty unpaid or deferred to regularization, but the stamping notice date is not recorded.'
+            consequence: 'Failing to stamp within the term granted by the court annuls the claim.'
+            action: 'Set the notice date'
+    counter_hint:
+        today: 'through 24:00'
+        blocked: 'cases, not deadlines'
+    counter_aria:
+        overdue: 'Overdue deadlines'
+        today: 'Deadlines due today'
+        fatal30: 'Fatal deadlines within the next 30 days'
+        blocked: 'Cases with a blocked fatal deadline'
+    filter:
+        show_completed: 'Show completed'
+        clear: 'Clear filters'
+        counters_note: 'The numbers count the whole open agenda, not just the active selection.'
+        empty_heading: 'No deadline matches the active selection'
+        empty_body: 'The pressed pills narrow the agenda. Release them to see the whole window again.'
+    add:
+        open: 'Add deadline'
+        field_case_label: 'Case'
+        field_case_placeholder: 'Choose the case'
+        field_case_required: 'Choose the case the deadline is added to.'
+        flash_added: 'The deadline has been added.'
+        flash_error_validation: 'The deadline could not be added. Check the data you entered.'
+    confirm:
+        cancel: 'Cancel'
+        fact:
+            case: 'Case'
+            deadline_type: 'Deadline'
+            deadline_date: 'Falls due on'
+            stamp_duty_status: 'Stamp duty status'
+            stamp_duty_amount: 'Amount'
+            stamp_duty_paid_at: 'Paid on'
+            stamp_duty_uat: 'Beneficiary (UAT)'
+            unknown: 'unknown'
+        stamp_duty:
+            title: 'Closing the stamp duty deadline'
+            body: 'Failing to pay the stamp duty within the term granted by the court annuls the claim (Government Emergency Ordinance 80/2013 art. 33 para. 2, Code of Civil Procedure art. 197). Closing takes the deadline out of the agenda and stops the email alerts. It is not proof of payment: the receipt is attached to the claim and filed with the court.'
+            warning_unpaid: 'On this case the duty is not recorded as paid. If you close it now, the agenda shows the stamp duty as settled while the application holds no proof of payment. Closing is a statement of yours, not evidence.'
+        limitation:
+            title: 'Stop tracking this limitation period'
+            body: 'The limitation period runs regardless of this action. The button neither interrupts nor suspends it: it takes the row out of the agenda and stops the email alerts. The period is interrupted by the claim filed in court (Civil Code art. 2537 pt. 2) or, conditionally, by the summons once communicated, provided the claim is filed within six months of that communication (Civil Code art. 2540, Code of Civil Procedure art. 1015 para. 2). If those six months lapse, the interruption is deemed not to have occurred.'
+            warning: 'After closing you get no further warning about this deadline. Once the period elapses the right of action is extinguished (Civil Code art. 2500 para. 1), the general term being three years (Civil Code art. 2517).'
+        enforcement_limitation:
+            title: 'Stop tracking the enforcement limitation period'
+            body: 'The period for seeking enforcement runs regardless of this action. The button neither interrupts nor suspends it: it takes the row out of the agenda and stops the email alerts.'
+            warning: 'After closing you get no further warning about this deadline. Once it elapses the right to seek enforcement is extinguished and the title loses its enforceability (Code of Civil Procedure art. 706 para. 1).'
+        forfeiture:
+            title: 'Closing a forfeiture deadline'
+            body: 'The annulment request is filed within 10 days of the ruling being communicated (Code of Civil Procedure art. 1024 para. 1). The term is one of forfeiture: missing it extinguishes the remedy, and reinstatement may be sought only by proving well founded reasons, within 15 days of the impediment ceasing (Code of Civil Procedure art. 186). Closing stops the alerts. It is not proof that the request was filed.'
+    section:
+        overdue: 'Overdue'
+        unblocked: 'Unblocked: the payment order request can be filed'
+        unblocked_hint: 'terms of the debtor, expired'
+        today: 'Today, %date%'
+        tomorrow: 'Tomorrow, %date%'
+        rest_of_week: 'Rest of the week, through %date%'
+        next30: 'Next 30 days, through %date%'
+        count: '(%count%)'
+        oldest: 'oldest: %days% days'
+        today_note: 'The term expires at 24:00 (CPC art. 182 para. 1). An act filed with the court expires when the registry closes (art. 182 para. 2); filing today by registered letter or express courier is still in time (art. 183 para. 1).'
+        show: 'Show'
+        hide: 'Hide'
+    row:
+        due_today: 'due today'
+        due_in: '{1}in 1 day|]1,Inf[in %count% days'
+        overdue_by: '{1}overdue by 1 day|]1,Inf[overdue by %count% days'
+        expired_by: '{1}expired 1 day ago|]1,Inf[expired %count% days ago'
+        consequence_consumed: 'the consequence may already have occurred'
+        completed: 'completed'
+        estimate:
+            unconfirmed_fact:
+                mark: 'estimated date'
+                note: 'The date is computed from the fact that starts the term, and that fact has no confirmed date on the case. Record the real date on the case: the term is recomputed and becomes certain.'
+            prescription_interruption:
+                mark: 'the interruption of the limitation period holds conditionally'
+                note: 'A communicated summons interrupts the limitation period (CPC art. 1015 para. 2, referring to NCC art. 2540). The interruption holds only if the claim is filed in court within 6 months of the communication; otherwise it is deemed never to have happened. The application does not track that six-month term, and the date shown is the due date plus 3 years, computed without any interruption.'
+        internal_number: 'internal no.'
+        no_court: 'not filed with a court'
+        principal: 'principal %amount% %currency%'
+        unblocks_filing: 'Unblocks filing'
+        badge_aria: 'Consequence of missing it: %consequence%'
+    rail:
+        heading: 'Limitation periods, long horizon'
+        subtitle: 'More than 30 days out. Excluded from the triage counters.'
+        note: 'The enforcement limitation period is only created on final or enforced cases, 3 years from the date the ruling became enforceable, so it never shows up in the main column.'
+        empty: 'No limitation period beyond the agenda window.'
+    blockages:
+        heading: 'Blocked cases: fatal deadlines that are uncertain or missing'
+        count: '(%count%)'
+        description: 'On these cases the generating fact is missing, so the term is either never created or stays estimated, and the agenda cannot show it.'
+        open: 'Open'
+        close: 'Close'
+        missing: 'Missing:'
+    footnote: 'Email alerts go out daily at 07:00, at 7, 3 and 1 day before and on the day of expiry. This page remains the primary warning mechanism.'
+    empty:
+        heading: 'No deadline to track'
+        body: 'Deadlines appear on their own from the first case. You do not enter them: the application computes them from the data filled in the request and moves them if the date of the generating fact changes.'
+        cta: 'Start the first case'
+        list_heading: 'What the application will track for you'
+        list_subtitle: 'Each deadline is created automatically the moment the fact that triggers it occurs.'
+        item:
+            summons_answer: 'Answer to the summons, 15 days'
+            summons_answer_hint: 'From the day the summons is communicated. CPC art. 1015 para. 1.'
+            stamp_duty: 'Stamp duty, 10 days'
+            stamp_duty_hint: 'From the court notice. Failing to stamp annuls the claim. OUG 80/2013 art. 33 para. 2.'
+            annulment: 'Annulment request, 10 days'
+            annulment_hint: 'From the communication of the order. A forfeiture term. CPC art. 1024 para. 1.'
+            prescription: 'Limitation, 3 years per due date'
+            prescription_hint: 'One deadline for every invoice. Civil Code art. 2517.'
+            hearing: 'Hearing dates'
+            hearing_hint: 'Taken from portal.just.ro once the case receives a court number.'
+        alerts_note: 'Email alerts go out daily at 07:00, at 7, 3 and 1 day before and on the day of expiry.'
+    clean:
+        heading: 'Clean register'
+        body: 'Zero overdue, zero deadlines due today, zero fatal deadlines in the next 30 days.'
+        agenda_heading: 'Nothing to do through %date%'
+        agenda_body: 'The active cases are up to date. The next deadline falls outside the agenda window, which stops at %date%.'
+    weekday:
+        '1': 'Monday'
+        '2': 'Tuesday'
+        '3': 'Wednesday'
+        '4': 'Thursday'
+        '5': 'Friday'
+        '6': 'Saturday'
+        '7': 'Sunday'

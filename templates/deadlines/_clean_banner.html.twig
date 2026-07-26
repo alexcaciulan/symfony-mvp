@@ -1,0 +1,16 @@
+{# There are cases, but nothing is due inside the window. The risk bar does not
+   disappear, it collapses onto one line that confirms the zero explicitly: without
+   that confirmation the lawyer cannot tell "nothing today" from "the page failed to
+   load". #}
+
+{% from 'deadlines/_icons.html.twig' import check %}
+
+<div data-state="clean" class="rounded-2xl border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50 dark:bg-emerald-950/30 shadow-soft px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+    <span class="inline-flex items-center justify-center size-7 rounded-lg bg-white dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 shrink-0">
+        {{ check('size-4') }}
+    </span>
+    <div class="flex-1 min-w-0">
+        <div class="text-sm font-semibold text-emerald-900 dark:text-emerald-200">{{ 'deadlines.clean.heading'|trans }}</div>
+        <p class="text-xs text-emerald-800 dark:text-emerald-300/90">{{ 'deadlines.clean.body'|trans }}</p>
+    </div>
+</div>

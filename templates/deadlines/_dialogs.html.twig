@@ -1,0 +1,34 @@
+{# Every dialog of the agenda, rendered once at page level.
+
+   They sit outside `deadline-riskbar` and `deadline-agenda`, which is what an action
+   replaces, so the dialog that fired an action is never destroyed while its request
+   is in flight and the answer can dismiss it by id.
+
+   The two hidden toggles below are how the dialogs are opened and closed when
+   Preline exposes no programmatic API (v4 does not). They are dedicated controls
+   rather than a close button reached by a selector, so opening and closing always go
+   through the same element and never toggle a dialog back open.
+
+   @var view       App\Service\Deadline\DeadlinePageView
+   @var add_cases  list<App\Entity\LegalCase>
+   @var add_modal_id string #}
+
+{% set filter_fields = view.filter.hiddenFields() %}
+
+{{ include('deadlines/_modal_confirm_close.html.twig', {}, with_context = false) }}
+{{ include('deadlines/_modal_summons_communication_date.html.twig', { filter_fields: filter_fields }, with_context = false) }}
+
+{% if add_cases|length > 0 %}
+    {{ include('deadlines/_modal_add_deadline.html.twig', {
+        modal_id: add_modal_id,
+        cases: add_cases,
+        filter_fields: filter_fields,
+    }, with_context = false) }}
+{% endif %}
+
+<button type="button" class="hidden" tabindex="-1" aria-hidden="true"
+        data-hs-overlay="#hs-modal-agenda-confirm-close"
+        data-agenda-dialog-trigger="hs-modal-agenda-confirm-close"></button>
+<button type="button" class="hidden" tabindex="-1" aria-hidden="true"
+        data-hs-overlay="#hs-modal-set-summons-communication-date"
+        data-agenda-dialog-trigger="hs-modal-set-summons-communication-date"></button>

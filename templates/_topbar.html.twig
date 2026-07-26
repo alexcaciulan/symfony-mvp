@@ -104,6 +104,14 @@
                     <svg class="size-[18px] {{ is_dashboard ? '' : 'text-slate-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
                     {{ 'layout.sidebar.nav.dashboard'|trans }}
                 </a>
+                {# Termene: same entry as the sidebar, badge included. #}
+                {% set is_deadlines = current_route == 'app_deadlines' %}
+                <a href="{{ path('app_deadlines') }}"
+                   class="{{ is_deadlines ? 'nav-active text-lex-navy dark:text-blue-400 font-semibold' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium' }} flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm transition no-underline">
+                    <svg class="size-[18px] {{ is_deadlines ? '' : 'text-slate-400' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <span class="flex-1">{{ 'layout.sidebar.nav.deadlines'|trans }}</span>
+                    {{ include('_deadline_nav_badge.html.twig', { count: overdue_deadlines_count() }, with_context = false) }}
+                </a>
                 {% set is_settings = current_route starts with 'app_profile' %}
                 <a href="{{ path('app_profile') }}"
                    class="{{ is_settings ? 'nav-active text-lex-navy dark:text-blue-400 font-semibold' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium' }} flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm transition no-underline">

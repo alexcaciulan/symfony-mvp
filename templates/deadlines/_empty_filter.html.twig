@@ -1,0 +1,18 @@
+{# The agenda under a selection that matches nothing. Deliberately not the "clean
+   register" card: that one states something about the account, and here the only
+   thing that is empty is the selection. The way out is stated as an act, because a
+   lawyer who lands on an empty screen has to know it is a filter and not a failure. #}
+
+{% from 'deadlines/_icons.html.twig' import document %}
+
+<div data-state="filter-empty" class="rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/40 px-6 py-10 text-center">
+    <div class="inline-flex items-center justify-center size-11 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 mb-3">
+        {{ document('size-5') }}
+    </div>
+    <h2 class="text-base font-semibold">{{ 'deadlines.filter.empty_heading'|trans }}</h2>
+    <p class="mt-1 text-sm text-slate-600 dark:text-slate-400 max-w-md mx-auto">{{ 'deadlines.filter.empty_body'|trans }}</p>
+    <a href="{{ path('app_deadlines') }}"
+       class="mt-4 inline-flex items-center justify-center py-1.5 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-700 transition no-underline">
+        {{ 'deadlines.filter.clear'|trans }}
+    </a>
+</div>

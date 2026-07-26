@@ -17,6 +17,7 @@ use App\Repository\LegalDeadlineRepository;
 use App\Security\Voter\CaseVoter;
 use App\Service\AuditLogService;
 use App\Service\Case\OverviewContextBuilder;
+use App\Service\Deadline\AgendaResponseFactory;
 use App\Service\Deadline\DeadlineService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -25,9 +26,13 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
- * Pas 4.3 — gestionarea termenelor pe pagina overview dosar. Voter
- * `CASE_DEADLINE_MANAGE` ownership-only (termenele se gestionează în orice
- * stadiu, NU restricționat la AMIABIL/SOMATIE_TRIMISA/CERERE_DEPUSA).
+ * Managing the procedural deadlines of a case. The `CASE_DEADLINE_MANAGE` voter is
+ * ownership only (deadlines are managed at any stage, NOT restricted to
+ * AMIABIL/SOMATIE_TRIMISA/CERERE_DEPUSA).
+ *
+ * The same routes serve the deadlines tab of the case and the global agenda. Which
+ * of the two is acting is told by the `_context` field the agenda posts; without it
+ * every answer is the one the case page has always received.
  */
 final class CaseDeadlineController extends AbstractController
 {
@@ -37,6 +42,7 @@ final class CaseDeadlineController extends AbstractController
         private readonly DeadlineService $deadlineService,
         private readonly AuditLogService $auditLogService,
         private readonly OverviewContextBuilder $contextBuilder,
+        private readonly AgendaResponseFactory $agendaResponses,
         private readonly EntityManagerInterface $em,
     ) {}
 
@@ -49,7 +55,7 @@ final class CaseDeadlineController extends AbstractController
         if (!$this->isCsrfTokenValid('complete_deadline_' . $deadlineId, $request->getPayload()->getString('_token'))) {
             $this->addFlash('error', 'case_overview.deadlines.flash_error_csrf');
 
-            return $this->redirectToRoute('case_overview', ['id' => $caseId, 'tab' => 'termene']);
+            return $this->afterActionRedirect($request, $caseId);
         }
 
         $deadline = $this->deadlineRepository->find($deadlineId);
@@ -64,10 +70,15 @@ final class CaseDeadlineController extends AbstractController
         /** @var \App\Entity\User $user */
         $this->deadlineService->markCompleted($deadline, $user);
 
-        // Turbo Stream response pentru replace in-place pe card. Pe request
-        // non-Turbo (fallback no-JS / curl), facem redirect normal cu flash.
-        $acceptHeader = (string) $request->headers->get('Accept', '');
-        if (str_contains($acceptHeader, 'text/vnd.turbo-stream.html')) {
+        // Turbo Stream response for an in-place replace of the card. On a non-Turbo
+        // request (no-JS fallback / curl) a plain redirect with a flash is sent.
+        if ($this->agendaResponses->wantsTurboStream($request)) {
+            // Fired from the global agenda: the card this stream replaces does not
+            // exist there, so the agenda gets its own regions back instead.
+            if ($this->agendaResponses->isAgendaRequest($request)) {
+                return $this->agendaResponses->stream($request, $user, 'success', 'case_overview.deadlines.flash_marked_complete');
+            }
+
             $stream = $this->renderView('case/overview/_deadline_card_turbo_stream.html.twig', [
                 'deadline' => $deadline,
             ]);
@@ -79,7 +90,7 @@ final class CaseDeadlineController extends AbstractController
 
         $this->addFlash('success', 'case_overview.deadlines.flash_marked_complete');
 
-        return $this->redirectToRoute('case_overview', ['id' => $caseId, 'tab' => 'termene']);
+        return $this->afterActionRedirect($request, $caseId);
     }
 
     #[Route('/case/{caseId}/deadline/add', name: 'case_deadline_add', requirements: ['caseId' => '\d+'], methods: ['POST'])]
@@ -152,7 +163,8 @@ final class CaseDeadlineController extends AbstractController
         );
         $this->em->flush();
 
-        // Subscriber-ul Pas 4.2 nu mai poate fire pe `workflow.entered.ORDONANTA_EMISA` (tranziția s-a făcut deja) — apelăm explicit serviciul.
+        // The workflow subscriber can no longer fire on `workflow.entered.ORDONANTA_EMISA`
+        // (the transition already happened), so the service is called explicitly.
         if ($this->shouldTriggerAppealDeadline($case)) {
             $this->deadlineService->createAppealDeadline($case, $communicationDate);
         }
@@ -304,6 +316,10 @@ final class CaseDeadlineController extends AbstractController
     /**
      * Turbo Stream (in-place, tab preserved) for Turbo clients, redirect + flash
      * otherwise. `$closeModalId` dismisses the originating modal on success.
+     *
+     * When the action came from the global agenda the stream targets that page
+     * instead: `panel-termene`, `case-tabs-nav` and the rest of the case regions do
+     * not exist there, so the standard stream would swap nothing at all.
      */
     private function respondDeadline(
         Request $request,
@@ -313,6 +329,18 @@ final class CaseDeadlineController extends AbstractController
         string $toastKey,
         ?string $closeModalId,
     ): Response {
+        if ($this->agendaResponses->isAgendaRequest($request) && $this->agendaResponses->wantsTurboStream($request)) {
+            $user = $this->getUser();
+            if ($user === null) {
+                throw $this->createAccessDeniedException();
+            }
+            /** @var \App\Entity\User $user */
+
+            // The agenda names its dialogs after the case ones, so the id that
+            // dismisses the dialog on the case page dismisses it here too.
+            return $this->agendaResponses->stream($request, $user, $toastVariant, $toastKey, $closeModalId);
+        }
+
         if (str_contains((string) $request->headers->get('Accept', ''), 'text/vnd.turbo-stream.html')) {
             $context = $updateRegions ? $this->contextBuilder->build($case) : ['case' => $case];
             $context['update_regions'] = $updateRegions;
@@ -329,7 +357,21 @@ final class CaseDeadlineController extends AbstractController
 
         $this->addFlash($toastVariant, $toastKey);
 
-        return $this->redirectToRoute('case_overview', ['id' => $case->getId(), 'tab' => 'termene']);
+        return $this->afterActionRedirect($request, (int) $case->getId());
+    }
+
+    /**
+     * Where a client without Turbo lands after the action: back where it was fired
+     * from. Without the agenda context this is the deadlines tab of the case, byte
+     * for byte the redirect these routes have always issued.
+     */
+    private function afterActionRedirect(Request $request, int $caseId): Response
+    {
+        if ($this->agendaResponses->isAgendaRequest($request)) {
+            return $this->agendaResponses->redirect($request);
+        }
+
+        return $this->redirectToRoute('case_overview', ['id' => $caseId, 'tab' => 'termene']);
     }
 
     private function findOrThrow(int $caseId): LegalCase

@@ -26,6 +26,7 @@ layout:
             dashboard: 'Dashboard'
             cases: 'Dosare'
             deadlines: 'Termene'
+            deadlines_overdue: '%count% termene restante'
             notifications: 'Notificări'
             creditors: 'Creditori'
             debtors: 'Debitori'
@@ -85,6 +86,7 @@ component:
         due_at: 'Termen'
         in_x_days: 'în %days% zile'
         overdue: 'depășit'
+        expired_unblocks: 'a expirat, se poate depune cererea'
     data_table:
         empty: 'Nu există date.'
         error: 'Nu am putut încărca datele. Reîncearcă.'
@@ -1994,6 +1996,16 @@ enum:
         PRESCRIPTIE: 'Termen prescripție'
         PRESCRIPTIE_EXECUTARE: 'Prescripție executare silită'
         OTHER: 'Alt termen'
+    deadline_consequence:
+        CASE_ANNULMENT: 'Anularea cererii'
+        FORFEITURE: 'Decădere'
+        RIGHT_EXTINCTION: 'Stingerea dreptului'
+        APPEARANCE: 'Prezentare'
+        NO_SANCTION: 'Fără sancțiune'
+        RECORD_KEEPING: 'Evidență'
+    deadline_certainty:
+        CERT: 'Dată confirmată'
+        ESTIMAT: 'Dată estimată'
     stamp_duty_status:
         NEACHITATA: 'Neachitată'
         ACHITATA: 'Achitată'
@@ -2524,3 +2536,173 @@ table:
         filters:
             einvoice_placeholder: 'Toate statusurile'
             period: 'Perioadă'
+
+# =============================================================================
+# Deadlines agenda (deadlines/*.html.twig)
+# =============================================================================
+deadlines:
+    title: 'Termene'
+    heading: 'Termene'
+    window: 'Termenele din toate dosarele tale active, până la %date%. Alertele pe email rulează zilnic la 07:00.'
+    counter:
+        overdue: 'Restante'
+        today: 'Expiră azi'
+        fatal30: 'Fatale în 30 de zile'
+        blocked: 'Blocaje pe dosar'
+    action:
+        open_case: 'Deschide dosarul'
+        open_portal: 'Deschide Portal'
+        mark_done: 'Marchează finalizat'
+        mark_stamped: 'Marchează timbrat'
+        stop_tracking: 'Nu mai urmări'
+        send_summons: 'Trimite somația'
+        generate_payment_order: 'Generează cererea de OP'
+        set_summons_communication_date: 'Setează data comunicării'
+        note:
+            mark_done: 'Închide termenul în agendă și oprește alertele. Nu constituie dovada că actul a fost făcut.'
+            stop_tracking: 'Prescripția curge indiferent de această acțiune. Butonul închide termenul în agendă și oprește alertele, fără niciun efect juridic.'
+    blockage:
+        SUMMONS_COMMUNICATION_MISSING:
+            label: 'Data comunicării somației nu este introdusă'
+            missing: 'Răspunsul la somație, 15 zile'
+            legal_basis: 'CPC art. 1015 alin. 1'
+            cause: 'Somația a fost generată, dar data comunicării nu este introdusă.'
+            consequence: 'Termenul este calculat de la data generării somației, nu de la primire. Rămâne estimat până introduci data comunicării, iar cererea de ordonanță depusă pe baza lui se poate respinge ca prematură.'
+            action: 'Setează data comunicării somației'
+        RULING_COMMUNICATION_MISSING:
+            label: 'Data comunicării hotărârii nu este introdusă'
+            missing: 'Cererea în anulare, 10 zile'
+            legal_basis: 'CPC art. 1024 alin. 1'
+            cause: 'Ordonanța a fost emisă, dar data comunicării hotărârii nu este introdusă.'
+            consequence: 'Termenul este de decădere. Fără dată, nu se creează și nu generează nicio alertă.'
+            action: 'Setează data comunicării hotărârii'
+        STAMP_DUTY_NOTICE_MISSING:
+            label: 'Data înștiințării de timbrare nu este introdusă'
+            missing: 'Timbrarea, 10 zile'
+            legal_basis: 'OUG 80/2013 art. 33 alin. 2'
+            cause: 'Cererea este depusă cu taxa neachitată sau amânată la regularizare, dar data înștiințării de timbrare nu este introdusă.'
+            consequence: 'Netimbrarea în termenul acordat de instanță atrage anularea cererii.'
+            action: 'Setează data înștiințării'
+    counter_hint:
+        today: 'până la ora 24:00'
+        blocked: 'dosare, nu termene'
+    counter_aria:
+        overdue: 'Termene restante'
+        today: 'Termene care expiră azi'
+        fatal30: 'Termene fatale în următoarele 30 de zile'
+        blocked: 'Dosare cu termene fatale blocate'
+    filter:
+        show_completed: 'Arată finalizate'
+        clear: 'Șterge filtrele'
+        counters_note: 'Cifrele numără toată agenda deschisă, nu doar selecția activă.'
+        empty_heading: 'Niciun termen pentru selecția activă'
+        empty_body: 'Pastilele apăsate restrâng agenda. Elimină-le ca să vezi din nou toată fereastra.'
+    add:
+        open: 'Adaugă termen'
+        field_case_label: 'Dosar'
+        field_case_placeholder: 'Alege dosarul'
+        field_case_required: 'Alege dosarul pe care se adaugă termenul.'
+        flash_added: 'Termenul a fost adăugat.'
+        flash_error_validation: 'Termenul nu a putut fi adăugat. Verifică datele introduse.'
+    confirm:
+        cancel: 'Renunță'
+        fact:
+            case: 'Dosar'
+            deadline_type: 'Termen'
+            deadline_date: 'Se împlinește la'
+            stamp_duty_status: 'Stare taxă'
+            stamp_duty_amount: 'Sumă'
+            stamp_duty_paid_at: 'Achitată la'
+            stamp_duty_uat: 'Beneficiar (UAT)'
+            unknown: 'necunoscută'
+        stamp_duty:
+            title: 'Închizi termenul de timbrare'
+            body: 'Netimbrarea în termenul acordat de instanță atrage anularea cererii (OUG 80/2013 art. 33 alin. 2, CPC art. 197). Închiderea scoate termenul din agendă și oprește alertele pe email. Nu este dovada plății: dovada se atașează la cerere și se depune la instanță.'
+            warning_unpaid: 'Pe acest dosar taxa nu figurează ca achitată. Dacă închizi acum, agenda arată timbrarea ca rezolvată fără ca aplicația să aibă dovada plății. Închiderea este o declarație a ta, nu o dovadă.'
+        limitation:
+            title: 'Nu mai urmări acest termen de prescripție'
+            body: 'Prescripția curge indiferent de această acțiune. Butonul nu o întrerupe și nu o suspendă: scoate rândul din agendă și oprește alertele pe email. Prescripția se întrerupe prin cererea introdusă la instanță (NCC art. 2537 pct. 2) sau, condiționat, prin somația comunicată, dacă cererea de chemare în judecată este introdusă în 6 luni de la comunicare (NCC art. 2540, CPC art. 1015 alin. 2). Dacă acest termen de 6 luni este depășit, întreruperea se consideră că nu a avut loc.'
+            warning: 'După închidere nu mai primești nicio avertizare despre acest termen. Împlinirea prescripției stinge dreptul material la acțiune (NCC art. 2500 alin. 1), iar termenul general este de 3 ani (NCC art. 2517).'
+        enforcement_limitation:
+            title: 'Nu mai urmări prescripția executării'
+            body: 'Prescripția dreptului de a obține executarea silită curge indiferent de această acțiune. Butonul nu o întrerupe și nu o suspendă: scoate rândul din agendă și oprește alertele pe email.'
+            warning: 'După închidere nu mai primești nicio avertizare despre acest termen. Împlinirea lui stinge dreptul de a obține executarea silită, iar titlul își pierde puterea executorie (CPC art. 706 alin. 1).'
+        forfeiture:
+            title: 'Închizi un termen de decădere'
+            body: 'Cererea în anulare se depune în 10 zile de la comunicarea ordonanței (CPC art. 1024 alin. 1). Termenul este de decădere: depășirea lui stinge calea de atac, iar repunerea în termen se poate cere numai dovedind motive temeinic justificate, în cel mult 15 zile de la încetarea împiedicării (CPC art. 186). Închiderea oprește alertele. Nu constituie dovada că cererea a fost depusă.'
+    section:
+        overdue: 'Restante'
+        unblocked: 'Deblocate: se poate depune cererea de ordonanță'
+        unblocked_hint: 'termene ale debitorului, expirate'
+        today: 'Azi, %date%'
+        tomorrow: 'Mâine, %date%'
+        rest_of_week: 'Restul săptămânii, până %date%'
+        next30: 'Următoarele 30 de zile, până la %date%'
+        count: '(%count%)'
+        oldest: 'cea mai veche: %days% zile'
+        today_note: 'Termenul se împlinește la ora 24:00 (CPC art. 182 alin. 1). Actul care se depune la instanță se împlinește însă la închiderea registraturii (art. 182 alin. 2); depunerea azi prin scrisoare recomandată sau curier rapid este în termen (art. 183 alin. 1).'
+        show: 'Arată'
+        hide: 'Ascunde'
+    row:
+        due_today: 'expiră azi'
+        due_in: '{1}în 1 zi|]1,19]în %count% zile|[20,Inf[în %count% de zile'
+        overdue_by: '{1}depășit de 1 zi|]1,19]depășit de %count% zile|[20,Inf[depășit de %count% de zile'
+        expired_by: '{1}expirat de 1 zi|]1,19]expirat de %count% zile|[20,Inf[expirat de %count% de zile'
+        consequence_consumed: 'consecința s-a putut produce'
+        completed: 'finalizat'
+        estimate:
+            unconfirmed_fact:
+                mark: 'dată estimată'
+                note: 'Data este calculată din faptul care declanșează termenul, iar acel fapt nu are dată confirmată în dosar. Introdu data reală în dosar: termenul se recalculează și devine cert.'
+            prescription_interruption:
+                mark: 'întreruperea prescripției se menține condiționat'
+                note: 'Somația comunicată întrerupe prescripția (CPC art. 1015 alin. 2, care trimite la NCC art. 2540). Întreruperea se menține numai dacă cererea de chemare în judecată este introdusă în 6 luni de la comunicare; altfel se consideră că nu a avut loc. Aplicația nu urmărește acest termen de 6 luni, iar data afișată este scadența plus 3 ani, calculată fără întrerupere.'
+        internal_number: 'nr. intern'
+        no_court: 'instanță nedepusă'
+        principal: 'principal %amount% %currency%'
+        unblocks_filing: 'Deblochează depunerea'
+        badge_aria: 'Consecința ratării: %consequence%'
+    rail:
+        heading: 'Prescripții, orizont lung'
+        subtitle: 'Peste 30 de zile rămase. Excluse din contoarele de triaj.'
+        note: 'Prescripția executării se creează doar pe dosarele definitive sau în executare, la 3 ani de la data la care hotărârea a devenit executorie, deci nu apare în coloana principală.'
+        empty: 'Nicio prescripție dincolo de fereastra agendei.'
+    blockages:
+        heading: 'Blocaje pe dosar: termene fatale nesigure sau inexistente'
+        count: '(%count%)'
+        description: 'În aceste dosare faptul generator lipsește, deci termenul nu se creează sau rămâne estimat, iar agenda nu îl poate arăta.'
+        open: 'Deschide'
+        close: 'Închide'
+        missing: 'Lipsește:'
+    footnote: 'Alertele pe email pleacă zilnic la 07:00, la 7, 3 și 1 zi înainte și în ziua expirării. Pagina rămâne mecanismul principal de avertizare.'
+    empty:
+        heading: 'Niciun termen de urmărit'
+        body: 'Termenele apar singure din primul dosar. Nu le introduci tu: aplicația le calculează din datele completate în cerere și le mută dacă data faptului generator se schimbă.'
+        cta: 'Începe primul dosar'
+        list_heading: 'Ce va urmări aplicația în locul tău'
+        list_subtitle: 'Fiecare termen se creează automat în momentul în care apare faptul care îl declanșează.'
+        item:
+            summons_answer: 'Răspuns la somație, 15 zile'
+            summons_answer_hint: 'Din ziua comunicării somației. CPC art. 1015 alin. 1.'
+            stamp_duty: 'Timbrare, 10 zile'
+            stamp_duty_hint: 'Din înștiințarea instanței. Netimbrarea atrage anularea cererii. OUG 80/2013 art. 33 alin. 2.'
+            annulment: 'Cerere în anulare, 10 zile'
+            annulment_hint: 'Din comunicarea ordonanței. Termen de decădere. CPC art. 1024 alin. 1.'
+            prescription: 'Prescripție, 3 ani per scadență'
+            prescription_hint: 'Câte un termen pentru fiecare factură. NCC art. 2517.'
+            hearing: 'Termene de judecată'
+            hearing_hint: 'Preluate din portal.just.ro după ce dosarul primește număr de instanță.'
+        alerts_note: 'Alertele pe email pleacă zilnic la 07:00, la 7, 3 și 1 zi înainte și în ziua expirării.'
+    clean:
+        heading: 'Registru curat'
+        body: 'Zero restante, zero termene care expiră azi, zero termene fatale în următoarele 30 de zile.'
+        agenda_heading: 'Nimic de făcut până la %date%'
+        agenda_body: 'Dosarele active sunt la zi. Următorul termen cade în afara ferestrei agendei, care se oprește la %date%.'
+    weekday:
+        '1': 'luni'
+        '2': 'marți'
+        '3': 'miercuri'
+        '4': 'joi'
+        '5': 'vineri'
+        '6': 'sâmbătă'
+        '7': 'duminică'
