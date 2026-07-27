@@ -82,16 +82,20 @@ final class DeadlineCloseConfirmationResolver
     }
 
     /**
-     * Limitation of the right to sue (NCC art. 2500 para. 1, art. 2517) and
-     * limitation of enforcement (CPC art. 706 para. 1). The two extinguish different
-     * things, so they are worded apart. Either way closing the row changes nothing
-     * in law: the period runs on, and only an act of the creditor interrupts it.
+     * The three terms whose miss extinguishes a right: limitation of the right to sue
+     * (NCC art. 2500 para. 1, art. 2517), limitation of enforcement (CPC art. 705
+     * para. 1) and the six months that keep the interruption produced by the summons
+     * alive (NCC art. 2540, CPC art. 1015 para. 2). They extinguish different things,
+     * so they are worded apart. Either way closing the row changes nothing in law: the
+     * period runs on, and only an act of the creditor affects it.
      */
     private function limitation(LegalDeadline $deadline): DeadlineCloseConfirmation
     {
-        $prefix = $deadline->getType() === DeadlineType::PRESCRIPTIE_EXECUTARE
-            ? 'deadlines.confirm.enforcement_limitation.'
-            : 'deadlines.confirm.limitation.';
+        $prefix = match ($deadline->getType()) {
+            DeadlineType::PRESCRIPTIE_EXECUTARE => 'deadlines.confirm.enforcement_limitation.',
+            DeadlineType::DEPUNERE_CERERE => 'deadlines.confirm.filing_interruption.',
+            default => 'deadlines.confirm.limitation.',
+        };
 
         return new DeadlineCloseConfirmation(
             titleKey: $prefix . 'title',

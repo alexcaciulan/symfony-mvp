@@ -43,6 +43,9 @@ class DeadlineCloseConfirmationResolverTest extends TestCase
         yield 'annulment request' => [DeadlineType::CERERE_IN_ANULARE, 'deadlines.confirm.forfeiture.'];
         yield 'limitation' => [DeadlineType::PRESCRIPTIE, 'deadlines.confirm.limitation.'];
         yield 'enforcement limitation' => [DeadlineType::PRESCRIPTIE_EXECUTARE, 'deadlines.confirm.enforcement_limitation.'];
+        // Same consequence as the limitation terms, a different thing lost: not the
+        // right of action itself but the interruption the summons produced.
+        yield 'filing the request' => [DeadlineType::DEPUNERE_CERERE, 'deadlines.confirm.filing_interruption.'];
     }
 
     #[DataProvider('fatalTypeProvider')]
@@ -61,7 +64,6 @@ class DeadlineCloseConfirmationResolverTest extends TestCase
     {
         yield 'hearing' => [DeadlineType::JUDECATA];
         yield 'summons answer' => [DeadlineType::RASPUNS_SOMATIE];
-        yield 'filing the request' => [DeadlineType::DEPUNERE_CERERE];
         yield 'free form reminder' => [DeadlineType::OTHER];
     }
 

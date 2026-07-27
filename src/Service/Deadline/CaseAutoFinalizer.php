@@ -21,8 +21,10 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  *
  * Conservative algorithm (avoids a premature transition):
  *  - the term runs from `rulingCommunicationDate`, not from the ruling date;
- *  - `deadline = nextWorkingDay(rulingCommunicationDate + 10 days)` (CPC art. 181
- *    para. 2 prorogation to the next working day);
+ *  - the maturity date comes from {@see DeadlineService::appealTermEnd()}, so it is
+ *    the same date the CERERE_IN_ANULARE deadline shows the lawyer: free days (CPC
+ *    art. 181 para. 1 pt. 2, hence communication + 11 calendar days) plus the
+ *    prorogation to the next working day (para. 2);
  *  - finalize only when `now >= addWorkingDays(deadline, autoFinalBufferDays)`
  *    (safety buffer in WORKING days, so holiday clusters like Easter/Christmas are
  *    absorbed automatically; a few days late beats a premature transition);
@@ -33,12 +35,10 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  */
 final class CaseAutoFinalizer
 {
-    /** CPC art. 1024 para. 1: annulment-request window. */
-    private const APPEAL_DAYS = 10;
-
     public function __construct(
         private readonly LegalCaseRepository $caseRepository,
         private readonly WorkingDayResolver $workingDayResolver,
+        private readonly DeadlineService $deadlineService,
         private readonly CaseWorkflowService $workflowService,
         private readonly AuditLogService $auditLogService,
         private readonly EventDispatcherInterface $eventDispatcher,
@@ -60,15 +60,13 @@ final class CaseAutoFinalizer
                 continue;
             }
 
-            // Recomputed independently from `rulingCommunicationDate` (source of
-            // truth), not read from the CERERE_IN_ANULARE LegalDeadline: if the
-            // lawyer updated the communication date, we always use the current
-            // value. `+10 days` makes the 10th day the last to file (the service
-            // day is not counted, CPC art. 181 para. 1 pt. 2); the buffer absorbs
-            // the D+10 inclusive/exclusive interpretation ambiguity.
-            $deadline = $this->workingDayResolver->nextWorkingDay(
-                $communicationDate->modify('+' . self::APPEAL_DAYS . ' days'),
-            );
+            // Recomputed from `rulingCommunicationDate` (source of truth) rather
+            // than read from the CERERE_IN_ANULARE LegalDeadline, so a communication
+            // date the lawyer corrected is always the one applied; the calculation
+            // itself is shared with that deadline. The debtor may still file
+            // throughout the maturity day, so the buffer is what keeps a same-day
+            // finalization from happening.
+            $deadline = $this->deadlineService->appealTermEnd($communicationDate);
             $finalThreshold = $this->workingDayResolver->addWorkingDays($deadline, $this->autoFinalBufferDays);
 
             if ($nowDate < $finalThreshold) {

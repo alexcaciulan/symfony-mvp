@@ -373,9 +373,46 @@ class LegalCaseRepository extends ServiceEntityRepository
     }
 
     /**
-     * Base filter shared by the three blockage queries: the case belongs to the user
-     * and is still live. Debtors and court are fetch joined because every blockage
-     * row names the opposing party and the court it is filed at.
+     * Cases that are final or already in enforcement while neither the date the order
+     * was communicated nor the date it was pronounced is recorded. The three years of
+     * CPC art. 705 para. 1 run from the day the order became final (para. 2), and with both
+     * dates missing there is no anchor that is not later than the real one, so
+     * {@see \App\EventSubscriber\DeadlineCreationSubscriber} creates no term at all
+     * and the case shows up here instead.
+     *
+     * Cases that already carry the deadline are excluded: it may have been created
+     * from a date that was later removed, and re-listing them would ask for something
+     * the agenda already tracks. The status set is disjoint from the other blockage
+     * queries, so a case still contributes at most one blockage.
+     *
+     * @return LegalCase[] oldest first
+     */
+    public function findAwaitingExecutionPrescriptionAnchor(User $user): array
+    {
+        $withExecutionPrescription = $this->getEntityManager()->createQueryBuilder()
+            ->select('1')
+            ->from(LegalDeadline::class, 'ep')
+            ->where('ep.legalCase = lc')
+            ->andWhere('ep.type = :executionPrescriptionType');
+
+        $qb = $this->blockedCasesQueryBuilder($user);
+
+        return $qb
+            ->andWhere('lc.status IN (:statuses)')
+            ->andWhere('lc.rulingCommunicationDate IS NULL')
+            ->andWhere('lc.finalRulingDate IS NULL')
+            ->andWhere($qb->expr()->not($qb->expr()->exists($withExecutionPrescription->getDQL())))
+            ->setParameter('statuses', [CaseStatus::DEFINITIVA, CaseStatus::EXECUTARE])
+            ->setParameter('executionPrescriptionType', DeadlineType::PRESCRIPTIE_EXECUTARE)
+            ->orderBy('lc.updatedAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * Base filter shared by the blockage queries: the case belongs to the user and is
+     * still live. Debtors and court are fetch joined because every blockage row names
+     * the opposing party and the court it is filed at.
      */
     private function blockedCasesQueryBuilder(User $user): QueryBuilder
     {

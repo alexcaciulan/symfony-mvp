@@ -1303,6 +1303,7 @@ case_overview:
         completed_on: '%date% (făcut)'
         date_in_days: '%date% (în %days% zile)'
         prescription_covers: 'Prescripția creanței cu scadența %date% (NCC art. 2517).'
+        filing_interruption_covers: 'Somația comunicată la %date% a întrerupt prescripția. Depune cererea până la această dată, altfel întreruperea se consideră că nu a avut loc (NCC art. 2540).'
         alerts_label: 'Alerte:'
         alert_7_sent: '7z trimisă'
         alert_7_pending: '7z programată'
@@ -2583,6 +2584,13 @@ deadlines:
             cause: 'Cererea este depusă cu taxa neachitată sau amânată la regularizare, dar data înștiințării de timbrare nu este introdusă.'
             consequence: 'Netimbrarea în termenul acordat de instanță atrage anularea cererii.'
             action: 'Setează data înștiințării'
+        EXECUTION_ANCHOR_MISSING:
+            label: 'Nicio dată din care să curgă prescripția executării'
+            missing: 'Prescripția executării, 3 ani'
+            legal_basis: 'CPC art. 705 alin. 1'
+            cause: 'Dosarul este definitiv sau în executare, dar nici data comunicării ordonanței, nici data pronunțării nu sunt introduse.'
+            consequence: 'Termenul nu se creează: orice dată pe care ar folosi-o aplicația ar fi ulterioară celei reale, deci ar arăta un termen mai lung decât cel care curge efectiv. Până introduci una dintre cele două date, prescripția executării nu este urmărită.'
+            action: 'Setează data comunicării hotărârii'
     counter_hint:
         today: 'până la ora 24:00'
         blocked: 'dosare, nu termene'
@@ -2623,6 +2631,10 @@ deadlines:
             title: 'Nu mai urmări acest termen de prescripție'
             body: 'Prescripția curge indiferent de această acțiune. Butonul nu o întrerupe și nu o suspendă: scoate rândul din agendă și oprește alertele pe email. Prescripția se întrerupe prin cererea introdusă la instanță (NCC art. 2537 pct. 2) sau, condiționat, prin somația comunicată, dacă cererea de chemare în judecată este introdusă în 6 luni de la comunicare (NCC art. 2540, CPC art. 1015 alin. 2). Dacă acest termen de 6 luni este depășit, întreruperea se consideră că nu a avut loc.'
             warning: 'După închidere nu mai primești nicio avertizare despre acest termen. Împlinirea prescripției stinge dreptul material la acțiune (NCC art. 2500 alin. 1), iar termenul general este de 3 ani (NCC art. 2517).'
+        filing_interruption:
+            title: 'Nu mai urmări termenul de 6 luni'
+            body: 'Somația comunicată a întrerupt prescripția, dar întreruperea se menține numai dacă cererea este introdusă în 6 luni de la comunicare (NCC art. 2540, la care trimite CPC art. 1015 alin. 2). Butonul nu prelungește acest termen: scoate rândul din agendă și oprește alertele pe email. Nu constituie dovada că cererea a fost depusă; termenul se închide singur când dosarul trece în starea "cerere depusă".'
+            warning: 'Dacă cele 6 luni se împlinesc fără cerere depusă, întreruperea se consideră că nu a avut loc, iar prescripția se calculează ca și cum somația nu ar fi fost trimisă. Pe o creanță aproape prescrisă, asta înseamnă respingerea cererii ca prescrisă.'
         enforcement_limitation:
             title: 'Nu mai urmări prescripția executării'
             body: 'Prescripția dreptului de a obține executarea silită curge indiferent de această acțiune. Butonul nu o întrerupe și nu o suspendă: scoate rândul din agendă și oprește alertele pe email.'
@@ -2656,7 +2668,7 @@ deadlines:
                 note: 'Data este calculată din faptul care declanșează termenul, iar acel fapt nu are dată confirmată în dosar. Introdu data reală în dosar: termenul se recalculează și devine cert.'
             prescription_interruption:
                 mark: 'întreruperea prescripției se menține condiționat'
-                note: 'Somația comunicată întrerupe prescripția (CPC art. 1015 alin. 2, care trimite la NCC art. 2540). Întreruperea se menține numai dacă cererea de chemare în judecată este introdusă în 6 luni de la comunicare; altfel se consideră că nu a avut loc. Aplicația nu urmărește acest termen de 6 luni, iar data afișată este scadența plus 3 ani, calculată fără întrerupere.'
+                note: 'Somația comunicată întrerupe prescripția (CPC art. 1015 alin. 2, care trimite la NCC art. 2540). Întreruperea se menține numai dacă cererea de chemare în judecată este introdusă în 6 luni de la comunicare; altfel se consideră că nu a avut loc. Cele 6 luni sunt urmărite separat, ca termen „Depunere cerere". Data afișată aici rămâne scadența plus 3 ani, calculată fără întrerupere.'
         internal_number: 'nr. intern'
         no_court: 'instanță nedepusă'
         principal: 'principal %amount% %currency%'
@@ -2684,6 +2696,8 @@ deadlines:
         item:
             summons_answer: 'Răspuns la somație, 15 zile'
             summons_answer_hint: 'Din ziua comunicării somației. CPC art. 1015 alin. 1.'
+            filing_interruption: 'Depunerea cererii, 6 luni'
+            filing_interruption_hint: 'Din comunicarea somației. Peste acest termen, întreruperea prescripției se consideră că nu a avut loc. NCC art. 2540.'
             stamp_duty: 'Timbrare, 10 zile'
             stamp_duty_hint: 'Din înștiințarea instanței. Netimbrarea atrage anularea cererii. OUG 80/2013 art. 33 alin. 2.'
             annulment: 'Cerere în anulare, 10 zile'

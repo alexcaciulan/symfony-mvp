@@ -14,9 +14,9 @@ use App\Repository\LegalCaseRepository;
  * fact it runs from carries no date. Everything here is derived from fields that
  * already exist on {@see LegalCase}; no column and no migration back this list.
  *
- * The three reasons apply to disjoint sets of case statuses, so a case appears at
- * most once and the number of blockages equals the number of blocked cases, which
- * is what the risk bar counts.
+ * The reasons apply to disjoint sets of case statuses, so a case appears at most
+ * once and the number of blockages equals the number of blocked cases, which is what
+ * the risk bar counts.
  */
 final class DeadlineBlockageFinder
 {
@@ -27,7 +27,8 @@ final class DeadlineBlockageFinder
     /**
      * Ordered by how close the missing date is to costing something: the summons
      * receipt gates filing, the ruling communication gates a forfeiture term, the
-     * stamping notice gates annulment of a claim already on the court's desk.
+     * stamping notice gates annulment of a claim already on the court's desk, and the
+     * enforcement anchor gates a term that is three years out but silently absent.
      *
      * @return list<DeadlineBlockage>
      */
@@ -45,6 +46,10 @@ final class DeadlineBlockageFinder
             ...$this->wrap(
                 $this->cases->findAwaitingStampDutyCourtNotice($user),
                 DeadlineBlockageReason::STAMP_DUTY_NOTICE_MISSING,
+            ),
+            ...$this->wrap(
+                $this->cases->findAwaitingExecutionPrescriptionAnchor($user),
+                DeadlineBlockageReason::EXECUTION_ANCHOR_MISSING,
             ),
         ];
     }

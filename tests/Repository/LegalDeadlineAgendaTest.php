@@ -267,10 +267,13 @@ class LegalDeadlineAgendaTest extends KernelTestCase
     public function testFatal30CountsOnlyTheIrreversibleTypesInsideTheHorizon(): void
     {
         $case = $this->createCase();
-        foreach ([DeadlineType::TIMBRARE, DeadlineType::CERERE_IN_ANULARE, DeadlineType::PRESCRIPTIE, DeadlineType::PRESCRIPTIE_EXECUTARE] as $fatal) {
+        // DEPUNERE_CERERE is fatal too: filing past the six months of NCC art. 2540
+        // cancels the interruption produced by the summons, so the claim is met with
+        // prescription.
+        foreach ([DeadlineType::TIMBRARE, DeadlineType::CERERE_IN_ANULARE, DeadlineType::PRESCRIPTIE, DeadlineType::PRESCRIPTIE_EXECUTARE, DeadlineType::DEPUNERE_CERERE] as $fatal) {
             $this->createDeadline($case, '+7 days', $fatal);
         }
-        foreach ([DeadlineType::JUDECATA, DeadlineType::RASPUNS_SOMATIE, DeadlineType::DEPUNERE_CERERE, DeadlineType::OTHER] as $harmless) {
+        foreach ([DeadlineType::JUDECATA, DeadlineType::RASPUNS_SOMATIE, DeadlineType::OTHER] as $harmless) {
             $this->createDeadline($case, '+7 days', $harmless);
         }
         // Fatal, but outside the horizon on either side.
@@ -278,7 +281,7 @@ class LegalDeadlineAgendaTest extends KernelTestCase
         $this->createDeadline($case, '+31 days', DeadlineType::PRESCRIPTIE);
         $this->em->flush();
 
-        self::assertSame(4, $this->repo->countAgendaBuckets($this->user)['fatal30']);
+        self::assertSame(5, $this->repo->countAgendaBuckets($this->user)['fatal30']);
     }
 
     public function testOverdueListHoldsOnlyPastDatesOrderedAscending(): void

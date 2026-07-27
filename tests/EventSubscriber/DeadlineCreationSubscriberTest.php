@@ -240,8 +240,9 @@ final class DeadlineCreationSubscriberTest extends KernelTestCase
         ]);
 
         self::assertCount(1, $deadlines, 'Tranziția trimite_somatie trebuie să creeze RASPUNS_SOMATIE.');
-        // 2026-02-02 luni + 15 zile = 2026-02-17 marți (zi lucrătoare → fără prorogare)
-        self::assertSame('2026-02-17', $deadlines[0]->getDeadlineDate()->format('Y-m-d'));
+        // 15 zile libere (CPC art. 1015 alin. 1 + art. 181 alin. 1 pct. 2) = 16 zile
+        // calendaristice: 2026-02-02 luni + 16 = 2026-02-18 miercuri (zi lucrătoare).
+        self::assertSame('2026-02-18', $deadlines[0]->getDeadlineDate()->format('Y-m-d'));
         // B1 legal: disclaimer obligatoriu pentru a avertiza avocatul că data
         // calculată e de la generare PDF, NU de la primirea de către debitor.
         self::assertStringContainsString('Termen estimativ', (string) $deadlines[0]->getDescription());
@@ -308,8 +309,9 @@ final class DeadlineCreationSubscriberTest extends KernelTestCase
         ]);
 
         self::assertCount(1, $deadlines);
-        // 2026-02-02 luni + 10 zile = 2026-02-12 joi (zi lucrătoare → fără prorogare)
-        self::assertSame('2026-02-12', $deadlines[0]->getDeadlineDate()->format('Y-m-d'));
+        // 10 zile libere (CPC art. 1024 alin. 1 + art. 181 alin. 1 pct. 2) = 11 zile
+        // calendaristice: 2026-02-02 luni + 11 = 2026-02-13 vineri (zi lucrătoare).
+        self::assertSame('2026-02-13', $deadlines[0]->getDeadlineDate()->format('Y-m-d'));
     }
 
     public function testIdempotencyOnDuplicateWorkflowFire(): void
@@ -389,10 +391,13 @@ final class DeadlineCreationSubscriberTest extends KernelTestCase
             'type' => DeadlineType::PRESCRIPTIE_EXECUTARE,
         ]);
 
-        self::assertCount(1, $deadlines, 'marcheaza_definitiva must create a PRESCRIPTIE_EXECUTARE deadline (CPC art. 706).');
-        // Final the day after the 10-day annulment window, + 3 years, no working-day
-        // prorogation: 2026-09-01 + 11d = 2026-09-12 → 2029-09-12.
-        self::assertSame('2029-09-12', $deadlines[0]->getDeadlineDate()->format('Y-m-d'));
+        self::assertCount(1, $deadlines, 'marcheaza_definitiva must create a PRESCRIPTIE_EXECUTARE deadline (CPC art. 705).');
+        // Final the day after the annulment term lapses, + 3 years. The term itself
+        // is 10 free days (2026-09-01 + 11 = Saturday 2026-09-12), prorogated to
+        // Monday 2026-09-14 (CPC art. 181 alin. 2), so the order is final on
+        // 2026-09-15 and enforcement prescribes on 2029-09-15 (CPC art. 705, no
+        // prorogation on a years-based term).
+        self::assertSame('2029-09-15', $deadlines[0]->getDeadlineDate()->format('Y-m-d'));
     }
 
     public function testExecutareCreatesExecutionPrescriptionDeadlineOnDirectPath(): void
@@ -417,8 +422,134 @@ final class DeadlineCreationSubscriberTest extends KernelTestCase
             'type' => DeadlineType::PRESCRIPTIE_EXECUTARE,
         ]);
 
-        self::assertCount(1, $deadlines, 'trece_la_executare must create a PRESCRIPTIE_EXECUTARE deadline even without DEFINITIVA (CPC art. 706).');
-        self::assertSame('2029-09-12', $deadlines[0]->getDeadlineDate()->format('Y-m-d'));
+        self::assertCount(1, $deadlines, 'trece_la_executare must create a PRESCRIPTIE_EXECUTARE deadline even without DEFINITIVA (CPC art. 705).');
+        // Same anchor as the DEFINITIVA path: annulment term (10 free days) matures
+        // Saturday 2026-09-12, prorogated to Monday 2026-09-14, final 2026-09-15.
+        self::assertSame('2029-09-15', $deadlines[0]->getDeadlineDate()->format('Y-m-d'));
+    }
+
+    /**
+     * The date the order becomes final is the day AFTER the annulment term lapses, and
+     * that term is read back from `DeadlineService::appealTermEnd()` rather than
+     * recomputed here, so the enforcement prescription can never drift from the
+     * CERERE_IN_ANULARE deadline the lawyer is shown. Both readings are asserted: the
+     * literal dates pin the calculation, the derived one pins the shared source.
+     */
+    public function testExecutionPrescriptionRunsFromTheDayAfterTheAnnulmentTermMatures(): void
+    {
+        $case = $this->newCase(new \DateTime('2024-03-15'));
+        $case->setPaymentNoticeDate(new \DateTime('2024-04-01'));
+        $case->setRulingCommunicationDate(new \DateTimeImmutable('2026-09-01'));
+        $this->em->flush();
+
+        $this->advanceToOrdonantaEmisa($case);
+        $this->workflowService->apply($case, 'marcheaza_definitiva');
+        $this->em->flush();
+
+        // 10 free days from 1 September 2026 mature on Saturday 12 September and are
+        // prorogated to Monday 14 September (CPC art. 181 alin. 1 pct. 2 and alin. 2).
+        $maturity = $this->deadlineService()->appealTermEnd(new \DateTimeImmutable('2026-09-01'));
+        self::assertSame('2026-09-14', $maturity->format('Y-m-d'));
+
+        $deadlines = $this->em->getRepository(LegalDeadline::class)->findBy([
+            'legalCase' => $case->getId(),
+            'type' => DeadlineType::PRESCRIPTIE_EXECUTARE,
+        ]);
+
+        self::assertCount(1, $deadlines);
+        self::assertSame(
+            $maturity->modify('+1 day')->modify('+3 years')->format('Y-m-d'),
+            $deadlines[0]->getDeadlineDate()->format('Y-m-d'),
+            'The enforcement prescription must be derived from the annulment term, not recomputed beside it.',
+        );
+        self::assertSame('2029-09-15', $deadlines[0]->getDeadlineDate()->format('Y-m-d'));
+    }
+
+    /**
+     * Second anchor of the chain. Pronouncement always precedes service of the order,
+     * so a term counted from it expires before the real one and warns early, which is
+     * the safe direction on a term that cannot be reopened.
+     */
+    public function testExecutionPrescriptionFallsBackToTheRulingDateWhenTheCommunicationDateIsMissing(): void
+    {
+        $case = $this->newCase(new \DateTime('2024-03-15'));
+        $case->setPaymentNoticeDate(new \DateTime('2024-04-01'));
+        $case->setFinalRulingDate(new \DateTime('2026-09-01'));
+        $this->em->flush();
+
+        $this->advanceToOrdonantaEmisa($case);
+        $this->workflowService->apply($case, 'marcheaza_definitiva');
+        $this->em->flush();
+
+        $deadlines = $this->em->getRepository(LegalDeadline::class)->findBy([
+            'legalCase' => $case->getId(),
+            'type' => DeadlineType::PRESCRIPTIE_EXECUTARE,
+        ]);
+
+        self::assertCount(1, $deadlines);
+        self::assertSame('2029-09-01', $deadlines[0]->getDeadlineDate()->format('Y-m-d'));
+    }
+
+    /**
+     * Third branch: no anchor at all means no deadline. The current day must never be
+     * used, because it is later than the real anchor and would show a term longer than
+     * the one that actually runs. The case surfaces in the blockage zone instead.
+     */
+    public function testExecutionPrescriptionIsNotCreatedWithoutAnyAnchor(): void
+    {
+        $case = $this->newCase(new \DateTime('2024-03-15'));
+        $case->setPaymentNoticeDate(new \DateTime('2024-04-01'));
+        $this->em->flush();
+
+        $this->advanceToOrdonantaEmisa($case);
+        $case->setFinalRulingDate(null);
+        $this->em->flush();
+
+        $this->workflowService->apply($case, 'trece_la_executare');
+        $this->em->flush();
+
+        self::assertSame([], $this->em->getRepository(LegalDeadline::class)->findBy([
+            'legalCase' => $case->getId(),
+            'type' => DeadlineType::PRESCRIPTIE_EXECUTARE,
+        ]));
+    }
+
+    /**
+     * Filing the request is the condition NCC art. 2540 sets for the interruption
+     * produced by the summons to hold, so reaching CERERE_DEPUSA settles the six-month
+     * term and it closes on its own.
+     */
+    public function testCerereDepusaClosesTheFilingDeadline(): void
+    {
+        $case = $this->newCase(new \DateTime('2024-03-15'));
+        $case->setPaymentNoticeDate(new \DateTime('2024-04-01'));
+        $this->em->flush();
+
+        $this->workflowService->apply($case, 'trimite_somatie');
+        $this->em->flush();
+
+        $filing = $this->deadlineService()->createFilingDeadline($case, new \DateTimeImmutable('2026-02-20'));
+        self::assertNotNull($filing);
+        self::assertFalse($filing->isCompleted());
+
+        $this->workflowService->apply($case, 'depune_cerere');
+        $this->em->flush();
+
+        self::assertTrue($filing->isCompleted());
+    }
+
+    private function deadlineService(): \App\Service\Deadline\DeadlineService
+    {
+        // Test-only public alias declared in config/packages/test/services.yaml.
+        return static::getContainer()->get('test.public.deadline_service');
+    }
+
+    private function advanceToOrdonantaEmisa(LegalCase $case): void
+    {
+        foreach (['trimite_somatie', 'depune_cerere', 'inregistreaza_dosar', 'fixeaza_termen', 'emite_ordonanta'] as $transition) {
+            $this->workflowService->apply($case, $transition);
+        }
+        $this->em->flush();
     }
 
     public function testPrescriptionDeadlineUsesCaseStatusAmiabilAsDefault(): void

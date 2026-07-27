@@ -11,6 +11,12 @@ use App\Enum\DeadlineBlockageReason;
  * One row of the blockage zone: a case whose fatal deadline cannot be computed
  * because the generating fact has no date on it. An agenda can list what exists;
  * this is what is missing from it.
+ *
+ * Data only, no route. The row links into the case, where the dialog that records
+ * the missing date lives: the routes that record it are POST endpoints, so a link
+ * built from one would answer 405, and a real deep link would need the case page to
+ * open a dialog from a query parameter, which is page state this zone has no reason
+ * to introduce.
  */
 final readonly class DeadlineBlockage
 {
@@ -18,15 +24,4 @@ final readonly class DeadlineBlockage
         public LegalCase $legalCase,
         public DeadlineBlockageReason $reason,
     ) {}
-
-    public function actionRoute(): string
-    {
-        return $this->reason->actionRoute();
-    }
-
-    /** @return array<string, int|null> */
-    public function actionRouteParameters(): array
-    {
-        return [$this->reason->actionRouteParameterName() => $this->legalCase->getId()];
-    }
 }

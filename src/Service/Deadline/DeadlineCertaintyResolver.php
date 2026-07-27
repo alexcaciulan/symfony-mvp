@@ -33,10 +33,12 @@ final class DeadlineCertaintyResolver
      *   para. 1). At SOMATIE_TRIMISA the deadline is seeded from the generation date,
      *   and only `paymentNoticeCommunicationDate` records the real receipt, so it is
      *   CERT exactly when that field is set.
-     * - PRESCRIPTIE_EXECUTARE runs from the order becoming enforceable, which the
-     *   subscriber derives from `rulingCommunicationDate`; when that is missing it
-     *   falls back to the current day, producing a term LONGER than the real one.
-     *   CERT only when the communication date is set.
+     * - PRESCRIPTIE_EXECUTARE runs from the order becoming final (CPC art. 705 para.
+     *   2), not from it becoming enforceable, which happens earlier and is a separate
+     *   question (CPC art. 1021). The subscriber derives that day from
+     *   `rulingCommunicationDate`; when that is missing it
+     *   falls back to the ruling date, which precedes service and therefore yields a
+     *   term SHORTER than the real one. CERT only when the communication date is set.
      * - CERERE_IN_ANULARE runs from the communication of the order (CPC art. 1024
      *   para. 1). Its only creation paths already require that date, but the check is
      *   repeated here so a deadline created another way cannot claim certainty.
@@ -53,19 +55,19 @@ final class DeadlineCertaintyResolver
      *   portal, not inferred.
      * - OTHER is CERT: the lawyer typed the exact date, there is no generating fact
      *   to confirm.
-     * - DEPUNERE_CERERE is ESTIMAT: no service creates it and it has no legal basis
-     *   in the code, so there is no fact in the model to decide on. Should it ever be
-     *   given the six-month basis of NCC art. 2540, this branch must be revisited
-     *   together with whatever field records that start date.
+     * - DEPUNERE_CERERE runs from the communication of the summons, the same fact as
+     *   RASPUNS_SOMATIE: the six months of NCC art. 2540 are counted from it, and the
+     *   only path that creates the term is the lawyer recording that date. CERT
+     *   exactly when `paymentNoticeCommunicationDate` is set, which is also the only
+     *   state in which the term exists at all.
      */
     public function resolve(DeadlineType $type, LegalCase $legalCase): DeadlineCertainty
     {
         return match ($type) {
-            DeadlineType::RASPUNS_SOMATIE => $this->certainWhen($legalCase->getPaymentNoticeCommunicationDate() !== null),
+            DeadlineType::RASPUNS_SOMATIE, DeadlineType::DEPUNERE_CERERE => $this->certainWhen($legalCase->getPaymentNoticeCommunicationDate() !== null),
             DeadlineType::PRESCRIPTIE_EXECUTARE, DeadlineType::CERERE_IN_ANULARE => $this->certainWhen($legalCase->getRulingCommunicationDate() !== null),
             DeadlineType::PRESCRIPTIE => $this->certainWhen($legalCase->getPaymentNoticeCommunicationDate() === null),
             DeadlineType::TIMBRARE, DeadlineType::JUDECATA, DeadlineType::OTHER => DeadlineCertainty::CERT,
-            DeadlineType::DEPUNERE_CERERE => DeadlineCertainty::ESTIMAT,
         };
     }
 
@@ -79,10 +81,12 @@ final class DeadlineCertaintyResolver
      * record the real one. On PRESCRIPTIE the generating fact, the due date, IS
      * confirmed; what turns the term into an estimate is that the OTHER date has been
      * confirmed, the communication of the summons, which interrupts the limitation
-     * period (CPC art. 1015 para. 2 referring to NCC art. 2540) under a six-month
-     * condition the application does not model. Telling the lawyer there that the
-     * generating fact is unconfirmed would point at a missing date instead of at an
-     * undocumented interruption.
+     * period (CPC art. 1015 para. 2 referring to NCC art. 2540). The six-month
+     * condition of that interruption is tracked as a DEPUNERE_CERERE term of its own,
+     * but the interruption is not folded into this date, which is still the due date
+     * plus three years. Telling the lawyer there that the generating fact is
+     * unconfirmed would point at a missing date instead of at an interruption the
+     * stored date ignores.
      */
     public function estimateReasonKey(DeadlineType $type): string
     {

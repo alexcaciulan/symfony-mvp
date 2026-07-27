@@ -59,7 +59,7 @@ final class DeadlineRowActionResolver
         return match ($item->deadline->getType()) {
             // The act is performed right here, so the primary button is the close.
             DeadlineType::TIMBRARE => new DeadlineRowAction($this->close($item, self::MARK_STAMPED)),
-            DeadlineType::CERERE_IN_ANULARE, DeadlineType::OTHER, DeadlineType::DEPUNERE_CERERE => new DeadlineRowAction($this->close($item, self::MARK_DONE, self::NOTE_MARK_DONE)),
+            DeadlineType::CERERE_IN_ANULARE, DeadlineType::OTHER => new DeadlineRowAction($this->close($item, self::MARK_DONE, self::NOTE_MARK_DONE)),
 
             // The hearing is attended at the court and its hour only exists on the
             // portal, so the primary button leads there and the close stays secondary.
@@ -69,7 +69,10 @@ final class DeadlineRowActionResolver
             ),
 
             DeadlineType::RASPUNS_SOMATIE => $this->summonsAnswerAction($item),
-            DeadlineType::PRESCRIPTIE => $this->limitationAction($item),
+
+            // Both are satisfied by the same act, the request reaching the court, and
+            // closing either changes nothing in law, so they share the same buttons.
+            DeadlineType::PRESCRIPTIE, DeadlineType::DEPUNERE_CERERE => $this->limitationAction($item),
 
             // Enforcement runs through a bailiff, outside the platform, so there is no
             // act to offer. The row states the term and lets the lawyer into the case.

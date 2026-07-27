@@ -91,7 +91,11 @@ class LegalCaseCrudController extends AbstractCrudController
         yield DateField::new('paymentNoticeDate', 'Data somație')->onlyOnDetail();
         yield TextField::new('courtCaseNumber', 'Nr. dosar instanță')->onlyOnDetail();
         yield DateField::new('hearingDate', 'Termen judecată')->onlyOnDetail();
-        yield DateField::new('finalRulingDate', 'Data definitivă')->onlyOnDetail();
+        // The field holds the date the order was pronounced, written by the
+        // emite_ordonanta transition. It is now also the fallback anchor of the
+        // enforcement limitation, so the label must not suggest it is the date the
+        // order became final.
+        yield DateField::new('finalRulingDate', 'Data pronunțării')->onlyOnDetail();
         yield TextareaField::new('notes', 'Note')->onlyOnDetail();
     }
 

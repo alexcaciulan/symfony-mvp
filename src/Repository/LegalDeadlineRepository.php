@@ -95,19 +95,17 @@ class LegalDeadlineRepository extends ServiceEntityRepository
             ->getOneOrNullResult();
     }
 
-    /** @return LegalDeadline[] */
+    /**
+     * Open deadlines of the user falling between today and today plus $days, both
+     * bounds included, for the dashboard list. Same window as
+     * {@see self::countUpcomingByUser()} by construction: the list is shown under a
+     * subtitle carrying that count, so the two must select the same rows.
+     *
+     * @return LegalDeadline[] ascending by deadline date
+     */
     public function findUpcomingByUser(User $user, int $days = 30, ?int $limit = null): array
     {
-        $cutoff = (new \DateTimeImmutable())->modify("+{$days} days");
-
-        $qb = $this->createQueryBuilder('d')
-            ->join('d.legalCase', 'lc')
-            ->where('lc.user = :user')
-            ->andWhere('lc.deletedAt IS NULL')
-            ->andWhere('d.completed = false')
-            ->andWhere('d.deadlineDate <= :cutoff')
-            ->setParameter('user', $user)
-            ->setParameter('cutoff', $cutoff)
+        $qb = $this->upcomingQueryBuilder($user, $days)
             ->orderBy('d.deadlineDate', 'ASC');
 
         if ($limit !== null) {
@@ -118,24 +116,54 @@ class LegalDeadlineRepository extends ServiceEntityRepository
     }
 
     /**
-     * Count upcoming non-completed deadlines within $days for a user.
-     * Used by dashboard KPI "Termene urgente".
+     * Count of the open deadlines falling inside the next $days, for the dashboard KPI
+     * "Termene urgente". Same definition as {@see self::findUpcomingByUser()}.
      */
     public function countUpcomingByUser(User $user, int $days = 7): int
     {
-        $cutoff = (new \DateTimeImmutable())->modify("+{$days} days");
-
-        return (int) $this->createQueryBuilder('d')
+        return (int) $this->upcomingQueryBuilder($user, $days)
             ->select('COUNT(d.id)')
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
+    /**
+     * Shared body of the two dashboard "upcoming" queries.
+     *
+     * Bounded on BOTH sides. Without the lower bound the KPI counted every deadline
+     * that had ever passed under a caption promising the next few days, which turned
+     * arrears already shown by their own counter into a second, larger number nobody
+     * could act on. Arrears are {@see self::countOverdueByUser()}; this is what is
+     * still ahead.
+     *
+     * Terminal cases are excluded for the same reason the agenda excludes them: a
+     * closed case has nothing left to do, and a deadline still open on it is a leftover
+     * record, not work. This aligns the dashboard with the agenda the KPI links to.
+     *
+     * Compared on the calendar DATE: a deadline dated today belongs to the window for
+     * its whole last day (CPC art. 182 para. 1).
+     */
+    private function upcomingQueryBuilder(User $user, int $days): QueryBuilder
+    {
+        $terminal = array_filter(
+            CaseStatus::cases(),
+            static fn (CaseStatus $s): bool => $s->isTerminal(),
+        );
+
+        $today = $this->today();
+
+        return $this->createQueryBuilder('d')
             ->join('d.legalCase', 'lc')
             ->where('lc.user = :user')
             ->andWhere('lc.deletedAt IS NULL')
+            ->andWhere('lc.status NOT IN (:terminal)')
             ->andWhere('d.completed = false')
+            ->andWhere('d.deadlineDate >= :today')
             ->andWhere('d.deadlineDate <= :cutoff')
             ->setParameter('user', $user)
-            ->setParameter('cutoff', $cutoff)
-            ->getQuery()
-            ->getSingleScalarResult();
+            ->setParameter('terminal', $terminal)
+            ->setParameter('today', $today, Types::DATE_IMMUTABLE)
+            ->setParameter('cutoff', $today->modify("+{$days} days"), Types::DATE_IMMUTABLE);
     }
 
     /**
@@ -264,7 +292,7 @@ class LegalDeadlineRepository extends ServiceEntityRepository
     /**
      * Prescription deadlines further out than the agenda horizon (today+30 days).
      * They never show up in the agenda body, yet missing one extinguishes the right
-     * itself (NCC art. 2517, CPC art. 706 para. 1), so the page keeps them in view.
+     * itself (NCC art. 2517, CPC art. 705 para. 1), so the page keeps them in view.
      *
      * Only the to-one associations are fetch joined: a collection join combined with
      * the row limit would make the LIMIT apply to the multiplied rows. The debtors,

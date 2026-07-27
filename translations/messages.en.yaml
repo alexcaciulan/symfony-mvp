@@ -1302,6 +1302,7 @@ case_overview:
         completed_on: '%date% (done)'
         date_in_days: '%date% (in %days% days)'
         prescription_covers: 'Limitation for the claim due on %date% (Civil Code art. 2517).'
+        filing_interruption_covers: 'The summons communicated on %date% interrupted the limitation period. File the request by this date, otherwise the interruption is deemed never to have happened (Civil Code art. 2540).'
         alerts_label: 'Alerts:'
         alert_7_sent: '7d sent'
         alert_7_pending: '7d pending'
@@ -2582,6 +2583,13 @@ deadlines:
             cause: 'The claim was filed with the duty unpaid or deferred to regularization, but the stamping notice date is not recorded.'
             consequence: 'Failing to stamp within the term granted by the court annuls the claim.'
             action: 'Set the notice date'
+        EXECUTION_ANCHOR_MISSING:
+            label: 'No date for the enforcement limitation period to run from'
+            missing: 'Enforcement limitation, 3 years'
+            legal_basis: 'CPC art. 705 para. 1'
+            cause: 'The case is final or already in enforcement, but neither the ruling communication date nor the pronouncement date is recorded.'
+            consequence: 'The term is not created: any date the application could use would be later than the real one, so it would show a term longer than the one actually running. Until you record one of the two dates, the enforcement limitation is not tracked.'
+            action: 'Set the ruling communication date'
     counter_hint:
         today: 'through 24:00'
         blocked: 'cases, not deadlines'
@@ -2622,6 +2630,10 @@ deadlines:
             title: 'Stop tracking this limitation period'
             body: 'The limitation period runs regardless of this action. The button neither interrupts nor suspends it: it takes the row out of the agenda and stops the email alerts. The period is interrupted by the claim filed in court (Civil Code art. 2537 pt. 2) or, conditionally, by the summons once communicated, provided the claim is filed within six months of that communication (Civil Code art. 2540, Code of Civil Procedure art. 1015 para. 2). If those six months lapse, the interruption is deemed not to have occurred.'
             warning: 'After closing you get no further warning about this deadline. Once the period elapses the right of action is extinguished (Civil Code art. 2500 para. 1), the general term being three years (Civil Code art. 2517).'
+        filing_interruption:
+            title: 'Stop tracking the six-month term'
+            body: 'The communicated summons interrupted the limitation period, but the interruption holds only if the claim is filed within six months of that communication (Civil Code art. 2540, referred to by Code of Civil Procedure art. 1015 para. 2). The button does not extend that term: it takes the row out of the agenda and stops the email alerts. It is not proof that the claim was filed; the deadline closes on its own once the case moves to "claim filed".'
+            warning: 'If the six months lapse without the claim being filed, the interruption is deemed not to have occurred and the limitation period is computed as if the summons had never been sent. On a claim close to its limitation date, that means dismissal as time-barred.'
         enforcement_limitation:
             title: 'Stop tracking the enforcement limitation period'
             body: 'The period for seeking enforcement runs regardless of this action. The button neither interrupts nor suspends it: it takes the row out of the agenda and stops the email alerts.'
@@ -2655,7 +2667,7 @@ deadlines:
                 note: 'The date is computed from the fact that starts the term, and that fact has no confirmed date on the case. Record the real date on the case: the term is recomputed and becomes certain.'
             prescription_interruption:
                 mark: 'the interruption of the limitation period holds conditionally'
-                note: 'A communicated summons interrupts the limitation period (CPC art. 1015 para. 2, referring to NCC art. 2540). The interruption holds only if the claim is filed in court within 6 months of the communication; otherwise it is deemed never to have happened. The application does not track that six-month term, and the date shown is the due date plus 3 years, computed without any interruption.'
+                note: 'A communicated summons interrupts the limitation period (CPC art. 1015 para. 2, referring to NCC art. 2540). The interruption holds only if the claim is filed in court within 6 months of the communication; otherwise it is deemed never to have happened. Those six months are tracked separately, as a "Petition filing" deadline. The date shown here is still the due date plus 3 years, computed without any interruption.'
         internal_number: 'internal no.'
         no_court: 'not filed with a court'
         principal: 'principal %amount% %currency%'
@@ -2683,6 +2695,8 @@ deadlines:
         item:
             summons_answer: 'Answer to the summons, 15 days'
             summons_answer_hint: 'From the day the summons is communicated. CPC art. 1015 para. 1.'
+            filing_interruption: 'Filing the request, 6 months'
+            filing_interruption_hint: 'From the communication of the summons. Past it, the interruption of the limitation period is deemed never to have happened. NCC art. 2540.'
             stamp_duty: 'Stamp duty, 10 days'
             stamp_duty_hint: 'From the court notice. Failing to stamp annuls the claim. OUG 80/2013 art. 33 para. 2.'
             annulment: 'Annulment request, 10 days'

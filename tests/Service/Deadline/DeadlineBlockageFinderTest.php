@@ -201,8 +201,8 @@ class DeadlineBlockageFinderTest extends KernelTestCase
 
     /**
      * The risk bar counts CASES here, not deadlines, which only holds because the
-     * three reasons apply to disjoint sets of statuses: one case, at most one row.
-     * The order is the one the zone renders in, worst gap first.
+     * reasons apply to disjoint sets of statuses: one case, at most one row. The order
+     * is the one the zone renders in, worst gap first.
      */
     public function testEachCaseRaisesAtMostOneBlockageAndTheListIsOrderedBySeverity(): void
     {
@@ -213,6 +213,8 @@ class DeadlineBlockageFinderTest extends KernelTestCase
 
         $stamping = $this->createCase(CaseStatus::DOSAR_INREGISTRAT);
         $stamping->setStampDutyStatus(StampDutyStatus::AMANATA_REGULARIZARE);
+
+        $enforcement = $this->createCase(CaseStatus::EXECUTARE);
         $this->em->flush();
 
         $blockages = $this->finder->find($this->user);
@@ -222,12 +224,13 @@ class DeadlineBlockageFinderTest extends KernelTestCase
                 DeadlineBlockageReason::SUMMONS_COMMUNICATION_MISSING,
                 DeadlineBlockageReason::RULING_COMMUNICATION_MISSING,
                 DeadlineBlockageReason::STAMP_DUTY_NOTICE_MISSING,
+                DeadlineBlockageReason::EXECUTION_ANCHOR_MISSING,
             ],
             array_map(static fn (DeadlineBlockage $b): DeadlineBlockageReason => $b->reason, $blockages),
         );
 
         $caseIds = array_map(static fn (DeadlineBlockage $b): ?int => $b->legalCase->getId(), $blockages);
-        self::assertSame([$summons->getId(), $ruling->getId(), $stamping->getId()], $caseIds);
+        self::assertSame([$summons->getId(), $ruling->getId(), $stamping->getId(), $enforcement->getId()], $caseIds);
         self::assertSame($caseIds, array_values(array_unique($caseIds)), 'One case may never raise two blockages.');
     }
 
@@ -248,15 +251,61 @@ class DeadlineBlockageFinderTest extends KernelTestCase
         self::assertNotContains($foreign->getId(), $ownIds, 'A case of another account must never reach the list.');
     }
 
-    public function testBlockageCarriesTheRouteThatRecordsTheMissingDate(): void
+    /**
+     * With neither the communication date nor the ruling date, the enforcement
+     * limitation term is deliberately not created, so nothing but this zone tells the
+     * lawyer that a three-year term is running unwatched.
+     */
+    public function testFinalCaseWithNoAnchorForTheEnforcementLimitationIsBlocked(): void
     {
-        $case = $this->createCase(CaseStatus::ORDONANTA_EMISA);
+        $case = $this->createCase(CaseStatus::DEFINITIVA);
         $this->em->flush();
 
-        $blockage = $this->blockagesFor($case)[0];
+        self::assertSame(
+            [DeadlineBlockageReason::EXECUTION_ANCHOR_MISSING],
+            $this->reasonsFor($case),
+        );
+    }
 
-        self::assertSame('case_deadline_ruling_date', $blockage->actionRoute());
-        self::assertSame(['caseId' => $case->getId()], $blockage->actionRouteParameters());
+    /** Enforcement can start without passing through DEFINITIVA, so the gap follows the case there. */
+    public function testEnforcedCaseWithNoAnchorIsBlockedToo(): void
+    {
+        $case = $this->createCase(CaseStatus::EXECUTARE);
+        $this->em->flush();
+
+        self::assertSame(
+            [DeadlineBlockageReason::EXECUTION_ANCHOR_MISSING],
+            $this->reasonsFor($case),
+        );
+    }
+
+    /** The ruling date is the conservative fallback anchor, so having it clears the gap. */
+    public function testRulingDateAloneClearsTheEnforcementAnchorBlockage(): void
+    {
+        $case = $this->createCase(CaseStatus::DEFINITIVA);
+        $case->setFinalRulingDate(new \DateTime('-40 days'));
+        $this->em->flush();
+
+        self::assertSame([], $this->reasonsFor($case));
+    }
+
+    public function testRulingCommunicationDateClearsTheEnforcementAnchorBlockage(): void
+    {
+        $case = $this->createCase(CaseStatus::DEFINITIVA);
+        $case->setRulingCommunicationDate(new \DateTimeImmutable('-30 days'));
+        $this->em->flush();
+
+        self::assertSame([], $this->reasonsFor($case));
+    }
+
+    /** The term exists already, so asking for a date it was computed from changes nothing. */
+    public function testExistingEnforcementLimitationDeadlineClearsTheBlockage(): void
+    {
+        $case = $this->createCase(CaseStatus::DEFINITIVA);
+        $this->createDeadline($case, DeadlineType::PRESCRIPTIE_EXECUTARE);
+        $this->em->flush();
+
+        self::assertSame([], $this->reasonsFor($case));
     }
 
     /** @return list<DeadlineBlockageReason> */

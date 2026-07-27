@@ -39,9 +39,6 @@ class DeadlineRowActionResolverTest extends TestCase
         yield 'stamp duty' => [DeadlineType::TIMBRARE, 'deadlines.action.mark_stamped'];
         yield 'annulment request' => [DeadlineType::CERERE_IN_ANULARE, 'deadlines.action.mark_done'];
         yield 'free form reminder' => [DeadlineType::OTHER, 'deadlines.action.mark_done'];
-        // No service creates it and it has no legal basis in the code, so it is kept
-        // as plain record keeping until one is decided on.
-        yield 'filing the request' => [DeadlineType::DEPUNERE_CERERE, 'deadlines.action.mark_done'];
     }
 
     /** When the act is performed here, the primary button is the close itself. */
@@ -186,13 +183,15 @@ class DeadlineRowActionResolverTest extends TestCase
     {
         yield 'stamp duty' => [DeadlineType::TIMBRARE, 'deadlines.action.mark_stamped', false];
         yield 'annulment request' => [DeadlineType::CERERE_IN_ANULARE, 'deadlines.action.mark_done', false];
-        yield 'filing the request' => [DeadlineType::DEPUNERE_CERERE, 'deadlines.action.mark_done', false];
         yield 'free form reminder' => [DeadlineType::OTHER, 'deadlines.action.mark_done', false];
         yield 'summons answer' => [DeadlineType::RASPUNS_SOMATIE, 'deadlines.action.mark_done', false];
         yield 'hearing' => [DeadlineType::JUDECATA, 'deadlines.action.open_portal', true];
         // The case is at SOMATIE_TRIMISA, so what stops the limitation period is the
         // request filed in court (CPC art. 1015 para. 2).
         yield 'limitation' => [DeadlineType::PRESCRIPTIE, 'deadlines.action.generate_payment_order', true];
+        // Satisfied by the same act as the limitation term, the request reaching the
+        // court within the six months of NCC art. 2540, so it offers the same button.
+        yield 'filing the request' => [DeadlineType::DEPUNERE_CERERE, 'deadlines.action.generate_payment_order', true];
         yield 'enforcement limitation' => [DeadlineType::PRESCRIPTIE_EXECUTARE, 'deadlines.action.open_case', true];
     }
 

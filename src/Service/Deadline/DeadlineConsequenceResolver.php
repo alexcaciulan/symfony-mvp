@@ -27,17 +27,24 @@ final class DeadlineConsequenceResolver
      * - JUDECATA: the hearing is held even in absence, so only the chance to answer is lost
      * - RASPUNS_SOMATIE: the debtor's own term (CPC art. 1015 para. 1); its expiry is what
      *   unblocks filing the payment order, so it carries no sanction for the creditor
-     * - DEPUNERE_CERERE, OTHER: no legal basis, pure record keeping
+     * - DEPUNERE_CERERE: NCC art. 2540, to which CPC art. 1015 para. 2 refers. Filing
+     *   later than six months after the summons was communicated does not bar the
+     *   claim by itself, but the interruption the summons produced is deemed never to
+     *   have happened, so the limitation period is computed as if the summons had not
+     *   been sent and the claim is met with prescription. The loss is the same one
+     *   PRESCRIPTIE carries, which is why it is classified with it rather than as
+     *   record keeping
+     * - OTHER: no legal basis, pure record keeping
      */
     public function resolve(DeadlineType $type): DeadlineConsequence
     {
         return match ($type) {
             DeadlineType::TIMBRARE => DeadlineConsequence::CASE_ANNULMENT,
             DeadlineType::CERERE_IN_ANULARE => DeadlineConsequence::FORFEITURE,
-            DeadlineType::PRESCRIPTIE, DeadlineType::PRESCRIPTIE_EXECUTARE => DeadlineConsequence::RIGHT_EXTINCTION,
+            DeadlineType::PRESCRIPTIE, DeadlineType::PRESCRIPTIE_EXECUTARE, DeadlineType::DEPUNERE_CERERE => DeadlineConsequence::RIGHT_EXTINCTION,
             DeadlineType::JUDECATA => DeadlineConsequence::APPEARANCE,
             DeadlineType::RASPUNS_SOMATIE => DeadlineConsequence::NO_SANCTION,
-            DeadlineType::DEPUNERE_CERERE, DeadlineType::OTHER => DeadlineConsequence::RECORD_KEEPING,
+            DeadlineType::OTHER => DeadlineConsequence::RECORD_KEEPING,
         };
     }
 

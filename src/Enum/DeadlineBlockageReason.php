@@ -12,9 +12,9 @@ namespace App\Enum;
  * already exist on {@see \App\Entity\LegalCase}, by
  * {@see \App\Service\Deadline\DeadlineBlockageFinder}.
  *
- * The three reasons are mutually exclusive by construction: each one only applies
- * to a disjoint set of case statuses, so one case contributes at most one blockage
- * and counting blockages is the same as counting blocked cases.
+ * The reasons are mutually exclusive by construction: each one only applies to a
+ * disjoint set of case statuses, so one case contributes at most one blockage and
+ * counting blockages is the same as counting blocked cases.
  */
 enum DeadlineBlockageReason: string
 {
@@ -26,6 +26,14 @@ enum DeadlineBlockageReason: string
 
     /** Claim filed unstamped, the court notice to stamp never recorded (OUG 80/2013 art. 33 para. 2). */
     case STAMP_DUTY_NOTICE_MISSING = 'STAMP_DUTY_NOTICE_MISSING';
+
+    /**
+     * Case final or already in enforcement, with neither the communication date nor
+     * the ruling date recorded, so the three years of CPC art. 705 para. 1 have no
+     * date to run from and the term is deliberately not created: any anchor the
+     * application could invent would be later than the real one.
+     */
+    case EXECUTION_ANCHOR_MISSING = 'EXECUTION_ANCHOR_MISSING';
 
     public function label(): string
     {
@@ -59,28 +67,6 @@ enum DeadlineBlockageReason: string
     public function actionLabel(): string
     {
         return $this->key('action');
-    }
-
-    /**
-     * The existing route that records the missing date. Deliberately the same one the
-     * case page posts to, so authorization and audit keep living in a single place.
-     */
-    public function actionRoute(): string
-    {
-        return match ($this) {
-            self::SUMMONS_COMMUNICATION_MISSING => 'case_deadline_summons_communication_date',
-            self::RULING_COMMUNICATION_MISSING => 'case_deadline_ruling_date',
-            self::STAMP_DUTY_NOTICE_MISSING => 'case_stamp_duty_court_notice',
-        };
-    }
-
-    /** Route parameter carrying the case id; the two controllers name it differently. */
-    public function actionRouteParameterName(): string
-    {
-        return match ($this) {
-            self::SUMMONS_COMMUNICATION_MISSING, self::RULING_COMMUNICATION_MISSING => 'caseId',
-            self::STAMP_DUTY_NOTICE_MISSING => 'id',
-        };
     }
 
     private function key(string $suffix): string

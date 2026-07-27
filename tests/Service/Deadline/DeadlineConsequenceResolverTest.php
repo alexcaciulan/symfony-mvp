@@ -37,7 +37,10 @@ class DeadlineConsequenceResolverTest extends TestCase
             'enforcement limitation extinguishes the right' => [DeadlineType::PRESCRIPTIE_EXECUTARE, DeadlineConsequence::RIGHT_EXTINCTION, 50, true],
             'hearing costs only the appearance' => [DeadlineType::JUDECATA, DeadlineConsequence::APPEARANCE, 20, false],
             'summons answer is the debtor term' => [DeadlineType::RASPUNS_SOMATIE, DeadlineConsequence::NO_SANCTION, 0, false],
-            'filing reminder has no sanction' => [DeadlineType::DEPUNERE_CERERE, DeadlineConsequence::RECORD_KEEPING, 10, false],
+            // Filing later than the six months of NCC art. 2540 cancels the interruption
+            // the summons produced, so the limitation period is computed as if it had
+            // never been sent: the same loss PRESCRIPTIE carries.
+            'filing past six months costs the interruption' => [DeadlineType::DEPUNERE_CERERE, DeadlineConsequence::RIGHT_EXTINCTION, 50, true],
             'free form term has no sanction' => [DeadlineType::OTHER, DeadlineConsequence::RECORD_KEEPING, 10, false],
         ];
     }
@@ -74,7 +77,7 @@ class DeadlineConsequenceResolverTest extends TestCase
         self::assertCount(\count(DeadlineType::cases()), $covered);
     }
 
-    public function testExactlyTheFourFatalTypesAreIrreversible(): void
+    public function testExactlyTheFiveFatalTypesAreIrreversible(): void
     {
         $irreversible = array_values(array_filter(
             DeadlineType::cases(),
@@ -82,6 +85,7 @@ class DeadlineConsequenceResolverTest extends TestCase
         ));
 
         self::assertSame([
+            DeadlineType::DEPUNERE_CERERE,
             DeadlineType::CERERE_IN_ANULARE,
             DeadlineType::TIMBRARE,
             DeadlineType::PRESCRIPTIE,

@@ -219,6 +219,11 @@ final class CaseDeadlineController extends AbstractController
         // drop the "estimated" disclaimer.
         $this->deadlineService->recalculatePaymentNoticeDeadline($case, $communicationDate);
 
+        // The same date starts the six-month term of NCC art. 2540: the interruption
+        // the summons produced holds only if the request is filed within it. This is
+        // the only date it can be anchored on, so the term is created here.
+        $this->deadlineService->createFilingDeadline($case, $communicationDate);
+
         return $this->respondDeadline($request, $case, true, 'success', 'case_overview.summons.modal_communication_date.flash_set', 'hs-modal-set-summons-communication-date');
     }
 

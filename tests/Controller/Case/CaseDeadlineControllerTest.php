@@ -540,8 +540,44 @@ final class CaseDeadlineControllerTest extends WebTestCase
             'type' => DeadlineType::RASPUNS_SOMATIE,
         ]);
         self::assertCount(1, $deadlines);
-        // 2026-02-10 (Tue) + 15 days = 2026-02-25 (Wed, working day)
-        self::assertSame('2026-02-25', $deadlines[0]->getDeadlineDate()->format('Y-m-d'));
+        // 15 free days (CPC art. 181 alin. 1 pct. 2) = 16 calendar days:
+        // 2026-02-10 (Tue) + 16 = 2026-02-26 (Thu, working day).
+        self::assertSame('2026-02-26', $deadlines[0]->getDeadlineDate()->format('Y-m-d'));
+    }
+
+    /**
+     * The same date starts the six months of NCC art. 2540, to which CPC art. 1015
+     * alin. 2 refers: past them, the interruption the summons produced is deemed never
+     * to have happened. Counted in months (NCC art. 2552), so 10 February 2026 gives
+     * 10 August 2026, with no free-days N + 1 and no working-day prorogation.
+     */
+    public function testSetPaymentNoticeCommunicationDateAlsoCreatesTheSixMonthFilingDeadline(): void
+    {
+        $this->case->setStatus(CaseStatus::SOMATIE_TRIMISA);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $tokens = $this->tokensFromOverview();
+
+        $this->client->request('POST', sprintf('/case/%d/summons-communication-date', $this->case->getId()), [
+            'payment_notice_communication_date' => [
+                '_token' => $tokens['set_summons'],
+                'paymentNoticeCommunicationDate' => '2026-02-10',
+                'paymentNoticeCommunicationMethod' => 'EXECUTOR',
+            ],
+        ]);
+
+        self::assertResponseRedirects('/case/' . $this->case->getId() . '?tab=termene');
+
+        $this->em->clear();
+        $deadlines = $this->em->getRepository(LegalDeadline::class)->findBy([
+            'legalCase' => $this->case->getId(),
+            'type' => DeadlineType::DEPUNERE_CERERE,
+        ]);
+
+        self::assertCount(1, $deadlines);
+        self::assertSame('2026-08-10', $deadlines[0]->getDeadlineDate()->format('Y-m-d'));
+        self::assertNotNull($deadlines[0]->getDescription(), 'The row has to say that what expires is the interruption, not the right to file.');
     }
 
     public function testSetSummonsCommunicationDateRejectsInvalidCsrf(): void
@@ -621,8 +657,9 @@ final class CaseDeadlineControllerTest extends WebTestCase
             'type' => DeadlineType::CERERE_IN_ANULARE,
         ]);
         self::assertCount(1, $deadlines);
-        // 2026-02-02 luni + 10 zile = 2026-02-12 joi
-        self::assertSame('2026-02-12', $deadlines[0]->getDeadlineDate()->format('Y-m-d'));
+        // 10 zile libere (CPC art. 1024 alin. 1 + art. 181 alin. 1 pct. 2) = 11 zile
+        // calendaristice: 2026-02-02 luni + 11 = 2026-02-13 vineri.
+        self::assertSame('2026-02-13', $deadlines[0]->getDeadlineDate()->format('Y-m-d'));
     }
 
     public function testSetRulingCommunicationDateSkipsAppealDeadlineBeforeOrdonantaEmisa(): void

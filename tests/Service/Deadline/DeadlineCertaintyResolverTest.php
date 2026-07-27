@@ -88,12 +88,16 @@ class DeadlineCertaintyResolverTest extends TestCase
         );
     }
 
-    public function testFilingReminderIsAlwaysEstimated(): void
+    /**
+     * The six months of NCC art. 2540 run from the communication of the summons, the
+     * same fact as the answer term, so certainty follows the same field.
+     */
+    public function testFilingTermFollowsTheSummonsCommunicationDate(): void
     {
         self::assertSame(DeadlineCertainty::ESTIMAT, $this->resolver->resolve(DeadlineType::DEPUNERE_CERERE, $this->case()));
         self::assertSame(
-            DeadlineCertainty::ESTIMAT,
-            $this->resolver->resolve(DeadlineType::DEPUNERE_CERERE, $this->case(noticeCommunicated: true, rulingCommunicated: true)),
+            DeadlineCertainty::CERT,
+            $this->resolver->resolve(DeadlineType::DEPUNERE_CERERE, $this->case(noticeCommunicated: true)),
         );
     }
 

@@ -20,7 +20,7 @@ enum DeadlineConsequence: string
     /** Annulment request not filed in time: forfeiture of the remedy (CPC art. 1024 para. 1, art. 185 para. 1). */
     case FORFEITURE = 'FORFEITURE';
 
-    /** Limitation period elapsed: the right itself is extinguished (NCC art. 2517, CPC art. 706 para. 1). */
+    /** Limitation period elapsed: the right itself is extinguished (NCC art. 2517, CPC art. 705 para. 1). */
     case RIGHT_EXTINCTION = 'RIGHT_EXTINCTION';
 
     /** Hearing date: the case is tried even in absence, so the loss is the chance to answer. */

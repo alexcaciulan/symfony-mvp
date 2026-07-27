@@ -14,6 +14,7 @@ use App\Enum\DeadlinePriority;
 use App\Enum\DeadlineType;
 use App\Service\AuditLogService;
 use App\Service\Deadline\DeadlineService;
+use App\Service\Deadline\WorkingDayResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
@@ -72,15 +73,209 @@ final class DeadlineServiceTest extends KernelTestCase
         parent::tearDown();
     }
 
-    public function testCreatePaymentNoticeDeadlineUses15DaysProrogated(): void
+    public function testCreatePaymentNoticeDeadlineCountsFifteenFreeDays(): void
     {
-        // Luni 2 februarie 2026 + 15 zile = marți 17 februarie 2026 (zi lucrătoare, fără prorogare)
+        // CPC art. 181 alin. 1 pct. 2 (zile libere): nu se socotesc nici ziua de la
+        // care curge termenul, nici ziua împlinirii, deci 15 zile acoperă 16 zile
+        // calendaristice. Luni 2 februarie 2026 + 16 = miercuri 18 februarie 2026
+        // (zi lucrătoare, fără prorogare).
         $base = new \DateTimeImmutable('2026-02-02');
 
         $deadline = $this->service->createPaymentNoticeDeadline($this->case, $base);
 
-        $this->assertSame('2026-02-17', $deadline->getDeadlineDate()->format('Y-m-d'));
+        $this->assertSame('2026-02-18', $deadline->getDeadlineDate()->format('Y-m-d'));
         $this->assertSame(DeadlineType::RASPUNS_SOMATIE, $deadline->getType());
+    }
+
+    /**
+     * Worked example checked against the free-days rule (CPC art. 181 alin. 1
+     * pct. 2) for a summons served on Monday 1 June 2026: the 15-day term matures
+     * on Wednesday 17 June 2026 and the 10-day ones on Friday 12 June 2026. All
+     * three land on working days, so no prorogation is involved and the dates
+     * isolate the N + 1 rule alone.
+     */
+    public function testFreeDaysWorkedExampleForACommunicationOnFirstOfJune2026(): void
+    {
+        $communication = new \DateTimeImmutable('2026-06-01');
+
+        $summons = $this->service->createPaymentNoticeDeadline($this->case, $communication);
+        $appeal = $this->service->createAppealDeadline($this->case, $communication);
+        $stampDuty = $this->service->createStampDutyDeadline($this->case, $communication);
+
+        $this->assertSame('2026-06-17', $summons->getDeadlineDate()->format('Y-m-d'));
+        $this->assertSame('2026-06-12', $appeal->getDeadlineDate()->format('Y-m-d'));
+        $this->assertSame('2026-06-12', $stampDuty->getDeadlineDate()->format('Y-m-d'));
+    }
+
+    /**
+     * Order of the two operations, isolated on a case where it is visible.
+     *
+     * Thursday 4 June 2026 plus the 15 legal days alone lands on Friday 19 June, a
+     * working day, so a calculation that stopped at N would never reach the
+     * prorogation at all. Counted as free days (CPC art. 181 alin. 1 pct. 2) the term
+     * matures on Saturday 20 June, and only then does alin. 2 move it to Monday 22
+     * June. Doing it the other way round, prorogating first and adding the free day
+     * afterwards, gives the Saturday back.
+     *
+     * The audit payload is asserted together with the date because it is where the
+     * intermediate result is recorded: `rawDeadline` has to be the Saturday.
+     */
+    public function testTheFreeDayIsCountedBeforeTheProrogationNotAfter(): void
+    {
+        $resolver = static::getContainer()->get(WorkingDayResolver::class);
+        $base = new \DateTimeImmutable('2026-06-04');
+
+        $this->assertTrue(
+            $resolver->isWorkingDay($base->modify('+15 days')),
+            'Friday 19 June must be a working day, so only the free day can trigger a prorogation here.',
+        );
+        $this->assertFalse(
+            $resolver->isWorkingDay($base->modify('+16 days')),
+            'Saturday 20 June is the raw maturity date the prorogation has to act on.',
+        );
+
+        $deadline = $this->service->createPaymentNoticeDeadline($this->case, $base);
+
+        $this->assertSame('2026-06-22', $deadline->getDeadlineDate()->format('Y-m-d'));
+
+        $log = $this->em->getRepository(AuditLog::class)->findOneBy(
+            ['entityType' => LegalDeadline::class, 'entityId' => (string) $deadline->getId(), 'action' => 'deadline_created'],
+        );
+        $this->assertNotNull($log);
+        $this->assertSame('2026-06-20', $log->getNewData()['rawDeadline'] ?? null);
+        $this->assertTrue($log->getNewData()['prorogated'] ?? false);
+    }
+
+    /**
+     * Same ordering check on the 10-day term: Tuesday 9 June 2026 plus 10 days is
+     * Friday 19 June (working day), plus the free day is Saturday 20 June, prorogated
+     * to Monday 22 June.
+     */
+    public function testTheAnnulmentTermIsProrogatedFromItsFreeDaysMaturity(): void
+    {
+        $deadline = $this->service->createAppealDeadline($this->case, new \DateTimeImmutable('2026-06-09'));
+
+        $this->assertSame('2026-06-22', $deadline->getDeadlineDate()->format('Y-m-d'));
+    }
+
+    /**
+     * `appealTermEnd()` exists so that the dates derived from the annulment term (the
+     * day the order becomes final, the auto-finalization threshold) come from the same
+     * calculation the lawyer is shown, instead of each caller repeating it. The two
+     * must therefore be the same date, prorogation included: 1 September 2026 plus 11
+     * calendar days is Saturday 12 September, prorogated to Monday 14 September.
+     */
+    public function testAppealTermEndIsTheSameDateTheAnnulmentDeadlineCarries(): void
+    {
+        $communication = new \DateTimeImmutable('2026-09-01');
+
+        $termEnd = $this->service->appealTermEnd($communication);
+        $deadline = $this->service->createAppealDeadline($this->case, $communication);
+
+        $this->assertSame('2026-09-14', $termEnd->format('Y-m-d'));
+        $this->assertSame($termEnd->format('Y-m-d'), $deadline->getDeadlineDate()->format('Y-m-d'));
+    }
+
+    /**
+     * NCC art. 2540, to which CPC art. 1015 alin. 2 refers: the interruption produced
+     * by the communicated summons holds only if the claim is filed within six months
+     * of that communication. Counted in months (NCC art. 2552 alin. 1), so the term
+     * ends on the corresponding day of the sixth month, with no free-days N + 1 and no
+     * procedural prorogation.
+     */
+    public function testFilingDeadlineIsSixMonthsFromTheSummonsCommunicationDate(): void
+    {
+        $deadline = $this->service->createFilingDeadline($this->case, new \DateTimeImmutable('2026-02-20'));
+
+        $this->assertNotNull($deadline);
+        $this->assertSame('2026-08-20', $deadline->getDeadlineDate()->format('Y-m-d'));
+        $this->assertSame(DeadlineType::DEPUNERE_CERERE, $deadline->getType());
+        $this->assertNotNull($deadline->getDescription());
+    }
+
+    /**
+     * NCC art. 2552 alin. 2: when the last month has no day corresponding to the one
+     * the term started on, it ends on the last day of that month. PHP on its own would
+     * overflow 31 August plus six months into 3 March.
+     */
+    public function testFilingDeadlineStopsAtTheLastDayOfAMonthWithoutACorrespondingDay(): void
+    {
+        $deadline = $this->service->createFilingDeadline($this->case, new \DateTimeImmutable('2026-08-31'));
+
+        $this->assertNotNull($deadline);
+        $this->assertSame('2027-02-28', $deadline->getDeadlineDate()->format('Y-m-d'));
+    }
+
+    /**
+     * Substantive-law term, so it is never moved to the next working day: 15 August
+     * 2026 is both a Saturday and a public holiday, and the date stays put. Moving it
+     * forward would show a term longer than the one that actually runs.
+     */
+    public function testFilingDeadlineIsNotProrogatedToTheNextWorkingDay(): void
+    {
+        $deadline = $this->service->createFilingDeadline($this->case, new \DateTimeImmutable('2026-02-15'));
+
+        $this->assertNotNull($deadline);
+        $this->assertSame('2026-08-15', $deadline->getDeadlineDate()->format('Y-m-d'));
+    }
+
+    /**
+     * The six months run from the communication of the summons, so the date the
+     * summons PDF was produced must not reach the calculation even when the case
+     * carries it. Generation on 5 January 2026 would have given 5 July 2026; what the
+     * term is measured from is the service on 20 February.
+     */
+    public function testFilingDeadlineIgnoresTheDateTheSummonsWasGenerated(): void
+    {
+        $this->case->setPaymentNoticeDate(new \DateTime('2026-01-05'));
+        $this->em->flush();
+
+        $deadline = $this->service->createFilingDeadline($this->case, new \DateTimeImmutable('2026-02-20'));
+
+        $this->assertNotNull($deadline);
+        $this->assertSame('2026-08-20', $deadline->getDeadlineDate()->format('Y-m-d'));
+    }
+
+    public function testFilingDeadlineIsRecomputedWhenTheCommunicationDateIsCorrected(): void
+    {
+        $first = $this->service->createFilingDeadline($this->case, new \DateTimeImmutable('2026-02-20'));
+        $corrected = $this->service->createFilingDeadline($this->case, new \DateTimeImmutable('2026-03-02'));
+
+        $this->assertNotNull($first);
+        $this->assertNotNull($corrected);
+        $this->assertSame($first->getId(), $corrected->getId(), 'A case carries one filing term, not one per correction.');
+        $this->assertSame('2026-09-02', $corrected->getDeadlineDate()->format('Y-m-d'));
+    }
+
+    /**
+     * Past CERERE_DEPUSA the condition of NCC art. 2540 is already met, so there is
+     * nothing left to count down to.
+     */
+    public function testFilingDeadlineIsNotCreatedOnceTheRequestIsFiled(): void
+    {
+        $case = $this->freshCaseWithoutSubscriberDeadline();
+        $case->setStatus(CaseStatus::CERERE_DEPUSA);
+        $this->em->flush();
+
+        $this->assertNull($this->service->createFilingDeadline($case, new \DateTimeImmutable('2026-02-20')));
+    }
+
+    /** Closed by the platform, not by a lawyer, so no user is recorded on it. */
+    public function testCloseFilingDeadlineCompletesItWithoutAUser(): void
+    {
+        $this->service->createFilingDeadline($this->case, new \DateTimeImmutable('2026-02-20'));
+
+        $closed = $this->service->closeFilingDeadline($this->case);
+
+        $this->assertNotNull($closed);
+        $this->assertTrue($closed->isCompleted());
+        $this->assertNull($closed->getCompletedBy());
+        $this->assertNotNull($closed->getCompletedAt());
+    }
+
+    public function testCloseFilingDeadlineIsANoOpWithoutOne(): void
+    {
+        $this->assertNull($this->service->closeFilingDeadline($this->freshCaseWithoutSubscriberDeadline()));
     }
 
     public function testRecalculatePaymentNoticeDeadlineUpdatesExistingAndClearsDisclaimer(): void
@@ -93,10 +288,11 @@ final class DeadlineServiceTest extends KernelTestCase
         $real = new \DateTimeImmutable('2026-02-10'); // actual receipt date
         $recomputed = $this->service->recalculatePaymentNoticeDeadline($this->case, $real);
 
-        // Same deadline row, moved to real date + 15 days, disclaimer cleared.
+        // Same deadline row, moved to the real receipt date + 15 free days, disclaimer cleared.
         $this->assertSame($estimated->getId(), $recomputed->getId());
-        // 2026-02-10 (Tue) + 15 days = 2026-02-25 (Wed, working day → no prorogation)
-        $this->assertSame('2026-02-25', $recomputed->getDeadlineDate()->format('Y-m-d'));
+        // 2026-02-10 (Tue) + 16 calendar days (15 free days, CPC art. 181 alin. 1
+        // pct. 2) = 2026-02-26 (Thu, working day → no prorogation)
+        $this->assertSame('2026-02-26', $recomputed->getDeadlineDate()->format('Y-m-d'));
         $this->assertNull($recomputed->getDescription());
     }
 
@@ -105,7 +301,8 @@ final class DeadlineServiceTest extends KernelTestCase
         $recomputed = $this->service->recalculatePaymentNoticeDeadline($this->case, new \DateTimeImmutable('2026-02-02'));
 
         $this->assertSame(DeadlineType::RASPUNS_SOMATIE, $recomputed->getType());
-        $this->assertSame('2026-02-17', $recomputed->getDeadlineDate()->format('Y-m-d'));
+        // 2026-02-02 (Mon) + 16 calendar days (15 free days) = 2026-02-18 (Wed).
+        $this->assertSame('2026-02-18', $recomputed->getDeadlineDate()->format('Y-m-d'));
     }
 
     public function testIsPaymentTermExpiredFalseWhenNoCommunicationDate(): void
@@ -116,10 +313,45 @@ final class DeadlineServiceTest extends KernelTestCase
 
     public function testIsPaymentTermExpiredFalseBeforeTermEnd(): void
     {
-        $this->case->setPaymentNoticeCommunicationDate(new \DateTimeImmutable('2026-02-02')); // Mon, term end 2026-02-17
+        $this->case->setPaymentNoticeCommunicationDate(new \DateTimeImmutable('2026-02-02')); // Mon, term end 2026-02-18
         $this->em->flush();
 
         self::assertFalse($this->service->isPaymentTermExpired($this->case, new \DateTimeImmutable('2026-02-10')));
+    }
+
+    /**
+     * The boundary the OP filing gate rests on. With free-days counting (CPC art.
+     * 181 alin. 1 pct. 2) a summons served on Monday 2 February 2026 gives the
+     * debtor until the end of Wednesday 18 February, so a petition filed that same
+     * day is premature and inadmissible (CPC art. 1015-1016). Only from 19
+     * February is the term proven expired.
+     */
+    public function testIsPaymentTermExpiredOnlyFromTheDayAfterTheMaturityDate(): void
+    {
+        $this->case->setPaymentNoticeCommunicationDate(new \DateTimeImmutable('2026-02-02'));
+        $this->em->flush();
+
+        self::assertFalse($this->service->isPaymentTermExpired($this->case, new \DateTimeImmutable('2026-02-17')));
+        self::assertFalse($this->service->isPaymentTermExpired($this->case, new \DateTimeImmutable('2026-02-18')));
+        self::assertTrue($this->service->isPaymentTermExpired($this->case, new \DateTimeImmutable('2026-02-19')));
+    }
+
+    /**
+     * The same gate, on a term whose maturity is prorogated. The raw maturity is
+     * Saturday 20 June 2026 and CPC art. 181 alin. 2 carries it to Monday 22 June, so
+     * the debtor has that whole Monday to pay and the request is admissible only from
+     * Tuesday 23 June. A gate reading the raw date instead would have declared the
+     * term expired over the weekend and let a premature petition through (CPC art.
+     * 1015-1016).
+     */
+    public function testIsPaymentTermExpiredWaitsForTheProrogatedMaturityDate(): void
+    {
+        $this->case->setPaymentNoticeCommunicationDate(new \DateTimeImmutable('2026-06-04'));
+        $this->em->flush();
+
+        self::assertFalse($this->service->isPaymentTermExpired($this->case, new \DateTimeImmutable('2026-06-21')));
+        self::assertFalse($this->service->isPaymentTermExpired($this->case, new \DateTimeImmutable('2026-06-22')));
+        self::assertTrue($this->service->isPaymentTermExpired($this->case, new \DateTimeImmutable('2026-06-23')));
     }
 
     public function testIsPaymentTermExpiredTrueAfterTermEnd(): void
@@ -161,7 +393,7 @@ final class DeadlineServiceTest extends KernelTestCase
 
     public function testCreateExecutionPrescriptionDeadlineUses3YearsFromDefinitiveDate(): void
     {
-        // CPC art. 706: 3 years from the date the order became final, no prorogation.
+        // CPC art. 705: 3 years from the date the order became final, no prorogation.
         $deadline = $this->service->createExecutionPrescriptionDeadline($this->case, new \DateTimeImmutable('2026-09-11'));
 
         $this->assertSame(DeadlineType::PRESCRIPTIE_EXECUTARE, $deadline->getType());
@@ -170,9 +402,9 @@ final class DeadlineServiceTest extends KernelTestCase
 
     public function testCreatePaymentNoticeDeadlineProrogatesWhenLandsOnHoliday(): void
     {
-        // 16 dec 2025 (marți) + 15 zile = 31 dec 2025 (miercuri, zi lucrătoare normală)
-        // Folosim un caz unde +15 cade pe sărbătoare: 10 dec 2025 (miercuri) + 15 = 25 dec (joi Crăciun).
-        // 25 dec joi (Crăciun) + 26 vineri (Crăciun) + 27 sâmbătă + 28 duminică → luni 29 dec.
+        // 10 dec 2025 (miercuri) + 16 zile calendaristice (15 zile libere) = 26 dec
+        // 2025 (vineri, a doua zi de Crăciun). Prorogare CPC art. 181 alin. 2:
+        // 27 sâmbătă + 28 duminică → luni 29 decembrie 2025.
         $base = new \DateTimeImmutable('2025-12-10');
 
         $deadline = $this->service->createPaymentNoticeDeadline($this->case, $base);
@@ -189,12 +421,14 @@ final class DeadlineServiceTest extends KernelTestCase
 
     public function testCreateAppealDeadlineUses10DaysFromCommunicationDate(): void
     {
-        // Luni 2 februarie 2026 + 10 zile = joi 12 februarie 2026 (zi lucrătoare)
+        // 10 zile libere (CPC art. 1024 alin. 1 + art. 181 alin. 1 pct. 2) = 11 zile
+        // calendaristice: luni 2 februarie 2026 + 11 = vineri 13 februarie 2026
+        // (zi lucrătoare, fără prorogare).
         $communication = new \DateTimeImmutable('2026-02-02');
 
         $deadline = $this->service->createAppealDeadline($this->case, $communication);
 
-        $this->assertSame('2026-02-12', $deadline->getDeadlineDate()->format('Y-m-d'));
+        $this->assertSame('2026-02-13', $deadline->getDeadlineDate()->format('Y-m-d'));
         $this->assertSame(DeadlineType::CERERE_IN_ANULARE, $deadline->getType());
     }
 
@@ -286,6 +520,41 @@ final class DeadlineServiceTest extends KernelTestCase
         $this->assertSame('Sala C2', $deadline->getDescription());
     }
 
+    /**
+     * The hearing date is not a term that matures, it is the day the court fixed and
+     * the summons states, so CPC art. 181 alin. 2 does not apply to it. A date on a
+     * non-working day means the portal reading or the entry is wrong, which is an
+     * anomaly to report, not to correct: silently moving it would show the lawyer a
+     * day other than the one on the summons. Saturday 19 September 2026 is stored as
+     * received, and the audit payload marks it.
+     */
+    public function testCreateHearingDeadlineKeepsANonWorkingDayAsReceivedAndFlagsIt(): void
+    {
+        $saturday = new \DateTimeImmutable('2026-09-19');
+
+        $deadline = $this->service->createHearingDeadline($this->case, $saturday);
+
+        $this->assertSame('2026-09-19', $deadline->getDeadlineDate()->format('Y-m-d'));
+
+        $log = $this->em->getRepository(AuditLog::class)->findOneBy(
+            ['entityType' => LegalDeadline::class, 'entityId' => (string) $deadline->getId(), 'action' => 'deadline_created'],
+        );
+        $this->assertNotNull($log);
+        $this->assertTrue($log->getNewData()['nonWorkingDay'] ?? false);
+    }
+
+    /** No flag on the normal case, so the marker stays a signal instead of noise. */
+    public function testCreateHearingDeadlineOnAWorkingDayCarriesNoAnomalyFlag(): void
+    {
+        $deadline = $this->service->createHearingDeadline($this->case, new \DateTimeImmutable('2026-09-15'));
+
+        $log = $this->em->getRepository(AuditLog::class)->findOneBy(
+            ['entityType' => LegalDeadline::class, 'entityId' => (string) $deadline->getId(), 'action' => 'deadline_created'],
+        );
+        $this->assertNotNull($log);
+        $this->assertArrayNotHasKey('nonWorkingDay', $log->getNewData());
+    }
+
     public function testCreateHearingDeadlineDescriptionDefaultsToNull(): void
     {
         $deadline = $this->service->createHearingDeadline($this->case, new \DateTimeImmutable('2026-09-15'));
@@ -319,7 +588,7 @@ final class DeadlineServiceTest extends KernelTestCase
 
     public function testCreateDeadlinePersistsAuditLogWithCategoryAndPayload(): void
     {
-        $base = new \DateTimeImmutable('2025-12-10'); // +15 zile aterizează pe Crăciun → prorogat
+        $base = new \DateTimeImmutable('2025-12-10'); // +16 zile aterizează pe Crăciun → prorogat
         $deadline = $this->service->createPaymentNoticeDeadline($this->case, $base);
 
         $auditEntries = $this->em->getRepository(AuditLog::class)->findBy([
@@ -332,7 +601,8 @@ final class DeadlineServiceTest extends KernelTestCase
         $payload = $auditEntries[0]->getNewData();
         $this->assertSame(DeadlineType::RASPUNS_SOMATIE->value, $payload['type'] ?? null);
         $this->assertSame('2025-12-10', $payload['baseDate'] ?? null);
-        $this->assertSame('2025-12-25', $payload['rawDeadline'] ?? null);
+        // Raw maturity before prorogation: 10 dec + 16 zile calendaristice.
+        $this->assertSame('2025-12-26', $payload['rawDeadline'] ?? null);
         $this->assertSame('2025-12-29', $payload['deadlineDate'] ?? null);
         $this->assertTrue($payload['prorogated'] ?? false);
     }
