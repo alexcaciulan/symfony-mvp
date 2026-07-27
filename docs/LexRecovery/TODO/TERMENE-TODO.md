@@ -10,7 +10,12 @@ marcate cu **[avocat]** cer confirmarea avocatului titular.
 
 ---
 
-## 1. Calculul termenelor greșește sistematic cu o zi **[avocat]**
+## 1. Calculul termenelor greșește sistematic cu o zi: IMPLEMENTAT **[avocat]**
+
+Regula N+1 plus prorogarea trăiește într-un singur loc, `DeadlineService::proceduralTermEnd()`.
+Constantele rămân la valorile legale (15/10/10). Poarta `isPaymentTermExpired()` se raportează
+acum la comunicare + 16 prorogat, deci depunerea e permisă abia din ziua următoare împlinirii.
+`ensureExecutionPrescriptionDeadline` și `CaseAutoFinalizer` refolosesc `appealTermEnd()`.
 
 CPC art. 181 alin. 1 pct. 2 folosește sistemul zilelor libere: nu se socotește nici ziua de la
 care curge termenul, nici ziua în care se împlinește. Formula corectă este `dată + N + 1`.
@@ -43,7 +48,14 @@ care trebuie să refolosească data calculată, testele care fixează valorile a
 
 ---
 
-## 2. Termenul de 6 luni din NCC art. 2540 nu există în aplicație **[avocat]**
+## 2. Termenul de 6 luni din NCC art. 2540 nu există în aplicație: IMPLEMENTAT **[avocat]**
+
+Implementat prin `DeadlineService::createFilingDeadline()`, tip `DEPUNERE_CERERE`, ancorat pe
+`paymentNoticeCommunicationDate`, calculat pe luni (NCC art. 2552, cu clamp pe alin. 3 la ultima
+zi a lunii), fără prorogare. Creat din `CaseDeadlineController::setPaymentNoticeCommunicationDate`,
+recalculat dacă avocatul corectează data, închis automat la intrarea în `CERERE_DEPUSA`.
+`DeadlineConsequenceResolver` îl mapează la `RIGHT_EXTINCTION`, nu la `RECORD_KEEPING`.
+Rămâne de confirmat cu avocatul întrebarea de fond de mai jos.
 
 Somația comunicată întrerupe prescripția, dar întreruperea se consideră că nu a avut loc dacă
 cererea nu este introdusă în 6 luni de la comunicare (NCC art. 2540, la care CPC art. 1015
@@ -63,7 +75,12 @@ procedurii OP), dar nu s-a găsit o sursă care să tranșeze punctual.
 
 ---
 
-## 3. `PRESCRIPTIE_EXECUTARE` derivată din ziua curentă **[avocat]**
+## 3. `PRESCRIPTIE_EXECUTARE` derivată din ziua curentă: IMPLEMENTAT **[avocat]**
+
+Ancora este acum, în ordine: `rulingCommunicationDate`, apoi `finalRulingDate`, apoi nimic.
+Ziua curentă nu se mai folosește. Când nu există niciuna dintre cele două date, termenul NU se
+creează, iar dosarul apare în zona Blocaje cu al patrulea motiv, `EXECUTION_ANCHOR_MISSING`.
+Rămâne deschisă întrebarea de fond de mai jos (art. 706 vs. executorialitatea de la comunicare).
 
 Când `rulingCommunicationDate` lipsește, `DeadlineCreationSubscriber:156` folosește ziua curentă
 ca ancoră. „Azi" e aproape întotdeauna ulterior comunicării reale, deci termenul afișat e mai
@@ -75,10 +92,12 @@ Ordinea opțiunilor, de la cea mai sigură:
    întotdeauna anterioară comunicării, deci produce alertă prematură, nu siguranță falsă;
 3. niciodată ziua curentă.
 
-Întrebare de fond, nerezolvată: art. 706 CPC leagă termenul de rămânerea definitivă, dar
-ordonanța de plată este executorie de la comunicare, chiar atacată (CPC art. 1021). Dacă dreptul
-de a cere executarea se naște la executorialitate, chiar și ancora actuală de `+11 zile` e greșită.
-De verificat jurisprudența ÎCCJ.
+Întrebarea de fond s-a închis la review-ul din 27.07.2026, și a închis-o o corectură de citare.
+Textul relevant nu e art. 706, ci **art. 705**: alin. 1 dă cei 3 ani, iar alin. 2 spune expres că
+pentru hotărâri judecătorești termenul curge de la rămânerea definitivă. Art. 706 tratează altceva,
+efectele împlinirii termenului. Executorialitatea imediată din art. 1021 guvernează când se poate
+începe executarea, nu de când curge prescripția, deci ancora actuală (împlinirea căii de atac plus
+o zi) este cea corectă. Citările au fost corectate peste tot în cod și în traduceri.
 
 ---
 
@@ -104,14 +123,12 @@ tratamentul deja aplicat lui `RASPUNS_SOMATIE`. De rezolvat împreună.
 
 ---
 
-## 5. Prorogarea datei de judecată
+## 5. Prorogarea datei de judecată: IMPLEMENTAT
 
-`createHearingDeadline` trece prin `nextWorkingDay()` o dată fixată de instanță și preluată din
-portal. Instanțele nu fixează termene în zile nelucrătoare, deci în practică e no-op. Când nu e,
-aplicația arată altă zi decât cea din citație, iar avocatul se poate prezenta greșit.
-
-Data trebuie afișată exact cum vine. O dată nelucrătoare este o anomalie de semnalat pentru
-verificare manuală, nu ceva de corectat automat.
+`createHearingDeadline` nu mai trece prin `nextWorkingDay()`: data se stochează exact cum vine.
+O dată nelucrătoare se semnalează în două locuri, fără să fie corectată: `logger->warning` (pentru
+cine urmărește sincronizarea cu portalul) și flag `nonWorkingDay` în payload-ul de audit, care
+rămâne atașat de înregistrare după ce log-urile se rotesc.
 
 ---
 
@@ -142,12 +159,15 @@ verificare manuală, nu ceva de corectat automat.
 
 ## 8. Tehnic, minor
 
-- Cod mort: `DeadlineBlockage::actionRoute()` și `DeadlineBlockageReason::actionRoute()` calculează
-  rute pe care `_blockages.html.twig` nu le folosește. Ori se șterg, ori se folosesc pentru
-  deep-link către dialogul din dosar, ceea ce ar fi mai util decât link-ul generic de acum.
-- `countUpcomingByUser` nu are limită inferioară pe dată și nu exclude dosarele terminale, deci
-  KPI-ul „Termene urgente" numără și termene deja trecute sub un subtitlu care spune
-  „≤ 7 zile rămase". Nu cere avocat, e ieftin de reparat.
+- Cod mort: ȘTERS. `DeadlineBlockage::actionRoute()`, `DeadlineBlockageReason::actionRoute()` și
+  `actionRouteParameterName()` nu mai există, împreună cu testul care le exercita. Deep-link-ul a
+  fost respins: rutele care înregistrează data sunt POST, deci un `path()` construit din ele ar
+  răspunde 405, iar un deep-link real ar cere ca pagina de dosar să deschidă un dialog dintr-un
+  parametru de query, adică stare de pagină nouă pentru un beneficiu marginal.
+- `countUpcomingByUser`: REPARAT. Are acum limită inferioară (de azi inclusiv) și exclude
+  dosarele terminale. `findUpcomingByUser` folosește exact același query builder, fiindcă lista
+  se afișează sub un subtitlu care poartă contorul: dacă divergeau, subtitlul mințea. Ambele sunt
+  apelate doar din `DashboardController`.
 - `countAgendaBuckets()` rulează de două ori pe `/termene`, o dată pentru bară și o dată pentru
   badge. Recomandarea este să NU se repare: eliminarea cere cuplarea extensiei Twig de controller,
   iar cuplajul costă mai mult decât economisesc 2 query-uri din 15.
