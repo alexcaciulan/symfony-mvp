@@ -9,6 +9,8 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: LegalDeadlineRepository::class)]
+#[ORM\Index(columns: ['completed', 'deadline_date'], name: 'idx_deadline_completed_date')]
+#[ORM\Index(columns: ['legal_case_id', 'completed', 'deadline_date'], name: 'idx_deadline_case_completed_date')]
 #[ORM\HasLifecycleCallbacks]
 class LegalDeadline
 {

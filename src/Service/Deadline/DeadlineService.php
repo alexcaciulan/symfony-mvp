@@ -12,21 +12,34 @@ use App\Enum\DeadlineType;
 use App\Repository\LegalDeadlineRepository;
 use App\Service\AuditLogService;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
- * Creează termene procedurale (LegalDeadline) cu date prorogate per CPC art. 181
- * alin. (4). Apelat fie direct de avocat (createHearingDeadline), fie de un
- * subscriber (Pas 4.2) la tranziții workflow. Audit log obligatoriu pe fiecare
- * operațiune.
+ * Creează termene procedurale (LegalDeadline). Termenele pe zile se calculează pe
+ * zile libere (CPC art. 181 alin. 1 pct. 2) și se prorogă la prima zi lucrătoare
+ * (CPC art. 181 alin. 2), ambele reguli aplicate într-un singur loc:
+ * {@see self::proceduralTermEnd()}. Apelat fie direct de avocat
+ * (createHearingDeadline), fie de subscriber la tranziții workflow. Audit log
+ * obligatoriu pe fiecare operațiune.
  */
 final class DeadlineService
 {
     private const PAYMENT_NOTICE_DAYS = 15;          // CPC art. 1015 alin. 1
     private const APPEAL_DAYS = 10;                  // CPC art. 1024 alin. 1
     private const STAMP_DUTY_DAYS = 10;              // OUG 80/2013 art. 33 alin. 2
+    private const FILING_INTERRUPTION_MONTHS = 6;    // NCC art. 2540, CPC art. 1015 alin. 2
     private const PRESCRIPTION_INTERVAL = '+3 years'; // NCC art. 2517
-    private const EXECUTION_PRESCRIPTION_INTERVAL = '+3 years'; // CPC art. 706 alin. 1
+    private const EXECUTION_PRESCRIPTION_INTERVAL = '+3 years'; // CPC art. 705 alin. 1
+
+    /**
+     * Statuses in which the payment-order request has not reached the court yet.
+     * Mirrors the `depune_cerere` transition of config/packages/workflow.yaml
+     * (SOMATIE_TRIMISA -> CERERE_DEPUSA): every place from CERERE_DEPUSA onwards
+     * means the request is filed, which is what stops the six-month term below.
+     */
+    private const STATUSES_BEFORE_FILING = [CaseStatus::AMIABIL, CaseStatus::SOMATIE_TRIMISA];
 
     public function __construct(
         private readonly EntityManagerInterface $em,
@@ -35,6 +48,7 @@ final class DeadlineService
         private readonly LegalDeadlineRepository $deadlineRepository,
         private readonly TranslatorInterface $translator,
         private readonly int $voluntaryPaymentDays = 40,
+        private readonly LoggerInterface $logger = new NullLogger(),
     ) {}
 
     /**
@@ -63,20 +77,82 @@ final class DeadlineService
     }
 
     /**
-     * Termen răspuns somație: paymentNoticeDate + 15 zile (CPC art. 1015 alin. 1),
-     * prorogat la prima zi lucrătoare. Prioritate HIGH.
+     * Maturity date of a term expressed in days, from the date it starts running.
+     *
+     * CPC art. 181 para. 1 pt. 2 ("termen pe zile libere"): neither the day the
+     * term starts running nor the day it ends is counted, so a legal term of N
+     * days covers N + 1 calendar days from the triggering date. A 5-day term
+     * therefore spans 7 calendar days in the classic textbook example (start day +
+     * 5 free days + end day). CPC art. 181 para. 2 then moves a maturity date that
+     * falls on a non-working day to the first working day that follows, applied on
+     * top of the N + 1 result.
+     *
+     * Worked example: a 15-day term running from Monday 1 June 2026 matures on
+     * Wednesday 17 June 2026 (1 June + 16), not on 16 June.
+     *
+     * The N + 1 rule lives here and nowhere else: the PAYMENT_NOTICE_DAYS /
+     * APPEAL_DAYS / STAMP_DUTY_DAYS constants stay at their legal values (15, 10,
+     * 10) so they can be read against the article they cite.
+     */
+    private function proceduralTermEnd(\DateTimeImmutable $startsRunningOn, int $legalDays): ProceduralTerm
+    {
+        $rawEnd = $startsRunningOn->modify('+' . ($legalDays + 1) . ' days');
+
+        return new ProceduralTerm($rawEnd, $this->workingDayResolver->nextWorkingDay($rawEnd));
+    }
+
+    /**
+     * Maturity date of a term expressed in MONTHS, for substantive-law terms.
+     *
+     * NCC art. 2552 para. 1: a term set in months ends on the corresponding day of
+     * the last month, so 20 February plus six months ends on 20 August. Para. 3
+     * covers the months that have no such day: the term then ends on the last day
+     * of that month, which is what the second branch restores, because PHP would
+     * otherwise overflow 31 August plus six months into 3 March.
+     *
+     * No prorogation to the next working day. NCC art. 2554 would allow it, but this
+     * application never moves a substantive term forward, for the same reason it
+     * leaves PRESCRIPTIE untouched: a date shown later than the real one can make the
+     * lawyer act after the term has actually run, while a date shown as-is can only
+     * make the alert early.
+     */
+    private function monthsTermEnd(\DateTimeImmutable $startsRunningOn, int $months): \DateTimeImmutable
+    {
+        $end = $startsRunningOn->modify('+' . $months . ' months');
+
+        if ($end->format('d') !== $startsRunningOn->format('d')) {
+            return $startsRunningOn->modify('last day of +' . $months . ' months');
+        }
+
+        return $end;
+    }
+
+    /**
+     * Maturity date of the annulment-request term (CPC art. 1024 alin. 1: 10 days
+     * from service of the payment order), exposed so callers that derive a later
+     * date from it (the day the order becomes final) share this calculation instead
+     * of repeating it.
+     */
+    public function appealTermEnd(\DateTimeImmutable $rulingCommunicationDate): \DateTimeImmutable
+    {
+        return $this->proceduralTermEnd($rulingCommunicationDate, self::APPEAL_DAYS)->end;
+    }
+
+    /**
+     * Termen răspuns somație: paymentNoticeDate + 15 zile libere (CPC art. 1015
+     * alin. 1 coroborat cu art. 181 alin. 1 pct. 2), prorogat la prima zi
+     * lucrătoare. Prioritate HIGH.
      */
     public function createPaymentNoticeDeadline(LegalCase $legalCase, \DateTimeImmutable $paymentNoticeDate): LegalDeadline
     {
-        $rawDeadline = $paymentNoticeDate->modify('+' . self::PAYMENT_NOTICE_DAYS . ' days');
-        $deadlineDate = $this->workingDayResolver->nextWorkingDay($rawDeadline);
+        $term = $this->proceduralTermEnd($paymentNoticeDate, self::PAYMENT_NOTICE_DAYS);
 
         return $this->persistDeadline(
             $legalCase,
             DeadlineType::RASPUNS_SOMATIE,
-            $deadlineDate,
+            $term->end,
             baseDate: $paymentNoticeDate,
-            rawDeadline: $rawDeadline,
+            rawDeadline: $term->rawEnd,
         );
     }
 
@@ -94,10 +170,12 @@ final class DeadlineService
             return false;
         }
 
-        $termEnd = $this->workingDayResolver->nextWorkingDay($communicationDate->modify('+' . self::PAYMENT_NOTICE_DAYS . ' days'));
+        $termEnd = $this->proceduralTermEnd($communicationDate, self::PAYMENT_NOTICE_DAYS)->end;
 
-        // Strictly after: the term lapses at the end of day D15, so the OP is
-        // admissible only from D16 (CPC art. 1015-1016).
+        // Strictly after: on free-days counting the term still runs throughout its
+        // maturity day (service date + 16 calendar days, prorogated), so the debtor
+        // may still pay that day and the OP is admissible only from the day after
+        // it. Filing on the maturity day itself is premature (CPC art. 1015-1016).
         return $today > $termEnd;
     }
 
@@ -114,8 +192,9 @@ final class DeadlineService
             return $this->createPaymentNoticeDeadline($legalCase, $communicationDate);
         }
 
-        $rawDeadline = $communicationDate->modify('+' . self::PAYMENT_NOTICE_DAYS . ' days');
-        $deadlineDate = $this->workingDayResolver->nextWorkingDay($rawDeadline);
+        $term = $this->proceduralTermEnd($communicationDate, self::PAYMENT_NOTICE_DAYS);
+        $rawDeadline = $term->rawEnd;
+        $deadlineDate = $term->end;
 
         $deadline->setDeadlineDate($deadlineDate);
         $deadline->setDescription(null); // estimate confirmed against the real communication date
@@ -142,30 +221,146 @@ final class DeadlineService
     }
 
     /**
-     * Termen cerere în anulare: rulingCommunicationDate + 10 zile (CPC art. 1024
-     * alin. 1 — "de la data înmânării sau comunicării"), prorogat la prima zi
-     * lucrătoare. Prioritate CRITICAL. NU folosi `rulingDate` aici — termenul
-     * curge de la COMUNICARE, nu de la pronunțare.
+     * The six-month term the interruption of the limitation period depends on: the
+     * communicated summons interrupts the prescription, but the interruption is
+     * deemed never to have happened unless the claim reaches the court within six
+     * months of that communication (NCC art. 2540, to which CPC art. 1015 para. 2
+     * refers expressly inside the payment-order chapter itself).
+     *
+     * Anchored on `paymentNoticeCommunicationDate`, never on the date the summons PDF
+     * was generated: the term runs from communication, and generation is typically
+     * days earlier, which would show a maturity date later than the real one.
+     *
+     * Substantive-law term, so it is counted in months per NCC art. 2552 through
+     * {@see self::monthsTermEnd()} and never prorogated under CPC art. 181 para. 2,
+     * which governs procedural terms only.
+     *
+     * Only created while the request has not been filed yet: past CERERE_DEPUSA the
+     * condition of art. 2540 is already met and a term counting down to it would be
+     * telling the lawyer to do something already done. An existing deadline is
+     * recomputed instead, so correcting the communication date moves this term the
+     * same way it moves the summons-answer one. Returns null when there is nothing to
+     * track.
+     */
+    public function createFilingDeadline(LegalCase $legalCase, \DateTimeImmutable $communicationDate): ?LegalDeadline
+    {
+        $existing = $this->deadlineRepository->findOneByCaseAndType($legalCase, DeadlineType::DEPUNERE_CERERE);
+
+        if (!in_array($legalCase->getStatus(), self::STATUSES_BEFORE_FILING, true)) {
+            return $existing;
+        }
+
+        $deadlineDate = $this->monthsTermEnd($communicationDate, self::FILING_INTERRUPTION_MONTHS);
+
+        // Rendered to text: the row has to say what expiry costs, and what expires is
+        // not the right to file but the interruption the summons produced.
+        $description = $this->translator->trans(
+            'case_overview.deadlines.filing_interruption_covers',
+            ['%date%' => $communicationDate->format('d.m.Y')],
+        );
+
+        if ($existing === null) {
+            return $this->persistDeadline(
+                $legalCase,
+                DeadlineType::DEPUNERE_CERERE,
+                $deadlineDate,
+                baseDate: $communicationDate,
+                rawDeadline: $deadlineDate,
+                description: $description,
+            );
+        }
+
+        $previousDate = $existing->getDeadlineDate();
+        if ($previousDate->format('Y-m-d') === $deadlineDate->format('Y-m-d')) {
+            return $existing;
+        }
+
+        $existing->setDeadlineDate($deadlineDate);
+        $existing->setDescription($description);
+        $existing->resetAlertFlags();
+        $this->em->flush();
+
+        $this->auditLogService->log(
+            action: 'filing_deadline_recomputed',
+            entityType: LegalDeadline::class,
+            entityId: (string) $existing->getId(),
+            oldData: ['deadlineDate' => $previousDate->format('Y-m-d')],
+            newData: [
+                'deadlineId' => $existing->getId(),
+                'type' => DeadlineType::DEPUNERE_CERERE->value,
+                'caseNumber' => $legalCase->getCaseNumber(),
+                'baseDate' => $communicationDate->format('Y-m-d'),
+                'deadlineDate' => $deadlineDate->format('Y-m-d'),
+            ],
+            category: AuditLogService::CATEGORY_DEADLINE_EDITED,
+        );
+        $this->em->flush();
+
+        return $existing;
+    }
+
+    /**
+     * Closes the six-month term once the request has been filed: filing is exactly
+     * the condition NCC art. 2540 sets, so the term has been met and nothing is left
+     * to watch.
+     *
+     * Unlike CERERE_IN_ANULARE, this term has a single holder, the creditor, and a
+     * single unambiguous triggering fact, so closing it automatically hides nothing
+     * from the client. Completed without a user: the platform closed it, not a lawyer.
+     */
+    public function closeFilingDeadline(LegalCase $legalCase): ?LegalDeadline
+    {
+        $deadline = $this->deadlineRepository->findOneByCaseAndType($legalCase, DeadlineType::DEPUNERE_CERERE);
+        if ($deadline === null || $deadline->isCompleted()) {
+            return $deadline;
+        }
+
+        $deadline->markCompleted(null);
+        $this->em->flush();
+
+        $this->auditLogService->log(
+            action: 'filing_deadline_closed',
+            entityType: LegalDeadline::class,
+            entityId: (string) $deadline->getId(),
+            newData: [
+                'deadlineId' => $deadline->getId(),
+                'type' => DeadlineType::DEPUNERE_CERERE->value,
+                'caseNumber' => $legalCase->getCaseNumber(),
+                'deadlineDate' => $deadline->getDeadlineDate()->format('Y-m-d'),
+                'reason' => 'request_filed',
+            ],
+            category: AuditLogService::CATEGORY_DEADLINE_COMPLETED,
+        );
+        $this->em->flush();
+
+        return $deadline;
+    }
+
+    /**
+     * Termen cerere în anulare: rulingCommunicationDate + 10 zile libere (CPC art.
+     * 1024 alin. 1, "de la data înmânării sau comunicării", coroborat cu art. 181
+     * alin. 1 pct. 2), prorogat la prima zi lucrătoare. Prioritate CRITICAL. NU
+     * folosi `rulingDate` aici: termenul curge de la COMUNICARE, nu de la
+     * pronunțare.
      */
     public function createAppealDeadline(LegalCase $legalCase, \DateTimeImmutable $rulingCommunicationDate): LegalDeadline
     {
-        $rawDeadline = $rulingCommunicationDate->modify('+' . self::APPEAL_DAYS . ' days');
-        $deadlineDate = $this->workingDayResolver->nextWorkingDay($rawDeadline);
+        $term = $this->proceduralTermEnd($rulingCommunicationDate, self::APPEAL_DAYS);
 
         return $this->persistDeadline(
             $legalCase,
             DeadlineType::CERERE_IN_ANULARE,
-            $deadlineDate,
+            $term->end,
             baseDate: $rulingCommunicationDate,
-            rawDeadline: $rawDeadline,
+            rawDeadline: $term->rawEnd,
         );
     }
 
     /**
-     * Termen de timbrare: data comunicării înștiințării instanței + 10 zile (OUG
-     * 80/2013 art. 33 alin. 2, care trimite la CPC art. 200 alin. 2 teza I),
-     * prorogat la prima zi lucrătoare. Prioritate CRITICAL: ratarea lui atrage
-     * ANULAREA cererii (CPC art. 197).
+     * Termen de timbrare: data comunicării înștiințării instanței + 10 zile libere
+     * (OUG 80/2013 art. 33 alin. 2, care trimite la CPC art. 200 alin. 2 teza I,
+     * coroborat cu art. 181 alin. 1 pct. 2), prorogat la prima zi lucrătoare.
+     * Prioritate CRITICAL: ratarea lui atrage ANULAREA cererii (CPC art. 197).
      *
      * Termenul curge de la comunicarea instanței, dată pe care platforma nu o
      * cunoaște, deci e furnizată de avocat când primește înștiințarea. Recalculează
@@ -173,8 +368,9 @@ final class DeadlineService
      */
     public function createStampDutyDeadline(LegalCase $legalCase, \DateTimeImmutable $courtNoticeDate): LegalDeadline
     {
-        $rawDeadline = $courtNoticeDate->modify('+' . self::STAMP_DUTY_DAYS . ' days');
-        $deadlineDate = $this->workingDayResolver->nextWorkingDay($rawDeadline);
+        $term = $this->proceduralTermEnd($courtNoticeDate, self::STAMP_DUTY_DAYS);
+        $rawDeadline = $term->rawEnd;
+        $deadlineDate = $term->end;
 
         $existing = $this->deadlineRepository->findOneByCaseAndType($legalCase, DeadlineType::TIMBRARE);
         if ($existing !== null) {
@@ -298,9 +494,9 @@ final class DeadlineService
     }
 
     /**
-     * Enforcement prescription deadline: definitiveDate + 3 years (CPC art. 706 para.
+     * Enforcement prescription deadline: definitiveDate + 3 years (CPC art. 705 para.
      * 1, runs from when the order became final). Priority CRITICAL. No prorogation:
-     * a years-based limitation is outside CPC art. 181 para. 4 (day-based terms).
+     * a years-based limitation is outside CPC art. 181 para. 1 pt. 2 (day-based terms).
      */
     public function createExecutionPrescriptionDeadline(LegalCase $legalCase, \DateTimeImmutable $definitiveDate): LegalDeadline
     {
@@ -316,21 +512,39 @@ final class DeadlineService
     }
 
     /**
-     * Termen judecată: data fixată de instanță, prorogată la prima zi lucrătoare
-     * (relevant pentru ședințele care cad accidental într-o zi nelucrătoare, deși
-     * instanța nu fixează asta normal). Prioritate MEDIUM.
+     * Hearing date, stored exactly as the court fixed it. Priority MEDIUM.
+     *
+     * Deliberately NOT prorogated to the next working day. CPC art. 181 para. 2
+     * prorogates a term that MATURES on a non-working day; a hearing date is not a
+     * term that matures, it is a date the court set and the summons states. Moving it
+     * would make the application show a day other than the one on the summons, and a
+     * lawyer who reads this page instead of the summons would appear on the wrong day.
+     *
+     * A hearing falling on a non-working day is therefore reported, not corrected:
+     * courts do not sit on those days, so it means the portal reading is wrong or the
+     * date was mistyped, and only a human can tell which. The anomaly is signalled
+     * twice, both times without touching the date: a warning in the log, for whoever
+     * watches the portal sync, and a `nonWorkingDay` flag in the audit payload, which
+     * stays attached to the record long after the log rotates.
      */
     public function createHearingDeadline(LegalCase $legalCase, \DateTimeImmutable $date, ?string $description = null): LegalDeadline
     {
-        $deadlineDate = $this->workingDayResolver->nextWorkingDay($date);
+        $isWorkingDay = $this->workingDayResolver->isWorkingDay($date);
+        if (!$isWorkingDay) {
+            $this->logger->warning('Hearing date falls on a non-working day; stored as received, verify against the summons', [
+                'caseNumber' => $legalCase->getCaseNumber(),
+                'hearingDate' => $date->format('Y-m-d'),
+            ]);
+        }
 
         return $this->persistDeadline(
             $legalCase,
             DeadlineType::JUDECATA,
-            $deadlineDate,
+            $date,
             baseDate: $date,
             rawDeadline: $date,
             description: $description,
+            extraAuditData: $isWorkingDay ? [] : ['nonWorkingDay' => true],
         );
     }
 
@@ -378,6 +592,7 @@ final class DeadlineService
         $this->em->flush();
     }
 
+    /** @param array<string, scalar> $extraAuditData merged into the audit payload */
     private function persistDeadline(
         LegalCase $legalCase,
         DeadlineType $type,
@@ -385,6 +600,7 @@ final class DeadlineService
         \DateTimeImmutable $baseDate,
         \DateTimeImmutable $rawDeadline,
         ?string $description = null,
+        array $extraAuditData = [],
     ): LegalDeadline {
         $deadline = new LegalDeadline();
         $deadline->setLegalCase($legalCase);
@@ -410,7 +626,7 @@ final class DeadlineService
                 'rawDeadline' => $rawDeadline->format('Y-m-d'),
                 'deadlineDate' => $deadlineDate->format('Y-m-d'),
                 'prorogated' => $rawDeadline->format('Y-m-d') !== $deadlineDate->format('Y-m-d'),
-            ],
+            ] + $extraAuditData,
             category: AuditLogService::CATEGORY_DEADLINE_CREATED,
         );
         $this->em->flush();

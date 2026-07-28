@@ -1,0 +1,102 @@
+{# The body of the agenda: blocked cases, the time buckets, and the rail with the
+   limitation periods falling beyond the window.
+
+   It is a region of its own because every action fired from a row changes more of it
+   than the row itself: the counts and the "oldest arrear" hint in the section
+   headers, whether a section renders at all, the rail and the blockage list. The page
+   wraps it in `id="deadline-agenda"`, which is what the agenda Turbo Stream replaces.
+
+   @var view App\Service\Deadline\DeadlinePageView #}
+
+{% set today = view.today() %}
+{% set filter = view.filter %}
+{% set filter_fields = filter.hiddenFields() %}
+{% set has_blockages = view.blockages|length > 0 %}
+{% set has_rail = view.longHorizonPrescriptions|length > 0 %}
+{% set agenda_empty = view.isAgendaEmpty() %}
+
+{% if view.isNothingTracked() %}
+    {{ include('deadlines/_empty_account.html.twig', {}, with_context = false) }}
+{% else %}
+
+    {% if has_blockages %}
+        {{ include('deadlines/_blockages.html.twig', { blockages: view.blockages }, with_context = false) }}
+    {% endif %}
+
+    <div class="grid grid-cols-1 {{ has_rail ? 'xl:grid-cols-[minmax(0,1fr)_20rem]' : '' }} gap-5 items-start">
+        <div class="min-w-0 space-y-5">
+
+            {% if agenda_empty and filter.hasPills() %}
+                {# Empty because of the selection, not because the window is clear.
+                   Saying "clean register" here would describe the account instead of
+                   the filter, which is the one thing a triage screen must not do. #}
+                {{ include('deadlines/_empty_filter.html.twig', {}, with_context = false) }}
+            {% elseif agenda_empty %}
+                {{ include('deadlines/_empty_agenda.html.twig', { window_end: view.windowEnd }, with_context = false) }}
+            {% else %}
+                {% for group in view.groups %}
+                    {% if not group.isEmpty() %}
+                    {% set heading = '' %}
+                    {% set hint = '' %}
+                    {% set note = '' %}
+                    {% set accent = '' %}
+                    {% set icon_key = '' %}
+                    {% set collapsible = false %}
+
+                    {% if group.key == 'overdue' %}
+                        {# The worst row decides the header: how far behind the oldest one is. #}
+                        {% set oldest = 0 %}
+                        {% for row in group.rows %}
+                            {% if row.item.daysRemaining < oldest %}{% set oldest = row.item.daysRemaining %}{% endif %}
+                        {% endfor %}
+                        {% set heading = 'deadlines.section.overdue'|trans %}
+                        {% set hint = 'deadlines.section.oldest'|trans({ '%days%': oldest|abs }) %}
+                        {% set accent = 'border-l-red-500' %}
+                        {% set icon_key = 'fatal' %}
+                    {% elseif group.key == 'unblocked' %}
+                        {# Past due on the calendar, favourable in law: the debtor's
+                           term running out is what opens the filing, so it stays out
+                           of the red section and out of the counters. #}
+                        {% set heading = 'deadlines.section.unblocked'|trans %}
+                        {% set hint = 'deadlines.section.unblocked_hint'|trans %}
+                        {% set accent = 'border-l-emerald-500' %}
+                        {% set icon_key = 'unlock' %}
+                    {% elseif group.key == 'today' %}
+                        {% set heading = 'deadlines.section.today'|trans({ '%date%': ('deadlines.weekday.' ~ today|date('N'))|trans ~ ' ' ~ today|date('d.m.Y') }) %}
+                        {% set note = 'deadlines.section.today_note'|trans %}
+                        {% set accent = 'border-l-amber-400' %}
+                    {% elseif group.key == 'tomorrow' %}
+                        {% set tomorrow = today|date_modify('+1 day') %}
+                        {% set heading = 'deadlines.section.tomorrow'|trans({ '%date%': ('deadlines.weekday.' ~ tomorrow|date('N'))|trans ~ ' ' ~ tomorrow|date('d.m.Y') }) %}
+                    {% elseif group.key == 'restOfWeek' %}
+                        {% set end_of_week = today|date_modify('+' ~ (7 - today|date('N')) ~ ' days') %}
+                        {% set heading = 'deadlines.section.rest_of_week'|trans({ '%date%': ('deadlines.weekday.' ~ end_of_week|date('N'))|trans ~ ' ' ~ end_of_week|date('d.m.Y') }) %}
+                    {% else %}
+                        {% set heading = 'deadlines.section.next30'|trans({ '%date%': view.windowEnd|date('d.m.Y') }) %}
+                        {# Only this bucket grows long enough to push the urgent sections
+                           off the first screen, so past ten rows it folds. #}
+                        {% set collapsible = group.count() > 10 %}
+                    {% endif %}
+
+                    {{ include('deadlines/_group.html.twig', {
+                        group: group,
+                        heading: heading,
+                        hint: hint,
+                        note: note,
+                        accent: accent,
+                        icon_key: icon_key,
+                        collapsible: collapsible,
+                        filter_fields: filter_fields,
+                    }, with_context = false) }}
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+
+            <p class="px-1 text-[11px] text-slate-500 dark:text-slate-400">{{ 'deadlines.footnote'|trans }}</p>
+        </div>
+
+        {% if has_rail %}
+            {{ include('deadlines/_rail_prescriptions.html.twig', { rows: view.longHorizonPrescriptions }, with_context = false) }}
+        {% endif %}
+    </div>
+{% endif %}

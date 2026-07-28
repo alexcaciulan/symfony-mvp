@@ -1,0 +1,15 @@
+{# The arrears badge of the "Termene" navigation entry, shared by the sidebar and the
+   mobile navigation of the topbar, so the two can never render a different number.
+
+   The wrapper renders even at zero, empty. It is what an action fired from the global
+   agenda replaces by class: a target that only existed while the number was non-zero
+   could never be brought back to zero, and the badge would keep claiming arrears the
+   lawyer had just closed.
+
+   @var count int arrears of the current user, the same number the agenda pill shows #}
+<span class="deadline-nav-badge">
+    {%- if count > 0 -%}
+        <span class="inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-md bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300 text-[10px] font-bold tnum"
+              title="{{ 'layout.sidebar.nav.deadlines_overdue'|trans({ '%count%': count }) }}">{{ count > 99 ? '99+' : count }}</span>
+    {%- endif -%}
+</span>

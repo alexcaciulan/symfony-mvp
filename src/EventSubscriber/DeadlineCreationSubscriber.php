@@ -77,6 +77,28 @@ final class DeadlineCreationSubscriber
         }
     }
 
+    /**
+     * The request reached the court, which is the condition NCC art. 2540 sets for the
+     * interruption produced by the summons to hold, so the six-month term has been met.
+     */
+    #[AsEventListener(event: 'workflow.legal_case.entered.CERERE_DEPUSA')]
+    public function onCerereDepusa(EnteredEvent $event): void
+    {
+        $case = $event->getSubject();
+        if (!$case instanceof LegalCase || $case->getId() === null) {
+            return;
+        }
+
+        try {
+            $this->deadlineService->closeFilingDeadline($case);
+        } catch (\Throwable $e) {
+            $this->logger->error('Failed to close DEPUNERE_CERERE deadline', [
+                'caseNumber' => $case->getCaseNumber(),
+                'exception' => $e->getMessage(),
+            ]);
+        }
+    }
+
     #[AsEventListener(event: 'workflow.legal_case.entered.ORDONANTA_EMISA')]
     public function onOrdonantaEmisa(EnteredEvent $event): void
     {
@@ -145,15 +167,40 @@ final class DeadlineCreationSubscriber
             return;
         }
 
-        // Enforcement prescription (CPC art. 706) runs from when the order became
-        // enforceable. Derive it from the communication date when available (the day
-        // after the 10-day annulment window, CPC art. 1024); fall back to today when
-        // that date is unknown. Using today unconditionally would drift by the
-        // auto-finalization buffer.
+        // Enforcement prescription (CPC art. 705) runs from when the order became
+        // enforceable, and the anchor is picked in the order that keeps the error on
+        // the safe side, an alert that is early rather than a deadline that is later
+        // than the real one:
+        //  1. the communication date. For court rulings the three years run from the
+        //     day the ruling became final (CPC art. 705 para. 2), and the order becomes
+        //     final the day AFTER the annulment term lapses, so the anchor is that
+        //     term's maturity date plus one day, taken from DeadlineService so it never
+        //     drifts from the deadline the lawyer sees (free days per CPC art. 181
+        //     para. 1 pt. 2, plus the working-day prorogation of para. 2). A payment order
+        //     is enforceable from service even while under appeal (CPC art. 1021), but
+        //     that governs when enforcement may start, not when the limitation begins:
+        //     art. 705 para. 2 ties the latter to the ruling becoming final;
+        //  2. failing that, the ruling date. Pronouncement always precedes service, so
+        //     the term computed from it expires before the real one and warns early;
+        //  3. failing both, nothing is created. The case surfaces in the blockage zone
+        //     of the agenda instead (DeadlineBlockageReason::EXECUTION_ANCHOR_MISSING).
+        //     The current day must never be used here: it is later than the real
+        //     anchor, so it would show a term longer than the one that actually runs,
+        //     which is false safety on an irreversible deadline.
         $communicationDate = $case->getRulingCommunicationDate();
-        $definitiveDate = $communicationDate !== null
-            ? $communicationDate->modify('+11 days')
-            : new \DateTimeImmutable('today');
+        $finalRulingDate = $case->getFinalRulingDate();
+
+        if ($communicationDate !== null) {
+            $definitiveDate = $this->deadlineService->appealTermEnd($communicationDate)->modify('+1 day');
+        } elseif ($finalRulingDate !== null) {
+            $definitiveDate = \DateTimeImmutable::createFromInterface($finalRulingDate);
+        } else {
+            $this->logger->warning('Skipping PRESCRIPTIE_EXECUTARE deadline: neither rulingCommunicationDate nor finalRulingDate is known', [
+                'caseNumber' => $case->getCaseNumber(),
+            ]);
+
+            return;
+        }
 
         try {
             $this->deadlineService->createExecutionPrescriptionDeadline($case, $definitiveDate);

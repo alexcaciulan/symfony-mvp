@@ -1,0 +1,58 @@
+{# The answer to a deadline action fired from the global agenda.
+
+   The routes are shared with the deadlines tab of a case, and the stream that tab
+   receives targets `deadline-card-{id}`, `panel-termene`, `case-tabs-nav`,
+   `case-kpi-grid` and `case-detalii-sidebar`, none of which exist here. Sent to this
+   page it would swap nothing at all and leave the row exactly as it was.
+
+   The two regions are rebuilt whole rather than patched row by row, and the
+   navigation badge follows them. Closing one term moves the counters, the count and
+   the "oldest arrear" hint of its section, whether that section still renders, the
+   rail, the blockage zone and the badge; a single-row swap would leave all of those
+   describing an agenda the lawyer can no longer see, and on a triage screen a stale
+   number is worse than a larger answer.
+
+   @var view           App\Service\Deadline\DeadlinePageView rebuilt under the same filter
+   @var toast_variant  string 'success' | 'error' | 'warning'
+   @var toast_key      string translation key of the message
+   @var close_modal_id string|null dialog the action was fired from, sent on success
+                                   only, so a rejected submission keeps what was typed
+   @var extra_toast_key string|null second message some acts carry next to their own
+                                    outcome, always a warning (billing, mostly) #}
+
+<turbo-stream action="replace" target="deadline-riskbar">
+    <template><div id="deadline-riskbar">{{ include('deadlines/_riskbar_region.html.twig', { view: view }, with_context = false) }}</div></template>
+</turbo-stream>
+
+<turbo-stream action="replace" target="deadline-agenda">
+    <template><div id="deadline-agenda" class="space-y-5">{{ include('deadlines/_agenda_region.html.twig', { view: view }, with_context = false) }}</div></template>
+</turbo-stream>
+
+{# The navigation badge counts the same arrears as the "Restante" pill, so closing a
+   term has to move both. Addressed by class rather than by id because the sidebar and
+   the mobile navigation each render one, and a badge left at the old number on the
+   very screen that just changed it is the kind of stale count the triage is read to
+   avoid. The count is the unfiltered one, like the pill. #}
+<turbo-stream action="replace" targets=".deadline-nav-badge">
+    <template>{{ include('_deadline_nav_badge.html.twig', { count: view.counters.overdue }, with_context = false) }}</template>
+</turbo-stream>
+
+<turbo-stream action="append" target="toasts">
+    <template>
+        {% include 'components/Toast.html.twig' with { message: toast_key|trans, variant: toast_variant, details: [] } only %}
+    </template>
+</turbo-stream>
+
+{% if extra_toast_key|default(null) %}
+    <turbo-stream action="append" target="toasts">
+        <template>
+            {% include 'components/Toast.html.twig' with { message: extra_toast_key|trans, variant: 'warning', details: [] } only %}
+        </template>
+    </turbo-stream>
+{% endif %}
+
+{% if close_modal_id|default(null) %}
+    <turbo-stream action="append" target="toasts">
+        <template><div data-controller="close-modal" data-close-modal-target-id-value="{{ close_modal_id }}"></div></template>
+    </turbo-stream>
+{% endif %}

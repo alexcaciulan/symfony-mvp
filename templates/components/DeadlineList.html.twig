@@ -59,8 +59,11 @@
                             {{ 'component.deadline_list.due_at'|trans }}: {{ item.deadlineDate|date('d.m.Y') }}
                             {% if days_to >= 0 %}
                                 · {{ 'component.deadline_list.in_x_days'|trans({'%days%': days_to}) }} <span class="font-bold {{ p.days_text }}">({{ days_to }})</span>
-                            {% else %}
+                            {% elseif deadline_is_arrear(item.type) %}
                                 · <span class="font-bold text-red-600 dark:text-red-400">{{ 'component.deadline_list.overdue'|trans }}</span>
+                            {% else %}
+                                {# The debtor's term running out is not a miss: it is what opens the filing window. #}
+                                · <span class="font-bold text-emerald-700 dark:text-emerald-400">{{ 'component.deadline_list.expired_unblocks'|trans }}</span>
                             {% endif %}
                         </div>
                     </div>

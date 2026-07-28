@@ -26,13 +26,16 @@ enum DeadlineType: string
      * întârziere depunere cerere OP). CERERE_IN_ANULARE + PRESCRIPTIE = CRITICAL
      * (impact juridic direct: ratare → pierdere drept material sau ordonanță
      * neînvestită cu titlu executoriu). TIMBRARE = CRITICAL (OUG 80/2013 art. 33
-     * alin. 2: ratarea celor 10 zile atrage anularea cererii).
+     * alin. 2: ratarea celor 10 zile atrage anularea cererii). DEPUNERE_CERERE =
+     * CRITICAL după același criteriu: ratarea celor 6 luni face ca întreruperea
+     * produsă de somație să se considere că nu a avut loc (NCC art. 2540, CPC art.
+     * 1015 alin. 2), deci creanța se poate prescrie.
      */
     public function defaultPriority(): DeadlinePriority
     {
         return match ($this) {
             self::RASPUNS_SOMATIE => DeadlinePriority::HIGH,
-            self::DEPUNERE_CERERE => DeadlinePriority::HIGH,
+            self::DEPUNERE_CERERE => DeadlinePriority::CRITICAL,
             self::JUDECATA => DeadlinePriority::MEDIUM,
             self::CERERE_IN_ANULARE => DeadlinePriority::CRITICAL,
             self::TIMBRARE => DeadlinePriority::CRITICAL,

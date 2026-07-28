@@ -1,0 +1,14 @@
+{# The agenda body when the window holds nothing. Kept as a card rather than a bare
+   sentence, so the column still reads as the place where the work appears.
+
+   @var window_end \DateTimeImmutable #}
+
+{% from 'deadlines/_icons.html.twig' import document %}
+
+<div data-state="agenda-empty" class="rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/40 px-6 py-10 text-center">
+    <div class="inline-flex items-center justify-center size-11 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 mb-3">
+        {{ document('size-5') }}
+    </div>
+    <h2 class="text-base font-semibold">{{ 'deadlines.clean.agenda_heading'|trans({ '%date%': window_end|date('d.m.Y') }) }}</h2>
+    <p class="mt-1 text-sm text-slate-600 dark:text-slate-400 max-w-md mx-auto">{{ 'deadlines.clean.agenda_body'|trans({ '%date%': window_end|date('d.m.Y') }) }}</p>
+</div>

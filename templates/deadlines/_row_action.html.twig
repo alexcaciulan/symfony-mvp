@@ -1,0 +1,93 @@
+{# One button of an agenda row or of the blockage zone.
+
+   The route, the method and whether pressing it closes the deadline are all decided
+   in PHP (DeadlineRowActionResolver). This template only picks the HTML element:
+
+   - GET            renders a link to the route;
+   - POST + token   renders a form that posts straight to the existing route;
+   - POST, no token renders a link to the case, because the act needs data the
+                    agenda does not collect (a communication date, the debt
+                    acknowledgement) and lives in a dialog. When the agenda carries
+                    that dialog itself the same link opens it in place, and the href
+                    stays as the fallback for a browser running no scripts.
+
+   The forms post `_context=agenda`, which is what makes the target controller answer
+   with the regions of this page instead of the case markup, and they carry the active
+   filter, so the answer is the same agenda the button was pressed on. Nothing else
+   about the request differs: the route, the token and the authorization are the ones
+   the case page has always used.
+
+   A button that closes a term whose miss cannot be undone hands the page dialog its
+   confirmation before posting. The wording is rendered here, already translated, so
+   the dialog states the sanction and the record without a second request.
+
+   @var button        App\Service\Deadline\DeadlineActionButton
+   @var case_id       int    case the row belongs to, used for the dialog fallback
+   @var style         string 'primary' | 'danger' | 'secondary'
+   @var icon          bool   whether to prefix the check mark (closing buttons)
+   @var extra         string extra classes on the control itself, so the caller can order
+                             it inside its flex row (the form wrapper is display:contents,
+                             the control is the flex item)
+   @var filter_fields map    active filter as hidden inputs, empty on a plain agenda
+   @var confirmation  App\Service\Deadline\DeadlineCloseConfirmation|null #}
+
+{% from 'deadlines/_icons.html.twig' import check %}
+
+{% set style = style|default('secondary') %}
+{% set base = 'inline-flex items-center justify-center gap-1.5 w-full sm:w-auto py-1.5 px-2.5 rounded-lg text-xs font-semibold transition no-underline' %}
+{% set skin = {
+    'primary': 'bg-lex-navy hover:bg-lex-navy-dark text-white',
+    'danger': 'bg-red-600 hover:bg-red-700 text-white',
+    'secondary': 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700',
+} %}
+{% set classes = base ~ ' ' ~ skin[style]|default(skin['secondary']) ~ ' ' ~ extra|default('') %}
+{% set title = button.note ? button.note|trans : '' %}
+
+{% set confirmation = confirmation|default(null) %}
+{% set confirm_here = button.closesDeadline and confirmation is not null %}
+{% set facts = [] %}
+{% if confirm_here %}
+    {% for fact in confirmation.facts %}
+        {% set facts = facts|merge([{
+            label: fact.labelKey|trans,
+            value: fact.valueIsTranslationKey ? fact.value|trans : fact.value,
+        }]) %}
+    {% endfor %}
+{% endif %}
+
+{% if button.isPost() and not button.needsCaseDialog() %}
+    <form method="post"
+          action="{{ path(button.route, button.routeParameters) }}"
+          class="contents"
+          {% if confirm_here %}
+              data-action="submit->agenda-dialog#confirmClose"
+              data-agenda-dialog-title-param="{{ confirmation.titleKey|trans }}"
+              data-agenda-dialog-body-param="{{ confirmation.bodyKey|trans }}"
+              {%- if confirmation.warningKey %} data-agenda-dialog-warning-param="{{ confirmation.warningKey|trans }}"{% endif %}
+              data-agenda-dialog-facts-param="{{ facts|json_encode|e('html_attr') }}"
+              data-agenda-dialog-confirm-param="{{ button.label|trans }}"
+          {% endif %}>
+        <input type="hidden" name="_token" data-controller="csrf-protection" value="{{ csrf_token(button.csrfTokenId) }}">
+        <input type="hidden" name="_context" value="agenda">
+        {% for name, value in filter_fields|default({}) %}
+            <input type="hidden" name="{{ name }}" value="{{ value }}">
+        {% endfor %}
+        <button type="submit" class="{{ classes }}"{% if title %} title="{{ title }}"{% endif %}>
+            {% if icon|default(false) %}{{ check('size-3.5') }}{% endif %}
+            {{ button.label|trans }}
+        </button>
+    </form>
+{% else %}
+    {% set opens_dialog = button.needsCaseDialog() and button.agendaDialogId is not null %}
+    {% set href = button.needsCaseDialog() ? path('case_overview', { id: case_id }) : path(button.route, button.routeParameters) %}
+    <a href="{{ href }}"
+       class="{{ classes }}"{% if title %} title="{{ title }}"{% endif %}
+       {% if opens_dialog %}
+           data-action="agenda-dialog#openDialog"
+           data-agenda-dialog-dialog-param="{{ button.agendaDialogId }}"
+           data-agenda-dialog-action-param="{{ path(button.route, button.routeParameters) }}"
+       {% endif %}>
+        {% if icon|default(false) %}{{ check('size-3.5') }}{% endif %}
+        {{ button.label|trans }}
+    </a>
+{% endif %}

@@ -12,6 +12,7 @@ use App\Repository\LegalCaseRepository;
 use App\Service\AuditLogService;
 use App\Service\Case\CaseWorkflowService;
 use App\Service\Deadline\CaseAutoFinalizer;
+use App\Service\Deadline\DeadlineService;
 use App\Service\Deadline\WorkingDayResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -29,6 +30,7 @@ class CaseAutoFinalizerTest extends KernelTestCase
 
     private EntityManagerInterface $em;
     private WorkingDayResolver $workingDayResolver;
+    private DeadlineService $deadlineService;
     private User $user;
     private string $testPrefix;
 
@@ -40,6 +42,8 @@ class CaseAutoFinalizerTest extends KernelTestCase
         self::bootKernel();
         $this->em = static::getContainer()->get(EntityManagerInterface::class);
         $this->workingDayResolver = static::getContainer()->get(WorkingDayResolver::class);
+        // Test-only public alias declared in config/packages/test/services.yaml.
+        $this->deadlineService = static::getContainer()->get('test.public.deadline_service');
         $this->testPrefix = 'auto-final-' . uniqid();
 
         $hasher = static::getContainer()->get(UserPasswordHasherInterface::class);
@@ -65,6 +69,7 @@ class CaseAutoFinalizerTest extends KernelTestCase
         return new CaseAutoFinalizer(
             static::getContainer()->get(LegalCaseRepository::class),
             $this->workingDayResolver,
+            $this->deadlineService,
             static::getContainer()->get(CaseWorkflowService::class),
             static::getContainer()->get(AuditLogService::class),
             $dispatcher,
@@ -88,12 +93,15 @@ class CaseAutoFinalizerTest extends KernelTestCase
         return $case;
     }
 
-    /** Finalization threshold (prorogated deadline + working-day buffer) for a communication date. */
+    /**
+     * Finalization threshold (annulment term maturity + working-day buffer) for a
+     * communication date. The maturity comes from the same service the
+     * CERERE_IN_ANULARE deadline uses, so the test cannot drift from it: 10 free
+     * days = 11 calendar days (CPC art. 181 alin. 1 pct. 2), prorogated per alin. 2.
+     */
     private function threshold(string $communicationDate): \DateTimeImmutable
     {
-        $deadline = $this->workingDayResolver->nextWorkingDay(
-            (new \DateTimeImmutable($communicationDate))->modify('+10 days'),
-        );
+        $deadline = $this->deadlineService->appealTermEnd(new \DateTimeImmutable($communicationDate));
 
         return $this->workingDayResolver->addWorkingDays($deadline, self::BUFFER_DAYS);
     }
@@ -114,9 +122,10 @@ class CaseAutoFinalizerTest extends KernelTestCase
 
     public function testAutoMarkFinalRespectsWeekendProrogation(): void
     {
-        // 2026-06-04 (Thu) + 10 = 2026-06-14 (Sun) -> prorogated to Mon 06-15.
-        $communicationDate = '2026-06-04';
-        $raw = (new \DateTimeImmutable($communicationDate))->modify('+10 days');
+        // 2026-06-03 (Wed) + 11 calendar days (10 free days) = 2026-06-14 (Sun)
+        // -> prorogated to Mon 2026-06-15.
+        $communicationDate = '2026-06-03';
+        $raw = (new \DateTimeImmutable($communicationDate))->modify('+11 days');
         $this->assertFalse($this->workingDayResolver->isWorkingDay($raw), 'raw +10 should fall on a weekend');
         $deadline = $this->workingDayResolver->nextWorkingDay($raw);
         $this->assertNotEquals($raw->format('Y-m-d'), $deadline->format('Y-m-d'), 'prorogation should shift the date');
@@ -135,9 +144,10 @@ class CaseAutoFinalizerTest extends KernelTestCase
 
     public function testAutoMarkFinalRespectsHolidayProrogation(): void
     {
-        // 2026-12-15 (Tue) + 10 = 2026-12-25 (Christmas) -> prorogated past the holidays.
-        $communicationDate = '2026-12-15';
-        $raw = (new \DateTimeImmutable($communicationDate))->modify('+10 days');
+        // 2026-12-14 (Mon) + 11 calendar days (10 free days) = 2026-12-25 (Friday,
+        // Christmas) -> prorogated past the holidays and the weekend.
+        $communicationDate = '2026-12-14';
+        $raw = (new \DateTimeImmutable($communicationDate))->modify('+11 days');
         $this->assertTrue($this->workingDayResolver->isHoliday($raw), '2026-12-25 should be a holiday');
 
         $threshold = $this->threshold($communicationDate);
@@ -147,6 +157,33 @@ class CaseAutoFinalizerTest extends KernelTestCase
         $this->assertSame(CaseStatus::ORDONANTA_EMISA, $case->getStatus());
 
         $this->finalizer()->process($threshold);
+        $this->assertSame(CaseStatus::DEFINITIVA, $case->getStatus());
+    }
+
+    /**
+     * The debtor may file the annulment request throughout the maturity day of the
+     * term (CPC art. 182 alin. 1), so a cron running that very day must leave the case
+     * alone: closing it would be declaring final an order still open to challenge.
+     *
+     * The maturity date is asserted literally, unlike in the tests above where it is
+     * derived from the service: Tuesday 9 June 2026 plus the 10 legal days alone would
+     * be Friday 19 June, a working day, so only counting the free day of CPC art. 181
+     * alin. 1 pct. 2 carries it to Saturday 20 June and from there to Monday 22 June.
+     */
+    public function testAutoMarkFinalDoesNotFinalizeOnTheMaturityDayItself(): void
+    {
+        $communicationDate = '2026-06-09';
+        $maturity = $this->deadlineService->appealTermEnd(new \DateTimeImmutable($communicationDate));
+        $this->assertSame('2026-06-22', $maturity->format('Y-m-d'));
+
+        $case = $this->createCase(CaseStatus::ORDONANTA_EMISA, $communicationDate);
+
+        $this->finalizer()->process($maturity);
+        $this->assertSame(CaseStatus::ORDONANTA_EMISA, $case->getStatus());
+
+        // Past the buffer the same case does finalize, so the assertion above is a
+        // boundary and not a case that never closes.
+        $this->finalizer()->process($this->threshold($communicationDate));
         $this->assertSame(CaseStatus::DEFINITIVA, $case->getStatus());
     }
 

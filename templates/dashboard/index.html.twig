@@ -59,19 +59,27 @@
                 value="{{ kpis.active_count }}"
                 hint="{{ 'dashboard.cases.kpi.active_hint'|trans }}"
             />
-            <twig:KpiCard
-                label="{{ 'dashboard.cases.kpi.deadlines'|trans }}"
-                value="{{ kpis.deadlines_7d }}"
-                hint="{{ 'dashboard.cases.kpi.deadlines_hint'|trans }}"
-                emphasize="{{ kpis.deadlines_7d > 0 }}"
-            />
-            <twig:KpiCard
-                label="{{ 'dashboard.cases.kpi.overdue'|trans }}"
-                value="{{ kpis.overdue }}"
-                hint="{{ 'dashboard.cases.kpi.overdue_hint'|trans }}"
-                accent="red"
-                emphasize="{{ kpis.overdue > 0 }}"
-            />
+            {# The two deadline KPIs open the agenda. The numbers stay exactly the ones
+               computed here; the link only saves the lawyer from hunting for them. #}
+            <a href="{{ path('app_deadlines') }}" class="block h-full rounded-xl no-underline">
+                <twig:KpiCard
+                    class="h-full"
+                    label="{{ 'dashboard.cases.kpi.deadlines'|trans }}"
+                    value="{{ kpis.deadlines_7d }}"
+                    hint="{{ 'dashboard.cases.kpi.deadlines_hint'|trans }}"
+                    emphasize="{{ kpis.deadlines_7d > 0 }}"
+                />
+            </a>
+            <a href="{{ path('app_deadlines') }}" class="block h-full rounded-xl no-underline">
+                <twig:KpiCard
+                    class="h-full"
+                    label="{{ 'dashboard.cases.kpi.overdue'|trans }}"
+                    value="{{ kpis.overdue }}"
+                    hint="{{ 'dashboard.cases.kpi.overdue_hint'|trans }}"
+                    accent="red"
+                    emphasize="{{ kpis.overdue > 0 }}"
+                />
+            </a>
             <twig:KpiCard
                 label="{{ 'dashboard.cases.kpi.amount_active'|trans }}"
                 value="{{ kpis.amount_active|number_format(0, '.', '.') }}"

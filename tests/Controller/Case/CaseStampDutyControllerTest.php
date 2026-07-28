@@ -312,7 +312,7 @@ final class CaseStampDutyControllerTest extends WebTestCase
 
         $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/court-notice', [
             '_token' => $this->csrfToken('/stamp-duty/court-notice', '_token'),
-            'courtNoticeDate' => '2026-07-01',
+            'courtNoticeDate' => '2026-07-07',
         ]);
 
         self::assertResponseRedirects('/case/' . $this->case->getId());
@@ -324,8 +324,11 @@ final class CaseStampDutyControllerTest extends WebTestCase
         ]);
 
         self::assertNotNull($deadline, 'Deferring without a deadline would leave the annulment risk unwatched.');
-        // 2026-07-01 + 10 days = 2026-07-11 (Saturday), prorogated to Monday 2026-07-13.
-        self::assertSame('2026-07-13', $deadline->getDeadlineDate()->format('Y-m-d'));
+        // Both rules on one date. Tuesday 2026-07-07 plus the 10 legal days alone is
+        // Friday 2026-07-17, a working day; the free day of CPC art. 181 alin. 1 pct. 2
+        // carries the maturity to Saturday 2026-07-18, and alin. 2 then prorogates it
+        // to Monday 2026-07-20.
+        self::assertSame('2026-07-20', $deadline->getDeadlineDate()->format('Y-m-d'));
     }
 
     public function testCourtNoticeRejectsAFutureDate(): void

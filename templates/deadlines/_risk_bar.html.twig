@@ -1,0 +1,107 @@
+{# The four triage counters, which are also the filter. Pressing one keeps the rows
+   it counts, pressing several keeps the union, pressing it again releases it. The
+   state is a link, not a script: the selection lives in the query string, so the
+   filtered agenda survives a refresh, can be sent to a colleague and works with no
+   JavaScript at all. The filtering itself happens in SQL.
+
+   The numbers never follow the selection. They describe the whole open agenda even
+   while one of them is pressed, because a counter that shrank to the rows it just
+   produced would measure the click instead of the risk. The line under the bar says
+   so out loud whenever something is selected.
+
+   Each pill states in words what it counts, so colour is never the only carrier of
+   meaning, and the pressed state is a thicker ring plus `aria-pressed`, never colour
+   alone. There is no checkbox anywhere: on this page the acts are labelled buttons.
+
+   @var counters array{overdue: int, today: int, fatal30: int, blocked: int}
+   @var filter   App\Service\Deadline\DeadlineAgendaFilter #}
+
+{% from 'deadlines/_icons.html.twig' import octagon, triangle, clock, lock %}
+
+{% set pill_base = 'shrink-0 px-3 py-2 rounded-xl no-underline transition cursor-pointer' %}
+{% set toggle_base = 'inline-flex items-center gap-1.5 py-1 px-2.5 rounded-lg text-[11px] font-semibold no-underline transition' %}
+
+<div class="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-soft px-4 py-3">
+    <div class="flex gap-2 overflow-x-auto sm:flex-wrap sm:overflow-visible pb-1 sm:pb-0" role="group" aria-label="{{ 'deadlines.heading'|trans }}">
+
+        <a href="{{ path('app_deadlines', filter.toggled('overdue').queryParameters()) }}"
+           data-counter="overdue"
+           role="button"
+           aria-pressed="{{ filter.has('overdue') ? 'true' : 'false' }}"
+           aria-label="{{ 'deadlines.counter_aria.overdue'|trans }}"
+           class="{{ pill_base }} bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 {{ filter.has('overdue') ? 'ring-2 ring-red-500 dark:ring-red-400' : 'ring-1 ring-red-200 dark:ring-red-900/50' }}">
+            <span class="flex items-center gap-1.5">
+                {{ octagon('size-3.5') }}
+                <strong class="tnum text-lg font-bold leading-none">{{ counters.overdue }}</strong>
+            </span>
+            <span class="block mt-1 text-[11px] uppercase tracking-wide font-semibold">{{ 'deadlines.counter.overdue'|trans }}</span>
+        </a>
+
+        <a href="{{ path('app_deadlines', filter.toggled('today').queryParameters()) }}"
+           data-counter="today"
+           role="button"
+           aria-pressed="{{ filter.has('today') ? 'true' : 'false' }}"
+           aria-label="{{ 'deadlines.counter_aria.today'|trans }}"
+           class="{{ pill_base }} bg-white dark:bg-slate-900 text-red-700 dark:text-red-300 {{ filter.has('today') ? 'ring-2 ring-red-500 dark:ring-red-400' : 'ring-1 ring-red-300 dark:ring-red-800' }}">
+            <span class="flex items-center gap-1.5">
+                {{ clock('size-3.5') }}
+                <strong class="tnum text-lg font-bold leading-none">{{ counters.today }}</strong>
+            </span>
+            <span class="block mt-1 text-[11px] uppercase tracking-wide font-semibold">{{ 'deadlines.counter.today'|trans }}</span>
+            <span class="block text-[10px] font-normal text-slate-500 dark:text-slate-400">{{ 'deadlines.counter_hint.today'|trans }}</span>
+        </a>
+
+        <a href="{{ path('app_deadlines', filter.toggled('fatal30').queryParameters()) }}"
+           data-counter="fatal30"
+           role="button"
+           aria-pressed="{{ filter.has('fatal30') ? 'true' : 'false' }}"
+           aria-label="{{ 'deadlines.counter_aria.fatal30'|trans }}"
+           class="{{ pill_base }} bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 {{ filter.has('fatal30') ? 'ring-2 ring-amber-500 dark:ring-amber-400' : 'ring-1 ring-amber-200 dark:ring-amber-900/50' }}">
+            <span class="flex items-center gap-1.5">
+                {{ triangle('size-3.5') }}
+                <strong class="tnum text-lg font-bold leading-none">{{ counters.fatal30 }}</strong>
+            </span>
+            <span class="block mt-1 text-[11px] uppercase tracking-wide font-semibold">{{ 'deadlines.counter.fatal30'|trans }}</span>
+        </a>
+
+        {# Counts CASES, not deadlines: a blocked case has no deadline to count, so
+           this pill shows or hides the blockage zone instead of selecting rows. #}
+        <a href="{{ path('app_deadlines', filter.toggled('blocked').queryParameters()) }}"
+           data-counter="blocked"
+           role="button"
+           aria-pressed="{{ filter.has('blocked') ? 'true' : 'false' }}"
+           aria-label="{{ 'deadlines.counter_aria.blocked'|trans }}"
+           class="{{ pill_base }} bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 {{ filter.has('blocked') ? 'ring-2 ring-slate-500 dark:ring-slate-400' : 'ring-1 ring-slate-200 dark:ring-slate-700' }}">
+            <span class="flex items-center gap-1.5">
+                {{ lock('size-3.5') }}
+                <strong class="tnum text-lg font-bold leading-none">{{ counters.blocked }}</strong>
+            </span>
+            <span class="block mt-1 text-[11px] uppercase tracking-wide font-semibold">{{ 'deadlines.counter.blocked'|trans }}</span>
+            {# Darker than the other hints: this tile sits on slate-100, not on white. #}
+            <span class="block text-[10px] font-normal text-slate-600 dark:text-slate-400">{{ 'deadlines.counter_hint.blocked'|trans }}</span>
+        </a>
+
+        <div class="shrink-0 ml-auto self-center flex items-center gap-2">
+            <a href="{{ path('app_deadlines', filter.toggledCompleted().queryParameters()) }}"
+               data-toggle="completed"
+               role="button"
+               aria-pressed="{{ filter.showCompleted ? 'true' : 'false' }}"
+               class="{{ toggle_base }} {{ filter.showCompleted
+                   ? 'bg-lex-navy text-white'
+                   : 'border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800' }}">
+                {{ 'deadlines.filter.show_completed'|trans }}
+            </a>
+            {% if filter.isActive() %}
+                <a href="{{ path('app_deadlines') }}"
+                   data-toggle="clear"
+                   class="{{ toggle_base }} text-slate-500 dark:text-slate-400 hover:underline">
+                    {{ 'deadlines.filter.clear'|trans }}
+                </a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if filter.hasPills() %}
+        <p class="mt-2 text-[11px] text-slate-500 dark:text-slate-400">{{ 'deadlines.filter.counters_note'|trans }}</p>
+    {% endif %}
+</div>

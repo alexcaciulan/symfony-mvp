@@ -1,0 +1,22 @@
+{# The top region of the agenda: either the four triage pills, or the single line
+   that confirms an empty window.
+
+   It is a region of its own because an action fired from a row changes it: closing a
+   term moves a counter. The page wraps it in `id="deadline-riskbar"`, which is what
+   the agenda Turbo Stream replaces.
+
+   Under an active selection the bar always renders, even on a result of zero: the
+   pills are the only way back out of a filter, and the "clean register" line would
+   be a lie about the account when it is only true about the selection.
+
+   @var view App\Service\Deadline\DeadlinePageView #}
+
+{% set filter = view.filter %}
+
+{% if view.isNothingTracked() %}
+    {# Nothing to count and nothing to filter: the state below carries the page. #}
+{% elseif filter.isActive() or not view.isAgendaEmpty() or view.blockages|length > 0 %}
+    {{ include('deadlines/_risk_bar.html.twig', { counters: view.counters, filter: filter }, with_context = false) }}
+{% else %}
+    {{ include('deadlines/_clean_banner.html.twig', {}, with_context = false) }}
+{% endif %}
