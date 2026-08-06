@@ -196,27 +196,30 @@ final class DeadlineServiceTest extends KernelTestCase
     /**
      * NCC art. 2552 alin. 2: when the last month has no day corresponding to the one
      * the term started on, it ends on the last day of that month. PHP on its own would
-     * overflow 31 August plus six months into 3 March.
+     * overflow 31 August plus six months into 3 March. 28 February 2027 is a Sunday, so
+     * the prorogation of NCC art. 2554 then carries it to Monday 1 March: the two rules
+     * apply in that order, the month arithmetic first and the working day after it.
      */
     public function testFilingDeadlineStopsAtTheLastDayOfAMonthWithoutACorrespondingDay(): void
     {
         $deadline = $this->service->createFilingDeadline($this->case, new \DateTimeImmutable('2026-08-31'));
 
         $this->assertNotNull($deadline);
-        $this->assertSame('2027-02-28', $deadline->getDeadlineDate()->format('Y-m-d'));
+        $this->assertSame('2027-03-01', $deadline->getDeadlineDate()->format('Y-m-d'));
     }
 
     /**
-     * Substantive-law term, so it is never moved to the next working day: 15 August
-     * 2026 is both a Saturday and a public holiday, and the date stays put. Moving it
-     * forward would show a term longer than the one that actually runs.
+     * Substantive-law term, prorogated to the first working day under NCC art. 2554,
+     * the counterpart of CPC art. 181 alin. 2: 15 August 2026 is both a Saturday and a
+     * public holiday, so the term is fulfilled at the close of Monday 17 August, which
+     * is the real maturity date and therefore the one shown.
      */
-    public function testFilingDeadlineIsNotProrogatedToTheNextWorkingDay(): void
+    public function testFilingDeadlineIsProrogatedToTheNextWorkingDay(): void
     {
         $deadline = $this->service->createFilingDeadline($this->case, new \DateTimeImmutable('2026-02-15'));
 
         $this->assertNotNull($deadline);
-        $this->assertSame('2026-08-15', $deadline->getDeadlineDate()->format('Y-m-d'));
+        $this->assertSame('2026-08-17', $deadline->getDeadlineDate()->format('Y-m-d'));
     }
 
     /**
@@ -478,11 +481,64 @@ final class DeadlineServiceTest extends KernelTestCase
         self::assertCount(3, $created);
         $dates = array_map(static fn (LegalDeadline $d): string => $d->getDeadlineDate()->format('Y-m-d'), $created);
         sort($dates);
-        self::assertSame(['2027-03-15', '2027-06-20', '2027-09-10'], $dates);
+        // 20 June 2027 is a Sunday followed by the second day of Pentecost, so the
+        // prorogation of NCC art. 2554 carries that one to Tuesday 22 June.
+        self::assertSame(['2027-03-15', '2027-06-22', '2027-09-10'], $dates);
         self::assertSame(DeadlinePriority::CRITICAL, $created[0]->getPriority());
 
         // Idempotent per due date: a second call adds nothing.
         self::assertSame([], $this->service->createPrescriptionDeadlines($case));
+    }
+
+    /**
+     * The prorogation of NCC art. 2554, the substantive-law counterpart of CPC art. 181
+     * alin. 2, applied to the limitation period itself: three years from a due date of
+     * Tuesday 15 September 2026 run out on Saturday 15 September 2029, and the term is
+     * only fulfilled at the close of the first working day after it, Monday 17
+     * September. Shown that way because it is the real maturity: an action brought on
+     * the Monday is still in time.
+     *
+     * The raw date stays in the audit payload. It is the only place the untouched
+     * arithmetic survives, and without it a shifted date could not be told apart from
+     * a wrong one.
+     */
+    public function testAPrescriptionMaturingOnASaturdayIsProrogatedToTheMonday(): void
+    {
+        $dueDate = new \DateTimeImmutable('2026-09-15');
+        $term = $this->service->limitationTermEnd(DeadlineType::PRESCRIPTIE, $dueDate);
+
+        self::assertNotNull($term);
+        self::assertSame('2029-09-15', $term->rawEnd->format('Y-m-d'), 'Three years land on a Saturday.');
+        self::assertSame('2029-09-17', $term->end->format('Y-m-d'));
+
+        $case = $this->freshCaseWithoutSubscriberDeadline();
+        $case->setDueDate(new \DateTime('2026-09-15'));
+        $this->em->flush();
+
+        $created = $this->service->createPrescriptionDeadlines($case);
+
+        self::assertCount(1, $created);
+        self::assertSame('2029-09-17', $created[0]->getDeadlineDate()->format('Y-m-d'));
+
+        $log = $this->em->getRepository(AuditLog::class)->findOneBy(
+            ['entityType' => LegalDeadline::class, 'entityId' => (string) $created[0]->getId(), 'action' => 'deadline_created'],
+        );
+        self::assertNotNull($log);
+        self::assertSame('2029-09-15', $log->getNewData()['rawDeadline'] ?? null);
+        self::assertTrue($log->getNewData()['prorogated'] ?? false);
+    }
+
+    /**
+     * A term already maturing on a working day is left where it is, so the shift above
+     * is a rule and not a blanket offset applied to every limitation period.
+     */
+    public function testAPrescriptionMaturingOnAWorkingDayIsNotMoved(): void
+    {
+        $term = $this->service->limitationTermEnd(DeadlineType::PRESCRIPTIE, new \DateTimeImmutable('2026-09-17'));
+
+        self::assertNotNull($term);
+        self::assertSame('2029-09-17', $term->rawEnd->format('Y-m-d'));
+        self::assertSame($term->rawEnd->format('Y-m-d'), $term->end->format('Y-m-d'));
     }
 
     public function testCreatePrescriptionDeadlinesFallsBackToCaseDueDateWithoutPositions(): void

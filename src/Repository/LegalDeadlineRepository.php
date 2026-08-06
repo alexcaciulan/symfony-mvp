@@ -62,6 +62,62 @@ class LegalDeadlineRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+    /**
+     * Open deadlines of the given types on live, non-terminal cases, for the one-off
+     * realignment command. Global, not scoped per user; soft-deleted cases excluded.
+     *
+     * Terminal cases are left out because nothing is acted on there any more: moving a
+     * date on a rejected or closed case would rewrite history without changing what
+     * anyone has to do.
+     *
+     * @param list<DeadlineType> $types
+     *
+     * @return LegalDeadline[]
+     */
+    public function findOpenByTypesOnLiveCases(array $types): array
+    {
+        $terminal = array_values(array_filter(CaseStatus::cases(), static fn (CaseStatus $s): bool => $s->isTerminal()));
+
+        return $this->createQueryBuilder('d')
+            ->join('d.legalCase', 'lc')
+            ->addSelect('lc')
+            ->andWhere('d.completed = false')
+            ->andWhere('d.type IN (:types)')
+            ->andWhere('lc.deletedAt IS NULL')
+            ->andWhere('lc.status NOT IN (:terminal)')
+            ->setParameter('types', $types)
+            ->setParameter('terminal', $terminal)
+            ->orderBy('d.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * Open annulment-request terms on cases that carry the date they run from, for the
+     * cron that closes them once the ten days of CPC art. 1024 para. 1 have lapsed.
+     * Global, not scoped per user; soft-deleted cases excluded.
+     *
+     * Cases without `rulingCommunicationDate` are left out because the term cannot be
+     * proven lapsed without it: they are handled as a blockage instead, which is what
+     * asks for that very date.
+     *
+     * @return LegalDeadline[]
+     */
+    public function findOpenAppealDeadlines(): array
+    {
+        return $this->createQueryBuilder('d')
+            ->join('d.legalCase', 'lc')
+            ->addSelect('lc')
+            ->andWhere('d.completed = false')
+            ->andWhere('d.type = :type')
+            ->andWhere('lc.deletedAt IS NULL')
+            ->andWhere('lc.rulingCommunicationDate IS NOT NULL')
+            ->setParameter('type', DeadlineType::CERERE_IN_ANULARE)
+            ->orderBy('d.deadlineDate', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
     /** Idempotency lookup pentru DeadlineCreationSubscriber: termenele automate sunt unice per (dosar, tip). */
     public function findOneByCaseAndType(LegalCase $case, DeadlineType $type): ?LegalDeadline
     {

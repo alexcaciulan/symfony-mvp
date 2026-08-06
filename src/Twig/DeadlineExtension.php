@@ -4,18 +4,23 @@ declare(strict_types=1);
 
 namespace App\Twig;
 
+use App\Entity\LegalDeadline;
 use App\Entity\User;
 use App\Enum\DeadlineConsequence;
 use App\Enum\DeadlineType;
 use App\Repository\LegalDeadlineRepository;
+use App\Service\Deadline\DeadlineAlertService;
 use App\Service\Deadline\DeadlineConsequenceResolver;
 use Symfony\Bundle\SecurityBundle\Security;
 use Twig\Extension\AbstractExtension;
 use Twig\TwigFunction;
 
 /**
- * Exposes the number of arrears of the current user, so the navigation badge is
- * server rendered on first paint.
+ * Deadline facts the templates need but must not derive themselves: the number of
+ * arrears of the current user, whether a past-due date counts as one, and when the
+ * next email alert on a deadline goes out.
+ *
+ * The arrears count is what makes the navigation badge server rendered on first paint.
  *
  * The count comes from the aggregate the deadlines page and the dashboard KPI read,
  * so the badge, the "Restante" pill and the card can never disagree. An action fired
@@ -33,6 +38,7 @@ final class DeadlineExtension extends AbstractExtension
         private readonly Security $security,
         private readonly LegalDeadlineRepository $deadlineRepository,
         private readonly DeadlineConsequenceResolver $consequenceResolver,
+        private readonly DeadlineAlertService $alertService,
     ) {}
 
     public function getFunctions(): array
@@ -40,7 +46,35 @@ final class DeadlineExtension extends AbstractExtension
         return [
             new TwigFunction('overdue_deadlines_count', $this->overdueCount(...)),
             new TwigFunction('deadline_is_arrear', $this->isArrear(...)),
+            new TwigFunction('deadline_next_alert_days_before', $this->nextAlertDaysBefore(...)),
+            new TwigFunction('deadline_alert_ladder', $this->alertLadder(...)),
         ];
+    }
+
+    /**
+     * Every reminder scheduled for a deadline, loosest first, each with whether it has
+     * gone out. The tiers depend on the type, which is why the card cannot list them
+     * itself.
+     *
+     * @return list<array{days: int, sent: bool}>
+     */
+    public function alertLadder(LegalDeadline $deadline): array
+    {
+        return $this->alertService->alertLadder($deadline);
+    }
+
+    /**
+     * Days before expiry the next email alert on this deadline goes out, 0 when only
+     * the expiry alert is left, null when every alert has been sent.
+     *
+     * Exposed as a function rather than passed down from the controller because the
+     * card that prints it is included three levels deep, and because the ladder is not
+     * the same for every type: the limitation terms are warned about weeks ahead, the
+     * procedural ones days ahead.
+     */
+    public function nextAlertDaysBefore(LegalDeadline $deadline): ?int
+    {
+        return $this->alertService->nextAlertDaysBefore($deadline);
     }
 
     /**

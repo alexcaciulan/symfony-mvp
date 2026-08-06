@@ -200,6 +200,123 @@ final class DeadlineAgendaActionsTest extends WebTestCase
     }
 
     /**
+     * The whole shape of the summons term, end to end. While the service is under way
+     * the case has no term at all: the fifteen days of CPC art. 1015 alin. 1 run from
+     * receipt, and the date the PDF was generated is a different date with no legal
+     * meaning, so the agenda carries the case as a blockage that states the situation
+     * instead of a row that shows a computed date.
+     *
+     * Recording the real date is what brings the term into existence, counted from that
+     * date: Monday 1 June 2026 plus 15 free days (CPC art. 181 alin. 1 pct. 2, hence 16
+     * calendar days) matures on Wednesday 17 June 2026, a working day. The blockage
+     * disappears in the same move, because it was only the absence of this date.
+     */
+    public function testRecordingTheServiceDateTurnsTheBlockageIntoTheFifteenDayTerm(): void
+    {
+        $user = $this->makeUser();
+        $case = $this->makeCase($user, CaseStatus::SOMATIE_TRIMISA);
+        $case->setPaymentNoticeDate(new \DateTime('2026-06-01'));
+        $this->em->flush();
+
+        $this->client->loginUser($user);
+        $translator = static::getContainer()->get('translator');
+
+        $before = $this->client->request('GET', '/termene');
+        self::assertResponseIsSuccessful();
+        self::assertCount(0, $before->filter('[id^="deadline-row-"]'), 'No term exists while the service is under way.');
+        self::assertCount(1, $before->filter('details'), 'The case is carried by the blockage zone instead.');
+        self::assertStringContainsString(
+            $translator->trans('deadlines.blockage.SUMMONS_COMMUNICATION_MISSING.state'),
+            $before->filter('details')->text(),
+        );
+        self::assertSame('1', trim($before->filter('[data-counter="blocked"] strong')->text()));
+
+        $this->client->request('POST', '/case/' . $case->getId() . '/summons-communication-date', [
+            'payment_notice_communication_date' => [
+                'paymentNoticeCommunicationDate' => '2026-06-01',
+                'paymentNoticeCommunicationMethod' => 'EXECUTOR',
+                '_token' => $this->token('payment_notice_communication_date'),
+            ],
+        ]);
+        self::assertResponseRedirects();
+
+        $term = $this->em->getRepository(LegalDeadline::class)->findOneBy([
+            'legalCase' => $case->getId(),
+            'type' => DeadlineType::RASPUNS_SOMATIE,
+        ]);
+        self::assertNotNull($term, 'The date is what creates the term.');
+        self::assertSame('2026-06-17', $term->getDeadlineDate()->format('Y-m-d'));
+
+        $after = $this->client->request('GET', '/termene');
+        self::assertResponseIsSuccessful();
+        self::assertCount(1, $after->filter('#deadline-row-' . $term->getId()));
+        self::assertSame('0', trim($after->filter('[data-counter="blocked"] strong')->text()));
+        self::assertCount(0, $after->filter('details'), 'Nothing is blocked any more, so the zone is gone.');
+    }
+
+    /**
+     * When the debtor filed an annulment request, the order became final through the
+     * ruling on it (CPC art. 1024 para. 8), so the enforcement limitation runs from the
+     * service of THAT ruling (CPC art. 705 para. 2). Recording the date is what creates
+     * the term; until then the case only shows up as a blockage.
+     */
+    public function testRecordingTheAnnulmentRulingDateCreatesTheEnforcementLimitation(): void
+    {
+        $user = $this->makeUser();
+        $case = $this->makeCase($user, CaseStatus::DEFINITIVA);
+        $this->em->flush();
+
+        $this->client->loginUser($user);
+        $this->client->request(
+            'POST',
+            '/case/' . $case->getId() . '/annulment-ruling-communication-date',
+            [
+                'annulment_ruling_communication_date' => [
+                    'annulmentRulingCommunicationDate' => '2026-06-04',
+                    '_token' => $this->token('annulment_ruling_communication_date'),
+                ],
+            ],
+        );
+
+        self::assertResponseRedirects();
+
+        $reloaded = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame('2026-06-04', $reloaded->getAnnulmentRulingCommunicationDate()?->format('Y-m-d'));
+
+        $deadlines = $this->em->getRepository(LegalDeadline::class)->findBy([
+            'legalCase' => $case->getId(),
+            'type' => DeadlineType::PRESCRIPTIE_EXECUTARE,
+        ]);
+        self::assertCount(1, $deadlines);
+        // Three years from the service of the annulment ruling (CPC art. 705 para. 1),
+        // prorogated to the first working day (NCC art. 2554): 4 June 2029 is a Monday.
+        self::assertSame('2029-06-04', $deadlines[0]->getDeadlineDate()->format('Y-m-d'));
+    }
+
+    /** The date it runs from cannot be in the future: the service has to have happened. */
+    public function testAFutureAnnulmentRulingDateIsRejected(): void
+    {
+        $user = $this->makeUser();
+        $case = $this->makeCase($user, CaseStatus::DEFINITIVA);
+        $this->em->flush();
+
+        $this->client->loginUser($user);
+        $this->client->request(
+            'POST',
+            '/case/' . $case->getId() . '/annulment-ruling-communication-date',
+            [
+                'annulment_ruling_communication_date' => [
+                    'annulmentRulingCommunicationDate' => (new \DateTimeImmutable('+3 days'))->format('Y-m-d'),
+                    '_token' => $this->token('annulment_ruling_communication_date'),
+                ],
+            ],
+        );
+
+        $reloaded = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertNull($reloaded->getAnnulmentRulingCommunicationDate());
+    }
+
+    /**
      * The pills are the filter, and the filter is in the URL: a pasted link has to
      * rebuild the same agenda. Filtering is done in SQL, so a row outside the
      * selection is absent from the markup rather than hidden in it.

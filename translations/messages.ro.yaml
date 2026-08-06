@@ -940,11 +940,13 @@ case_overview:
         alert_attach_proof: 'Atașează dovada comunicării somației'
         alert_attach_proof_hint: 'Recipisa de la executor judecătoresc sau confirmarea de primire de la Poșta Română (R+CD+AR).'
         alert_attach_proof_remind: 'Vezi modalitățile legale'
-        alert_confirm_date: 'Confirmă data comunicării'
+        alert_in_service: 'Somația este în curs de comunicare'
+        alert_in_service_hint: 'Termenul de 15 zile curge de la primirea somației de către debitor, nu de la generarea ei (CPC art. 1015 alin. 1), deci apare în agendă abia după ce introduci data comunicării.'
+        alert_in_service_cta: 'Introdu data comunicării'
         modal_communication_date:
             title: 'Confirmă data comunicării somației'
             intro: 'Introdu data la care debitorul a primit efectiv somația, conform dovezii de comunicare.'
-            hint: 'Termenul de 15 zile pentru plată curge de la primirea somației (CPC art. 1015 alin. 1), nu de la generarea ei. Termenul afișat se recalculează la data reală.'
+            hint: 'Termenul de 15 zile pentru plată curge de la primirea somației (CPC art. 1015 alin. 1), nu de la generarea ei. Până nu introduci data, termenul nu apare în agendă.'
             field_date_label: 'Data primirii somației'
             field_date_required: 'Completează data comunicării.'
             field_date_cannot_be_future: 'Data comunicării nu poate fi în viitor.'
@@ -952,8 +954,8 @@ case_overview:
             field_method_placeholder: '(Selectează modalitatea)'
             field_method_required: 'Selectează modalitatea de comunicare.'
             cancel: 'Renunță'
-            submit: 'Salvează și recalculează'
-            flash_set: 'Data comunicării a fost salvată. Termenul de 15 zile a fost recalculat.'
+            submit: 'Salvează și pornește termenul'
+            flash_set: 'Data comunicării a fost salvată. Termenul de 15 zile curge de la această dată.'
         modal_c4:
             title: 'Comunicarea somației: modalități legale'
             intro: 'Conform CPC art. 1015 alin. (1), somația se comunică debitorului prin una dintre cele două modalități legale de mai jos. Acestea sunt singurele admisibile ca dovadă în fața instanței.'
@@ -1118,6 +1120,7 @@ case_overview:
         flash_success_annulment_rejected: 'Cererea în anulare a fost respinsă. Ordonanța rămâne valabilă.'
         flash_error_needs_communication_date: 'Completează data comunicării ordonanței înainte de a porni executarea din această stare.'
         flash_error_needs_ruling_document: 'Atașează mai întâi ordonanța de plată emisă de instanță. Executorul are nevoie de ea pentru a porni executarea.'
+        flash_error_needs_enforcement_request_date: 'Introdu data la care ai depus cererea de executare la executorul judecătoresc. De la ea curge întreruperea prescripției, deci fără ea termenul rămâne sub urmărire.'
         flash_error_wrong_status: 'Tranziția nu este permisă pentru statusul curent al dosarului.'
         flash_error_validation: 'Datele introduse nu sunt valide. Verifică și încearcă din nou.'
         court_case_number_required: 'Introdu numărul de dosar primit de la registratură.'
@@ -1157,6 +1160,8 @@ case_overview:
         executare_body_suffix: 'se pornește faza de executare silită pe baza titlului executoriu. Dosarul rămâne activ până la recuperare sau închidere.'
         executare_cancel: 'Renunță'
         executare_confirm: 'Trece la executare'
+        executare_request_date_label: 'Data depunerii cererii de executare la executorul judecătoresc'
+        executare_request_date_hint: 'Depunerea cererii, însoțită de titlul executoriu, întrerupe prescripția executării (CPC art. 708 alin. 1 pct. 2). Termenul de 3 ani se închide de la această dată, nu de la momentul apăsării butonului.'
         executare_risk_title: 'Atenție: cerere în anulare nesoluționată'
         executare_risk_body: 'Cererea în anulare nu suspendă executarea. Suspendarea poate fi încuviințată, la cererea debitorului, numai cu darea unei cauțiuni al cărei cuantum îl fixează instanța (CPC art. 1024). Dacă cererea în anulare este admisă, ordonanța se anulează în tot sau în parte, iar sumele recuperate se restituie.'
         executare_voluntary_window_title: 'Fereastră de plată voluntară'
@@ -1303,24 +1308,22 @@ case_overview:
         completed_on: '%date% (făcut)'
         date_in_days: '%date% (în %days% zile)'
         prescription_covers: 'Prescripția creanței cu scadența %date% (NCC art. 2517).'
-        filing_interruption_covers: 'Somația comunicată la %date% a întrerupt prescripția. Depune cererea până la această dată, altfel întreruperea se consideră că nu a avut loc (NCC art. 2540).'
+        filing_interruption_covers: 'Somația comunicată la %date% a întrerupt prescripția. Întreruperea se menține doar dacă cererea ajunge la instanță până la această dată. Poți depune și mai târziu, dar atunci prescripția se socotește ca și cum somația nu ar fi existat (NCC art. 2540).'
         alerts_label: 'Alerte:'
-        alert_7_sent: '7z trimisă'
-        alert_7_pending: '7z programată'
-        alert_3_sent: '3z trimisă'
-        alert_3_pending: '3z programată'
-        alert_1_sent: '1z trimisă'
-        alert_1_pending: '1z programată'
+        alert_tier_sent: '%days%z trimisă'
+        alert_tier_pending: '%days%z programată'
         calendar_title: 'Calendar termene · următoarele 30 zile'
         calendar_empty: '(niciun termen apropiat)'
         calendar_in_days: 'în %days% zile · %priority%'
         alerts_card_title: 'Alerte automate'
-        alerts_card_body: 'Email la 7/3/1 zile înainte + alertă „expirat". Nu pierzi termene chiar dacă nu deschizi aplicația.'
+        alerts_card_body: 'Email la 7, 3 și 1 zi înainte, plus alertă „expirat". Termenele de prescripție sunt anunțate mai devreme: la 30 și 14 zile cea generală, la 60 și 30 de zile cele 6 luni de depunere. Nu pierzi termene chiar dacă nu deschizi aplicația.'
         mark_complete_aria: 'Marchează termenul ca îndeplinit'
         edit_aria: 'Editează termenul'
         delete_aria: 'Șterge termenul'
         delete_confirm: 'Sigur ștergi acest termen?'
         delete_confirm_critical: 'Atenție: acesta este un termen CRITIC. Ștergerea lui îl elimină din monitorizare. Sigur continui?'
+        reopen_execution_prescription_cta: 'Executarea nu a întrerupt prescripția'
+        reopen_execution_prescription_confirm: 'Alegi asta dacă executarea a fost respinsă, anulată, perimată sau ai renunțat la ea. În aceste cazuri prescripția nu a fost întreruptă (CPC art. 708 alin. 3), deci termenul de 3 ani revine sub urmărire cu data lui inițială. Continui?'
         modal_edit:
             title: 'Editează termenul'
             critical_warning: 'Termen critic. Schimbarea datei îl decuplează de termenul legal calculat automat (cerere în anulare: 10 zile, CPC art. 1024; prescripție: NCC art. 2517). Asigură-te că data respectă termenul legal.'
@@ -1341,6 +1344,15 @@ case_overview:
             field_description_too_long: 'Descrierea depășește 255 caractere.'
             cancel: 'Renunță'
             submit: 'Adaugă termen'
+        modal_annulment_ruling_date:
+            title: 'Data comunicării hotărârii din cererea în anulare'
+            intro: 'Dacă debitorul a formulat cerere în anulare, ordonanța a devenit definitivă prin soluționarea acesteia (CPC art. 1024 alin. 8), iar cei 3 ani de prescripție a executării curg de la comunicarea acelei hotărâri (CPC art. 705 alin. 2).'
+            hint: 'Este hotărârea a doua, cea dată pe cererea în anulare, nu ordonanța inițială.'
+            field_label: 'Data comunicării hotărârii din anulare'
+            field_required: 'Selectați o dată.'
+            field_cannot_be_future: 'Data comunicării nu poate fi în viitor.'
+            cancel: 'Renunță'
+            submit: 'Salvează și creează termenul'
         modal_ruling_date:
             title: 'Data comunicării ordonanței'
             intro: 'De la această dată curge termenul de 10 zile pentru cererea în anulare (CPC art. 1024 alin. 1).'
@@ -1355,11 +1367,16 @@ case_overview:
         alert_set_ruling_date_title: 'Confirmă data comunicării ordonanței'
         alert_set_ruling_date_hint: 'Termenul de 10 zile pentru cererea în anulare (CPC art. 1024) începe să curgă după ce setați data comunicării.'
         alert_set_ruling_date_cta: 'Setează data'
+        alert_set_annulment_ruling_date_title: 'Introdu data comunicării hotărârii din anulare'
+        alert_set_annulment_ruling_date_hint: 'Pe acest dosar s-a formulat cerere în anulare, iar ordonanța a devenit definitivă prin soluționarea ei. Cei 3 ani de prescripție a executării curg de la comunicarea acelei hotărâri, nu de la ordonanța inițială. Până introduci data, termenul nu se creează.'
+        alert_set_annulment_ruling_date_cta: 'Introdu data'
         flash_marked_complete: 'Termenul a fost marcat ca îndeplinit.'
         flash_added: 'Termenul a fost adăugat.'
         flash_edited: 'Termenul a fost actualizat.'
         flash_deleted: 'Termenul a fost șters.'
         flash_ruling_date_set: 'Data comunicării a fost salvată. Termenul cererii în anulare a fost creat automat.'
+        flash_annulment_ruling_date_set: 'Data comunicării hotărârii din anulare a fost salvată. Termenul de prescripție a executării a fost creat automat.'
+        flash_execution_prescription_reopened: 'Termenul de prescripție a executării a revenit sub urmărire, cu data lui inițială.'
         flash_error_csrf: 'Sesiunea a expirat. Reîncărcați pagina și reîncercați.'
         flash_error_validation: 'Formularul conține erori. Verificați câmpurile și reîncercați.'
         flash_error_completed_no_edit: 'Un termen completat nu mai poate fi editat.'
@@ -2070,6 +2087,7 @@ enum:
         case_status: 'Status dosar'
         deadline_alert: 'Termen'
         missing_communication_date: 'Dată comunicare lipsă'
+        blocked_case_alert: 'Dosar blocat'
         portal_event: 'Activitate portal'
         portal_ruling_confirmation: 'Hotărâre, confirmare necesară'
         portal_query_failed: 'Monitorizare portal oprită'
@@ -2345,6 +2363,25 @@ email:
         subject: 'Completează data comunicării pentru dosarul %case%'
         heading: 'Completează data comunicării ordonanței'
         body: 'Pentru a porni termenul de 10 zile al cererii în anulare (CPC art. 1024 alin. 1), introdu în dosarul %case% data comunicării ordonanței către debitor. Fără această dată, dosarul nu poate fi marcat definitiv automat.'
+    # Alerte pentru dosarele blocate pe un act, fără niciun termen care să curgă.
+    # Formularea de la regularizare este condiționată intenționat: platforma nu are
+    # cum să știe dacă înștiințarea a sosit, singura ei dovadă ar fi chiar data pe
+    # care o cere.
+    blocked_case:
+        missing_label: 'Ce lipsește:'
+        action_label: 'Ce ai de făcut:'
+        STAMP_DUTY_DUE:
+            subject: 'Achită taxa de timbru pentru dosarul %case%'
+            heading: 'Dosarul are număr, taxa de timbru se achită acum'
+            body: 'Dosarul %case% are număr de dosar la instanță, iar taxa de timbru este încă înregistrată ca neachitată. Taxa se plătește anticipat (OUG 80/2013 art. 33 alin. 1), deci nu aștepta înștiințarea de regularizare. După plată, încarcă dovada în dosar.'
+            missing: 'Dovada plății taxei de timbru pe dosarul %case%.'
+            action: 'Achită taxa, apoi încarcă dovada în dosar și marchează taxa ca achitată.'
+        REGULARIZATION_NOTICE_DATE_MISSING:
+            subject: 'Dosarul %case% așteaptă data înștiințării de regularizare'
+            heading: 'Dacă ai primit înștiințarea, introdu data'
+            body: 'Pe dosarul %case% taxa de timbru este amânată până la regularizare, iar data înștiințării nu este introdusă. Dacă ai primit înștiințarea de la instanță, introdu data comunicării ei: de la acea dată curg cele 10 zile de timbrare (OUG 80/2013 art. 33 alin. 2), iar ratarea lor atrage anularea cererii.'
+            missing: 'Data comunicării înștiințării de regularizare pe dosarul %case%.'
+            action: 'Dacă ai primit înștiințarea, deschide dosarul și introdu data comunicării ei, ca să pornească termenul de 10 zile.'
 
 # =============================================================================
 # In-app notifications + Mercure toast text (NotificationDispatcher)
@@ -2414,6 +2451,13 @@ notification:
     missing_communication_date:
         title: 'Completează data comunicării: %case%'
         message: 'Introdu data comunicării ordonanței pe dosarul %case% pentru a porni termenul cererii în anulare.'
+    blocked_case:
+        STAMP_DUTY_DUE:
+            title: 'Achită taxa de timbru: %case%'
+            message: 'Dosarul %case% are număr de dosar, iar taxa de timbru este încă neachitată. Taxa se plătește anticipat, deci nu aștepta înștiințarea de regularizare.'
+        REGULARIZATION_NOTICE_DATE_MISSING:
+            title: 'Data înștiințării de regularizare: %case%'
+            message: 'Pe dosarul %case% taxa este amânată până la regularizare. Dacă ai primit înștiințarea de la instanță, introdu data comunicării ei ca să pornească termenul de 10 zile.'
     payment_failed:
         title: 'Reînnoirea abonamentului nu a putut fi încasată'
         message: 'Nu am reușit să încasăm automat abonamentul lunar. Cardul salvat a fost refuzat sau nu are fonduri suficiente. Actualizează metoda de plată și reia plata din contul tău.'
@@ -2555,42 +2599,51 @@ deadlines:
         open_portal: 'Deschide Portal'
         mark_done: 'Marchează finalizat'
         mark_stamped: 'Marchează timbrat'
-        stop_tracking: 'Nu mai urmări'
         send_summons: 'Trimite somația'
         generate_payment_order: 'Generează cererea de OP'
-        set_summons_communication_date: 'Setează data comunicării'
         note:
             mark_done: 'Închide termenul în agendă și oprește alertele. Nu constituie dovada că actul a fost făcut.'
-            stop_tracking: 'Prescripția curge indiferent de această acțiune. Butonul închide termenul în agendă și oprește alertele, fără niciun efect juridic.'
     blockage:
         SUMMONS_COMMUNICATION_MISSING:
             label: 'Data comunicării somației nu este introdusă'
             missing: 'Răspunsul la somație, 15 zile'
             legal_basis: 'CPC art. 1015 alin. 1'
-            cause: 'Somația a fost generată, dar data comunicării nu este introdusă.'
-            consequence: 'Termenul este calculat de la data generării somației, nu de la primire. Rămâne estimat până introduci data comunicării, iar cererea de ordonanță depusă pe baza lui se poate respinge ca prematură.'
-            action: 'Setează data comunicării somației'
+            state: 'În curs de comunicare'
+            cause: 'Somația a fost generată, dar data comunicării nu este introdusă. Comunicarea este în curs.'
+            consequence: 'Termenul de 15 zile nu se creează deloc: el curge de la primirea somației de către debitor, nu de la generarea ei. Până introduci data comunicării, nu apare niciun termen în agendă, iar cererea de ordonanță depusă între timp se poate respinge ca prematură.'
+            action: 'Introdu data comunicării'
         RULING_COMMUNICATION_MISSING:
             label: 'Data comunicării hotărârii nu este introdusă'
             missing: 'Cererea în anulare, 10 zile'
             legal_basis: 'CPC art. 1024 alin. 1'
+            state: 'În curs de comunicare'
             cause: 'Ordonanța a fost emisă, dar data comunicării hotărârii nu este introdusă.'
             consequence: 'Termenul este de decădere. Fără dată, nu se creează și nu generează nicio alertă.'
-            action: 'Setează data comunicării hotărârii'
+            action: 'Introdu data comunicării ordonanței'
         STAMP_DUTY_NOTICE_MISSING:
             label: 'Data înștiințării de timbrare nu este introdusă'
             missing: 'Timbrarea, 10 zile'
             legal_basis: 'OUG 80/2013 art. 33 alin. 2'
+            state: 'Se așteaptă înștiințarea'
             cause: 'Cererea este depusă cu taxa neachitată sau amânată la regularizare, dar data înștiințării de timbrare nu este introdusă.'
             consequence: 'Netimbrarea în termenul acordat de instanță atrage anularea cererii.'
-            action: 'Setează data înștiințării'
+            action: 'Introdu data înștiințării'
+        ANNULMENT_RULING_COMMUNICATION_MISSING:
+            label: 'Lipsește data comunicării hotărârii din cererea în anulare'
+            missing: 'Prescripția executării, 3 ani'
+            legal_basis: 'CPC art. 705 alin. 2 raportat la art. 1024 alin. 8'
+            state: 'În curs de comunicare'
+            cause: 'Pe dosar s-a formulat cerere în anulare, iar ordonanța a devenit definitivă prin soluționarea ei. Data comunicării acelei hotărâri nu este introdusă.'
+            consequence: 'Termenul nu se creează. Ancorat pe ordonanța inițială, ar expira mai devreme decât cel real, fiindcă ordonanța nu a rămas definitivă la expirarea celor 10 zile. Până introduci data, prescripția executării nu este urmărită.'
+            action: 'Introdu data comunicării hotărârii din anulare'
         EXECUTION_ANCHOR_MISSING:
             label: 'Nicio dată din care să curgă prescripția executării'
             missing: 'Prescripția executării, 3 ani'
             legal_basis: 'CPC art. 705 alin. 1'
-            cause: 'Dosarul este definitiv sau în executare, dar nici data comunicării ordonanței, nici data pronunțării nu sunt introduse.'
+            state: 'Fără dată de pornire'
+            cause: 'Dosarul este definitiv, dar nici data comunicării ordonanței, nici data pronunțării nu sunt introduse.'
             consequence: 'Termenul nu se creează: orice dată pe care ar folosi-o aplicația ar fi ulterioară celei reale, deci ar arăta un termen mai lung decât cel care curge efectiv. Până introduci una dintre cele două date, prescripția executării nu este urmărită.'
-            action: 'Setează data comunicării hotărârii'
+            action: 'Introdu data comunicării hotărârii'
     counter_hint:
         today: 'până la ora 24:00'
         blocked: 'dosare, nu termene'
@@ -2627,18 +2680,6 @@ deadlines:
             title: 'Închizi termenul de timbrare'
             body: 'Netimbrarea în termenul acordat de instanță atrage anularea cererii (OUG 80/2013 art. 33 alin. 2, CPC art. 197). Închiderea scoate termenul din agendă și oprește alertele pe email. Nu este dovada plății: dovada se atașează la cerere și se depune la instanță.'
             warning_unpaid: 'Pe acest dosar taxa nu figurează ca achitată. Dacă închizi acum, agenda arată timbrarea ca rezolvată fără ca aplicația să aibă dovada plății. Închiderea este o declarație a ta, nu o dovadă.'
-        limitation:
-            title: 'Nu mai urmări acest termen de prescripție'
-            body: 'Prescripția curge indiferent de această acțiune. Butonul nu o întrerupe și nu o suspendă: scoate rândul din agendă și oprește alertele pe email. Prescripția se întrerupe prin cererea introdusă la instanță (NCC art. 2537 pct. 2) sau, condiționat, prin somația comunicată, dacă cererea de chemare în judecată este introdusă în 6 luni de la comunicare (NCC art. 2540, CPC art. 1015 alin. 2). Dacă acest termen de 6 luni este depășit, întreruperea se consideră că nu a avut loc.'
-            warning: 'După închidere nu mai primești nicio avertizare despre acest termen. Împlinirea prescripției stinge dreptul material la acțiune (NCC art. 2500 alin. 1), iar termenul general este de 3 ani (NCC art. 2517).'
-        filing_interruption:
-            title: 'Nu mai urmări termenul de 6 luni'
-            body: 'Somația comunicată a întrerupt prescripția, dar întreruperea se menține numai dacă cererea este introdusă în 6 luni de la comunicare (NCC art. 2540, la care trimite CPC art. 1015 alin. 2). Butonul nu prelungește acest termen: scoate rândul din agendă și oprește alertele pe email. Nu constituie dovada că cererea a fost depusă; termenul se închide singur când dosarul trece în starea "cerere depusă".'
-            warning: 'Dacă cele 6 luni se împlinesc fără cerere depusă, întreruperea se consideră că nu a avut loc, iar prescripția se calculează ca și cum somația nu ar fi fost trimisă. Pe o creanță aproape prescrisă, asta înseamnă respingerea cererii ca prescrisă.'
-        enforcement_limitation:
-            title: 'Nu mai urmări prescripția executării'
-            body: 'Prescripția dreptului de a obține executarea silită curge indiferent de această acțiune. Butonul nu o întrerupe și nu o suspendă: scoate rândul din agendă și oprește alertele pe email.'
-            warning: 'După închidere nu mai primești nicio avertizare despre acest termen. Împlinirea lui stinge dreptul de a obține executarea silită, iar titlul își pierde puterea executorie (CPC art. 706 alin. 1).'
         forfeiture:
             title: 'Închizi un termen de decădere'
             body: 'Cererea în anulare se depune în 10 zile de la comunicarea ordonanței (CPC art. 1024 alin. 1). Termenul este de decădere: depășirea lui stinge calea de atac, iar repunerea în termen se poate cere numai dovedind motive temeinic justificate, în cel mult 15 zile de la încetarea împiedicării (CPC art. 186). Închiderea oprește alertele. Nu constituie dovada că cererea a fost depusă.'
@@ -2666,9 +2707,14 @@ deadlines:
             unconfirmed_fact:
                 mark: 'dată estimată'
                 note: 'Data este calculată din faptul care declanșează termenul, iar acel fapt nu are dată confirmată în dosar. Introdu data reală în dosar: termenul se recalculează și devine cert.'
-            prescription_interruption:
-                mark: 'întreruperea prescripției se menține condiționat'
-                note: 'Somația comunicată întrerupe prescripția (CPC art. 1015 alin. 2, care trimite la NCC art. 2540). Întreruperea se menține numai dacă cererea de chemare în judecată este introdusă în 6 luni de la comunicare; altfel se consideră că nu a avut loc. Cele 6 luni sunt urmărite separat, ca termen „Depunere cerere". Data afișată aici rămâne scadența plus 3 ani, calculată fără întrerupere.'
+            # Data din marcaj se calculează, nu se scrie de mână: este data comunicării
+            # somației plus 6 luni, aceeași aritmetică cu termenul „Depunere cerere".
+            prescription_interrupted:
+                mark: 'prescripție întreruptă până la %date%'
+                note: 'Somația comunicată a întrerupt prescripția (CPC art. 1015 alin. 2, care trimite la NCC art. 2540). Întreruperea se menține dacă cererea ajunge la instanță până la %date%, dată urmărită separat ca termen „Depunere cerere". Poți depune și mai târziu, dar atunci prescripția se socotește ca și cum somația nu ar fi fost trimisă. Data de pe rând rămâne scadența plus 3 ani, calculată fără întrerupere.'
+            prescription_interrupted_by_filing:
+                mark: 'prescripție întreruptă prin cererea depusă'
+                note: 'Cererea introdusă la instanță întrerupe ea însăși prescripția (NCC art. 2537 pct. 2), deci întreruperea nu mai depinde de cele 6 luni de la comunicarea somației. Întreruperea se socotește neîntâmplată doar dacă cererea este respinsă, anulată sau perimată (NCC art. 2539 alin. 2). Data de pe rând rămâne scadența plus 3 ani, calculată fără întrerupere.'
         internal_number: 'nr. intern'
         no_court: 'instanță nedepusă'
         principal: 'principal %amount% %currency%'
@@ -2677,16 +2723,16 @@ deadlines:
     rail:
         heading: 'Prescripții, orizont lung'
         subtitle: 'Peste 30 de zile rămase. Excluse din contoarele de triaj.'
-        note: 'Prescripția executării se creează doar pe dosarele definitive sau în executare, la 3 ani de la data la care hotărârea a devenit executorie, deci nu apare în coloana principală.'
+        note: 'Prescripția executării se creează doar pe dosarele definitive, la 3 ani de la comunicarea hotărârii care a rămas definitivă, și se închide când dosarul trece în executare, fiindcă cererea către executor întrerupe termenul. Nu apare în coloana principală.'
         empty: 'Nicio prescripție dincolo de fereastra agendei.'
     blockages:
-        heading: 'Blocaje pe dosar: termene fatale nesigure sau inexistente'
+        heading: 'Blocaje pe dosar: termene fatale care nu se pot calcula'
         count: '(%count%)'
-        description: 'În aceste dosare faptul generator lipsește, deci termenul nu se creează sau rămâne estimat, iar agenda nu îl poate arăta.'
+        description: 'În aceste dosare faptul generator nu are dată în dosar, deci termenul nu se creează și agenda nu are ce să arate. Introdu data și termenul apare singur.'
         open: 'Deschide'
         close: 'Închide'
         missing: 'Lipsește:'
-    footnote: 'Alertele pe email pleacă zilnic la 07:00, la 7, 3 și 1 zi înainte și în ziua expirării. Pagina rămâne mecanismul principal de avertizare.'
+    footnote: 'Alertele pe email pleacă zilnic la 07:00. Termenele procedurale sunt anunțate la 7, 3 și 1 zi înainte și în ziua expirării, iar termenele de prescripție mai devreme: la 30 și 14 zile cea generală, la 60 și 30 de zile cele 6 luni de depunere. Pagina rămâne mecanismul principal de avertizare.'
     empty:
         heading: 'Niciun termen de urmărit'
         body: 'Termenele apar singure din primul dosar. Nu le introduci tu: aplicația le calculează din datele completate în cerere și le mută dacă data faptului generator se schimbă.'
@@ -2697,7 +2743,7 @@ deadlines:
             summons_answer: 'Răspuns la somație, 15 zile'
             summons_answer_hint: 'Din ziua comunicării somației. CPC art. 1015 alin. 1.'
             filing_interruption: 'Depunerea cererii, 6 luni'
-            filing_interruption_hint: 'Din comunicarea somației. Peste acest termen, întreruperea prescripției se consideră că nu a avut loc. NCC art. 2540.'
+            filing_interruption_hint: 'Din comunicarea somației. Dacă cererea ajunge la instanță mai târziu, întreruperea prescripției se consideră că nu a avut loc. NCC art. 2540.'
             stamp_duty: 'Timbrare, 10 zile'
             stamp_duty_hint: 'Din înștiințarea instanței. Netimbrarea atrage anularea cererii. OUG 80/2013 art. 33 alin. 2.'
             annulment: 'Cerere în anulare, 10 zile'
@@ -2706,7 +2752,7 @@ deadlines:
             prescription_hint: 'Câte un termen pentru fiecare factură. NCC art. 2517.'
             hearing: 'Termene de judecată'
             hearing_hint: 'Preluate din portal.just.ro după ce dosarul primește număr de instanță.'
-        alerts_note: 'Alertele pe email pleacă zilnic la 07:00, la 7, 3 și 1 zi înainte și în ziua expirării.'
+        alerts_note: 'Alertele pe email pleacă zilnic la 07:00. Termenele procedurale: 7, 3 și 1 zi înainte și în ziua expirării. Prescripția generală: 30 și 14 zile. Cele 6 luni de depunere: 60 și 30 de zile.'
     clean:
         heading: 'Registru curat'
         body: 'Zero restante, zero termene care expiră azi, zero termene fatale în următoarele 30 de zile.'

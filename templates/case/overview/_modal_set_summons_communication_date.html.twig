@@ -1,7 +1,9 @@
-{# Modal Preline „Confirmă data comunicării somației". Trigger din
-   `_summons_communication_alert`. Submit la `case_deadline_summons_communication_date`
-   care setează data + metoda și recalculează termenul RASPUNS_SOMATIE (15 zile de
-   la primire, CPC art. 1015 alin. 1), ștergând disclaimerul estimativ. #}
+{# Records the date the summons was received. Triggered from
+   `_summons_communication_alert`, and from the blockage zone of the agenda, which
+   links here. Submitting to `case_deadline_summons_communication_date` stores the date
+   and the method, and creates the RASPUNS_SOMATIE term of 15 days from receipt (CPC
+   art. 1015 para. 1). Until then that term does not exist: it runs from receipt, not
+   from the day the summons was generated. #}
 {% from 'case/overview/_icons.html.twig' import icon_calendar, icon_warning %}
 
 <div id="hs-modal-set-summons-communication-date"

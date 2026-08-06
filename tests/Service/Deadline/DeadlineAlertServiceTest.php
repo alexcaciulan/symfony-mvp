@@ -66,11 +66,11 @@ class DeadlineAlertServiceTest extends KernelTestCase
         );
     }
 
-    private function deadline(string $date, bool $completed = false, ?callable $flags = null): LegalDeadline
+    private function deadline(string $date, bool $completed = false, ?callable $flags = null, DeadlineType $type = DeadlineType::JUDECATA): LegalDeadline
     {
         $d = new LegalDeadline();
         $d->setLegalCase($this->case);
-        $d->setType(DeadlineType::JUDECATA);
+        $d->setType($type);
         $d->setDeadlineDate(new \DateTimeImmutable($date));
         $d->setPriority(DeadlinePriority::MEDIUM);
         $d->setCompleted($completed);
@@ -90,6 +90,40 @@ class DeadlineAlertServiceTest extends KernelTestCase
             $this->dispatched,
             static fn (DeadlineAlertEvent $e): bool => $e->deadline->getId() === $deadline->getId(),
         ));
+    }
+
+    /**
+     * What the case page promises the lawyer about the next reminder has to be the
+     * ladder the job actually walks, and that ladder differs by type: a limitation term
+     * is warned about a month ahead, a hearing a week ahead. The card used to print
+     * 7 / 3 / 1 for everything, which was a promise the job stopped keeping the day the
+     * limitation tiers were added.
+     */
+    public function testNextAlertDaysBeforeFollowsTheLadderOfTheType(): void
+    {
+        $hearing = $this->deadline('2026-09-01');
+        $limitation = $this->deadline('2029-09-01', type: DeadlineType::PRESCRIPTIE);
+        $filing = $this->deadline('2027-01-01', type: DeadlineType::DEPUNERE_CERERE);
+
+        $service = $this->service();
+
+        self::assertSame(7, $service->nextAlertDaysBefore($hearing));
+        self::assertSame(30, $service->nextAlertDaysBefore($limitation));
+        self::assertSame(60, $service->nextAlertDaysBefore($filing));
+    }
+
+    /** Past the last tier only the expiry alert is left, and past that one nothing is. */
+    public function testNextAlertDaysBeforeFallsToExpiryAndThenToNothing(): void
+    {
+        $deadline = $this->deadline('2026-09-01', flags: static function (LegalDeadline $d): void {
+            $d->setAlertSent7(true)->setAlertSent3(true)->setAlertSent1(true);
+        });
+
+        $service = $this->service();
+        self::assertSame(0, $service->nextAlertDaysBefore($deadline));
+
+        $deadline->setAlertSentExpired(true);
+        self::assertNull($service->nextAlertDaysBefore($deadline));
     }
 
     public function testFiresThresholdAlertsAndSetsFlags(): void
@@ -148,6 +182,85 @@ class DeadlineAlertServiceTest extends KernelTestCase
         $this->service()->processAlerts($now);
 
         $this->assertCount(0, $this->eventsFor($d));
+    }
+
+    /**
+     * A three-year window makes a first warning at seven days useless, so the general
+     * limitation is announced at 30 and 14 days. The tier fires once and marks every
+     * looser tier with it, which is what stops the 7/3/1 ladder from re-announcing the
+     * same term on the way down.
+     */
+    public function testTheGeneralLimitationIsAnnouncedThirtyDaysAhead(): void
+    {
+        $now = new \DateTimeImmutable('2026-06-01 09:00');
+        $limitation = $this->deadline('2026-06-29', type: DeadlineType::PRESCRIPTIE); // +28
+        $hearing = $this->deadline('2026-06-29'); // +28, procedural: nothing yet
+
+        $report = $this->service()->processAlerts($now);
+        $this->em->clear();
+        $repo = $this->em->getRepository(LegalDeadline::class);
+
+        $this->assertCount(1, $this->eventsFor($limitation));
+        $this->assertSame(1, $report->sentLongRange);
+        $this->assertCount(0, $this->eventsFor($hearing), 'A procedural term keeps the 7/3/1 ladder.');
+
+        $stored = $repo->find($limitation->getId());
+        $this->assertTrue($stored->isAlertSentLongRange());
+        $this->assertFalse($stored->isAlertSentMidRange(), 'The 14-day tier is still ahead.');
+    }
+
+    /**
+     * The six months that keep the interruption alive are shorter than three years and
+     * the act they ask for takes longer to prepare, so they are announced earlier still,
+     * at 60 and 30 days.
+     */
+    public function testTheSixMonthTermIsAnnouncedSixtyDaysAhead(): void
+    {
+        $now = new \DateTimeImmutable('2026-06-01 09:00');
+        $filing = $this->deadline('2026-07-26', type: DeadlineType::DEPUNERE_CERERE); // +55
+        $limitation = $this->deadline('2026-07-26', type: DeadlineType::PRESCRIPTIE); // +55, outside its 30
+
+        $this->service()->processAlerts($now);
+
+        $this->assertCount(1, $this->eventsFor($filing));
+        $this->assertCount(0, $this->eventsFor($limitation), 'The general limitation only starts at 30 days.');
+    }
+
+    /**
+     * A term first seen inside a tight tier must not emit the looser ones afterwards:
+     * firing a tier marks it and every looser tier at once.
+     */
+    public function testATightTierSuppressesTheLooserOnesOnALimitationTerm(): void
+    {
+        $limitation = $this->deadline('2026-06-04', type: DeadlineType::PRESCRIPTIE); // +3
+
+        $this->service()->processAlerts(new \DateTimeImmutable('2026-06-01 09:00'));
+        $this->service()->processAlerts(new \DateTimeImmutable('2026-06-02 09:00'));
+
+        $this->assertCount(1, $this->eventsFor($limitation), 'One alert only, the tightest tier that was due.');
+
+        $this->em->clear();
+        $stored = $this->em->getRepository(LegalDeadline::class)->find($limitation->getId());
+        $this->assertTrue($stored->isAlertSentLongRange());
+        $this->assertTrue($stored->isAlertSentMidRange());
+        $this->assertTrue($stored->isAlertSent7());
+        $this->assertTrue($stored->isAlertSent3());
+    }
+
+    /** Moving a date must re-open every tier, the long-range ones included. */
+    public function testResettingTheFlagsClearsTheLongRangeTiersToo(): void
+    {
+        $deadline = $this->deadline('2026-06-29', type: DeadlineType::PRESCRIPTIE);
+
+        $this->service()->processAlerts(new \DateTimeImmutable('2026-06-01 09:00'));
+        $this->em->clear();
+
+        $stored = $this->em->getRepository(LegalDeadline::class)->find($deadline->getId());
+        $this->assertTrue($stored->isAlertSentLongRange());
+
+        $stored->resetAlertFlags();
+        $this->assertFalse($stored->isAlertSentLongRange());
+        $this->assertFalse($stored->isAlertSentMidRange());
     }
 
     protected function tearDown(): void

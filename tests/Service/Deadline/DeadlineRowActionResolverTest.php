@@ -10,8 +10,8 @@ use App\Enum\CaseStatus;
 use App\Enum\DeadlineCertainty;
 use App\Enum\DeadlineType;
 use App\Service\Deadline\DeadlineAgendaItem;
-use App\Service\Deadline\DeadlineCertaintyResolver;
 use App\Service\Deadline\DeadlineConsequenceResolver;
+use App\Service\Deadline\DeadlineEstimateNote;
 use App\Service\Deadline\DeadlineRowActionResolver;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -24,6 +24,10 @@ use PHPUnit\Framework\TestCase;
  */
 class DeadlineRowActionResolverTest extends TestCase
 {
+    private const CLOSE_PRIMARY = 'primary';
+    private const CLOSE_SECONDARY = 'secondary';
+    private const CLOSE_NONE = 'none';
+
     private DeadlineRowActionResolver $resolver;
     private DeadlineConsequenceResolver $consequenceResolver;
 
@@ -66,17 +70,6 @@ class DeadlineRowActionResolverTest extends TestCase
         self::assertTrue($action->close->closesDeadline);
     }
 
-    public function testEstimatedSummonsAnswerAsksForTheCommunicationDateFirst(): void
-    {
-        $action = $this->resolver->resolve(
-            $this->item(DeadlineType::RASPUNS_SOMATIE, daysRemaining: 5, certainty: DeadlineCertainty::ESTIMAT),
-        );
-
-        self::assertSame('deadlines.action.set_summons_communication_date', $action->primary->label);
-        self::assertSame('case_deadline_summons_communication_date', $action->primary->route);
-        self::assertNotNull($action->close);
-    }
-
     public function testExpiredSummonsAnswerOffersFilingThePaymentOrder(): void
     {
         $action = $this->resolver->resolve(
@@ -114,18 +107,20 @@ class DeadlineRowActionResolverTest extends TestCase
         );
 
         self::assertSame($expectedLabel, $action->primary->label);
-        self::assertNotNull($action->close);
-        self::assertSame('deadlines.action.stop_tracking', $action->close->label, 'A limitation term is never "done".');
-        self::assertSame('deadlines.action.note.stop_tracking', $action->close->note);
+        self::assertNull($action->close, 'A limitation term cannot be dismissed from the agenda.');
     }
 
-    public function testEnforcementLimitationIsNeverLabelledAsDone(): void
+    /**
+     * Enforcement runs through a bailiff, outside the platform, and the term closes on
+     * its own when enforcement starts. So the row states the term and leads into the
+     * case, with nothing to press.
+     */
+    public function testEnforcementLimitationOnlyLeadsIntoTheCase(): void
     {
         $action = $this->resolver->resolve($this->item(DeadlineType::PRESCRIPTIE_EXECUTARE, daysRemaining: 20));
 
         self::assertSame('deadlines.action.open_case', $action->primary->label);
-        self::assertNotNull($action->close);
-        self::assertSame('deadlines.action.stop_tracking', $action->close->label);
+        self::assertNull($action->close);
     }
 
     /** @return iterable<string, array{DeadlineType}> */
@@ -160,7 +155,7 @@ class DeadlineRowActionResolverTest extends TestCase
         );
 
         self::assertSame('deadlines.action.generate_payment_order', $action->primary->label);
-        self::assertTrue($action->hasCloseButton());
+        self::assertFalse($action->hasCloseButton(), 'A limitation term is never dismissible from the agenda.');
     }
 
     public function testEveryTypeResolvesToAnAction(): void
@@ -174,36 +169,42 @@ class DeadlineRowActionResolverTest extends TestCase
     /**
      * The whole mapping in one place, one line per deadline type, read at a neutral
      * position: the date is certain and still ahead, so nothing is consumed yet. The
-     * third column says whether the close is a button of its own, which is exactly
-     * the question "is the primary act the closing of this term".
+     * third column says where the close lives, which is the same question as "what is
+     * this row for": PRIMARY when the act IS closing the term, SECONDARY when closing
+     * is a side move next to a real act, NONE for the three limitation terms, which the
+     * agenda deliberately gives no way to dismiss.
      *
-     * @return iterable<string, array{DeadlineType, string, bool}>
+     * @return iterable<string, array{DeadlineType, string, string}>
      */
     public static function primaryActionPerTypeProvider(): iterable
     {
-        yield 'stamp duty' => [DeadlineType::TIMBRARE, 'deadlines.action.mark_stamped', false];
-        yield 'annulment request' => [DeadlineType::CERERE_IN_ANULARE, 'deadlines.action.mark_done', false];
-        yield 'free form reminder' => [DeadlineType::OTHER, 'deadlines.action.mark_done', false];
-        yield 'summons answer' => [DeadlineType::RASPUNS_SOMATIE, 'deadlines.action.mark_done', false];
-        yield 'hearing' => [DeadlineType::JUDECATA, 'deadlines.action.open_portal', true];
+        yield 'stamp duty' => [DeadlineType::TIMBRARE, 'deadlines.action.mark_stamped', self::CLOSE_PRIMARY];
+        yield 'annulment request' => [DeadlineType::CERERE_IN_ANULARE, 'deadlines.action.mark_done', self::CLOSE_PRIMARY];
+        yield 'free form reminder' => [DeadlineType::OTHER, 'deadlines.action.mark_done', self::CLOSE_PRIMARY];
+        yield 'summons answer' => [DeadlineType::RASPUNS_SOMATIE, 'deadlines.action.mark_done', self::CLOSE_PRIMARY];
+        yield 'hearing' => [DeadlineType::JUDECATA, 'deadlines.action.open_portal', self::CLOSE_SECONDARY];
         // The case is at SOMATIE_TRIMISA, so what stops the limitation period is the
         // request filed in court (CPC art. 1015 para. 2).
-        yield 'limitation' => [DeadlineType::PRESCRIPTIE, 'deadlines.action.generate_payment_order', true];
+        yield 'limitation' => [DeadlineType::PRESCRIPTIE, 'deadlines.action.generate_payment_order', self::CLOSE_NONE];
         // Satisfied by the same act as the limitation term, the request reaching the
         // court within the six months of NCC art. 2540, so it offers the same button.
-        yield 'filing the request' => [DeadlineType::DEPUNERE_CERERE, 'deadlines.action.generate_payment_order', true];
-        yield 'enforcement limitation' => [DeadlineType::PRESCRIPTIE_EXECUTARE, 'deadlines.action.open_case', true];
+        yield 'filing the request' => [DeadlineType::DEPUNERE_CERERE, 'deadlines.action.generate_payment_order', self::CLOSE_NONE];
+        yield 'enforcement limitation' => [DeadlineType::PRESCRIPTIE_EXECUTARE, 'deadlines.action.open_case', self::CLOSE_NONE];
     }
 
     #[DataProvider('primaryActionPerTypeProvider')]
-    public function testPrimaryActionPerType(DeadlineType $type, string $expectedLabel, bool $expectsSeparateClose): void
+    public function testPrimaryActionPerType(DeadlineType $type, string $expectedLabel, string $expectedClosePosition): void
     {
         $action = $this->resolver->resolve($this->item($type, daysRemaining: 6));
 
         self::assertSame($expectedLabel, $action->primary->label);
-        self::assertSame($expectsSeparateClose, $action->close !== null);
-        self::assertSame(!$expectsSeparateClose, $action->primary->closesDeadline);
-        self::assertTrue($action->hasCloseButton(), 'A term still running is always closeable, one way or the other.');
+        self::assertSame($expectedClosePosition === self::CLOSE_SECONDARY, $action->close !== null);
+        self::assertSame($expectedClosePosition === self::CLOSE_PRIMARY, $action->primary->closesDeadline);
+        self::assertSame($expectedClosePosition !== self::CLOSE_NONE, $action->hasCloseButton());
+
+        if ($expectedClosePosition === self::CLOSE_NONE) {
+            return;
+        }
 
         // Whichever side the close lands on, it posts to the route the case page has
         // always used, carrying the token that route validates. Nothing on this page
@@ -246,7 +247,7 @@ class DeadlineRowActionResolverTest extends TestCase
             consequence: $this->consequenceResolver->resolve($type),
             certainty: $certainty,
             daysRemaining: $daysRemaining,
-            estimateReasonKey: (new DeadlineCertaintyResolver())->estimateReasonKey($type),
+            estimateNote: new DeadlineEstimateNote('mark', 'note'),
         );
     }
 }

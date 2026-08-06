@@ -9,6 +9,7 @@ use App\Entity\LegalDeadline;
 use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\DeadlineType;
+use App\Service\Deadline\DeadlineService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -193,6 +194,99 @@ final class DeadlinesControllerTest extends WebTestCase
         self::assertStringContainsString($translator->trans('deadlines.blockages.open'), $zone->filter('summary')->text());
     }
 
+    /**
+     * A case whose summons is out but not yet acknowledged has no term to show, and
+     * inventing one from the generation date is exactly what the blockage zone exists
+     * to prevent. The row therefore prints the state of the case where a term would
+     * print its date, and the button asks for the one thing that unblocks it. The
+     * fifteen days of CPC art. 1015 para. 1 appear only once that date is recorded.
+     */
+    public function testBlockageRowStatesTheServiceIsUnderWayInsteadOfADate(): void
+    {
+        $user = $this->makeUser($this->prefix . '@test.com');
+        $case = $this->makeCase($user, CaseStatus::SOMATIE_TRIMISA);
+        $case->setPaymentNoticeDate(new \DateTime('-3 days'));
+        $this->em->flush();
+
+        $this->client->loginUser($user);
+        $crawler = $this->client->request('GET', '/termene');
+
+        self::assertResponseIsSuccessful();
+
+        $translator = static::getContainer()->get('translator');
+        $zone = $crawler->filter('details');
+
+        self::assertStringContainsString(
+            $translator->trans('deadlines.blockage.SUMMONS_COMMUNICATION_MISSING.state'),
+            $zone->text(),
+        );
+        self::assertStringContainsString(
+            $translator->trans('deadlines.blockage.SUMMONS_COMMUNICATION_MISSING.action'),
+            $zone->text(),
+        );
+        self::assertCount(
+            0,
+            $crawler->filter('[id^="deadline-row-"]'),
+            'No agenda row is born from a summons whose service is not recorded.',
+        );
+        self::assertSame('1', trim($crawler->filter('[data-counter="blocked"] strong')->text()));
+    }
+
+    /**
+     * The date is collected on this page, in the dialog it already carries, rather
+     * than by sending the lawyer into the case to type one field. The href stays
+     * pointed at the case so a browser running no scripts still reaches the same
+     * dialog, only through a navigation.
+     */
+    public function testBlockageRowOpensTheCommunicationDateDialogAndKeepsTheCaseLinkAsFallback(): void
+    {
+        $user = $this->makeUser($this->prefix . '@test.com');
+        $case = $this->makeCase($user, CaseStatus::SOMATIE_TRIMISA);
+        $case->setPaymentNoticeDate(new \DateTime('-3 days'));
+        $this->em->flush();
+
+        $this->client->loginUser($user);
+        $crawler = $this->client->request('GET', '/termene');
+
+        self::assertResponseIsSuccessful();
+
+        $link = $crawler->filter('details a[data-action]');
+        self::assertCount(1, $link);
+        self::assertSame('agenda-dialog#openDialog', $link->attr('data-action'));
+        self::assertSame('hs-modal-set-summons-communication-date', $link->attr('data-agenda-dialog-dialog-param'));
+        self::assertSame(
+            '/case/' . $case->getId() . '/summons-communication-date',
+            $link->attr('data-agenda-dialog-action-param'),
+        );
+        self::assertSame('/case/' . $case->getId(), $link->attr('href'));
+        self::assertCount(1, $crawler->filter('#hs-modal-set-summons-communication-date'));
+    }
+
+    /**
+     * Every other blockage is recorded in a dialog that lives on the case page, so its
+     * button stays a plain link there. It must never become a form: the routes behind
+     * them are POST endpoints that reject a payload without a date.
+     */
+    public function testBlockageRowWithoutAnAgendaDialogStaysALinkIntoTheCase(): void
+    {
+        $user = $this->makeUser($this->prefix . '@test.com');
+        $case = $this->makeCase($user, CaseStatus::ORDONANTA_EMISA);
+        $this->em->flush();
+
+        $this->client->loginUser($user);
+        $crawler = $this->client->request('GET', '/termene');
+
+        self::assertResponseIsSuccessful();
+
+        $zone = $crawler->filter('details');
+        self::assertCount(0, $zone->filter('form'));
+        self::assertCount(0, $zone->filter('a[data-action]'));
+        self::assertStringContainsString(
+            static::getContainer()->get('translator')->trans('deadlines.blockage.RULING_COMMUNICATION_MISSING.action'),
+            $zone->text(),
+        );
+    }
+
     public function testPageRendersCountersForTheSignedInLawyerOnly(): void
     {
         $user = $this->makeUser($this->prefix . '@test.com');
@@ -241,15 +335,53 @@ final class DeadlinesControllerTest extends WebTestCase
     }
 
     /**
-     * On a limitation period the date is an estimate for the opposite reason than
-     * everywhere else: the due date IS confirmed, and what the application does not
-     * model is the interruption carried by the communicated summons (CPC art. 1015
-     * para. 2, NCC art. 2540). The row must say that, not that a date is missing.
+     * On a limitation period the marker under the date is not about uncertainty: the
+     * due date IS confirmed, and what the stored date ignores is the interruption
+     * carried by the communicated summons (CPC art. 1015 para. 2, NCC art. 2540). The
+     * row states until when that interruption holds, and the date it states is
+     * computed, never a placeholder: it is the communication plus six months, the same
+     * arithmetic the six-month term is stored with.
      */
-    public function testEstimatedLimitationPeriodExplainsTheInterruptionNotAMissingDate(): void
+    public function testInterruptedLimitationPeriodStatesTheDateTheInterruptionHoldsUntil(): void
     {
         $user = $this->makeUser($this->prefix . '@test.com');
         $case = $this->makeCase($user, CaseStatus::SOMATIE_TRIMISA);
+        $communicatedOn = new \DateTimeImmutable('-20 days');
+        $case->setPaymentNoticeCommunicationDate($communicatedOn);
+        $limitation = $this->makeDeadline($case, '+12 days', DeadlineType::PRESCRIPTIE);
+        $this->em->flush();
+
+        $this->client->loginUser($user);
+        $crawler = $this->client->request('GET', '/termene');
+
+        self::assertResponseIsSuccessful();
+
+        $translator = static::getContainer()->get('translator');
+        $holdsUntil = static::getContainer()->get(DeadlineService::class)
+            ->filingInterruptionTermEnd($communicatedOn)->end;
+        $params = ['%date%' => $holdsUntil->format('d.m.Y')];
+        $marker = $crawler->filter('#deadline-row-' . $limitation->getId() . ' span[title]')->last();
+
+        self::assertSame(
+            $translator->trans('deadlines.row.estimate.prescription_interrupted.mark', $params),
+            trim($marker->text()),
+        );
+        self::assertStringContainsString($holdsUntil->format('d.m.Y'), trim($marker->text()));
+        self::assertSame(
+            $translator->trans('deadlines.row.estimate.prescription_interrupted.note', $params),
+            $marker->attr('title'),
+        );
+    }
+
+    /**
+     * Once the request is with the court the interruption no longer depends on the six
+     * months: the filing interrupts the limitation period on its own (NCC art. 2537
+     * pt. 2). Stating a date the interruption holds until would then be wrong.
+     */
+    public function testLimitationPeriodOnAFiledCaseNamesTheFilingAsTheInterruption(): void
+    {
+        $user = $this->makeUser($this->prefix . '@test.com');
+        $case = $this->makeCase($user, CaseStatus::CERERE_DEPUSA);
         $case->setPaymentNoticeCommunicationDate(new \DateTimeImmutable('-20 days'));
         $limitation = $this->makeDeadline($case, '+12 days', DeadlineType::PRESCRIPTIE);
         $this->em->flush();
@@ -262,8 +394,41 @@ final class DeadlinesControllerTest extends WebTestCase
         $translator = static::getContainer()->get('translator');
         $marker = $crawler->filter('#deadline-row-' . $limitation->getId() . ' span[title]')->last();
 
-        self::assertSame($translator->trans('deadlines.row.estimate.prescription_interruption.mark'), trim($marker->text()));
-        self::assertSame($translator->trans('deadlines.row.estimate.prescription_interruption.note'), $marker->attr('title'));
+        self::assertSame(
+            $translator->trans('deadlines.row.estimate.prescription_interrupted_by_filing.mark'),
+            trim($marker->text()),
+        );
+    }
+
+    /**
+     * The agenda used to offer a way to dismiss a limitation term, and there is no
+     * good answer to why a lawyer would want one off his screen: the period runs
+     * whatever the row does, so the button only removed the warning. It is gone from
+     * the page, not merely from the resolver, and nothing closes the term from here.
+     *
+     * Asserted on the markup rather than on the label, because a removed key renders
+     * as the key itself: the raw name must not surface either.
+     */
+    public function testALimitationRowOffersNoWayToDismissTheTermFromTheAgenda(): void
+    {
+        $user = $this->makeUser($this->prefix . '@test.com');
+        $case = $this->makeCase($user, CaseStatus::SOMATIE_TRIMISA);
+        $limitation = $this->makeDeadline($case, '+20 days', DeadlineType::PRESCRIPTIE);
+        $this->em->flush();
+
+        $this->client->loginUser($user);
+        $crawler = $this->client->request('GET', '/termene');
+
+        self::assertResponseIsSuccessful();
+
+        $row = $crawler->filter('#deadline-row-' . $limitation->getId());
+        self::assertCount(1, $row);
+        self::assertCount(
+            0,
+            $row->filter(sprintf('form[action*="/deadline/%d/complete"]', $limitation->getId())),
+            'Nothing on this row may close the term.',
+        );
+        self::assertStringNotContainsString('stop_tracking', (string) $this->client->getResponse()->getContent());
     }
 
     public function testBlockedCasesAreCounted(): void

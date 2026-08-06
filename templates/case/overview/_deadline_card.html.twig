@@ -101,14 +101,35 @@
                 <p class="text-xs {% if deadline.completed %}text-slate-500{% else %}text-slate-600 dark:text-slate-400{% endif %} mt-1">{{ deadline.description }}</p>
             {% endif %}
 
+            {# The enforcement-limitation term was closed against the request filed with
+               the bailiff (CPC art. 708 alin. 1 pct. 2). That interruption falls away
+               if the enforcement is dismissed, annulled, perimed or abandoned (alin. 3),
+               and then the three years never stopped running, so the closing has to be
+               reversible from the card that shows it. #}
+            {% if deadline.completed and deadline.type.value == 'PRESCRIPTIE_EXECUTARE' and deadline.legalCase.enforcementRequestDate is not null %}
+                <form method="post"
+                      action="{{ path('case_deadline_enforcement_not_interrupting', {caseId: deadline.legalCase.id}) }}"
+                      data-turbo-frame="_top"
+                      data-turbo-confirm="{{ 'case_overview.deadlines.reopen_execution_prescription_confirm'|trans }}"
+                      class="mt-3">
+                    <input type="hidden" name="_token" value="{{ csrf_token('enforcement_not_interrupting_' ~ deadline.legalCase.id) }}">
+                    <button type="submit" class="text-[11px] font-semibold text-slate-500 hover:text-amber-700 dark:hover:text-amber-400 underline underline-offset-2 transition">
+                        {{ 'case_overview.deadlines.reopen_execution_prescription_cta'|trans }}
+                    </button>
+                </form>
+            {% endif %}
+
             {% if not deadline.completed and (variant_key == 'high' or variant_key == 'critical') %}
+                {# The tiers come from the alerting service, not from this template: a
+                   limitation term is warned about at 30 and 14 days on top of the
+                   procedural 7 / 3 / 1, and a fixed list here would hide them. #}
                 <div class="mt-3 flex items-center gap-3 text-[11px] text-slate-500">
-                    <span class="inline-flex items-center gap-1">
+                    <span class="inline-flex items-center gap-1 flex-wrap">
                         {{ icon_clock('size-3') }}
                         {{ 'case_overview.deadlines.alerts_label'|trans }}
-                        {{ deadline.alertSent7 ? 'case_overview.deadlines.alert_7_sent'|trans : 'case_overview.deadlines.alert_7_pending'|trans }} ·
-                        {{ deadline.alertSent3 ? 'case_overview.deadlines.alert_3_sent'|trans : 'case_overview.deadlines.alert_3_pending'|trans }} ·
-                        {{ deadline.alertSent1 ? 'case_overview.deadlines.alert_1_sent'|trans : 'case_overview.deadlines.alert_1_pending'|trans }}
+                        {% for tier in deadline_alert_ladder(deadline) %}
+                            {{ (tier.sent ? 'case_overview.deadlines.alert_tier_sent' : 'case_overview.deadlines.alert_tier_pending')|trans({ '%days%': tier.days }) }}{% if not loop.last %} ·{% endif %}
+                        {% endfor %}
                     </span>
                 </div>
             {% endif %}

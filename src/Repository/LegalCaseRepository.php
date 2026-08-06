@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
+use App\Entity\CaseStatusHistory;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Entity\User;
@@ -373,17 +374,28 @@ class LegalCaseRepository extends ServiceEntityRepository
     }
 
     /**
-     * Cases that are final or already in enforcement while neither the date the order
-     * was communicated nor the date it was pronounced is recorded. The three years of
-     * CPC art. 705 para. 1 run from the day the order became final (para. 2), and with both
-     * dates missing there is no anchor that is not later than the real one, so
+     * Cases that are final while neither the date the order was communicated nor the
+     * date it was pronounced is recorded. The three years of CPC art. 705 para. 1 run
+     * from the day the order became final (para. 2), and with both dates missing there
+     * is no anchor that is not later than the real one, so
      * {@see \App\EventSubscriber\DeadlineCreationSubscriber} creates no term at all
      * and the case shows up here instead.
      *
+     * EXECUTARE is deliberately out of the status set: the request filed with the
+     * bailiff interrupts that term (CPC art. 708 para. 1 pt. 2) and closes it, so
+     * asking for an anchor there would be asking for the starting date of a term the
+     * application has just closed. A case that entered enforcement without that filing
+     * date recorded keeps its term open instead, which is where it belongs, and the
+     * agenda carries it as an ordinary deadline rather than as a blockage.
+     *
+     * Cases that went through an annulment request are out too: their anchor is a
+     * different date and they are listed by
+     * {@see self::findAwaitingAnnulmentRulingCommunicationDate()}. Splitting them keeps
+     * one case to one blockage.
+     *
      * Cases that already carry the deadline are excluded: it may have been created
      * from a date that was later removed, and re-listing them would ask for something
-     * the agenda already tracks. The status set is disjoint from the other blockage
-     * queries, so a case still contributes at most one blockage.
+     * the agenda already tracks.
      *
      * @return LegalCase[] oldest first
      */
@@ -398,15 +410,135 @@ class LegalCaseRepository extends ServiceEntityRepository
         $qb = $this->blockedCasesQueryBuilder($user);
 
         return $qb
-            ->andWhere('lc.status IN (:statuses)')
+            ->andWhere('lc.status = :status')
             ->andWhere('lc.rulingCommunicationDate IS NULL')
             ->andWhere('lc.finalRulingDate IS NULL')
             ->andWhere($qb->expr()->not($qb->expr()->exists($withExecutionPrescription->getDQL())))
-            ->setParameter('statuses', [CaseStatus::DEFINITIVA, CaseStatus::EXECUTARE])
+            ->andWhere($qb->expr()->not($qb->expr()->exists($this->annulmentHistoryDql())))
+            ->setParameter('status', CaseStatus::DEFINITIVA)
             ->setParameter('executionPrescriptionType', DeadlineType::PRESCRIPTIE_EXECUTARE)
+            ->setParameter('annulmentStatus', CaseStatus::IN_ANULARE->value)
             ->orderBy('lc.updatedAt', 'ASC')
             ->getQuery()
             ->getResult();
+    }
+
+    /**
+     * Cases that went through an annulment request, are now final, and do not carry the
+     * date the ruling on that request was communicated. That ruling is what made the
+     * order final (CPC art. 1024 para. 8), so the three years of CPC art. 705 para. 1
+     * run from its communication (para. 2); anchoring on the first ruling would give a
+     * term that expires earlier than the real one.
+     *
+     * The passage through IN_ANULARE is read from the status history because the case
+     * has already left that place by the time the date is needed.
+     *
+     * Disjoint from {@see self::findAwaitingExecutionPrescriptionAnchor()}, which
+     * excludes exactly the cases this one selects, so a case still contributes at most
+     * one blockage. Cases that already carry the enforcement-limitation term are
+     * excluded for the same reason as there.
+     *
+     * @return LegalCase[] oldest first
+     */
+    public function findAwaitingAnnulmentRulingCommunicationDate(User $user): array
+    {
+        $withExecutionPrescription = $this->getEntityManager()->createQueryBuilder()
+            ->select('1')
+            ->from(LegalDeadline::class, 'ep')
+            ->where('ep.legalCase = lc')
+            ->andWhere('ep.type = :executionPrescriptionType');
+
+        $qb = $this->blockedCasesQueryBuilder($user);
+
+        return $qb
+            ->andWhere('lc.status = :status')
+            ->andWhere('lc.annulmentRulingCommunicationDate IS NULL')
+            ->andWhere($qb->expr()->exists($this->annulmentHistoryDql()))
+            ->andWhere($qb->expr()->not($qb->expr()->exists($withExecutionPrescription->getDQL())))
+            ->setParameter('status', CaseStatus::DEFINITIVA)
+            ->setParameter('executionPrescriptionType', DeadlineType::PRESCRIPTIE_EXECUTARE)
+            ->setParameter('annulmentStatus', CaseStatus::IN_ANULARE->value)
+            ->orderBy('lc.updatedAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * Cases whose court file number is known while the stamp duty is still recorded as
+     * unpaid, across all users, for the daily alerting job. The duty is paid in advance
+     * (OUG 80/2013 art. 33 para. 1), so the file number appearing on the portal is the
+     * moment it is due; waiting for a regularization notice is waiting for the court to
+     * ask.
+     *
+     * Cases already carrying a TIMBRARE deadline are excluded: there the term is
+     * running and the ordinary deadline alerts cover it, so this would be a second
+     * voice on the same fact. Cases with the duty deferred pending regularization are
+     * excluded too; they are the subject of
+     * {@see self::findAwaitingRegularizationNoticeDate()}, and the two sets stay
+     * disjoint on `stampDutyStatus` so one case never produces two messages.
+     *
+     * @return LegalCase[] oldest first
+     */
+    public function findStampDutyDueAfterCaseNumber(): array
+    {
+        return $this->stampDutyAlertQueryBuilder()
+            ->andWhere('lc.courtCaseNumber IS NOT NULL')
+            ->andWhere('lc.stampDutyStatus = :stampDutyStatus')
+            ->setParameter('stampDutyStatus', StampDutyStatus::NEACHITATA)
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * Cases whose stamp duty was deferred pending a regularization notice, with no
+     * TIMBRARE deadline, across all users. The ten days of OUG 80/2013 art. 33 para. 2
+     * run from the communication of that notice, a date the application never learns on
+     * its own, so as long as it is missing the term exists nowhere.
+     *
+     * @return LegalCase[] oldest first
+     */
+    public function findAwaitingRegularizationNoticeDate(): array
+    {
+        return $this->stampDutyAlertQueryBuilder()
+            ->andWhere('lc.stampDutyStatus = :stampDutyStatus')
+            ->setParameter('stampDutyStatus', StampDutyStatus::AMANATA_REGULARIZARE)
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * Shared skeleton of the two stamp-duty alert queries: a live case with the claim
+     * already at the court and no stamping term running on it. Not scoped per user, the
+     * consumer being a cron job; the recipient is read from each case.
+     */
+    private function stampDutyAlertQueryBuilder(): QueryBuilder
+    {
+        $withStampDutyDeadline = $this->getEntityManager()->createQueryBuilder()
+            ->select('1')
+            ->from(LegalDeadline::class, 'sd')
+            ->where('sd.legalCase = lc')
+            ->andWhere('sd.type = :stampDutyType');
+
+        $qb = $this->createQueryBuilder('lc');
+
+        return $qb
+            ->andWhere('lc.deletedAt IS NULL')
+            ->andWhere('lc.status IN (:statuses)')
+            ->andWhere($qb->expr()->not($qb->expr()->exists($withStampDutyDeadline->getDQL())))
+            ->setParameter('statuses', [CaseStatus::CERERE_DEPUSA, CaseStatus::DOSAR_INREGISTRAT, CaseStatus::TERMEN_FIXAT])
+            ->setParameter('stampDutyType', DeadlineType::TIMBRARE)
+            ->orderBy('lc.updatedAt', 'ASC');
+    }
+
+    /** Subquery DQL: the case entered IN_ANULARE at some point. Binds `annulmentStatus`. */
+    private function annulmentHistoryDql(): string
+    {
+        return $this->getEntityManager()->createQueryBuilder()
+            ->select('1')
+            ->from(CaseStatusHistory::class, 'csh')
+            ->where('csh.legalCase = lc')
+            ->andWhere('csh.newStatus = :annulmentStatus')
+            ->getDQL();
     }
 
     /**

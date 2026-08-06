@@ -22,6 +22,7 @@ final class DeadlinePageViewBuilder
         private readonly DeadlineAgendaService $agendaService,
         private readonly LegalDeadlineRepository $deadlineRepository,
         private readonly DeadlineBlockageFinder $blockageFinder,
+        private readonly DeadlineBlockageActionResolver $blockageActionResolver,
         private readonly DeadlineRowActionResolver $actionResolver,
         private readonly DeadlineCloseConfirmationResolver $closeConfirmationResolver,
         private readonly ClockInterface $clock,
@@ -45,18 +46,34 @@ final class DeadlinePageViewBuilder
             'overdue' => $buckets['overdue'],
             'today' => $buckets['today'],
             'fatal30' => $buckets['fatal30'],
-            // Counts cases, not deadlines. The three reasons cover disjoint case
-            // statuses, so one blockage is one case; see DeadlineBlockageReason.
+            // Counts cases, not deadlines. The reasons cover disjoint case statuses, so
+            // one blockage is one case; see DeadlineBlockageReason.
             'blocked' => \count($blockages),
         ];
 
         return new DeadlinePageView(
             groups: $groups,
             counters: $counters,
-            blockages: $filter->includesBlockages() ? $blockages : [],
+            blockages: $filter->includesBlockages() ? $this->toBlockageRows($blockages) : [],
             longHorizonPrescriptions: $this->toRows($this->agendaService->buildLongHorizonPrescriptions($user, filter: $filter)),
             windowEnd: $this->windowEnd(),
             filter: $filter,
+        );
+    }
+
+    /**
+     * @param list<DeadlineBlockage> $blockages
+     *
+     * @return list<DeadlineBlockageView>
+     */
+    private function toBlockageRows(array $blockages): array
+    {
+        return array_map(
+            fn (DeadlineBlockage $blockage): DeadlineBlockageView => new DeadlineBlockageView(
+                $blockage,
+                $this->blockageActionResolver->resolve($blockage),
+            ),
+            $blockages,
         );
     }
 

@@ -87,6 +87,31 @@ final class NotificationDispatcherTest extends TestCase
         self::assertSame('payment:tx-1:charged', $captured->getDedupKey());
     }
 
+    /**
+     * A dedup key means "deliver this at most once", on EVERY channel. Gating only the
+     * in-app persist would leave the daily cron sending the email of a standing
+     * condition every morning while the in-app row stayed single, which is the noisier
+     * half left unthrottled.
+     */
+    public function testAnAlreadyDeliveredDedupKeySuppressesTheEmailToo(): void
+    {
+        $sent = 0;
+        $mailer = $this->createStub(MailerInterface::class);
+        $mailer->method('send')->willReturnCallback(static function () use (&$sent): void {
+            ++$sent;
+        });
+
+        $em = $this->createStub(EntityManagerInterface::class);
+
+        $notifications = $this->createStub(NotificationRepository::class);
+        $notifications->method('findOneByDedupKey')->willReturn(new Notification());
+
+        $dispatcher = new NotificationDispatcher($mailer, $em, $notifications, $this->translator(), 'noreply@x.test', new NullLogger());
+        $dispatcher->dispatch($this->request(persistInApp: true, emailSubject: 'Subject', dedupKey: 'blocked_case:STAMP_DUTY_DUE:7:2026-W32'));
+
+        self::assertSame(0, $sent, 'A second delivery under the same key sends nothing at all.');
+    }
+
     public function testDispatcherHasNoMercureHubDependency(): void
     {
         // Locks the decision: the notification center surfaces via client polling,

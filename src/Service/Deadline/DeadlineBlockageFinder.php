@@ -28,7 +28,7 @@ final class DeadlineBlockageFinder
      * Ordered by how close the missing date is to costing something: the summons
      * receipt gates filing, the ruling communication gates a forfeiture term, the
      * stamping notice gates annulment of a claim already on the court's desk, and the
-     * enforcement anchor gates a term that is three years out but silently absent.
+     * two enforcement anchors gate a term that is three years out but silently absent.
      *
      * @return list<DeadlineBlockage>
      */
@@ -46,6 +46,10 @@ final class DeadlineBlockageFinder
             ...$this->wrap(
                 $this->cases->findAwaitingStampDutyCourtNotice($user),
                 DeadlineBlockageReason::STAMP_DUTY_NOTICE_MISSING,
+            ),
+            ...$this->wrap(
+                $this->cases->findAwaitingAnnulmentRulingCommunicationDate($user),
+                DeadlineBlockageReason::ANNULMENT_RULING_COMMUNICATION_MISSING,
             ),
             ...$this->wrap(
                 $this->cases->findAwaitingExecutionPrescriptionAnchor($user),

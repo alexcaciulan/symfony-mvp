@@ -6,8 +6,17 @@
     <turbo-stream action="update" target="panel-termene">
         <template>{{ include('case/overview/_tab_termene.html.twig') }}</template>
     </turbo-stream>
+    {# The summons alert is driven by the communication date, and that date is set from
+       this very response, so it has to be swapped here too: otherwise the case keeps
+       reading "in service" while the 15-day term it denies is already on the page. #}
+    <turbo-stream action="update" target="summons-communication-alert">
+        <template>{{ include('case/overview/_summons_communication_alert.html.twig') }}</template>
+    </turbo-stream>
     <turbo-stream action="update" target="ruling-communication-alert">
         <template>{{ include('case/overview/_ruling_communication_date_alert.html.twig') }}</template>
+    </turbo-stream>
+    <turbo-stream action="update" target="annulment-ruling-communication-alert">
+        <template>{{ include('case/overview/_annulment_ruling_communication_date_alert.html.twig') }}</template>
     </turbo-stream>
     {# Refresh the tab nav so the deadline count badge reflects add / delete. #}
     <turbo-stream action="replace" target="case-tabs-nav">

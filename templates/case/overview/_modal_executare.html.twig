@@ -1,7 +1,12 @@
 {# Confirmation modal for `trece_la_executare` (from ORDONANTA_EMISA, IN_ANULARE
    or DEFINITIVA). Rendered unconditionally so the CSRF token (transition_executare)
    is always available. When the order is not yet final (ORDONANTA_EMISA/IN_ANULARE)
-   the restitution-risk warning is shown. #}
+   the restitution-risk warning is shown.
+
+   The date the request was filed with the bailiff is asked for here, and not derived
+   from the moment this form is submitted: that filing is what interrupts the
+   enforcement limitation (CPC art. 708 alin. 1 pct. 2), and the interruption runs from
+   its date. The application closes the three-year term against this date. #}
 {% from 'case/overview/_icons.html.twig' import icon_warning %}
 
 <div id="hs-modal-executare"
@@ -45,6 +50,17 @@
                         <p class="mt-1 text-[12px] leading-relaxed text-teal-800/90 dark:text-teal-300/90">{{ 'case_overview.modal.executare_voluntary_window_body'|trans({'%date%': execution_recommended_date|date('d.m.Y')}) }}</p>
                     </div>
                 {% endif %}
+
+                <div>
+                    <label for="enforcement_request_date_field" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'case_overview.modal.executare_request_date_label'|trans }}</label>
+                    <input type="date"
+                           id="enforcement_request_date_field"
+                           name="enforcement_request_date"
+                           required
+                           max="{{ 'now'|date('Y-m-d') }}"
+                           class="w-full py-2 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
+                    <p class="mt-1.5 text-[12px] text-slate-500 dark:text-slate-400">{{ 'case_overview.modal.executare_request_date_hint'|trans }}</p>
+                </div>
             </div>
 
             <div class="flex justify-end items-center gap-x-2 py-3 px-5 border-t border-slate-100 dark:border-slate-800">

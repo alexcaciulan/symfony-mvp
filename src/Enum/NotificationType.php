@@ -18,6 +18,7 @@ enum NotificationType: string
     case CASE_STATUS = 'case_status';
     case DEADLINE_ALERT = 'deadline_alert';
     case MISSING_COMMUNICATION_DATE = 'missing_communication_date';
+    case BLOCKED_CASE_ALERT = 'blocked_case_alert';
     case PORTAL_EVENT = 'portal_event';
     case PORTAL_RULING_CONFIRMATION = 'portal_ruling_confirmation';
     case PORTAL_QUERY_FAILED = 'portal_query_failed';
@@ -39,6 +40,7 @@ enum NotificationType: string
             self::CASE_STATUS => 'scale',
             self::DEADLINE_ALERT => 'clock',
             self::MISSING_COMMUNICATION_DATE => 'calendar',
+            self::BLOCKED_CASE_ALERT => 'calendar',
             self::PORTAL_EVENT => 'globe',
             self::PORTAL_RULING_CONFIRMATION => 'globe',
             self::PORTAL_QUERY_FAILED => 'globe',

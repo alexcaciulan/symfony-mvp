@@ -38,6 +38,15 @@ final class NotificationDispatcher implements NotificationDispatcherInterface
 
     public function dispatch(NotificationDispatch $request): void
     {
+        // A dedup key means "deliver this at most once", on every channel. The check
+        // has to happen here and not only before the in-app persist: a producer that
+        // re-runs on a standing condition (the daily cron over cases waiting for a
+        // date) would otherwise keep sending the email while the in-app row stayed
+        // single, which is the noisiest of the two channels left unthrottled.
+        if ($request->dedupKey !== null && $this->notifications->findOneByDedupKey($request->dedupKey) !== null) {
+            return;
+        }
+
         $this->sendEmail($request);
         $this->persistInApp($request);
     }

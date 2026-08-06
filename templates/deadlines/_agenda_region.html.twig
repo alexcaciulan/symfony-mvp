@@ -20,7 +20,7 @@
 {% else %}
 
     {% if has_blockages %}
-        {{ include('deadlines/_blockages.html.twig', { blockages: view.blockages }, with_context = false) }}
+        {{ include('deadlines/_blockages.html.twig', { blockages: view.blockages, filter_fields: filter_fields }, with_context = false) }}
     {% endif %}
 
     <div class="grid grid-cols-1 {{ has_rail ? 'xl:grid-cols-[minmax(0,1fr)_20rem]' : '' }} gap-5 items-start">

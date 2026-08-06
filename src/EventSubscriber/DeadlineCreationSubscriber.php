@@ -17,65 +17,27 @@ use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 use Symfony\Component\Workflow\Event\EnteredEvent;
 
 /**
- * Pas 4.2 — auto-creează termene procedurale via DeadlineService în reacție la
- * workflow events + Doctrine `postPersist` LegalCase. Idempotency prin
- * `findOneByCaseAndType()`. Excepțiile DeadlineService sunt log-uite, NU
- * propagate (NU rupe flush/apply).
+ * Auto-creates procedural deadlines through DeadlineService in reaction to workflow
+ * events and to the Doctrine `postPersist` of LegalCase. Idempotent through
+ * `findOneByCaseAndType()`. Exceptions raised by DeadlineService are logged, never
+ * propagated, so they cannot break a flush or a workflow apply.
+ *
+ * No listener creates the RASPUNS_SOMATIE term. The fifteen days of CPC art. 1015
+ * para. 1 run from the debtor RECEIVING the summons, and at SOMATIE_TRIMISA only the
+ * generation date is known, which is a different date with no legal meaning. The term
+ * is therefore born when the lawyer records the real communication date
+ * ({@see DeadlineService::recalculatePaymentNoticeDeadline()}, which creates it when
+ * it is missing); until then the case is carried by the blockage list, which asks for
+ * exactly that date.
  */
 #[AsDoctrineListener(event: Events::postPersist)]
 final class DeadlineCreationSubscriber
 {
-    /**
-     * Avertizare juridică obligatorie pe `LegalDeadline.description` pentru
-     * RASPUNS_SOMATIE: termenul calculat e estimat (de la data generării PDF),
-     * NU de la data primirii efective de către debitor — CPC art. 1015 alin. 1
-     * spune că cele 15 zile curg de la PRIMIRE. Avocatul trebuie să ajusteze
-     * manual data când are dovada comunicării.
-     */
-    private const PAYMENT_NOTICE_DEADLINE_DISCLAIMER = 'Termen estimativ. Calculat de la data generării somației. Actualizați după confirmarea primirii de către debitor (CPC art. 1015 alin. 1 — termenul curge de la primire).';
-
     public function __construct(
         private readonly DeadlineService $deadlineService,
         private readonly LegalDeadlineRepository $deadlineRepository,
         private readonly LoggerInterface $logger = new NullLogger(),
     ) {}
-
-    #[AsEventListener(event: 'workflow.legal_case.entered.SOMATIE_TRIMISA')]
-    public function onSomatieTrimisa(EnteredEvent $event): void
-    {
-        $case = $event->getSubject();
-        if (!$case instanceof LegalCase || $case->getId() === null) {
-            return;
-        }
-
-        if ($this->hasDeadline($case, DeadlineType::RASPUNS_SOMATIE)) {
-            return;
-        }
-
-        $paymentNoticeDate = $case->getPaymentNoticeDate();
-        if ($paymentNoticeDate === null) {
-            // Eroare de ordonare: CaseSummonsController setează paymentNoticeDate
-            // ÎNAINTE de workflow apply. Dacă e null aici → bug în caller.
-            $this->logger->error('Skipping RASPUNS_SOMATIE deadline: paymentNoticeDate not set on workflow entered', [
-                'caseNumber' => $case->getCaseNumber(),
-            ]);
-
-            return;
-        }
-
-        try {
-            $deadline = $this->deadlineService->createPaymentNoticeDeadline(
-                $case,
-                \DateTimeImmutable::createFromInterface($paymentNoticeDate),
-            );
-            $deadline->setDescription(self::PAYMENT_NOTICE_DEADLINE_DISCLAIMER);
-        } catch (\Throwable $e) {
-            $this->logger->error('Failed to create RASPUNS_SOMATIE deadline', [
-                'caseNumber' => $case->getCaseNumber(),
-                'exception' => $e->getMessage(),
-            ]);
-        }
-    }
 
     /**
      * The request reached the court, which is the condition NCC art. 2540 sets for the
@@ -144,11 +106,20 @@ final class DeadlineCreationSubscriber
     }
 
     /**
-     * Enforcement can also start directly from ORDONANTA_EMISA / IN_ANULARE (the
-     * order is enforceable from communication, CPC art. 1021), bypassing DEFINITIVA.
-     * Guarantee the PRESCRIPTIE_EXECUTARE deadline exists in that case too. Idempotent
-     * via hasDeadline(), so a case that reached EXECUTARE through DEFINITIVA (where
-     * onDefinitiva already created it) is a no-op here.
+     * Enforcement started, so the enforcement-limitation term is CLOSED here, not
+     * created. That term measures the window in which the right to ask for enforcement
+     * is still alive (CPC art. 705 para. 1); the request filed with the bailiff
+     * interrupts it (CPC art. 708 para. 1 pt. 2).
+     *
+     * What closes the term is that recorded filing date, not the transition itself. The
+     * transition is a status the lawyer declares, while the interruption attaches to the
+     * filing and runs from its date, so without the date the term stays open: on a term
+     * whose expiry extinguishes the right to enforce, a term left open costs an alert
+     * too many, and a term closed on a declaration costs the client the title.
+     *
+     * Cases that reach EXECUTARE straight from ORDONANTA_EMISA or IN_ANULARE never had
+     * the term created (only DEFINITIVA creates it) and need none: closing is a no-op
+     * for them, which is the correct outcome rather than a gap.
      */
     #[AsEventListener(event: 'workflow.legal_case.entered.EXECUTARE')]
     public function onExecutare(EnteredEvent $event): void
@@ -158,7 +129,23 @@ final class DeadlineCreationSubscriber
             return;
         }
 
-        $this->ensureExecutionPrescriptionDeadline($case);
+        $enforcementRequestDate = $case->getEnforcementRequestDate();
+        if ($enforcementRequestDate === null) {
+            $this->logger->info('Keeping PRESCRIPTIE_EXECUTARE deadline open: the enforcement request date is not recorded', [
+                'caseNumber' => $case->getCaseNumber(),
+            ]);
+
+            return;
+        }
+
+        try {
+            $this->deadlineService->closeExecutionPrescriptionDeadline($case, $enforcementRequestDate);
+        } catch (\Throwable $e) {
+            $this->logger->error('Failed to close PRESCRIPTIE_EXECUTARE deadline', [
+                'caseNumber' => $case->getCaseNumber(),
+                'exception' => $e->getMessage(),
+            ]);
+        }
     }
 
     private function ensureExecutionPrescriptionDeadline(LegalCase $case): void
@@ -171,6 +158,15 @@ final class DeadlineCreationSubscriber
         // enforceable, and the anchor is picked in the order that keeps the error on
         // the safe side, an alert that is early rather than a deadline that is later
         // than the real one:
+        //  0. the communication of the ruling given on the annulment request, when the
+        //     debtor filed one. The order does NOT become final on the lapse of the
+        //     ten days in that case: it becomes final when the annulment request is
+        //     rejected (CPC art. 1024 para. 8), and the three years then run from the
+        //     communication of THAT ruling. The date is not derivable, so it is the
+        //     one the lawyer records on the case; until then the case is listed as a
+        //     blockage (DeadlineBlockageReason::ANNULMENT_RULING_COMMUNICATION_MISSING)
+        //     and the branches below are not used, because they would anchor on the
+        //     first ruling and produce a term that expires too early;
         //  1. the communication date. For court rulings the three years run from the
         //     day the ruling became final (CPC art. 705 para. 2), and the order becomes
         //     final the day AFTER the annulment term lapses, so the anchor is that
@@ -187,10 +183,19 @@ final class DeadlineCreationSubscriber
         //     The current day must never be used here: it is later than the real
         //     anchor, so it would show a term longer than the one that actually runs,
         //     which is false safety on an irreversible deadline.
+        $annulmentCommunicationDate = $case->getAnnulmentRulingCommunicationDate();
         $communicationDate = $case->getRulingCommunicationDate();
         $finalRulingDate = $case->getFinalRulingDate();
 
-        if ($communicationDate !== null) {
+        if ($annulmentCommunicationDate !== null) {
+            $definitiveDate = $annulmentCommunicationDate;
+        } elseif ($case->hasPassedThroughAnnulment()) {
+            $this->logger->info('Skipping PRESCRIPTIE_EXECUTARE deadline: the annulment ruling communication date is not recorded yet', [
+                'caseNumber' => $case->getCaseNumber(),
+            ]);
+
+            return;
+        } elseif ($communicationDate !== null) {
             $definitiveDate = $this->deadlineService->appealTermEnd($communicationDate)->modify('+1 day');
         } elseif ($finalRulingDate !== null) {
             $definitiveDate = \DateTimeImmutable::createFromInterface($finalRulingDate);

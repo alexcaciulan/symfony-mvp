@@ -66,24 +66,16 @@
                 </div>
             </div>
 
-            {# Next reminder = the soonest unsent threshold (7 / 3 / 1 days before, then expiry).
-               Alert flags cascade (sending the 1-day sets 7+3+1), so the first unsent in
-               this order is the next one the daily `app:check-deadlines` run will dispatch. #}
-            {% set next_alert_date = null %}
-            {% set next_alert_offset = null %}
-            {% if not active_deadline.alertSent7 %}
-                {% set next_alert_date = active_deadline.deadlineDate|date_modify('-7 days') %}
-                {% set next_alert_offset = 7 %}
-            {% elseif not active_deadline.alertSent3 %}
-                {% set next_alert_date = active_deadline.deadlineDate|date_modify('-3 days') %}
-                {% set next_alert_offset = 3 %}
-            {% elseif not active_deadline.alertSent1 %}
-                {% set next_alert_date = active_deadline.deadlineDate|date_modify('-1 days') %}
-                {% set next_alert_offset = 1 %}
-            {% elseif not active_deadline.alertSentExpired %}
-                {% set next_alert_date = active_deadline.deadlineDate %}
-                {% set next_alert_offset = 0 %}
-            {% endif %}
+            {# Next reminder: the loosest threshold not yet sent, or the day of expiry
+               once they all have been. The ladder is not the same for every type, so it
+               is read from the service that owns it (DeadlineAlertService) rather than
+               written out here: a limitation term is warned about weeks ahead, a
+               procedural one days ahead, and a hardcoded 7 / 3 / 1 would promise the
+               wrong date on half the cases. #}
+            {% set next_alert_offset = deadline_next_alert_days_before(active_deadline) %}
+            {% set next_alert_date = next_alert_offset is null
+                ? null
+                : active_deadline.deadlineDate|date_modify('-' ~ next_alert_offset ~ ' days') %}
             {% set next_alert_imminent = next_alert_date is not null and (next_alert_date|date('U') - "now"|date('U')) < 0 %}
 
             <div class="flex-1 min-w-0 space-y-1.5">

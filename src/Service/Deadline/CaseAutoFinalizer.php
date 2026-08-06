@@ -9,8 +9,10 @@ use App\Enum\CaseStatus;
 use App\Enum\CaseTransition;
 use App\Event\MissingCommunicationDateEvent;
 use App\Repository\LegalCaseRepository;
+use App\Repository\LegalDeadlineRepository;
 use App\Service\AuditLogService;
 use App\Service\Case\CaseWorkflowService;
+use App\Service\Notification\AlertCadence;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
@@ -32,6 +34,12 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  *    {@see MissingCommunicationDateEvent} so the lawyer fills in the date;
  *  - if the debtor challenged in time, the case is already in IN_ANULARE and falls
  *    outside the ORDONANTA_EMISA set (implicitly skipped by the status filter).
+ *
+ * The same run also closes the CERERE_IN_ANULARE deadlines whose ten days have run.
+ * That is a separate pass over the deadlines rather than a step inside the loop
+ * above, because the term also has to be closed on cases that already left
+ * ORDONANTA_EMISA (finalized on an earlier run, or challenged and now in IN_ANULARE):
+ * the term expires on its own date regardless of where the case went afterwards.
  */
 final class CaseAutoFinalizer
 {
@@ -43,6 +51,7 @@ final class CaseAutoFinalizer
         private readonly AuditLogService $auditLogService,
         private readonly EventDispatcherInterface $eventDispatcher,
         private readonly EntityManagerInterface $em,
+        private readonly LegalDeadlineRepository $deadlineRepository,
         private readonly int $autoFinalBufferDays = 5,
     ) {}
 
@@ -55,7 +64,14 @@ final class CaseAutoFinalizer
             $communicationDate = $case->getRulingCommunicationDate();
 
             if ($communicationDate === null) {
-                $this->eventDispatcher->dispatch(new MissingCommunicationDateEvent($case));
+                // The condition holds every day until the lawyer records the date, and
+                // this job runs daily, so the alert carries a weekly key: four messages
+                // a month instead of thirty, on a fact that does not change in between.
+                $caseId = $case->getId();
+                $this->eventDispatcher->dispatch(new MissingCommunicationDateEvent(
+                    $case,
+                    $caseId === null ? null : AlertCadence::weekly('missing_communication_date', $caseId, $nowDate),
+                ));
                 ++$missingDate;
                 continue;
             }
@@ -83,7 +99,45 @@ final class CaseAutoFinalizer
             ++$finalized;
         }
 
-        return new AutoFinalizeReport($finalized, $missingDate, $notYetDue);
+        return new AutoFinalizeReport($finalized, $missingDate, $notYetDue, $this->closeLapsedAppealTerms($nowDate));
+    }
+
+    /**
+     * Closes the annulment-request terms whose ten days have run (CPC art. 1024 para.
+     * 1). The maturity date is recomputed from `rulingCommunicationDate` through
+     * {@see DeadlineService::appealTermEnd()}, the same source the finalization above
+     * uses, so a corrected communication date moves both and no second date can appear.
+     *
+     * Strictly after the maturity date: the term runs throughout its last day, so a
+     * request filed that day is still in time and the term is only spent from the day
+     * after. No buffer is added here. The buffer exists to delay a status change that
+     * would block a late filing; closing a term that has provably run blocks nothing,
+     * and adding days would leave an expired term on screen for no reason.
+     *
+     * The term is not reopened if the debtor turns out to have filed on the last day:
+     * the case then moves to IN_ANULARE, which is the fact the agenda shows, and the
+     * ten-day window is spent either way.
+     */
+    private function closeLapsedAppealTerms(\DateTimeImmutable $nowDate): int
+    {
+        $closed = 0;
+
+        foreach ($this->deadlineRepository->findOpenAppealDeadlines() as $deadline) {
+            $case = $deadline->getLegalCase();
+            $communicationDate = $case->getRulingCommunicationDate();
+            if ($communicationDate === null) {
+                continue;
+            }
+
+            if ($nowDate <= $this->deadlineService->appealTermEnd($communicationDate)) {
+                continue;
+            }
+
+            $this->deadlineService->closeAppealDeadline($case);
+            ++$closed;
+        }
+
+        return $closed;
     }
 
     private function finalize(LegalCase $case, \DateTimeImmutable $communicationDate, \DateTimeImmutable $deadline): void

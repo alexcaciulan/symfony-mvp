@@ -813,4 +813,57 @@ final class CaseDeadlineControllerTest extends WebTestCase
         ]);
         self::assertCount(1, $deadlines, 'Idempotency: 2 apeluri → un singur CERERE_IN_ANULARE.');
     }
+
+    /**
+     * The enforcement-limitation term was closed against the request filed with the
+     * bailiff. CPC art. 708 para. 3 says the limitation is NOT interrupted when that
+     * enforcement is dismissed, annulled, perimed or abandoned, so the closing has to
+     * be reversible and the term comes back with its original date.
+     */
+    public function testEnforcementThatDidNotInterruptReopensTheExecutionPrescriptionTerm(): void
+    {
+        $this->case->setStatus(CaseStatus::EXECUTARE);
+        $this->case->setEnforcementRequestDate(new \DateTimeImmutable('2026-07-20'));
+        $deadline = $this->createDeadline(DeadlineType::PRESCRIPTIE_EXECUTARE, new \DateTimeImmutable('2029-05-04'));
+        $deadline->markCompleted(null);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+        $form = $this->client->getCrawler()->filter('form[action*="/enforcement-not-interrupting"]');
+        self::assertCount(1, $form, 'The closed term must offer the way back.');
+        $token = (string) $form->filter('input[name="_token"]')->attr('value');
+
+        $this->client->request('POST', sprintf('/case/%d/enforcement-not-interrupting', $this->case->getId()), [
+            '_token' => $token,
+        ]);
+
+        $this->em->clear();
+        $refreshedCase = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        $refreshed = $this->em->getRepository(LegalDeadline::class)->find($deadline->getId());
+
+        self::assertNull($refreshedCase->getEnforcementRequestDate());
+        self::assertFalse($refreshed->isCompleted());
+        self::assertNull($refreshed->getCompletedAt());
+        self::assertSame('2029-05-04', $refreshed->getDeadlineDate()->format('Y-m-d'), 'The original anchor did not move, only the interruption fell away.');
+    }
+
+    public function testEnforcementThatDidNotInterruptRejectsInvalidCsrf(): void
+    {
+        $this->case->setStatus(CaseStatus::EXECUTARE);
+        $this->case->setEnforcementRequestDate(new \DateTimeImmutable('2026-07-20'));
+        $deadline = $this->createDeadline(DeadlineType::PRESCRIPTIE_EXECUTARE, new \DateTimeImmutable('2029-05-04'));
+        $deadline->markCompleted(null);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('POST', sprintf('/case/%d/enforcement-not-interrupting', $this->case->getId()), [
+            '_token' => 'invalid',
+        ]);
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalDeadline::class)->find($deadline->getId());
+        self::assertTrue($refreshed->isCompleted());
+        self::assertNotNull($this->em->getRepository(LegalCase::class)->find($this->case->getId())->getEnforcementRequestDate());
+    }
 }

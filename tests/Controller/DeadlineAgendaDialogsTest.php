@@ -122,11 +122,13 @@ final class DeadlineAgendaDialogsTest extends WebTestCase
     }
 
     /**
-     * The limitation dialog says the period runs whatever the lawyer presses. That
-     * sentence is the reason the button is worded "stop tracking" rather than
-     * "done", so it has to be on screen next to it.
+     * A limitation term cannot be dismissed from the agenda at all, so there is no
+     * closing control on its row and therefore no dialog in front of one. Hiding such a
+     * term would hide the only thing still saying the claim can die of age, and the row
+     * already carries the date the interruption holds until, so it informs rather than
+     * nags. A term on a claim that was really paid is closed from the case page.
      */
-    public function testStoppingTheTrackingOfALimitationTermSaysThePeriodRunsAnyway(): void
+    public function testALimitationTermOffersNoClosingControlInTheAgenda(): void
     {
         $user = $this->makeUser();
         $case = $this->makeCase($user, CaseStatus::SOMATIE_TRIMISA);
@@ -135,20 +137,16 @@ final class DeadlineAgendaDialogsTest extends WebTestCase
 
         $this->client->loginUser($user);
         $crawler = $this->client->request('GET', '/termene');
-        $forms = $crawler->filter('#deadline-row-' . $deadline->getId() . ' form[data-action]');
 
         self::assertResponseIsSuccessful();
-        self::assertCount(1, $forms, 'Only the closing control asks for a confirmation.');
-
-        $translator = static::getContainer()->get('translator');
-        self::assertSame(
-            $translator->trans('deadlines.confirm.limitation.body'),
-            $forms->attr('data-agenda-dialog-body-param'),
+        self::assertCount(
+            0,
+            $crawler->filter('#deadline-row-' . $deadline->getId() . ' form[data-action]'),
+            'Nothing on a limitation row closes it, so nothing needs confirming.',
         );
-        self::assertSame(
-            $translator->trans('deadlines.action.stop_tracking'),
-            $forms->attr('data-agenda-dialog-confirm-param'),
-            'The dialog names the same act as the button that opened it.',
+        self::assertCount(
+            0,
+            $crawler->filter('#deadline-row-' . $deadline->getId() . ' form[action*="/complete"]'),
         );
     }
 
@@ -170,10 +168,12 @@ final class DeadlineAgendaDialogsTest extends WebTestCase
     }
 
     /**
-     * The date is collected here. The href stays pointed at the case so a browser
-     * running no scripts still reaches the dialog, only through a navigation.
+     * The dialog that collects the communication date stays available on the agenda
+     * page, wired to the route that records it. No deadline row opens it any more: the
+     * summons-answer term is not created until that date exists, so a row asking for it
+     * cannot occur. What surfaces the case is the blockage zone.
      */
-    public function testTheCommunicationDateButtonOpensTheDialogAndKeepsTheCaseLinkAsFallback(): void
+    public function testTheAgendaKeepsTheDialogThatCollectsTheCommunicationDate(): void
     {
         $user = $this->makeUser();
         $case = $this->makeCase($user, CaseStatus::SOMATIE_TRIMISA);
@@ -182,17 +182,13 @@ final class DeadlineAgendaDialogsTest extends WebTestCase
 
         $this->client->loginUser($user);
         $crawler = $this->client->request('GET', '/termene');
-        $link = $crawler->filter('#deadline-row-' . $deadline->getId() . ' a[data-action]');
 
         self::assertResponseIsSuccessful();
-        self::assertCount(1, $link);
-        self::assertSame('agenda-dialog#openDialog', $link->attr('data-action'));
-        self::assertSame('hs-modal-set-summons-communication-date', $link->attr('data-agenda-dialog-dialog-param'));
-        self::assertSame(
-            '/case/' . $case->getId() . '/summons-communication-date',
-            $link->attr('data-agenda-dialog-action-param'),
+        self::assertCount(
+            0,
+            $crawler->filter('#deadline-row-' . $deadline->getId() . ' a[data-action]'),
+            'A summons-answer row never asks for a date it must already have.',
         );
-        self::assertSame('/case/' . $case->getId(), $link->attr('href'));
 
         $dialog = $crawler->filter('#hs-modal-set-summons-communication-date');
         self::assertCount(1, $dialog);

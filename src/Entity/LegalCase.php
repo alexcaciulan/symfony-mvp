@@ -219,6 +219,36 @@ class LegalCase
     private ?\DateTimeImmutable $rulingCommunicationDate = null;
 
     /**
+     * Date the ruling given on the annulment request was SERVED. Distinct from
+     * `rulingCommunicationDate`, which concerns the initial payment order, and from
+     * `finalRulingDate`, which is the date that order was PRONOUNCED.
+     *
+     * When the debtor filed an annulment request, the order does NOT become final on
+     * the lapse of the ten days: it becomes final through the rejection of that request
+     * (CPC art. 1024 para. 8), and the three years of enforcement limitation run from
+     * the service of that second ruling (CPC art. 705 para. 2). The date cannot be
+     * derived from anything the application holds, so the lawyer records it; until then
+     * the case is listed as a blockage.
+     */
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $annulmentRulingCommunicationDate = null;
+
+    /**
+     * Date the enforcement request was filed with the bailiff, accompanied by the
+     * enforceable title. That filing is the fact CPC art. 708 para. 1 pt. 2 attaches
+     * the interruption of the enforcement limitation to, and the interruption runs
+     * from the date of filing, not from the day the case was marked as being in
+     * enforcement, so the date is recorded instead of being inferred from the status.
+     *
+     * Nothing in the application can derive it, so the lawyer states it when he moves
+     * the case into enforcement. While it is missing, the enforcement-limitation term
+     * stays open: closing it on a status alone would rest an irreversible closing on a
+     * declaration rather than on a recorded fact.
+     */
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $enforcementRequestDate = null;
+
+    /**
      * Data la care debitorul a PRIMIT somația (confirmată prin AR poștal sau
      * proces-verbal de comunicare al executorului), NU data expedierii. De la
      * această dată curge termenul de 15 zile pentru plată (CPC art. 1015 alin.
@@ -815,6 +845,47 @@ class LegalCase
         $this->rulingCommunicationDate = $rulingCommunicationDate;
 
         return $this;
+    }
+
+    public function getAnnulmentRulingCommunicationDate(): ?\DateTimeImmutable
+    {
+        return $this->annulmentRulingCommunicationDate;
+    }
+
+    public function setAnnulmentRulingCommunicationDate(?\DateTimeImmutable $annulmentRulingCommunicationDate): static
+    {
+        $this->annulmentRulingCommunicationDate = $annulmentRulingCommunicationDate;
+
+        return $this;
+    }
+
+    public function getEnforcementRequestDate(): ?\DateTimeImmutable
+    {
+        return $this->enforcementRequestDate;
+    }
+
+    public function setEnforcementRequestDate(?\DateTimeImmutable $enforcementRequestDate): static
+    {
+        $this->enforcementRequestDate = $enforcementRequestDate;
+
+        return $this;
+    }
+
+    /**
+     * Whether an annulment request was ever filed against the payment order, read from
+     * the status history rather than from the current status: the case has usually
+     * moved on to DEFINITIVA or EXECUTARE by the time this matters, and the history is
+     * the only record that IN_ANULARE was ever entered.
+     */
+    public function hasPassedThroughAnnulment(): bool
+    {
+        foreach ($this->statusHistory as $entry) {
+            if ($entry->getNewStatus() === CaseStatus::IN_ANULARE->value) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function getPaymentNoticeCommunicationDate(): ?\DateTimeImmutable

@@ -7,7 +7,6 @@ namespace App\Service\Deadline;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Enum\DeadlineConsequence;
-use App\Enum\DeadlineType;
 use App\Enum\StampDutyStatus;
 
 /**
@@ -33,8 +32,12 @@ final class DeadlineCloseConfirmationResolver
 
         return match ($item->consequence) {
             DeadlineConsequence::CASE_ANNULMENT => $this->stampDuty($item->deadline),
-            DeadlineConsequence::RIGHT_EXTINCTION => $this->limitation($item->deadline),
             DeadlineConsequence::FORFEITURE => $this->forfeiture($item->deadline),
+            // RIGHT_EXTINCTION has no dialog any more. The agenda offers no way to
+            // close a limitation term, so there is no close to confirm: the three
+            // terms it covered are closed by the platform when the act that stops them
+            // happens, or from the deadlines tab of the case, which does not go
+            // through this resolver.
             default => null,
         };
     }
@@ -78,30 +81,6 @@ final class DeadlineCloseConfirmationResolver
             bodyKey: 'deadlines.confirm.stamp_duty.body',
             warningKey: $status === StampDutyStatus::ACHITATA ? null : 'deadlines.confirm.stamp_duty.warning_unpaid',
             facts: $facts,
-        );
-    }
-
-    /**
-     * The three terms whose miss extinguishes a right: limitation of the right to sue
-     * (NCC art. 2500 para. 1, art. 2517), limitation of enforcement (CPC art. 705
-     * para. 1) and the six months that keep the interruption produced by the summons
-     * alive (NCC art. 2540, CPC art. 1015 para. 2). They extinguish different things,
-     * so they are worded apart. Either way closing the row changes nothing in law: the
-     * period runs on, and only an act of the creditor affects it.
-     */
-    private function limitation(LegalDeadline $deadline): DeadlineCloseConfirmation
-    {
-        $prefix = match ($deadline->getType()) {
-            DeadlineType::PRESCRIPTIE_EXECUTARE => 'deadlines.confirm.enforcement_limitation.',
-            DeadlineType::DEPUNERE_CERERE => 'deadlines.confirm.filing_interruption.',
-            default => 'deadlines.confirm.limitation.',
-        };
-
-        return new DeadlineCloseConfirmation(
-            titleKey: $prefix . 'title',
-            bodyKey: $prefix . 'body',
-            warningKey: $prefix . 'warning',
-            facts: $this->commonFacts($deadline),
         );
     }
 

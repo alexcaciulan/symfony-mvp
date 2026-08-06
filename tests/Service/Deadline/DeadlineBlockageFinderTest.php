@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Service\Deadline;
 
+use App\Entity\CaseStatusHistory;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Entity\User;
@@ -50,6 +51,11 @@ class DeadlineBlockageFinderTest extends KernelTestCase
         $conn = $this->em->getConnection();
         $conn->executeStatement(
             'DELETE FROM legal_deadline WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id IN (?))',
+            [$ids],
+            [ArrayParameterType::INTEGER],
+        );
+        $conn->executeStatement(
+            'DELETE FROM case_status_history WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id IN (?))',
             [$ids],
             [ArrayParameterType::INTEGER],
         );
@@ -214,7 +220,13 @@ class DeadlineBlockageFinderTest extends KernelTestCase
         $stamping = $this->createCase(CaseStatus::DOSAR_INREGISTRAT);
         $stamping->setStampDutyStatus(StampDutyStatus::AMANATA_REGULARIZARE);
 
-        $enforcement = $this->createCase(CaseStatus::EXECUTARE);
+        // Final after an annulment request: the anchor is the second ruling, so this
+        // case belongs to the annulment reason and not to the plain enforcement one,
+        // which is what keeps the two disjoint on the same status.
+        $annulment = $this->createCase(CaseStatus::DEFINITIVA);
+        $this->recordAnnulmentPassage($annulment);
+
+        $enforcement = $this->createCase(CaseStatus::DEFINITIVA);
         $this->em->flush();
 
         $blockages = $this->finder->find($this->user);
@@ -224,13 +236,14 @@ class DeadlineBlockageFinderTest extends KernelTestCase
                 DeadlineBlockageReason::SUMMONS_COMMUNICATION_MISSING,
                 DeadlineBlockageReason::RULING_COMMUNICATION_MISSING,
                 DeadlineBlockageReason::STAMP_DUTY_NOTICE_MISSING,
+                DeadlineBlockageReason::ANNULMENT_RULING_COMMUNICATION_MISSING,
                 DeadlineBlockageReason::EXECUTION_ANCHOR_MISSING,
             ],
             array_map(static fn (DeadlineBlockage $b): DeadlineBlockageReason => $b->reason, $blockages),
         );
 
         $caseIds = array_map(static fn (DeadlineBlockage $b): ?int => $b->legalCase->getId(), $blockages);
-        self::assertSame([$summons->getId(), $ruling->getId(), $stamping->getId(), $enforcement->getId()], $caseIds);
+        self::assertSame([$summons->getId(), $ruling->getId(), $stamping->getId(), $annulment->getId(), $enforcement->getId()], $caseIds);
         self::assertSame($caseIds, array_values(array_unique($caseIds)), 'One case may never raise two blockages.');
     }
 
@@ -268,15 +281,46 @@ class DeadlineBlockageFinderTest extends KernelTestCase
     }
 
     /** Enforcement can start without passing through DEFINITIVA, so the gap follows the case there. */
-    public function testEnforcedCaseWithNoAnchorIsBlockedToo(): void
+    /**
+     * Enforcement having started closes the enforcement-limitation term (the request to
+     * the bailiff interrupts it, CPC art. 708 para. 1 pt. 2), so asking for its anchor
+     * there would be asking for the starting date of a term that no longer runs.
+     */
+    public function testEnforcedCaseIsNotAskedForAnAnchorItNoLongerNeeds(): void
     {
         $case = $this->createCase(CaseStatus::EXECUTARE);
         $this->em->flush();
 
+        self::assertSame([], $this->reasonsFor($case));
+    }
+
+    /**
+     * A case that went through an annulment request became final through the ruling on
+     * it (CPC art. 1024 para. 8), so what is missing is the service date of THAT
+     * ruling, not the one of the initial order.
+     */
+    public function testCaseThatWentThroughAnnulmentAsksForTheSecondRulingDate(): void
+    {
+        $case = $this->createCase(CaseStatus::DEFINITIVA);
+        $case->setRulingCommunicationDate(new \DateTimeImmutable('-90 days'));
+        $this->recordAnnulmentPassage($case);
+        $this->em->flush();
+
         self::assertSame(
-            [DeadlineBlockageReason::EXECUTION_ANCHOR_MISSING],
+            [DeadlineBlockageReason::ANNULMENT_RULING_COMMUNICATION_MISSING],
             $this->reasonsFor($case),
+            'The communication of the first order does not answer when the title became final.',
         );
+    }
+
+    public function testAnnulmentRulingCommunicationDateClearsThatBlockage(): void
+    {
+        $case = $this->createCase(CaseStatus::DEFINITIVA);
+        $this->recordAnnulmentPassage($case);
+        $case->setAnnulmentRulingCommunicationDate(new \DateTimeImmutable('-20 days'));
+        $this->em->flush();
+
+        self::assertSame([], $this->reasonsFor($case));
     }
 
     /** The ruling date is the conservative fallback anchor, so having it clears the gap. */
@@ -348,6 +392,16 @@ class DeadlineBlockageFinderTest extends KernelTestCase
         $this->em->persist($case);
 
         return $case;
+    }
+
+    /** Writes the history entry that proves the case entered IN_ANULARE at some point. */
+    private function recordAnnulmentPassage(LegalCase $case): void
+    {
+        $entry = new CaseStatusHistory();
+        $entry->setLegalCase($case);
+        $entry->setOldStatus(CaseStatus::ORDONANTA_EMISA->value);
+        $entry->setNewStatus(CaseStatus::IN_ANULARE->value);
+        $this->em->persist($entry);
     }
 
     private function createDeadline(LegalCase $case, DeadlineType $type): void

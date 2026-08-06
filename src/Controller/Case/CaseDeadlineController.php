@@ -9,6 +9,7 @@ use App\Entity\LegalDeadline;
 use App\Enum\CaseStatus;
 use App\Enum\DeadlineType;
 use App\Form\Deadline\AddDeadlineType;
+use App\Form\Deadline\AnnulmentRulingCommunicationDateType;
 use App\Form\Deadline\EditDeadlineType;
 use App\Form\Deadline\PaymentNoticeCommunicationDateType;
 use App\Form\Deadline\RulingCommunicationDateType;
@@ -148,8 +149,9 @@ final class CaseDeadlineController extends AbstractController
         $previousDate = $case->getRulingCommunicationDate();
 
         $case->setRulingCommunicationDate($communicationDate);
-        $this->em->flush();
 
+        // Single flush after the audit entry: the date and its trace reach the database
+        // together, so a failure cannot leave a changed deadline anchor without a record.
         $this->auditLogService->log(
             action: 'ruling_communication_date_set',
             entityType: LegalCase::class,
@@ -170,6 +172,62 @@ final class CaseDeadlineController extends AbstractController
         }
 
         return $this->respondDeadline($request, $case, true, 'success', 'case_overview.deadlines.flash_ruling_date_set', 'hs-modal-set-ruling-communication-date');
+    }
+
+    /**
+     * Records the communication of the ruling given on the annulment request. That
+     * ruling made the payment order final (CPC art. 1024 para. 8), so the three years
+     * of CPC art. 705 para. 1 run from this date (para. 2) and the enforcement
+     * limitation term can finally be created; until then the case sits in the blockage
+     * list under ANNULMENT_RULING_COMMUNICATION_MISSING.
+     */
+    #[Route('/case/{caseId}/annulment-ruling-communication-date', name: 'case_deadline_annulment_ruling_date', requirements: ['caseId' => '\d+'], methods: ['POST'])]
+    public function setAnnulmentRulingCommunicationDate(int $caseId, Request $request): Response
+    {
+        $case = $this->findOrThrow($caseId);
+        $this->denyAccessUnlessGranted(CaseVoter::DEADLINE_MANAGE, $case);
+
+        $form = $this->createForm(AnnulmentRulingCommunicationDateType::class);
+        $form->handleRequest($request);
+
+        if (!$form->isSubmitted() || !$form->isValid()) {
+            $firstError = null;
+            foreach ($form->getErrors(true) as $error) {
+                $firstError = $error;
+                break;
+            }
+            $toastKey = $firstError?->getMessage() ?? 'case_overview.deadlines.flash_error_validation';
+
+            return $this->respondDeadline($request, $case, false, 'error', $toastKey, null);
+        }
+
+        $data = $form->getData();
+        $communicationDate = $data['annulmentRulingCommunicationDate'];
+        $previousDate = $case->getAnnulmentRulingCommunicationDate();
+
+        $case->setAnnulmentRulingCommunicationDate($communicationDate);
+
+        $this->auditLogService->log(
+            action: 'annulment_ruling_communication_date_set',
+            entityType: LegalCase::class,
+            entityId: (string) $case->getId(),
+            oldData: ['annulmentRulingCommunicationDate' => $previousDate?->format('Y-m-d')],
+            newData: [
+                'caseNumber' => $case->getCaseNumber(),
+                'annulmentRulingCommunicationDate' => $communicationDate->format('Y-m-d'),
+            ],
+            category: AuditLogService::CATEGORY_DEADLINE_EDITED,
+        );
+        $this->em->flush();
+
+        // The workflow listener already ran without this date and created nothing, so
+        // the term is created here. Enforcement having started closes that term
+        // instead, which is why EXECUTARE is not in this set.
+        if ($case->getStatus() === CaseStatus::DEFINITIVA) {
+            $this->deadlineService->ensureExecutionPrescriptionDeadline($case, $communicationDate);
+        }
+
+        return $this->respondDeadline($request, $case, true, 'success', 'case_overview.deadlines.flash_annulment_ruling_date_set', 'hs-modal-set-annulment-ruling-communication-date');
     }
 
     #[Route('/case/{caseId}/summons-communication-date', name: 'case_deadline_summons_communication_date', requirements: ['caseId' => '\d+'], methods: ['POST'])]
@@ -199,7 +257,6 @@ final class CaseDeadlineController extends AbstractController
 
         $case->setPaymentNoticeCommunicationDate($communicationDate);
         $case->setPaymentNoticeCommunicationMethod($method);
-        $this->em->flush();
 
         $this->auditLogService->log(
             action: 'payment_notice_communication_date_set',
@@ -316,6 +373,46 @@ final class CaseDeadlineController extends AbstractController
         $this->em->flush();
 
         return $this->respondDeadline($request, $case, true, 'success', 'case_overview.deadlines.flash_deleted', null);
+    }
+
+    /**
+     * Puts the enforcement-limitation term back under watch after the enforcement that
+     * closed it failed. CPC art. 708 para. 3 says the limitation is NOT interrupted
+     * when the enforcement was dismissed, annulled, allowed to lapse, or abandoned by
+     * the creditor, so in those cases the three years never stopped running and the
+     * closing the application performed has to be undone.
+     *
+     * The date the request was filed is cleared with it: it no longer stands for
+     * anything, and leaving it would re-close the term on the next transition into
+     * enforcement while describing an enforcement that did not hold.
+     */
+    #[Route('/case/{caseId}/enforcement-not-interrupting', name: 'case_deadline_enforcement_not_interrupting', requirements: ['caseId' => '\d+'], methods: ['POST'])]
+    public function reopenExecutionPrescription(int $caseId, Request $request): Response
+    {
+        $case = $this->findOrThrow($caseId);
+        $this->denyAccessUnlessGranted(CaseVoter::DEADLINE_MANAGE, $case);
+
+        if (!$this->isCsrfTokenValid('enforcement_not_interrupting_' . $caseId, $request->getPayload()->getString('_token'))) {
+            return $this->respondDeadline($request, $case, false, 'error', 'case_overview.deadlines.flash_error_csrf', null);
+        }
+
+        $previousDate = $case->getEnforcementRequestDate();
+        $case->setEnforcementRequestDate(null);
+        $this->em->flush();
+
+        $this->auditLogService->log(
+            action: 'enforcement_request_date_cleared',
+            entityType: LegalCase::class,
+            entityId: (string) $case->getId(),
+            oldData: ['enforcementRequestDate' => $previousDate?->format('Y-m-d')],
+            newData: ['caseNumber' => $case->getCaseNumber()],
+            category: AuditLogService::CATEGORY_DEADLINE_EDITED,
+        );
+        $this->em->flush();
+
+        $this->deadlineService->reopenExecutionPrescriptionDeadline($case, 'enforcement_did_not_interrupt');
+
+        return $this->respondDeadline($request, $case, true, 'success', 'case_overview.deadlines.flash_execution_prescription_reopened', null);
     }
 
     /**
