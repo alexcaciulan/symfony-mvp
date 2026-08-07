@@ -27,6 +27,14 @@ enum NotificationType: string
     case INVOICE_ISSUED = 'invoice_issued';
     case SLOT_OVERAGE = 'slot_overage';
 
+    /**
+     * The stamp duty is still owed on a case whose petition has already left for the
+     * court. Chased on its own rather than waiting for the court's notice, because
+     * that notice can be served on the claimant instead of the lawyer and never
+     * reach the person who has to act on it.
+     */
+    case STAMP_DUTY_UNPAID = 'stamp_duty_unpaid';
+
     public function label(): string
     {
         return 'enum.notification_type.' . $this->value;
@@ -47,6 +55,7 @@ enum NotificationType: string
             self::PAYMENT_SUCCEEDED => 'card',
             self::INVOICE_ISSUED => 'document',
             self::SLOT_OVERAGE => 'card',
+            self::STAMP_DUTY_UNPAID => 'money',
         };
     }
 

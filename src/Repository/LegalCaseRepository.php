@@ -123,6 +123,7 @@ class LegalCaseRepository extends ServiceEntityRepository
             CaseStatus::ORDONANTA_EMISA->value,
             CaseStatus::DOSAR_INREGISTRAT->value,
             CaseStatus::CERERE_DEPUSA->value,
+            CaseStatus::CERERE_GENERATA->value,
             CaseStatus::SOMATIE_TRIMISA->value,
             CaseStatus::AMIABIL->value,
             CaseStatus::DEFINITIVA->value,
@@ -350,6 +351,38 @@ class LegalCaseRepository extends ServiceEntityRepository
      *
      * @return LegalCase[] oldest first
      */
+    /**
+     * Petitions already filed where the duty is still owed and the lawyer has not
+     * asked us to stop reminding. Filing is the anchor because it is the last moment
+     * the platform can observe: what the law counts from, the court's notice to pay,
+     * is served outside the platform and sometimes on the claimant rather than the
+     * lawyer.
+     *
+     * @return LegalCase[] oldest filing first
+     */
+    public function findFiledWithOutstandingStampDuty(): array
+    {
+        return $this->createQueryBuilder('lc')
+            ->andWhere('lc.deletedAt IS NULL')
+            // Status, not `filedAt`: registering an ECRIS number from the portal moves
+            // the case to the court without any declared filing date, and those are
+            // precisely the cases where the petition provably arrived. Filtering on the
+            // declaration would drop them. The same list keeps closed and rejected
+            // cases out, which the previous version did not.
+            ->andWhere('lc.status IN (:reachedCourt)')
+            ->andWhere('lc.stampDutyRemindersMutedAt IS NULL')
+            ->andWhere('lc.stampDutyStatus IN (:outstanding)')
+            ->setParameter('reachedCourt', LegalCase::REACHED_COURT_STATUSES)
+            ->setParameter('outstanding', [
+                StampDutyStatus::NEACHITATA,
+                StampDutyStatus::ACHITARE_LA_DEPUNERE,
+                StampDutyStatus::AMANATA_REGULARIZARE,
+            ])
+            ->orderBy('lc.updatedAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
     public function findAwaitingStampDutyCourtNotice(User $user): array
     {
         $withStampDutyDeadline = $this->getEntityManager()->createQueryBuilder()

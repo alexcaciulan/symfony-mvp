@@ -324,16 +324,17 @@ class SeedDemoCasesCommand extends Command
         $order = [
             CaseStatus::AMIABIL->value => 0,
             CaseStatus::SOMATIE_TRIMISA->value => 1,
-            CaseStatus::CERERE_DEPUSA->value => 2,
-            CaseStatus::DOSAR_INREGISTRAT->value => 3,
-            CaseStatus::TERMEN_FIXAT->value => 4,
-            CaseStatus::ORDONANTA_EMISA->value => 5,
-            CaseStatus::IN_ANULARE->value => 6,
-            CaseStatus::DEFINITIVA->value => 7,
-            CaseStatus::EXECUTARE->value => 8,
-            CaseStatus::INCHIS_SUCCES->value => 9,
-            CaseStatus::INCHIS_FARA_RECUPERARE->value => 10,
-            CaseStatus::RESPINSA->value => 11,
+            CaseStatus::CERERE_GENERATA->value => 2,
+            CaseStatus::CERERE_DEPUSA->value => 3,
+            CaseStatus::DOSAR_INREGISTRAT->value => 4,
+            CaseStatus::TERMEN_FIXAT->value => 5,
+            CaseStatus::ORDONANTA_EMISA->value => 6,
+            CaseStatus::IN_ANULARE->value => 7,
+            CaseStatus::DEFINITIVA->value => 8,
+            CaseStatus::EXECUTARE->value => 9,
+            CaseStatus::INCHIS_SUCCES->value => 10,
+            CaseStatus::INCHIS_FARA_RECUPERARE->value => 11,
+            CaseStatus::RESPINSA->value => 12,
         ];
         return ($order[$status->value] ?? 0) >= ($order[$threshold->value] ?? 0);
     }

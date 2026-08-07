@@ -213,7 +213,43 @@ final class CaseStampDutyControllerTest extends WebTestCase
     }
 
     /** A second proof would leave two competing documents in the filing package. */
-    public function testProofIsRejectedWhenTheDutyIsAlreadyPaid(): void
+    public function testProofIsRejectedWhenOneIsAlreadyOnTheCase(): void
+    {
+        $this->client->loginUser($this->user);
+
+        // First upload succeeds and marks the duty paid.
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/proof', [
+            'stamp_duty_proof' => [
+                '_token' => $this->csrfToken('/stamp-duty/proof', 'stamp_duty_proof[_token]'),
+                'paidAt' => '2026-07-10',
+            ],
+        ], [
+            'stamp_duty_proof' => ['file' => $this->proofFile()],
+        ]);
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/proof', [
+            'stamp_duty_proof' => [
+                '_token' => $this->csrfToken('/stamp-duty/proof', 'stamp_duty_proof[_token]'),
+                'paidAt' => '2026-07-11',
+            ],
+        ], [
+            'stamp_duty_proof' => ['file' => $this->proofFile()],
+        ]);
+
+        $this->em->clear();
+        $documents = $this->em->getRepository(Document::class)->findBy([
+            'legalCase' => $this->case->getId(),
+            'documentType' => DocumentType::DOVADA_TAXA_TIMBRU,
+        ]);
+        self::assertCount(1, $documents, 'The package must not carry two competing proofs.');
+    }
+
+    /**
+     * A payment confirmed through the electronic registry leaves the case paid with
+     * no proof of our own. The receipt the lawyer obtains later must still be filable,
+     * so the guard keys on the document rather than on the status.
+     */
+    public function testProofIsAcceptedAfterAPaymentConfirmedThroughTheRegistry(): void
     {
         $this->case->setStampDutyStatus(StampDutyStatus::ACHITATA);
         $this->em->flush();
@@ -234,7 +270,96 @@ final class CaseStampDutyControllerTest extends WebTestCase
             'legalCase' => $this->case->getId(),
             'documentType' => DocumentType::DOVADA_TAXA_TIMBRU,
         ]);
-        self::assertCount(0, $documents);
+        self::assertCount(1, $documents);
+    }
+
+    /**
+     * The recommended channel takes the duty in the filing form itself, so the package
+     * has to be buildable before the money moves. Without this path the lawyer who
+     * pays correctly had to claim a deferral to regularization the petition then
+     * asserted to the court.
+     */
+    public function testDeclaringPaymentAtFilingUnblocksTheFilingGate(): void
+    {
+        $this->client->loginUser($this->user);
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/at-filing', [
+            '_token' => $this->csrfToken('/stamp-duty/at-filing', '_token'),
+        ]);
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame(StampDutyStatus::ACHITARE_LA_DEPUNERE, $refreshed->getStampDutyStatus());
+        self::assertTrue($refreshed->getStampDutyStatus()->allowsFiling());
+    }
+
+    /** Confirming the registry payment needs no file: the portal already sent one. */
+    public function testConfirmingTheRegistryPaymentMarksTheDutyPaidWithoutAFile(): void
+    {
+        $this->case->setStampDutyStatus(StampDutyStatus::ACHITARE_LA_DEPUNERE);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/registry-paid', [
+            '_token' => $this->csrfToken('/stamp-duty/registry-paid', '_token'),
+            'paidAt' => '2026-07-15',
+            'paymentReference' => 'GH-9911',
+        ]);
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame(StampDutyStatus::ACHITATA, $refreshed->getStampDutyStatus());
+        self::assertSame('2026-07-15', $refreshed->getStampDutyPaidAt()->format('Y-m-d'));
+        self::assertSame('GH-9911', $refreshed->getStampDutyPaymentReference());
+        self::assertFalse($refreshed->hasStampDutyProof(), 'No file is expected on this path.');
+    }
+
+    /**
+     * Lawyers commonly pay and re-invoice, so a name other than the claimant's is the
+     * ordinary case. Declaring it keeps the record honest without firing an alert that
+     * would appear on almost every file and stop being read.
+     */
+    public function testDeclaringPaymentOnBehalfReplacesTheWarningWithANotice(): void
+    {
+        $this->client->loginUser($this->user);
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/proof', [
+            'stamp_duty_proof' => [
+                '_token' => $this->csrfToken('/stamp-duty/proof', 'stamp_duty_proof[_token]'),
+                'paidAt' => '2026-07-10',
+                'payerName' => 'Cabinet de Avocat Ionescu',
+                'payerOnBehalf' => '1',
+            ],
+        ], [
+            'stamp_duty_proof' => ['file' => $this->proofFile()],
+        ]);
+
+        $flashes = $this->client->getRequest()->getSession()->getFlashBag()->peekAll();
+        $keys = array_merge(...array_values($flashes));
+
+        self::assertContains('case_overview.stamp_duty.flash_notice_payer_on_behalf', $keys);
+        self::assertNotContains('case_overview.stamp_duty.flash_warning_payer_mismatch', $keys);
+    }
+
+    /** The column holds 100 characters, so a longer reference is refused, not truncated. */
+    public function testRegistryPaymentRejectsAnOverlongReference(): void
+    {
+        $this->case->setStampDutyStatus(StampDutyStatus::ACHITARE_LA_DEPUNERE);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/registry-paid', [
+            '_token' => $this->csrfToken('/stamp-duty/registry-paid', '_token'),
+            'paidAt' => '2026-07-15',
+            'paymentReference' => str_repeat('X', 101),
+        ]);
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame(StampDutyStatus::ACHITARE_LA_DEPUNERE, $refreshed->getStampDutyStatus());
+        self::assertNull($refreshed->getStampDutyPaymentReference());
     }
 
     /** The 10-day term belongs to a case filed unstamped, nowhere else. */

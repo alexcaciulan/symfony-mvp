@@ -12,6 +12,7 @@ framework:
             places:
                 - AMIABIL
                 - SOMATIE_TRIMISA
+                - CERERE_GENERATA
                 - CERERE_DEPUSA
                 - DOSAR_INREGISTRAT
                 - TERMEN_FIXAT
@@ -26,11 +27,19 @@ framework:
                 trimite_somatie:
                     from: AMIABIL
                     to: SOMATIE_TRIMISA
-                depune_cerere:
+                genereaza_cerere:
                     from: SOMATIE_TRIMISA
+                    to: CERERE_GENERATA
+                # Filing is an act of the lawyer on a channel we do not operate, so
+                # only their confirmation moves the case here.
+                depune_cerere:
+                    from: CERERE_GENERATA
                     to: CERERE_DEPUSA
+                # Both origins: the portal can surface the ECRIS number before the
+                # lawyer gets around to confirming the filing, and a discovered dosar
+                # is itself proof that the petition reached the court.
                 inregistreaza_dosar:
-                    from: CERERE_DEPUSA
+                    from: [CERERE_GENERATA, CERERE_DEPUSA]
                     to: DOSAR_INREGISTRAT
                 fixeaza_termen:
                     from: DOSAR_INREGISTRAT

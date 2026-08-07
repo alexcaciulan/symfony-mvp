@@ -88,6 +88,23 @@
     {% if creditor.iban %}
         <div class="block"><span class="label">{{ 'pdf.payment_order.field_iban'|trans }}:</span> <span class="value">{{ creditor.iban }}</span></div>
     {% endif %}
+    {# Reprezentarea și alegerea de domiciliu. Fără arătarea persoanei însărcinate cu
+       primirea actelor, alegerea de domiciliu nu redirecționează comunicările, deci
+       mențiunea le cuprinde pe amândouă sau nu se scrie deloc. Se omite tăcut când
+       profilul nu are adresa completă: o adresă trunchiată într-un act citit de
+       judecător e mai rea decât lipsa ei. #}
+    {% if user and user.fullName and user.proceduralAddress %}
+        <div class="block">
+            <span class="value">
+                {% if user.barNumber %}
+                    {{ 'pdf.payment_order.conventional_rep_bar'|trans({'%lawyer%': user.fullName, '%bar%': user.barNumber}) }}
+                {% else %}
+                    {{ 'pdf.payment_order.conventional_rep'|trans({'%lawyer%': user.fullName}) }}
+                {% endif %}
+                {{ 'pdf.payment_order.domiciliu_ales'|trans({'%lawyer%': user.fullName, '%address%': user.proceduralAddress}) }}
+            </span>
+        </div>
+    {% endif %}
 {% else %}
     <div class="block"><span class="value">{{ 'pdf.payment_order.creditor_missing'|trans }}</span></div>
 {% endif %}
@@ -219,7 +236,17 @@
     {% if stampDuty and stampDuty != '0' and stampDuty != '0.00' %}
     <li>
         {% if case.stampDutyStatus.value == 'ACHITATA' %}
-            {{ 'pdf.payment_order.costs_stamp_duty_paid'|trans({'%amount%': stampDuty|number_format(2, ',', '.')}) }}
+            {# „Conform dovezii anexate" se afirmă doar dacă dovada chiar e în pachet.
+               Plata prin registratura electronică ajunge la instanță pe canalul ei,
+               fără fișier la noi, iar a invoca o anexă inexistentă ar fi contrazis
+               chiar de pachetul depus. #}
+            {% if case.hasStampDutyProof %}
+                {{ 'pdf.payment_order.costs_stamp_duty_paid'|trans({'%amount%': stampDuty|number_format(2, ',', '.')}) }}
+            {% else %}
+                {{ 'pdf.payment_order.costs_stamp_duty_paid_registry'|trans({'%amount%': stampDuty|number_format(2, ',', '.')}) }}
+            {% endif %}
+        {% elseif case.stampDutyStatus.value == 'ACHITARE_LA_DEPUNERE' %}
+            {{ 'pdf.payment_order.costs_stamp_duty_at_filing'|trans({'%amount%': stampDuty|number_format(2, ',', '.')}) }}
         {% else %}
             {{ 'pdf.payment_order.costs_stamp_duty_deferred'|trans({'%amount%': stampDuty|number_format(2, ',', '.')}) }}
         {% endif %}

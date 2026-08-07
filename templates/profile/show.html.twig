@@ -51,6 +51,10 @@
                     <dt class="text-gray-500">{{ 'profile.show.address'|trans }}</dt>
                     <dd class="text-gray-800 text-right">{{ address ?: '—' }}</dd>
                 </div>
+                <div class="flex justify-between text-sm border-t border-gray-100 pt-4">
+                    <dt class="text-gray-500">{{ 'profile.show.bar_number'|trans }}</dt>
+                    <dd class="text-gray-800">{{ user.barNumber ?: '—' }}</dd>
+                </div>
             </dl>
 
             <h2 class="text-sm font-bold uppercase tracking-wider text-gray-500 mt-8 pt-6 border-t border-gray-200">{{ 'profile.show.ai_section'|trans }}</h2>

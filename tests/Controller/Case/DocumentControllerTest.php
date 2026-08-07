@@ -349,6 +349,39 @@ final class DocumentControllerTest extends WebTestCase
         self::assertNull($this->em->getRepository(Document::class)->find($docId));
     }
 
+    /**
+     * The stamp-duty proof decides what the petition claims about the payment. Deleting
+     * it would leave the case reading as paid with no proof, which the petition then
+     * describes as a payment made through the electronic registry: a statement to the
+     * court about a route nobody took.
+     */
+    public function testDeleteRefusesTheStampDutyProof(): void
+    {
+        $this->client->loginUser($this->user);
+
+        $proof = new Document();
+        $proof->setLegalCase($this->case);
+        $proof->setDocumentType(DocumentType::DOVADA_TAXA_TIMBRU);
+        $proof->setOriginalFilename('dovada.pdf');
+        $proof->setStoredFilename('cases/' . $this->case->getId() . '/dovada.pdf');
+        $proof->setFileSize(100);
+        $proof->setMimeType('application/pdf');
+        $proof->setUploadedBy($this->user);
+        $this->em->persist($proof);
+        $this->em->flush();
+        $proofId = $proof->getId();
+
+        $this->client->request('POST', sprintf('/case/%d/document/%d/delete', $this->case->getId(), $proofId), [
+            '_token' => $this->deleteToken($proofId),
+        ]);
+
+        $this->em->clear();
+        self::assertNotNull(
+            $this->em->getRepository(Document::class)->find($proofId),
+            'The stamp-duty proof must survive a delete attempt from the generic flow.',
+        );
+    }
+
     public function testDeleteReturnsTurboStreamWhenRequested(): void
     {
         $this->client->loginUser($this->user);

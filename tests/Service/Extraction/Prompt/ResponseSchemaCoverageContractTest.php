@@ -116,8 +116,18 @@ final class ResponseSchemaCoverageContractTest extends TestCase
             ['properties']['classification']['properties']['type']['enum'];
 
         self::assertSame(
-            array_map(static fn (DocumentType $type): string => $type->value, DocumentType::uploadableTypes()),
+            array_map(static fn (DocumentType $type): string => $type->value, SharedPromptFragments::classifiableTypes()),
             $offered,
+        );
+
+        // Narrower than the upload list is fine, wider is not: anything the model may
+        // return has to be a type the lawyer can also re-select by hand.
+        self::assertEmpty(
+            array_diff(
+                array_map(static fn (DocumentType $type): string => $type->value, SharedPromptFragments::classifiableTypes()),
+                array_map(static fn (DocumentType $type): string => $type->value, DocumentType::uploadableTypes()),
+            ),
+            'The classifier must not be offered a type the correction form refuses.',
         );
     }
 
@@ -127,7 +137,7 @@ final class ResponseSchemaCoverageContractTest extends TestCase
         // alone, which is how a "dovada" ends up meaning whatever the model
         // assumes it means.
         $system = SharedPromptFragments::systemPrompt();
-        foreach (DocumentType::uploadableTypes() as $type) {
+        foreach (SharedPromptFragments::classifiableTypes() as $type) {
             self::assertMatchesRegularExpression(
                 '/^\s*• ' . preg_quote($type->value, '/') . ': \S+/m',
                 $system,

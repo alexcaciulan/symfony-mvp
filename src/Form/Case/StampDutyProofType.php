@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Form\Case;
 
 use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
 use Symfony\Component\Form\Extension\Core\Type\DateType;
 use Symfony\Component\Form\Extension\Core\Type\FileType;
 use Symfony\Component\Form\Extension\Core\Type\MoneyType;
@@ -69,6 +70,14 @@ final class StampDutyProofType extends AbstractType
                 'constraints' => [
                     new Assert\Length(max: 100),
                 ],
+            ])
+            // In practice the lawyer often pays and re-invoices the client, so a name
+            // other than the claimant's is the common case rather than the alarming
+            // one. Declaring it turns the warning into a note instead of leaving the
+            // lawyer with an alert that fires on almost every file and stops being read.
+            ->add('payerOnBehalf', CheckboxType::class, [
+                'label' => 'case_overview.stamp_duty.field.payer_on_behalf',
+                'required' => false,
             ])
         ;
     }

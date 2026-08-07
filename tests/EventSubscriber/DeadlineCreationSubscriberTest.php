@@ -272,6 +272,7 @@ final class DeadlineCreationSubscriberTest extends KernelTestCase
         $case->setPaymentNoticeDate(new \DateTime('2024-04-01'));
         $this->em->flush();
         $this->workflowService->apply($case, 'trimite_somatie');
+        $this->workflowService->apply($case, 'genereaza_cerere');
         $this->workflowService->apply($case, 'depune_cerere');
         $this->workflowService->apply($case, 'inregistreaza_dosar');
         $this->workflowService->apply($case, 'fixeaza_termen');
@@ -297,6 +298,7 @@ final class DeadlineCreationSubscriberTest extends KernelTestCase
         $this->em->flush();
 
         $this->workflowService->apply($case, 'trimite_somatie');
+        $this->workflowService->apply($case, 'genereaza_cerere');
         $this->workflowService->apply($case, 'depune_cerere');
         $this->workflowService->apply($case, 'inregistreaza_dosar');
         $this->workflowService->apply($case, 'fixeaza_termen');
@@ -354,6 +356,7 @@ final class DeadlineCreationSubscriberTest extends KernelTestCase
 
         // Parcurgere completă a fluxului pas cu pas
         $this->workflowService->apply($case, 'trimite_somatie');
+        $this->workflowService->apply($case, 'genereaza_cerere');
         $this->workflowService->apply($case, 'depune_cerere');
         $this->workflowService->apply($case, 'inregistreaza_dosar');
         $this->workflowService->apply($case, 'fixeaza_termen');
@@ -379,6 +382,7 @@ final class DeadlineCreationSubscriberTest extends KernelTestCase
         $this->em->flush();
 
         $this->workflowService->apply($case, 'trimite_somatie');
+        $this->workflowService->apply($case, 'genereaza_cerere');
         $this->workflowService->apply($case, 'depune_cerere');
         $this->workflowService->apply($case, 'inregistreaza_dosar');
         $this->workflowService->apply($case, 'fixeaza_termen');
@@ -410,6 +414,7 @@ final class DeadlineCreationSubscriberTest extends KernelTestCase
         $this->em->flush();
 
         $this->workflowService->apply($case, 'trimite_somatie');
+        $this->workflowService->apply($case, 'genereaza_cerere');
         $this->workflowService->apply($case, 'depune_cerere');
         $this->workflowService->apply($case, 'inregistreaza_dosar');
         $this->workflowService->apply($case, 'fixeaza_termen');
@@ -532,10 +537,77 @@ final class DeadlineCreationSubscriberTest extends KernelTestCase
         self::assertNotNull($filing);
         self::assertFalse($filing->isCompleted());
 
+        $this->workflowService->apply($case, 'genereaza_cerere');
         $this->workflowService->apply($case, 'depune_cerere');
         $this->em->flush();
 
         self::assertTrue($filing->isCompleted());
+    }
+
+    /**
+     * Generating the package is not filing it, so the interruption of NCC art. 2540
+     * is not yet secured and the term has to keep running.
+     */
+    public function testGeneratingThePetitionLeavesTheFilingDeadlineOpen(): void
+    {
+        $case = $this->newCase(new \DateTime('2024-03-15'));
+        $case->setPaymentNoticeDate(new \DateTime('2024-04-01'));
+        $this->em->flush();
+
+        $this->workflowService->apply($case, 'trimite_somatie');
+        $this->em->flush();
+
+        $filing = $this->deadlineService()->createFilingDeadline($case, new \DateTimeImmutable('2026-02-20'));
+        self::assertNotNull($filing);
+
+        $this->workflowService->apply($case, 'genereaza_cerere');
+        $this->em->flush();
+
+        self::assertFalse($filing->isCompleted(), 'A generated package does not prove the request reached the court.');
+    }
+
+    /**
+     * The portal can surface the ECRIS number before the lawyer confirms the filing,
+     * which registers the case straight from CERERE_GENERATA. A dosar on the portal
+     * is itself proof the request arrived, so the term closes on that path too.
+     */
+    public function testRegisteringFromGeneratedClosesTheFilingDeadline(): void
+    {
+        $case = $this->newCase(new \DateTime('2024-03-15'));
+        $case->setPaymentNoticeDate(new \DateTime('2024-04-01'));
+        $this->em->flush();
+
+        $this->workflowService->apply($case, 'trimite_somatie');
+        $this->em->flush();
+
+        $filing = $this->deadlineService()->createFilingDeadline($case, new \DateTimeImmutable('2026-02-20'));
+        self::assertNotNull($filing);
+
+        $this->workflowService->apply($case, 'genereaza_cerere');
+        $this->workflowService->apply($case, 'inregistreaza_dosar');
+        $this->em->flush();
+
+        self::assertTrue($filing->isCompleted());
+    }
+
+    /**
+     * The six-month term exists precisely for cases that have the package but have
+     * not filed it, so CERERE_GENERATA must not be treated as already filed.
+     */
+    public function testFilingDeadlineIsStillCreatedAfterThePetitionIsGenerated(): void
+    {
+        $case = $this->newCase(new \DateTime('2024-03-15'));
+        $case->setPaymentNoticeDate(new \DateTime('2024-04-01'));
+        $this->em->flush();
+
+        $this->workflowService->apply($case, 'trimite_somatie');
+        $this->workflowService->apply($case, 'genereaza_cerere');
+        $this->em->flush();
+
+        $filing = $this->deadlineService()->createFilingDeadline($case, new \DateTimeImmutable('2026-02-20'));
+
+        self::assertNotNull($filing);
+        self::assertFalse($filing->isCompleted());
     }
 
     private function deadlineService(): \App\Service\Deadline\DeadlineService
@@ -546,7 +618,7 @@ final class DeadlineCreationSubscriberTest extends KernelTestCase
 
     private function advanceToOrdonantaEmisa(LegalCase $case): void
     {
-        foreach (['trimite_somatie', 'depune_cerere', 'inregistreaza_dosar', 'fixeaza_termen', 'emite_ordonanta'] as $transition) {
+        foreach (['trimite_somatie', 'genereaza_cerere', 'depune_cerere', 'inregistreaza_dosar', 'fixeaza_termen', 'emite_ordonanta'] as $transition) {
             $this->workflowService->apply($case, $transition);
         }
         $this->em->flush();

@@ -80,9 +80,16 @@ final class DeadlineCreationSubscriber
     /**
      * The request reached the court, which is the condition NCC art. 2540 sets for the
      * interruption produced by the summons to hold, so the six-month term has been met.
+     *
+     * Listened for on both places on purpose. A case can reach the court without the
+     * lawyer confirming it: the portal surfaces the ECRIS number and `inregistreaza_dosar`
+     * runs straight from CERERE_GENERATA, skipping CERERE_DEPUSA. A dosar on the portal
+     * is itself proof the request arrived, so the term closes there too. Closing is
+     * idempotent, so the two paths cannot double-apply.
      */
     #[AsEventListener(event: 'workflow.legal_case.entered.CERERE_DEPUSA')]
-    public function onCerereDepusa(EnteredEvent $event): void
+    #[AsEventListener(event: 'workflow.legal_case.entered.DOSAR_INREGISTRAT')]
+    public function onRequestReachedCourt(EnteredEvent $event): void
     {
         $case = $event->getSubject();
         if (!$case instanceof LegalCase || $case->getId() === null) {

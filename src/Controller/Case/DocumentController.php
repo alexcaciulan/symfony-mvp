@@ -129,6 +129,15 @@ final class DocumentController extends AbstractController
             return $this->respondDocument($request, $legalCase, false, 'error', 'document.delete.invalid_csrf', null);
         }
 
+        // The stamp-duty proof carries payment state and decides what the petition
+        // claims about it. Deleting it would leave the case reading as paid with no
+        // proof, which the petition then describes as a payment made through the
+        // electronic registry: a statement to the court about a payment route nobody
+        // took. It is removed through its own flow or not at all.
+        if ($document->getDocumentType() === DocumentType::DOVADA_TAXA_TIMBRU) {
+            return $this->respondDocument($request, $legalCase, false, 'error', 'document.delete.stamp_duty_proof_protected', null);
+        }
+
         $this->documentUploadService->delete($document);
 
         return $this->respondDocument($request, $legalCase, true, 'success', 'document.delete.success', null);

@@ -38,6 +38,12 @@ final class EmailNotificationSubscriber
         $this->notifyStatusChange($event, 'somatie_trimisa', 'info');
     }
 
+    #[AsEventListener(event: 'workflow.legal_case.entered.CERERE_GENERATA')]
+    public function onCerereGenerata(EnteredEvent $event): void
+    {
+        $this->notifyStatusChange($event, 'cerere_generata', 'info');
+    }
+
     #[AsEventListener(event: 'workflow.legal_case.entered.CERERE_DEPUSA')]
     public function onCerereDepusa(EnteredEvent $event): void
     {

@@ -57,8 +57,9 @@ final class OpisGeneratorService extends AbstractPdfGenerator
                 DocumentType::SOMATIE->value => 1,
                 DocumentType::DOVADA_COMUNICARE->value => 2,
                 DocumentType::DOVADA_TAXA_TIMBRU->value => 3,
-                DocumentType::CONTRACT->value => 4,
-                DocumentType::FACTURA->value => 5,
+                DocumentType::IMPUTERNICIRE_AVOCATIALA->value => 4,
+                DocumentType::CONTRACT->value => 5,
+                DocumentType::FACTURA->value => 6,
             ];
             $aRank = $order[$a->getDocumentType()->value] ?? 10;
             $bRank = $order[$b->getDocumentType()->value] ?? 10;

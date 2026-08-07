@@ -150,11 +150,97 @@ final class PaymentOrderRequestGeneratorServiceTest extends KernelTestCase
     public function testRenderHtmlClaimsTheStampDutyAsRecoverableCosts(): void
     {
         $this->case->setStampDutyStatus(StampDutyStatus::ACHITATA);
+        $this->attachStampDutyProof();
 
         $html = $this->service->renderHtml($this->case);
 
         self::assertStringContainsString('art. 453', $html);
         self::assertStringContainsString('achitată conform dovezii anexate', $html);
+    }
+
+    /**
+     * Payment through the electronic registry reaches the court on its own channel,
+     * so the case reads as paid while no proof sits in our package. Invoking an annex
+     * that is not there would be contradicted by the very package filed.
+     */
+    public function testRenderHtmlDoesNotInvokeAnAnnexWhenThePaymentWentThroughTheRegistry(): void
+    {
+        $this->case->setStampDutyStatus(StampDutyStatus::ACHITATA);
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringNotContainsString('achitată conform dovezii anexate', $html);
+        self::assertStringContainsString('registratura electronică', $html);
+    }
+
+    /**
+     * The recommended channel takes the duty and the petition in one step, so payment
+     * lands after the package is built. Saying the duty will be paid during
+     * regularization there would misstate what the lawyer is actually doing.
+     */
+    public function testRenderHtmlStatesThatTheDutyIsPaidAtFilingWhenThatWasChosen(): void
+    {
+        $this->case->setStampDutyStatus(StampDutyStatus::ACHITARE_LA_DEPUNERE);
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringNotContainsString('achitată conform dovezii anexate', $html);
+        self::assertStringNotContainsString('art. 33 alin. 2', $html);
+        self::assertStringContainsString('se achită odată cu înregistrarea', $html);
+    }
+
+    /**
+     * The petition is what fixes where the court sends everything afterwards. Without
+     * both the elected domicile and the person designated to receive documents, the
+     * mention does not redirect service, so it is written as one sentence or not at all.
+     */
+    public function testRenderHtmlStatesTheElectedProceduralDomicileAtTheLawyerOffice(): void
+    {
+        $this->user->setFirstName('Ion');
+        $this->user->setLastName('Popescu');
+        $this->user->setStreet('Str. Avocatilor');
+        $this->user->setStreetNumber('12');
+        $this->user->setCity('Cluj-Napoca');
+        $this->user->setCounty('Cluj');
+        $this->em->flush();
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString('domiciliul procedural ales', $html);
+        self::assertStringContainsString('Str. Avocatilor nr. 12, Cluj-Napoca, Cluj', $html);
+        self::assertStringContainsString('persoana însărcinată cu primirea actelor', $html);
+    }
+
+    /**
+     * A truncated address on an act the judge reads is worse than none: it claims to
+     * be where communications should go.
+     */
+    public function testRenderHtmlOmitsTheElectedDomicileWhenTheOfficeAddressIsIncomplete(): void
+    {
+        $this->user->setFirstName('Ion');
+        $this->user->setLastName('Popescu');
+        $this->user->setStreet('Str. Avocatilor');
+        $this->user->setCity('Cluj-Napoca');
+        $this->em->flush();
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringNotContainsString('domiciliul procedural ales', $html);
+    }
+
+    private function attachStampDutyProof(): void
+    {
+        $proof = new Document();
+        $proof->setLegalCase($this->case);
+        $proof->setDocumentType(DocumentType::DOVADA_TAXA_TIMBRU);
+        $proof->setOriginalFilename('dovada.pdf');
+        $proof->setStoredFilename('cases/test/dovada.pdf');
+        $proof->setFileSize(100);
+        $proof->setMimeType('application/pdf');
+        $proof->setUploadedBy($this->user);
+        $this->em->persist($proof);
+        $this->case->addDocument($proof);
+        $this->em->flush();
     }
 
     /**

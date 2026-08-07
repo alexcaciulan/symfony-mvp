@@ -10,10 +10,12 @@
    ca acest câmp să existe, iar „0 lei taxă de timbru" ar fi pur și simplu fals. #}
 {% set amount = stamp_duty_amount|default(case.stampDuty|default(0) + 0) %}
 
-{# Plata într-un dosar existent devine posibilă abia după ce dosarul are număr. #}
+{# Două formulare distincte pe portal, după cum dosarul are sau nu număr. Fără număr,
+   plata se face în chiar formularul de înregistrare a dosarului nou, care ia taxa și
+   cererea în același pas; trimiterea la rădăcina portalului lăsa avocatul să caute. #}
 {% set rejust_url = case.courtCaseNumber
     ? 'https://registratura.rejust.ro/plata-taxei-judiciare-de-timbru-intr-un-dosar-existent'
-    : 'https://registratura.rejust.ro/' %}
+    : 'https://registratura.rejust.ro/inregistreaza-un-dosar-nou-pe-rolul-instantei-de-judecata' %}
 
 <section id="case-stamp-duty-card" class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft overflow-hidden">
     <div class="p-5">
@@ -53,7 +55,22 @@
                                 {{ icon_document('size-3.5') }}
                                 {{ 'case_overview.stamp_duty.view_proof'|trans }}
                             </a>
+                        {% elseif case.stampDutyPaidAt %}
+                            {# Fără fișier de descărcat, dar nu fiindcă lipsește ceva: pe
+                               calea registraturii confirmarea a plecat la instanță pe
+                               canalul ei, iar tăcerea aici ar arăta ca o dovadă pierdută. #}
+                            <p class="mt-0.5">{{ 'case_overview.stamp_duty.paid_through_registry'|trans }}</p>
                         {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% elseif status.value == 'ACHITARE_LA_DEPUNERE' %}
+            <div class="rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/60 p-3 mb-4">
+                <div class="flex items-start gap-2">
+                    {{ icon_money('size-4 text-blue-600 shrink-0 mt-0.5') }}
+                    <div class="text-xs text-blue-800 dark:text-blue-200">
+                        <p class="font-semibold">{{ 'case_overview.stamp_duty.at_filing_title'|trans }}</p>
+                        <p class="mt-0.5">{{ 'case_overview.stamp_duty.at_filing_body'|trans }}</p>
                     </div>
                 </div>
             </div>
@@ -111,6 +128,23 @@
                 </button>
             {% endif %}
 
+            {# Plata pe canalul recomandat se face în chiar formularul de depunere, deci
+               după ce pachetul e gata. Fără această cale, avocatul care plătește corect
+               era obligat să bifeze amânarea la regularizare, iar cererea o afirma. #}
+            {% if status.value == 'NEACHITATA' %}
+                <button type="button" data-hs-overlay="#hs-modal-stamp-duty-at-filing"
+                        class="w-full py-2 px-3 inline-flex items-center justify-center gap-2 text-xs font-medium rounded-lg border border-blue-300 dark:border-blue-800 text-blue-800 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition">
+                    {{ 'case_overview.stamp_duty.cta_at_filing'|trans }}
+                </button>
+            {% endif %}
+
+            {% if status.value == 'ACHITARE_LA_DEPUNERE' %}
+                <button type="button" data-hs-overlay="#hs-modal-stamp-duty-registry-paid"
+                        class="w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-semibold rounded-lg bg-lex-navy text-white hover:bg-lex-navy-dark transition">
+                    {{ 'case_overview.stamp_duty.cta_registry_paid'|trans }}
+                </button>
+            {% endif %}
+
             {% if status.value == 'AMANATA_REGULARIZARE' %}
                 <button type="button" data-hs-overlay="#hs-modal-stamp-duty-court-notice"
                         class="w-full py-2 px-3 inline-flex items-center justify-center gap-2 text-xs font-medium rounded-lg border border-orange-300 dark:border-orange-800 text-orange-800 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/40 transition">
@@ -118,6 +152,24 @@
                 </button>
             {% endif %}
         </div>
+
+        {# Cererea a plecat, taxa e încă datorată: aici riscul e real, iar mementourile
+           pornesc de la depunere fiindcă înștiințarea instanței poate ajunge la client. #}
+        {% if case.hasReachedCourt and status.isOutstanding %}
+            <div class="mt-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 p-3">
+                <p class="text-xs text-amber-800 dark:text-amber-200">{{ 'case_overview.stamp_duty.filed_unpaid_banner'|trans }}</p>
+                {% if case.stampDutyRemindersMutedAt %}
+                    <p class="mt-1.5 text-[11px] text-amber-700 dark:text-amber-300">{{ 'case_overview.stamp_duty.reminders_muted_note'|trans }}</p>
+                {% else %}
+                    <form method="post" action="{{ path('case_stamp_duty_mute_reminders', {id: case.id}) }}" data-turbo-frame="_top" class="mt-2">
+                        <input type="hidden" name="_token" value="{{ csrf_token('stamp_duty_mute_' ~ case.id) }}">
+                        <button type="submit" class="text-[11px] font-medium text-amber-800 dark:text-amber-300 underline">
+                            {{ 'case_overview.stamp_duty.cta_mute_reminders'|trans }}
+                        </button>
+                    </form>
+                {% endif %}
+            </div>
+        {% endif %}
 
         <p class="mt-3 text-[11px] text-slate-400">{{ 'case_overview.stamp_duty.disclaimer'|trans }}</p>
     </div>

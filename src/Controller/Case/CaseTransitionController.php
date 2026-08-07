@@ -7,10 +7,12 @@ namespace App\Controller\Case;
 use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Enum\CaseStatus;
+use App\Enum\CaseTransition;
 use App\Enum\CloseReason;
 use App\Enum\DocumentType;
 use App\Enum\RejectReason;
 use App\Form\Case\CloseCaseType;
+use App\Form\Case\ConfirmFilingType;
 use App\Form\Case\IssueRulingType;
 use App\Form\Case\RegisterCaseNumberType;
 use App\Form\Case\RejectCaseType;
@@ -43,6 +45,70 @@ final class CaseTransitionController extends AbstractController
         private readonly EntityManagerInterface $em,
     ) {}
 
+    /**
+     * The lawyer declares that the petition has left for the court. The platform
+     * files nothing itself, so this is the only signal that anything reached the
+     * registry, and several downstream rules hang on it: the six-month term of
+     * NCC art. 2540 and the stamp-duty follow-up both start from filing, not from
+     * the moment the PDF was produced.
+     */
+    #[Route('/case/{id}/transition/file', name: 'case_transition_file', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function confirmFiling(Request $request, int $id): Response
+    {
+        $case = $this->findOrThrow($id);
+        $this->denyAccessUnlessGranted(CaseVoter::TRANSITION, $case);
+
+        $form = $this->createForm(ConfirmFilingType::class);
+        $form->handleRequest($request);
+
+        if (!$form->isSubmitted() || !$form->isValid()) {
+            $firstError = null;
+            foreach ($form->getErrors(true) as $error) {
+                $firstError = $error;
+                break;
+            }
+            $this->addFlash('error', $firstError?->getMessage() ?? 'case_overview.transition.flash_error_validation');
+
+            return $this->redirectToRoute('case_overview', ['id' => $id]);
+        }
+
+        if ($case->getStatus() !== CaseStatus::CERERE_GENERATA) {
+            $this->addFlash('error', 'case_overview.transition.flash_error_wrong_status');
+
+            return $this->redirectToRoute('case_overview', ['id' => $id]);
+        }
+
+        $data = $form->getData();
+        $filedAt = $data['filedAt'];
+        $channel = $data['filingChannel'];
+        $reference = $data['filingReference'] ?? null;
+
+        $this->em->wrapInTransaction(function () use ($case, $filedAt, $channel, $reference): void {
+            $case->setFiledAt($filedAt);
+            $case->setFilingChannel($channel);
+            $case->setFilingReference($reference);
+            $this->workflowService->apply($case, CaseTransition::DEPUNE_CERERE->value);
+
+            $this->em->flush();
+
+            $this->auditLogService->log(
+                action: 'case_filed',
+                entityType: LegalCase::class,
+                entityId: (string) $case->getId(),
+                newData: [
+                    'caseNumber' => $case->getCaseNumber(),
+                    'filedAt' => $filedAt->format('Y-m-d'),
+                    'filingChannel' => $channel->value,
+                    'filingReference' => $reference,
+                ],
+                category: AuditLogService::CATEGORY_CASE_FILED,
+            );
+            $this->em->flush();
+        });
+
+        return $this->respondAfterTransition($case, 'case_overview.transition.flash_success_filed');
+    }
+
     #[Route('/case/{id}/transition/register', name: 'case_transition_register', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function register(Request $request, int $id): Response
     {
@@ -58,7 +124,10 @@ final class CaseTransitionController extends AbstractController
             return $this->redirectToRoute('case_overview', ['id' => $id]);
         }
 
-        if ($case->getStatus() !== CaseStatus::CERERE_DEPUSA) {
+        // Both origins are legitimate: an ECRIS number is itself proof the petition
+        // reached the court, so it must not be refused merely because the lawyer
+        // skipped confirming the filing.
+        if (!in_array($case->getStatus(), [CaseStatus::CERERE_GENERATA, CaseStatus::CERERE_DEPUSA], true)) {
             $this->addFlash('error', 'case_overview.transition.flash_error_wrong_status');
 
             return $this->redirectToRoute('case_overview', ['id' => $id]);

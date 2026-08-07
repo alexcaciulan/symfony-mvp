@@ -27,6 +27,12 @@ enum DocumentType: string
     // uploadable, while this is a demand letter the lawyer already sent and
     // now files as evidence.
     case SOMATIE_ANTERIOARA = 'somatie_anterioara';
+    /**
+     * Proof that the lawyer represents the claimant, filed with the petition. Not
+     * evidence of the debt: it says nothing about what is owed, only about who may
+     * ask for it on whose behalf.
+     */
+    case IMPUTERNICIRE_AVOCATIALA = 'imputernicire_avocatiala';
     case ACT_ADITIONAL = 'act_aditional';
     case TITLU_VALOARE = 'titlu_valoare';
     case ALT_DOCUMENT = 'alt_document';
@@ -59,6 +65,17 @@ enum DocumentType: string
     public function hasDedicatedUploadFlow(): bool
     {
         return $this === self::DOVADA_TAXA_TIMBRU;
+    }
+
+    /**
+     * Whether the extraction pipeline may classify a document as this type. The power
+     * of attorney is excluded: it carries no claim data, so offering it to the
+     * classifier only creates a way to mislabel an invoice as a representation act
+     * and lose the sums it was uploaded for. It is chosen by the lawyer, never guessed.
+     */
+    public function isClassifiable(): bool
+    {
+        return $this !== self::IMPUTERNICIRE_AVOCATIALA;
     }
 
     /**

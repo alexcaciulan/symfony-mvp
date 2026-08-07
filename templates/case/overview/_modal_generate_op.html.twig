@@ -82,6 +82,8 @@
                         <div>
                             {% if case.stampDutyStatus.value == 'ACHITATA' %}
                                 {{ 'case_overview.modal.generate_op_stamp_duty_paid'|trans }}
+                            {% elseif case.stampDutyStatus.value == 'ACHITARE_LA_DEPUNERE' %}
+                                {{ 'case_overview.modal.generate_op_stamp_duty_at_filing'|trans }}
                             {% else %}
                                 {{ 'case_overview.modal.generate_op_stamp_duty_deferred'|trans }}
                             {% endif %}
@@ -101,10 +103,31 @@
                                     class="py-1.5 px-3 inline-flex items-center text-xs font-semibold rounded-lg bg-green-600 text-white hover:bg-green-700 transition">
                                 {{ 'case_overview.stamp_duty.cta_upload_proof'|trans }}
                             </button>
+                            {# Calea firească pe canalul recomandat: registratura ia taxa
+                               și cererea în același pas, deci plata cade după generarea
+                               pachetului. Fără ea, singura ieșire rămânea amânarea la
+                               regularizare, pe care cererea o afirma în fața instanței. #}
+                            <button type="button" data-hs-overlay="#hs-modal-stamp-duty-at-filing"
+                                    class="py-1.5 px-3 inline-flex items-center text-xs font-semibold rounded-lg border border-blue-300 dark:border-blue-800 text-blue-800 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition">
+                                {{ 'case_overview.stamp_duty.cta_at_filing'|trans }}
+                            </button>
                             <button type="button" data-hs-overlay="#hs-modal-stamp-duty-defer"
                                     class="py-1.5 px-3 inline-flex items-center text-xs font-semibold rounded-lg border border-orange-300 dark:border-orange-800 text-orange-800 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/40 transition">
                                 {{ 'case_overview.stamp_duty.cta_defer'|trans }}
                             </button>
+                        </div>
+                    </div>
+                {% endif %}
+
+                {# Împuternicirea nu blochează generarea: unii avocați o depun separat,
+                   iar o poartă în plus i-ar împinge în afara platformei. Semnalăm doar,
+                   ca la supapa taxei de timbru. #}
+                {% if not case.hasPowerOfAttorney %}
+                    <div class="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-xs text-amber-800 dark:text-amber-200">
+                        {{ icon_warning('size-4 text-amber-600 shrink-0 mt-0.5') }}
+                        <div>
+                            <p class="font-semibold">{{ 'case_overview.modal.generate_op_power_of_attorney_missing_title'|trans }}</p>
+                            <p class="mt-0.5">{{ 'case_overview.modal.generate_op_power_of_attorney_missing_body'|trans }}</p>
                         </div>
                     </div>
                 {% endif %}

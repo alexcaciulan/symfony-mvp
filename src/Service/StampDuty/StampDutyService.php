@@ -124,6 +124,75 @@ final class StampDutyService
     }
 
     /**
+     * The lawyer will pay in the electronic registry form, which takes the duty and
+     * the petition together. Nothing is owed differently and no term starts: this
+     * only unblocks the package, because the package is what carries the payment.
+     */
+    public function declarePaymentAtFiling(LegalCase $case, UserInterface $user): void
+    {
+        $this->em->wrapInTransaction(function () use ($case, $user): void {
+            $case->setStampDutyStatus(StampDutyStatus::ACHITARE_LA_DEPUNERE);
+            $this->em->flush();
+
+            $this->auditLogService->log(
+                action: 'stamp_duty_declared_at_filing',
+                entityType: LegalCase::class,
+                entityId: (string) $case->getId(),
+                newData: [
+                    'caseNumber' => $case->getCaseNumber(),
+                    'declaredBy' => $user->getUserIdentifier(),
+                ],
+                category: AuditLogService::CATEGORY_STAMP_DUTY,
+            );
+            $this->em->flush();
+        });
+    }
+
+    /**
+     * Payment went through the electronic registry, which transmits the confirmation
+     * to the court together with the petition (OUG 80/2013 art. 40 alin. 3, as added
+     * by Legea 268/2024). There is no file to attach here: the proof is already where
+     * it needs to be, and asking for it a second time would be asking for nothing.
+     *
+     * The UAT snapshot is still taken, because what matters in a dispute is which
+     * town hall we pointed at when the money moved.
+     */
+    public function confirmPaymentThroughRegistry(
+        LegalCase $case,
+        UserInterface $user,
+        \DateTimeImmutable $paidAt,
+        ?string $paymentReference,
+        string $lawVersion,
+    ): void {
+        $target = $this->uatResolver->resolve($case);
+
+        $this->em->wrapInTransaction(function () use ($case, $user, $paidAt, $paymentReference, $lawVersion, $target): void {
+            $case->setStampDutyStatus(StampDutyStatus::ACHITATA);
+            $case->setStampDutyPaidAt($paidAt);
+            $case->setStampDutyPaymentReference($paymentReference);
+            $case->setStampDutyUat($target->uatName());
+            $case->setStampDutyLawVersion($lawVersion);
+            $this->em->flush();
+
+            $this->auditLogService->log(
+                action: 'stamp_duty_paid_through_registry',
+                entityType: LegalCase::class,
+                entityId: (string) $case->getId(),
+                newData: [
+                    'caseNumber' => $case->getCaseNumber(),
+                    'paidAt' => $paidAt->format('Y-m-d'),
+                    'paymentReference' => $paymentReference,
+                    'uat' => $target->uatName(),
+                    'confirmedBy' => $user->getUserIdentifier(),
+                    'lawVersion' => $lawVersion,
+                ],
+                category: AuditLogService::CATEGORY_STAMP_DUTY,
+            );
+            $this->em->flush();
+        });
+    }
+
+    /**
      * The court's notice to stamp has arrived. Only now can the 10-day term be
      * computed: it runs from that communication, a date the platform cannot observe.
      */

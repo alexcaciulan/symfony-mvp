@@ -32,7 +32,10 @@ final class SharedPromptFragments
      */
     public static function classifiableTypes(): array
     {
-        return DocumentType::uploadableTypes();
+        return array_values(array_filter(
+            DocumentType::uploadableTypes(),
+            static fn (DocumentType $type): bool => $type->isClassifiable(),
+        ));
     }
 
     /**

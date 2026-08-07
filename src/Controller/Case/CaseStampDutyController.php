@@ -10,6 +10,7 @@ use App\Form\Case\StampDutyProofType;
 use App\Repository\LegalCaseRepository;
 use App\Security\Voter\CaseVoter;
 use App\Service\Case\OverviewContextBuilder;
+use App\Service\StampDuty\StampDutyReminderService;
 use App\Service\StampDuty\StampDutyService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -31,6 +32,7 @@ final class CaseStampDutyController extends AbstractController
         private readonly LegalCaseRepository $legalCaseRepository,
         private readonly StampDutyService $stampDutyService,
         private readonly OverviewContextBuilder $contextBuilder,
+        private readonly StampDutyReminderService $reminderService,
         private readonly string $stampDutyLawVersion,
     ) {}
 
@@ -40,10 +42,12 @@ final class CaseStampDutyController extends AbstractController
         $case = $this->findOrThrow($id);
         $this->denyAccessUnlessGranted(CaseVoter::STAMP_DUTY_MANAGE, $case);
 
-        // The UI hides the button once the duty is paid, but a second proof would
-        // leave two DOVADA_TAXA_TIMBRU documents on the case and put an ambiguous
-        // one in the filing package.
-        if ($case->getStampDutyStatus() === StampDutyStatus::ACHITATA) {
+        // A second proof would leave two DOVADA_TAXA_TIMBRU documents on the case and
+        // put an ambiguous one in the filing package. Keyed on the document, not on
+        // the status: after a payment confirmed through the registry the case reads
+        // ACHITATA with no proof at all, and the lawyer must still be able to file the
+        // receipt they later obtain.
+        if ($case->hasStampDutyProof()) {
             return $this->respond($request, $case, false, 'warning', 'case_overview.stamp_duty.flash_error_already_paid');
         }
 
@@ -86,11 +90,16 @@ final class CaseStampDutyController extends AbstractController
             lawVersion: $this->stampDutyLawVersion,
         );
 
-        // Advisory, never blocking: the claimant owes the duty, so a proof in
-        // another name weakens the art. 40 alin. 3 presumption of payment.
-        $extraToast = $this->stampDutyService->payerDiffersFromCreditor($case, $payerName)
-            ? 'case_overview.stamp_duty.flash_warning_payer_mismatch'
-            : null;
+        // Advisory, never blocking: the claimant owes the duty, so a proof in another
+        // name weakens the art. 40 alin. 3 presumption of payment. When the lawyer
+        // declares they paid on the client's behalf the message becomes a reminder of
+        // what to keep on file, because that is the ordinary case, not the risky one.
+        $extraToast = null;
+        if ($this->stampDutyService->payerDiffersFromCreditor($case, $payerName)) {
+            $extraToast = ($data['payerOnBehalf'] ?? false)
+                ? 'case_overview.stamp_duty.flash_notice_payer_on_behalf'
+                : 'case_overview.stamp_duty.flash_warning_payer_mismatch';
+        }
 
         return $this->respond(
             $request,
@@ -100,7 +109,108 @@ final class CaseStampDutyController extends AbstractController
             'case_overview.stamp_duty.flash_success_paid',
             'hs-modal-stamp-duty-proof',
             $extraToast,
+            ($data['payerOnBehalf'] ?? false) ? 'info' : 'warning',
         );
+    }
+
+    /**
+     * The lawyer will pay in the electronic registry form, together with filing.
+     * Unblocks the package without pretending the money has moved.
+     */
+    #[Route('/case/{id}/stamp-duty/at-filing', name: 'case_stamp_duty_at_filing', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function atFiling(int $id, Request $request): Response
+    {
+        $case = $this->findOrThrow($id);
+        $this->denyAccessUnlessGranted(CaseVoter::STAMP_DUTY_MANAGE, $case);
+
+        if (!$this->isCsrfTokenValid('stamp_duty_at_filing_' . $id, $request->getPayload()->getString('_token'))) {
+            return $this->respond($request, $case, false, 'error', 'case_overview.stamp_duty.flash_error_csrf');
+        }
+
+        if ($case->getStampDutyStatus() === StampDutyStatus::ACHITATA) {
+            return $this->respond($request, $case, false, 'warning', 'case_overview.stamp_duty.flash_error_already_paid');
+        }
+
+        $this->stampDutyService->declarePaymentAtFiling($case, $this->getUser());
+
+        return $this->respond(
+            $request,
+            $case,
+            true,
+            'success',
+            'case_overview.stamp_duty.flash_success_at_filing',
+            'hs-modal-stamp-duty-at-filing',
+        );
+    }
+
+    /**
+     * Payment went through the electronic registry, so the confirmation reached the
+     * court on its own channel and there is no file for us to hold.
+     */
+    #[Route('/case/{id}/stamp-duty/registry-paid', name: 'case_stamp_duty_registry_paid', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function registryPaid(int $id, Request $request): Response
+    {
+        $case = $this->findOrThrow($id);
+        $this->denyAccessUnlessGranted(CaseVoter::STAMP_DUTY_MANAGE, $case);
+
+        if (!$this->isCsrfTokenValid('stamp_duty_registry_paid_' . $id, $request->getPayload()->getString('_token'))) {
+            return $this->respond($request, $case, false, 'error', 'case_overview.stamp_duty.flash_error_csrf');
+        }
+
+        if ($case->getStampDutyStatus() === StampDutyStatus::ACHITATA) {
+            return $this->respond($request, $case, false, 'warning', 'case_overview.stamp_duty.flash_error_already_paid');
+        }
+
+        $paidAtRaw = trim($request->getPayload()->getString('paidAt'));
+        $paidAt = \DateTimeImmutable::createFromFormat('!Y-m-d', $paidAtRaw);
+        if ($paidAt === false) {
+            return $this->respond($request, $case, false, 'error', 'case_overview.stamp_duty.error.paid_at_required');
+        }
+
+        if ($paidAt > new \DateTimeImmutable('today')) {
+            return $this->respond($request, $case, false, 'error', 'case_overview.stamp_duty.error.paid_at_future');
+        }
+
+        $reference = trim($request->getPayload()->getString('paymentReference'));
+        if (mb_strlen($reference) > 100) {
+            return $this->respond($request, $case, false, 'error', 'case_overview.stamp_duty.error.payment_reference_too_long');
+        }
+
+        $this->stampDutyService->confirmPaymentThroughRegistry(
+            case: $case,
+            user: $this->getUser(),
+            paidAt: $paidAt,
+            paymentReference: $reference !== '' ? $reference : null,
+            lawVersion: $this->stampDutyLawVersion,
+        );
+
+        return $this->respond(
+            $request,
+            $case,
+            true,
+            'success',
+            'case_overview.stamp_duty.flash_success_registry_paid',
+            'hs-modal-stamp-duty-registry-paid',
+        );
+    }
+
+    /**
+     * Stop chasing the duty on this case. Per case rather than a global preference:
+     * silence is wanted on the file already dealt with, not on every future one.
+     */
+    #[Route('/case/{id}/stamp-duty/mute-reminders', name: 'case_stamp_duty_mute_reminders', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function muteReminders(int $id, Request $request): Response
+    {
+        $case = $this->findOrThrow($id);
+        $this->denyAccessUnlessGranted(CaseVoter::STAMP_DUTY_MANAGE, $case);
+
+        if (!$this->isCsrfTokenValid('stamp_duty_mute_' . $id, $request->getPayload()->getString('_token'))) {
+            return $this->respond($request, $case, false, 'error', 'case_overview.stamp_duty.flash_error_csrf');
+        }
+
+        $this->reminderService->mute($case, new \DateTimeImmutable());
+
+        return $this->respond($request, $case, true, 'success', 'case_overview.stamp_duty.flash_success_reminders_muted');
     }
 
     #[Route('/case/{id}/stamp-duty/defer', name: 'case_stamp_duty_defer', requirements: ['id' => '\d+'], methods: ['POST'])]
@@ -185,6 +295,7 @@ final class CaseStampDutyController extends AbstractController
         string $toastKey,
         ?string $closeModalId = null,
         ?string $extraToastKey = null,
+        string $extraToastVariant = 'warning',
     ): Response {
         if (str_contains((string) $request->headers->get('Accept', ''), 'text/vnd.turbo-stream.html')) {
             $context = $updateRegions ? $this->contextBuilder->build($case) : ['case' => $case];
@@ -192,6 +303,7 @@ final class CaseStampDutyController extends AbstractController
             $context['toast_variant'] = $toastVariant;
             $context['toast_key'] = $toastKey;
             $context['extra_toast_key'] = $extraToastKey;
+            $context['extra_toast_variant'] = $extraToastVariant;
             $context['close_modal_id'] = $closeModalId;
             $context['open_modal_id'] = null;
 
@@ -204,7 +316,7 @@ final class CaseStampDutyController extends AbstractController
 
         $this->addFlash($toastVariant, $toastKey);
         if ($extraToastKey !== null) {
-            $this->addFlash('warning', $extraToastKey);
+            $this->addFlash($extraToastVariant, $extraToastKey);
         }
 
         return $this->redirectToRoute('case_overview', ['id' => $case->getId()]);

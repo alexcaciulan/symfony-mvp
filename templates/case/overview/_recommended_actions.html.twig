@@ -86,7 +86,20 @@
 
         {# Status-driven transitions exposed inline as secondary CTAs. Each opens the matching
            Preline modal; the controller validates and applies the workflow transition. #}
-        {% if case.status.value == 'CERERE_DEPUSA' %}
+        {% if case.status.value == 'CERERE_GENERATA' %}
+            <button type="button"
+                    data-hs-overlay="#hs-modal-confirm-filing"
+                    class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg bg-gradient-to-r from-purple-50 to-purple-50/50 dark:from-purple-950/40 dark:to-purple-950/20 border border-purple-200/60 dark:border-purple-900/40 hover:from-purple-100 dark:hover:from-purple-950/60 transition group">
+                <div class="size-9 rounded-lg bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 flex items-center justify-center shrink-0">
+                    {{ icon_document('size-4') }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-semibold text-purple-900 dark:text-purple-100">{{ 'case_overview.recommended_actions.confirm_filing'|trans }}</div>
+                    <div class="text-[11px] text-purple-700/80 dark:text-purple-300/80 mt-0.5">{{ 'case_overview.recommended_actions.confirm_filing_hint'|trans }}</div>
+                </div>
+                {{ icon_chevron_right('size-4 text-purple-600 dark:text-purple-400 shrink-0') }}
+            </button>
+        {% elseif case.status.value == 'CERERE_DEPUSA' %}
             <button type="button"
                     data-controller="goto-portal-discover"
                     data-action="goto-portal-discover#navigate"

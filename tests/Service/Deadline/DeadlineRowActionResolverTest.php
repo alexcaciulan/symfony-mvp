@@ -103,6 +103,9 @@ class DeadlineRowActionResolverTest extends TestCase
     {
         yield 'before the summons' => [CaseStatus::AMIABIL, 'deadlines.action.send_summons'];
         yield 'summons sent' => [CaseStatus::SOMATIE_TRIMISA, 'deadlines.action.generate_payment_order'];
+        // The package exists and only the filing is missing, which is the very act
+        // that stops this term running.
+        yield 'petition generated' => [CaseStatus::CERERE_GENERATA, 'deadlines.action.confirm_filing'];
         yield 'already filed' => [CaseStatus::DOSAR_INREGISTRAT, 'deadlines.action.open_case'];
     }
 

@@ -27,6 +27,14 @@ class ProfileEditType extends AbstractType
                 'required' => false,
                 'label' => 'profile.edit.phone',
             ])
+            // Printed on every document that goes to the debtor and to the court, and
+            // until now writable only from a console command, so in production the
+            // bar number never appeared on any of them.
+            ->add('barNumber', TextType::class, [
+                'required' => false,
+                'label' => 'profile.edit.bar_number',
+                'help' => 'profile.edit.bar_number_help',
+            ])
             // Fiscal data — required to issue invoices (see User::hasCompleteFiscalData()).
             // Clients are law practices/companies, always identified by CIF.
             ->add('companyName', TextType::class, [

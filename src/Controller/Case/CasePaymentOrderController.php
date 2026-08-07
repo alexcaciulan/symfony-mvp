@@ -6,6 +6,7 @@ namespace App\Controller\Case;
 
 use App\Entity\LegalCase;
 use App\Enum\CaseStatus;
+use App\Enum\CaseTransition;
 use App\Enum\DebitAcknowledgedStatus;
 use App\Enum\DocumentType;
 use App\Enum\IssueSeverity;
@@ -17,6 +18,7 @@ use App\Service\Case\CaseWorkflowService;
 use App\Service\Case\OverviewContextBuilder;
 use App\Service\Deadline\DeadlineService;
 use App\Service\Document\CaseFilesPackager;
+use App\Service\Document\MissingDocumentFileException;
 use App\Service\Document\OpisGeneratorService;
 use App\Service\Document\PaymentOrderRequestGeneratorService;
 use App\Service\Validation\OpAdmissibilityValidator;
@@ -30,9 +32,11 @@ use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
- * Pas 5.2 — generarea cererii de OP + opis + descărcare ZIP pentru depunere
- * la registratura instanței. Workflow trigger: `depune_cerere` (SOMATIE_TRIMISA
- * → CERERE_DEPUSA). Idempotency strict — o singură cerere OP per dosar.
+ * Builds the payment-order petition, the index of annexes and the downloadable
+ * package. Applies `genereaza_cerere` (SOMATIE_TRIMISA to CERERE_GENERATA): the
+ * documents now exist, but nothing has been filed. Filing is confirmed separately
+ * by the lawyer, on a channel this platform does not operate.
+ * Strictly idempotent: one petition per case.
  */
 final class CasePaymentOrderController extends AbstractController
 {
@@ -128,7 +132,7 @@ final class CasePaymentOrderController extends AbstractController
             $opis = $this->opisGenerator->generate($case);
             $this->em->flush();
 
-            $this->workflowService->apply($case, 'depune_cerere');
+            $this->workflowService->apply($case, CaseTransition::GENEREAZA_CERERE->value);
 
             $this->auditLogService->log(
                 action: 'payment_order_generated',
@@ -199,7 +203,24 @@ final class CasePaymentOrderController extends AbstractController
             return $this->redirectToRoute('case_overview', ['id' => $id]);
         }
 
-        $zipPath = $this->caseFilesPackager->package($case);
+        // The index lists the annexes, and annexes can still be added while the case
+        // is generated but not filed. Rebuilt here so the package cannot go out with
+        // a document the index does not mention, which is exactly what the petition
+        // points the court to. Idempotent: the same file is overwritten in place.
+        if ($case->getStatus() === CaseStatus::CERERE_GENERATA) {
+            $this->opisGenerator->generate($case);
+            $this->em->flush();
+        }
+
+        try {
+            $zipPath = $this->caseFilesPackager->package($case);
+        } catch (MissingDocumentFileException) {
+            // Better an unbuildable package than one that omits a piece the petition
+            // inside it says is annexed.
+            $this->addFlash('error', 'case_overview.zip_package.flash_error_file_missing');
+
+            return $this->redirectToRoute('case_overview', ['id' => $id]);
+        }
 
         $response = new BinaryFileResponse($zipPath);
         $response->setContentDisposition(
