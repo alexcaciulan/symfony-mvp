@@ -235,6 +235,7 @@ wizard:
         synced: 'Data synced from ANAF'
         sync_success: 'Company data retrieved from ANAF.'
         undo: 'Undo sync'
+        already_synced: 'Data has already been synced from ANAF. Undo the sync to run it again.'
         undo_done: 'The values from before the sync have been restored.'
         fiscal_domicile_differs: 'ANAF holds a fiscal domicile different from the registered office. The registered office was filled in; check the block, staircase, floor and apartment by hand.'
         postal_code_missing: 'ANAF has no postal code on file for this company. Fill it in manually.'

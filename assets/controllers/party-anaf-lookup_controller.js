@@ -49,6 +49,7 @@ export default class extends Controller {
         undoneMsg: { type: String, default: 'Previous values restored.' },
         fiscalDomicileMsg: { type: String, default: 'ANAF holds a different fiscal domicile. Check the unit details by hand.' },
         postalCodeMissingMsg: { type: String, default: 'ANAF has no postal code for this company.' },
+        alreadySyncedTitle: { type: String, default: 'Already synced. Undo the sync to run it again.' },
     };
 
     /** Payload key -> target name. The controller writes nothing else. */
@@ -60,6 +61,12 @@ export default class extends Controller {
         anafStatus: 'anafStatus',
         anafCheckedAt: 'anafCheckedAt',
     };
+
+    connect() {
+        this.loading = false;
+        this.synced = false;
+        this.previousValues = null;
+    }
 
     async lookup() {
         const raw = (this.cuiTarget.value || '').toUpperCase().replace(/\s+/g, '').trim();
@@ -121,17 +128,32 @@ export default class extends Controller {
      * anafStatus makes OpAdmissibilityValidator block the case at step 4.
      */
     populateFields(data) {
-        this.previousValues = new Map();
+        // Snapshot only on the first sync, and snapshot every mapped field
+        // rather than the ones this response happens to fill. Re-snapshotting
+        // would capture ANAF's own values, so undo would restore those instead
+        // of what the extraction had put in the fields.
+        if (this.previousValues === null) {
+            this.previousValues = new Map();
+
+            for (const targetName of Object.values(this.constructor.FIELD_MAP)) {
+                const field = this.fieldFor(targetName);
+                if (field) {
+                    this.previousValues.set(targetName, field.value);
+                }
+            }
+        }
 
         for (const [key, targetName] of Object.entries(this.constructor.FIELD_MAP)) {
             const field = this.fieldFor(targetName);
-            if (!field || !data[key]) {
-                continue;
+            if (field && data[key]) {
+                this.setFieldValue(field, data[key]);
             }
-
-            this.previousValues.set(targetName, field.value);
-            this.setFieldValue(field, data[key]);
         }
+
+        // A second sync has nothing left to offer and would only muddy what
+        // undo means, so the button stays out of reach until the sync is undone.
+        this.synced = true;
+        this.refreshSyncButton();
 
         if (this.hasBadgeTarget) {
             this.badgeTarget.classList.remove('hidden');
@@ -153,7 +175,7 @@ export default class extends Controller {
     }
 
     undo() {
-        if (!this.previousValues) {
+        if (this.previousValues === null) {
             return;
         }
 
@@ -165,6 +187,9 @@ export default class extends Controller {
         }
 
         this.previousValues = null;
+        this.synced = false;
+        this.refreshSyncButton();
+
         if (this.hasUndoButtonTarget) {
             this.undoButtonTarget.classList.add('hidden');
         }
@@ -202,8 +227,25 @@ export default class extends Controller {
         if (this.hasSpinnerTarget) {
             this.spinnerTarget.classList.toggle('hidden', !loading);
         }
-        if (this.hasSyncButtonTarget) {
-            this.syncButtonTarget.disabled = loading;
+        this.refreshSyncButton();
+    }
+
+    /**
+     * Single owner of the button state. `setLoading(false)` runs in the `finally`
+     * after a successful lookup, so a plain `disabled = loading` there would
+     * immediately re-enable a button the sync had just locked.
+     */
+    refreshSyncButton() {
+        if (!this.hasSyncButtonTarget) {
+            return;
+        }
+
+        this.syncButtonTarget.disabled = this.loading || this.synced;
+
+        if (this.synced) {
+            this.syncButtonTarget.title = this.alreadySyncedTitleValue;
+        } else {
+            this.syncButtonTarget.removeAttribute('title');
         }
     }
 
