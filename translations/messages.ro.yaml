@@ -1723,6 +1723,10 @@ reset_password:
         title: 'Verifică-ți email-ul'
         message: 'Dacă un cont există pentru această adresă de email, vei primi un link de resetare a parolei.'
         expires: 'Linkul expiră în %minutes% minute.'
+        # Shown unconditionally: the reset bundle silently refuses a second
+        # request within the hour, and without this the page looks identical
+        # to a successful send. Static text, so it reveals nothing.
+        throttle_notice: 'Ai cerut deja o resetare în ultima oră? Rămâne valabil primul link primit. Poți cere altul la o oră după cererea anterioară.'
     reset:
         title: 'Setare parolă nouă'
         password_label: 'Parolă nouă'

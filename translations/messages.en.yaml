@@ -1722,6 +1722,10 @@ reset_password:
         title: 'Check your email'
         message: 'If an account exists for this email address, you will receive a password reset link.'
         expires: 'This link expires in %minutes% minutes.'
+        # Shown unconditionally: the reset bundle silently refuses a second
+        # request within the hour, and without this the page looks identical
+        # to a successful send. Static text, so it reveals nothing.
+        throttle_notice: 'Already requested a reset in the last hour? The first link you received is still valid. You can request another one hour after the previous request.'
     reset:
         title: 'Set new password'
         password_label: 'New password'
