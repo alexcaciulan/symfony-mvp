@@ -78,7 +78,7 @@
     {% if creditor.onrcNumber %}
         <div class="block"><span class="label">{{ 'pdf.payment_order.field_onrc'|trans }}:</span> <span class="value">{{ creditor.onrcNumber }}</span></div>
     {% endif %}
-    <div class="block"><span class="label">{{ 'pdf.payment_order.field_address'|trans }}:</span> <span class="value">{{ creditor.address }}</span></div>
+    <div class="block"><span class="label">{{ 'pdf.payment_order.field_address'|trans }}:</span> <span class="value">{{ creditor.address|mailing_address(creditor.addressLocality, creditor.addressCounty) }}</span></div>
     {% if creditor.email %}
         <div class="block"><span class="label">{{ 'pdf.payment_order.field_email'|trans }}:</span> <span class="value">{{ creditor.email }}</span></div>
     {% endif %}
@@ -107,7 +107,7 @@
         {% if debtor.onrcNumber %}
             <div class="block"><span class="label">{{ 'pdf.payment_order.field_onrc'|trans }}:</span> <span class="value">{{ debtor.onrcNumber }}</span></div>
         {% endif %}
-        <div class="block"><span class="label">{{ 'pdf.payment_order.field_address'|trans }}:</span> <span class="value">{{ debtor.address }}</span></div>
+        <div class="block"><span class="label">{{ 'pdf.payment_order.field_address'|trans }}:</span> <span class="value">{{ debtor.address|mailing_address(debtor.addressLocality, debtor.addressCounty) }}</span></div>
     {% endfor %}
 {% endif %}
 

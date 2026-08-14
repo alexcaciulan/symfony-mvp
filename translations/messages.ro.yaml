@@ -202,6 +202,20 @@ language:
     switch: 'Limbă'
 
 # =============================================================================
+# Address components
+# Printed inside the somație and the cerere de ordonanță de plată, so they are
+# always rendered with the locale pinned to `ro` (RomanianAddressFormatter).
+# =============================================================================
+address:
+    part:
+        number: 'Nr.'
+        block: 'Bloc'
+        staircase: 'Scara'
+        floor: 'Etaj'
+        apartment: 'Ap.'
+        postal_code: 'cod poștal'
+
+# =============================================================================
 # Wizard
 # =============================================================================
 wizard:
@@ -218,6 +232,11 @@ wizard:
     anaf:
         sync_button: 'Sincronizează info ANAF'
         synced: 'Date sincronizate din ANAF'
+        sync_success: 'Datele au fost preluate din ANAF.'
+        undo: 'Anulează sincronizarea'
+        undo_done: 'Valorile dinainte de sincronizare au fost restaurate.'
+        fiscal_domicile_differs: 'ANAF are domiciliul fiscal la altă adresă decât sediul social. Am completat sediul social; verifică manual blocul, scara, etajul și apartamentul.'
+        postal_code_missing: 'ANAF nu are cod poștal pentru această firmă. Completează-l manual.'
     stepper:
         label: 'Etape wizard'
         completed: 'Pas finalizat'

@@ -46,7 +46,7 @@
                     </div>
                     <div class="flex gap-2">
                         <dt class="w-14 text-slate-500 shrink-0">{{ 'case_overview.parties.field_seat'|trans }}</dt>
-                        <dd class="text-slate-700 dark:text-slate-300">{{ creditor.address|default('case_overview.parties.no_data'|trans) }}</dd>
+                        <dd class="text-slate-700 dark:text-slate-300">{{ creditor.address|mailing_address(creditor.addressLocality, creditor.addressCounty)|default('case_overview.parties.no_data'|trans) }}</dd>
                     </div>
                     <div class="flex gap-2">
                         <dt class="w-14 text-slate-500 shrink-0">{{ 'case_overview.parties.field_iban'|trans }}</dt>
@@ -78,7 +78,7 @@
                     </div>
                     <div class="flex gap-2">
                         <dt class="w-14 text-slate-500 shrink-0">{{ 'case_overview.parties.field_seat'|trans }}</dt>
-                        <dd class="text-slate-700 dark:text-slate-300">{{ primary_debtor.address|default('case_overview.parties.no_data'|trans) }}</dd>
+                        <dd class="text-slate-700 dark:text-slate-300">{{ primary_debtor.address|mailing_address(primary_debtor.addressLocality, primary_debtor.addressCounty)|default('case_overview.parties.no_data'|trans) }}</dd>
                     </div>
                     {% if primary_debtor.administrator %}
                         <div class="flex gap-2">

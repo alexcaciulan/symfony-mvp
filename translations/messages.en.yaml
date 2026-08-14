@@ -202,6 +202,21 @@ language:
     switch: 'Language'
 
 # =============================================================================
+# Address components
+# Kept in lockstep with the ro catalogue for completeness. The formatter always
+# renders them with the locale pinned to `ro`, since the composed address goes
+# into a Romanian court document.
+# =============================================================================
+address:
+    part:
+        number: 'No.'
+        block: 'Block'
+        staircase: 'Staircase'
+        floor: 'Floor'
+        apartment: 'Apt.'
+        postal_code: 'postal code'
+
+# =============================================================================
 # Wizard
 # =============================================================================
 wizard:
@@ -218,6 +233,11 @@ wizard:
     anaf:
         sync_button: 'Sync ANAF data'
         synced: 'Data synced from ANAF'
+        sync_success: 'Company data retrieved from ANAF.'
+        undo: 'Undo sync'
+        undo_done: 'The values from before the sync have been restored.'
+        fiscal_domicile_differs: 'ANAF holds a fiscal domicile different from the registered office. The registered office was filled in; check the block, staircase, floor and apartment by hand.'
+        postal_code_missing: 'ANAF has no postal code on file for this company. Fill it in manually.'
     stepper:
         label: 'Wizard steps'
         completed: 'Step completed'

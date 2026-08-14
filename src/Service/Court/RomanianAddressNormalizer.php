@@ -32,13 +32,14 @@ final class RomanianAddressNormalizer
 
     /**
      * Leading qualifier ANAF prepends to a locality: "Mun. Cluj-Napoca",
-     * "Municipiul Bacău", "Oraş Huedin". Stripped so the value matches the bare
-     * `city.normalized_name`. The trailing `\s+` guards town names that merely
-     * start with these letters ("Orșova", "Satu Mare" keep their leading token,
-     * which has no following space). Commune addresses are handled separately by
-     * {@see communeFromVillageAddress}, so "comuna" is intentionally absent here.
+     * "Municipiul Bacău", "Oraş Huedin", "Orş. Năvodari". Stripped so the value
+     * matches the bare `city.normalized_name`. The trailing `\s+` guards town
+     * names that merely start with these letters ("Orșova", "Satu Mare" keep
+     * their leading token, which has no following space). Commune addresses are
+     * handled separately by {@see communeFromVillageAddress}, so "comuna" is
+     * intentionally absent here.
      */
-    private const LOCALITY_PREFIX = '/^(?:municipiul|mun\.?|orasul|oras|or\.?)\s+/u';
+    private const LOCALITY_PREFIX = '/^(?:municipiul|mun\.?|orasul|oras\.?|ors\.?|or\.?)\s+/u';
 
     /** Matches "sector 1", "sectorul 1" and the e-Factura "sector1" spelling. */
     private const SECTOR = '/\bsector(?:ul)?\s*([1-6])\b/u';

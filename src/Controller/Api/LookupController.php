@@ -7,8 +7,11 @@ namespace App\Controller\Api;
 use App\Entity\User;
 use App\Repository\CourtRepository;
 use App\Repository\CreditorRepository;
+use App\Service\Address\RomanianAddressFormatter;
+use App\Service\Company\AnafAddressMapper;
 use App\Service\Company\AnafLookupException;
 use App\Service\Company\AnafLookupService;
+use App\Service\Court\AdministrativeUnitResolver;
 use App\Util\PiiMasker;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -44,6 +47,9 @@ final class LookupController extends AbstractController
         string $cui,
         #[CurrentUser] User $user,
         AnafLookupService $anafLookupService,
+        AnafAddressMapper $anafAddressMapper,
+        RomanianAddressFormatter $addressFormatter,
+        AdministrativeUnitResolver $administrativeUnitResolver,
         RateLimiterFactory $companyLookupLimiter,
         LoggerInterface $logger,
     ): JsonResponse {
@@ -85,15 +91,26 @@ final class LookupController extends AbstractController
             );
         }
 
+        $mapping = $anafAddressMapper->map($data);
+        $location = $administrativeUnitResolver->resolve($data['county'], $data['city']);
+
         return new JsonResponse([
             'companyName' => $data['companyName'],
             'cui' => $data['cui'],
-            'address' => self::composeAddress($data),
+            // Street level only. The locality and the county are returned
+            // separately and must not be repeated here.
+            'address' => $addressFormatter->format($mapping->parts),
             // Structured county + locality feed the competent-court resolver at
-            // step 4 (judecatorie/tribunal teritorial). Kept separate from the
-            // composed `address` string, which stays the human-readable display.
-            'county' => $data['county'],
-            'locality' => $data['city'],
+            // step 4 (judecatorie/tribunal teritorial) and the town hall that
+            // collects the stamp duty, and they are what the generated documents
+            // print, so they carry the SIRUTA spelling rather than ANAF's.
+            'county' => $location->countyName,
+            'locality' => $location->localityName,
+            // Two conditions the lawyer has to act on, rather than discover in
+            // court: ANAF holds a different fiscal domicile, so the unit details
+            // could not be trusted; and ANAF has no postal code on file.
+            'fiscalDomicileDiffers' => $mapping->fiscalDomicileDiffers,
+            'postalCodeMissing' => $mapping->parts->postalCode === null,
             'anafStatus' => $data['stare'],
             'anafCheckedAt' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
         ]);
@@ -147,23 +164,5 @@ final class LookupController extends AbstractController
         $query = trim((string) $request->query->get('q', ''));
 
         return new JsonResponse($courtRepository->searchActiveByName($query));
-    }
-
-    /**
-     * ANAF returns address parts separately (street/number/city/county). The
-     * `Step2DebtorEntry::$address` is a single `TextareaType` — join everything
-     * the API gave us into one human-readable line.
-     */
-    private static function composeAddress(array $data): string
-    {
-        $parts = array_filter([
-            $data['street'] ?? null,
-            $data['streetNumber'] ? 'nr. ' . $data['streetNumber'] : null,
-            $data['city'] ?? null,
-            $data['county'] ?? null,
-            $data['postalCode'] ?? null,
-        ], static fn (?string $v): bool => $v !== null && $v !== '');
-
-        return implode(', ', $parts);
     }
 }

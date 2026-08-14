@@ -117,6 +117,10 @@
                      data-party-anaf-lookup-unavailable-msg-value="{{ 'exception.anaf.unavailable'|trans }}"
                      data-party-anaf-lookup-rate-limited-msg-value="{{ 'exception.anaf.rate_limited'|trans }}"
                      data-party-anaf-lookup-not-found-msg-value="{{ 'exception.anaf.not_found'|trans }}"
+                     data-party-anaf-lookup-success-msg-value="{{ 'wizard.anaf.sync_success'|trans }}"
+                     data-party-anaf-lookup-undone-msg-value="{{ 'wizard.anaf.undo_done'|trans }}"
+                     data-party-anaf-lookup-fiscal-domicile-msg-value="{{ 'wizard.anaf.fiscal_domicile_differs'|trans }}"
+                     data-party-anaf-lookup-postal-code-missing-msg-value="{{ 'wizard.anaf.postal_code_missing'|trans }}"
                      class="space-y-6">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="md:col-span-2">
@@ -131,7 +135,10 @@
                         <div data-person-type-toggle-target="pjOnly">
                             <div class="flex items-center justify-between gap-2">
                                 {{ f.field_label(entry.cui, 'wizard.step2.field.cui', false, true) }}
-                                {{ f.anaf_sync_button() }}
+                                <div class="flex items-center gap-3">
+                                    {{ f.anaf_undo_button() }}
+                                    {{ f.anaf_sync_button() }}
+                                </div>
                             </div>
                             <div class="relative">
                                 {{ form_widget(entry.cui, { attr: {

@@ -476,6 +476,100 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         self::assertResponseRedirects('/case/' . $cases[0]->getId());
     }
 
+    /**
+     * The lawyer synced the creditor from ANAF, and only then did the CUI turn
+     * out to match one already in their library. Before, everything but a
+     * missing county/locality was dropped on save: the wizard showed the fresh
+     * address, the case kept the stale one, and the somaţie went to the old
+     * registered office.
+     */
+    public function testConfirmationSubmitRefreshesAReusedCreditorWithTheSyncedData(): void
+    {
+        $existing = new Creditor();
+        $existing->setUser($this->user);
+        $existing->setPersonType(PersonType::PJ);
+        $existing->setName('Acme Creditor SRL');
+        $existing->setAddress('Str. Veche nr. 9, Cluj-Napoca');
+        $existing->setCui('RO15193236');
+        $this->em->persist($existing);
+        $this->em->flush();
+        $existingId = $existing->getId();
+
+        $this->primeSessionForStep4(
+            anafCheckedAt: new \DateTimeImmutable('-1 day'),
+            insolvencyCheckedAt: new \DateTimeImmutable('-1 day'),
+            creditorAddress: 'Strada Răsăritului, Nr. 5, Bloc 4C, Scara A, Etaj 3, Ap. 12, cod poștal 061202',
+            creditorAddressCounty: 'București',
+            creditorAddressLocality: 'Sector 6',
+        );
+
+        $crawler = $this->client->request('GET', '/case/new/confirmation');
+        $token = $crawler->filter('form input[name="step4_confirmation[_token]"]')->first()->attr('value');
+
+        $this->client->request('POST', '/case/new/confirmation', [
+            'step4_confirmation' => [
+                '_token' => $token,
+                'acceptTerms' => '1',
+                'acceptDataAccuracy' => '1',
+            ],
+        ]);
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(Creditor::class)->find($existingId);
+        self::assertSame(
+            'Strada Răsăritului, Nr. 5, Bloc 4C, Scara A, Etaj 3, Ap. 12, cod poștal 061202',
+            $refreshed->getAddress(),
+        );
+        self::assertSame('București', $refreshed->getAddressCounty());
+        self::assertSame('Sector 6', $refreshed->getAddressLocality());
+
+        // The creditor is shared with the lawyer's other cases, so the change
+        // has to be reconstructable months later.
+        $audit = $this->em->getRepository(AuditLog::class)->findOneBy([
+            'action' => 'creditor_refreshed',
+            'entityId' => (string) $existingId,
+        ]);
+        self::assertNotNull($audit);
+        self::assertSame('Str. Veche nr. 9, Cluj-Napoca', $audit->getNewData()['address']['from']);
+    }
+
+    /** A value the register does not carry must not blank a curated one. */
+    public function testConfirmationSubmitDoesNotBlankAReusedCreditorFieldTheFormLeftEmpty(): void
+    {
+        $existing = new Creditor();
+        $existing->setUser($this->user);
+        $existing->setPersonType(PersonType::PJ);
+        $existing->setName('Acme Creditor SRL');
+        $existing->setAddress('Str. Veche nr. 9, Cluj-Napoca');
+        $existing->setCui('RO15193236');
+        $existing->setIban('RO49AAAA1B31007593840000');
+        $existing->setEmail('contact@acme.test');
+        $this->em->persist($existing);
+        $this->em->flush();
+        $existingId = $existing->getId();
+
+        $this->primeSessionForStep4(
+            anafCheckedAt: new \DateTimeImmutable('-1 day'),
+            insolvencyCheckedAt: new \DateTimeImmutable('-1 day'),
+        );
+
+        $crawler = $this->client->request('GET', '/case/new/confirmation');
+        $token = $crawler->filter('form input[name="step4_confirmation[_token]"]')->first()->attr('value');
+
+        $this->client->request('POST', '/case/new/confirmation', [
+            'step4_confirmation' => [
+                '_token' => $token,
+                'acceptTerms' => '1',
+                'acceptDataAccuracy' => '1',
+            ],
+        ]);
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(Creditor::class)->find($existingId);
+        self::assertSame('RO49AAAA1B31007593840000', $refreshed->getIban());
+        self::assertSame('contact@acme.test', $refreshed->getEmail());
+    }
+
     public function testConfirmationGetBlocksWhenInsolvencyNotVerified(): void
     {
         // PJ debtor with insolvencyCheckedAt=null → OP_INSOLVENCY_NOT_VERIFIED (ERROR).
@@ -797,6 +891,9 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         ?string $addressCounty = null,
         ?string $addressLocality = null,
         ?string $contractReference = null,
+        string $creditorAddress = 'Str. Exemplu nr. 1, București',
+        ?string $creditorAddressCounty = null,
+        ?string $creditorAddressLocality = null,
     ): void {
         $anafCheckedAt ??= new \DateTimeImmutable('-1 day');
 
@@ -804,7 +901,9 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
             personType: PersonType::PJ,
             name: 'Acme Creditor SRL',
             cui: 'RO15193236',
-            address: 'Str. Exemplu nr. 1, București',
+            address: $creditorAddress,
+            addressCounty: $creditorAddressCounty,
+            addressLocality: $creditorAddressLocality,
         );
 
         $debtor = new Step2DebtorEntry(

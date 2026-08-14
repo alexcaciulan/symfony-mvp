@@ -77,12 +77,21 @@ final class LookupControllerTest extends WebTestCase
                 'companyName' => 'ACME DEBTOR SRL',
                 'cui' => '14186770',
                 'nrRegCom' => 'J40/1234/2018',
-                'street' => 'Str. Test',
-                'streetNumber' => '1',
-                'city' => 'București',
-                'county' => 'BUCUREȘTI',
-                'postalCode' => '010101',
+                'street' => 'Str. Răsăritului',
+                'streetNumber' => '5',
+                'city' => 'Sector 6 Mun. Bucureşti',
+                'county' => 'MUNICIPIUL BUCUREŞTI',
+                'postalCode' => '061202',
                 'addressDetails' => null,
+                'flatAddress' => 'MUNICIPIUL BUCUREŞTI, SECTOR 6, STR. RĂSĂRITULUI, NR.5, BL.4C, SC.A, ET.3, AP.12',
+                'fiscalAddress' => [
+                    'street' => 'Str. Răsăritului',
+                    'streetNumber' => '5',
+                    'city' => 'Sector 6 Mun. Bucureşti',
+                    'county' => 'MUNICIPIUL BUCUREŞTI',
+                    'postalCode' => '061202',
+                    'addressDetails' => null,
+                ],
                 'phone' => null,
                 'fax' => null,
                 'codCAEN' => '6201',
@@ -98,12 +107,107 @@ final class LookupControllerTest extends WebTestCase
         self::assertSame('14186770', $data['cui']);
         self::assertSame('ACTIV', $data['anafStatus']);
         self::assertArrayHasKey('anafCheckedAt', $data);
-        // address must be the composed string, not a structured object.
-        self::assertStringContainsString('Str. Test', $data['address']);
-        self::assertStringContainsString('București', $data['address']);
-        // structured county + locality feed the competent-court resolver.
-        self::assertSame('BUCUREȘTI', $data['county']);
-        self::assertSame('București', $data['locality']);
+
+        // The composed address carries every component ANAF holds, including
+        // the unit details that live only in the flat line.
+        self::assertSame(
+            'Strada Răsăritului, Nr. 5, Bloc 4C, Scara A, Etaj 3, Ap. 12, cod poștal 061202',
+            $data['address'],
+        );
+        // The locality and the county are returned separately and must never be
+        // repeated inside the address string.
+        self::assertStringNotContainsStringIgnoringCase('bucure', $data['address']);
+        // Both carry the SIRUTA spelling, not ANAF's administrative decoration.
+        self::assertSame('București', $data['county']);
+        self::assertSame('Sector 6', $data['locality']);
+        self::assertFalse($data['fiscalDomicileDiffers']);
+        self::assertFalse($data['postalCodeMissing']);
+    }
+
+    /**
+     * ANAF holds the registered office in one sector and the fiscal domicile in
+     * another (CUI 14399840). The flat line describes the latter and is the only
+     * source of the unit details, so they must not be attached to the former.
+     */
+    public function testFlagsAndSkipsUnitDetailsWhenTheFiscalDomicileDiffers(): void
+    {
+        $this->anafLookupServiceMock
+            ->expects(self::once())
+            ->method('lookupByCui')
+            ->willReturn([
+                'companyName' => 'DANTE INTERNATIONAL SA',
+                'cui' => '14186770',
+                'nrRegCom' => null,
+                'street' => 'Şos. Virtuţii',
+                'streetNumber' => '148',
+                'city' => 'Sector 6 Mun. Bucureşti',
+                'county' => 'MUNICIPIUL BUCUREŞTI',
+                'postalCode' => '060787',
+                'addressDetails' => 'spatiul E47',
+                'flatAddress' => 'MUNICIPIUL BUCUREŞTI, SECTOR 2, STR. GARA HERĂSTRĂU, NR.6, CLADIREA GLOBALWORTH SQUARE, ET.1,2,3,5,8',
+                'fiscalAddress' => [
+                    'street' => 'Str. Gara Herăstrău',
+                    'streetNumber' => '6',
+                    'city' => 'Sector 2 Mun. Bucureşti',
+                    'county' => 'MUNICIPIUL BUCUREŞTI',
+                    'postalCode' => null,
+                    'addressDetails' => 'Cladirea Globalworth Square',
+                ],
+                'phone' => null,
+                'fax' => null,
+                'codCAEN' => null,
+                'stare' => 'ACTIV',
+                'platitorTVA' => true,
+            ]);
+
+        $this->client->request('GET', '/api/anaf-lookup/14186770');
+
+        self::assertResponseIsSuccessful();
+        $data = json_decode($this->client->getResponse()->getContent(), true);
+        self::assertTrue($data['fiscalDomicileDiffers']);
+        self::assertSame('Șoseaua Virtuții, Nr. 148, spatiul E47, cod poștal 060787', $data['address']);
+        self::assertSame('Sector 6', $data['locality']);
+    }
+
+    /** ANAF simply has no postal code for some companies (CUI 15663826). */
+    public function testFlagsAMissingPostalCode(): void
+    {
+        $this->anafLookupServiceMock
+            ->expects(self::once())
+            ->method('lookupByCui')
+            ->willReturn([
+                'companyName' => 'JURESSA NET SRL',
+                'cui' => '14186770',
+                'nrRegCom' => null,
+                'street' => 'Str. Turturelelor',
+                'streetNumber' => '50',
+                'city' => 'Sector 3 Mun. Bucureşti',
+                'county' => 'MUNICIPIUL BUCUREŞTI',
+                'postalCode' => null,
+                'addressDetails' => null,
+                'flatAddress' => 'MUNICIPIUL BUCUREŞTI, SECTOR 3, STR TURTURELELOR, NR.50, ET.4, AP.1',
+                'fiscalAddress' => [
+                    'street' => 'Str. Turturelelor',
+                    'streetNumber' => '50',
+                    'city' => 'Sector 3 Mun. Bucureşti',
+                    'county' => 'MUNICIPIUL BUCUREŞTI',
+                    'postalCode' => null,
+                    'addressDetails' => null,
+                ],
+                'phone' => null,
+                'fax' => null,
+                'codCAEN' => null,
+                'stare' => 'ACTIV',
+                'platitorTVA' => false,
+            ]);
+
+        $this->client->request('GET', '/api/anaf-lookup/14186770');
+
+        self::assertResponseIsSuccessful();
+        $data = json_decode($this->client->getResponse()->getContent(), true);
+        self::assertTrue($data['postalCodeMissing']);
+        self::assertSame('Strada Turturelelor, Nr. 50, Etaj 4, Ap. 1', $data['address']);
+        self::assertSame('Sector 3', $data['locality']);
     }
 
     public function testHappyPathAcceptsRoPrefix(): void

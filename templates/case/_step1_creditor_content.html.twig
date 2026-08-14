@@ -37,9 +37,10 @@
             }}) }}
         </div>
 
-    {# The ANAF lookup on CUI blur fills the registered office, including the
-       structured county + locality that decide where the stamp duty is paid
-       (OUG 80/2013 art. 40 alin. 1). Same controller as the debtor in Step 2. #}
+    {# The ANAF lookup, triggered by the explicit sync button, fills the
+       registered office, including the structured county + locality that decide
+       where the stamp duty is paid (OUG 80/2013 art. 40 alin. 1). Same
+       controller as the debtor in Step 2. #}
     {% set anaf_lookup_url = path('api_anaf_lookup', { cui: '0000000001' })|replace({ '0000000001': '__CUI__' }) %}
     {{ form_start(form, { attr: {
         'id': 'step1-creditor-form',
@@ -52,6 +53,10 @@
         'data-party-anaf-lookup-rate-limited-msg-value': 'exception.anaf.rate_limited'|trans,
         'data-party-anaf-lookup-not-found-msg-value': 'exception.anaf.not_found'|trans,
         'data-party-anaf-lookup-unavailable-msg-value': 'exception.anaf.unavailable'|trans,
+        'data-party-anaf-lookup-success-msg-value': 'wizard.anaf.sync_success'|trans,
+        'data-party-anaf-lookup-undone-msg-value': 'wizard.anaf.undo_done'|trans,
+        'data-party-anaf-lookup-fiscal-domicile-msg-value': 'wizard.anaf.fiscal_domicile_differs'|trans,
+        'data-party-anaf-lookup-postal-code-missing-msg-value': 'wizard.anaf.postal_code_missing'|trans,
     }}) }}
         {% if has_form_errors %}
             <div role="alert" class="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/60 rounded-lg p-4">
@@ -116,7 +121,10 @@
             <div data-person-type-toggle-target="pjOnly">
                 <div class="flex items-center justify-between gap-2">
                     {{ f.field_label(form.cui, 'wizard.step1.field.cui', false, true) }}
-                    {{ f.anaf_sync_button() }}
+                    <div class="flex items-center gap-3">
+                        {{ f.anaf_undo_button() }}
+                        {{ f.anaf_sync_button() }}
+                    </div>
                 </div>
                 <div class="relative">
                     {{ form_widget(form.cui, { attr: {
@@ -129,6 +137,11 @@
                           aria-hidden="true"></span>
                 </div>
                 <p class="mt-1 text-[11px] text-slate-500">{{ 'wizard.step1.help.anaf_lookup'|trans }}</p>
+                <div data-party-anaf-lookup-target="badge"
+                     class="hidden mt-1 flex items-center gap-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+                    <svg class="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    <span>{{ 'wizard.anaf.synced'|trans }}</span>
+                </div>
                 {{ f.field_errors(form.cui) }}
             </div>
 

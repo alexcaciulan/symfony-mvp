@@ -105,6 +105,11 @@ final class RomanianAddressNormalizerTest extends TestCase
         yield 'full municipiul' => ['Municipiul Timișoara', 'timis', 'timisoara'];
         yield 'town oras' => ['Oraş Huedin', 'cluj', 'huedin'];
         yield 'town orasul' => ['Orașul Buftea', 'ilfov', 'buftea'];
+        // ANAF abbreviates a town as "Orş." with a cedilla, which no other
+        // pattern branch consumed: every non-municipality locality failed to
+        // match the nomenclature, and with it the court and the stamp-duty UAT.
+        yield 'anaf ors. navodari' => ['Orş. Năvodari', 'constanta', 'navodari'];
+        yield 'anaf ors. no dot' => ['Ors Buftea', 'ilfov', 'buftea'];
     }
 
     /**
