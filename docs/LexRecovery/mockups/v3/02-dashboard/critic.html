@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="ro" class="">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard v3 · zi critica · LexRecovery</title>
+  <script>
+    if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    }
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: {
+        colors: { 'lex-navy': '#1E3A5F', 'lex-navy-dark': '#162A45', 'lex-navy-light': '#2B4F7C' },
+        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+        boxShadow: { 'soft': '0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px -2px rgba(15, 23, 42, 0.05)', 'card': '0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -4px rgba(15, 23, 42, 0.06)' },
+      }},
+      plugins: [
+        function({ addVariant }) {
+          addVariant('hs-tab-active', '&.active');
+          addVariant('hs-dropdown-open', ['&.open > *', '.open &']);
+          addVariant('hs-accordion-active', ['&.active', '.active &']);
+          addVariant('hs-overlay-open', '&.open');
+          addVariant('hs-overlay-backdrop-open', '&.open');
+        }
+      ]
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    .tnum { font-variant-numeric: tabular-nums; }
+    .nav-active { background: linear-gradient(90deg, rgba(30,58,95,0.08) 0%, rgba(30,58,95,0.02) 100%); }
+    .dark .nav-active { background: linear-gradient(90deg, rgba(96,165,250,0.12) 0%, rgba(96,165,250,0.02) 100%); }
+
+    /* Global focus ring. app.css has no :focus-visible rule today and this page is
+       almost entirely links, so the rule ships with the page. */
+    :focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(30, 58, 95, 0.55);
+      border-radius: 0.5rem;
+    }
+    .dark :focus-visible { box-shadow: 0 0 0 2px #0f172a, 0 0 0 4px rgba(96, 165, 250, 0.7); }
+
+    /* No infinite animation anywhere on this page. Severity is carried by surface
+       and by order, never by movement. The only transition is a hover tint. */
+    @media (prefers-reduced-motion: reduce) {
+      * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+    }
+
+    /* Signature: the sanction gutter. 96px, right aligned, prints the deadline TYPE
+       in words. Scanning the column reads as a register of procedural acts. */
+    .gutter { width: 6rem; }
+    .gutter-label { font-size: 10px; line-height: 1.25; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+  </style>
+</head>
+<body class="font-sans antialiased min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+
+<a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:top-2 focus:left-2 focus:px-3 focus:py-2 focus:rounded-lg focus:bg-lex-navy focus:text-white focus:text-sm">Sari la conținut</a>
+
+<!-- ============================== SIDEBAR ============================== -->
+<aside class="hidden lg:flex flex-col fixed inset-y-0 left-0 w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 z-30">
+  <div class="h-16 flex items-center px-5 border-b border-slate-100 dark:border-slate-800">
+    <a href="../../index.html" class="flex items-center gap-2 text-lex-navy dark:text-white font-bold text-lg tracking-tight">
+      <span class="inline-flex items-center justify-center size-8 rounded-lg bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white shadow-sm">
+        <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16l-3-3m3 3l3-3"/></svg>
+      </span>
+      LexRecovery
+    </a>
+  </div>
+
+  <div class="px-3 py-3 border-b border-slate-100 dark:border-slate-800">
+    <button type="button" class="hs-dropdown-toggle w-full inline-flex items-center gap-2 py-2 px-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+      <span class="inline-flex items-center justify-center size-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 text-white text-xs font-bold shrink-0">CI</span>
+      <span class="flex-1 min-w-0 text-left">
+        <span class="block text-sm font-semibold text-slate-900 dark:text-white truncate">Cabinet Ionescu</span>
+        <span class="block text-[10px] text-slate-500 dark:text-slate-400 truncate">Plan Pro · 47/100 dosare</span>
+      </span>
+      <svg class="size-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+    </button>
+  </div>
+
+  <nav class="flex-1 overflow-y-auto px-3 py-4 space-y-6" aria-label="Navigație principală">
+    <div class="space-y-0.5">
+      <a href="critic.html" aria-current="page" class="nav-active flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-semibold text-lex-navy dark:text-blue-400 relative">
+        <span class="absolute left-0 top-2 bottom-2 w-0.5 bg-lex-navy dark:bg-blue-400 rounded-r"></span>
+        <svg class="size-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h10M4 18h7"/></svg>
+        Panou de lucru
+      </a>
+      <a href="../../v2/04-dosar/overview.html" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+        <svg class="size-[18px] text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        Dosare
+        <span class="ml-auto inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-bold tnum">47</span>
+      </a>
+      <a href="../../v2/05-termene/index.html" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+        <svg class="size-[18px] text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Termene
+        <span class="ml-auto inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-md bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-300 text-[10px] font-bold tnum">9</span>
+        <span class="sr-only">9 termene restante</span>
+      </a>
+      <a href="#" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+        <svg class="size-[18px] text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+        Notificări
+        <span class="ml-auto inline-flex items-center justify-center min-w-[22px] h-5 px-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[10px] font-bold tnum">3</span>
+      </a>
+    </div>
+
+    <div class="space-y-0.5">
+      <div class="px-2.5 mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Bibliotecă</div>
+      <a href="#" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"><svg class="size-[18px] text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"/></svg>Creditori<span class="ml-auto text-[10px] text-slate-500 dark:text-slate-400 tnum">28</span></a>
+      <a href="#" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"><svg class="size-[18px] text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>Debitori<span class="ml-auto text-[10px] text-slate-500 dark:text-slate-400 tnum">52</span></a>
+      <a href="#" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"><svg class="size-[18px] text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>Instanțe</a>
+    </div>
+
+    <div class="space-y-0.5">
+      <div class="px-2.5 mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Cabinet</div>
+      <a href="#banda-cont" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"><svg class="size-[18px] text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>Abonament<span class="ml-auto text-[9px] font-bold uppercase tracking-wide text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-950/60 px-1.5 py-0.5 rounded">Plată</span></a>
+      <a href="#" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"><svg class="size-[18px] text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Setări</a>
+    </div>
+  </nav>
+
+  <div class="border-t border-slate-100 dark:border-slate-800 p-3">
+    <div class="hs-dropdown relative inline-flex w-full">
+      <button type="button" class="hs-dropdown-toggle w-full inline-flex items-center gap-2.5 py-2 px-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition" aria-haspopup="menu" aria-expanded="false">
+        <span class="inline-flex items-center justify-center size-9 rounded-full bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white text-sm font-semibold shrink-0 ring-2 ring-white dark:ring-slate-900">MI</span>
+        <span class="flex-1 min-w-0 text-left">
+          <span class="block text-sm font-semibold text-slate-900 dark:text-white truncate">Av. Mihai Ionescu</span>
+          <span class="block text-[10px] text-slate-500 dark:text-slate-400 truncate">Baroul București</span>
+        </span>
+      </button>
+      <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-[230px] bg-white shadow-card rounded-xl border border-slate-200 dark:bg-slate-900 dark:border-slate-800 mb-1 p-1.5 z-40 bottom-full" role="menu">
+        <button type="button" onclick="toggleTheme()" class="w-full flex items-center gap-2.5 py-2 px-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 text-sm text-left text-slate-700 dark:text-slate-300"><span class="dark:hidden">Mod întunecat</span><span class="hidden dark:inline">Mod luminos</span></button>
+        <a href="../../v2/01-auth/login.html" class="flex items-center gap-2.5 py-2 px-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 text-sm text-red-600 dark:text-red-400">Deconectare</a>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- Mobile drawer -->
+<div id="hs-mobile-sidebar" class="hs-overlay hs-overlay-open:translate-x-0 -translate-x-full transition-all duration-300 transform hidden fixed top-0 start-0 bottom-0 z-[60] w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 lg:hidden" role="dialog" tabindex="-1" aria-label="Meniu">
+  <div class="h-16 flex items-center justify-between px-5 border-b border-slate-100 dark:border-slate-800">
+    <span class="font-bold text-lex-navy dark:text-white">LexRecovery</span>
+    <button type="button" data-hs-overlay="#hs-mobile-sidebar" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Închide meniul">
+      <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <nav class="p-3 space-y-1 text-sm" aria-label="Navigație mobilă">
+    <a href="critic.html" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 font-semibold">Panou de lucru</a>
+    <a href="../../v2/04-dosar/overview.html" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800">Dosare <span class="ml-auto text-xs text-slate-500 dark:text-slate-400">47</span></a>
+    <a href="../../v2/05-termene/index.html" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800">Termene <span class="ml-auto text-xs text-red-700 dark:text-red-300">9</span></a>
+    <a href="#" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800">Notificări <span class="ml-auto text-xs text-slate-500 dark:text-slate-400">3</span></a>
+    <a href="#banda-cont" class="flex items-center gap-2.5 py-2 px-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800">Abonament</a>
+  </nav>
+</div>
+
+<div class="lg:pl-64 min-h-screen flex flex-col">
+
+  <!-- ============================== TOPBAR ============================== -->
+  <header class="sticky top-0 z-20 h-14 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+    <div class="h-full px-4 lg:px-8 flex items-center gap-3 lg:gap-4">
+      <button type="button" data-hs-overlay="#hs-mobile-sidebar" class="lg:hidden p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Deschide meniul">
+        <svg class="size-5 text-slate-600 dark:text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+
+      <ol class="flex items-center whitespace-nowrap text-xs flex-1 min-w-0" aria-label="Breadcrumb">
+        <li class="inline-flex items-center font-medium text-slate-700 dark:text-slate-300" aria-current="page">Panou de lucru</li>
+      </ol>
+
+      <div class="hidden md:flex items-center relative">
+        <svg class="absolute left-3 size-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        <label for="topbar-search" class="sr-only">Caută dosar, debitor sau CUI</label>
+        <input id="topbar-search" type="search" placeholder="Caută dosar, debitor, CUI..." class="pl-9 pr-12 py-1.5 w-56 lg:w-72 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-sm placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:outline-none">
+        <kbd class="absolute right-3 hidden lg:inline-block px-1.5 py-0.5 text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded">⌘K</kbd>
+      </div>
+
+      <button type="button" onclick="toggleTheme()" class="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Comută modul întunecat">
+        <svg class="size-[18px] dark:hidden text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+        <svg class="size-[18px] hidden dark:block text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ================== ZONA 1 · BANDA DE CONT (condițională) ================== -->
+  <div id="banda-cont" class="px-4 lg:px-8 pt-4">
+    <div role="alert" class="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 py-2.5 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-200 ring-1 ring-red-200 dark:ring-red-900/60">
+      <p class="text-sm flex-1">
+        Plata abonamentului nu a fost confirmată. Perioada facturată s-a încheiat pe <span class="tnum font-semibold">24.07.2026</span>, iar dosarele noi nu mai pot fi activate până la reautorizare.
+      </p>
+      <a href="#" class="shrink-0 text-sm font-semibold underline underline-offset-2 hover:no-underline">Actualizează cardul</a>
+    </div>
+  </div>
+
+  <main id="main-content" class="flex-1 px-4 lg:px-8 py-6 space-y-6">
+
+    <!-- ======================= ZONA 2 · ANTETUL CU VERDICT ======================= -->
+    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+      <div class="max-w-3xl">
+        <p class="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">Miercuri, 29 iulie 2026</p>
+        <h1 class="mt-1 text-2xl md:text-3xl font-bold tracking-tight"><span class="tnum">3</span> dosare sunt pe termen fatal.</h1>
+        <p class="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
+          Unul are termenul depășit de 4 zile, două expiră până vineri. Alte <span class="tnum">11</span> dosare cer un act sau așteaptă o dată de la tine.
+          Principal pretins pe cele 3 dosare cu termen fatal: <span class="tnum font-semibold text-slate-800 dark:text-slate-200">218.900,00 RON</span>.
+        </p>
+        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Un dosar din banda „Dată lipsă” nu are principalul completat, deci nu intră în nicio sumă de pe pagină.
+        </p>
+      </div>
+      <a href="../../v2/03-wizard/step0-documente.html" class="shrink-0 self-start md:self-auto inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg bg-lex-navy hover:bg-lex-navy-dark text-white text-sm font-semibold transition">
+        <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+        Dosar nou
+      </a>
+    </div>
+
+    <!-- ======================= ZONA 3 · RIGLA DE COST ======================= -->
+    <!--
+      Gradarea de alertă se face prin SATURAȚIA SUPRAFEȚEI, nu prin numărul de culori.
+      Urgent: pastilă cu fundal tint și inel colorat. Atenție: fundal tint palid.
+      Informativ: fundal alb, doar bara de 2px de sus poartă culoarea.
+      Contoarele numără DOSARE și sunt calculate pe coada de dedesubt, nu prin SELECT separat.
+    -->
+    <section aria-labelledby="rigla-title" class="space-y-2">
+      <h2 id="rigla-title" class="sr-only">Din ce e făcută coada de acțiuni</h2>
+
+      <div class="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2">
+
+        <!-- URGENT -->
+        <a href="#banda-fatal" class="group relative overflow-hidden rounded-xl px-3 py-2.5 bg-red-50 dark:bg-red-950/40 ring-1 ring-red-300 dark:ring-red-900/70 hover:ring-red-400 dark:hover:ring-red-800 transition" aria-label="3 dosare pe termen fatal, depășit sau sub 3 zile">
+          <span class="absolute inset-x-0 top-0 h-0.5 bg-red-600 dark:bg-red-500" aria-hidden="true"></span>
+          <span class="block text-2xl font-bold tnum text-red-700 dark:text-red-300 leading-none">3</span>
+          <span class="block mt-1.5 text-xs font-semibold text-red-800 dark:text-red-200">Termen fatal</span>
+          <span class="block text-[11px] text-red-700/80 dark:text-red-300/80">depășit sau sub 3 zile</span>
+        </a>
+
+        <a href="#banda-data-lipsa" class="group relative overflow-hidden rounded-xl px-3 py-2.5 bg-rose-50 dark:bg-rose-950/40 ring-1 ring-rose-300 dark:ring-rose-900/70 hover:ring-rose-400 dark:hover:ring-rose-800 transition" aria-label="2 dosare cu dată lipsă">
+          <span class="absolute inset-x-0 top-0 h-0.5 bg-rose-500" aria-hidden="true"></span>
+          <span class="block text-2xl font-bold tnum text-rose-700 dark:text-rose-300 leading-none">2</span>
+          <span class="block mt-1.5 text-xs font-semibold text-rose-800 dark:text-rose-200">Dată lipsă</span>
+          <span class="block text-[11px] text-rose-700/80 dark:text-rose-300/80">termenul nu poate fi calculat</span>
+        </a>
+
+        <!-- ATENȚIE -->
+        <a href="#banda-restant" class="group relative overflow-hidden rounded-xl px-3 py-2.5 bg-amber-50/70 dark:bg-amber-950/25 ring-1 ring-amber-200 dark:ring-amber-900/50 hover:ring-amber-300 transition" aria-label="2 dosare cu termene restante reparabile">
+          <span class="absolute inset-x-0 top-0 h-0.5 bg-amber-500" aria-hidden="true"></span>
+          <span class="block text-2xl font-bold tnum text-amber-800 dark:text-amber-300 leading-none">2</span>
+          <span class="block mt-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200">Restant</span>
+          <span class="block text-[11px] text-slate-600 dark:text-slate-400">fără sancțiune procesuală</span>
+        </a>
+
+        <a href="#banda-azi" class="group relative overflow-hidden rounded-xl px-3 py-2.5 bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-700 hover:ring-slate-300 dark:hover:ring-slate-600 transition" aria-label="2 dosare cu termene astăzi sau mâine">
+          <span class="absolute inset-x-0 top-0 h-0.5 bg-slate-700 dark:bg-slate-400" aria-hidden="true"></span>
+          <span class="block text-2xl font-bold tnum text-slate-900 dark:text-slate-100 leading-none">2</span>
+          <span class="block mt-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200">Azi și mâine</span>
+          <span class="block text-[11px] text-slate-600 dark:text-slate-400">înfățișări și termene scurte</span>
+        </a>
+
+        <!-- INFORMATIV -->
+        <a href="#banda-fatal30" class="group relative overflow-hidden rounded-xl px-3 py-2.5 bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-700 hover:ring-sky-300 dark:hover:ring-sky-800 transition" aria-label="1 dosar cu termen fatal în următoarele 30 de zile">
+          <span class="absolute inset-x-0 top-0 h-0.5 bg-sky-500" aria-hidden="true"></span>
+          <span class="block text-2xl font-bold tnum text-slate-900 dark:text-slate-100 leading-none">1</span>
+          <span class="block mt-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200">Fatal în 30 de zile</span>
+          <span class="block text-[11px] text-slate-600 dark:text-slate-400">încă are marjă</span>
+        </a>
+
+        <a href="#banda-debitor" class="group relative overflow-hidden rounded-xl px-3 py-2.5 bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-700 hover:ring-indigo-300 dark:hover:ring-indigo-800 transition" aria-label="4 dosare în care termenul curge la debitor">
+          <span class="absolute inset-x-0 top-0 h-0.5 bg-indigo-500" aria-hidden="true"></span>
+          <span class="block text-2xl font-bold tnum text-slate-900 dark:text-slate-100 leading-none">4</span>
+          <span class="block mt-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200">Termen debitor</span>
+          <span class="block text-[11px] text-slate-600 dark:text-slate-400">ceasul curge la debitor</span>
+        </a>
+      </div>
+
+      <p class="text-xs text-slate-600 dark:text-slate-400">
+        Numărăm dosare, nu termene. Un dosar apare o singură dată, în banda cea mai scumpă.
+        Badge-ul „Termene” din meniu numără termene: <span class="tnum">9</span> restante pe <span class="tnum">6</span> dosare.
+        Banda „Dată lipsă” adună termenele fatale care nu pot fi calculate până nu introduci data de la care curg.
+      </p>
+    </section>
+
+    <!-- ============ ZONA 4 · CONFIRMĂRI DE SOLUȚIE (portal) · FAZA 2 ============ -->
+    <section aria-labelledby="portal-title" class="rounded-2xl bg-white dark:bg-slate-900 shadow-soft border border-slate-200 dark:border-slate-800 ring-2 ring-violet-200 dark:ring-violet-900/60">
+      <header class="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center gap-2">
+        <span class="inline-flex items-center justify-center size-7 rounded-lg bg-violet-50 dark:bg-violet-950/50 text-violet-700 dark:text-violet-300">
+          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5"/></svg>
+        </span>
+        <h2 id="portal-title" class="text-sm font-semibold">Instanța a dat o soluție. Confirmă tu ce s-a întâmplat.</h2>
+        <span class="ml-auto text-xs text-slate-600 dark:text-slate-400 tnum">3 de confirmat</span>
+      </header>
+
+      <div class="divide-y divide-slate-100 dark:divide-slate-800">
+        <div class="px-4 py-3.5 flex flex-col lg:flex-row lg:items-start gap-3">
+          <div class="min-w-0 flex-1">
+            <p class="text-sm">
+              <a href="../../v2/04-dosar/overview.html" class="font-mono font-medium hover:underline">4521/302/2026</a>
+              <span class="text-slate-500 dark:text-slate-400 mx-1">·</span>Judecătoria Sectorului 6 București
+              <span class="text-slate-500 dark:text-slate-400 mx-1">·</span>Beta Solutions S.R.L.
+            </p>
+            <p class="mt-1 text-sm text-slate-700 dark:text-slate-300">Portalul scrie: <em class="italic">„Admite cererea. Somează pe debitor să plătească suma de 152.000 lei.”</em></p>
+            <p class="mt-0.5 text-xs text-slate-600 dark:text-slate-400">Pronunțat 24.07.2026 · Propunere: marchează ordonanța ca emisă.</p>
+          </div>
+          <div class="shrink-0 flex items-center gap-2">
+            <a href="../../v2/04-dosar/overview.html" class="inline-flex items-center py-1.5 px-3 rounded-lg bg-lex-navy hover:bg-lex-navy-dark text-white text-xs font-semibold transition">Confirmă în dosar</a>
+            <a href="../../v2/04-dosar/overview.html" class="text-xs font-medium text-blue-700 dark:text-blue-400 hover:underline">Vezi dosarul</a>
+          </div>
+        </div>
+
+        <div class="px-4 py-3.5 flex flex-col lg:flex-row lg:items-start gap-3">
+          <div class="min-w-0 flex-1">
+            <p class="text-sm">
+              <a href="../../v2/04-dosar/overview.html" class="font-mono font-medium hover:underline">3184/299/2026</a>
+              <span class="text-slate-500 dark:text-slate-400 mx-1">·</span>Judecătoria Sectorului 1 București
+              <span class="text-slate-500 dark:text-slate-400 mx-1">·</span>Vertigo Interiors S.R.L.
+            </p>
+            <p class="mt-1 text-sm text-slate-700 dark:text-slate-300">Portalul scrie: <em class="italic">„Anulează cererea ca netimbrată.”</em></p>
+            <p class="mt-0.5 text-xs text-slate-600 dark:text-slate-400">Pronunțat 27.07.2026 · Propunere: marchează cererea ca anulată și verifică termenul de reexaminare.</p>
+          </div>
+          <div class="shrink-0 flex items-center gap-2">
+            <a href="../../v2/04-dosar/overview.html" class="inline-flex items-center py-1.5 px-3 rounded-lg bg-lex-navy hover:bg-lex-navy-dark text-white text-xs font-semibold transition">Confirmă în dosar</a>
+            <a href="../../v2/04-dosar/overview.html" class="text-xs font-medium text-blue-700 dark:text-blue-400 hover:underline">Vezi dosarul</a>
+          </div>
+        </div>
+      </div>
+
+      <footer class="px-4 py-3 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+        <a href="../../v2/05-termene/index.html" class="text-xs font-medium text-blue-700 dark:text-blue-400 hover:underline">Încă 1 soluție de confirmat</a>
+        <p class="text-xs text-slate-600 dark:text-slate-400">
+          Nimic nu se aplică automat. Cele 10 zile pentru cererea în anulare curg de la înmânarea sau comunicarea ordonanței (CPC art. 1024 alin. 1), deci data o confirmi tu în dosar.
+        </p>
+      </footer>
+    </section>
+
+    <!-- ======================= ZONA 5 · COADA DE ACȚIUNI ======================= -->
+    <section aria-labelledby="coada-title" class="rounded-2xl bg-white dark:bg-slate-900 shadow-soft border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <h2 id="coada-title" class="sr-only">Coada de acțiuni, un rând per dosar</h2>
+
+      <!-- ---------- BANDA 1 · TERMEN FATAL ---------- -->
+      <div id="banda-fatal" class="scroll-mt-20 px-4 py-2 bg-red-50/70 dark:bg-red-950/25 border-b border-red-100 dark:border-red-900/40 flex items-center gap-2">
+        <span class="size-2 rounded-full bg-red-600" aria-hidden="true"></span>
+        <h3 class="text-xs font-bold uppercase tracking-wider text-red-800 dark:text-red-300">Termen fatal <span class="tnum font-semibold">(3)</span></h3>
+      </div>
+      <div class="divide-y divide-slate-100 dark:divide-slate-800">
+
+        <!-- rând 1 · termen fatal depășit, estompat, fără verb de execuție, cu remediul numit -->
+        <article class="relative flex flex-wrap sm:flex-nowrap gap-3 px-4 py-3.5 bg-slate-50/80 dark:bg-slate-800/30">
+          <span class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-red-600" aria-hidden="true"></span>
+          <div class="hidden sm:block gutter shrink-0 pt-0.5 text-right border-r border-slate-200 dark:border-slate-700 pr-3">
+            <span class="gutter-label block text-red-700 dark:text-red-400">Timbrare</span>
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span class="sm:hidden gutter-label px-1.5 py-0.5 rounded bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300">Timbrare</span>
+              <span class="text-sm font-semibold">Vertigo Interiors S.R.L.</span>
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300"><span class="size-1.5 rounded-full bg-sky-500"></span>CERERE DEPUSĂ</span>
+            </div>
+            <p class="mt-1 text-sm text-slate-700 dark:text-slate-300">
+              Termenul de timbrare a trecut. Dacă instanța a anulat cererea, încheierea se atacă cu cerere de reexaminare în 15 zile de la comunicare (CPC art. 200 alin. 4).
+            </p>
+            <p class="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
+              Anularea pentru netimbrare nu are autoritate de lucru judecat asupra fondului: cererea se poate reintroduce cu taxa achitată.
+            </p>
+            <p class="mt-1 text-xs text-slate-600 dark:text-slate-400 tnum">
+              Scadent 24.07.2026 · <span class="font-bold text-red-700 dark:text-red-400">depășit de 4 zile</span> · Judecătoria Sectorului 1 București · 68.400,00 RON · <a href="../../v2/04-dosar/overview.html" class="font-mono hover:underline">3184/299/2026</a>
+              · <a href="../../v2/04-dosar/overview.html" class="font-medium text-blue-700 dark:text-blue-400 hover:underline">încă 2 termene</a>
+            </p>
+          </div>
+          <div class="basis-full sm:basis-auto sm:shrink-0 sm:self-center">
+            <a href="../../v2/04-dosar/overview.html" class="block sm:inline-block text-center py-2 sm:py-1.5 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm sm:text-xs font-semibold text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Deschide dosarul</a>
+          </div>
+        </article>
+
+        <!-- rând 2 · termen fatal astăzi -->
+        <article class="relative flex flex-wrap sm:flex-nowrap gap-3 px-4 py-3.5">
+          <span class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-red-600" aria-hidden="true"></span>
+          <div class="hidden sm:block gutter shrink-0 pt-0.5 text-right border-r border-slate-200 dark:border-slate-700 pr-3">
+            <span class="gutter-label block text-red-700 dark:text-red-400">Timbrare</span>
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span class="sm:hidden gutter-label px-1.5 py-0.5 rounded bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300">Timbrare</span>
+              <span class="text-sm font-semibold">Oltenia Agro Mix S.R.L.</span>
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300"><span class="size-1.5 rounded-full bg-sky-500"></span>CERERE DEPUSĂ</span>
+            </div>
+            <p class="mt-1 text-sm text-slate-800 dark:text-slate-200 font-medium">
+              Timbrează și trimite instanței dovada plății. 10 zile de la primirea comunicării instanței (OUG 80/2013 art. 33 alin. 2).
+            </p>
+            <p class="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
+              Cererea de acordare a facilităților la plata taxei se depune în 5 zile de la aceeași comunicare.
+            </p>
+            <p class="mt-1 text-xs text-slate-600 dark:text-slate-400 tnum">
+              Scadent 29.07.2026 · <span class="font-bold text-red-700 dark:text-red-400">astăzi</span> · Judecătoria Craiova · 96.250,00 RON · <a href="../../v2/04-dosar/overview.html" class="font-mono hover:underline">6270/215/2026</a>
+            </p>
+          </div>
+          <div class="basis-full sm:basis-auto sm:shrink-0 sm:self-center">
+            <a href="../../v2/04-dosar/overview.html" class="block sm:inline-block text-center py-2 sm:py-1.5 px-3 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm sm:text-xs font-semibold transition">Deschide timbrarea</a>
+          </div>
+        </article>
+
+        <!-- rând 3 · întreruperea prescripției, 6 luni -->
+        <article class="relative flex flex-wrap sm:flex-nowrap gap-3 px-4 py-3.5">
+          <span class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-red-600" aria-hidden="true"></span>
+          <div class="hidden sm:block gutter shrink-0 pt-0.5 text-right border-r border-slate-200 dark:border-slate-700 pr-3">
+            <span class="gutter-label block text-red-700 dark:text-red-400">Întrerupere<br>6 luni</span>
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span class="sm:hidden gutter-label px-1.5 py-0.5 rounded bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300">Întrerupere 6 luni</span>
+              <span class="text-sm font-semibold">Litoral Depozit Sud S.R.L.</span>
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300"><span class="size-1.5 rounded-full bg-amber-500"></span>SOMAȚIE TRIMISĂ</span>
+            </div>
+            <p class="mt-1 text-sm text-slate-800 dark:text-slate-200 font-medium">
+              Generează cererea de OP. Somația a fost comunicată la 31.01.2026, iar cererea nu este depusă (CPC art. 1015 alin. 2, NCC art. 2540).
+            </p>
+            <p class="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
+              Dacă cererea nu se depune până la 31.07.2026, întreruperea produsă de somație se desființează retroactiv și prescripția se socotește necurmată.
+            </p>
+            <p class="mt-1 text-xs text-slate-600 dark:text-slate-400 tnum">
+              Scadent 31.07.2026 · <span class="font-bold text-red-700 dark:text-red-400">în 2 zile</span> · Judecătoria Constanța · 54.250,00 RON · <a href="../../v2/04-dosar/overview.html" class="font-mono hover:underline">LR-2026-0176</a>
+            </p>
+          </div>
+          <div class="basis-full sm:basis-auto sm:shrink-0 sm:self-center">
+            <a href="../../v2/04-dosar/overview.html" class="block sm:inline-block text-center py-2 sm:py-1.5 px-3 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm sm:text-xs font-semibold transition">Generează cererea de OP</a>
+          </div>
+        </article>
+      </div>
+
+      <!-- ---------- BANDA 2 · DATĂ LIPSĂ ---------- -->
+      <div id="banda-data-lipsa" class="scroll-mt-20 px-4 py-2 bg-rose-50/70 dark:bg-rose-950/25 border-y border-rose-100 dark:border-rose-900/40 flex items-center gap-2">
+        <span class="size-2 rounded-full bg-rose-500" aria-hidden="true"></span>
+        <h3 class="text-xs font-bold uppercase tracking-wider text-rose-800 dark:text-rose-300">Dată lipsă <span class="tnum font-semibold">(2)</span></h3>
+      </div>
+      <div class="divide-y divide-slate-100 dark:divide-slate-800">
+
+        <article class="relative flex flex-wrap sm:flex-nowrap gap-3 px-4 py-3.5">
+          <span class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-rose-500" aria-hidden="true"></span>
+          <div class="hidden sm:block gutter shrink-0 pt-0.5 text-right border-r border-slate-200 dark:border-slate-700 pr-3">
+            <span class="gutter-label block text-rose-700 dark:text-rose-400">Dată lipsă</span>
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span class="sm:hidden gutter-label px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300">Dată lipsă</span>
+              <span class="text-sm font-semibold">Vega Print Media S.R.L.</span>
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300"><span class="size-1.5 rounded-full bg-amber-500"></span>SOMAȚIE TRIMISĂ</span>
+            </div>
+            <p class="mt-1 text-sm text-slate-800 dark:text-slate-200 font-medium">
+              Completează data primirii somației de către debitor. Somația a fost generată, dar data nu este introdusă.
+            </p>
+            <p class="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
+              Termenul de 15 zile rămâne estimat, iar cererea depusă pe baza lui se poate respinge ca prematură (CPC art. 1015 alin. 1, art. 1016).
+            </p>
+            <p class="mt-1 text-xs text-slate-600 dark:text-slate-400 tnum">
+              Estimat 05.08.2026 · Judecătoria Cluj-Napoca · principal necompletat · <a href="../../v2/04-dosar/overview.html" class="font-mono hover:underline">LR-2026-0240</a>
+            </p>
+          </div>
+          <div class="basis-full sm:basis-auto sm:shrink-0 sm:self-center">
+            <a href="../../v2/04-dosar/overview.html" class="block sm:inline-block text-center py-2 sm:py-1.5 px-3 rounded-lg bg-lex-navy hover:bg-lex-navy-dark text-white text-sm sm:text-xs font-semibold transition">Setează data comunicării</a>
+          </div>
+        </article>
+
+        <article class="relative flex flex-wrap sm:flex-nowrap gap-3 px-4 py-3.5">
+          <span class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-rose-500" aria-hidden="true"></span>
+          <div class="hidden sm:block gutter shrink-0 pt-0.5 text-right border-r border-slate-200 dark:border-slate-700 pr-3">
+            <span class="gutter-label block text-rose-700 dark:text-rose-400">Dată lipsă</span>
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span class="sm:hidden gutter-label px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300">Dată lipsă</span>
+              <span class="text-sm font-semibold">Nova Instal Tech S.R.L.</span>
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-800 dark:bg-violet-950/50 dark:text-violet-300"><span class="size-1.5 rounded-full bg-violet-500"></span>ORDONANȚĂ EMISĂ</span>
+            </div>
+            <p class="mt-1 text-sm text-slate-800 dark:text-slate-200 font-medium">
+              Completează data înmânării sau comunicării ordonanței.
+            </p>
+            <p class="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
+              Fără ea, cele 10 zile ale cererii în anulare nu pot fi calculate, iar dosarul nu poate fi marcat definitiv (CPC art. 1024 alin. 1).
+            </p>
+            <p class="mt-1 text-xs text-slate-600 dark:text-slate-400 tnum">
+              Fără scadență calculabilă · Judecătoria Brașov · 31.900,00 RON · <a href="../../v2/04-dosar/overview.html" class="font-mono hover:underline">4903/300/2026</a>
+            </p>
+          </div>
+          <div class="basis-full sm:basis-auto sm:shrink-0 sm:self-center">
+            <a href="../../v2/04-dosar/overview.html" class="block sm:inline-block text-center py-2 sm:py-1.5 px-3 rounded-lg bg-lex-navy hover:bg-lex-navy-dark text-white text-sm sm:text-xs font-semibold transition">Setează data comunicării</a>
+          </div>
+        </article>
+      </div>
+
+      <!-- ---------- BANDA 3 · RESTANT ---------- -->
+      <div id="banda-restant" class="scroll-mt-20 px-4 py-2 bg-amber-50/60 dark:bg-amber-950/20 border-y border-amber-100 dark:border-amber-900/40 flex items-center gap-2">
+        <span class="size-2 rounded-full bg-amber-500" aria-hidden="true"></span>
+        <h3 class="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">Restant <span class="tnum font-semibold">(2)</span></h3>
+      </div>
+      <div class="divide-y divide-slate-100 dark:divide-slate-800">
+
+        <article class="relative flex flex-wrap sm:flex-nowrap gap-3 px-4 py-3.5">
+          <span class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-amber-500" aria-hidden="true"></span>
+          <div class="hidden sm:block gutter shrink-0 pt-0.5 text-right border-r border-slate-200 dark:border-slate-700 pr-3">
+            <span class="gutter-label block text-amber-700 dark:text-amber-400">Alt termen</span>
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span class="sm:hidden gutter-label px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">Alt termen</span>
+              <span class="text-sm font-semibold">Carpat Ambalaje S.R.L.</span>
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300"><span class="size-1.5 rounded-full bg-blue-500"></span>DOSAR ÎNREGISTRAT</span>
+            </div>
+            <p class="mt-1 text-sm text-slate-800 dark:text-slate-200 font-medium">
+              Trimite răspunsul la adresa instanței. Termen propriu, adăugat manual, fără sancțiune procesuală.
+            </p>
+            <p class="mt-1 text-xs text-slate-600 dark:text-slate-400 tnum">
+              Scadent 27.07.2026 · <span class="font-semibold text-amber-800 dark:text-amber-400">restant de 2 zile</span> · Judecătoria Iași · 22.800,00 RON · <a href="../../v2/04-dosar/overview.html" class="font-mono hover:underline">2712/245/2026</a>
+            </p>
+          </div>
+          <div class="basis-full sm:basis-auto sm:shrink-0 sm:self-center">
+            <a href="../../v2/04-dosar/overview.html" class="block sm:inline-block text-center py-2 sm:py-1.5 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm sm:text-xs font-semibold text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Marchează finalizat</a>
+          </div>
+        </article>
+
+        <article class="relative flex flex-wrap sm:flex-nowrap gap-3 px-4 py-3.5">
+          <span class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-amber-500" aria-hidden="true"></span>
+          <div class="hidden sm:block gutter shrink-0 pt-0.5 text-right border-r border-slate-200 dark:border-slate-700 pr-3">
+            <span class="gutter-label block text-amber-700 dark:text-amber-400">Alt termen</span>
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span class="sm:hidden gutter-label px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">Alt termen</span>
+              <span class="text-sm font-semibold">Berceni Logistic Park S.R.L.</span>
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200"><span class="size-1.5 rounded-full bg-slate-500"></span>AMIABIL</span>
+            </div>
+            <p class="mt-1 text-sm text-slate-800 dark:text-slate-200 font-medium">
+              Cere creditorului extrasul de cont actualizat. Termen propriu, adăugat manual.
+            </p>
+            <p class="mt-1 text-xs text-slate-600 dark:text-slate-400 tnum">
+              Scadent 23.07.2026 · <span class="font-semibold text-amber-800 dark:text-amber-400">restant de 6 zile</span> · instanță nedeterminată · 15.400,00 RON · <a href="../../v2/04-dosar/overview.html" class="font-mono hover:underline">LR-2026-0198</a>
+            </p>
+          </div>
+          <div class="basis-full sm:basis-auto sm:shrink-0 sm:self-center">
+            <a href="../../v2/04-dosar/overview.html" class="block sm:inline-block text-center py-2 sm:py-1.5 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm sm:text-xs font-semibold text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Marchează finalizat</a>
+          </div>
+        </article>
+      </div>
+
+      <!-- ---------- BANDA 4 · AZI ȘI MÂINE ---------- -->
+      <div id="banda-azi" class="scroll-mt-20 px-4 py-2 bg-slate-100 dark:bg-slate-800/60 border-y border-slate-200 dark:border-slate-700 flex items-center gap-2">
+        <span class="size-2 rounded-full bg-slate-600 dark:bg-slate-400" aria-hidden="true"></span>
+        <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Azi și mâine <span class="tnum font-semibold">(2)</span></h3>
+      </div>
+      <div class="divide-y divide-slate-100 dark:divide-slate-800">
+
+        <article class="relative flex flex-wrap sm:flex-nowrap gap-3 px-4 py-3.5">
+          <span class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-slate-600 dark:bg-slate-400" aria-hidden="true"></span>
+          <div class="hidden sm:block gutter shrink-0 pt-0.5 text-right border-r border-slate-200 dark:border-slate-700 pr-3">
+            <span class="gutter-label block text-slate-700 dark:text-slate-300">Judecată</span>
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span class="sm:hidden gutter-label px-1.5 py-0.5 rounded bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200">Judecată</span>
+              <span class="text-sm font-semibold">Ploiești Metal Trade S.R.L.</span>
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300"><span class="size-1.5 rounded-full bg-indigo-500"></span>TERMEN FIXAT</span>
+            </div>
+            <p class="mt-1 text-sm text-slate-800 dark:text-slate-200 font-medium">
+              Înfățișare astăzi, ora 12:30. Verifică pe portal dacă termenul se menține.
+            </p>
+            <p class="mt-1 text-xs text-slate-600 dark:text-slate-400 tnum">
+              29.07.2026 ora 12:30 · Judecătoria Ploiești · 39.700,00 RON · <a href="../../v2/04-dosar/overview.html" class="font-mono hover:underline">5108/281/2026</a>
+            </p>
+          </div>
+          <div class="basis-full sm:basis-auto sm:shrink-0 sm:self-center">
+            <a href="../../v2/04-dosar/overview.html" class="block sm:inline-block text-center py-2 sm:py-1.5 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm sm:text-xs font-semibold text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Deschide Portal</a>
+          </div>
+        </article>
+
+        <article class="relative flex flex-wrap sm:flex-nowrap gap-3 px-4 py-3.5">
+          <span class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-slate-600 dark:bg-slate-400" aria-hidden="true"></span>
+          <div class="hidden sm:block gutter shrink-0 pt-0.5 text-right border-r border-slate-200 dark:border-slate-700 pr-3">
+            <span class="gutter-label block text-slate-700 dark:text-slate-300">Judecată</span>
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span class="sm:hidden gutter-label px-1.5 py-0.5 rounded bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200">Judecată</span>
+              <span class="text-sm font-semibold">Alba Trans Cargo S.R.L.</span>
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300"><span class="size-1.5 rounded-full bg-indigo-500"></span>TERMEN FIXAT</span>
+            </div>
+            <p class="mt-1 text-sm text-slate-800 dark:text-slate-200 font-medium">
+              Înfățișare mâine, ora 09:00.
+            </p>
+            <p class="mt-1 text-xs text-slate-600 dark:text-slate-400 tnum">
+              30.07.2026 ora 09:00 · Judecătoria Sectorului 4 București · 27.300,00 RON · <a href="../../v2/04-dosar/overview.html" class="font-mono hover:underline">7433/4/2026</a>
+            </p>
+          </div>
+          <div class="basis-full sm:basis-auto sm:shrink-0 sm:self-center">
+            <a href="../../v2/04-dosar/overview.html" class="block sm:inline-block text-center py-2 sm:py-1.5 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm sm:text-xs font-semibold text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 transition">Deschide Portal</a>
+          </div>
+        </article>
+      </div>
+
+      <!-- ---------- BANDA 5 · FATAL ÎN 30 DE ZILE ---------- -->
+      <div id="banda-fatal30" class="scroll-mt-20 px-4 py-2 bg-sky-50/70 dark:bg-sky-950/25 border-y border-sky-100 dark:border-sky-900/40 flex items-center gap-2">
+        <span class="size-2 rounded-full bg-sky-500" aria-hidden="true"></span>
+        <h3 class="text-xs font-bold uppercase tracking-wider text-sky-800 dark:text-sky-300">Fatal în 30 de zile <span class="tnum font-semibold">(1)</span></h3>
+      </div>
+      <div class="divide-y divide-slate-100 dark:divide-slate-800">
+
+        <article class="relative flex flex-wrap sm:flex-nowrap gap-3 px-4 py-3.5">
+          <span class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-sky-500" aria-hidden="true"></span>
+          <div class="hidden sm:block gutter shrink-0 pt-0.5 text-right border-r border-slate-200 dark:border-slate-700 pr-3">
+            <span class="gutter-label block text-sky-700 dark:text-sky-400">Prescripție</span>
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span class="sm:hidden gutter-label px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300">Prescripție</span>
+              <span class="text-sm font-semibold">Someș Metal Prod S.R.L.</span>
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-800 dark:bg-slate-800 dark:text-slate-200"><span class="size-1.5 rounded-full bg-slate-500"></span>AMIABIL</span>
+            </div>
+            <p class="mt-1 text-sm text-slate-800 dark:text-slate-200 font-medium">
+              Trimite somația. Prescripția de 3 ani se împlinește la 18.08.2026 (NCC art. 2517).
+            </p>
+            <p class="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
+              Împlinirea prescripției stinge dreptul material la acțiune (NCC art. 2500 alin. 1). Instanța nu o poate aplica din oficiu: trebuie invocată de debitor (NCC art. 2512 alin. 2).
+            </p>
+            <p class="mt-1 text-xs text-slate-600 dark:text-slate-400 tnum">
+              Scadent 18.08.2026 · în 20 de zile · instanță nedeterminată · 43.150,00 RON · <a href="../../v2/04-dosar/overview.html" class="font-mono hover:underline">LR-2026-0203</a>
+            </p>
+          </div>
+          <div class="basis-full sm:basis-auto sm:shrink-0 sm:self-center">
+            <a href="../../v2/04-dosar/overview.html" class="block sm:inline-block text-center py-2 sm:py-1.5 px-3 rounded-lg bg-lex-navy hover:bg-lex-navy-dark text-white text-sm sm:text-xs font-semibold transition">Trimite somația</a>
+          </div>
+        </article>
+      </div>
+
+      <!-- ---------- BANDA 6 · TERMEN DEBITOR ---------- -->
+      <div id="banda-debitor" class="scroll-mt-20 px-4 py-2 bg-indigo-50/60 dark:bg-indigo-950/25 border-y border-indigo-100 dark:border-indigo-900/40 flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span class="size-2 rounded-full bg-indigo-500" aria-hidden="true"></span>
+        <h3 class="text-xs font-bold uppercase tracking-wider text-indigo-800 dark:text-indigo-300">Termen debitor <span class="tnum font-semibold">(4)</span></h3>
+        <span class="text-xs text-slate-600 dark:text-slate-400">termenul curge la debitor, nu la tine</span>
+      </div>
+      <div class="divide-y divide-slate-100 dark:divide-slate-800">
+
+        <article class="relative flex flex-wrap sm:flex-nowrap gap-3 px-4 py-3.5">
+          <span class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-indigo-500" aria-hidden="true"></span>
+          <div class="hidden sm:block gutter shrink-0 pt-0.5 text-right border-r border-slate-200 dark:border-slate-700 pr-3">
+            <span class="gutter-label block text-indigo-700 dark:text-indigo-400">Termen<br>debitor</span>
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span class="sm:hidden gutter-label px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300">Termen debitor</span>
+              <span class="text-sm font-semibold">Tehno Construct S.R.L.</span>
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300"><span class="size-1.5 rounded-full bg-amber-500"></span>SOMAȚIE TRIMISĂ</span>
+            </div>
+            <p class="mt-1 text-sm text-slate-800 dark:text-slate-200 font-medium">
+              Generează cererea de OP. Cele 15 zile din somație s-au împlinit la 24.07.2026 (CPC art. 1015 alin. 1).
+            </p>
+            <p class="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
+              Împlinirea termenului este condiție necesară, nu suficientă. Verifică insolvența în BPI, starea firmei și exigibilitatea creanței înainte de depunere.
+            </p>
+            <p class="mt-1 text-xs text-slate-600 dark:text-slate-400 tnum">
+              Împlinit 24.07.2026 · Judecătoria Sectorului 3 București · 47.500,00 RON · <a href="../../v2/04-dosar/overview.html" class="font-mono hover:underline">LR-2026-0142</a>
+            </p>
+          </div>
+          <div class="basis-full sm:basis-auto sm:shrink-0 sm:self-center">
+            <a href="../../v2/04-dosar/overview.html" class="block sm:inline-block text-center py-2 sm:py-1.5 px-3 rounded-lg bg-lex-navy hover:bg-lex-navy-dark text-white text-sm sm:text-xs font-semibold transition">Generează cererea de OP</a>
+          </div>
+        </article>
+
+        <!--
+          Rând de URMĂRIRE, nu de acțiune. Pe dosarul creditorului, cele 10 zile ale
+          cererii în anulare sunt fereastra DEBITORULUI: expirarea îi este favorabilă.
+          Fără verb la imperativ, fără buton primar, fără roșu.
+        -->
+        <article class="relative flex flex-wrap sm:flex-nowrap gap-3 px-4 py-3.5">
+          <span class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-indigo-300 dark:bg-indigo-800" aria-hidden="true"></span>
+          <div class="hidden sm:block gutter shrink-0 pt-0.5 text-right border-r border-slate-200 dark:border-slate-700 pr-3">
+            <span class="gutter-label block text-indigo-700 dark:text-indigo-400">Termen<br>debitor</span>
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span class="sm:hidden gutter-label px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300">Termen debitor</span>
+              <span class="text-sm font-semibold">Aurora Tech S.A.</span>
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-violet-100 text-violet-800 dark:bg-violet-950/50 dark:text-violet-300"><span class="size-1.5 rounded-full bg-violet-500"></span>ORDONANȚĂ EMISĂ</span>
+              <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700">de urmărit</span>
+            </div>
+            <p class="mt-1 text-sm text-slate-700 dark:text-slate-300">
+              Termenul debitorului pentru cererea în anulare se împlinește la 06.08.2026. Până atunci ordonanța nu este definitivă (CPC art. 1024 alin. 1).
+            </p>
+            <p class="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
+              Nu ai nimic de făcut. Creditorul poate formula cerere în anulare doar împotriva încheierilor de la CPC art. 1022 alin. 1 și 2.
+            </p>
+            <p class="mt-1 text-xs text-slate-600 dark:text-slate-400 tnum">
+              Se împlinește 06.08.2026 · în 8 zile · Judecătoria Sectorului 6 București · 152.000,00 RON · <a href="../../v2/04-dosar/overview.html" class="font-mono hover:underline">4521/302/2026</a>
+            </p>
+          </div>
+          <div class="basis-full sm:basis-auto sm:shrink-0 sm:self-center">
+            <a href="../../v2/04-dosar/overview.html" class="block sm:inline-block text-center py-2 sm:py-1.5 px-3 rounded-lg text-sm sm:text-xs font-semibold text-blue-700 dark:text-blue-400 hover:underline">Vezi dosarul</a>
+          </div>
+        </article>
+      </div>
+
+      <!-- ---------- SUBSOL COADĂ ---------- -->
+      <footer class="px-4 py-3.5 border-t border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/30 space-y-2">
+        <p class="text-sm">
+          <span class="tnum font-semibold">Încă 2 dosare</span> din banda „Termen debitor” cer un act.
+          <a href="../../v2/05-termene/index.html" class="font-medium text-blue-700 dark:text-blue-400 hover:underline">Vezi agenda completă</a>
+        </p>
+        <p class="text-xs text-slate-600 dark:text-slate-400">
+          Ordonarea și încadrarea termenelor sunt orientative. Verificarea termenului și decizia procedurală rămân ale avocatului.
+        </p>
+      </footer>
+    </section>
+
+    <!-- ======================= ZONA 6 · FÂȘIA DE PORTOFOLIU ======================= -->
+    <section aria-labelledby="portofoliu-title" class="border-t border-slate-200 dark:border-slate-800 pt-4">
+      <h2 id="portofoliu-title" class="sr-only">Portofoliu</h2>
+      <div class="flex flex-col sm:flex-row sm:flex-wrap sm:items-baseline gap-x-8 gap-y-2">
+        <p class="min-w-0"><span class="text-lg font-semibold tnum break-words">47</span> <span class="text-xs text-slate-600 dark:text-slate-400">dosare active</span></p>
+        <p class="min-w-0"><span class="text-lg font-semibold tnum break-words">1.284.600,00 <span class="text-sm font-medium text-slate-600 dark:text-slate-400">RON</span></span> <span class="text-xs text-slate-600 dark:text-slate-400">principal în lucru</span></p>
+        <p class="min-w-0 text-xs text-slate-600 dark:text-slate-400"><span class="tnum">3</span> dosare active nu intră în total: <span class="tnum">2</span> în valută și <span class="tnum">1</span> fără sumă completată.</p>
+        <a href="../../v2/04-dosar/overview.html" class="sm:ml-auto text-sm font-medium text-blue-700 dark:text-blue-400 hover:underline">Vezi toate dosarele</a>
+      </div>
+    </section>
+
+    <!-- ======================= ZONA 7 · PICIORUL DE NAVIGAȚIE ======================= -->
+    <nav aria-label="Pagini legate" class="border-t border-slate-200 dark:border-slate-800 mt-8 pt-4 flex flex-col sm:flex-row sm:flex-wrap gap-x-6 gap-y-2">
+      <a href="../../v2/05-termene/index.html" class="text-sm font-medium text-blue-700 dark:text-blue-400 hover:underline">Agenda completă pe 30 de zile (9 restante)</a>
+      <a href="../../v2/04-dosar/overview.html" class="text-sm font-medium text-blue-700 dark:text-blue-400 hover:underline">Toate dosarele</a>
+      <a href="#" class="text-sm font-medium text-blue-700 dark:text-blue-400 hover:underline">Notificări (3)</a>
+    </nav>
+
+    <!-- ======================= ANEXĂ · VARIANTA ÎNGUSTĂ 390px ======================= -->
+    <section aria-labelledby="mobil-title" class="border-t border-slate-200 dark:border-slate-800 mt-10 pt-6">
+      <h2 id="mobil-title" class="text-sm font-semibold">Zona critică la 390px</h2>
+      <p class="mt-1 text-xs text-slate-600 dark:text-slate-400 max-w-2xl">
+        Aceeași ordine, aceleași secțiuni, nimic ascuns. Gutterul de sancțiune devine badge inline la începutul primei linii, verbul coboară pe rând propriu, rigla trece pe două coloane. Simulare statică, nu depinde de lățimea ferestrei.
+      </p>
+
+      <div class="mt-4 inline-block max-w-full overflow-x-auto">
+        <div class="w-[390px] rounded-[2rem] border-[10px] border-slate-800 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 overflow-hidden shadow-card">
+
+          <!-- topbar mobil -->
+          <div class="h-12 px-3 flex items-center gap-2 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+            <span class="p-1.5 rounded-lg text-slate-600 dark:text-slate-300" aria-hidden="true"><svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg></span>
+            <span class="text-xs font-medium text-slate-700 dark:text-slate-300">Panou de lucru</span>
+          </div>
+
+          <div class="p-3 space-y-4">
+
+            <!-- banda de cont -->
+            <div class="px-3 py-2 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-200 ring-1 ring-red-200 dark:ring-red-900/60">
+              <p class="text-[13px] leading-snug">Plata abonamentului nu a fost confirmată. Dosarele noi nu mai pot fi activate până la reautorizare.</p>
+              <span class="mt-1 inline-block text-[13px] font-semibold underline underline-offset-2">Actualizează cardul</span>
+            </div>
+
+            <!-- verdict -->
+            <div>
+              <p class="text-[10px] uppercase tracking-wide text-slate-500 dark:text-slate-400">Miercuri, 29 iulie 2026</p>
+              <p class="mt-0.5 text-xl font-bold tracking-tight"><span class="tnum">3</span> dosare sunt pe termen fatal.</p>
+              <p class="mt-1 text-[13px] leading-snug text-slate-600 dark:text-slate-400">Unul are termenul depășit de 4 zile, două expiră până vineri. Principal pretins: <span class="tnum font-semibold text-slate-800 dark:text-slate-200">218.900,00 RON</span>.</p>
+              <span class="mt-2.5 inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg bg-lex-navy text-white text-[13px] font-semibold">
+                <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                Dosar nou
+              </span>
+            </div>
+
+            <!-- rigla, două coloane -->
+            <div class="grid grid-cols-2 gap-2">
+              <div class="relative overflow-hidden rounded-xl px-2.5 py-2 bg-red-50 dark:bg-red-950/40 ring-1 ring-red-300 dark:ring-red-900/70">
+                <span class="absolute inset-x-0 top-0 h-0.5 bg-red-600"></span>
+                <span class="block text-xl font-bold tnum text-red-700 dark:text-red-300 leading-none">3</span>
+                <span class="block mt-1 text-[11px] font-semibold text-red-800 dark:text-red-200">Termen fatal</span>
+              </div>
+              <div class="relative overflow-hidden rounded-xl px-2.5 py-2 bg-rose-50 dark:bg-rose-950/40 ring-1 ring-rose-300 dark:ring-rose-900/70">
+                <span class="absolute inset-x-0 top-0 h-0.5 bg-rose-500"></span>
+                <span class="block text-xl font-bold tnum text-rose-700 dark:text-rose-300 leading-none">2</span>
+                <span class="block mt-1 text-[11px] font-semibold text-rose-800 dark:text-rose-200">Dată lipsă</span>
+              </div>
+              <div class="relative overflow-hidden rounded-xl px-2.5 py-2 bg-amber-50/70 dark:bg-amber-950/25 ring-1 ring-amber-200 dark:ring-amber-900/50">
+                <span class="absolute inset-x-0 top-0 h-0.5 bg-amber-500"></span>
+                <span class="block text-xl font-bold tnum text-amber-800 dark:text-amber-300 leading-none">2</span>
+                <span class="block mt-1 text-[11px] font-semibold text-slate-800 dark:text-slate-200">Restant</span>
+              </div>
+              <div class="relative overflow-hidden rounded-xl px-2.5 py-2 bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-700">
+                <span class="absolute inset-x-0 top-0 h-0.5 bg-slate-700 dark:bg-slate-400"></span>
+                <span class="block text-xl font-bold tnum leading-none">2</span>
+                <span class="block mt-1 text-[11px] font-semibold text-slate-800 dark:text-slate-200">Azi și mâine</span>
+              </div>
+              <div class="relative overflow-hidden rounded-xl px-2.5 py-2 bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-700">
+                <span class="absolute inset-x-0 top-0 h-0.5 bg-sky-500"></span>
+                <span class="block text-xl font-bold tnum leading-none">1</span>
+                <span class="block mt-1 text-[11px] font-semibold text-slate-800 dark:text-slate-200">Fatal în 30 zile</span>
+              </div>
+              <div class="relative overflow-hidden rounded-xl px-2.5 py-2 bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-700">
+                <span class="absolute inset-x-0 top-0 h-0.5 bg-indigo-500"></span>
+                <span class="block text-xl font-bold tnum leading-none">4</span>
+                <span class="block mt-1 text-[11px] font-semibold text-slate-800 dark:text-slate-200">Termen debitor</span>
+              </div>
+            </div>
+            <p class="text-[11px] text-slate-600 dark:text-slate-400">Numărăm dosare, nu termene. Un dosar apare o singură dată, în banda cea mai scumpă.</p>
+
+            <!-- confirmări portal, comprimat -->
+            <div class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 ring-2 ring-violet-200 dark:ring-violet-900/60 overflow-hidden">
+              <div class="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
+                <p class="text-[13px] font-semibold">Instanța a dat o soluție. Confirmă tu.</p>
+              </div>
+              <div class="px-3 py-3">
+                <p class="text-[13px]"><span class="font-mono font-medium">4521/302/2026</span> · Beta Solutions S.R.L.</p>
+                <p class="mt-1 text-[13px] leading-snug text-slate-700 dark:text-slate-300">Portalul scrie: <em class="italic">„Admite cererea.”</em></p>
+                <span class="mt-2 block text-center py-2 px-3 rounded-lg bg-lex-navy text-white text-[13px] font-semibold">Confirmă în dosar</span>
+              </div>
+            </div>
+
+            <!-- coada, primele 3 rânduri -->
+            <div class="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 overflow-hidden">
+              <div class="px-3 py-1.5 bg-red-50/70 dark:bg-red-950/25 border-b border-red-100 dark:border-red-900/40 flex items-center gap-2">
+                <span class="size-2 rounded-full bg-red-600"></span>
+                <span class="text-[11px] font-bold uppercase tracking-wider text-red-800 dark:text-red-300">Termen fatal (3)</span>
+              </div>
+
+              <div class="relative px-3 py-3 bg-slate-50/80 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">
+                <span class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-red-600"></span>
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <span class="gutter-label px-1.5 py-0.5 rounded bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300">Timbrare</span>
+                  <span class="text-[13px] font-semibold">Vertigo Interiors S.R.L.</span>
+                </div>
+                <p class="mt-1 text-[13px] leading-snug text-slate-700 dark:text-slate-300">Termenul de timbrare a trecut. Încheierea de anulare se atacă cu cerere de reexaminare în 15 zile (CPC art. 200 alin. 4).</p>
+                <p class="mt-1 text-[11px] text-slate-600 dark:text-slate-400 tnum">24.07.2026 · <span class="font-bold text-red-700 dark:text-red-400">depășit de 4 zile</span> · 68.400,00 RON</p>
+                <span class="mt-2 block text-center py-2 px-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-[13px] font-semibold text-slate-800 dark:text-slate-100">Deschide dosarul</span>
+              </div>
+
+              <div class="relative px-3 py-3 border-b border-slate-100 dark:border-slate-800">
+                <span class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-red-600"></span>
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <span class="gutter-label px-1.5 py-0.5 rounded bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300">Timbrare</span>
+                  <span class="text-[13px] font-semibold">Oltenia Agro Mix S.R.L.</span>
+                </div>
+                <p class="mt-1 text-[13px] leading-snug font-medium text-slate-800 dark:text-slate-200">Timbrează și trimite instanței dovada plății. 10 zile de la primirea comunicării instanței (OUG 80/2013 art. 33 alin. 2).</p>
+                <p class="mt-1 text-[11px] text-slate-600 dark:text-slate-400 tnum">29.07.2026 · <span class="font-bold text-red-700 dark:text-red-400">astăzi</span> · 96.250,00 RON</p>
+                <span class="mt-2 block text-center py-2 px-3 rounded-lg bg-red-600 text-white text-[13px] font-semibold">Deschide timbrarea</span>
+              </div>
+
+              <div class="relative px-3 py-3">
+                <span class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-red-600"></span>
+                <div class="flex flex-wrap items-center gap-1.5">
+                  <span class="gutter-label px-1.5 py-0.5 rounded bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300">Întrerupere 6 luni</span>
+                  <span class="text-[13px] font-semibold">Litoral Depozit Sud S.R.L.</span>
+                </div>
+                <p class="mt-1 text-[13px] leading-snug font-medium text-slate-800 dark:text-slate-200">Generează cererea de OP. Somația a fost comunicată la 31.01.2026 (CPC art. 1015 alin. 2, NCC art. 2540).</p>
+                <p class="mt-1 text-[11px] text-slate-600 dark:text-slate-400 tnum">31.07.2026 · <span class="font-bold text-red-700 dark:text-red-400">în 2 zile</span> · 54.250,00 RON</p>
+                <span class="mt-2 block text-center py-2 px-3 rounded-lg bg-red-600 text-white text-[13px] font-semibold">Generează cererea de OP</span>
+              </div>
+            </div>
+
+            <p class="text-[11px] text-slate-600 dark:text-slate-400">Ordonarea și încadrarea termenelor sunt orientative. Decizia procedurală rămâne a avocatului.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================= NOTE DE IMPLEMENTARE ======================= -->
+    <section aria-labelledby="note-title" class="border-t border-slate-200 dark:border-slate-800 mt-10 pt-6">
+      <h2 id="note-title" class="text-sm font-semibold">Note de implementare</h2>
+      <p class="mt-1 text-xs text-slate-600 dark:text-slate-400 max-w-3xl">
+        Ce alimentează fiecare zonă și cât cod nou cere. Etichetele urmează verificarea în cod: EXISTĂ înseamnă că sursa e deja scrisă și apelabilă, QUERY NOU înseamnă metodă de repository nouă.
+      </p>
+
+      <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+        <table class="w-full text-xs">
+          <caption class="sr-only">Sursa de date pe zone</caption>
+          <thead class="bg-slate-100 dark:bg-slate-800/60 text-[10px] uppercase tracking-wide text-slate-600 dark:text-slate-400">
+            <tr>
+              <th scope="col" class="px-3 py-2 text-left font-bold">Zonă</th>
+              <th scope="col" class="px-3 py-2 text-left font-bold">Sursă</th>
+              <th scope="col" class="px-3 py-2 text-left font-bold">Etichetă</th>
+              <th scope="col" class="px-3 py-2 text-left font-bold">Observație</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 align-top">
+            <tr>
+              <th scope="row" class="px-3 py-2.5 text-left font-semibold">Banda de cont</th>
+              <td class="px-3 py-2.5 text-slate-700 dark:text-slate-300">SubscriptionRepository, metodă nouă findLatestForUser</td>
+              <td class="px-3 py-2.5"><span class="inline-block px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 font-bold">QUERY NOU</span></td>
+              <td class="px-3 py-2.5 text-slate-600 dark:text-slate-400">findCurrentForUser filtrează status IN (ACTIVE, TRIAL, CANCELED), deci nu poate întoarce niciodată PAST_DUE sau SUSPENDED. Copy-ul nu poate cita „data eșecului de plată” sau un termen de grație: Subscription nu are aceste câmpuri. Singura ancoră reală este currentPeriodEnd.</td>
+            </tr>
+            <tr>
+              <th scope="row" class="px-3 py-2.5 text-left font-semibold">Antetul cu verdict</th>
+              <td class="px-3 py-2.5 text-slate-700 dark:text-slate-300">Derivat în PHP din coada deja asamblată</td>
+              <td class="px-3 py-2.5"><span class="inline-block px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 font-bold">EXISTĂ</span></td>
+              <td class="px-3 py-2.5 text-slate-600 dark:text-slate-400">LegalCase::amount este ?string nullable: dosarele fără sumă se exclud din total și se numără separat pe ecran. Sumele nu se adună între monede. Nicăieri nu se scrie „sub risc” sau „expunere”: amount este principalul pretins, nu o pierdere previzibilă.</td>
+            </tr>
+            <tr>
+              <th scope="row" class="px-3 py-2.5 text-left font-semibold">Rigla de cost</th>
+              <td class="px-3 py-2.5 text-slate-700 dark:text-slate-300">Numărată în PHP pe coada asamblată, niciodată printr-un SELECT separat</td>
+              <td class="px-3 py-2.5"><span class="inline-block px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 font-bold">EXISTĂ</span></td>
+              <td class="px-3 py-2.5 text-slate-600 dark:text-slate-400">Șase benzi, nu cinci: fără „Fatal în 30 de zile” taxonomia nu acoperă termenele certe la 4 până la 30 de zile pe care le livrează findAgendaForUser. În MVP pastilele sunt contoare plus ancoră de scroll, nu filtre.</td>
+            </tr>
+            <tr>
+              <th scope="row" class="px-3 py-2.5 text-left font-semibold">Confirmări de soluție</th>
+              <td class="px-3 py-2.5 text-slate-700 dark:text-slate-300">RulingProposalResolver::actionableProposal plus un query nou de shortlist pe CourtPortalEvent</td>
+              <td class="px-3 py-2.5"><span class="inline-block px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 font-bold">QUERY NOU</span></td>
+              <td class="px-3 py-2.5 text-slate-600 dark:text-slate-400">FAZA 2. findUnnotified este global, fără scoping pe utilizator, deci nu se poate refolosi. Textul din portal se randează escapat, nu se stochează într-un loc nou și nu intră în corpul notificărilor sau al email-urilor.</td>
+            </tr>
+            <tr>
+              <th scope="row" class="px-3 py-2.5 text-left font-semibold">Coada de acțiuni</th>
+              <td class="px-3 py-2.5 text-slate-700 dark:text-slate-300">Serviciu nou de asamblare peste DeadlineAgendaService și DeadlineBlockageFinder</td>
+              <td class="px-3 py-2.5"><span class="inline-block px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 font-bold">EXISTĂ</span></td>
+              <td class="px-3 py-2.5 text-slate-600 dark:text-slate-400">Fără SQL nou scris, dar nu „zero query”: DeadlinePageViewBuilder::build() execută 10 interogări, dintre care countAgendaBuckets și prescripțiile pe orizont lung sunt risipite aici. Se extrage o variantă care le sare. Plafonul de 12 rânduri limitează randarea, nu costul: nicio interogare din lanț nu are LIMIT, iar contoarele riglei se numără în PHP, deci hidratarea completă este obligatorie.</td>
+            </tr>
+            <tr>
+              <th scope="row" class="px-3 py-2.5 text-left font-semibold">Dedup pe dosar</th>
+              <td class="px-3 py-2.5 text-slate-700 dark:text-slate-300">Comparator nou, pe două chei</td>
+              <td class="px-3 py-2.5"><span class="inline-block px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 font-bold">EXISTĂ</span></td>
+              <td class="px-3 py-2.5 text-slate-600 dark:text-slate-400">Întâi proximitatea sancțiunii, apoi severityRank, ca în agendă. Ordonarea pură pe severityRank ar urca o prescripție la 20 de zile peste o timbrare scadentă mâine. Blocajul are prioritate peste orice rând de agendă al aceluiași dosar: blocajul este cauza, termenul estimat este efectul. Fără regula asta, contorul „Dată lipsă” și numărul de rânduri nu coincid.</td>
+            </tr>
+            <tr>
+              <th scope="row" class="px-3 py-2.5 text-left font-semibold">Gutterul de sancțiune</th>
+              <td class="px-3 py-2.5 text-slate-700 dark:text-slate-300">DeadlineType, nu DeadlineConsequence</td>
+              <td class="px-3 py-2.5"><span class="inline-block px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 font-bold">EXISTĂ</span></td>
+              <td class="px-3 py-2.5 text-slate-600 dark:text-slate-400">Consecința nu se comprimă într-un cuvânt absolut. RIGHT_EXTINCTION acoperă și PRESCRIPTIE, și DEPUNERE_CERERE, unde nu se stinge nimic, ci se desființează retroactiv întreruperea (NCC art. 2540). „BLOCAJ” nu este o consecință, ci o categorie de rând, deci gutterul scrie „Dată lipsă”.</td>
+            </tr>
+            <tr>
+              <th scope="row" class="px-3 py-2.5 text-left font-semibold">Verbele din coadă</th>
+              <td class="px-3 py-2.5 text-slate-700 dark:text-slate-300">Chei de traducere NOI, distincte de deadlines.action.*</td>
+              <td class="px-3 py-2.5"><span class="inline-block px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 font-bold">QUERY NOU</span></td>
+              <td class="px-3 py-2.5 text-slate-600 dark:text-slate-400">DeadlineRowActionResolver rezolvă „ce poate apăsa”, nu „ce act juridic urmează”, iar butoanele primare sunt POST pentru majoritatea tipurilor. În MVP butoanele se randează ca formulare fără _context și răspund cu comportamentul paginii de dosar. Acțiunea în loc cere o valoare CONTEXT_DASHBOARD și un template de Turbo Stream propriu. Orice buton care închide un termen păstrează neschimbat dialogul de confirmare din agendă: nimic nu se închide cu un singur clic din coadă.</td>
+            </tr>
+            <tr>
+              <th scope="row" class="px-3 py-2.5 text-left font-semibold">Fâșia de portofoliu</th>
+              <td class="px-3 py-2.5 text-slate-700 dark:text-slate-300">countActiveByUser și sumActiveAmountByUser, plus un COUNT nou</td>
+              <td class="px-3 py-2.5"><span class="inline-block px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 font-bold">QUERY NOU</span></td>
+              <td class="px-3 py-2.5 text-slate-600 dark:text-slate-400">Cele două agregate există. COUNT-ul nou numără dosarele active care nu contribuie la total: currency &lt;&gt; 'RON' OR amount IS NULL. Inversarea simplă a filtrului de monedă ar rata dosarele fără sumă. Eticheta este „principal în lucru”, niciodată „recuperat”: nu există câmp de sumă încasată în model.</td>
+            </tr>
+            <tr>
+              <th scope="row" class="px-3 py-2.5 text-left font-semibold">Piciorul de navigație</th>
+              <td class="px-3 py-2.5 text-slate-700 dark:text-slate-300">overdue_deadlines_count() și unread_notifications_count()</td>
+              <td class="px-3 py-2.5"><span class="inline-block px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 font-bold">EXISTĂ</span></td>
+              <td class="px-3 py-2.5 text-slate-600 dark:text-slate-400">DeadlineExtension memoizează pe request. NotificationExtension și SubscriptionExtension nu, iar topbarul și sidebarul le apelează deja: se memoizează înainte de a adăuga al doilea call-site.</td>
+            </tr>
+            <tr>
+              <th scope="row" class="px-3 py-2.5 text-left font-semibold">Traduceri și shell</th>
+              <td class="px-3 py-2.5 text-slate-700 dark:text-slate-300">Namespace nou dashboard.work.*</td>
+              <td class="px-3 py-2.5"><span class="inline-block px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 font-bold">QUERY NOU</span></td>
+              <td class="px-3 py-2.5 text-slate-600 dark:text-slate-400">Toate cheile antetului, riglei, cozii, portofoliului și piciorului sunt noi, în RO și EN. dashboard.cases.kpi.* și dashboard.cases.how.* devin orfane odată cu eliminarea KpiCard și a celor trei carduri: se șterg în același commit. Eticheta primei intrări din sidebar devine „Panou de lucru”. Rulează lint:yaml după.</td>
+            </tr>
+            <tr>
+              <th scope="row" class="px-3 py-2.5 text-left font-semibold">Datorii plătite cu pagina</th>
+              <td class="px-3 py-2.5 text-slate-700 dark:text-slate-300">app.css</td>
+              <td class="px-3 py-2.5"><span class="inline-block px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 font-bold">EXISTĂ</span></td>
+              <td class="px-3 py-2.5 text-slate-600 dark:text-slate-400">Regulă globală :focus-visible (app.css nu are niciuna azi). Zero animație infinită pe această pagină: .soft-pulse rulează fără gardă prefers-reduced-motion și nu se folosește aici. text-slate-400 iese din uz pentru text purtător de informație pe fundal alb.</td>
+            </tr>
+            <tr>
+              <th scope="row" class="px-3 py-2.5 text-left font-semibold">Minimizare de date</th>
+              <td class="px-3 py-2.5 text-slate-700 dark:text-slate-300">Listă închisă de câmpuri pe rând</td>
+              <td class="px-3 py-2.5"><span class="inline-block px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 font-bold">EXISTĂ</span></td>
+              <td class="px-3 py-2.5 text-slate-600 dark:text-slate-400">Rândul afișează exact: debitor, status, act, temei, scadență, zile rămase, instanță, principal, număr dosar. Nu se adaugă CNP, adresă, CUI sau date de contact. Serviciul nou de asamblare citește exclusiv interogări scoped pe utilizator, ca să nu ocolească tăcut CaseVoter.</td>
+            </tr>
+            <tr>
+              <th scope="row" class="px-3 py-2.5 text-left font-semibold">Excluse deliberat</th>
+              <td class="px-3 py-2.5 text-slate-700 dark:text-slate-300">Decizii asumate</td>
+              <td class="px-3 py-2.5"><span class="inline-block px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 font-bold">DECIZIE</span></td>
+              <td class="px-3 py-2.5 text-slate-600 dark:text-slate-400">Fără KpiCard, fără tabel de dosare, fără trend lună la lună, fără rată de succes, fără sumă recuperată, fără bară de contoare de termene (sidebarul o are deja). Prescripția executării (CPC art. 705 alin. 1) nu apare pe dashboard și rămâne exclusiv în agendă. Cuvântul „ireparabil” nu apare nicăieri: anularea pentru netimbrare admite reexaminare (CPC art. 200 alin. 4), iar decăderea admite repunere în termen (CPC art. 186).</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/preline@2.7.0/dist/preline.js"></script>
+<script>
+  function toggleTheme() {
+    const html = document.documentElement;
+    const isDark = html.classList.toggle('dark');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  }
+</script>
+</body>
+</html>

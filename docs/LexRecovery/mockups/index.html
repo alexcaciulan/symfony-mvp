@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LexRecovery Mockups — selector versiune</title>
+  <title>LexRecovery Mockups · selector versiune</title>
   <script>
     if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
       document.documentElement.classList.add('dark');
@@ -31,7 +31,7 @@
         <svg xmlns="http://www.w3.org/2000/svg" class="size-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16l-3-3m3 3l3-3"/></svg>
       </div>
       <div>
-        <h1 class="text-xl font-bold tracking-tight">LexRecovery — Mockups</h1>
+        <h1 class="text-xl font-bold tracking-tight">LexRecovery · Mockups</h1>
         <p class="text-xs text-slate-500">Selector versiune · iterații de design</p>
       </div>
     </div>
@@ -46,10 +46,10 @@
 
   <div class="text-center mb-10">
     <h2 class="text-3xl md:text-4xl font-bold tracking-tight">Iterații de design</h2>
-    <p class="mt-3 text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">Două variante mockate ale aplicației. Fiecare pornește din decizii diferite de structură și interactivitate. Compară-le, alege direcția.</p>
+    <p class="mt-3 text-slate-600 dark:text-slate-400 max-w-2xl mx-auto">Trei variante mockate ale aplicației. Fiecare pornește din decizii diferite de structură și de conținut. Compară-le, alege direcția.</p>
   </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
     <a href="v1/index.html" class="group bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-xl transition relative overflow-hidden">
       <div class="absolute top-0 right-0 size-32 bg-gradient-to-br from-slate-100/60 to-transparent dark:from-slate-800/30 rounded-full blur-2xl pointer-events-none"></div>
@@ -57,7 +57,7 @@
       <div class="relative">
         <div class="flex items-center justify-between mb-4">
           <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-            <span class="size-1.5 rounded-full bg-slate-500"></span>v1 — original
+            <span class="size-1.5 rounded-full bg-slate-500"></span>v1 · original
           </span>
           <span class="text-xs text-slate-400">8 ecrane</span>
         </div>
@@ -83,13 +83,9 @@
       <div class="relative">
         <div class="flex items-center justify-between mb-4">
           <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300">
-            <span class="relative flex size-1.5">
-              <span class="absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75 animate-ping"></span>
-              <span class="relative inline-flex rounded-full size-1.5 bg-blue-500"></span>
-            </span>
-            v2 — actual
+            <span class="size-1.5 rounded-full bg-blue-500"></span>v2 · shell curent
           </span>
-          <span class="text-xs text-slate-400">8 ecrane</span>
+          <span class="text-xs text-slate-400">10 ecrane</span>
         </div>
 
         <h3 class="text-xl font-bold text-slate-900 dark:text-white">Sidebar CMS + Preline</h3>
@@ -109,6 +105,45 @@
       </div>
     </a>
 
+    <a href="v3/index.html" class="group bg-white dark:bg-slate-900 rounded-2xl border-2 border-amber-200 dark:border-amber-900/50 p-6 hover:border-amber-400 dark:hover:border-amber-600 hover:shadow-xl transition relative overflow-hidden ring-1 ring-amber-100 dark:ring-amber-950/30">
+      <div class="absolute top-0 right-0 size-40 bg-gradient-to-br from-amber-100/60 to-transparent dark:from-amber-950/40 rounded-full blur-2xl pointer-events-none"></div>
+
+      <div class="relative">
+        <div class="flex items-center justify-between mb-4">
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+            <span class="relative flex size-1.5">
+              <span class="absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75 animate-ping"></span>
+              <span class="relative inline-flex rounded-full size-1.5 bg-amber-500"></span>
+            </span>
+            v3 · propunere
+          </span>
+          <span class="text-xs text-slate-400">3 ecrane</span>
+        </div>
+
+        <h3 class="text-xl font-bold text-slate-900 dark:text-white">Panou de lucru</h3>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Rescrierea dashboard-ului ca listă de lucru: un rând per dosar, actul cel mai scump, ordonat după cât costă întârzierea. Restul aplicației rămâne pe shell-ul v2.</p>
+
+        <ul class="mt-4 space-y-1.5 text-xs text-slate-600 dark:text-slate-400">
+          <li class="flex items-start gap-2"><svg class="size-3.5 mt-0.5 shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Coadă de acțiuni cu gutter de tip de termen</li>
+          <li class="flex items-start gap-2"><svg class="size-3.5 mt-0.5 shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Riglă de cost cu 6 benzi, contoare pe dosare</li>
+          <li class="flex items-start gap-2"><svg class="size-3.5 mt-0.5 shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Bandă de cont condițională, cotă și plată</li>
+          <li class="flex items-start gap-2"><svg class="size-3.5 mt-0.5 shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Trei stări: populat, inițial, zi critică</li>
+          <li class="flex items-start gap-2"><svg class="size-3.5 mt-0.5 shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>Note de implementare pe fiecare ecran</li>
+        </ul>
+
+        <div class="mt-6 inline-flex items-center gap-1 text-sm font-semibold text-amber-700 dark:text-amber-300 group-hover:text-amber-900 dark:group-hover:text-amber-200">
+          Deschide v3 →
+        </div>
+      </div>
+    </a>
+
+  </div>
+
+  <div class="mt-6 max-w-3xl mx-auto text-center">
+    <p class="text-xs text-slate-500 dark:text-slate-400">
+      Analiza care stă la baza lui v3:
+      <a href="../ANALIZA-DASHBOARD-2026-07-29.md" class="font-semibold text-blue-600 dark:text-blue-400 hover:underline">ANALIZA-DASHBOARD-2026-07-29.md</a>
+    </p>
   </div>
 
   <div class="mt-10 grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto">
@@ -133,7 +168,7 @@
   </div>
 
   <div class="mt-10 text-center text-xs text-slate-400">
-    <p>Versiunile pot fi păstrate în paralel pentru comparare. Iterații viitoare → v3, v4 ca foldere noi.</p>
+    <p>Versiunile pot fi păstrate în paralel pentru comparare. Iterații viitoare → v4, v5 ca foldere noi.</p>
   </div>
 
 </main>
