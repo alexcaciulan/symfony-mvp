@@ -24,21 +24,12 @@ final class DeadlineRowActionResolver
     private const OPEN_PORTAL = 'deadlines.action.open_portal';
     private const MARK_DONE = 'deadlines.action.mark_done';
     private const MARK_STAMPED = 'deadlines.action.mark_stamped';
-    private const STOP_TRACKING = 'deadlines.action.stop_tracking';
     private const SEND_SUMMONS = 'deadlines.action.send_summons';
     private const GENERATE_PAYMENT_ORDER = 'deadlines.action.generate_payment_order';
-    private const SET_SUMMONS_COMMUNICATION_DATE = 'deadlines.action.set_summons_communication_date';
-
-    /**
-     * Dialog that collects the communication date on the agenda page. It carries the
-     * id of the case page dialog on purpose: the two are the same act on two screens
-     * and never coexist in one document, so the answer that dismisses one dismisses
-     * the other with no mapping in between.
-     */
-    private const SUMMONS_DATE_DIALOG_ID = 'hs-modal-set-summons-communication-date';
+    private const NO_ANNULMENT_REQUEST = 'deadlines.action.no_annulment_request';
 
     private const NOTE_MARK_DONE = 'deadlines.action.note.mark_done';
-    private const NOTE_STOP_TRACKING = 'deadlines.action.note.stop_tracking';
+    private const NOTE_NO_ANNULMENT_REQUEST = 'deadlines.action.note.no_annulment_request';
 
     public function resolve(DeadlineAgendaItem $item): DeadlineRowAction
     {
@@ -59,7 +50,13 @@ final class DeadlineRowActionResolver
         return match ($item->deadline->getType()) {
             // The act is performed right here, so the primary button is the close.
             DeadlineType::TIMBRARE => new DeadlineRowAction($this->close($item, self::MARK_STAMPED)),
-            DeadlineType::CERERE_IN_ANULARE, DeadlineType::OTHER => new DeadlineRowAction($this->close($item, self::MARK_DONE, self::NOTE_MARK_DONE)),
+            DeadlineType::OTHER => new DeadlineRowAction($this->close($item, self::MARK_DONE, self::NOTE_MARK_DONE)),
+
+            // The only act the platform can offer on the annulment window is the
+            // decision NOT to use it. It cannot draft the request: that needs the
+            // reasoning of a ruling nobody has analysed here. So the button says what it
+            // does, instead of a generic "done" that reads as "the request was filed".
+            DeadlineType::CERERE_IN_ANULARE => new DeadlineRowAction($this->waiveAnnulment($item)),
 
             // The hearing is attended at the court and its hour only exists on the
             // portal, so the primary button leads there and the close stays secondary.
@@ -76,34 +73,22 @@ final class DeadlineRowActionResolver
 
             // Enforcement runs through a bailiff, outside the platform, so there is no
             // act to offer. The row states the term and lets the lawyer into the case.
-            DeadlineType::PRESCRIPTIE_EXECUTARE => new DeadlineRowAction(
-                $this->openCase($item->deadline->getLegalCase()),
-                $this->close($item, self::STOP_TRACKING, self::NOTE_STOP_TRACKING),
-            ),
+            // It closes on its own when enforcement starts, so there is nothing to
+            // press here either.
+            DeadlineType::PRESCRIPTIE_EXECUTARE => new DeadlineRowAction($this->openCase($item->deadline->getLegalCase())),
         };
     }
 
     /**
-     * The debtor's own term (CPC art. 1015 para. 1). While the receipt date is
-     * missing the deadline is an estimate, so recording that date is worth more than
-     * closing the row. Once it has expired, what it unblocks is filing the request.
+     * The debtor's own term (CPC art. 1015 para. 1). The row only exists once the
+     * receipt date has been recorded, because that is the fact the term runs from and
+     * the only thing that makes it born; until then the case is carried by the
+     * blockage zone. So there is no estimated state left to handle here, and what the
+     * row offers is what its expiry unblocks, filing the request.
      */
     private function summonsAnswerAction(DeadlineAgendaItem $item): DeadlineRowAction
     {
         $case = $item->deadline->getLegalCase();
-
-        if ($item->certainty->isEstimated()) {
-            return new DeadlineRowAction(
-                new DeadlineActionButton(
-                    label: self::SET_SUMMONS_COMMUNICATION_DATE,
-                    route: 'case_deadline_summons_communication_date',
-                    routeParameters: ['caseId' => $case->getId()],
-                    method: 'POST',
-                    agendaDialogId: self::SUMMONS_DATE_DIALOG_ID,
-                ),
-                $this->close($item, self::MARK_DONE, self::NOTE_MARK_DONE),
-            );
-        }
 
         if ($item->daysRemaining < 0) {
             return new DeadlineRowAction(
@@ -120,11 +105,18 @@ final class DeadlineRowActionResolver
      * creditor, and which act depends on how far the case got: the summons interrupts
      * it (CPC art. 1015 para. 2), the request filed in court is what keeps the
      * interruption. Past filing there is no further act to offer from the agenda.
+     *
+     * No way to dismiss the row: hiding a limitation term hides the only thing that still
+     * says the claim can die of age, and the row already states the date until which the
+     * interruption holds, so it is informative rather than noisy. Nowhere else offers it
+     * either, the deadlines tab of the case included, and
+     * {@see \App\Controller\Case\CaseDeadlineController::complete()} refuses the two
+     * limitation types outright. What ends such a term is the act that stops it, recorded
+     * by the platform, or deleting a term created by mistake.
      */
     private function limitationAction(DeadlineAgendaItem $item): DeadlineRowAction
     {
         $case = $item->deadline->getLegalCase();
-        $close = $this->close($item, self::STOP_TRACKING, self::NOTE_STOP_TRACKING);
 
         $primary = match ($case->getStatus()) {
             CaseStatus::AMIABIL => new DeadlineActionButton(
@@ -138,7 +130,7 @@ final class DeadlineRowActionResolver
             default => $this->openCase($case),
         };
 
-        return new DeadlineRowAction($primary, $close);
+        return new DeadlineRowAction($primary);
     }
 
     private function generatePaymentOrder(LegalCase $case): DeadlineActionButton
@@ -174,6 +166,27 @@ final class DeadlineRowActionResolver
             closesDeadline: true,
             note: $note,
             csrfTokenId: 'complete_deadline_' . $deadline->getId(),
+        );
+    }
+
+    /**
+     * Closing the annulment window by deciding against it. Its own route and its own
+     * token id, not the generic close: the audit trail has to tell a decision apart from
+     * a lapse. `closesDeadline` stays true, so the row still hands the page its
+     * confirmation dialog before posting.
+     */
+    private function waiveAnnulment(DeadlineAgendaItem $item): DeadlineActionButton
+    {
+        $deadline = $item->deadline;
+
+        return new DeadlineActionButton(
+            label: self::NO_ANNULMENT_REQUEST,
+            route: 'case_deadline_no_annulment_request',
+            routeParameters: $this->closeRouteParameters($deadline),
+            method: 'POST',
+            closesDeadline: true,
+            note: self::NOTE_NO_ANNULMENT_REQUEST,
+            csrfTokenId: 'no_annulment_request_' . $deadline->getId(),
         );
     }
 

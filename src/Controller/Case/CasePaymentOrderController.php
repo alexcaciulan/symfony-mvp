@@ -98,6 +98,20 @@ final class CasePaymentOrderController extends AbstractController
             return $this->respond($request, $case, false, 'error', 'case_overview.payment_order.flash_error_stamp_duty_missing');
         }
 
+        // Proof that the summons reached the debtor. CPC art. 1016 para. 2 requires it to
+        // be attached to the petition, under sanction of the petition being dismissed as
+        // inadmissible, so the court is shown the bailiff record or the postal
+        // acknowledgement rather than the lawyer's statement of the date. The date is
+        // deliberately NOT required here: it is saved freely so the 15-day term of
+        // art. 1015 para. 1 starts counting, and only the filing waits for the document.
+        //
+        // Checked after the idempotency and status guards on purpose, so a case whose
+        // petition already exists is told exactly that instead of being sent looking for
+        // a proof that would change nothing.
+        if (!$this->hasDocument($case, DocumentType::DOVADA_COMUNICARE)) {
+            return $this->respond($request, $case, false, 'error', 'case_overview.payment_order.flash_error_communication_proof_missing');
+        }
+
         // Exigibility is re-checked here and not only at the wizard: this is the
         // boundary where a document leaves for the court. A claim position that is
         // not yet due makes the petition inadmissible for that sum (CPC art. 1013),
@@ -195,6 +209,16 @@ final class CasePaymentOrderController extends AbstractController
             || !$this->hasDocument($case, DocumentType::OPIS)
             || !$this->hasDocument($case, DocumentType::SOMATIE)) {
             $this->addFlash('error', 'case_overview.zip_package.flash_error_incomplete');
+
+            return $this->redirectToRoute('case_overview', ['id' => $id]);
+        }
+
+        // Second gate on the proof of service, after the one that guards generation.
+        // Download is the moment the file actually leaves for the court, and the
+        // admin status override reaches this point without passing generation at all,
+        // so the check is repeated here rather than trusted upstream.
+        if (!$this->hasDocument($case, DocumentType::DOVADA_COMUNICARE)) {
+            $this->addFlash('error', 'case_overview.zip_package.flash_error_missing_communication_proof');
 
             return $this->redirectToRoute('case_overview', ['id' => $id]);
         }

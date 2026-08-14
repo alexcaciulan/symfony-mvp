@@ -1,179 +1,70 @@
-# Termene: ce a rămas de făcut
+# Termene: lista de lucru după revizia avocatului
 
-Stare: feature-ul livrat pe `feature/termene`, necomis. Suita: 2478 teste, 0 failures.
-Lista de mai jos este rezultatul a trei verificări juridice rulate pe cod la 2026-07-26, plus
-review-ul final pe tot feature-ul. Ordinea este cea a riscului, nu a efortului.
+Stare: pagina de termene și corecțiile de calcul sunt comise pe `lexrecovery`.
+Sursa acestei liste: `RASPUNS-REVIZIE-AVOCAT-TERMENE-2026-08-05.md`, care analizează cele 26 de
+mențiuni albastre din documentul întors de avocat. Lista anterioară, dinaintea reviziei, este
+închisă: punctele ei sunt fie implementate, fie preluate mai jos în altă formă.
 
-Toate afirmațiile juridice de mai jos au fost verificate pe surse, dar surse secundare în bună
-parte, pentru că `legislatie.just.ro` nu a răspuns constant. Înainte de implementare, punctele
-marcate cu **[avocat]** cer confirmarea avocatului titular.
-
----
-
-## 1. Calculul termenelor greșește sistematic cu o zi: IMPLEMENTAT **[avocat]**
-
-Regula N+1 plus prorogarea trăiește într-un singur loc, `DeadlineService::proceduralTermEnd()`.
-Constantele rămân la valorile legale (15/10/10). Poarta `isPaymentTermExpired()` se raportează
-acum la comunicare + 16 prorogat, deci depunerea e permisă abia din ziua următoare împlinirii.
-`ensureExecutionPrescriptionDeadline` și `CaseAutoFinalizer` refolosesc `appealTermEnd()`.
-
-CPC art. 181 alin. 1 pct. 2 folosește sistemul zilelor libere: nu se socotește nici ziua de la
-care curge termenul, nici ziua în care se împlinește. Formula corectă este `dată + N + 1`.
-
-`DeadlineService` folosește `dată + N`:
-
-| constantă | acum | corect |
-| --- | --- | --- |
-| `PAYMENT_NOTICE_DAYS` (15) | `+15` | `+16` |
-| `APPEAL_DAYS` (10) | `+10` | `+11` |
-| `STAMP_DUTY_DAYS` (10) | `+10` | `+11` |
-
-Verificare pe o comunicare din luni 1 iunie 2026: răspunsul la somație se împlinește 17 iunie,
-aplicația arată 16 iunie. Cererea în anulare și timbrarea: 12 iunie real, 11 iunie afișat.
-
-`DeadlineCreationSubscriber:155` folosește `+11`, adică singura formulă corectă din cod, dar
-pentru a deriva data definitivării, fără prorogare, și recalculând independent în loc să
-refolosească rezultatul din `createAppealDeadline()`.
-
-### Consecința operațională, cea mai gravă
-
-`DeadlineService::isPaymentTermExpired()` este poarta care ar trebui să împiedice depunerea
-prematură a cererii de ordonanță. Folosește aceeași formulă scurtă, deci
-`CasePaymentOrderController:80` permite generarea cererii cu o zi înainte ca termenul
-debitorului să expire. Sancțiunea este respingerea ca prematură (CPC art. 1015-1016). Textul
-propriu al aplicației avertizează despre exact acest risc.
-
-De rezolvat simultan: cele patru metode din `DeadlineService`, `ensureExecutionPrescriptionDeadline`
-care trebuie să refolosească data calculată, testele care fixează valorile actuale, și mockup-urile.
+Ordinea din fiecare grup este a riscului, nu a efortului. Efort: S sub o zi, M una până la două zile,
+L peste două zile.
 
 ---
 
-## 2. Termenul de 6 luni din NCC art. 2540 nu există în aplicație: IMPLEMENTAT **[avocat]**
+## A. Se pot face acum, fără alte răspunsuri
 
-Implementat prin `DeadlineService::createFilingDeadline()`, tip `DEPUNERE_CERERE`, ancorat pe
-`paymentNoticeCommunicationDate`, calculat pe luni (NCC art. 2552, cu clamp pe alin. 3 la ultima
-zi a lunii), fără prorogare. Creat din `CaseDeadlineController::setPaymentNoticeCommunicationDate`,
-recalculat dacă avocatul corectează data, închis automat la intrarea în `CERERE_DEPUSA`.
-`DeadlineConsequenceResolver` îl mapează la `RIGHT_EXTINCTION`, nu la `RECORD_KEEPING`.
-Rămâne de confirmat cu avocatul întrebarea de fond de mai jos.
-
-Somația comunicată întrerupe prescripția, dar întreruperea se consideră că nu a avut loc dacă
-cererea nu este introdusă în 6 luni de la comunicare (NCC art. 2540, la care CPC art. 1015
-alin. 2 trimite expres).
-
-Aplicația nu urmărește acest termen nicăieri. Exemplu de prejudiciu: scadență 01.09.2023,
-prescripție 01.09.2026, somație comunicată 20.02.2026, cerere depusă 15.09.2026. Cele 6 luni
-expiraseră pe 20.08.2026, deci întreruperea cade retroactiv, prescripția s-a împlinit pe
-01.09.2026, cererea se respinge ca prescrisă. Creanța se pierde integral.
-
-Ancora corectă este `paymentNoticeCommunicationDate + 6 luni`, niciodată data generării somației.
-Tipul `DEPUNERE_CERERE` există deja în enum și nu e creat de nimeni: acesta este temeiul lui real.
-
-De confirmat: dacă cererea de ordonanță de plată satisface „chemarea în judecată" din art. 2540.
-Argumentul sistematic e solid (art. 1015 alin. 2 trimite la art. 2540 chiar în capitolul dedicat
-procedurii OP), dar nu s-a găsit o sursă care să tranșeze punctual.
+| # | Ce | De ce | Efort |
+|---|---|---|---|
+| A1 | **Recalcularea termenelor existente** pe regula zilelor libere, o singură dată, pe dosarele active, cu urmă în audit pe fiecare termen atins | Avocatul a confirmat regula. Azi coexistă termene vechi, scurte cu o zi, și termene noi | M |
+| A2 | **„În curs de comunicare" în loc de termen estimat.** Rândul nu mai afișează dată până la introducerea datei reale; acțiunea devine „Introdu data comunicării"; dosarul rămâne în lista de blocaje | O dată calculată de la generarea documentului nu are valoare juridică, iar marcajul „estimat" nu împiedică citirea ei ca termen | M |
+| A3 | **Alerte pentru dosarele blocate.** Trei declanșatoare: ordonanță emisă fără data comunicării, dosar descoperit pe portal fără taxă achitată, înștiințare de regularizare fără dată. Cu limitare de frecvență per dosar | Zona de blocaje e pasivă azi. Alertele există doar pentru termene calculate, adică fix pentru cazurile care nu sunt blocate | M |
+| A4 | **Închiderea prescripției executării la trecerea efectivă în executare.** Implementat: închiderea se face pe data depunerii cererii la executor, cerută în modalul de trecere în executare, nu pe status; fără dată, termenul rămâne deschis. Închiderea se poate anula din card, pe cazurile CPC art. 708 alin. 3 | Cererea către executor întrerupe termenul (CPC art. 708 alin. 1 pct. 2). Azi îl creăm la intrarea în executare, adică exact invers | S |
+| A5 | **Ancora prescripției executării mutată pe hotărârea din cererea în anulare**, când aceasta există. Până la introducerea datei, dosarul intră în blocaje | Ordonanța nu rămâne definitivă la expirarea celor 10 zile dacă s-a depus cerere în anulare | M |
+| A6 | **Închiderea automată a termenului de cerere în anulare** la expirarea celor 10 zile de la data comunicării, plus o perioadă de așteptare configurabilă de 5 zile lucrătoare înainte de a împinge dosarul spre executare | Cerut explicit. Înlocuiește modelul cu două ferestre, care oricum nu era derivabil din date | M |
+| A7 | **Prorogarea aplicată celor două termene de prescripție** | Confirmat cu „Da". Azi nu o aplicăm | S |
+| A8 | **Legarea dovezii de comunicare de câmpul de dată.** Verificat: azi setarea datei nu cere și nu leagă niciun document | O dată fără dovadă nu are valoare la dosar | S |
+| A9 | **Textul „Prescripție întreruptă până la data Z"**, unde Z este data comunicării somației plus 6 luni | Propunerea lui, mai bună decât marcajul de incertitudine pe care îl aveam | S |
+| A10 | **Eliminarea butonului de ascundere din listă** | „De ce să nu vrei să mai apară în listă?" Nu avem un răspuns bun. Cu textul de la A9, termenul nu mai deranjează | S |
+| A11 | **Renunțarea la alertele de 30 și 14 zile pe cererea în anulare**, păstrarea lor pe prescripție, cu praguri diferite: 30 și 14 zile pentru cea generală, 60 și 30 pentru cele 6 luni | Termenul cererii în anulare e de 10 zile, deci pragurile propuse de noi erau absurde aritmetic | S |
+| A12 | **Reformularea textului despre cele 6 luni**, ca să nu apară ca interdicție de a depune | Nu e termen de decădere din dreptul de a depune, ci condiția de care depinde menținerea întreruperii | S |
 
 ---
 
-## 3. `PRESCRIPTIE_EXECUTARE` derivată din ziua curentă: IMPLEMENTAT **[avocat]**
+## B. Blocate pe răspunsul avocatului
 
-Ancora este acum, în ordine: `rulingCommunicationDate`, apoi `finalRulingDate`, apoi nimic.
-Ziua curentă nu se mai folosește. Când nu există niciuna dintre cele două date, termenul NU se
-creează, iar dosarul apare în zona Blocaje cu al patrulea motiv, `EXECUTION_ANCHOR_MISSING`.
-Rămâne deschisă întrebarea de fond de mai jos (art. 706 vs. executorialitatea de la comunicare).
-
-Când `rulingCommunicationDate` lipsește, `DeadlineCreationSubscriber:156` folosește ziua curentă
-ca ancoră. „Azi" e aproape întotdeauna ulterior comunicării reale, deci termenul afișat e mai
-lung decât cel real. Pe un termen ireversibil, e cea mai periculoasă direcție de eroare.
-
-Ordinea opțiunilor, de la cea mai sigură:
-1. să nu se creeze termenul deloc fără dată reală, iar dosarul să apară în zona Blocaje;
-2. ancoră conservatoare: `finalRulingDate` există pe `LegalCase` și, fiind data pronunțării, e
-   întotdeauna anterioară comunicării, deci produce alertă prematură, nu siguranță falsă;
-3. niciodată ziua curentă.
-
-Întrebarea de fond s-a închis la review-ul din 27.07.2026, și a închis-o o corectură de citare.
-Textul relevant nu e art. 706, ci **art. 705**: alin. 1 dă cei 3 ani, iar alin. 2 spune expres că
-pentru hotărâri judecătorești termenul curge de la rămânerea definitivă. Art. 706 tratează altceva,
-efectele împlinirii termenului. Executorialitatea imediată din art. 1021 guvernează când se poate
-începe executarea, nu de când curge prescripția, deci ancora actuală (împlinirea căii de atac plus
-o zi) este cea corectă. Citările au fost corectate peste tot în cod și în traduceri.
+| # | Ce | Ce așteptăm |
+|---|---|---|
+| B1 | **Corectarea numerotării articolelor**, 1013 în 1014 și celelalte. Apare în traduceri, validatori, patru șabloane de documente și circa zece fișiere de cod. Patru apariții sunt text tipărit pe somația trimisă debitorului și pe cererea depusă la instanță | Lista completă, articol cu articol. Deplasarea nu e uniformă, deci nu se poate deduce prin regulă |
+| B2 | **Modelul de timbrare.** Declanșatorul devine descoperirea numărului de dosar, cu memento la Z+1. Întrebarea e dacă ramura de regularizare dispare sau rămâne ca plasă de siguranță | Dacă renunțăm complet la ramura de regularizare |
+| B3 | **Momentul care oprește cele 6 luni.** Implementăm pe varianta depunerii, care e cea uzuală, dar întrebarea a rămas fără răspuns | Depunerea la instanță sau prima zi de judecată |
+| B4 | **Prescripția executării: art. 705 sau 706.** Mențiunea lui pare o scăpare, probabil a aplicat deplasarea de la 1013 în 1014 și aici | Confirmarea articolului, în ediția în care ordonanța de plată începe la 1014 |
+| B5 | **Urmărirea propriului termen de cerere în anulare**, când ordonanța e admisă în parte | Dacă are nevoie de el sau se ocupă singur |
+| B6 | **Prorogarea la prescripție.** A confirmat, dar e singurul loc unde data afișată devine mai târzie decât cea brută, deci mai puțin conservatoare | Confirmarea că acceptă compromisul |
+| B7 | **Închiderea prescripției executării**, la marcarea trecerii în executare sau la confirmarea că executorul a înregistrat cererea. Până la răspuns, aplicația închide pe data depunerii declarată de avocat și lasă închiderea reversibilă; dacă răspunsul e „la confirmarea executorului", data devine cea din confirmare | Care dintre cele două momente |
 
 ---
 
-## 4. `CERERE_IN_ANULARE` care nu se închide: **nu implementa închiderea necondiționată** [avocat]
+## C. Scop nou, backlog separat
 
-Concluzia inițială era că e un bug simplu. Este mai subtil.
-
-CPC art. 1024 dă și creditorului dreptul la cerere în anulare, împotriva soluțiilor de la
-art. 1021 alin. 1-2. Statusul `IN_ANULARE` înseamnă „cererea a fost deja depusă", nu „suntem în
-fereastra de 10 zile": tranziția `formuleaza_cerere_anulare` se declanșează de faptul depunerii.
-
-Pe o ordonanță admisă parțial pot exista două termene distincte, cu titulari diferiți și
-eventual date de comunicare diferite. Modelul are un singur rând per dosar, fără câmp de titular
-(`findOneByCaseAndType`). Dacă debitorul depune primul și sistemul închide orbește singurul rând,
-ascunde termenul propriu al clientului nostru, adică exact riscul ireversibil.
-
-Deci: fie se rezolvă întâi titularul, fie se închide automat doar pe admiterea integrală, iar pe
-admiterea parțială termenul rămâne deschis cu avertisment explicit. Niciodată închidere silențioasă.
-
-Legat: `DeadlineConsequenceResolver` mapează `CERERE_IN_ANULARE` uniform la decădere, indiferent
-de titular, deci un termen al debitorului apare roșu în loc de „deblocat", inconsecvent cu
-tratamentul deja aplicat lui `RASPUNS_SOMATIE`. De rezolvat împreună.
+| # | Ce | Observație |
+|---|---|---|
+| C1 | **Document generat cu 10 zile înainte de fiecare termen de judecată**, prin care se cere judecarea în lipsă, cu recalcularea debitului la zi | Nu ține de calculul termenelor. Declanșatorul, adică termenul de judecată minus 10 zile, există deja în agendă, deci partea de urmărire e gata |
 
 ---
 
-## 5. Prorogarea datei de judecată: IMPLEMENTAT
+## D. Verificate, nu necesită lucru
 
-`createHearingDeadline` nu mai trece prin `nextWorkingDay()`: data se stochează exact cum vine.
-O dată nelucrătoare se semnalează în două locuri, fără să fie corectată: `logger->warning` (pentru
-cine urmărește sincronizarea cu portalul) și flag `nonWorkingDay` în payload-ul de audit, care
-rămâne atașat de înregistrare după ce log-urile se rotesc.
+| # | Ce | Rezultat |
+|---|---|---|
+| D1 | Adăugarea de facturi pe un dosar existent | **Nu e posibilă azi** în fluxul avocatului. Pozițiile se pot edita doar prin wizardul de dosar nou și prin panoul de administrare. Constrângerea semnalată de el se respectă deja structural |
+| D2 | Regula de calcul pe zile libere | **Confirmată** de avocat, cu trei exemple numerice care coincid cu implementarea |
+| D3 | Poarta care blochează depunerea prematură | **Confirmată** implicit: „începând cu 18 iunie se poate genera și transmite OP" |
+| D4 | Data de judecată nepromovată la zi lucrătoare | **Confirmată**, cu observația lui că oricum nu are cum să apară într-o zi nelucrătoare |
 
 ---
 
-## 6. Confirmate ca fiind corecte, nu se schimbă
+## E. Rămas din runda anterioară
 
-- Eticheta „Nu mai urmări" pe prescripții, și textul dialogului de confirmare, evaluat frază cu
-  frază. Este unul dintre cele mai solide texte juridice din aplicație.
-- Ordinea numerică a gravității (50/40/30/20/10/0), inclusiv `RASPUNS_SOMATIE` ultimul.
-- Prescripția marcată ESTIMAT după comunicarea somației. În plus, data afișată este întotdeauna
-  un prag minim sigur: termenul real nu poate fi mai devreme, doar mai târziu.
-- Termenul expirat al debitorului scos din restanțe, în blocul „Deblocate".
-- Textul despre ora împlinirii (CPC art. 182 alin. 1 și 2, art. 183 alin. 1) este corect și
-  distinge corect cele trei situații.
-
-## 7. Corectate deja, la 2026-07-26
-
-- `deadlines.confirm.forfeiture.body`: CPC art. 186 cere **motive temeinic justificate**, nu
-  „motiv mai presus de voința părții", care e standardul din vechiul cod. Textul afișat făcea
-  repunerea în termen să pară mai greu de obținut decât este, deci putea determina un avocat să
-  renunțe la un remediu real. Corectat în ro și en.
-- `DeadlineConsequence::severityRank()` docblock: OUG 80/2013 art. 39 este reexaminarea
-  **cuantumului** taxei, în 3 zile, nu un remediu împotriva anulării deja dispuse. Motivarea
-  treptei se sprijină acum doar pe lipsa autorității de lucru judecat.
-- `ANALIZA-PAGINA-TERMENE.md`: aceeași corecție, plus NCC art. 2556 înlocuit cu **art. 2554**
-  („Prorogarea termenului"); art. 2556 e prezumția depunerii la poștă.
-- `DeadlineService` docblock: CPC art. 181 alin. 4 nu există, termenele pe zile sunt la
-  alin. 1 pct. 2.
-
-## 8. Tehnic, minor
-
-- Cod mort: ȘTERS. `DeadlineBlockage::actionRoute()`, `DeadlineBlockageReason::actionRoute()` și
-  `actionRouteParameterName()` nu mai există, împreună cu testul care le exercita. Deep-link-ul a
-  fost respins: rutele care înregistrează data sunt POST, deci un `path()` construit din ele ar
-  răspunde 405, iar un deep-link real ar cere ca pagina de dosar să deschidă un dialog dintr-un
-  parametru de query, adică stare de pagină nouă pentru un beneficiu marginal.
-- `countUpcomingByUser`: REPARAT. Are acum limită inferioară (de azi inclusiv) și exclude
-  dosarele terminale. `findUpcomingByUser` folosește exact același query builder, fiindcă lista
-  se afișează sub un subtitlu care poartă contorul: dacă divergeau, subtitlul mințea. Ambele sunt
-  apelate doar din `DashboardController`.
-- `countAgendaBuckets()` rulează de două ori pe `/termene`, o dată pentru bară și o dată pentru
-  badge. Recomandarea este să NU se repare: eliminarea cere cuplarea extensiei Twig de controller,
-  iar cuplajul costă mai mult decât economisesc 2 query-uri din 15.
-
-## 9. Amânate prin specificație, nu sunt datorie
-
-Vederea Registru, export CSV, feed `.ics`, coloana de proveniență pe termen, operații în masă,
-vederi salvate. Dintre ele, `.ics` are argumentul cel mai bun: nu concurăm cu agenda avocatului,
-îi trimitem termenele în ea.
+| # | Ce | Stare |
+|---|---|---|
+| E1 | Închiderea termenului de cerere în anulare, în forma discutată înainte de revizie, cu titular al căii de atac | Depășită de A6, care implementează varianta cerută de avocat. Modelul cu titular rămâne relevant doar dacă răspunsul la B5 e afirmativ |
+| E2 | Cod mort: rutele calculate pentru motivele de blocaj, nefolosite de interfață | Curățenie, fără impact funcțional |

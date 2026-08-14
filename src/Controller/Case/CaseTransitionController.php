@@ -338,10 +338,41 @@ final class CaseTransitionController extends AbstractController
             return $this->redirectToRoute('case_overview', ['id' => $id]);
         }
 
+        // The date the request was filed with the bailiff, which is the fact that
+        // interrupts the enforcement limitation (CPC art. 708 para. 1 pt. 2). It is
+        // required here because that term is closed against this date and not against
+        // the status: the status is declared, the filing is a dated act.
+        $enforcementRequestDate = $this->parseEnforcementRequestDate(
+            (string) $request->request->get('enforcement_request_date'),
+        );
+        if ($enforcementRequestDate === null) {
+            $this->addFlash('error', 'case_overview.transition.flash_error_needs_enforcement_request_date');
+
+            return $this->redirectToRoute('case_overview', ['id' => $id]);
+        }
+
+        // The registration number the bailiff assigned to that request, if the lawyer
+        // already has it. Optional here on purpose: in practice the request is handed in
+        // and the number comes back afterwards, so demanding it at this button would
+        // block the status change on a fact that does not exist yet. Supplied now, it
+        // closes the enforcement-limitation term in one step; supplied later, through
+        // `case_deadline_enforcement_registration_number`, it closes it then.
+        //
+        // Clamped to the column width rather than validated: bailiffs number their files
+        // in formats the application has no way to check, and refusing the transition
+        // over one would block a status change on a field that is optional to begin with.
+        $registrationNumber = trim((string) $request->request->get('enforcement_registration_number'));
+        $registrationNumber = $registrationNumber === '' ? null : mb_substr($registrationNumber, 0, 100);
+
         $fromStatus = $case->getStatus()->value;
         $annulmentPending = $case->getStatus() === CaseStatus::IN_ANULARE;
 
-        $this->em->wrapInTransaction(function () use ($case, $fromStatus, $annulmentPending): void {
+        $this->em->wrapInTransaction(function () use ($case, $fromStatus, $annulmentPending, $enforcementRequestDate, $registrationNumber): void {
+            // Set before the transition: the listener that closes the
+            // enforcement-limitation term reads both off the case.
+            $case->setEnforcementRequestDate($enforcementRequestDate);
+            $case->setEnforcementRegistrationNumber($registrationNumber);
+
             $this->workflowService->apply($case, 'trece_la_executare');
 
             $this->em->flush();
@@ -355,6 +386,8 @@ final class CaseTransitionController extends AbstractController
                     'courtCaseNumber' => $case->getCourtCaseNumber(),
                     'fromStatus' => $fromStatus,
                     'annulmentPending' => $annulmentPending,
+                    'enforcementRequestDate' => $enforcementRequestDate->format('Y-m-d'),
+                    'enforcementRegistrationNumber' => $registrationNumber,
                 ],
                 category: AuditLogService::CATEGORY_EXECUTION_STARTED,
             );
@@ -414,6 +447,22 @@ final class CaseTransitionController extends AbstractController
         });
 
         return $this->respondAfterTransition($case, 'case_overview.transition.flash_success_annulment_rejected');
+    }
+
+    /**
+     * Parses the date the enforcement request was filed with the bailiff. Returns null
+     * on anything that is not a real past-or-today calendar date, so the caller can
+     * refuse the transition instead of closing a limitation term against a date the
+     * filing cannot have carried.
+     */
+    private function parseEnforcementRequestDate(string $raw): ?\DateTimeImmutable
+    {
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $raw);
+        if ($date === false || $date->format('Y-m-d') !== $raw) {
+            return null;
+        }
+
+        return $date > new \DateTimeImmutable('today') ? null : $date;
     }
 
     private function findOrThrow(int $id): LegalCase

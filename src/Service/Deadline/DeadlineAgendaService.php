@@ -27,6 +27,7 @@ final class DeadlineAgendaService
         private readonly LegalDeadlineRepository $deadlineRepository,
         private readonly DeadlineConsequenceResolver $consequenceResolver,
         private readonly DeadlineCertaintyResolver $certaintyResolver,
+        private readonly DeadlineEstimateNoteResolver $estimateNoteResolver,
         private readonly ClockInterface $clock,
     ) {}
 
@@ -117,7 +118,7 @@ final class DeadlineAgendaService
             consequence: $this->consequenceResolver->resolveFor($deadline),
             certainty: $this->certaintyResolver->resolveFor($deadline),
             daysRemaining: $this->calendarDaysUntil($today, $deadline->getDeadlineDate()),
-            estimateReasonKey: $this->certaintyResolver->estimateReasonKey($deadline->getType()),
+            estimateNote: $this->estimateNoteResolver->resolveFor($deadline),
         );
     }
 

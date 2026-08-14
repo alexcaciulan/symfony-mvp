@@ -57,6 +57,20 @@ class LegalDeadline
     #[ORM\Column]
     private bool $alertSentExpired = false;
 
+    /**
+     * The two long-range reminder tiers, which only the limitation-type terms use:
+     * a three-year or six-month window makes a first warning at seven days useless.
+     * They are named by role and not by a day count because the day count differs per
+     * deadline type and lives in {@see \App\Service\Deadline\DeadlineAlertService}:
+     * the outer tier is 30 days on the general limitation and 60 on the six months
+     * that keep the interruption alive, the inner one 14 and 30 respectively.
+     */
+    #[ORM\Column]
+    private bool $alertSentLongRange = false;
+
+    #[ORM\Column]
+    private bool $alertSentMidRange = false;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
@@ -205,6 +219,8 @@ class LegalDeadline
         $this->alertSent3 = false;
         $this->alertSent1 = false;
         $this->alertSentExpired = false;
+        $this->alertSentLongRange = false;
+        $this->alertSentMidRange = false;
 
         return $this;
     }
@@ -277,6 +293,30 @@ class LegalDeadline
     public function setAlertSentExpired(bool $alertSentExpired): static
     {
         $this->alertSentExpired = $alertSentExpired;
+
+        return $this;
+    }
+
+    public function isAlertSentLongRange(): bool
+    {
+        return $this->alertSentLongRange;
+    }
+
+    public function setAlertSentLongRange(bool $alertSentLongRange): static
+    {
+        $this->alertSentLongRange = $alertSentLongRange;
+
+        return $this;
+    }
+
+    public function isAlertSentMidRange(): bool
+    {
+        return $this->alertSentMidRange;
+    }
+
+    public function setAlertSentMidRange(bool $alertSentMidRange): static
+    {
+        $this->alertSentMidRange = $alertSentMidRange;
 
         return $this;
     }

@@ -17,7 +17,8 @@ use App\Enum\DeadlineType;
  * a date shown as certain that is not invites the lawyer to trust it.
  *
  * This resolver reads the model, it never recomputes a date. Term arithmetic lives
- * in {@see DeadlineService} and is not touched here.
+ * in {@see DeadlineService} and is not touched here, and the wording the row shows
+ * for a date that is not CERT lives in {@see DeadlineEstimateNoteResolver}.
  */
 final class DeadlineCertaintyResolver
 {
@@ -30,15 +31,19 @@ final class DeadlineCertaintyResolver
      * Per type, the fact the term runs from and where its date lives:
      *
      * - RASPUNS_SOMATIE runs from the debtor receiving the summons (CPC art. 1015
-     *   para. 1). At SOMATIE_TRIMISA the deadline is seeded from the generation date,
-     *   and only `paymentNoticeCommunicationDate` records the real receipt, so it is
-     *   CERT exactly when that field is set.
+     *   para. 1), recorded in `paymentNoticeCommunicationDate`. Nothing creates the
+     *   term before that date exists, so in practice it is always CERT; the check is
+     *   kept because a term created another way, or one left over from before the term
+     *   stopped being seeded from the generation date, must not claim certainty.
      * - PRESCRIPTIE_EXECUTARE runs from the order becoming final (CPC art. 705 para.
      *   2), not from it becoming enforceable, which happens earlier and is a separate
-     *   question (CPC art. 1021). The subscriber derives that day from
-     *   `rulingCommunicationDate`; when that is missing it
-     *   falls back to the ruling date, which precedes service and therefore yields a
-     *   term SHORTER than the real one. CERT only when the communication date is set.
+     *   question (CPC art. 1021). Which date made it final depends on whether the
+     *   debtor challenged it: after an annulment request it is the communication of
+     *   the ruling given on that request (CPC art. 1024 para. 8), otherwise the
+     *   subscriber derives the day from `rulingCommunicationDate` and, failing that,
+     *   from the ruling date, which precedes service and therefore yields a term
+     *   SHORTER than the real one. CERT only when the date that applies to the case is
+     *   recorded.
      * - CERERE_IN_ANULARE runs from the communication of the order (CPC art. 1024
      *   para. 1). Its only creation paths already require that date, but the check is
      *   repeated here so a deadline created another way cannot claim certainty.
@@ -65,34 +70,26 @@ final class DeadlineCertaintyResolver
     {
         return match ($type) {
             DeadlineType::RASPUNS_SOMATIE, DeadlineType::DEPUNERE_CERERE => $this->certainWhen($legalCase->getPaymentNoticeCommunicationDate() !== null),
-            DeadlineType::PRESCRIPTIE_EXECUTARE, DeadlineType::CERERE_IN_ANULARE => $this->certainWhen($legalCase->getRulingCommunicationDate() !== null),
+            DeadlineType::CERERE_IN_ANULARE => $this->certainWhen($legalCase->getRulingCommunicationDate() !== null),
+            DeadlineType::PRESCRIPTIE_EXECUTARE => $this->certainWhen($this->executionAnchorIsConfirmed($legalCase)),
             DeadlineType::PRESCRIPTIE => $this->certainWhen($legalCase->getPaymentNoticeCommunicationDate() === null),
             DeadlineType::TIMBRARE, DeadlineType::JUDECATA, DeadlineType::OTHER => DeadlineCertainty::CERT,
         };
     }
 
     /**
-     * Why the date is only an estimate, as the base of a translation key. One wording
-     * cannot serve both cases, because the two reasons are opposites and the row has
-     * room for a single short marker.
-     *
-     * On every type but PRESCRIPTIE the fact the term runs from has no confirmed date
-     * on the case, so the date shown is a working assumption and the lawyer has to
-     * record the real one. On PRESCRIPTIE the generating fact, the due date, IS
-     * confirmed; what turns the term into an estimate is that the OTHER date has been
-     * confirmed, the communication of the summons, which interrupts the limitation
-     * period (CPC art. 1015 para. 2 referring to NCC art. 2540). The six-month
-     * condition of that interruption is tracked as a DEPUNERE_CERERE term of its own,
-     * but the interruption is not folded into this date, which is still the due date
-     * plus three years. Telling the lawyer there that the generating fact is
-     * unconfirmed would point at a missing date instead of at an interruption the
-     * stored date ignores.
+     * Whether the date the enforcement limitation actually runs from is recorded. A
+     * case that went through an annulment request is only certain on the communication
+     * of the ruling given there; the communication of the first order says nothing
+     * about when the title became final, so it cannot stand in for it.
      */
-    public function estimateReasonKey(DeadlineType $type): string
+    private function executionAnchorIsConfirmed(LegalCase $legalCase): bool
     {
-        return $type === DeadlineType::PRESCRIPTIE
-            ? 'deadlines.row.estimate.prescription_interruption'
-            : 'deadlines.row.estimate.unconfirmed_fact';
+        if ($legalCase->getAnnulmentRulingCommunicationDate() !== null) {
+            return true;
+        }
+
+        return !$legalCase->hasPassedThroughAnnulment() && $legalCase->getRulingCommunicationDate() !== null;
     }
 
     private function certainWhen(bool $condition): DeadlineCertainty

@@ -9,13 +9,16 @@ use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Entity\Notification;
 use App\Entity\User;
+use App\Enum\BlockedCaseAlert;
 use App\Enum\CaseStatus;
 use App\Enum\DeadlineType;
 use App\Enum\NotificationChannel;
 use App\Enum\PortalEventType;
+use App\Event\BlockedCaseAlertEvent;
 use App\Event\DeadlineAlertEvent;
 use App\Event\PortalEventDetectedEvent;
 use App\EventSubscriber\EmailNotificationSubscriber;
+use App\Service\Notification\AlertCadence;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Bundle\FrameworkBundle\Test\MailerAssertionsTrait;
@@ -150,6 +153,87 @@ final class EmailNotificationSubscriberIntegrationTest extends KernelTestCase
             'type' => 'portal_event',
         ]);
         self::assertCount(1, $notifications);
+    }
+
+    /**
+     * A blocked case has no term to lean on, so the email has to name the fact that is
+     * missing and the act that unblocks it, apart from the explanation, and carry a
+     * link straight into the case. The regularization wording stays conditional on
+     * purpose: the platform cannot know whether the notice arrived.
+     */
+    public function testBlockedCaseAlertSendsEmailStatingWhatIsMissingAndWhatToDo(): void
+    {
+        $case = $this->persistCase();
+        $translator = static::getContainer()->get('translator');
+
+        $this->subscriber->onBlockedCaseAlert(new BlockedCaseAlertEvent(
+            $case,
+            BlockedCaseAlert::REGULARIZATION_NOTICE_DATE_MISSING,
+        ));
+
+        $this->assertEmailCount(1);
+        $email = $this->getMailerMessage(0);
+        self::assertNotNull($email);
+
+        $params = ['%case%' => $case->getCourtCaseNumber()];
+        $this->assertEmailHtmlBodyContains($email, $translator->trans('email.blocked_case.missing_label'));
+        $this->assertEmailHtmlBodyContains($email, $translator->trans('email.blocked_case.action_label'));
+        $this->assertEmailHtmlBodyContains(
+            $email,
+            $translator->trans(BlockedCaseAlert::REGULARIZATION_NOTICE_DATE_MISSING->emailActionKey(), $params),
+        );
+        $this->assertEmailHtmlBodyContains($email, '/case/' . $case->getId());
+
+        $notifications = $this->em->getRepository(Notification::class)->findBy([
+            'legalCase' => $case,
+            'type' => 'blocked_case_alert',
+        ]);
+        self::assertCount(1, $notifications);
+        self::assertSame(NotificationChannel::IN_APP, $notifications[0]->getChannel());
+    }
+
+    /**
+     * The condition behind a blocked case stays true until the lawyer acts, and the job
+     * that checks it runs every morning, so throttling is not a refinement here: it is
+     * what keeps the alert from becoming the daily mail the lawyer filters away. The
+     * weekly key has to stop BOTH channels, which is what is read end to end through
+     * the real dispatcher and the real notification table.
+     */
+    public function testASecondAlertUnderTheSameWeeklyKeyDeliversNothingOnEitherChannel(): void
+    {
+        $case = $this->persistCase();
+        $key = AlertCadence::weekly(
+            'blocked_case:' . BlockedCaseAlert::STAMP_DUTY_DUE->value,
+            (int) $case->getId(),
+            new \DateTimeImmutable('2026-08-03'),
+        );
+
+        $this->subscriber->onBlockedCaseAlert(new BlockedCaseAlertEvent($case, BlockedCaseAlert::STAMP_DUTY_DUE, $key));
+        // Friday of the same week: the same condition, the same key, a run that must
+        // stay silent.
+        $this->subscriber->onBlockedCaseAlert(new BlockedCaseAlertEvent($case, BlockedCaseAlert::STAMP_DUTY_DUE, $key));
+
+        // The email is the noisier of the two channels, so it is the one the key has
+        // to gate; the in-app row was already single before the gate moved up.
+        $this->assertEmailCount(1);
+        self::assertCount(1, $this->em->getRepository(Notification::class)->findBy([
+            'legalCase' => $case,
+            'type' => 'blocked_case_alert',
+        ]));
+
+        // The week after is a new message, or a case blocked for a month would be
+        // mentioned once and then never again.
+        $this->subscriber->onBlockedCaseAlert(new BlockedCaseAlertEvent(
+            $case,
+            BlockedCaseAlert::STAMP_DUTY_DUE,
+            AlertCadence::weekly(
+                'blocked_case:' . BlockedCaseAlert::STAMP_DUTY_DUE->value,
+                (int) $case->getId(),
+                new \DateTimeImmutable('2026-08-10'),
+            ),
+        ));
+
+        $this->assertEmailCount(2);
     }
 
     private function persistCase(): LegalCase

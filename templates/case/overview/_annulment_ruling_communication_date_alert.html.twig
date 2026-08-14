@@ -1,0 +1,31 @@
+{# Persistent amber alert on a case that went through an annulment request, is now
+   final, and has no date for the communication of the ruling given on that request.
+   That ruling is what made the payment order final (CPC art. 1024 para. 8), so the
+   three years of CPC art. 705 para. 1 run from its communication (para. 2).
+
+   The visibility test mirrors LegalCaseRepository::findAwaitingAnnulmentRulingCommunicationDate:
+   the case is the same one the agenda lists under a blockage, so the two screens can
+   never disagree about whether the date is needed. The passage through IN_ANULARE is
+   read from the status history, because the case has already left that place by the
+   time the date is asked for. #}
+{% from 'case/overview/_icons.html.twig' import icon_warning %}
+
+{% set is_final = case.status.value == 'DEFINITIVA' %}
+{% set date_missing = case.annulmentRulingCommunicationDate is null %}
+
+{% if is_final and date_missing and case.hasPassedThroughAnnulment() %}
+    <div class="rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 mb-4 flex items-start gap-3">
+        <span class="inline-flex items-center justify-center size-8 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 shrink-0">
+            {{ icon_warning('size-4') }}
+        </span>
+        <div class="flex-1 min-w-0">
+            <div class="text-sm font-semibold text-amber-900 dark:text-amber-200">{{ 'case_overview.deadlines.alert_set_annulment_ruling_date_title'|trans }}</div>
+            <div class="text-xs text-amber-800 dark:text-amber-300/80 mt-0.5">{{ 'case_overview.deadlines.alert_set_annulment_ruling_date_hint'|trans }}</div>
+        </div>
+        <button type="button"
+                data-hs-overlay="#hs-modal-set-annulment-ruling-communication-date"
+                class="py-1.5 px-3 inline-flex items-center text-xs font-semibold rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition shrink-0">
+            {{ 'case_overview.deadlines.alert_set_annulment_ruling_date_cta'|trans }}
+        </button>
+    </div>
+{% endif %}

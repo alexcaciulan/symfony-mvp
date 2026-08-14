@@ -13,7 +13,7 @@ final readonly class DeadlinePageView
     /**
      * @param list<DeadlineGroupView> $groups         the six time buckets, in render order
      * @param array{overdue: int, today: int, fatal30: int, blocked: int} $counters risk bar
-     * @param list<DeadlineBlockage>  $blockages      cases whose fatal term cannot be computed
+     * @param list<DeadlineBlockageView> $blockages   cases whose fatal term cannot be computed
      * @param list<DeadlineRowView>   $longHorizonPrescriptions rail, beyond the agenda window
      * @param \DateTimeImmutable      $windowEnd      last day the agenda covers, stated on screen
      * @param DeadlineAgendaFilter    $filter         selection the page was built under

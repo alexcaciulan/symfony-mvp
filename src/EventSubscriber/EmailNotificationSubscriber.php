@@ -7,6 +7,7 @@ namespace App\EventSubscriber;
 use App\Entity\LegalCase;
 use App\Enum\DeadlineType;
 use App\Enum\NotificationType;
+use App\Event\BlockedCaseAlertEvent;
 use App\Event\DeadlineAlertEvent;
 use App\Event\MissingCommunicationDateEvent;
 use App\Event\PortalEventDetectedEvent;
@@ -199,6 +200,45 @@ final class EmailNotificationSubscriber
                 'heading' => $this->translator->trans('email.missing_communication_date.heading', $params),
                 'body' => $this->translator->trans('email.missing_communication_date.body', $params),
             ],
+            dedupKey: $event->dedupKey,
+        ));
+    }
+
+    /**
+     * A case that needs an act while no term is running on it. One handler for every
+     * reason: what changes between them is the wording, which the enum names, and the
+     * message is otherwise the same shape, a case and a link into it.
+     */
+    #[AsEventListener(event: BlockedCaseAlertEvent::class)]
+    public function onBlockedCaseAlert(BlockedCaseAlertEvent $event): void
+    {
+        $case = $event->case;
+        $reason = $event->reason;
+        $params = ['%case%' => $this->caseLabel($case)];
+
+        $title = $this->translator->trans($reason->titleKey(), $params);
+        $message = $this->translator->trans($reason->messageKey(), $params);
+
+        $this->dispatcher->dispatch(new NotificationDispatch(
+            user: $case->getUser(),
+            legalCase: $case,
+            type: NotificationType::BLOCKED_CASE_ALERT,
+            title: $title,
+            message: $message,
+            resourceLink: $this->caseLink($case),
+            variant: 'warning',
+            emailSubject: $this->translator->trans($reason->emailSubjectKey(), $params),
+            emailTemplate: 'emails/blocked_case.html.twig',
+            emailContext: [
+                'case' => $case,
+                'caseLabel' => $this->caseLabel($case),
+                'caseUrl' => $this->caseUrl($case),
+                'heading' => $this->translator->trans($reason->emailHeadingKey(), $params),
+                'body' => $this->translator->trans($reason->emailBodyKey(), $params),
+                'missing' => $this->translator->trans($reason->emailMissingKey(), $params),
+                'action' => $this->translator->trans($reason->emailActionKey(), $params),
+            ],
+            dedupKey: $event->dedupKey,
         ));
     }
 

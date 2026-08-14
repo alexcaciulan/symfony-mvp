@@ -10,9 +10,9 @@ use App\Enum\DeadlineCertainty;
 use App\Enum\DeadlineType;
 use App\Enum\StampDutyStatus;
 use App\Service\Deadline\DeadlineAgendaItem;
-use App\Service\Deadline\DeadlineCertaintyResolver;
 use App\Service\Deadline\DeadlineCloseConfirmationResolver;
 use App\Service\Deadline\DeadlineConsequenceResolver;
+use App\Service\Deadline\DeadlineEstimateNote;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -41,11 +41,6 @@ class DeadlineCloseConfirmationResolverTest extends TestCase
     {
         yield 'stamp duty' => [DeadlineType::TIMBRARE, 'deadlines.confirm.stamp_duty.'];
         yield 'annulment request' => [DeadlineType::CERERE_IN_ANULARE, 'deadlines.confirm.forfeiture.'];
-        yield 'limitation' => [DeadlineType::PRESCRIPTIE, 'deadlines.confirm.limitation.'];
-        yield 'enforcement limitation' => [DeadlineType::PRESCRIPTIE_EXECUTARE, 'deadlines.confirm.enforcement_limitation.'];
-        // Same consequence as the limitation terms, a different thing lost: not the
-        // right of action itself but the interruption the summons produced.
-        yield 'filing the request' => [DeadlineType::DEPUNERE_CERERE, 'deadlines.confirm.filing_interruption.'];
     }
 
     #[DataProvider('fatalTypeProvider')]
@@ -59,12 +54,20 @@ class DeadlineCloseConfirmationResolverTest extends TestCase
         self::assertNotSame([], $confirmation->facts, 'The dialog states the record it is asking about.');
     }
 
-    /** @return iterable<string, array{DeadlineType}> */
+    /**
+     * @return iterable<string, array{DeadlineType}>
+     */
     public static function reversibleTypeProvider(): iterable
     {
         yield 'hearing' => [DeadlineType::JUDECATA];
         yield 'summons answer' => [DeadlineType::RASPUNS_SOMATIE];
         yield 'free form reminder' => [DeadlineType::OTHER];
+        // The three limitation terms are irreversible, yet they get no dialog: no screen
+        // offers a way to close them at all, so there is no close to confirm. They are
+        // closed by the platform when the act that stops them happens.
+        yield 'limitation' => [DeadlineType::PRESCRIPTIE];
+        yield 'enforcement limitation' => [DeadlineType::PRESCRIPTIE_EXECUTARE];
+        yield 'filing the request' => [DeadlineType::DEPUNERE_CERERE];
     }
 
     #[DataProvider('reversibleTypeProvider')]
@@ -127,7 +130,7 @@ class DeadlineCloseConfirmationResolverTest extends TestCase
     /** Every fact is either a translation key or a formatted literal, never raw internals. */
     public function testFactsCarryTranslatableLabels(): void
     {
-        $confirmation = $this->resolver->resolve($this->item(DeadlineType::PRESCRIPTIE));
+        $confirmation = $this->resolver->resolve($this->item(DeadlineType::CERERE_IN_ANULARE));
 
         self::assertNotNull($confirmation);
         foreach ($confirmation->facts as $fact) {
@@ -136,17 +139,23 @@ class DeadlineCloseConfirmationResolverTest extends TestCase
         }
     }
 
-    /** A type added to the enum must land on one side of the rule, never in between. */
+    /**
+     * A type added to the enum must land on one side of the rule, never in between. The
+     * rule is not "irreversible means confirmed" any more: it is "confirmed exactly for
+     * the two terms the agenda still lets the lawyer close", the stamping term and the
+     * annulment request.
+     */
     public function testEveryTypeIsDecided(): void
     {
+        $confirmed = [DeadlineType::TIMBRARE, DeadlineType::CERERE_IN_ANULARE];
+
         foreach (DeadlineType::cases() as $type) {
-            $item = $this->item($type);
-            $confirmation = $this->resolver->resolve($item);
+            $confirmation = $this->resolver->resolve($this->item($type));
 
             self::assertSame(
-                $item->isIrreversible(),
+                in_array($type, $confirmed, true),
                 $confirmation !== null,
-                $type->value . ' must be confirmed if and only if its miss cannot be undone.',
+                $type->value . ' must be confirmed if and only if the agenda offers a close for it.',
             );
         }
     }
@@ -171,7 +180,7 @@ class DeadlineCloseConfirmationResolverTest extends TestCase
             consequence: $this->consequenceResolver->resolve($type),
             certainty: DeadlineCertainty::CERT,
             daysRemaining: 6,
-            estimateReasonKey: (new DeadlineCertaintyResolver())->estimateReasonKey($type),
+            estimateNote: new DeadlineEstimateNote('mark', 'note'),
         );
     }
 }

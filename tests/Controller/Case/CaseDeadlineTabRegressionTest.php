@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller\Case;
 
+use App\Entity\CaseStatusHistory;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Entity\User;
@@ -42,6 +43,7 @@ final class CaseDeadlineTabRegressionTest extends WebTestCase
      */
     private const CASE_STREAM_TARGETS = [
         'panel-termene',
+        'summons-communication-alert',
         'case-tabs-nav',
         'case-kpi-grid',
         'case-detalii-sidebar',
@@ -170,6 +172,45 @@ final class CaseDeadlineTabRegressionTest extends WebTestCase
         self::assertNull($this->em->getRepository(LegalDeadline::class)->find($deadline->getId()));
     }
 
+    /**
+     * The date the ruling on the annulment request was served is what the enforcement
+     * limitation runs from on a case that went through such a request (CPC art. 705
+     * para. 2 read with art. 1024 para. 8). It is collected in a dialog of its own, so
+     * the case page has to render both the alert that opens it and the dialog itself,
+     * and the route has to close that dialog rather than the one for the first ruling.
+     */
+    public function testTheCasePageOffersTheAnnulmentRulingDialogAndTheRouteClosesIt(): void
+    {
+        $this->setStatus(CaseStatus::DEFINITIVA);
+        $this->recordAnnulmentPassage();
+
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+        self::assertResponseIsSuccessful();
+        self::assertCount(1, $crawler->filter('#hs-modal-set-annulment-ruling-communication-date'));
+        self::assertCount(
+            1,
+            $crawler->filter('#annulment-ruling-communication-alert button[data-hs-overlay="#hs-modal-set-annulment-ruling-communication-date"]'),
+        );
+
+        $token = $this->formToken('annulment_ruling_communication_date');
+        $body = $this->postTurbo(sprintf('/case/%d/annulment-ruling-communication-date', $this->case->getId()), [
+            'annulment_ruling_communication_date' => [
+                '_token' => $token,
+                'annulmentRulingCommunicationDate' => (new \DateTimeImmutable('-1 day'))->format('Y-m-d'),
+            ],
+        ]);
+
+        $this->assertCaseRegionsSwapped($body);
+        self::assertStringContainsString('target="annulment-ruling-communication-alert"', $body);
+        self::assertStringContainsString(
+            'data-close-modal-target-id-value="hs-modal-set-annulment-ruling-communication-date"',
+            $body,
+        );
+
+        $stored = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertNotNull($stored?->getAnnulmentRulingCommunicationDate());
+    }
+
     public function testRecordingTheSummonsCommunicationDateFromTheTabStillSwapsEveryCaseRegion(): void
     {
         $this->setStatus(CaseStatus::SOMATIE_TRIMISA);
@@ -185,6 +226,41 @@ final class CaseDeadlineTabRegressionTest extends WebTestCase
 
         $this->assertCaseRegionsSwapped($body);
         self::assertStringContainsString('data-close-modal-target-id-value="hs-modal-set-summons-communication-date"', $body);
+    }
+
+    /**
+     * The summons alert reads the communication date, and this is the response that
+     * writes it, so the swapped region has to carry the state AFTER the write. Asserting
+     * the target alone would not catch it: the region can be swapped with the very text
+     * it already showed, leaving the case claiming the summons is still in service while
+     * the 15-day term it denies is rendered directly underneath.
+     */
+    public function testRecordingTheSummonsCommunicationDateSwapsTheAlertOutOfItsInServiceState(): void
+    {
+        $this->setStatus(CaseStatus::SOMATIE_TRIMISA);
+
+        $before = $this->client->request('GET', '/case/' . $this->case->getId());
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString(
+            $this->trans('case_overview.summons.alert_in_service'),
+            $before->filter('#summons-communication-alert')->html(),
+        );
+
+        $body = $this->postTurbo(sprintf('/case/%d/summons-communication-date', $this->case->getId()), [
+            'payment_notice_communication_date' => [
+                '_token' => $this->formToken('payment_notice_communication_date'),
+                'paymentNoticeCommunicationDate' => (new \DateTimeImmutable('-2 days'))->format('Y-m-d'),
+                'paymentNoticeCommunicationMethod' => 'EXECUTOR',
+            ],
+        ]);
+
+        self::assertStringNotContainsString($this->trans('case_overview.summons.alert_in_service'), $body);
+        self::assertStringContainsString($this->trans('case_overview.summons.alert_attach_proof'), $body);
+    }
+
+    private function trans(string $key): string
+    {
+        return self::getContainer()->get('translator')->trans($key, [], null, 'ro');
     }
 
     public function testRecordingTheRulingCommunicationDateFromTheTabStillSwapsEveryCaseRegion(): void
@@ -399,6 +475,26 @@ final class CaseDeadlineTabRegressionTest extends WebTestCase
     }
 
     /** @param array<string, mixed> $payload */
+    /**
+     * Writes the history entry that proves the case entered IN_ANULARE at some point.
+     * The identity map is dropped afterwards: the case was created in this test, so its
+     * history collection is already initialized and empty, and a row written around it
+     * would stay invisible to `hasPassedThroughAnnulment()`.
+     */
+    private function recordAnnulmentPassage(): void
+    {
+        $entry = new CaseStatusHistory();
+        $entry->setLegalCase($this->case);
+        $entry->setOldStatus(CaseStatus::ORDONANTA_EMISA->value);
+        $entry->setNewStatus(CaseStatus::IN_ANULARE->value);
+        $this->em->persist($entry);
+        $this->em->flush();
+
+        $caseId = $this->case->getId();
+        $this->em->clear();
+        $this->case = $this->em->getRepository(LegalCase::class)->find($caseId);
+    }
+
     private function postTurbo(string $uri, array $payload): string
     {
         $this->client->request('POST', $uri, $payload, [], ['HTTP_ACCEPT' => self::TURBO_ACCEPT]);

@@ -1,18 +1,26 @@
-{# Cases whose fatal deadline cannot be computed because the fact its term runs
-   from has no date recorded. The agenda can only list what exists; this zone is
-   what is missing from it, which is why the page needs it at all.
+{# Cases whose next step is stuck: most often a fatal deadline that cannot be computed
+   because the fact its term runs from has no date recorded, once a filing held back for
+   want of a piece the procedure imposes. The agenda can only list terms that exist; this
+   zone is what is missing from it, which is why the page needs it at all.
 
    Collapsed by default: it justifies the page, but it is not what the lawyer reads
    every morning, and expanded it pushed the agenda below the fold. The header stays
    visible, so a blockage never becomes invisible.
 
-   The action is a link into the case: recording the date happens in the dialog that
-   lives there, next to the rest of the case, and posts to the same route it always
-   did, so authorization and audit stay in one place.
+   Where an agenda row prints a date, this row prints the state the case is in. There
+   is no date to print, and the whole point of the zone is that the application refuses
+   to invent one.
 
-   @var blockages list<App\Service\Deadline\DeadlineBlockage> #}
+   The button posts to the route that records the missing date, through the shared
+   action template: the agenda collects the communication date of the summons in its
+   own dialog, and every other act stays a link into the case, which is also what a
+   browser running no scripts gets. Authorization and audit stay on the existing
+   routes.
 
-{% from 'deadlines/_icons.html.twig' import triangle, chevron, calendar %}
+   @var blockages     list<App\Service\Deadline\DeadlineBlockageView>
+   @var filter_fields map active filter, carried by the forms of the row #}
+
+{% from 'deadlines/_icons.html.twig' import triangle, chevron %}
 
 <details class="group rounded-2xl border border-slate-200 dark:border-slate-800 border-l-2 border-l-amber-400 bg-white dark:bg-slate-900 shadow-soft overflow-hidden">
     <summary class="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-start gap-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
@@ -34,18 +42,21 @@
     </summary>
 
     <div class="divide-y divide-slate-100 dark:divide-slate-800">
-        {% for blockage in blockages %}
-            {% set legal_case = blockage.legalCase %}
-            {% set reason = blockage.reason %}
+        {% for row in blockages %}
+            {% set legal_case = row.legalCase() %}
+            {% set reason = row.reason() %}
             {% set debtor = legal_case.debtors|length > 0 ? legal_case.debtors|first : null %}
             <div class="px-4 py-3 flex flex-col lg:flex-row lg:items-center gap-3">
                 <div class="flex-1 min-w-0">
-                    <div class="text-sm font-semibold">
+                    <div class="flex flex-wrap items-center gap-1.5 text-sm font-semibold">
                         <a href="{{ path('case_overview', { id: legal_case.id }) }}" class="hover:underline {{ legal_case.courtCaseNumber ? 'font-mono' : '' }}">{{ legal_case.courtCaseNumber ?: legal_case.caseNumber }}</a>
                         {% if not legal_case.courtCaseNumber %}<span class="text-slate-500 dark:text-slate-400 font-normal">{{ 'deadlines.row.internal_number'|trans }}</span>{% endif %}
                         {% if debtor %}
-                            <span class="text-slate-500 dark:text-slate-400 font-normal mx-1" aria-hidden="true">·</span>{{ debtor.name }}
+                            <span class="text-slate-500 dark:text-slate-400 font-normal" aria-hidden="true">·</span><span class="font-semibold">{{ debtor.name }}</span>
                         {% endif %}
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ring-1 bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/50">
+                            {{ reason.stateLabel()|trans }}
+                        </span>
                     </div>
                     <div class="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
                         {{ 'deadlines.blockages.missing'|trans }}
@@ -54,11 +65,15 @@
                     </div>
                     <div class="mt-0.5 text-xs text-amber-700 dark:text-amber-400">{{ reason.consequenceLabel()|trans }}</div>
                 </div>
-                <a href="{{ path('case_overview', { id: legal_case.id }) }}"
-                   class="shrink-0 self-start lg:self-auto inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg bg-lex-navy hover:bg-lex-navy-dark text-white text-xs font-semibold transition no-underline">
-                    {{ calendar('size-3.5') }}
-                    {{ reason.actionLabel()|trans }}
-                </a>
+                <div class="shrink-0 self-start lg:self-auto flex">
+                    {{ include('deadlines/_row_action.html.twig', {
+                        button: row.action,
+                        case_id: legal_case.id,
+                        style: 'primary',
+                        icon: false,
+                        filter_fields: filter_fields|default({}),
+                    }, with_context = false) }}
+                </div>
             </div>
         {% endfor %}
     </div>

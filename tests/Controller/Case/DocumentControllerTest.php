@@ -238,6 +238,61 @@ final class DocumentControllerTest extends WebTestCase
         self::assertSame(10, $this->em->getRepository(Document::class)->count(['legalCase' => $this->case->getId()]), 'Upload past the cap must be rejected.');
     }
 
+    /**
+     * The proof of communication gates the petition (CPC art. 1015 para. 1), so a case
+     * whose quota is filled with invoices must still be able to attach it. Otherwise a
+     * product limit would become a procedural dead end: no proof, no filing, ever.
+     */
+    public function testTheCommunicationProofIsAcceptedEvenWithTheCapReached(): void
+    {
+        $this->client->loginUser($this->user);
+        for ($i = 0; $i < 10; ++$i) {
+            $this->persistDocument(DocumentType::FACTURA);
+        }
+
+        $this->client->request(
+            'POST',
+            sprintf('/case/%d/document/upload', $this->case->getId()),
+            ['document_upload' => ['_token' => $this->uploadToken(), 'documentType' => 'dovada_comunicare']],
+            ['document_upload' => ['file' => $this->makePdf('dovada-comunicare.pdf')]],
+        );
+
+        $this->em->clear();
+        $proofs = $this->em->getRepository(Document::class)->findBy([
+            'legalCase' => $this->case->getId(),
+            'documentType' => DocumentType::DOVADA_COMUNICARE,
+        ]);
+        self::assertCount(1, $proofs, 'The cap must never stand between a case and the proof its filing needs.');
+    }
+
+    /**
+     * The exemption cuts both ways: the two procedural proofs do not consume the quota
+     * either, so a case carrying them keeps all ten slots for its evidence.
+     */
+    public function testProceduralProofsDoNotConsumeAttachmentCap(): void
+    {
+        $this->client->loginUser($this->user);
+        $this->persistDocument(DocumentType::DOVADA_COMUNICARE);
+        $this->persistDocument(DocumentType::DOVADA_TAXA_TIMBRU);
+        for ($i = 0; $i < 9; ++$i) {
+            $this->persistDocument(DocumentType::FACTURA);
+        }
+
+        $this->client->request(
+            'POST',
+            sprintf('/case/%d/document/upload', $this->case->getId()),
+            ['document_upload' => ['_token' => $this->uploadToken(), 'documentType' => 'contract']],
+            ['document_upload' => ['file' => $this->makePdf('contract.pdf')]],
+        );
+
+        $this->em->clear();
+        $contracts = $this->em->getRepository(Document::class)->findBy([
+            'legalCase' => $this->case->getId(),
+            'documentType' => DocumentType::CONTRACT,
+        ]);
+        self::assertCount(1, $contracts, 'Nine invoices plus the two proofs leave a slot free.');
+    }
+
     public function testGeneratedDocumentsDoNotConsumeAttachmentCap(): void
     {
         $this->client->loginUser($this->user);

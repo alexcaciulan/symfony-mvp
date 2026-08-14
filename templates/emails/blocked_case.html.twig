@@ -1,0 +1,46 @@
+{# A case that needs an act from the lawyer while no term is running on it.
+
+   The two lines in the box are the whole reason this template is not the plain
+   heading-and-body one: a blocked case is not a deadline about to expire, so the
+   message cannot lean on a date to say what it wants. It has to name the fact that is
+   missing and the act that unblocks it, apart from the explanation, or the lawyer has
+   to reconstruct both out of a paragraph.
+
+   Laid out as a table with inline styles, like the rest of the emails here: mail
+   clients drop most of what a browser understands.
+
+   @var heading string
+   @var body    string
+   @var missing string the fact the case is waiting on
+   @var action  string what the lawyer has to do about it
+   @var caseUrl string absolute link into the case #}
+
+{% extends 'emails/_layout.html.twig' %}
+
+{% block content %}
+    <h2 style="color:#b45309;margin-bottom:16px;">{{ heading }}</h2>
+
+    <p style="font-size:15px;line-height:1.6;">{{ body }}</p>
+
+    <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:20px 0;border-left:4px solid #f59e0b;background:#fffbeb;">
+        <tr>
+            <td style="padding:14px 16px;font-size:14px;line-height:1.6;color:#78350f;">
+                <div>
+                    <strong>{{ 'email.blocked_case.missing_label'|trans }}</strong>
+                    {{ missing }}
+                </div>
+                <div style="margin-top:8px;">
+                    <strong>{{ 'email.blocked_case.action_label'|trans }}</strong>
+                    {{ action }}
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <p style="text-align:center;margin:32px 0;">
+        <a href="{{ caseUrl }}"
+           style="display:inline-block;padding:14px 28px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:6px;font-size:16px;font-weight:bold;">
+            {{ 'email.cta.view_case'|trans }}
+        </a>
+    </p>
+{% endblock %}

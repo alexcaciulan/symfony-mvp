@@ -21,6 +21,14 @@ parameters:
     # date is unknown). Advisory only: enforcement stays available immediately on a
     # final order; this just surfaces a suggested "wait until" date. Override per env.
     app.legal_deadlines.voluntary_payment_days: 40
+    # Grace period, in CALENDAR days, between the date the lawyer declares he filed the
+    # enforcement request with the bailiff and the moment the application asks for the
+    # registration number that confirms it. The bailiff registers the request on receipt,
+    # so ten days cover a postal or courier round trip plus a holiday cluster without
+    # nagging, while keeping the case from sitting silent for a month on a term whose
+    # expiry kills the enforceable power. Calendar days on purpose: this is a product
+    # cadence, not a procedural term, and counting it in working days would suggest one.
+    app.legal_deadlines.enforcement_registration_grace_days: 10
     # Fiscal invoicing (Faza F1). Supplier identity frozen onto each issued
     # invoice as a snapshot. Placeholder values: real CUI/reg.com./IBAN to be
     # supplied before issuing real invoices (fiscal consultant sign-off).
@@ -54,6 +62,9 @@ services:
             $autoFinalBufferDays: '%app.legal_deadlines.auto_final_buffer_days%'
             # Voluntary-payment window, injected into DeadlineService.
             $voluntaryPaymentDays: '%app.legal_deadlines.voluntary_payment_days%'
+            # Grace before the single reminder asking for the bailiff registration
+            # number goes out, injected into BlockedCaseAlertService.
+            $enforcementRegistrationGraceDays: '%app.legal_deadlines.enforcement_registration_grace_days%'
             # Frozen onto the case when the stamp duty is paid, so the amount can be
             # justified retroactively if the statutory duty changes later.
             $stampDutyLawVersion: '%app.taxa_timbru_op.law_version%'

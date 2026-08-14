@@ -6,10 +6,13 @@ namespace App\Tests\Twig;
 
 use App\Enum\DeadlineType;
 use App\Repository\LegalDeadlineRepository;
+use App\Service\Deadline\DeadlineAlertService;
 use App\Service\Deadline\DeadlineConsequenceResolver;
 use App\Twig\DeadlineExtension;
+use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 
 /**
@@ -25,11 +28,18 @@ class DeadlineExtensionTest extends TestCase
     protected function setUp(): void
     {
         // Stubs, not mocks: the rule under test reads neither the session nor the
-        // database, and a mock without expectations is reported as a test smell.
+        // database, and a mock without expectations is reported as a test smell. The
+        // alerting service is final, so it is built for real on stubs; nothing here
+        // calls it.
         $this->extension = new DeadlineExtension(
             $this->createStub(Security::class),
             $this->createStub(LegalDeadlineRepository::class),
             new DeadlineConsequenceResolver(),
+            new DeadlineAlertService(
+                $this->createStub(LegalDeadlineRepository::class),
+                $this->createStub(EventDispatcherInterface::class),
+                $this->createStub(EntityManagerInterface::class),
+            ),
         );
     }
 

@@ -324,6 +324,38 @@ final class CaseSummonsControllerTest extends WebTestCase
         self::assertCount(0, $somatieDocs, 'No SOMATIE document should be generated when debtor is missing.');
     }
 
+    /**
+     * With the summons out and no receipt recorded, the case is in service: the 15-day
+     * term of CPC art. 1015 para. 1 runs from receipt, so it does not exist yet and no
+     * date can be shown for it. The page says exactly that, and offers the one act that
+     * ends the wait. The proof reminder stays available but does not take the headline:
+     * the date is what starts a term, the document is not.
+     */
+    public function testCasePageStatesTheSummonsIsInServiceUntilTheDateIsRecorded(): void
+    {
+        $this->client->loginUser($this->user);
+        $this->case->setStatus(CaseStatus::SOMATIE_TRIMISA);
+        $this->em->flush();
+
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+
+        $translator = static::getContainer()->get('translator');
+        $alert = $crawler->filter('#summons-communication-alert');
+
+        self::assertStringContainsString($translator->trans('case_overview.summons.alert_in_service'), $alert->text());
+        self::assertCount(
+            1,
+            $alert->filter('button[data-hs-overlay="#hs-modal-set-summons-communication-date"]'),
+        );
+        self::assertStringNotContainsString(
+            $translator->trans('case_overview.summons.alert_attach_proof'),
+            $alert->text(),
+            'One alert at a time: the proof is asked for after the date is in.',
+        );
+    }
+
     public function testGenerateSummonsBlockedFromNonAmiabilStatus(): void
     {
         $this->client->loginUser($this->user);

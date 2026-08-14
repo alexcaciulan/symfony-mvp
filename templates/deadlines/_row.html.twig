@@ -4,9 +4,9 @@
    Line 2: date, days left, case number, court, debtor, principal.
    The calculation basis, the legal ground and the alert history stay off the row on
    purpose: printed here they cost four lines each and make forty rows unreadable,
-   which defeats a triage screen. An estimated date is the single exception, because
-   uncertainty changes how the date itself is read, and it is written as short text
-   under the line, never as a second badge.
+   which defeats a triage screen. A date that needs qualifying is the single
+   exception, because what qualifies it changes how the date itself is read, and it is
+   written as short text under the line, never as a second badge.
 
    @var row           App\Service\Deadline\DeadlineRowView
    @var filter_fields map active filter, carried by the forms of the row #}
@@ -113,9 +113,9 @@
         {# The marker is short by design; the full legal sentence lives in the title,
            because the reason differs per type and one of them takes three lines. #}
         {% if row.isEstimated() %}
-            {% set estimate = item.estimateReasonKey %}
+            {% set note = item.estimateNote %}
             <div class="mt-0.5 text-[11px] text-amber-700 dark:text-amber-400">
-                <span class="cursor-help border-b border-dotted border-amber-500/60" title="{{ (estimate ~ '.note')|trans }}">{{ (estimate ~ '.mark')|trans }}</span>
+                <span class="cursor-help border-b border-dotted border-amber-500/60" title="{{ note.noteKey|trans(note.parameters) }}">{{ note.markKey|trans(note.parameters) }}</span>
             </div>
         {% endif %}
     </div>
