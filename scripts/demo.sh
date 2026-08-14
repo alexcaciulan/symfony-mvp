@@ -89,8 +89,13 @@ case "${1:-}" in
     compose exec -T php php bin/console doctrine:migrations:migrate --no-interaction
     compose exec -T php php bin/console tailwind:build
     compose exec -T php php bin/console cache:clear
-    # PHP-FPM OPcache does not pick up changed files without a restart.
-    compose restart php worker
+    # PHP-FPM OPcache does not pick up changed files without a restart. Build
+    # first: docker-entrypoint.sh lives inside the image (COPY, not a volume),
+    # so entrypoint changes are invisible to a plain restart. `up -d` then
+    # recreates only what the new config or image actually changed, which a
+    # `restart` would not do either.
+    compose build php worker
+    compose up -d php worker
     wait_until_up
     ;;
 

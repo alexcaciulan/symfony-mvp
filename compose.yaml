@@ -53,11 +53,31 @@ services:
       - sh
       - -c
       - |
-        # Wait until the database is reachable AND the main `php` container has
-        # finished applying migrations (it owns `make migrate` in dev).
-        # `doctrine:migrations:up-to-date` exits 0 when the schema matches the
-        # latest migration and ≠ 0 otherwise — the cheapest portable probe
-        # that doesn't depend on a specific table name.
+        # The php entrypoint clears var/cache long after its migrations finish,
+        # which used to yank the compiled DI container out from under a worker
+        # that had already booted (fatal "Failed to open stream" on a lazily
+        # required service file). Wait for its readiness marker instead. The
+        # initial sleep covers the restart race: php removes the stale marker in
+        # its first second, so testing any earlier can read the previous boot's.
+        sleep 5
+        waited=0
+        until [ -f var/.app-ready ]; do
+          # Never block forever on a marker that may never arrive: a failed php
+          # entrypoint, or an image built before the marker existed, would
+          # otherwise leave the queue unconsumed with no upper bound. Degrade to
+          # the old behaviour instead. 600s clears even a first boot, which
+          # imports cities and courts before it clears the cache.
+          if [ "$$waited" -ge 600 ]; then
+            echo "worker: no readiness marker after $${waited}s, starting anyway (check the php container)"
+            break
+          fi
+          echo "worker: waiting for the php container to finish booting..."
+          sleep 3
+          waited=$$((waited + 3))
+        done
+        # Kept as a cheap independent probe: `doctrine:migrations:up-to-date`
+        # exits 0 when the schema matches the latest migration, and does not
+        # depend on any specific table name.
         until php bin/console doctrine:migrations:up-to-date >/dev/null 2>&1; do
           echo "worker: waiting for migrations to be applied..."
           sleep 3

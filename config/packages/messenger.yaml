@@ -9,6 +9,11 @@ framework:
                 options:
                     use_notify: true
                     check_delayed_interval: 60000
+                    # A worker that dies between claiming a message and handling it
+                    # leaves the row stamped `delivered_at`, invisible to every other
+                    # consumer until this timeout elapses. The 3600s default strands
+                    # a password-reset mail for an hour, well past its token lifetime.
+                    redeliver_timeout: 300
                 retry_strategy:
                     max_retries: 3
                     multiplier: 2
