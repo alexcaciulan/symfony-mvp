@@ -37,6 +37,15 @@ final class DeadlineBlockageActionResolver
                 ['caseId' => $case->getId()],
                 self::SUMMONS_DATE_DIALOG_ID,
             ),
+            // No dialog: the act is a file upload, and a dialog on the agenda would have
+            // to carry the file input, the type and the cap the case page already owns.
+            // The button therefore stays a link into the case, which is the default of
+            // {@see DeadlineActionButton::needsCaseDialog()}.
+            DeadlineBlockageReason::SUMMONS_PROOF_MISSING => $this->button(
+                $blockage,
+                'case_document_upload',
+                ['caseId' => $case->getId()],
+            ),
             DeadlineBlockageReason::RULING_COMMUNICATION_MISSING,
             // The enforcement anchor of a case that never went through an annulment
             // request is the communication of the order itself, so it is recorded in
@@ -55,6 +64,11 @@ final class DeadlineBlockageActionResolver
                 $blockage,
                 'case_stamp_duty_court_notice',
                 ['id' => $case->getId()],
+            ),
+            DeadlineBlockageReason::ENFORCEMENT_REGISTRATION_NUMBER_MISSING => $this->button(
+                $blockage,
+                'case_deadline_enforcement_registration_number',
+                ['caseId' => $case->getId()],
             ),
         };
     }

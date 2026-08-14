@@ -80,13 +80,6 @@ final class DocumentController extends AbstractController
             return $this->respondDocument($request, $legalCase, false, 'warning', 'rate_limit.document_upload', null);
         }
 
-        // Cap only source attachments — the application-generated SOMATIE / CERERE_OP /
-        // OPIS must not consume the lawyer's upload quota.
-        $documentCount = $this->documentRepository->countSourceByCase($legalCase);
-        if ($documentCount >= 10) {
-            return $this->respondDocument($request, $legalCase, false, 'error', 'document.upload.max_files_reached', null);
-        }
-
         $form = $this->createForm(DocumentUploadType::class);
         $form->handleRequest($request);
 
@@ -103,6 +96,16 @@ final class DocumentController extends AbstractController
 
         $data = $form->getData();
         $documentType = DocumentType::from($data['documentType']);
+
+        // The cap counts, and applies to, the evidence the lawyer chose to annex. The
+        // two proofs the procedure imposes are exempt on both sides of the comparison:
+        // a case that filled its quota with invoices must still be able to attach the
+        // proof of communication, which the petition cannot be generated without.
+        if (!$documentType->isProceduralRequirement()
+            && $this->documentRepository->countCappedAttachments($legalCase) >= 10) {
+            return $this->respondDocument($request, $legalCase, false, 'error', 'document.upload.max_files_reached', null);
+        }
+
         $this->documentUploadService->upload($legalCase, $data['file'], $documentType, $this->getUser());
 
         return $this->respondDocument($request, $legalCase, true, 'success', 'document.upload.success', 'hs-modal-upload-document');

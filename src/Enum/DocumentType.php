@@ -62,6 +62,23 @@ enum DocumentType: string
     }
 
     /**
+     * Pieces the procedure itself imposes, as opposed to evidence the lawyer chooses
+     * to annex: the proof that the summons was communicated (CPC art. 1016 para. 2)
+     * and the proof that the stamp duty was paid (CPC art. 197). Both gate the filing
+     * of the petition, so they must never compete with the contracts and invoices for
+     * the per-case attachment cap: a case that reached the cap on evidence would
+     * otherwise be unable to attach the very document the gate asks for, turning a
+     * product limit into a procedural dead end.
+     */
+    public function isProceduralRequirement(): bool
+    {
+        return match ($this) {
+            self::DOVADA_COMUNICARE, self::DOVADA_TAXA_TIMBRU => true,
+            default => false,
+        };
+    }
+
+    /**
      * Non-auto-generated types available for lawyer upload. Single source of truth
      * for both the upload form choices and the upload modal options.
      *

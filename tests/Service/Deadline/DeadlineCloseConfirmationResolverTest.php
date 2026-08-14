@@ -62,10 +62,9 @@ class DeadlineCloseConfirmationResolverTest extends TestCase
         yield 'hearing' => [DeadlineType::JUDECATA];
         yield 'summons answer' => [DeadlineType::RASPUNS_SOMATIE];
         yield 'free form reminder' => [DeadlineType::OTHER];
-        // The three limitation terms are irreversible, yet they get no dialog: the
-        // agenda offers no way to close them at all, so there is no close to confirm.
-        // They are closed by the platform when the act that stops them happens, or from
-        // the deadlines tab of the case, which does not go through this resolver.
+        // The three limitation terms are irreversible, yet they get no dialog: no screen
+        // offers a way to close them at all, so there is no close to confirm. They are
+        // closed by the platform when the act that stops them happens.
         yield 'limitation' => [DeadlineType::PRESCRIPTIE];
         yield 'enforcement limitation' => [DeadlineType::PRESCRIPTIE_EXECUTARE];
         yield 'filing the request' => [DeadlineType::DEPUNERE_CERERE];

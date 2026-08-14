@@ -61,6 +61,21 @@
                            class="w-full py-2 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
                     <p class="mt-1.5 text-[12px] text-slate-500 dark:text-slate-400">{{ 'case_overview.modal.executare_request_date_hint'|trans }}</p>
                 </div>
+
+                {# Optional here on purpose. The bailiff registers the request on receipt,
+                   so in practice the number comes back after this button is pressed;
+                   demanding it now would block the status change on a fact that does not
+                   exist yet. Supplied here, the three-year term closes in one step. #}
+                <div>
+                    <label for="enforcement_registration_number_transition_field" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'case_overview.modal.executare_registration_number_label'|trans }}</label>
+                    <input type="text"
+                           id="enforcement_registration_number_transition_field"
+                           name="enforcement_registration_number"
+                           maxlength="100"
+                           placeholder="{{ 'case_overview.modal.executare_registration_number_placeholder'|trans }}"
+                           class="w-full py-2 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
+                    <p class="mt-1.5 text-[12px] text-slate-500 dark:text-slate-400">{{ 'case_overview.modal.executare_registration_number_hint'|trans }}</p>
+                </div>
             </div>
 
             <div class="flex justify-end items-center gap-x-2 py-3 px-5 border-t border-slate-100 dark:border-slate-800">

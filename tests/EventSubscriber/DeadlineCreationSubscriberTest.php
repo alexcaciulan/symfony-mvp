@@ -443,9 +443,10 @@ final class DeadlineCreationSubscriberTest extends KernelTestCase
     }
 
     /**
-     * The term created on DEFINITIVA is CLOSED when the request filed with the bailiff
-     * is recorded: that filing interrupts the limitation of the right to enforce (CPC
-     * art. 708 para. 1 pt. 2), so nothing is left to count down to.
+     * The term created on DEFINITIVA is CLOSED when the bailiff registration number of
+     * the enforcement request is recorded: that filing interrupts the limitation of the
+     * right to enforce (CPC art. 708 para. 1 pt. 2) and the number is what confirms it
+     * happened, so from then on nothing is left to count down to.
      */
     public function testExecutareClosesTheExecutionPrescriptionDeadline(): void
     {
@@ -466,12 +467,45 @@ final class DeadlineCreationSubscriberTest extends KernelTestCase
         self::assertFalse($deadlines[0]->isCompleted());
 
         $case->setEnforcementRequestDate(new \DateTimeImmutable('2026-10-05'));
+        $case->setEnforcementRegistrationNumber('412/2026');
         $this->workflowService->apply($case, 'trece_la_executare');
         $this->em->flush();
         $this->em->refresh($deadlines[0]);
 
-        self::assertTrue($deadlines[0]->isCompleted(), 'The recorded filing with the bailiff closes the term.');
+        self::assertTrue($deadlines[0]->isCompleted(), 'The registered filing with the bailiff closes the term.');
         self::assertNull($deadlines[0]->getCompletedBy(), 'Closed by the platform, not by a lawyer.');
+    }
+
+    /**
+     * The declared filing date on its own does NOT close the term. The interruption of
+     * CPC art. 708 para. 1 pt. 2 attaches to a filing, and until the bailiff sends back
+     * the number under which he registered it, the only evidence is the lawyer's own
+     * statement. On a term whose expiry extinguishes the right to enforce, that is the
+     * wrong side to err on, so the term stays open while its alerts go silent.
+     */
+    public function testExecutareWithoutTheRegistrationNumberKeepsTheTermOpen(): void
+    {
+        $case = $this->newCase(new \DateTime('2024-03-15'));
+        $case->setPaymentNoticeDate(new \DateTime('2024-04-01'));
+        $case->setRulingCommunicationDate(new \DateTimeImmutable('2026-09-01'));
+        $this->em->flush();
+
+        $this->advanceToOrdonantaEmisa($case);
+        $this->workflowService->apply($case, 'marcheaza_definitiva');
+        $this->em->flush();
+
+        $case->setEnforcementRequestDate(new \DateTimeImmutable('2026-10-05'));
+        $this->workflowService->apply($case, 'trece_la_executare');
+        $this->em->flush();
+
+        $deadlines = $this->em->getRepository(LegalDeadline::class)->findBy([
+            'legalCase' => $case->getId(),
+            'type' => DeadlineType::PRESCRIPTIE_EXECUTARE,
+        ]);
+        self::assertCount(1, $deadlines);
+        $this->em->refresh($deadlines[0]);
+
+        self::assertFalse($deadlines[0]->isCompleted(), 'A declared date is not a confirmed filing.');
     }
 
     /**

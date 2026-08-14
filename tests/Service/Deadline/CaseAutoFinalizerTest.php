@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Service\Deadline;
 
+use App\Entity\AuditLog;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Entity\User;
@@ -275,6 +276,72 @@ class CaseAutoFinalizerTest extends KernelTestCase
 
         $this->em->refresh($deadline);
         $this->assertTrue($deadline->isCompleted());
+    }
+
+    /**
+     * The lawyer deciding early that he is not challenging the order closes the term, and
+     * that must not pull the case final any sooner. The debtor has his own ten days from
+     * the same service, and they run whatever the creditor decided, so finalization is
+     * recomputed from `rulingCommunicationDate` rather than read off the deadline row: a
+     * closed term is not evidence that the window is spent.
+     */
+    public function testAWaivedAnnulmentTermDoesNotFinalizeTheCaseAnySooner(): void
+    {
+        $communicationDate = '2026-06-04';
+        $case = $this->createCase(CaseStatus::ORDONANTA_EMISA, $communicationDate);
+        $deadline = $this->createAppealDeadline($case);
+
+        $this->deadlineService->waiveAnnulmentRequest($case, $this->user);
+        $this->em->refresh($deadline);
+        $this->assertTrue($deadline->isCompleted());
+
+        // On the maturity day the window is still open for the debtor.
+        $this->finalizer()->process($this->deadlineService->appealTermEnd(new \DateTimeImmutable($communicationDate)));
+        $this->assertSame(CaseStatus::ORDONANTA_EMISA, $case->getStatus());
+
+        $this->finalizer()->process($this->threshold($communicationDate));
+        $this->assertSame(CaseStatus::DEFINITIVA, $case->getStatus());
+    }
+
+    /**
+     * And the daily pass leaves the decision alone. It runs over open terms, so a waived
+     * one is simply not among them: the lawyer stays recorded as the one who closed it,
+     * instead of being overwritten by the platform on the next run.
+     */
+    public function testTheDailyPassDoesNotRewriteAWaivedTermAsALapse(): void
+    {
+        $case = $this->createCase(CaseStatus::ORDONANTA_EMISA, '2026-06-04');
+        $deadline = $this->createAppealDeadline($case);
+        $this->deadlineService->waiveAnnulmentRequest($case, $this->user);
+
+        $this->finalizer()->process(new \DateTimeImmutable('2027-01-01'));
+
+        $this->em->refresh($deadline);
+        $this->assertSame($this->user->getId(), $deadline->getCompletedBy()?->getId());
+        $this->assertSame(
+            ['annulment_request_waived'],
+            $this->closingReasons($deadline),
+            'The pass must not log a second, contradicting ending for the same term.',
+        );
+    }
+
+    /**
+     * Every closing logged against a deadline, by the reason each carries.
+     *
+     * @return list<string>
+     */
+    private function closingReasons(LegalDeadline $deadline): array
+    {
+        $entries = $this->em->getRepository(AuditLog::class)->findBy([
+            'category' => AuditLogService::CATEGORY_DEADLINE_COMPLETED,
+            'entityType' => LegalDeadline::class,
+            'entityId' => (string) $deadline->getId(),
+        ], ['id' => 'ASC']);
+
+        return array_values(array_map(
+            static fn (AuditLog $entry): string => (string) ($entry->getNewData()['reason'] ?? ''),
+            $entries,
+        ));
     }
 
     /** Without the date it runs from, the term cannot be proven lapsed, so it stays open. */

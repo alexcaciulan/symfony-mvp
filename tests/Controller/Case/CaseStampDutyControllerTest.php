@@ -13,12 +13,15 @@ use App\Entity\LegalDeadline;
 use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\CourtType;
+use App\Enum\DeadlineConsequence;
 use App\Enum\DeadlineType;
 use App\Enum\DocumentType;
 use App\Enum\PersonType;
 use App\Enum\StampDutyStatus;
+use App\Service\Deadline\DeadlineConsequenceResolver;
 use App\Tests\Support\CountyFixtureTrait;
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
@@ -237,13 +240,45 @@ final class CaseStampDutyControllerTest extends WebTestCase
         self::assertCount(0, $documents);
     }
 
-    /** The 10-day term belongs to a case filed unstamped, nowhere else. */
-    public function testCourtNoticeIsRejectedWhenTheDutyWasNotDeferred(): void
+    /**
+     * A notice can arrive on a case the lawyer never deferred. Since the duty is paid
+     * when the file number appears rather than when the court asks, the ordinary
+     * unstamped case is NEACHITATA, and a court that sends a notice anyway has to be
+     * recordable: otherwise the ten days run nowhere in the application.
+     */
+    public function testCourtNoticeIsAcceptedOnACaseThatWasNeverDeferred(): void
     {
         $this->client->loginUser($this->user);
 
+        self::assertSame(StampDutyStatus::NEACHITATA, $this->case->getStampDutyStatus());
+
         $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/court-notice', [
             '_token' => $this->csrfToken('/stamp-duty/court-notice', '_token'),
+            'courtNoticeDate' => '2026-07-07',
+        ]);
+
+        $this->em->clear();
+        $deadline = $this->em->getRepository(LegalDeadline::class)->findOneBy([
+            'legalCase' => $this->case->getId(),
+            'type' => DeadlineType::TIMBRARE,
+        ]);
+        self::assertNotNull($deadline, 'An unstamped case must be able to record the notice it received.');
+    }
+
+    /**
+     * A paid case stays out: the ten days guard nothing there, and creating the term
+     * would put a CRITICAL deadline on a case with no annulment risk to watch.
+     */
+    public function testCourtNoticeIsRejectedOnceTheDutyIsPaid(): void
+    {
+        $this->client->loginUser($this->user);
+        $token = $this->csrfToken('/stamp-duty/court-notice', '_token');
+
+        $this->case->setStampDutyStatus(StampDutyStatus::ACHITATA);
+        $this->em->flush();
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/court-notice', [
+            '_token' => $token,
             'courtNoticeDate' => '2026-07-01',
         ]);
 
@@ -303,6 +338,63 @@ final class CaseStampDutyControllerTest extends WebTestCase
      * The 10-day term runs from the court's notice (OUG 80/2013 art. 33 alin. 2), a
      * date the platform cannot observe, so the lawyer supplies it and we compute the term.
      */
+    /**
+     * CPC art. 200 grants "cel mult 10 zile", so a court that gives fewer must be
+     * recordable. The lawyer supplies the number off the notice; the free-day count
+     * and the prorogation stay with the application, which is the whole point of
+     * asking for days rather than for a date.
+     */
+    public function testCourtNoticeHonoursAShorterTermGrantedByTheCourt(): void
+    {
+        $this->case->setStampDutyStatus(StampDutyStatus::AMANATA_REGULARIZARE);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/court-notice', [
+            '_token' => $this->csrfToken('/stamp-duty/court-notice', '_token'),
+            'courtNoticeDate' => '2026-07-07',
+            'grantedDays' => '5',
+        ]);
+
+        $this->em->clear();
+        $deadline = $this->em->getRepository(LegalDeadline::class)->findOneBy([
+            'legalCase' => $this->case->getId(),
+            'type' => DeadlineType::TIMBRARE,
+        ]);
+
+        self::assertNotNull($deadline);
+        // Tuesday 2026-07-07 plus 5 free days matures on Monday 2026-07-13: the count
+        // is 5 + 1 per CPC art. 181 alin. 1 pct. 2, landing on Sunday 2026-07-12, then
+        // prorogated to the next working day.
+        self::assertSame('2026-07-13', $deadline->getDeadlineDate()->format('Y-m-d'));
+    }
+
+    public function testCourtNoticeRefusesATermLongerThanTheLegalCeiling(): void
+    {
+        $this->case->setStampDutyStatus(StampDutyStatus::AMANATA_REGULARIZARE);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/court-notice', [
+            '_token' => $this->csrfToken('/stamp-duty/court-notice', '_token'),
+            'courtNoticeDate' => '2026-07-07',
+            'grantedDays' => '15',
+        ]);
+
+        self::assertSame(
+            ['case_overview.stamp_duty.flash_error_granted_days_invalid'],
+            $this->client->getRequest()->getSession()->getFlashBag()->peek('error'),
+        );
+
+        $this->em->clear();
+        self::assertNull($this->em->getRepository(LegalDeadline::class)->findOneBy([
+            'legalCase' => $this->case->getId(),
+            'type' => DeadlineType::TIMBRARE,
+        ]), 'A refused term must not leave a deadline behind.');
+    }
+
     public function testCourtNoticeCreatesTheTenDayStampingDeadline(): void
     {
         $this->case->setStampDutyStatus(StampDutyStatus::AMANATA_REGULARIZARE);
@@ -329,6 +421,179 @@ final class CaseStampDutyControllerTest extends WebTestCase
         // carries the maturity to Saturday 2026-07-18, and alin. 2 then prorogates it
         // to Monday 2026-07-20.
         self::assertSame('2026-07-20', $deadline->getDeadlineDate()->format('Y-m-d'));
+    }
+
+    /**
+     * The file number appearing is when the duty becomes DUE, not when a term to stamp
+     * starts running. The two are different things and only the second one annuls the
+     * claim if it is missed (OUG 80/2013 art. 33 para. 2, CPC art. 197): those ten days
+     * run from the court's notice, a communication the platform never observes, so
+     * inventing a term at registration would put a date on the case that no document
+     * supports and a CRITICAL alert on a case nobody has asked anything of yet.
+     *
+     * Pinned on both routes that record the number, because they are two ways into the
+     * same fact: the lawyer typing it from the registry receipt, and the portal
+     * activation that takes it from the discovered file.
+     *
+     * @return iterable<string, array{string, string}>
+     */
+    public static function caseNumberRegistrationProvider(): iterable
+    {
+        yield 'typed from the registry receipt' => ['/transition/register', 'register_case_number'];
+        yield 'taken from the discovered file' => ['/portal/activate', 'portal_activate'];
+    }
+
+    #[DataProvider('caseNumberRegistrationProvider')]
+    public function testRegisteringTheCourtFileNumberCreatesNoStampingTerm(string $path, string $formName): void
+    {
+        $this->case->setStatus(CaseStatus::CERERE_DEPUSA);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $token = $this->csrfToken($path, $formName . '[_token]');
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . $path, [
+            $formName => ['courtCaseNumber' => '4521/302/2026', '_token' => $token],
+        ]);
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame(CaseStatus::DOSAR_INREGISTRAT, $refreshed->getStatus(), 'The registration itself must have happened.');
+        self::assertSame('4521/302/2026', $refreshed->getCourtCaseNumber());
+        self::assertSame(StampDutyStatus::NEACHITATA, $refreshed->getStampDutyStatus(), 'Registering the file changes nothing about the duty.');
+
+        self::assertNull(
+            $this->em->getRepository(LegalDeadline::class)->findOneBy([
+                'legalCase' => $refreshed->getId(),
+                'type' => DeadlineType::TIMBRARE,
+            ]),
+            'The stamping term runs from the court notice, so registration must create none.',
+        );
+    }
+
+    /**
+     * The other half of the rule: the notice is the ONE thing that creates the term. Read
+     * off the whole enum rather than off the TIMBRARE row alone, so a case that was just
+     * registered carries no deadline whose miss annuls the claim.
+     */
+    public function testTheCourtNoticeIsTheOnlyThingThatCreatesTheStampingTerm(): void
+    {
+        $this->case->setStatus(CaseStatus::CERERE_DEPUSA);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/transition/register', [
+            'register_case_number' => [
+                'courtCaseNumber' => '4522/302/2026',
+                '_token' => $this->csrfToken('/transition/register', 'register_case_number[_token]'),
+            ],
+        ]);
+
+        $deadlines = $this->em->getRepository(LegalDeadline::class)->findBy(['legalCase' => $this->case->getId()]);
+        self::assertNotSame([], $deadlines, 'The case carries the limitation term of its due date, so this reads a populated list.');
+
+        $consequences = new DeadlineConsequenceResolver();
+        foreach ($deadlines as $deadline) {
+            self::assertNotSame(
+                DeadlineConsequence::CASE_ANNULMENT,
+                $consequences->resolve($deadline->getType()),
+                $deadline->getType()->value . ' must not appear on a case that was merely registered.',
+            );
+        }
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/court-notice', [
+            '_token' => $this->csrfToken('/stamp-duty/court-notice', '_token'),
+            'courtNoticeDate' => '2026-07-07',
+        ]);
+
+        $this->em->clear();
+        self::assertNotNull(
+            $this->em->getRepository(LegalDeadline::class)->findOneBy([
+                'legalCase' => $this->case->getId(),
+                'type' => DeadlineType::TIMBRARE,
+            ]),
+            'Recording the notice is what puts the ten days on the case.',
+        );
+    }
+
+    /**
+     * A case that already carries the term keeps it exactly as it was. The term was
+     * computed from a notice date the lawyer supplied, and the registration knows nothing
+     * about that date, so touching the deadline could only move it away from the ten days
+     * that actually run.
+     */
+    public function testAnExistingStampingTermIsUntouchedByTheRegistration(): void
+    {
+        $this->case->setStatus(CaseStatus::CERERE_DEPUSA);
+        $this->em->flush();
+
+        $deadline = new LegalDeadline();
+        $deadline->setLegalCase($this->case);
+        $deadline->setType(DeadlineType::TIMBRARE);
+        $deadline->setDeadlineDate(new \DateTimeImmutable('2026-07-20'));
+        $deadline->setPriority(DeadlineType::TIMBRARE->defaultPriority());
+        $this->em->persist($deadline);
+        $this->em->flush();
+        $deadlineId = $deadline->getId();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/transition/register', [
+            'register_case_number' => [
+                'courtCaseNumber' => '4523/302/2026',
+                '_token' => $this->csrfToken('/transition/register', 'register_case_number[_token]'),
+            ],
+        ]);
+
+        $this->em->clear();
+        $deadlines = $this->em->getRepository(LegalDeadline::class)->findBy([
+            'legalCase' => $this->case->getId(),
+            'type' => DeadlineType::TIMBRARE,
+        ]);
+
+        self::assertCount(1, $deadlines, 'No second stamping term may appear beside the one that exists.');
+        self::assertSame($deadlineId, $deadlines[0]->getId());
+        self::assertSame('2026-07-20', $deadlines[0]->getDeadlineDate()->format('Y-m-d'));
+        self::assertFalse($deadlines[0]->isCompleted());
+    }
+
+    /**
+     * A notice date corrected after the fact moves the term that exists; it never adds a
+     * second one. Two stamping terms on one case would mean two dates for ten days that
+     * run once, and the earlier of them would keep alerting after the real one moved.
+     */
+    public function testACorrectedNoticeDateMovesTheSameTermInsteadOfAddingASecond(): void
+    {
+        $this->client->loginUser($this->user);
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/court-notice', [
+            '_token' => $this->csrfToken('/stamp-duty/court-notice', '_token'),
+            'courtNoticeDate' => '2026-07-07',
+        ]);
+
+        $this->em->clear();
+        $first = $this->em->getRepository(LegalDeadline::class)->findOneBy([
+            'legalCase' => $this->case->getId(),
+            'type' => DeadlineType::TIMBRARE,
+        ]);
+        self::assertNotNull($first);
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/court-notice', [
+            '_token' => $this->csrfToken('/stamp-duty/court-notice', '_token'),
+            'courtNoticeDate' => '2026-07-10',
+        ]);
+
+        $this->em->clear();
+        $deadlines = $this->em->getRepository(LegalDeadline::class)->findBy([
+            'legalCase' => $this->case->getId(),
+            'type' => DeadlineType::TIMBRARE,
+        ]);
+
+        self::assertCount(1, $deadlines, 'The correction moves the term, it does not duplicate it.');
+        self::assertSame($first->getId(), $deadlines[0]->getId());
+        // Friday 2026-07-10 plus the 10 legal days is Monday 2026-07-20; the free day of
+        // CPC art. 181 alin. 1 pct. 2 carries the maturity to Tuesday 2026-07-21, a
+        // working day, so no prorogation applies on top.
+        self::assertSame('2026-07-21', $deadlines[0]->getDeadlineDate()->format('Y-m-d'));
     }
 
     public function testCourtNoticeRejectsAFutureDate(): void

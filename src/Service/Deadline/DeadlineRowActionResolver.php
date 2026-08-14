@@ -26,8 +26,10 @@ final class DeadlineRowActionResolver
     private const MARK_STAMPED = 'deadlines.action.mark_stamped';
     private const SEND_SUMMONS = 'deadlines.action.send_summons';
     private const GENERATE_PAYMENT_ORDER = 'deadlines.action.generate_payment_order';
+    private const NO_ANNULMENT_REQUEST = 'deadlines.action.no_annulment_request';
 
     private const NOTE_MARK_DONE = 'deadlines.action.note.mark_done';
+    private const NOTE_NO_ANNULMENT_REQUEST = 'deadlines.action.note.no_annulment_request';
 
     public function resolve(DeadlineAgendaItem $item): DeadlineRowAction
     {
@@ -48,7 +50,13 @@ final class DeadlineRowActionResolver
         return match ($item->deadline->getType()) {
             // The act is performed right here, so the primary button is the close.
             DeadlineType::TIMBRARE => new DeadlineRowAction($this->close($item, self::MARK_STAMPED)),
-            DeadlineType::CERERE_IN_ANULARE, DeadlineType::OTHER => new DeadlineRowAction($this->close($item, self::MARK_DONE, self::NOTE_MARK_DONE)),
+            DeadlineType::OTHER => new DeadlineRowAction($this->close($item, self::MARK_DONE, self::NOTE_MARK_DONE)),
+
+            // The only act the platform can offer on the annulment window is the
+            // decision NOT to use it. It cannot draft the request: that needs the
+            // reasoning of a ruling nobody has analysed here. So the button says what it
+            // does, instead of a generic "done" that reads as "the request was filed".
+            DeadlineType::CERERE_IN_ANULARE => new DeadlineRowAction($this->waiveAnnulment($item)),
 
             // The hearing is attended at the court and its hour only exists on the
             // portal, so the primary button leads there and the close stays secondary.
@@ -98,11 +106,13 @@ final class DeadlineRowActionResolver
      * it (CPC art. 1015 para. 2), the request filed in court is what keeps the
      * interruption. Past filing there is no further act to offer from the agenda.
      *
-     * No way to dismiss the row from the agenda: hiding a limitation term hides the
-     * only thing that still says the claim can die of age, and the row already states
-     * the date until which the interruption holds, so it is informative rather than
-     * noisy. A term on a claim that was actually paid is closed from the deadlines tab
-     * of the case, where the generic close applies to any type.
+     * No way to dismiss the row: hiding a limitation term hides the only thing that still
+     * says the claim can die of age, and the row already states the date until which the
+     * interruption holds, so it is informative rather than noisy. Nowhere else offers it
+     * either, the deadlines tab of the case included, and
+     * {@see \App\Controller\Case\CaseDeadlineController::complete()} refuses the two
+     * limitation types outright. What ends such a term is the act that stops it, recorded
+     * by the platform, or deleting a term created by mistake.
      */
     private function limitationAction(DeadlineAgendaItem $item): DeadlineRowAction
     {
@@ -156,6 +166,27 @@ final class DeadlineRowActionResolver
             closesDeadline: true,
             note: $note,
             csrfTokenId: 'complete_deadline_' . $deadline->getId(),
+        );
+    }
+
+    /**
+     * Closing the annulment window by deciding against it. Its own route and its own
+     * token id, not the generic close: the audit trail has to tell a decision apart from
+     * a lapse. `closesDeadline` stays true, so the row still hands the page its
+     * confirmation dialog before posting.
+     */
+    private function waiveAnnulment(DeadlineAgendaItem $item): DeadlineActionButton
+    {
+        $deadline = $item->deadline;
+
+        return new DeadlineActionButton(
+            label: self::NO_ANNULMENT_REQUEST,
+            route: 'case_deadline_no_annulment_request',
+            routeParameters: $this->closeRouteParameters($deadline),
+            method: 'POST',
+            closesDeadline: true,
+            note: self::NOTE_NO_ANNULMENT_REQUEST,
+            csrfTokenId: 'no_annulment_request_' . $deadline->getId(),
         );
     }
 

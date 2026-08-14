@@ -241,12 +241,27 @@ class LegalCase
      * enforcement, so the date is recorded instead of being inferred from the status.
      *
      * Nothing in the application can derive it, so the lawyer states it when he moves
-     * the case into enforcement. While it is missing, the enforcement-limitation term
-     * stays open: closing it on a status alone would rest an irreversible closing on a
-     * declaration rather than on a recorded fact.
+     * the case into enforcement. On its own it no longer closes the enforcement-limitation
+     * term: it only silences the alerts on it, because the act has been performed and
+     * what is left is the confirmation. The closing waits for
+     * {@see self::$enforcementRegistrationNumber}.
      */
     #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
     private ?\DateTimeImmutable $enforcementRequestDate = null;
+
+    /**
+     * Registration number the bailiff assigned to the enforcement request. In practice
+     * the bailiff registers the request as soon as it is received, so this number is the
+     * confirmation that the filing the date above declares actually happened, coming
+     * from outside the platform rather than from the lawyer alone.
+     *
+     * It is what closes the enforcement-limitation term. The term still closes AGAINST
+     * the date, not against the moment of registration: the interruption of CPC art. 708
+     * para. 1 pt. 2 attaches to the request filed and runs from its date, so anchoring
+     * on the registration would move the interruption later, against the creditor.
+     */
+    #[ORM\Column(length: 100, nullable: true)]
+    private ?string $enforcementRegistrationNumber = null;
 
     /**
      * Data la care debitorul a PRIMIT somația (confirmată prin AR poștal sau
@@ -867,6 +882,18 @@ class LegalCase
     public function setEnforcementRequestDate(?\DateTimeImmutable $enforcementRequestDate): static
     {
         $this->enforcementRequestDate = $enforcementRequestDate;
+
+        return $this;
+    }
+
+    public function getEnforcementRegistrationNumber(): ?string
+    {
+        return $this->enforcementRegistrationNumber;
+    }
+
+    public function setEnforcementRegistrationNumber(?string $enforcementRegistrationNumber): static
+    {
+        $this->enforcementRegistrationNumber = $enforcementRegistrationNumber;
 
         return $this;
     }

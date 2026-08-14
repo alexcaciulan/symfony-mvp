@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace App\Tests\Service\Deadline;
 
 use App\Entity\CaseStatusHistory;
+use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\DeadlineBlockageReason;
 use App\Enum\DeadlineType;
+use App\Enum\DocumentType;
 use App\Enum\StampDutyStatus;
 use App\Service\Deadline\DeadlineBlockage;
 use App\Service\Deadline\DeadlineBlockageFinder;
@@ -20,10 +22,11 @@ use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 /**
- * The blocked cases behind the blockage zone: the fatal terms that are missing from
- * the agenda because the fact they run from carries no date. Each of the three
- * reasons is pinned together with the state that must NOT raise it, since a false
- * blockage sends the lawyer to record a date that changes nothing.
+ * The blocked cases behind the blockage zone: the fatal terms missing from the agenda
+ * because the fact they run from carries no date, plus the filing held back for want of
+ * the proof of communication. Each reason is pinned together with the state that must
+ * NOT raise it, since a false blockage sends the lawyer after something that changes
+ * nothing.
  */
 class DeadlineBlockageFinderTest extends KernelTestCase
 {
@@ -49,6 +52,7 @@ class DeadlineBlockageFinderTest extends KernelTestCase
     {
         $ids = [$this->user->getId(), $this->otherUser->getId()];
         $conn = $this->em->getConnection();
+        $conn->executeStatement('DELETE FROM document WHERE uploaded_by_id IN (?)', [$ids], [ArrayParameterType::INTEGER]);
         $conn->executeStatement(
             'DELETE FROM legal_deadline WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id IN (?))',
             [$ids],
@@ -99,11 +103,63 @@ class DeadlineBlockageFinderTest extends KernelTestCase
         self::assertSame([], $this->reasonsFor($case));
     }
 
-    public function testSummonsWithTheCommunicationDateIsNotBlocked(): void
+    /**
+     * The date closes the first gap and opens the second: the 15-day term now exists,
+     * and what is missing is the document the filing rests on. The lawyer is asked for
+     * one thing at a time, which is also what keeps a case at one blockage.
+     */
+    public function testSummonsWithTheCommunicationDateIsAskedForTheProofInstead(): void
     {
         $case = $this->createCase(CaseStatus::SOMATIE_TRIMISA);
         $case->setPaymentNoticeDate(new \DateTime('-5 days'));
         $case->setPaymentNoticeCommunicationDate(new \DateTimeImmutable('-3 days'));
+        $this->em->flush();
+
+        self::assertSame(
+            [DeadlineBlockageReason::SUMMONS_PROOF_MISSING],
+            $this->reasonsFor($case),
+        );
+    }
+
+    public function testSummonsWithTheDateAndTheProofIsNotBlocked(): void
+    {
+        $case = $this->createCase(CaseStatus::SOMATIE_TRIMISA);
+        $case->setPaymentNoticeDate(new \DateTime('-5 days'));
+        $case->setPaymentNoticeCommunicationDate(new \DateTimeImmutable('-3 days'));
+        $this->createDocument($case, DocumentType::DOVADA_COMUNICARE);
+        $this->em->flush();
+
+        self::assertSame([], $this->reasonsFor($case));
+    }
+
+    /**
+     * Another document on the case is not the proof. The blockage keys off the type,
+     * not off the case having attachments, because the filing gate does the same.
+     */
+    public function testAnotherAttachmentDoesNotPassForTheProof(): void
+    {
+        $case = $this->createCase(CaseStatus::SOMATIE_TRIMISA);
+        $case->setPaymentNoticeDate(new \DateTime('-5 days'));
+        $case->setPaymentNoticeCommunicationDate(new \DateTimeImmutable('-3 days'));
+        $this->createDocument($case, DocumentType::FACTURA);
+        $this->em->flush();
+
+        self::assertSame(
+            [DeadlineBlockageReason::SUMMONS_PROOF_MISSING],
+            $this->reasonsFor($case),
+        );
+    }
+
+    /**
+     * Past filing the row would unblock nothing the lawyer can still act on, exactly as
+     * for the missing date: the petition is out, with or without the proof in the file.
+     */
+    public function testTheProofBlockageStopsOnceTheRequestIsFiled(): void
+    {
+        $case = $this->createCase(CaseStatus::CERERE_DEPUSA);
+        $case->setPaymentNoticeDate(new \DateTime('-20 days'));
+        $case->setPaymentNoticeCommunicationDate(new \DateTimeImmutable('-18 days'));
+        $case->setStampDutyStatus(StampDutyStatus::ACHITATA);
         $this->em->flush();
 
         self::assertSame([], $this->reasonsFor($case));
@@ -206,14 +262,20 @@ class DeadlineBlockageFinderTest extends KernelTestCase
     }
 
     /**
-     * The risk bar counts CASES here, not deadlines, which only holds because the
-     * reasons apply to disjoint sets of statuses: one case, at most one row. The order
-     * is the one the zone renders in, worst gap first.
+     * The risk bar counts CASES here, not deadlines, which only holds because the reasons
+     * stay mutually exclusive: one case, at most one row. Most of them are separated by
+     * status; the two on the summons share theirs and are separated by the communication
+     * date, which is why both appear below on cases of the same status. The order is the
+     * one the zone renders in, worst gap first.
      */
     public function testEachCaseRaisesAtMostOneBlockageAndTheListIsOrderedBySeverity(): void
     {
         $summons = $this->createCase(CaseStatus::SOMATIE_TRIMISA);
         $summons->setPaymentNoticeDate(new \DateTime('-5 days'));
+
+        $proof = $this->createCase(CaseStatus::SOMATIE_TRIMISA);
+        $proof->setPaymentNoticeDate(new \DateTime('-4 days'));
+        $proof->setPaymentNoticeCommunicationDate(new \DateTimeImmutable('-2 days'));
 
         $ruling = $this->createCase(CaseStatus::ORDONANTA_EMISA);
 
@@ -227,6 +289,11 @@ class DeadlineBlockageFinderTest extends KernelTestCase
         $this->recordAnnulmentPassage($annulment);
 
         $enforcement = $this->createCase(CaseStatus::DEFINITIVA);
+
+        // EXECUTARE is the only status the registration-number reason applies to, which
+        // is what keeps it disjoint from the ones above.
+        $registration = $this->createCase(CaseStatus::EXECUTARE);
+        $registration->setEnforcementRequestDate(new \DateTimeImmutable('-3 days'));
         $this->em->flush();
 
         $blockages = $this->finder->find($this->user);
@@ -234,16 +301,18 @@ class DeadlineBlockageFinderTest extends KernelTestCase
         self::assertSame(
             [
                 DeadlineBlockageReason::SUMMONS_COMMUNICATION_MISSING,
+                DeadlineBlockageReason::SUMMONS_PROOF_MISSING,
                 DeadlineBlockageReason::RULING_COMMUNICATION_MISSING,
                 DeadlineBlockageReason::STAMP_DUTY_NOTICE_MISSING,
                 DeadlineBlockageReason::ANNULMENT_RULING_COMMUNICATION_MISSING,
                 DeadlineBlockageReason::EXECUTION_ANCHOR_MISSING,
+                DeadlineBlockageReason::ENFORCEMENT_REGISTRATION_NUMBER_MISSING,
             ],
             array_map(static fn (DeadlineBlockage $b): DeadlineBlockageReason => $b->reason, $blockages),
         );
 
         $caseIds = array_map(static fn (DeadlineBlockage $b): ?int => $b->legalCase->getId(), $blockages);
-        self::assertSame([$summons->getId(), $ruling->getId(), $stamping->getId(), $annulment->getId(), $enforcement->getId()], $caseIds);
+        self::assertSame([$summons->getId(), $proof->getId(), $ruling->getId(), $stamping->getId(), $annulment->getId(), $enforcement->getId(), $registration->getId()], $caseIds);
         self::assertSame($caseIds, array_values(array_unique($caseIds)), 'One case may never raise two blockages.');
     }
 
@@ -289,6 +358,34 @@ class DeadlineBlockageFinderTest extends KernelTestCase
     public function testEnforcedCaseIsNotAskedForAnAnchorItNoLongerNeeds(): void
     {
         $case = $this->createCase(CaseStatus::EXECUTARE);
+        $this->em->flush();
+
+        self::assertSame([], $this->reasonsFor($case));
+    }
+
+    /**
+     * The filing with the bailiff is declared and the number under which he registered it
+     * is missing. The term is not closed on the declaration alone, so the case waits, and
+     * the wait is what the zone states: this is the passive surface that replaces the
+     * repeated reminders the platform deliberately does not send.
+     */
+    public function testEnforcedCaseWithoutTheBailiffRegistrationNumberIsBlocked(): void
+    {
+        $case = $this->createCase(CaseStatus::EXECUTARE);
+        $case->setEnforcementRequestDate(new \DateTimeImmutable('-3 days'));
+        $this->em->flush();
+
+        self::assertSame(
+            [DeadlineBlockageReason::ENFORCEMENT_REGISTRATION_NUMBER_MISSING],
+            $this->reasonsFor($case),
+        );
+    }
+
+    public function testTheRecordedRegistrationNumberClearsThatBlockage(): void
+    {
+        $case = $this->createCase(CaseStatus::EXECUTARE);
+        $case->setEnforcementRequestDate(new \DateTimeImmutable('-3 days'));
+        $case->setEnforcementRegistrationNumber('412/2026');
         $this->em->flush();
 
         self::assertSame([], $this->reasonsFor($case));
@@ -402,6 +499,20 @@ class DeadlineBlockageFinderTest extends KernelTestCase
         $entry->setOldStatus(CaseStatus::ORDONANTA_EMISA->value);
         $entry->setNewStatus(CaseStatus::IN_ANULARE->value);
         $this->em->persist($entry);
+    }
+
+    /** Attaches a document of the given type; nothing is written to disk, the row is what the queries read. */
+    private function createDocument(LegalCase $case, DocumentType $type): void
+    {
+        $document = new Document();
+        $document->setLegalCase($case);
+        $document->setDocumentType($type);
+        $document->setOriginalFilename($type->value . '.pdf');
+        $document->setStoredFilename($this->testPrefix . '/' . uniqid() . '.pdf');
+        $document->setFileSize(1024);
+        $document->setMimeType('application/pdf');
+        $document->setUploadedBy($case->getUser());
+        $this->em->persist($document);
     }
 
     private function createDeadline(LegalCase $case, DeadlineType $type): void

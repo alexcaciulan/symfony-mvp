@@ -40,6 +40,13 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  * above, because the term also has to be closed on cases that already left
  * ORDONANTA_EMISA (finalized on an earlier run, or challenged and now in IN_ANULARE):
  * the term expires on its own date regardless of where the case went afterwards.
+ *
+ * Expiry is no longer the only way that term ends: a lawyer who has decided not to
+ * challenge the order closes it himself
+ * ({@see DeadlineService::waiveAnnulmentRequest()}). That changes nothing here. The pass
+ * only looks at terms that are still open, and the finalization above is recomputed from
+ * `rulingCommunicationDate` rather than read off the deadline record, so a case whose
+ * term was closed early still becomes final on the day the ten days plus the buffer say.
  */
 final class CaseAutoFinalizer
 {

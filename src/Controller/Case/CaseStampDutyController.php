@@ -143,11 +143,16 @@ final class CaseStampDutyController extends AbstractController
             return $this->respond($request, $case, false, 'error', 'case_overview.stamp_duty.flash_error_csrf');
         }
 
-        // The 10-day stamping term only exists for a case that was filed unstamped.
-        // Creating it elsewhere would put a CRITICAL deadline on a case that has no
-        // annulment risk to watch.
-        if ($case->getStampDutyStatus() !== StampDutyStatus::AMANATA_REGULARIZARE) {
-            return $this->respond($request, $case, false, 'error', 'case_overview.stamp_duty.flash_error_not_deferred');
+        // The 10-day stamping term only exists for a case that is not stamped yet, in
+        // either of the two ways that happens: the lawyer took the regularization route
+        // knowingly, or he simply has not paid yet. The second case is the ordinary one
+        // now that the duty is paid when the file number appears rather than when the
+        // court asks, and a court that sends a notice anyway has to be recordable.
+        //
+        // A paid case stays out: there the ten days guard nothing, and creating the term
+        // would put a CRITICAL deadline on a case with no annulment risk to watch.
+        if ($case->getStampDutyStatus() === StampDutyStatus::ACHITATA) {
+            return $this->respond($request, $case, false, 'error', 'case_overview.stamp_duty.flash_error_notice_when_paid');
         }
 
         $raw = trim($request->getPayload()->getString('courtNoticeDate'));
@@ -161,7 +166,17 @@ final class CaseStampDutyController extends AbstractController
             return $this->respond($request, $case, false, 'error', 'case_overview.stamp_duty.flash_error_notice_date_future');
         }
 
-        $this->stampDutyService->recordCourtNotice($case, $noticeDate);
+        // CPC art. 200: the court grants "cel mult 10 zile", so fewer is possible and
+        // more is not. An absent field keeps the legal ceiling, which is what the notice
+        // says in the ordinary case.
+        $rawDays = trim($request->getPayload()->getString('grantedDays'));
+        $grantedDays = $rawDays !== '' ? (int) $rawDays : null;
+
+        if ($grantedDays !== null && ($grantedDays < 1 || $grantedDays > 10)) {
+            return $this->respond($request, $case, false, 'error', 'case_overview.stamp_duty.flash_error_granted_days_invalid');
+        }
+
+        $this->stampDutyService->recordCourtNotice($case, $noticeDate, $grantedDays);
 
         return $this->respond(
             $request,

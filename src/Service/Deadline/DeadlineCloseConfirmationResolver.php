@@ -33,11 +33,9 @@ final class DeadlineCloseConfirmationResolver
         return match ($item->consequence) {
             DeadlineConsequence::CASE_ANNULMENT => $this->stampDuty($item->deadline),
             DeadlineConsequence::FORFEITURE => $this->forfeiture($item->deadline),
-            // RIGHT_EXTINCTION has no dialog any more. The agenda offers no way to
-            // close a limitation term, so there is no close to confirm: the three
-            // terms it covered are closed by the platform when the act that stops them
-            // happens, or from the deadlines tab of the case, which does not go
-            // through this resolver.
+            // RIGHT_EXTINCTION has no dialog any more. No screen offers a way to close a
+            // limitation term, so there is no close to confirm: the terms it covered are
+            // closed by the platform when the act that stops them happens.
             default => null,
         };
     }
@@ -84,7 +82,11 @@ final class DeadlineCloseConfirmationResolver
         );
     }
 
-    /** Annulment request, a forfeiture term (CPC art. 1024 para. 1, art. 185 para. 1). */
+    /**
+     * Annulment request, a forfeiture term (CPC art. 1024 para. 1, art. 185 para. 1).
+     * The only way of closing it that the application offers is the lawyer stating he is
+     * not filing one, so the dialog confirms that decision rather than a generic close.
+     */
     private function forfeiture(LegalDeadline $deadline): DeadlineCloseConfirmation
     {
         return new DeadlineCloseConfirmation(

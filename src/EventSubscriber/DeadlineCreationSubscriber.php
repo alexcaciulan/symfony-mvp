@@ -111,11 +111,19 @@ final class DeadlineCreationSubscriber
      * is still alive (CPC art. 705 para. 1); the request filed with the bailiff
      * interrupts it (CPC art. 708 para. 1 pt. 2).
      *
-     * What closes the term is that recorded filing date, not the transition itself. The
-     * transition is a status the lawyer declares, while the interruption attaches to the
-     * filing and runs from its date, so without the date the term stays open: on a term
-     * whose expiry extinguishes the right to enforce, a term left open costs an alert
-     * too many, and a term closed on a declaration costs the client the title.
+     * What closes the term is the REGISTRATION NUMBER the bailiff assigned to that
+     * request, not the transition and not the date alone. The transition is a status the
+     * lawyer declares and the date is a declaration too; the number comes back from the
+     * bailiff, who registers the request on receipt, and is therefore the confirmation
+     * the closing rests on. On a term whose expiry extinguishes the right to enforce, a
+     * term left open costs an alert too many, and a term closed on a declaration costs
+     * the client the title.
+     *
+     * The date still decides WHEN the term is closed as of, because the interruption of
+     * CPC art. 708 para. 1 pt. 2 attaches to the request filed and runs from its date.
+     * With the date recorded and the number still missing, the term stays open but stops
+     * alerting ({@see \App\Service\Deadline\DeadlineAlertService}): the act was performed
+     * and only its confirmation is awaited.
      *
      * Cases that reach EXECUTARE straight from ORDONANTA_EMISA or IN_ANULARE never had
      * the term created (only DEFINITIVA creates it) and need none: closing is a no-op
@@ -130,16 +138,18 @@ final class DeadlineCreationSubscriber
         }
 
         $enforcementRequestDate = $case->getEnforcementRequestDate();
-        if ($enforcementRequestDate === null) {
-            $this->logger->info('Keeping PRESCRIPTIE_EXECUTARE deadline open: the enforcement request date is not recorded', [
+        $registrationNumber = $case->getEnforcementRegistrationNumber();
+        if ($enforcementRequestDate === null || $registrationNumber === null || $registrationNumber === '') {
+            $this->logger->info('Keeping PRESCRIPTIE_EXECUTARE deadline open: the bailiff registration number of the enforcement request is not recorded', [
                 'caseNumber' => $case->getCaseNumber(),
+                'hasRequestDate' => $enforcementRequestDate !== null,
             ]);
 
             return;
         }
 
         try {
-            $this->deadlineService->closeExecutionPrescriptionDeadline($case, $enforcementRequestDate);
+            $this->deadlineService->closeExecutionPrescriptionDeadline($case, $enforcementRequestDate, $registrationNumber);
         } catch (\Throwable $e) {
             $this->logger->error('Failed to close PRESCRIPTIE_EXECUTARE deadline', [
                 'caseNumber' => $case->getCaseNumber(),

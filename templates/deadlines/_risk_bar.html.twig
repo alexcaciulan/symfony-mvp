@@ -64,8 +64,9 @@
             <span class="block mt-1 text-[11px] uppercase tracking-wide font-semibold">{{ 'deadlines.counter.fatal30'|trans }}</span>
         </a>
 
-        {# Counts CASES, not deadlines: a blocked case has no deadline to count, so
-           this pill shows or hides the blockage zone instead of selecting rows. #}
+        {# Counts CASES, not deadlines: what a blocked case is missing is not a term the
+           agenda could list, so this pill shows or hides the blockage zone instead of
+           selecting rows. #}
         <a href="{{ path('app_deadlines', filter.toggled('blocked').queryParameters()) }}"
            data-counter="blocked"
            role="button"

@@ -48,6 +48,10 @@ final class DeadlineAlertService
         $sent7 = $sent3 = $sent1 = $expired = $sentLongRange = 0;
 
         foreach ($this->deadlineRepository->findIncomplete() as $deadline) {
+            if ($this->alertsMuted($deadline)) {
+                continue;
+            }
+
             $days = $this->daysUntil($nowDate, $deadline);
 
             if ($days < 0) {
@@ -77,15 +81,50 @@ final class DeadlineAlertService
     }
 
     /**
+     * Whether a term that is still open deliberately sends no reminders.
+     *
+     * One case so far: the enforcement limitation on a case where the lawyer has
+     * recorded the date he filed the enforcement request with the bailiff but the
+     * registration number confirming it has not come back yet. The act the term asks for
+     * has been performed, so warning about the term would be nagging about something
+     * done; what is actually missing is the confirmation, and that is chased once by
+     * {@see BlockedCaseAlertService}, not by this ladder. The term stays open rather than
+     * closed as a platform precaution, not because the law requires it: CPC art. 708
+     * para. 1 pt. 2 interrupts the limitation on the day the request was filed, whatever
+     * the bailiff does afterwards. Closing is irreversible on its own, so the application
+     * waits for the number before performing it.
+     *
+     * Read from the case rather than filtered in the repository query on purpose: this
+     * is a rule about one situation, and pushing it into the generic query of every open
+     * deadline would hide the term from everything that reads it.
+     */
+    public function alertsMuted(LegalDeadline $deadline): bool
+    {
+        if ($deadline->getType() !== DeadlineType::PRESCRIPTIE_EXECUTARE) {
+            return false;
+        }
+
+        $case = $deadline->getLegalCase();
+
+        return $case->getEnforcementRequestDate() !== null && ($case->getEnforcementRegistrationNumber() ?? '') === '';
+    }
+
+    /**
      * The whole alert ladder of a deadline, loosest tier first, each with whether it
      * has already gone out. Exposed for the card that lists the reminders of a term:
      * the tiers depend on the type, so a template printing a fixed 7 / 3 / 1 would hide
      * the two tiers a limitation term actually has.
      *
+     * Empty on a muted term, so a card cannot promise reminders the job will not send.
+     *
      * @return list<array{days: int, sent: bool}>
      */
     public function alertLadder(LegalDeadline $deadline): array
     {
+        if ($this->alertsMuted($deadline)) {
+            return [];
+        }
+
         $ladder = [];
         foreach (array_reverse($this->tiers($deadline->getType())) as [$tierDays, $isSent]) {
             $ladder[] = ['days' => $tierDays, 'sent' => $isSent($deadline)];
@@ -102,10 +141,15 @@ final class DeadlineAlertService
      * Read only, nothing is written. It exists so a screen that promises the lawyer a
      * reminder reads the ladder from the service that owns it: the tiers differ by
      * type, and a template repeating 7 / 3 / 1 would promise a limitation term a
-     * warning a week ahead while the job actually sends it a month ahead.
+     * warning a week ahead while the job actually sends it a month ahead. Null on a
+     * muted term for the same reason: nothing is scheduled on it.
      */
     public function nextAlertDaysBefore(LegalDeadline $deadline): ?int
     {
+        if ($this->alertsMuted($deadline)) {
+            return null;
+        }
+
         foreach (array_reverse($this->tiers($deadline->getType())) as [$tierDays, $isSent]) {
             if (!$isSent($deadline)) {
                 return $tierDays;

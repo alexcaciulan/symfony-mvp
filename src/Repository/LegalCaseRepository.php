@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace App\Repository;
 
 use App\Entity\CaseStatusHistory;
+use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\DeadlineType;
+use App\Enum\DocumentType;
 use App\Enum\StampDutyStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\QueryBuilder;
@@ -303,6 +305,10 @@ class LegalCaseRepository extends ServiceEntityRepository
      * out, recording the receipt no longer changes what the lawyer has to do next,
      * and the row would sit in the blockage list forever.
      *
+     * Once the date is in, the same case may still be waiting on the document proving
+     * it; that is {@see self::findAwaitingSummonsCommunicationProof()}, which starts
+     * exactly where this one stops.
+     *
      * @return LegalCase[] oldest summons first, that being the one closest to filing
      */
     public function findAwaitingSummonsCommunicationDate(User $user): array
@@ -312,6 +318,46 @@ class LegalCaseRepository extends ServiceEntityRepository
             ->andWhere('lc.paymentNoticeDate IS NOT NULL')
             ->andWhere('lc.paymentNoticeCommunicationDate IS NULL')
             ->setParameter('statuses', [CaseStatus::AMIABIL, CaseStatus::SOMATIE_TRIMISA])
+            ->orderBy('lc.paymentNoticeDate', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * Cases where the receipt of the summons is dated while the document proving it was
+     * never attached. The 15-day term of CPC art. 1015 para. 1 is already running here,
+     * computed from that date, so unlike the other blockages this one holds up no
+     * calculation: what it holds up is the filing, which
+     * {@see \App\Controller\Case\CasePaymentOrderController::generate()} refuses without
+     * the proof.
+     *
+     * Same statuses as {@see self::findAwaitingSummonsCommunicationDate()} and disjoint
+     * from it on the date instead: there the date is missing, here it is present. So a
+     * case still raises at most one blockage, and the lawyer is asked for one thing at a
+     * time, the date first because it starts a term and the proof after.
+     *
+     * Restricted to the statuses before filing for the same reason as its sibling: once
+     * the petition is out, this row unblocks nothing the lawyer can still act on.
+     *
+     * @return LegalCase[] oldest summons first, that being the one closest to filing
+     */
+    public function findAwaitingSummonsCommunicationProof(User $user): array
+    {
+        $withCommunicationProof = $this->getEntityManager()->createQueryBuilder()
+            ->select('1')
+            ->from(Document::class, 'cp')
+            ->where('cp.legalCase = lc')
+            ->andWhere('cp.documentType = :communicationProofType');
+
+        $qb = $this->blockedCasesQueryBuilder($user);
+
+        return $qb
+            ->andWhere('lc.status IN (:statuses)')
+            ->andWhere('lc.paymentNoticeDate IS NOT NULL')
+            ->andWhere('lc.paymentNoticeCommunicationDate IS NOT NULL')
+            ->andWhere($qb->expr()->not($qb->expr()->exists($withCommunicationProof->getDQL())))
+            ->setParameter('statuses', [CaseStatus::AMIABIL, CaseStatus::SOMATIE_TRIMISA])
+            ->setParameter('communicationProofType', DocumentType::DOVADA_COMUNICARE)
             ->orderBy('lc.paymentNoticeDate', 'ASC')
             ->getQuery()
             ->getResult();
@@ -459,6 +505,57 @@ class LegalCaseRepository extends ServiceEntityRepository
             ->setParameter('executionPrescriptionType', DeadlineType::PRESCRIPTIE_EXECUTARE)
             ->setParameter('annulmentStatus', CaseStatus::IN_ANULARE->value)
             ->orderBy('lc.updatedAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * Cases in enforcement where the lawyer recorded the date he filed the request with
+     * the bailiff and the registration number confirming it is still missing. That number
+     * is what closes the enforcement-limitation term, because the interruption of CPC art.
+     * 708 para. 1 pt. 2 rests on a filing confirmed from outside the platform, so until it
+     * arrives the three years stay under watch.
+     *
+     * No grace period here. The agenda states what a case is waiting on the moment it
+     * starts waiting; the grace only governs when the single reminder goes out, which is
+     * {@see self::findEnforcementRegistrationNumberOverdue()}.
+     *
+     * EXECUTARE only, which is what keeps this disjoint from the reasons above: they
+     * cover AMIABIL/SOMATIE_TRIMISA, ORDONANTA_EMISA, CERERE_DEPUSA/DOSAR_INREGISTRAT/
+     * TERMEN_FIXAT and DEFINITIVA, so a case still contributes at most one blockage.
+     *
+     * @return LegalCase[] oldest filing first, that being the one waiting longest
+     */
+    public function findAwaitingEnforcementRegistrationNumber(User $user): array
+    {
+        return $this->blockedCasesQueryBuilder($user)
+            ->andWhere('lc.status = :status')
+            ->andWhere('lc.enforcementRequestDate IS NOT NULL')
+            ->andWhere('lc.enforcementRegistrationNumber IS NULL')
+            ->setParameter('status', CaseStatus::EXECUTARE)
+            ->orderBy('lc.enforcementRequestDate', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * The same cases, across all users, restricted to the ones whose declared filing date
+     * is old enough for the registration number to be overdue. For the daily job, which
+     * sends exactly one reminder per case.
+     *
+     * @return LegalCase[] oldest filing first
+     */
+    public function findEnforcementRegistrationNumberOverdue(\DateTimeImmutable $filedOnOrBefore): array
+    {
+        return $this->createQueryBuilder('lc')
+            ->andWhere('lc.deletedAt IS NULL')
+            ->andWhere('lc.status = :status')
+            ->andWhere('lc.enforcementRegistrationNumber IS NULL')
+            ->andWhere('lc.enforcementRequestDate IS NOT NULL')
+            ->andWhere('lc.enforcementRequestDate <= :filedOnOrBefore')
+            ->setParameter('status', CaseStatus::EXECUTARE)
+            ->setParameter('filedOnOrBefore', $filedOnOrBefore)
+            ->orderBy('lc.enforcementRequestDate', 'ASC')
             ->getQuery()
             ->getResult();
     }

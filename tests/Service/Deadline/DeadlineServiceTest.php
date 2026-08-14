@@ -281,6 +281,151 @@ final class DeadlineServiceTest extends KernelTestCase
         $this->assertNull($this->service->closeFilingDeadline($this->freshCaseWithoutSubscriberDeadline()));
     }
 
+    // ===== the annulment window: a decision, or the ten days running out ==========
+
+    /**
+     * The lawyer decides he is not challenging the order. The record has to say that,
+     * and say it against him: a year later the difference between "the lawyer stepped
+     * away from the appeal" and "the platform noticed the term had run" is the whole
+     * question, and both show up on screen as a closed term.
+     */
+    public function testWaivingTheAnnulmentRequestRecordsTheDecisionAgainstTheLawyer(): void
+    {
+        $deadline = $this->service->createAppealDeadline($this->case, new \DateTimeImmutable('2026-02-02'));
+
+        $closed = $this->service->waiveAnnulmentRequest($this->case, $this->user);
+
+        $this->assertSame($deadline->getId(), $closed?->getId());
+        $this->assertTrue($closed->isCompleted());
+        $this->assertSame($this->user->getId(), $closed->getCompletedBy()?->getId());
+        $this->assertNotNull($closed->getCompletedAt());
+        $this->assertSame('annulment_request_waived', $this->closingReason($deadline));
+    }
+
+    /**
+     * The regression the decision must not have introduced. A lawyer who presses nothing
+     * keeps the term until the ten days are spent, and then the platform closes it on its
+     * own, without a user and under the reason that says the window lapsed. This is the
+     * behaviour that existed before there was anything to press, and the only difference
+     * the new route may make to it is which reason ends up in the log.
+     */
+    public function testALapsedAnnulmentTermIsStillClosedByThePlatformAsALapse(): void
+    {
+        $deadline = $this->service->createAppealDeadline($this->case, new \DateTimeImmutable('2026-02-02'));
+
+        $closed = $this->service->closeAppealDeadline($this->case);
+
+        $this->assertSame($deadline->getId(), $closed?->getId());
+        $this->assertTrue($closed->isCompleted());
+        $this->assertNull($closed->getCompletedBy(), 'Closed by the platform, not by a lawyer.');
+        $this->assertSame('appeal_term_lapsed', $this->closingReason($deadline));
+    }
+
+    /**
+     * The two endings never overwrite each other. The daily pass runs over every open
+     * term and reaches a waived case as well, so a second closing has to leave the first
+     * record alone: the lawyer's decision is the true one, and rewriting it as a lapse
+     * would erase the only trace that he took it.
+     */
+    public function testTheAutomaticClosingDoesNotOverwriteADecisionAlreadyRecorded(): void
+    {
+        $deadline = $this->service->createAppealDeadline($this->case, new \DateTimeImmutable('2026-02-02'));
+        $this->service->waiveAnnulmentRequest($this->case, $this->user);
+        $completedAt = $deadline->getCompletedAt();
+
+        $this->service->closeAppealDeadline($this->case);
+
+        $this->assertSame($this->user->getId(), $deadline->getCompletedBy()?->getId());
+        $this->assertSame($completedAt, $deadline->getCompletedAt());
+        $this->assertSame(['annulment_request_waived'], $this->closingReasons($deadline), 'A closed term is closed once.');
+    }
+
+    /** Nothing to decide about on a case that never had the window. */
+    public function testWaivingTheAnnulmentRequestIsANoOpWithoutTheTerm(): void
+    {
+        $this->assertNull($this->service->waiveAnnulmentRequest($this->freshCaseWithoutSubscriberDeadline(), $this->user));
+    }
+
+    // ===== the enforcement limitation: closed on the bailiff registration number ===
+
+    /**
+     * Both facts land in the audit payload, and they play different parts. The NUMBER is
+     * what permits the closing, being the confirmation from outside the platform that the
+     * request was filed; the DATE is what the closing is measured against, because the
+     * interruption of CPC art. 708 para. 1 pt. 2 attaches to the request filed and runs
+     * from its date. A payload carrying only one of them could not answer, later, either
+     * why the term was closed or as of when.
+     */
+    public function testClosingTheEnforcementLimitationRecordsTheNumberAndTheFilingDate(): void
+    {
+        $deadline = $this->service->createExecutionPrescriptionDeadline($this->case, new \DateTimeImmutable('2026-09-11'));
+
+        $closed = $this->service->closeExecutionPrescriptionDeadline(
+            $this->case,
+            new \DateTimeImmutable('2026-10-05'),
+            '412/2026',
+        );
+
+        $this->assertSame($deadline->getId(), $closed?->getId());
+        $this->assertTrue($closed->isCompleted());
+        $this->assertNull($closed->getCompletedBy(), 'Closed by the platform on a recorded fact, not by a lawyer.');
+
+        $payload = $this->closingPayload($deadline);
+        $this->assertSame('enforcement_request_registered', $payload['reason'] ?? null);
+        $this->assertSame('412/2026', $payload['enforcementRegistrationNumber'] ?? null);
+        $this->assertSame('2026-10-05', $payload['enforcementRequestDate'] ?? null);
+        // The term it closed, still stated at its own maturity: the closing records that
+        // the three years stopped, it does not move where they would have ended.
+        $this->assertSame('2029-09-11', $payload['deadlineDate'] ?? null);
+    }
+
+    public function testClosingTheEnforcementLimitationIsANoOpWithoutTheTerm(): void
+    {
+        $this->assertNull($this->service->closeExecutionPrescriptionDeadline(
+            $this->freshCaseWithoutSubscriberDeadline(),
+            new \DateTimeImmutable('2026-10-05'),
+            '412/2026',
+        ));
+    }
+
+    /** The reason recorded on the single closing of a deadline. */
+    private function closingReason(LegalDeadline $deadline): ?string
+    {
+        return $this->closingPayload($deadline)['reason'] ?? null;
+    }
+
+    /**
+     * Every closing ever logged for a deadline, in order, by the reason each carries.
+     *
+     * @return list<string>
+     */
+    private function closingReasons(LegalDeadline $deadline): array
+    {
+        return array_values(array_map(
+            static fn (AuditLog $entry): string => (string) ($entry->getNewData()['reason'] ?? ''),
+            $this->closingEntries($deadline),
+        ));
+    }
+
+    /** @return array<string, mixed> */
+    private function closingPayload(LegalDeadline $deadline): array
+    {
+        $entries = $this->closingEntries($deadline);
+        $this->assertCount(1, $entries, 'A closing is logged exactly once.');
+
+        return $entries[0]->getNewData() ?? [];
+    }
+
+    /** @return list<AuditLog> */
+    private function closingEntries(LegalDeadline $deadline): array
+    {
+        return array_values($this->em->getRepository(AuditLog::class)->findBy([
+            'category' => AuditLogService::CATEGORY_DEADLINE_COMPLETED,
+            'entityType' => LegalDeadline::class,
+            'entityId' => (string) $deadline->getId(),
+        ], ['id' => 'ASC']));
+    }
+
     public function testRecalculatePaymentNoticeDeadlineUpdatesExistingAndClearsDisclaimer(): void
     {
         // Estimated deadline first (with a disclaimer, as the workflow subscriber sets it).

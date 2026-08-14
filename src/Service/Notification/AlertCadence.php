@@ -23,4 +23,18 @@ final class AlertCadence
     {
         return sprintf('%s:%d:%s', $reason, $caseId, $on->format('o-\WW'));
     }
+
+    /**
+     * Key without a period, so the condition produces exactly one message per case, ever.
+     * The dedup lookup in {@see NotificationDispatcher} refuses every later delivery on
+     * the same key, on both channels, and no later run can build a different one.
+     *
+     * For the conditions that wait on a third party rather than on the lawyer: repeating
+     * a reminder he cannot clear by himself is what turns the sender into noise. The
+     * standing surface for those is the blockage zone of the agenda, which is passive.
+     */
+    public static function once(string $reason, int $caseId): string
+    {
+        return sprintf('%s:%d', $reason, $caseId);
+    }
 }

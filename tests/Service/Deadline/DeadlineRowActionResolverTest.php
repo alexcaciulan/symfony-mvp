@@ -40,21 +40,40 @@ class DeadlineRowActionResolverTest extends TestCase
     /** @return iterable<string, array{DeadlineType, string}> */
     public static function actOnTheSpotProvider(): iterable
     {
-        yield 'stamp duty' => [DeadlineType::TIMBRARE, 'deadlines.action.mark_stamped'];
-        yield 'annulment request' => [DeadlineType::CERERE_IN_ANULARE, 'deadlines.action.mark_done'];
-        yield 'free form reminder' => [DeadlineType::OTHER, 'deadlines.action.mark_done'];
+        yield 'stamp duty' => [DeadlineType::TIMBRARE, 'deadlines.action.mark_stamped', 'case_deadline_complete'];
+        yield 'free form reminder' => [DeadlineType::OTHER, 'deadlines.action.mark_done', 'case_deadline_complete'];
+        // The platform cannot draft the annulment request, so the only act it offers on
+        // this window is the decision not to use it, on a route of its own.
+        yield 'annulment request' => [DeadlineType::CERERE_IN_ANULARE, 'deadlines.action.no_annulment_request', 'case_deadline_no_annulment_request'];
     }
 
     /** When the act is performed here, the primary button is the close itself. */
     #[DataProvider('actOnTheSpotProvider')]
-    public function testActPerformedOnTheSpotHasTheCloseAsItsOnlyButton(DeadlineType $type, string $expectedLabel): void
+    public function testActPerformedOnTheSpotHasTheCloseAsItsOnlyButton(DeadlineType $type, string $expectedLabel, string $expectedRoute): void
     {
         $action = $this->resolver->resolve($this->item($type, daysRemaining: 3));
 
         self::assertSame($expectedLabel, $action->primary->label);
         self::assertTrue($action->primary->closesDeadline);
-        self::assertSame('case_deadline_complete', $action->primary->route);
+        self::assertSame($expectedRoute, $action->primary->route);
         self::assertNull($action->close, 'A row must never carry two close controls.');
+    }
+
+    /**
+     * The decision not to challenge the order posts to its own route and carries its own
+     * token id. Both matter: the audit trail has to tell a decision apart from the ten
+     * days simply lapsing, and a token id left pointing at the generic close would make
+     * every such post fail CSRF validation.
+     */
+    public function testTheAnnulmentWindowIsClosedByDecliningIt(): void
+    {
+        $deadline = $this->item(DeadlineType::CERERE_IN_ANULARE, daysRemaining: 5);
+        $action = $this->resolver->resolve($deadline);
+
+        self::assertSame('case_deadline_no_annulment_request', $action->primary->route);
+        self::assertSame('POST', $action->primary->method);
+        self::assertStringStartsWith('no_annulment_request_', (string) $action->primary->csrfTokenId);
+        self::assertSame('deadlines.action.note.no_annulment_request', $action->primary->note);
     }
 
     public function testHearingLeadsToThePortalAndKeepsTheCloseAsSecondary(): void
@@ -79,6 +98,38 @@ class DeadlineRowActionResolverTest extends TestCase
         self::assertSame('deadlines.action.generate_payment_order', $action->primary->label);
         self::assertSame('case_payment_order_generate', $action->primary->route);
         self::assertNotNull($action->close);
+    }
+
+    /**
+     * The agenda never posts the filing itself. The button carries no CSRF token id, so
+     * {@see \App\Service\Deadline\DeadlineActionButton::needsCaseDialog()} is true and the
+     * row renders a link into the case rather than a form of its own.
+     *
+     * That is what keeps the proof of communication (CPC art. 1015 para. 1) a single
+     * gate: a form here would be a second entry point into
+     * {@see \App\Controller\Case\CasePaymentOrderController::generate()}, offered from a
+     * screen that shows neither the stamp duty nor the proof, and pressed from a row
+     * whose case may be missing both.
+     */
+    #[DataProvider('filingFromTheAgendaProvider')]
+    public function testFilingIsNeverPostedStraightFromTheAgenda(DeadlineType $type, int $daysRemaining): void
+    {
+        $action = $this->resolver->resolve(
+            $this->item($type, daysRemaining: $daysRemaining, certainty: DeadlineCertainty::CERT, status: CaseStatus::SOMATIE_TRIMISA),
+        );
+
+        self::assertSame('case_payment_order_generate', $action->primary->route);
+        self::assertNull($action->primary->csrfTokenId);
+        self::assertTrue($action->primary->needsCaseDialog(), 'The row has to lead into the case, where every gate of the filing is shown.');
+        self::assertNull($action->primary->agendaDialogId, 'The agenda carries no dialog for the filing.');
+    }
+
+    /** @return iterable<string, array{DeadlineType, int}> */
+    public static function filingFromTheAgendaProvider(): iterable
+    {
+        yield 'expired summons answer' => [DeadlineType::RASPUNS_SOMATIE, -2];
+        yield 'claim limitation' => [DeadlineType::PRESCRIPTIE, 12];
+        yield 'filing the request' => [DeadlineType::DEPUNERE_CERERE, 6];
     }
 
     public function testRunningSummonsAnswerOnlyOffersTheClose(): void
@@ -179,7 +230,7 @@ class DeadlineRowActionResolverTest extends TestCase
     public static function primaryActionPerTypeProvider(): iterable
     {
         yield 'stamp duty' => [DeadlineType::TIMBRARE, 'deadlines.action.mark_stamped', self::CLOSE_PRIMARY];
-        yield 'annulment request' => [DeadlineType::CERERE_IN_ANULARE, 'deadlines.action.mark_done', self::CLOSE_PRIMARY];
+        yield 'annulment request' => [DeadlineType::CERERE_IN_ANULARE, 'deadlines.action.no_annulment_request', self::CLOSE_PRIMARY];
         yield 'free form reminder' => [DeadlineType::OTHER, 'deadlines.action.mark_done', self::CLOSE_PRIMARY];
         yield 'summons answer' => [DeadlineType::RASPUNS_SOMATIE, 'deadlines.action.mark_done', self::CLOSE_PRIMARY];
         yield 'hearing' => [DeadlineType::JUDECATA, 'deadlines.action.open_portal', self::CLOSE_SECONDARY];
@@ -206,11 +257,15 @@ class DeadlineRowActionResolverTest extends TestCase
             return;
         }
 
-        // Whichever side the close lands on, it posts to the route the case page has
-        // always used, carrying the token that route validates. Nothing on this page
-        // closes a deadline any other way.
+        // Whichever side the close lands on, it posts to an existing route carrying the
+        // token that route validates. Nothing on this page closes a deadline any other
+        // way, and the annulment window is closed through the named decision rather than
+        // through the generic close.
         $close = $action->close ?? $action->primary;
-        self::assertSame('case_deadline_complete', $close->route);
+        self::assertSame(
+            $type === DeadlineType::CERERE_IN_ANULARE ? 'case_deadline_no_annulment_request' : 'case_deadline_complete',
+            $close->route,
+        );
         self::assertSame('POST', $close->method);
         self::assertNotNull($close->csrfTokenId);
         self::assertArrayHasKey('deadlineId', $close->routeParameters);

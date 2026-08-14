@@ -111,7 +111,11 @@
                 </button>
             {% endif %}
 
-            {% if status.value == 'AMANATA_REGULARIZARE' %}
+            {# Înregistrarea înștiințării rămâne disponibilă și pe dosarele cu taxa
+               neachitată: de când taxa se plătește la apariția numărului de dosar,
+               avocatul nu mai trece prin amânare, iar o înștiințare primită totuși
+               trebuie să aibă unde să fie consemnată. #}
+            {% if status.value != 'ACHITATA' %}
                 <button type="button" data-hs-overlay="#hs-modal-stamp-duty-court-notice"
                         class="w-full py-2 px-3 inline-flex items-center justify-center gap-2 text-xs font-medium rounded-lg border border-orange-300 dark:border-orange-800 text-orange-800 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/40 transition">
                     {{ 'case_overview.stamp_duty.cta_court_notice'|trans }}

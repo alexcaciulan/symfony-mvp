@@ -263,6 +263,44 @@ class DeadlineAlertServiceTest extends KernelTestCase
         $this->assertFalse($stored->isAlertSentMidRange());
     }
 
+    /**
+     * The enforcement request is filed and the bailiff has not sent back the number under
+     * which he registered it. The act the term asks for has been performed, so warning
+     * about the term would be nagging about something done; what is missing is the
+     * confirmation, and that is chased once, by BlockedCaseAlertService. The term stays
+     * open because the interruption of CPC art. 708 para. 1 pt. 2 rests on a filing that
+     * is proven, not declared.
+     */
+    public function testTheEnforcementLimitationGoesSilentWhileTheRegistrationNumberIsAwaited(): void
+    {
+        $this->case->setStatus(CaseStatus::EXECUTARE);
+        $this->case->setEnforcementRequestDate(new \DateTimeImmutable('2026-08-01'));
+        $this->em->flush();
+
+        $deadline = $this->deadline('2026-09-01', type: DeadlineType::PRESCRIPTIE_EXECUTARE);
+        $service = $this->service();
+
+        $service->processAlerts(new \DateTimeImmutable('2026-08-29'));
+
+        self::assertTrue($service->alertsMuted($deadline));
+        self::assertSame([], $this->eventsFor($deadline), 'A muted term dispatches nothing.');
+        self::assertSame([], $service->alertLadder($deadline), 'The card must not promise reminders that will not go out.');
+        self::assertNull($service->nextAlertDaysBefore($deadline));
+    }
+
+    /** With the number recorded the term is closed anyway, so nothing here is muted. */
+    public function testTheEnforcementLimitationAlertsNormallyWithoutADeclaredFiling(): void
+    {
+        $this->case->setStatus(CaseStatus::EXECUTARE);
+        $this->em->flush();
+
+        $deadline = $this->deadline('2026-09-01', type: DeadlineType::PRESCRIPTIE_EXECUTARE);
+        $service = $this->service();
+
+        self::assertFalse($service->alertsMuted($deadline));
+        self::assertSame(7, $service->nextAlertDaysBefore($deadline));
+    }
+
     protected function tearDown(): void
     {
         $conn = $this->em->getConnection();

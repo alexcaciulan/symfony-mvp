@@ -48,7 +48,17 @@ final class DeadlineExtension extends AbstractExtension
             new TwigFunction('deadline_is_arrear', $this->isArrear(...)),
             new TwigFunction('deadline_next_alert_days_before', $this->nextAlertDaysBefore(...)),
             new TwigFunction('deadline_alert_ladder', $this->alertLadder(...)),
+            new TwigFunction('deadline_alerts_muted', $this->alertsMuted(...)),
         ];
+    }
+
+    /**
+     * Whether an open term deliberately sends no reminders, so the card can say so
+     * instead of printing an empty ladder next to the word "Alerts".
+     */
+    public function alertsMuted(LegalDeadline $deadline): bool
+    {
+        return $this->alertService->alertsMuted($deadline);
     }
 
     /**

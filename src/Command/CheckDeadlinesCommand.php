@@ -85,6 +85,7 @@ final class CheckDeadlinesCommand extends Command
         $io->listing([
             sprintf('Stamp duty due after case number: %d', $blocked->stampDutyDue),
             sprintf('Regularization notice date missing: %d', $blocked->regularizationNoticeDateMissing),
+            sprintf('Bailiff registration number missing: %d', $blocked->enforcementRegistrationNumberMissing),
         ]);
         $io->success(sprintf(
             '%d alerts emitted, %d cases finalized, %d blocked cases raised.',

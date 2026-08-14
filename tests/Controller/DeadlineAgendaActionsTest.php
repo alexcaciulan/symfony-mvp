@@ -12,6 +12,7 @@ use App\Enum\DeadlineType;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
@@ -48,6 +49,10 @@ final class DeadlineAgendaActionsTest extends WebTestCase
         );
         $conn->executeStatement(
             'DELETE d FROM legal_deadline d JOIN legal_case lc ON d.legal_case_id = lc.id JOIN `user` u ON lc.user_id = u.id WHERE u.email LIKE ?',
+            [$this->prefix . '%'],
+        );
+        $conn->executeStatement(
+            'DELETE d FROM document d JOIN `user` u ON d.uploaded_by_id = u.id WHERE u.email LIKE ?',
             [$this->prefix . '%'],
         );
         $conn->executeStatement(
@@ -208,8 +213,11 @@ final class DeadlineAgendaActionsTest extends WebTestCase
      *
      * Recording the real date is what brings the term into existence, counted from that
      * date: Monday 1 June 2026 plus 15 free days (CPC art. 181 alin. 1 pct. 2, hence 16
-     * calendar days) matures on Wednesday 17 June 2026, a working day. The blockage
-     * disappears in the same move, because it was only the absence of this date.
+     * calendar days) matures on Wednesday 17 June 2026, a working day.
+     *
+     * The case stays in the blockage zone afterwards, on the next reason: the date is the
+     * lawyer's statement, and the filing rests on the document that proves it. One case,
+     * still one row, now asking for the proof rather than for the date.
      */
     public function testRecordingTheServiceDateTurnsTheBlockageIntoTheFifteenDayTerm(): void
     {
@@ -250,8 +258,130 @@ final class DeadlineAgendaActionsTest extends WebTestCase
         $after = $this->client->request('GET', '/termene');
         self::assertResponseIsSuccessful();
         self::assertCount(1, $after->filter('#deadline-row-' . $term->getId()));
-        self::assertSame('0', trim($after->filter('[data-counter="blocked"] strong')->text()));
-        self::assertCount(0, $after->filter('details'), 'Nothing is blocked any more, so the zone is gone.');
+        self::assertSame('1', trim($after->filter('[data-counter="blocked"] strong')->text()), 'One case, one row: the reason moved on, the count did not grow.');
+        self::assertStringContainsString(
+            $translator->trans('deadlines.blockage.SUMMONS_PROOF_MISSING.state'),
+            $after->filter('details')->text(),
+            'With the date in, what the case waits on is the proof.',
+        );
+    }
+
+    /**
+     * The postal case in one move. The acknowledgement of receipt arrives in the mailbox
+     * carrying the date, so the dialog takes both and the case comes out with its term
+     * created and nothing left blocked.
+     */
+    public function testRecordingTheServiceDateWithTheProofClearsTheBlockageEntirely(): void
+    {
+        $user = $this->makeUser();
+        $case = $this->makeCase($user, CaseStatus::SOMATIE_TRIMISA);
+        $case->setPaymentNoticeDate(new \DateTime('2026-06-01'));
+        $this->em->flush();
+
+        $this->client->loginUser($user);
+
+        $proofPath = sys_get_temp_dir() . '/agenda-dovada-' . uniqid() . '.pdf';
+        file_put_contents($proofPath, "%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n");
+
+        try {
+            $this->client->request(
+                'POST',
+                '/case/' . $case->getId() . '/summons-communication-date',
+                [
+                    'payment_notice_communication_date' => [
+                        'paymentNoticeCommunicationDate' => '2026-06-01',
+                        'paymentNoticeCommunicationMethod' => 'POSTA_RCD',
+                        '_token' => $this->token('payment_notice_communication_date'),
+                    ],
+                ],
+                [
+                    'payment_notice_communication_date' => [
+                        'communicationProof' => new UploadedFile($proofPath, 'DovadaComunicare.pdf', 'application/pdf', null, true),
+                    ],
+                ],
+            );
+            self::assertResponseRedirects();
+
+            $after = $this->client->request('GET', '/termene');
+            self::assertResponseIsSuccessful();
+            self::assertSame('0', trim($after->filter('[data-counter="blocked"] strong')->text()));
+            self::assertCount(0, $after->filter('details'), 'Date and proof together leave nothing blocked.');
+        } finally {
+            @unlink($proofPath);
+            $uploadsDir = static::getContainer()->getParameter('kernel.project_dir') . '/var/uploads';
+            foreach (glob($uploadsDir . '/cases/' . $case->getId() . '/*') ?: [] as $file) {
+                @unlink($file);
+            }
+            @rmdir($uploadsDir . '/cases/' . $case->getId());
+        }
+    }
+
+    /**
+     * The other half of the blockage: it clears. The row of a case waiting on the proof
+     * points into the Documents tab rather than at a dialog of its own, because the act
+     * is an upload; so the proof is attached through that very route here, and the zone
+     * has to let the case go.
+     *
+     * The whole chain in one test, deliberately: the query behind the zone, the reason it
+     * raises, the button it hands over and the upload that satisfies it are four pieces
+     * that pass on a document TYPE, and a blockage nothing clears is worse than no
+     * blockage at all.
+     */
+    public function testUploadingTheProofFromTheBlockageRowClearsTheAgenda(): void
+    {
+        $user = $this->makeUser();
+        $case = $this->makeCase($user, CaseStatus::SOMATIE_TRIMISA);
+        $case->setPaymentNoticeDate(new \DateTime('2026-06-01'));
+        $case->setPaymentNoticeCommunicationDate(new \DateTimeImmutable('2026-06-01'));
+        // The term the date created, which is where this case stands: counting down and
+        // blocked at the same time, the fifteen days running while the filing waits.
+        $term = $this->makeDeadline($case, '2026-06-17', DeadlineType::RASPUNS_SOMATIE);
+        $this->em->flush();
+
+        $this->client->loginUser($user);
+        $translator = static::getContainer()->get('translator');
+
+        $before = $this->client->request('GET', '/termene');
+        self::assertResponseIsSuccessful();
+        self::assertSame('1', trim($before->filter('[data-counter="blocked"] strong')->text()));
+        self::assertStringContainsString(
+            $translator->trans('deadlines.blockage.SUMMONS_PROOF_MISSING.state'),
+            $before->filter('details')->text(),
+        );
+        // A link into the case, not a form: the act is a file upload, which no agenda
+        // dialog collects. The route behind the button is pinned in
+        // DeadlineBlockageActionResolverTest; what matters here is that the row leads
+        // somewhere the lawyer can act rather than posting an empty payload.
+        self::assertSame(
+            '/case/' . $case->getId(),
+            $before->filter('details a')->last()->attr('href'),
+        );
+
+        $token = $this->token('document_upload');
+        $proofPath = sys_get_temp_dir() . '/agenda-blockage-dovada-' . uniqid() . '.pdf';
+        file_put_contents($proofPath, "%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n");
+
+        try {
+            $this->client->request(
+                'POST',
+                sprintf('/case/%d/document/upload', $case->getId()),
+                ['document_upload' => ['_token' => $token, 'documentType' => 'dovada_comunicare']],
+                ['document_upload' => ['file' => new UploadedFile($proofPath, 'DovadaComunicare.pdf', 'application/pdf', null, true)]],
+            );
+
+            $after = $this->client->request('GET', '/termene');
+            self::assertResponseIsSuccessful();
+            self::assertSame('0', trim($after->filter('[data-counter="blocked"] strong')->text()));
+            self::assertCount(0, $after->filter('details'), 'With the proof in, the case waits on nothing.');
+            self::assertCount(1, $after->filter('#deadline-row-' . $term->getId()), 'The fifteen days keep running: the proof unblocks the filing, it does not end the term.');
+        } finally {
+            @unlink($proofPath);
+            $uploadsDir = static::getContainer()->getParameter('kernel.project_dir') . '/var/uploads';
+            foreach (glob($uploadsDir . '/cases/' . $case->getId() . '/*') ?: [] as $file) {
+                @unlink($file);
+            }
+            @rmdir($uploadsDir . '/cases/' . $case->getId());
+        }
     }
 
     /**

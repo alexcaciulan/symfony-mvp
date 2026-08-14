@@ -9,11 +9,13 @@ use App\Entity\LegalDeadline;
 use App\Entity\User;
 use App\Enum\BlockedCaseAlert;
 use App\Enum\CaseStatus;
+use App\Enum\DeadlineConsequence;
 use App\Enum\DeadlineType;
 use App\Enum\StampDutyStatus;
 use App\Event\BlockedCaseAlertEvent;
 use App\Repository\LegalCaseRepository;
 use App\Service\Deadline\BlockedCaseAlertService;
+use App\Service\Deadline\DeadlineConsequenceResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -121,6 +123,42 @@ final class BlockedCaseAlertServiceTest extends KernelTestCase
     }
 
     /**
+     * What the file number triggers is a REMINDER, and a reminder only. The duty is due
+     * from that moment (OUG 80/2013 art. 33 para. 1), but the ten days whose lapse annuls
+     * the claim (para. 2, CPC art. 197) run from the court's notice, which nobody has
+     * sent yet. So the case is told to pay and carries no term at all: a TIMBRARE
+     * deadline here would show a date no document supports, and the consequence attached
+     * to that type is the annulment of the claim.
+     */
+    public function testTheFileNumberProducesAReminderAndNoTermWithAnAnnulmentConsequence(): void
+    {
+        $case = $this->createCase(CaseStatus::DOSAR_INREGISTRAT);
+        $case->setCourtCaseNumber('806/211/2026');
+        $case->setStampDutyStatus(StampDutyStatus::NEACHITATA);
+        // A due date, so the case carries the terms it really would carry at this point
+        // (the limitation of NCC art. 2517) and the check below reads a populated list
+        // rather than an empty one.
+        $case->setDueDate(new \DateTime('2025-03-10'));
+        $this->em->flush();
+
+        $this->process();
+
+        self::assertSame([BlockedCaseAlert::STAMP_DUTY_DUE], $this->reasonsFor($case));
+
+        $deadlines = $this->em->getRepository(LegalDeadline::class)->findBy(['legalCase' => $case->getId()]);
+        self::assertNotSame([], $deadlines);
+
+        $consequences = new DeadlineConsequenceResolver();
+        foreach ($deadlines as $deadline) {
+            self::assertNotSame(
+                DeadlineConsequence::CASE_ANNULMENT,
+                $consequences->resolve($deadline->getType()),
+                $deadline->getType()->value . ' would make a reminder look like a fatal term.',
+            );
+        }
+    }
+
+    /**
      * The key is what throttles delivery downstream: every day of the same ISO week
      * produces the same one, so the second and later runs inside a week deliver nothing.
      */
@@ -151,13 +189,81 @@ final class BlockedCaseAlertServiceTest extends KernelTestCase
 
         $deferred = $this->createCase(CaseStatus::TERMEN_FIXAT);
         $deferred->setStampDutyStatus(StampDutyStatus::AMANATA_REGULARIZARE);
+
+        $enforcement = $this->createCase(CaseStatus::EXECUTARE);
+        $enforcement->setEnforcementRequestDate(new \DateTimeImmutable('2026-07-01'));
         $this->em->flush();
 
         $report = $this->process();
 
         self::assertGreaterThanOrEqual(1, $report->stampDutyDue);
         self::assertGreaterThanOrEqual(1, $report->regularizationNoticeDateMissing);
-        self::assertSame($report->stampDutyDue + $report->regularizationNoticeDateMissing, $report->total());
+        self::assertGreaterThanOrEqual(1, $report->enforcementRegistrationNumberMissing);
+        self::assertSame(
+            $report->stampDutyDue + $report->regularizationNoticeDateMissing + $report->enforcementRegistrationNumberMissing,
+            $report->total(),
+        );
+    }
+
+    /**
+     * The bailiff registers the request on receipt, so the grace covers the round trip of
+     * the confirmation and nothing more. Before it runs out the case is only carried by
+     * the blockage zone, which is passive.
+     */
+    public function testTheRegistrationNumberIsNotChasedInsideTheGracePeriod(): void
+    {
+        $case = $this->createCase(CaseStatus::EXECUTARE);
+        $case->setEnforcementRequestDate(new \DateTimeImmutable('2026-08-01'));
+        $this->em->flush();
+
+        $this->process(new \DateTimeImmutable('2026-08-05'));
+
+        self::assertSame([], $this->reasonsFor($case));
+    }
+
+    public function testTheRegistrationNumberIsChasedOnceTheGracePeriodHasRun(): void
+    {
+        $case = $this->createCase(CaseStatus::EXECUTARE);
+        $case->setEnforcementRequestDate(new \DateTimeImmutable('2026-08-01'));
+        $this->em->flush();
+
+        $this->process(new \DateTimeImmutable('2026-08-20'));
+
+        self::assertSame([BlockedCaseAlert::ENFORCEMENT_REGISTRATION_NUMBER_MISSING], $this->reasonsFor($case));
+    }
+
+    /** A number already recorded means the term is closed; there is nothing to chase. */
+    public function testACaseThatAlreadyCarriesTheRegistrationNumberIsNotChased(): void
+    {
+        $case = $this->createCase(CaseStatus::EXECUTARE);
+        $case->setEnforcementRequestDate(new \DateTimeImmutable('2026-08-01'));
+        $case->setEnforcementRegistrationNumber('412/2026');
+        $this->em->flush();
+
+        $this->process(new \DateTimeImmutable('2026-08-20'));
+
+        self::assertSame([], $this->reasonsFor($case));
+    }
+
+    /**
+     * The reminder waits on a bailiff, not on the lawyer, and the term it guards runs for
+     * three years. So its key carries no period at all: every later run rebuilds the same
+     * key and the dispatcher refuses the delivery, which is exactly one message ever.
+     */
+    public function testTheRegistrationNumberReminderCarriesAKeyThatNeverChanges(): void
+    {
+        $case = $this->createCase(CaseStatus::EXECUTARE);
+        $case->setEnforcementRequestDate(new \DateTimeImmutable('2026-08-01'));
+        $this->em->flush();
+
+        $this->process(new \DateTimeImmutable('2026-08-20'));
+        $this->process(new \DateTimeImmutable('2026-09-28'));
+        $this->process(new \DateTimeImmutable('2027-04-05'));
+
+        $keys = array_map(static fn (BlockedCaseAlertEvent $e): ?string => $e->dedupKey, $this->eventsFor($case));
+
+        self::assertCount(3, $keys);
+        self::assertSame([$keys[0]], array_values(array_unique($keys)), 'One key means one delivered message, ever.');
     }
 
     private function process(?\DateTimeImmutable $now = null): \App\Service\Deadline\BlockedCaseAlertReport
@@ -174,6 +280,7 @@ final class BlockedCaseAlertServiceTest extends KernelTestCase
         $service = new BlockedCaseAlertService(
             static::getContainer()->get(LegalCaseRepository::class),
             $dispatcher,
+            enforcementRegistrationGraceDays: 10,
         );
 
         return $service->process($now ?? new \DateTimeImmutable('2026-08-03'));

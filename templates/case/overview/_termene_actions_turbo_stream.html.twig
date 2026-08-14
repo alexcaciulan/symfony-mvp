@@ -34,6 +34,16 @@
     <turbo-stream action="update" target="case-detalii-sidebar">
         <template>{{ include('case/overview/_detalii_sidebar.html.twig') }}</template>
     </turbo-stream>
+    {# The communication-date dialog can carry the proof with it, so a response from here
+       may have added a document and lifted the gate on the petition. Both live outside
+       every region above: the documents panel would keep showing the case without its
+       proof, and the filing dialog would keep its button disabled until a reload. #}
+    <turbo-stream action="update" target="panel-documente">
+        <template>{{ include('case/overview/_tab_documente.html.twig') }}</template>
+    </turbo-stream>
+    <turbo-stream action="replace" target="hs-modal-cerere-op">
+        <template>{{ include('case/overview/_modal_generate_op.html.twig') }}</template>
+    </turbo-stream>
 {% endif %}
 
 {% if close_modal_id is defined and close_modal_id %}

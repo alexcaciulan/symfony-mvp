@@ -413,9 +413,14 @@ final class DeadlineService
      * object left: what it protected against, the title losing its enforceable power
      * while nobody acts on it, cannot happen any more.
      *
-     * The date is required rather than taken from the case being in enforcement. The
-     * limitation runs from the filing, not from the day the lawyer flipped the status,
-     * and an irreversible closing has to rest on a recorded fact.
+     * Two facts are required, and they play different roles. The REGISTRATION NUMBER is
+     * what permits the closing: the bailiff registers the request on receipt, so the
+     * number is the confirmation, from outside the platform, that the filing happened,
+     * and an irreversible closing rests on that rather than on a declaration. The DATE
+     * is what the closing is measured against: the interruption attaches to the request
+     * filed and runs from its date, so anchoring on the day the bailiff registered it
+     * would move the interruption later, against the creditor. Both go into the audit
+     * payload, the date as the anchor and the number as the fact that confirms it.
      *
      * The closing is undone by {@see self::reopenExecutionPrescriptionDeadline()} when
      * the enforcement fails in one of the ways CPC art. 708 para. 3 lists, because then
@@ -423,14 +428,20 @@ final class DeadlineService
      *
      * Completed without a user: the platform closed it, not a lawyer.
      */
-    public function closeExecutionPrescriptionDeadline(LegalCase $legalCase, \DateTimeImmutable $enforcementRequestDate): ?LegalDeadline
-    {
+    public function closeExecutionPrescriptionDeadline(
+        LegalCase $legalCase,
+        \DateTimeImmutable $enforcementRequestDate,
+        string $registrationNumber,
+    ): ?LegalDeadline {
         return $this->closeDeadline(
             $legalCase,
             DeadlineType::PRESCRIPTIE_EXECUTARE,
             'execution_prescription_deadline_closed',
-            'enforcement_request_filed',
-            ['enforcementRequestDate' => $enforcementRequestDate->format('Y-m-d')],
+            'enforcement_request_registered',
+            [
+                'enforcementRequestDate' => $enforcementRequestDate->format('Y-m-d'),
+                'enforcementRegistrationNumber' => $registrationNumber,
+            ],
         );
     }
 
@@ -476,9 +487,15 @@ final class DeadlineService
 
     /**
      * Closes the annulment-request term once its ten days have run (CPC art. 1024
-     * para. 1). Both the debtor's window and the creditor's own run from the same
-     * fact, service of the order, so they expire on the same day and closing at
-     * expiry hides neither: at that point both have been consumed.
+     * para. 1). The term is a single one per case, not one window per holder: the
+     * debtor's window and the creditor's own run from the same fact, service of the
+     * order, so they expire on the same day and closing at expiry hides neither.
+     *
+     * This is the lapse, not a decision. The lawyer who decides in advance that he will
+     * not challenge the order closes the same term through
+     * {@see self::waiveAnnulmentRequest()}, which records that reason instead; the two
+     * are kept apart because the audit trail has to say whether the ten days ran out or
+     * the lawyer stepped away from them.
      *
      * The caller decides that the term has expired, from `rulingCommunicationDate`
      * through {@see self::appealTermEnd()}, so the date used here is the same one
@@ -490,20 +507,47 @@ final class DeadlineService
     }
 
     /**
-     * Marks the single automatic deadline of a type as completed, without a user,
-     * because the platform closed it. Idempotent: an already closed or absent term is
-     * returned untouched.
+     * Closes the annulment-request term because the lawyer decided he is not filing one.
+     *
+     * The question is never asked in advance. At the moment the order is served the
+     * lawyer usually does not know yet whether he will challenge it, while the ten days
+     * run regardless, so the term is displayed as the real window it is and this is the
+     * way out for whoever has made up his mind. Doing nothing stays a valid answer: the
+     * term then runs its course and closes on expiry, exactly as before.
+     *
+     * Nothing is stored beyond the closing itself. A "filing yes/no" column would be a
+     * second source of truth for a state the deadline already carries, and the decision
+     * is only actionable as long as the window is open.
+     */
+    public function waiveAnnulmentRequest(LegalCase $legalCase, User $user): ?LegalDeadline
+    {
+        return $this->closeDeadline(
+            $legalCase,
+            DeadlineType::CERERE_IN_ANULARE,
+            'appeal_deadline_closed',
+            'annulment_request_waived',
+            user: $user,
+        );
+    }
+
+    /**
+     * Marks the single automatic deadline of a type as completed. Idempotent: an already
+     * closed or absent term is returned untouched.
+     *
+     * Without `$user` the completion is recorded as the platform's, which is what every
+     * automatic closing is. A closing that a lawyer actually decided passes him in, so
+     * the record says who stepped away from the term.
      *
      * @param array<string, string> $extraAuditData merged into the audit payload, for the fact the closing rests on
      */
-    private function closeDeadline(LegalCase $legalCase, DeadlineType $type, string $action, string $reason, array $extraAuditData = []): ?LegalDeadline
+    private function closeDeadline(LegalCase $legalCase, DeadlineType $type, string $action, string $reason, array $extraAuditData = [], ?User $user = null): ?LegalDeadline
     {
         $deadline = $this->deadlineRepository->findOneByCaseAndType($legalCase, $type);
         if ($deadline === null || $deadline->isCompleted()) {
             return $deadline;
         }
 
-        $deadline->markCompleted(null);
+        $deadline->markCompleted($user);
         $this->em->flush();
 
         $this->auditLogService->log(
@@ -546,18 +590,35 @@ final class DeadlineService
     }
 
     /**
-     * Termen de timbrare: data comunicării înștiințării instanței + 10 zile libere
-     * (OUG 80/2013 art. 33 alin. 2, care trimite la CPC art. 200 alin. 2 teza I,
-     * coroborat cu art. 181 alin. 1 pct. 2), prorogat la prima zi lucrătoare.
-     * Prioritate CRITICAL: ratarea lui atrage ANULAREA cererii (CPC art. 197).
+     * Termen de timbrare: data comunicării înștiințării instanței plus zilele libere
+     * acordate de instanță (OUG 80/2013 art. 33 alin. 2, care trimite la CPC art. 200
+     * alin. 2 teza I, coroborat cu art. 181 alin. 1 pct. 2), prorogat la prima zi
+     * lucrătoare. Prioritate CRITICAL: ratarea lui atrage ANULAREA cererii.
+     *
+     * CPC art. 200 spune „în termen de cel mult 10 zile de la primirea comunicării",
+     * deci 10 este plafonul legal, nu durata fixă: instanța poate acorda mai puțin,
+     * niciodată mai mult. Avocatul citește numărul din înștiințare și îl introduce;
+     * calculul rămâne al aplicației, ca să nu numere el zilele libere.
      *
      * Termenul curge de la comunicarea instanței, dată pe care platforma nu o
      * cunoaște, deci e furnizată de avocat când primește înștiințarea. Recalculează
-     * termenul existent dacă avocatul corectează data.
+     * termenul existent dacă avocatul corectează data sau numărul de zile.
      */
-    public function createStampDutyDeadline(LegalCase $legalCase, \DateTimeImmutable $courtNoticeDate): LegalDeadline
-    {
-        $term = $this->proceduralTermEnd($courtNoticeDate, self::STAMP_DUTY_DAYS);
+    public function createStampDutyDeadline(
+        LegalCase $legalCase,
+        \DateTimeImmutable $courtNoticeDate,
+        ?int $grantedDays = null,
+    ): LegalDeadline {
+        $days = $grantedDays ?? self::STAMP_DUTY_DAYS;
+        if ($days < 1 || $days > self::STAMP_DUTY_DAYS) {
+            throw new \InvalidArgumentException(sprintf(
+                'The court can grant between 1 and %d days to comply (CPC art. 200), got %d.',
+                self::STAMP_DUTY_DAYS,
+                $days,
+            ));
+        }
+
+        $term = $this->proceduralTermEnd($courtNoticeDate, $days);
         $rawDeadline = $term->rawEnd;
         $deadlineDate = $term->end;
 

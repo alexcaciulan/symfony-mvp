@@ -42,6 +42,22 @@ enum BlockedCaseAlert: string
      */
     case REGULARIZATION_NOTICE_DATE_MISSING = 'REGULARIZATION_NOTICE_DATE_MISSING';
 
+    /**
+     * The lawyer recorded the date he filed the enforcement request with the bailiff and
+     * the registration number that confirms it has not arrived after the grace period.
+     * The number is what closes the enforcement-limitation term, so without it the term
+     * stays open for three years while its alerts are muted, which is silence rather
+     * than safety.
+     *
+     * The only alert here whose dedup key carries no period: the reminder is sent ONCE
+     * per case, ever. Everything else in this enum describes a condition the lawyer has
+     * to clear, while this one waits on a third party, and a weekly reminder to chase a
+     * bailiff for three years is exactly the noise that teaches lawyers to filter the
+     * sender. The case stays visible in the blockage zone of the agenda for as long as
+     * the number is missing, which is the passive surface this message replaces.
+     */
+    case ENFORCEMENT_REGISTRATION_NUMBER_MISSING = 'ENFORCEMENT_REGISTRATION_NUMBER_MISSING';
+
     public function titleKey(): string
     {
         return 'notification.blocked_case.' . $this->value . '.title';

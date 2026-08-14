@@ -101,12 +101,53 @@
                 <p class="text-xs {% if deadline.completed %}text-slate-500{% else %}text-slate-600 dark:text-slate-400{% endif %} mt-1">{{ deadline.description }}</p>
             {% endif %}
 
-            {# The enforcement-limitation term was closed against the request filed with
-               the bailiff (CPC art. 708 alin. 1 pct. 2). That interruption falls away
-               if the enforcement is dismissed, annulled, perimed or abandoned (alin. 3),
-               and then the three years never stopped running, so the closing has to be
-               reversible from the card that shows it. #}
-            {% if deadline.completed and deadline.type.value == 'PRESCRIPTIE_EXECUTARE' and deadline.legalCase.enforcementRequestDate is not null %}
+            {# The lawyer has decided he is not challenging the order. It is the only act
+               the platform can offer on this window: it cannot draft the request, which
+               needs the reasoning of a ruling nobody has analysed here. Pressing nothing
+               is equally valid, and then the term runs its course and closes on expiry. #}
+            {% if not deadline.completed and deadline.type.value == 'CERERE_IN_ANULARE' %}
+                <form method="post"
+                      action="{{ path('case_deadline_no_annulment_request', {caseId: deadline.legalCase.id, deadlineId: deadline.id}) }}"
+                      data-turbo-frame="_top"
+                      data-turbo-confirm="{{ 'case_overview.deadlines.no_annulment_request_confirm'|trans }}"
+                      class="mt-3">
+                    <input type="hidden" name="_token" value="{{ csrf_token('no_annulment_request_' ~ deadline.id) }}">
+                    <button type="submit" class="text-[11px] font-semibold text-slate-500 hover:text-amber-700 dark:hover:text-amber-400 underline underline-offset-2 transition">
+                        {{ 'case_overview.deadlines.no_annulment_request_cta'|trans }}
+                    </button>
+                </form>
+            {% endif %}
+
+            {# The filing with the bailiff is declared, its registration number is not.
+               The interruption of CPC art. 708 alin. 1 pct. 2 already happened, on the day
+               the request was filed; the number is the confirmation the platform asks for
+               before it closes a term by itself, not something the law waits for. So the
+               card asks for it and states that the alerts are silent meanwhile. #}
+            {% if not deadline.completed and deadline.type.value == 'PRESCRIPTIE_EXECUTARE' and deadline.legalCase.enforcementRequestDate is not null and deadline.legalCase.enforcementRegistrationNumber is null %}
+                <div class="mt-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-3">
+                    <p class="text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">
+                        {{ 'case_overview.deadlines.awaiting_enforcement_registration_number'|trans({'%date%': deadline.legalCase.enforcementRequestDate|date('d.m.Y')}) }}
+                    </p>
+                    <button type="button"
+                            data-hs-overlay="#hs-modal-set-enforcement-registration-number"
+                            class="mt-2 text-[11px] font-semibold text-lex-navy dark:text-blue-400 underline underline-offset-2 transition">
+                        {{ 'case_overview.deadlines.enforcement_registration_number_cta'|trans }}
+                    </button>
+                </div>
+            {% endif %}
+
+            {# The enforcement interrupted the limitation on the date the request was filed
+               (CPC art. 708 alin. 1 pct. 2). That interruption falls away if the
+               enforcement is dismissed, annulled, perimed or abandoned (alin. 3), and then
+               the three years never stopped running.
+
+               Offered from the moment the filing is declared, not only once the term is
+               closed: between the declaration and the registration number the term is
+               already silent, and gating this on `completed` would leave the lawyer with
+               no way to say the enforcement failed before the bailiff ever registered it.
+               Whether the term is still open or already closed, the action means the same
+               thing and undoes the same two facts. #}
+            {% if deadline.type.value == 'PRESCRIPTIE_EXECUTARE' and deadline.legalCase.enforcementRequestDate is not null %}
                 <form method="post"
                       action="{{ path('case_deadline_enforcement_not_interrupting', {caseId: deadline.legalCase.id}) }}"
                       data-turbo-frame="_top"
@@ -122,26 +163,49 @@
             {% if not deadline.completed and (variant_key == 'high' or variant_key == 'critical') %}
                 {# The tiers come from the alerting service, not from this template: a
                    limitation term is warned about at 30 and 14 days on top of the
-                   procedural 7 / 3 / 1, and a fixed list here would hide them. #}
+                   procedural 7 / 3 / 1, and a fixed list here would hide them. The same
+                   service decides when a term deliberately sends nothing, so the card
+                   says so rather than printing an empty list under the word "Alerte". #}
                 <div class="mt-3 flex items-center gap-3 text-[11px] text-slate-500">
                     <span class="inline-flex items-center gap-1 flex-wrap">
                         {{ icon_clock('size-3') }}
-                        {{ 'case_overview.deadlines.alerts_label'|trans }}
-                        {% for tier in deadline_alert_ladder(deadline) %}
-                            {{ (tier.sent ? 'case_overview.deadlines.alert_tier_sent' : 'case_overview.deadlines.alert_tier_pending')|trans({ '%days%': tier.days }) }}{% if not loop.last %} ·{% endif %}
-                        {% endfor %}
+                        {% if deadline_alerts_muted(deadline) %}
+                            {{ 'case_overview.deadlines.alerts_muted'|trans }}
+                        {% else %}
+                            {{ 'case_overview.deadlines.alerts_label'|trans }}
+                            {% for tier in deadline_alert_ladder(deadline) %}
+                                {{ (tier.sent ? 'case_overview.deadlines.alert_tier_sent' : 'case_overview.deadlines.alert_tier_pending')|trans({ '%days%': tier.days }) }}{% if not loop.last %} ·{% endif %}
+                            {% endfor %}
+                        {% endif %}
                     </span>
                 </div>
             {% endif %}
         </div>
 
-        {# Completion toggle (optimistic UI + Turbo Stream) + edit + delete. #}
+        {# Completion toggle (optimistic UI + Turbo Stream) + edit + delete.
+
+           The toggle is deliberately absent on three types, each of which ends through an
+           act of its own rather than through a tick.
+
+           A limitation period is not an act the lawyer performs, and closing one is
+           irreversible: what ends it is the act that stops it (the request filed in court,
+           the enforcement registered with the bailiff), recorded by the application itself.
+
+           The annulment window is a ten-day forfeiture term, and the only act the platform
+           can offer on it is the decision not to use it. That decision has its own button
+           above, with its own confirmation and its own audit reason, so the tick here would
+           be a second, silent way to close the same term and would record it as a generic
+           completion instead.
+
+           The agenda offers none of the three either. Delete stays available, so a term
+           created by mistake is still removable. #}
+        {% set closable = deadline.type.value not in ['PRESCRIPTIE', 'PRESCRIPTIE_EXECUTARE', 'CERERE_IN_ANULARE'] %}
         <div class="shrink-0 flex flex-col items-center gap-2">
             {% if deadline.completed %}
                 <span class="inline-flex items-center justify-center size-6 rounded-full border-2 bg-green-500 border-green-500 text-white" aria-label="{{ 'case_overview.deadlines.status_completed_badge'|trans }}">
                     {{ icon_check('size-3.5') }}
                 </span>
-            {% else %}
+            {% elseif closable %}
                 <button type="button"
                         data-controller="optimistic-action"
                         data-action="click->optimistic-action#trigger"
