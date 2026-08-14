@@ -14,3 +14,20 @@ Notificarea avocatului privind restituirea sumelor, în cazul anulării admise d
 Tratarea trecerii la executarea silită „după trecerea termenului în care instanța pune în vedere debitorului achitarea, de obicei 30 de zile": pasul de executare e cablat; eventuala automatizare a acestui termen rămâne de discutat.
 
 https://doc.netopia-payments.com/docs/payment-sdks/php/
+
+docs/LexRecovery/ANALIZA-TRANSMITERE-DOCUMENTE-INSTANTA.md
+
+http://localhost:8080/case/48?tab=portal - dosar cu date care intorc ma multe rezulate in cautarea pe instanta 
+
+
+
+link in paina de wizard de activare modul ai
+
+de refactorizat zona de date extrase
+
+de vazul cum sa fac partea de editare dossar. incarcare alte facturi
+
+de crearea draft dosar dupa primul pas din wizard
+
+
+semnatura digitala calificata a avocatului sa fie pe toate documnetele 
