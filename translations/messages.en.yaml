@@ -660,10 +660,11 @@ wizard:
         gdpr:
             title: 'AI-extracted data: privacy'
             body_ai: 'AI extraction is active: uploaded files are sent in full, with national IDs and bank accounts unmasked, to an external provider in the USA (Anthropic).'
-            body_local: 'AI extraction is off: documents stay on our servers and are not sent to any external provider.'
+            body_local: 'AI extraction is off: documents stay on our servers and are not sent to any external provider. To turn it on, read and accept the document processing agreement.'
             settings_link: 'Review the AI processing agreement'
+            settings_link_inactive: 'Open the agreement and enable AI extraction'
         extraction_disabled: 'Automatic extraction is turned off in your privacy settings.'
-        extraction_disabled_link: 'Enable AI extraction'
+        extraction_disabled_link: 'Read and accept the agreement to enable AI extraction'
         failure_action:
             API_UNAVAILABLE: 'We will retry automatically. You can fill in the fields meanwhile.'
             RATE_LIMIT_EXCEEDED: 'We will retry automatically once the limit frees up.'

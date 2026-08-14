@@ -104,10 +104,15 @@
                                    never renders. #}
                                 {% if status == 'SKIPPED_BY_POLICY' %}
                                     <p class="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                                        {# Reason labels carry no final stop, so one is
+                                           added here to keep reason and link apart. #}
                                         {{ failure is not null
-                                            ? ('enum.extraction_failure_reason.' ~ failure.value)|trans
+                                            ? ('enum.extraction_failure_reason.' ~ failure.value)|trans ~ '.'
                                             : 'wizard.step0.extraction_disabled'|trans }}
-                                        <a href="{{ path('app_profile_ai_agreement') }}" class="underline">{{ 'wizard.step0.extraction_disabled_link'|trans }}</a>
+                                        {# Breaks out of turbo-frame#step0-dynamic. The
+                                           agreement page has no such frame, so a framed
+                                           navigation renders "Content missing" instead. #}
+                                        <a href="{{ path('app_profile_ai_agreement') }}" data-turbo-frame="_top" class="underline">{{ 'wizard.step0.extraction_disabled_link'|trans }}</a>
                                     </p>
                                 {% elseif failure is not null and status != 'COMPLETED' %}
                                     <p class="mt-1 text-xs text-slate-600 dark:text-slate-400">
@@ -155,7 +160,9 @@
             <div class="font-semibold text-amber-900 dark:text-amber-200">{{ 'wizard.step0.gdpr.title'|trans }}</div>
             <p class="mt-0.5 text-amber-800 dark:text-amber-200/80">
                 {{ (ai_active ? 'wizard.step0.gdpr.body_ai' : 'wizard.step0.gdpr.body_local')|trans }}
-                <a href="{{ path('app_profile_ai_agreement') }}" class="underline">{{ 'wizard.step0.gdpr.settings_link'|trans }}</a>
+                {# With AI off the link is the way to turn it on, so it names the
+                   action; with AI on there is nothing to enable, only to review. #}
+                <a href="{{ path('app_profile_ai_agreement') }}" data-turbo-frame="_top" class="underline">{{ (ai_active ? 'wizard.step0.gdpr.settings_link' : 'wizard.step0.gdpr.settings_link_inactive')|trans }}</a>
             </p>
         </div>
     </div>

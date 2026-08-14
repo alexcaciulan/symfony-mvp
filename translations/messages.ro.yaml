@@ -660,10 +660,11 @@ wizard:
         gdpr:
             title: 'Date extrase prin AI: confidențialitate'
             body_ai: 'Extracția AI este activă: fișierele încărcate se transmit integral, cu CNP și IBAN în clar, unui furnizor extern din SUA (Anthropic).'
-            body_local: 'Extracția AI este dezactivată: documentele rămân pe serverul nostru și nu se transmit niciunui furnizor extern.'
+            body_local: 'Extracția AI este dezactivată: documentele rămân pe serverul nostru și nu se transmit niciunui furnizor extern. Ca să o activezi, citește și acceptă acordul de procesare a documentelor.'
             settings_link: 'Vezi acordul de procesare AI'
+            settings_link_inactive: 'Deschide acordul și activează extracția AI'
         extraction_disabled: 'Extracția automată este dezactivată în setările tale de confidențialitate.'
-        extraction_disabled_link: 'Activează extracția AI'
+        extraction_disabled_link: 'Citește și acceptă acordul ca să activezi extracția AI'
         failure_action:
             API_UNAVAILABLE: 'Reîncercăm automat. Poți completa manual între timp.'
             RATE_LIMIT_EXCEEDED: 'Reîncercăm automat după ce se eliberează limita.'
