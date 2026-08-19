@@ -196,27 +196,30 @@ final class DeadlineServiceTest extends KernelTestCase
     /**
      * NCC art. 2552 alin. 2: when the last month has no day corresponding to the one
      * the term started on, it ends on the last day of that month. PHP on its own would
-     * overflow 31 August plus six months into 3 March.
+     * overflow 31 August plus six months into 3 March. 28 February 2027 is a Sunday, so
+     * the prorogation of NCC art. 2554 then carries it to Monday 1 March: the two rules
+     * apply in that order, the month arithmetic first and the working day after it.
      */
     public function testFilingDeadlineStopsAtTheLastDayOfAMonthWithoutACorrespondingDay(): void
     {
         $deadline = $this->service->createFilingDeadline($this->case, new \DateTimeImmutable('2026-08-31'));
 
         $this->assertNotNull($deadline);
-        $this->assertSame('2027-02-28', $deadline->getDeadlineDate()->format('Y-m-d'));
+        $this->assertSame('2027-03-01', $deadline->getDeadlineDate()->format('Y-m-d'));
     }
 
     /**
-     * Substantive-law term, so it is never moved to the next working day: 15 August
-     * 2026 is both a Saturday and a public holiday, and the date stays put. Moving it
-     * forward would show a term longer than the one that actually runs.
+     * Substantive-law term, prorogated to the first working day under NCC art. 2554,
+     * the counterpart of CPC art. 181 alin. 2: 15 August 2026 is both a Saturday and a
+     * public holiday, so the term is fulfilled at the close of Monday 17 August, which
+     * is the real maturity date and therefore the one shown.
      */
-    public function testFilingDeadlineIsNotProrogatedToTheNextWorkingDay(): void
+    public function testFilingDeadlineIsProrogatedToTheNextWorkingDay(): void
     {
         $deadline = $this->service->createFilingDeadline($this->case, new \DateTimeImmutable('2026-02-15'));
 
         $this->assertNotNull($deadline);
-        $this->assertSame('2026-08-15', $deadline->getDeadlineDate()->format('Y-m-d'));
+        $this->assertSame('2026-08-17', $deadline->getDeadlineDate()->format('Y-m-d'));
     }
 
     /**
@@ -276,6 +279,151 @@ final class DeadlineServiceTest extends KernelTestCase
     public function testCloseFilingDeadlineIsANoOpWithoutOne(): void
     {
         $this->assertNull($this->service->closeFilingDeadline($this->freshCaseWithoutSubscriberDeadline()));
+    }
+
+    // ===== the annulment window: a decision, or the ten days running out ==========
+
+    /**
+     * The lawyer decides he is not challenging the order. The record has to say that,
+     * and say it against him: a year later the difference between "the lawyer stepped
+     * away from the appeal" and "the platform noticed the term had run" is the whole
+     * question, and both show up on screen as a closed term.
+     */
+    public function testWaivingTheAnnulmentRequestRecordsTheDecisionAgainstTheLawyer(): void
+    {
+        $deadline = $this->service->createAppealDeadline($this->case, new \DateTimeImmutable('2026-02-02'));
+
+        $closed = $this->service->waiveAnnulmentRequest($this->case, $this->user);
+
+        $this->assertSame($deadline->getId(), $closed?->getId());
+        $this->assertTrue($closed->isCompleted());
+        $this->assertSame($this->user->getId(), $closed->getCompletedBy()?->getId());
+        $this->assertNotNull($closed->getCompletedAt());
+        $this->assertSame('annulment_request_waived', $this->closingReason($deadline));
+    }
+
+    /**
+     * The regression the decision must not have introduced. A lawyer who presses nothing
+     * keeps the term until the ten days are spent, and then the platform closes it on its
+     * own, without a user and under the reason that says the window lapsed. This is the
+     * behaviour that existed before there was anything to press, and the only difference
+     * the new route may make to it is which reason ends up in the log.
+     */
+    public function testALapsedAnnulmentTermIsStillClosedByThePlatformAsALapse(): void
+    {
+        $deadline = $this->service->createAppealDeadline($this->case, new \DateTimeImmutable('2026-02-02'));
+
+        $closed = $this->service->closeAppealDeadline($this->case);
+
+        $this->assertSame($deadline->getId(), $closed?->getId());
+        $this->assertTrue($closed->isCompleted());
+        $this->assertNull($closed->getCompletedBy(), 'Closed by the platform, not by a lawyer.');
+        $this->assertSame('appeal_term_lapsed', $this->closingReason($deadline));
+    }
+
+    /**
+     * The two endings never overwrite each other. The daily pass runs over every open
+     * term and reaches a waived case as well, so a second closing has to leave the first
+     * record alone: the lawyer's decision is the true one, and rewriting it as a lapse
+     * would erase the only trace that he took it.
+     */
+    public function testTheAutomaticClosingDoesNotOverwriteADecisionAlreadyRecorded(): void
+    {
+        $deadline = $this->service->createAppealDeadline($this->case, new \DateTimeImmutable('2026-02-02'));
+        $this->service->waiveAnnulmentRequest($this->case, $this->user);
+        $completedAt = $deadline->getCompletedAt();
+
+        $this->service->closeAppealDeadline($this->case);
+
+        $this->assertSame($this->user->getId(), $deadline->getCompletedBy()?->getId());
+        $this->assertSame($completedAt, $deadline->getCompletedAt());
+        $this->assertSame(['annulment_request_waived'], $this->closingReasons($deadline), 'A closed term is closed once.');
+    }
+
+    /** Nothing to decide about on a case that never had the window. */
+    public function testWaivingTheAnnulmentRequestIsANoOpWithoutTheTerm(): void
+    {
+        $this->assertNull($this->service->waiveAnnulmentRequest($this->freshCaseWithoutSubscriberDeadline(), $this->user));
+    }
+
+    // ===== the enforcement limitation: closed on the bailiff registration number ===
+
+    /**
+     * Both facts land in the audit payload, and they play different parts. The NUMBER is
+     * what permits the closing, being the confirmation from outside the platform that the
+     * request was filed; the DATE is what the closing is measured against, because the
+     * interruption of CPC art. 708 para. 1 pt. 2 attaches to the request filed and runs
+     * from its date. A payload carrying only one of them could not answer, later, either
+     * why the term was closed or as of when.
+     */
+    public function testClosingTheEnforcementLimitationRecordsTheNumberAndTheFilingDate(): void
+    {
+        $deadline = $this->service->createExecutionPrescriptionDeadline($this->case, new \DateTimeImmutable('2026-09-11'));
+
+        $closed = $this->service->closeExecutionPrescriptionDeadline(
+            $this->case,
+            new \DateTimeImmutable('2026-10-05'),
+            '412/2026',
+        );
+
+        $this->assertSame($deadline->getId(), $closed?->getId());
+        $this->assertTrue($closed->isCompleted());
+        $this->assertNull($closed->getCompletedBy(), 'Closed by the platform on a recorded fact, not by a lawyer.');
+
+        $payload = $this->closingPayload($deadline);
+        $this->assertSame('enforcement_request_registered', $payload['reason'] ?? null);
+        $this->assertSame('412/2026', $payload['enforcementRegistrationNumber'] ?? null);
+        $this->assertSame('2026-10-05', $payload['enforcementRequestDate'] ?? null);
+        // The term it closed, still stated at its own maturity: the closing records that
+        // the three years stopped, it does not move where they would have ended.
+        $this->assertSame('2029-09-11', $payload['deadlineDate'] ?? null);
+    }
+
+    public function testClosingTheEnforcementLimitationIsANoOpWithoutTheTerm(): void
+    {
+        $this->assertNull($this->service->closeExecutionPrescriptionDeadline(
+            $this->freshCaseWithoutSubscriberDeadline(),
+            new \DateTimeImmutable('2026-10-05'),
+            '412/2026',
+        ));
+    }
+
+    /** The reason recorded on the single closing of a deadline. */
+    private function closingReason(LegalDeadline $deadline): ?string
+    {
+        return $this->closingPayload($deadline)['reason'] ?? null;
+    }
+
+    /**
+     * Every closing ever logged for a deadline, in order, by the reason each carries.
+     *
+     * @return list<string>
+     */
+    private function closingReasons(LegalDeadline $deadline): array
+    {
+        return array_values(array_map(
+            static fn (AuditLog $entry): string => (string) ($entry->getNewData()['reason'] ?? ''),
+            $this->closingEntries($deadline),
+        ));
+    }
+
+    /** @return array<string, mixed> */
+    private function closingPayload(LegalDeadline $deadline): array
+    {
+        $entries = $this->closingEntries($deadline);
+        $this->assertCount(1, $entries, 'A closing is logged exactly once.');
+
+        return $entries[0]->getNewData() ?? [];
+    }
+
+    /** @return list<AuditLog> */
+    private function closingEntries(LegalDeadline $deadline): array
+    {
+        return array_values($this->em->getRepository(AuditLog::class)->findBy([
+            'category' => AuditLogService::CATEGORY_DEADLINE_COMPLETED,
+            'entityType' => LegalDeadline::class,
+            'entityId' => (string) $deadline->getId(),
+        ], ['id' => 'ASC']));
     }
 
     public function testRecalculatePaymentNoticeDeadlineUpdatesExistingAndClearsDisclaimer(): void
@@ -478,11 +626,64 @@ final class DeadlineServiceTest extends KernelTestCase
         self::assertCount(3, $created);
         $dates = array_map(static fn (LegalDeadline $d): string => $d->getDeadlineDate()->format('Y-m-d'), $created);
         sort($dates);
-        self::assertSame(['2027-03-15', '2027-06-20', '2027-09-10'], $dates);
+        // 20 June 2027 is a Sunday followed by the second day of Pentecost, so the
+        // prorogation of NCC art. 2554 carries that one to Tuesday 22 June.
+        self::assertSame(['2027-03-15', '2027-06-22', '2027-09-10'], $dates);
         self::assertSame(DeadlinePriority::CRITICAL, $created[0]->getPriority());
 
         // Idempotent per due date: a second call adds nothing.
         self::assertSame([], $this->service->createPrescriptionDeadlines($case));
+    }
+
+    /**
+     * The prorogation of NCC art. 2554, the substantive-law counterpart of CPC art. 181
+     * alin. 2, applied to the limitation period itself: three years from a due date of
+     * Tuesday 15 September 2026 run out on Saturday 15 September 2029, and the term is
+     * only fulfilled at the close of the first working day after it, Monday 17
+     * September. Shown that way because it is the real maturity: an action brought on
+     * the Monday is still in time.
+     *
+     * The raw date stays in the audit payload. It is the only place the untouched
+     * arithmetic survives, and without it a shifted date could not be told apart from
+     * a wrong one.
+     */
+    public function testAPrescriptionMaturingOnASaturdayIsProrogatedToTheMonday(): void
+    {
+        $dueDate = new \DateTimeImmutable('2026-09-15');
+        $term = $this->service->limitationTermEnd(DeadlineType::PRESCRIPTIE, $dueDate);
+
+        self::assertNotNull($term);
+        self::assertSame('2029-09-15', $term->rawEnd->format('Y-m-d'), 'Three years land on a Saturday.');
+        self::assertSame('2029-09-17', $term->end->format('Y-m-d'));
+
+        $case = $this->freshCaseWithoutSubscriberDeadline();
+        $case->setDueDate(new \DateTime('2026-09-15'));
+        $this->em->flush();
+
+        $created = $this->service->createPrescriptionDeadlines($case);
+
+        self::assertCount(1, $created);
+        self::assertSame('2029-09-17', $created[0]->getDeadlineDate()->format('Y-m-d'));
+
+        $log = $this->em->getRepository(AuditLog::class)->findOneBy(
+            ['entityType' => LegalDeadline::class, 'entityId' => (string) $created[0]->getId(), 'action' => 'deadline_created'],
+        );
+        self::assertNotNull($log);
+        self::assertSame('2029-09-15', $log->getNewData()['rawDeadline'] ?? null);
+        self::assertTrue($log->getNewData()['prorogated'] ?? false);
+    }
+
+    /**
+     * A term already maturing on a working day is left where it is, so the shift above
+     * is a rule and not a blanket offset applied to every limitation period.
+     */
+    public function testAPrescriptionMaturingOnAWorkingDayIsNotMoved(): void
+    {
+        $term = $this->service->limitationTermEnd(DeadlineType::PRESCRIPTIE, new \DateTimeImmutable('2026-09-17'));
+
+        self::assertNotNull($term);
+        self::assertSame('2029-09-17', $term->rawEnd->format('Y-m-d'));
+        self::assertSame($term->rawEnd->format('Y-m-d'), $term->end->format('Y-m-d'));
     }
 
     public function testCreatePrescriptionDeadlinesFallsBackToCaseDueDateWithoutPositions(): void

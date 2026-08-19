@@ -116,11 +116,8 @@ final class DeadlineService
      * of that month, which is what the second branch restores, because PHP would
      * otherwise overflow 31 August plus six months into 3 March.
      *
-     * No prorogation to the next working day. NCC art. 2554 would allow it, but this
-     * application never moves a substantive term forward, for the same reason it
-     * leaves PRESCRIPTIE untouched: a date shown later than the real one can make the
-     * lawyer act after the term has actually run, while a date shown as-is can only
-     * make the alert early.
+     * Raw arithmetic only. The prorogation of NCC art. 2554 is applied by the caller,
+     * so the untouched date stays available for the audit payload.
      */
     private function monthsTermEnd(\DateTimeImmutable $startsRunningOn, int $months): \DateTimeImmutable
     {
@@ -134,6 +131,25 @@ final class DeadlineService
     }
 
     /**
+     * Prorogation of a SUBSTANTIVE term to the first working day that follows (NCC
+     * art. 2554), applied to the limitation periods and to the six months that keep
+     * the interruption alive.
+     *
+     * The rule is the substantive-law counterpart of CPC art. 181 para. 2 and it is
+     * what makes the prorogated day the real day the term is fulfilled, not a day
+     * later than the real one: art. 2554 says the term itself ends at the close of
+     * that first working day. Showing the raw date would therefore show a date the
+     * law does not treat as the maturity date.
+     *
+     * The raw date is returned alongside, so the audit payload keeps the plain
+     * calculation next to the date the lawyer is shown.
+     */
+    private function substantiveTermEnd(\DateTimeImmutable $rawEnd): ProceduralTerm
+    {
+        return new ProceduralTerm($rawEnd, $this->workingDayResolver->nextWorkingDay($rawEnd));
+    }
+
+    /**
      * Maturity date of the annulment-request term (CPC art. 1024 alin. 1: 10 days
      * from service of the payment order), exposed so callers that derive a later
      * date from it (the day the order becomes final) share this calculation instead
@@ -142,6 +158,77 @@ final class DeadlineService
     public function appealTermEnd(\DateTimeImmutable $rulingCommunicationDate): \DateTimeImmutable
     {
         return $this->proceduralTermEnd($rulingCommunicationDate, self::APPEAL_DAYS)->end;
+    }
+
+    /**
+     * Statutory length in days of a term counted in days, or null for the types that
+     * are not: the limitation periods are counted in years, the interruption window in
+     * months, and hearing or manual dates are not terms at all.
+     *
+     * Exposed so a caller that has to reproduce a term outside this service reads the
+     * legal number from the one place that holds it, instead of repeating 15 or 10.
+     */
+    public function legalDaysFor(DeadlineType $type): ?int
+    {
+        return match ($type) {
+            DeadlineType::RASPUNS_SOMATIE => self::PAYMENT_NOTICE_DAYS,
+            DeadlineType::CERERE_IN_ANULARE => self::APPEAL_DAYS,
+            DeadlineType::TIMBRARE => self::STAMP_DUTY_DAYS,
+            default => null,
+        };
+    }
+
+    /**
+     * Maturity of a day-based term of $type running from $startsRunningOn, or null when
+     * the type is not counted in days. Single entry point for callers that need the
+     * current rule (free days plus prorogation) without repeating it.
+     */
+    public function dayBasedTermEnd(DeadlineType $type, \DateTimeImmutable $startsRunningOn): ?ProceduralTerm
+    {
+        $days = $this->legalDaysFor($type);
+
+        return $days === null ? null : $this->proceduralTermEnd($startsRunningOn, $days);
+    }
+
+    /**
+     * Maturity of the six-month term that keeps the interruption alive, from the date
+     * the summons was communicated. Exposed for the same reason as
+     * {@see self::dayBasedTermEnd()}: the months arithmetic of NCC art. 2552 and the
+     * prorogation of art. 2554 stay in one place.
+     */
+    public function filingInterruptionTermEnd(\DateTimeImmutable $communicationDate): ProceduralTerm
+    {
+        return $this->substantiveTermEnd($this->monthsTermEnd($communicationDate, self::FILING_INTERRUPTION_MONTHS));
+    }
+
+    /**
+     * Whether the payment-order request has not reached the court yet, which is the
+     * event that ends the six-month term above and turns the interruption produced by
+     * the summons into an unconditional one. Exposed so a caller that has to state
+     * which of the two situations a case is in reads it from the list that governs the
+     * term itself.
+     */
+    public function isBeforeFiling(LegalCase $legalCase): bool
+    {
+        return in_array($legalCase->getStatus(), self::STATUSES_BEFORE_FILING, true);
+    }
+
+    /**
+     * Maturity of a limitation period running from $startsRunningOn: the claim
+     * prescribes three years from each due date (NCC art. 2517), the right to enforce
+     * three years from the order becoming final (CPC art. 705 para. 1). Both are
+     * prorogated per NCC art. 2554. Null for any other type, which has no limitation
+     * period of its own.
+     */
+    public function limitationTermEnd(DeadlineType $type, \DateTimeImmutable $startsRunningOn): ?ProceduralTerm
+    {
+        $interval = match ($type) {
+            DeadlineType::PRESCRIPTIE => self::PRESCRIPTION_INTERVAL,
+            DeadlineType::PRESCRIPTIE_EXECUTARE => self::EXECUTION_PRESCRIPTION_INTERVAL,
+            default => null,
+        };
+
+        return $interval === null ? null : $this->substantiveTermEnd($startsRunningOn->modify($interval));
     }
 
     /**
@@ -238,8 +325,11 @@ final class DeadlineService
      * days earlier, which would show a maturity date later than the real one.
      *
      * Substantive-law term, so it is counted in months per NCC art. 2552 through
-     * {@see self::monthsTermEnd()} and never prorogated under CPC art. 181 para. 2,
-     * which governs procedural terms only.
+     * {@see self::monthsTermEnd()} and prorogated to the first working day under NCC
+     * art. 2554, the substantive-law counterpart of CPC art. 181 para. 2, applied
+     * through {@see self::substantiveTermEnd()}. It is prorogated for the same reason
+     * the two limitation periods are: art. 2554 makes the first working day the day
+     * the term is actually fulfilled, so the prorogated date is the real one.
      *
      * Only created while the request has not been filed yet: past CERERE_DEPUSA the
      * condition of art. 2540 is already met and a term counting down to it would be
@@ -252,11 +342,12 @@ final class DeadlineService
     {
         $existing = $this->deadlineRepository->findOneByCaseAndType($legalCase, DeadlineType::DEPUNERE_CERERE);
 
-        if (!in_array($legalCase->getStatus(), self::STATUSES_BEFORE_FILING, true)) {
+        if (!$this->isBeforeFiling($legalCase)) {
             return $existing;
         }
 
-        $deadlineDate = $this->monthsTermEnd($communicationDate, self::FILING_INTERRUPTION_MONTHS);
+        $term = $this->substantiveTermEnd($this->monthsTermEnd($communicationDate, self::FILING_INTERRUPTION_MONTHS));
+        $deadlineDate = $term->end;
 
         // Rendered to text: the row has to say what expiry costs, and what expires is
         // not the right to file but the interruption the summons produced.
@@ -271,7 +362,7 @@ final class DeadlineService
                 DeadlineType::DEPUNERE_CERERE,
                 $deadlineDate,
                 baseDate: $communicationDate,
-                rawDeadline: $deadlineDate,
+                rawDeadline: $term->rawEnd,
                 description: $description,
             );
         }
@@ -296,7 +387,9 @@ final class DeadlineService
                 'type' => DeadlineType::DEPUNERE_CERERE->value,
                 'caseNumber' => $legalCase->getCaseNumber(),
                 'baseDate' => $communicationDate->format('Y-m-d'),
+                'rawDeadline' => $term->rawEnd->format('Y-m-d'),
                 'deadlineDate' => $deadlineDate->format('Y-m-d'),
+                'prorogated' => $term->rawEnd->format('Y-m-d') !== $deadlineDate->format('Y-m-d'),
             ],
             category: AuditLogService::CATEGORY_DEADLINE_EDITED,
         );
@@ -316,24 +409,164 @@ final class DeadlineService
      */
     public function closeFilingDeadline(LegalCase $legalCase): ?LegalDeadline
     {
-        $deadline = $this->deadlineRepository->findOneByCaseAndType($legalCase, DeadlineType::DEPUNERE_CERERE);
-        if ($deadline === null || $deadline->isCompleted()) {
+        return $this->closeDeadline($legalCase, DeadlineType::DEPUNERE_CERERE, 'filing_deadline_closed', 'request_filed');
+    }
+
+    /**
+     * Closes the enforcement-limitation term against the date the enforcement request
+     * was filed with the bailiff. That filing is what interrupts the limitation of the
+     * right to enforce (CPC art. 708 para. 1 pt. 2), so from that date the term has no
+     * object left: what it protected against, the title losing its enforceable power
+     * while nobody acts on it, cannot happen any more.
+     *
+     * Two facts are required, and they play different roles. The REGISTRATION NUMBER is
+     * what permits the closing: the bailiff registers the request on receipt, so the
+     * number is the confirmation, from outside the platform, that the filing happened,
+     * and an irreversible closing rests on that rather than on a declaration. The DATE
+     * is what the closing is measured against: the interruption attaches to the request
+     * filed and runs from its date, so anchoring on the day the bailiff registered it
+     * would move the interruption later, against the creditor. Both go into the audit
+     * payload, the date as the anchor and the number as the fact that confirms it.
+     *
+     * The closing is undone by {@see self::reopenExecutionPrescriptionDeadline()} when
+     * the enforcement fails in one of the ways CPC art. 708 para. 3 lists, because then
+     * the interruption never happened and the original term is still running.
+     *
+     * Completed without a user: the platform closed it, not a lawyer.
+     */
+    public function closeExecutionPrescriptionDeadline(
+        LegalCase $legalCase,
+        \DateTimeImmutable $enforcementRequestDate,
+        string $registrationNumber,
+    ): ?LegalDeadline {
+        return $this->closeDeadline(
+            $legalCase,
+            DeadlineType::PRESCRIPTIE_EXECUTARE,
+            'execution_prescription_deadline_closed',
+            'enforcement_request_registered',
+            [
+                'enforcementRequestDate' => $enforcementRequestDate->format('Y-m-d'),
+                'enforcementRegistrationNumber' => $registrationNumber,
+            ],
+        );
+    }
+
+    /**
+     * Reopens the enforcement-limitation term when the enforcement that closed it was
+     * dismissed, annulled, allowed to lapse or abandoned. CPC art. 708 para. 3 says the
+     * limitation is NOT interrupted in those cases, so the term the closing hid is
+     * still running from its original anchor and the creditor is back to watching it.
+     *
+     * The deadline date is left untouched: the original anchor did not move, only the
+     * interruption fell away. Alert flags are reset so the term can warn again.
+     */
+    public function reopenExecutionPrescriptionDeadline(LegalCase $legalCase, string $reason): ?LegalDeadline
+    {
+        $deadline = $this->deadlineRepository->findOneByCaseAndType($legalCase, DeadlineType::PRESCRIPTIE_EXECUTARE);
+        if ($deadline === null || !$deadline->isCompleted()) {
             return $deadline;
         }
 
-        $deadline->markCompleted(null);
+        $deadline->setCompleted(false);
+        $deadline->setCompletedAt(null);
+        $deadline->setCompletedBy(null);
+        $deadline->resetAlertFlags();
         $this->em->flush();
 
         $this->auditLogService->log(
-            action: 'filing_deadline_closed',
+            action: 'execution_prescription_deadline_reopened',
             entityType: LegalDeadline::class,
             entityId: (string) $deadline->getId(),
             newData: [
                 'deadlineId' => $deadline->getId(),
-                'type' => DeadlineType::DEPUNERE_CERERE->value,
+                'type' => DeadlineType::PRESCRIPTIE_EXECUTARE->value,
                 'caseNumber' => $legalCase->getCaseNumber(),
                 'deadlineDate' => $deadline->getDeadlineDate()->format('Y-m-d'),
-                'reason' => 'request_filed',
+                'reason' => $reason,
+            ],
+            category: AuditLogService::CATEGORY_DEADLINE_EDITED,
+        );
+        $this->em->flush();
+
+        return $deadline;
+    }
+
+    /**
+     * Closes the annulment-request term once its ten days have run (CPC art. 1024
+     * para. 1). The term is a single one per case, not one window per holder: the
+     * debtor's window and the creditor's own run from the same fact, service of the
+     * order, so they expire on the same day and closing at expiry hides neither.
+     *
+     * This is the lapse, not a decision. The lawyer who decides in advance that he will
+     * not challenge the order closes the same term through
+     * {@see self::waiveAnnulmentRequest()}, which records that reason instead; the two
+     * are kept apart because the audit trail has to say whether the ten days ran out or
+     * the lawyer stepped away from them.
+     *
+     * The caller decides that the term has expired, from `rulingCommunicationDate`
+     * through {@see self::appealTermEnd()}, so the date used here is the same one
+     * {@see CaseAutoFinalizer} finalizes on and no second date can appear.
+     */
+    public function closeAppealDeadline(LegalCase $legalCase): ?LegalDeadline
+    {
+        return $this->closeDeadline($legalCase, DeadlineType::CERERE_IN_ANULARE, 'appeal_deadline_closed', 'appeal_term_lapsed');
+    }
+
+    /**
+     * Closes the annulment-request term because the lawyer decided he is not filing one.
+     *
+     * The question is never asked in advance. At the moment the order is served the
+     * lawyer usually does not know yet whether he will challenge it, while the ten days
+     * run regardless, so the term is displayed as the real window it is and this is the
+     * way out for whoever has made up his mind. Doing nothing stays a valid answer: the
+     * term then runs its course and closes on expiry, exactly as before.
+     *
+     * Nothing is stored beyond the closing itself. A "filing yes/no" column would be a
+     * second source of truth for a state the deadline already carries, and the decision
+     * is only actionable as long as the window is open.
+     */
+    public function waiveAnnulmentRequest(LegalCase $legalCase, User $user): ?LegalDeadline
+    {
+        return $this->closeDeadline(
+            $legalCase,
+            DeadlineType::CERERE_IN_ANULARE,
+            'appeal_deadline_closed',
+            'annulment_request_waived',
+            user: $user,
+        );
+    }
+
+    /**
+     * Marks the single automatic deadline of a type as completed. Idempotent: an already
+     * closed or absent term is returned untouched.
+     *
+     * Without `$user` the completion is recorded as the platform's, which is what every
+     * automatic closing is. A closing that a lawyer actually decided passes him in, so
+     * the record says who stepped away from the term.
+     *
+     * @param array<string, string> $extraAuditData merged into the audit payload, for the fact the closing rests on
+     */
+    private function closeDeadline(LegalCase $legalCase, DeadlineType $type, string $action, string $reason, array $extraAuditData = [], ?User $user = null): ?LegalDeadline
+    {
+        $deadline = $this->deadlineRepository->findOneByCaseAndType($legalCase, $type);
+        if ($deadline === null || $deadline->isCompleted()) {
+            return $deadline;
+        }
+
+        $deadline->markCompleted($user);
+        $this->em->flush();
+
+        $this->auditLogService->log(
+            action: $action,
+            entityType: LegalDeadline::class,
+            entityId: (string) $deadline->getId(),
+            newData: [
+                'deadlineId' => $deadline->getId(),
+                'type' => $type->value,
+                'caseNumber' => $legalCase->getCaseNumber(),
+                'deadlineDate' => $deadline->getDeadlineDate()->format('Y-m-d'),
+                'reason' => $reason,
+                ...$extraAuditData,
             ],
             category: AuditLogService::CATEGORY_DEADLINE_COMPLETED,
         );
@@ -363,18 +596,35 @@ final class DeadlineService
     }
 
     /**
-     * Termen de timbrare: data comunicării înștiințării instanței + 10 zile libere
-     * (OUG 80/2013 art. 33 alin. 2, care trimite la CPC art. 200 alin. 2 teza I,
-     * coroborat cu art. 181 alin. 1 pct. 2), prorogat la prima zi lucrătoare.
-     * Prioritate CRITICAL: ratarea lui atrage ANULAREA cererii (CPC art. 197).
+     * Termen de timbrare: data comunicării înștiințării instanței plus zilele libere
+     * acordate de instanță (OUG 80/2013 art. 33 alin. 2, care trimite la CPC art. 200
+     * alin. 2 teza I, coroborat cu art. 181 alin. 1 pct. 2), prorogat la prima zi
+     * lucrătoare. Prioritate CRITICAL: ratarea lui atrage ANULAREA cererii.
+     *
+     * CPC art. 200 spune „în termen de cel mult 10 zile de la primirea comunicării",
+     * deci 10 este plafonul legal, nu durata fixă: instanța poate acorda mai puțin,
+     * niciodată mai mult. Avocatul citește numărul din înștiințare și îl introduce;
+     * calculul rămâne al aplicației, ca să nu numere el zilele libere.
      *
      * Termenul curge de la comunicarea instanței, dată pe care platforma nu o
      * cunoaște, deci e furnizată de avocat când primește înștiințarea. Recalculează
-     * termenul existent dacă avocatul corectează data.
+     * termenul existent dacă avocatul corectează data sau numărul de zile.
      */
-    public function createStampDutyDeadline(LegalCase $legalCase, \DateTimeImmutable $courtNoticeDate): LegalDeadline
-    {
-        $term = $this->proceduralTermEnd($courtNoticeDate, self::STAMP_DUTY_DAYS);
+    public function createStampDutyDeadline(
+        LegalCase $legalCase,
+        \DateTimeImmutable $courtNoticeDate,
+        ?int $grantedDays = null,
+    ): LegalDeadline {
+        $days = $grantedDays ?? self::STAMP_DUTY_DAYS;
+        if ($days < 1 || $days > self::STAMP_DUTY_DAYS) {
+            throw new \InvalidArgumentException(sprintf(
+                'The court can grant between 1 and %d days to comply (CPC art. 200), got %d.',
+                self::STAMP_DUTY_DAYS,
+                $days,
+            ));
+        }
+
+        $term = $this->proceduralTermEnd($courtNoticeDate, $days);
         $rawDeadline = $term->rawEnd;
         $deadlineDate = $term->end;
 
@@ -419,10 +669,12 @@ final class DeadlineService
      * art. 2517), so a single deadline pinned to the earliest due date would
      * leave the later invoices unmonitored once the oldest one is resolved.
      *
-     * No working-day prorogation: prescription is a substantive-law term (NCC art.
-     * 2539-2541), not a procedural one (CPC art. 181 para. 2 covers only procedural
-     * terms). The exact date is kept; prorogating it would show a date later than
-     * the real one and could make the lawyer file after the term has actually run.
+     * Prorogated to the first working day under NCC art. 2554, the substantive-law
+     * counterpart of CPC art. 181 para. 2: prescription is a substantive term (NCC
+     * art. 2539-2541), so the rule that applies to it is art. 2554, which makes the
+     * term end at the close of the first working day that follows. The prorogated
+     * date is therefore the real maturity date, not a date later than it, and the raw
+     * one stays in the audit payload.
      *
      * Idempotent per due date via {@see LegalDeadlineRepository::findOneByCaseTypeAndDate()},
      * so a re-run only fills the uncovered due dates. When the case carries no
@@ -436,7 +688,8 @@ final class DeadlineService
     {
         $created = [];
         foreach ($this->prescriptionDueDates($legalCase) as $dueDate) {
-            $deadlineDate = $dueDate->modify(self::PRESCRIPTION_INTERVAL);
+            $term = $this->substantiveTermEnd($dueDate->modify(self::PRESCRIPTION_INTERVAL));
+            $deadlineDate = $term->end;
             if ($this->deadlineRepository->findOneByCaseTypeAndDate($legalCase, DeadlineType::PRESCRIPTIE, $deadlineDate) !== null) {
                 continue;
             }
@@ -453,7 +706,7 @@ final class DeadlineService
                 DeadlineType::PRESCRIPTIE,
                 $deadlineDate,
                 baseDate: $dueDate,
-                rawDeadline: $deadlineDate,
+                rawDeadline: $term->rawEnd,
                 description: $description,
             );
         }
@@ -470,7 +723,7 @@ final class DeadlineService
      *
      * @return list<\DateTimeImmutable> ascending
      */
-    private function prescriptionDueDates(LegalCase $legalCase): array
+    public function prescriptionDueDates(LegalCase $legalCase): array
     {
         $dates = [];
         foreach ($legalCase->getClaimItems() as $item) {
@@ -501,20 +754,36 @@ final class DeadlineService
 
     /**
      * Enforcement prescription deadline: definitiveDate + 3 years (CPC art. 705 para.
-     * 1, runs from when the order became final). Priority CRITICAL. No prorogation:
-     * a years-based limitation is outside CPC art. 181 para. 1 pt. 2 (day-based terms).
+     * 1, runs from when the order became final). Priority CRITICAL.
+     *
+     * Prorogated to the first working day under NCC art. 2554, like the other
+     * substantive terms here: a years-based limitation is outside CPC art. 181 para. 1
+     * pt. 2, which governs day-based procedural terms, but art. 2554 covers it and
+     * makes the first working day the day the term is actually fulfilled.
      */
     public function createExecutionPrescriptionDeadline(LegalCase $legalCase, \DateTimeImmutable $definitiveDate): LegalDeadline
     {
-        $deadlineDate = $definitiveDate->modify(self::EXECUTION_PRESCRIPTION_INTERVAL);
+        $term = $this->substantiveTermEnd($definitiveDate->modify(self::EXECUTION_PRESCRIPTION_INTERVAL));
 
         return $this->persistDeadline(
             $legalCase,
             DeadlineType::PRESCRIPTIE_EXECUTARE,
-            $deadlineDate,
+            $term->end,
             baseDate: $definitiveDate,
-            rawDeadline: $deadlineDate,
+            rawDeadline: $term->rawEnd,
         );
+    }
+
+    /**
+     * Creates the enforcement-limitation term unless the case already carries one.
+     * The anchor is chosen by the caller, which is the only place that knows which
+     * ruling made the order final; this method only guarantees the single term per
+     * case that {@see LegalDeadlineRepository::findOneByCaseAndType()} assumes.
+     */
+    public function ensureExecutionPrescriptionDeadline(LegalCase $legalCase, \DateTimeImmutable $definitiveDate): LegalDeadline
+    {
+        return $this->deadlineRepository->findOneByCaseAndType($legalCase, DeadlineType::PRESCRIPTIE_EXECUTARE)
+            ?? $this->createExecutionPrescriptionDeadline($legalCase, $definitiveDate);
     }
 
     /**

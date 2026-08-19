@@ -196,10 +196,13 @@ final class StampDutyService
      * The court's notice to stamp has arrived. Only now can the 10-day term be
      * computed: it runs from that communication, a date the platform cannot observe.
      */
-    public function recordCourtNotice(LegalCase $case, \DateTimeImmutable $noticeDate): LegalDeadline
-    {
-        return $this->em->wrapInTransaction(function () use ($case, $noticeDate): LegalDeadline {
-            $deadline = $this->deadlineService->createStampDutyDeadline($case, $noticeDate);
+    public function recordCourtNotice(
+        LegalCase $case,
+        \DateTimeImmutable $noticeDate,
+        ?int $grantedDays = null,
+    ): LegalDeadline {
+        return $this->em->wrapInTransaction(function () use ($case, $noticeDate, $grantedDays): LegalDeadline {
+            $deadline = $this->deadlineService->createStampDutyDeadline($case, $noticeDate, $grantedDays);
 
             $this->auditLogService->log(
                 action: 'stamp_duty_court_notice_recorded',
@@ -208,6 +211,7 @@ final class StampDutyService
                 newData: [
                     'caseNumber' => $case->getCaseNumber(),
                     'courtNoticeDate' => $noticeDate->format('Y-m-d'),
+                    'grantedDays' => $grantedDays,
                     'deadlineDate' => $deadline->getDeadlineDate()->format('Y-m-d'),
                     'deadlineId' => $deadline->getId(),
                 ],

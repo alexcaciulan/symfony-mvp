@@ -1267,7 +1267,7 @@ final class CaseWizardController extends AbstractController
             $byCui = $this->creditors->findOneBy(['user' => $user, 'cui' => $dto->cui]);
             if ($byCui !== null) {
                 $outcome['wasReused'] = true;
-                $this->backfillCreditorLocation($byCui, $dto);
+                $this->refreshCreditorFromDto($byCui, $dto);
 
                 return $byCui;
             }
@@ -1302,6 +1302,11 @@ final class CaseWizardController extends AbstractController
      * case on a reused creditor could never resolve its payment UAT. Fill the gap
      * when the ANAF lookup supplies it, without overwriting a value the lawyer
      * already curated.
+     *
+     * Deliberately weaker than {@see refreshCreditorFromDto}: this path runs when
+     * the lawyer picked a creditor from the library, which hides the manual
+     * fields, so the DTO carries no fresh input to write. Treating an unsubmitted
+     * field as an intentional value would blank the library record.
      */
     private function backfillCreditorLocation(Creditor $creditor, Step1CreditorData $dto): void
     {
@@ -1313,6 +1318,66 @@ final class CaseWizardController extends AbstractController
             $creditor->setAddressLocality($dto->addressLocality);
             $creditor->setAnafCheckedAt($this->parseAnafCheckedAt($dto->anafCheckedAt));
         }
+    }
+
+    /**
+     * The lawyer filled the form by hand or synced it from ANAF, and only then
+     * did the CUI turn out to match a creditor already in the library. Before,
+     * everything but a missing county/locality was silently dropped: the wizard
+     * showed the fresh data, the saved case kept the stale address, and the
+     * somaţie went out to the old registered office.
+     *
+     * Only non-empty values that actually differ are written, and the change is
+     * audited: this creditor is shared with the lawyer's other cases, so their
+     * display changes too.
+     */
+    private function refreshCreditorFromDto(Creditor $creditor, Step1CreditorData $dto): void
+    {
+        $updatable = [
+            'Name' => $dto->name,
+            'Address' => $dto->address,
+            'AddressCounty' => $dto->addressCounty,
+            'AddressLocality' => $dto->addressLocality,
+            'OnrcNumber' => $dto->onrcNumber,
+            'LegalRepresentative' => $dto->legalRepresentative,
+            'Email' => $dto->email,
+            'Phone' => $dto->phone,
+            'Iban' => $dto->iban,
+            'BankName' => $dto->bankName,
+        ];
+
+        $changes = [];
+
+        foreach ($updatable as $property => $value) {
+            if ($value === null || trim($value) === '') {
+                continue;
+            }
+
+            $current = $creditor->{'get' . $property}();
+            if ($current === $value) {
+                continue;
+            }
+
+            $creditor->{'set' . $property}($value);
+            $changes[lcfirst($property)] = ['from' => $current, 'to' => $value];
+        }
+
+        $checkedAt = $this->parseAnafCheckedAt($dto->anafCheckedAt);
+        if ($checkedAt !== null) {
+            $creditor->setAnafCheckedAt($checkedAt);
+        }
+
+        if ($changes === []) {
+            return;
+        }
+
+        $this->auditLog->log(
+            action: 'creditor_refreshed',
+            entityType: Creditor::class,
+            entityId: (string) $creditor->getId(),
+            newData: $changes,
+            category: AuditLogService::CATEGORY_WIZARD_SUBMIT,
+        );
     }
 
     private function parseAnafCheckedAt(?string $raw): ?\DateTimeImmutable

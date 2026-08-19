@@ -43,6 +43,21 @@
                            max="{{ 'now'|date('Y-m-d') }}"
                            class="w-full py-2 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                 </div>
+
+                {# The court grants "cel mult 10 zile" (CPC art. 200), so fewer is possible.
+                   The lawyer reads the number off the notice; the free-day count and the
+                   working-day prorogation stay with the application. #}
+                <div>
+                    <label for="stamp_duty_granted_days" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'case_overview.stamp_duty.modal_court_notice.field_days_label'|trans }}</label>
+                    <select id="stamp_duty_granted_days"
+                            name="grantedDays"
+                            class="w-full py-2 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        {% for d in 1..10 %}
+                            <option value="{{ d }}"{{ d == 10 ? ' selected' : '' }}>{{ 'case_overview.stamp_duty.modal_court_notice.days_option'|trans({'%count%': d}) }}</option>
+                        {% endfor %}
+                    </select>
+                    <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ 'case_overview.stamp_duty.modal_court_notice.field_days_hint'|trans }}</p>
+                </div>
             </div>
 
             <div class="flex justify-end items-center gap-x-2 py-3 px-5 border-t border-slate-100 dark:border-slate-800">

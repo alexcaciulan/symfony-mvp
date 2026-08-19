@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace App\Tests\Service\Deadline;
 
+use App\Entity\AuditLog;
 use App\Entity\LegalCase;
+use App\Entity\LegalDeadline;
 use App\Entity\User;
 use App\Enum\CaseStatus;
+use App\Enum\DeadlineType;
 use App\Event\MissingCommunicationDateEvent;
 use App\Repository\LegalCaseRepository;
+use App\Repository\LegalDeadlineRepository;
 use App\Service\AuditLogService;
 use App\Service\Case\CaseWorkflowService;
 use App\Service\Deadline\CaseAutoFinalizer;
@@ -55,7 +59,7 @@ class CaseAutoFinalizerTest extends KernelTestCase
         $this->em->flush();
     }
 
-    private function finalizer(): CaseAutoFinalizer
+    private function finalizer(int $bufferDays = self::BUFFER_DAYS): CaseAutoFinalizer
     {
         $dispatcher = $this->createStub(EventDispatcherInterface::class);
         $dispatcher->method('dispatch')->willReturnCallback(function (object $event): object {
@@ -74,7 +78,8 @@ class CaseAutoFinalizerTest extends KernelTestCase
             static::getContainer()->get(AuditLogService::class),
             $dispatcher,
             $this->em,
-            self::BUFFER_DAYS,
+            static::getContainer()->get(LegalDeadlineRepository::class),
+            $bufferDays,
         );
     }
 
@@ -161,6 +166,34 @@ class CaseAutoFinalizerTest extends KernelTestCase
     }
 
     /**
+     * The waiting period between the term lapsing and the case being declared final is
+     * counted in WORKING days, not calendar ones. It exists to absorb the delay with
+     * which a request filed on the last day becomes visible, and nothing is registered
+     * or communicated over a weekend, so counting calendar days would spend the wait
+     * on days where the fact it waits for cannot appear.
+     *
+     * Read on a maturity that falls on a Friday, which is where the two counts
+     * diverge: three working days reach Wednesday, three calendar days only Monday.
+     */
+    public function testTheWaitingPeriodBeforeFinalizingIsCountedInWorkingDays(): void
+    {
+        $communicationDate = '2026-06-01';
+        $maturity = $this->deadlineService->appealTermEnd(new \DateTimeImmutable($communicationDate));
+        $this->assertSame('2026-06-12', $maturity->format('Y-m-d'), 'The term matures on a Friday.');
+
+        $case = $this->createCase(CaseStatus::ORDONANTA_EMISA, $communicationDate);
+
+        // Monday 15 June is the maturity plus three CALENDAR days, two of which are
+        // the weekend. The wait is not over.
+        $this->finalizer(3)->process(new \DateTimeImmutable('2026-06-15'));
+        $this->assertSame(CaseStatus::ORDONANTA_EMISA, $case->getStatus());
+
+        // Wednesday 17 June is the maturity plus three WORKING days.
+        $this->finalizer(3)->process(new \DateTimeImmutable('2026-06-17'));
+        $this->assertSame(CaseStatus::DEFINITIVA, $case->getStatus());
+    }
+
+    /**
      * The debtor may file the annulment request throughout the maturity day of the
      * term (CPC art. 182 alin. 1), so a cron running that very day must leave the case
      * alone: closing it would be declaring final an order still open to challenge.
@@ -195,6 +228,168 @@ class CaseAutoFinalizerTest extends KernelTestCase
         $this->finalizer()->process(new \DateTimeImmutable('2027-01-01'));
 
         $this->assertSame(CaseStatus::IN_ANULARE, $case->getStatus());
+    }
+
+    /**
+     * The ten days of CPC art. 1024 para. 1 have run, so the term is closed. No buffer
+     * is added here: the buffer exists to delay a status change that would block a late
+     * filing, while closing a term that has provably run blocks nothing.
+     */
+    public function testALapsedAnnulmentTermIsClosedAutomatically(): void
+    {
+        $case = $this->createCase(CaseStatus::ORDONANTA_EMISA, '2026-06-04');
+        $deadline = $this->createAppealDeadline($case);
+
+        $report = $this->finalizer()->process(new \DateTimeImmutable('2027-01-01'));
+
+        $this->em->refresh($deadline);
+        $this->assertTrue($deadline->isCompleted());
+        $this->assertNull($deadline->getCompletedBy(), 'Closed by the platform, not by a lawyer.');
+        $this->assertGreaterThanOrEqual(1, $report->appealTermsClosed);
+    }
+
+    /** The debtor may still file throughout the maturity day, so the term stays open on it. */
+    public function testAnAnnulmentTermStillRunningIsNotClosed(): void
+    {
+        $case = $this->createCase(CaseStatus::ORDONANTA_EMISA, '2026-06-04');
+        $deadline = $this->createAppealDeadline($case);
+
+        // 10 free days from 4 June 2026 mature on 15 June; on that day the term runs.
+        $maturity = $this->deadlineService->appealTermEnd(new \DateTimeImmutable('2026-06-04'));
+        $this->finalizer()->process($maturity);
+
+        $this->em->refresh($deadline);
+        $this->assertFalse($deadline->isCompleted());
+    }
+
+    /**
+     * The term expires on its own date whatever the case did afterwards, so a case that
+     * was challenged in time, and therefore left ORDONANTA_EMISA, still gets its term
+     * closed once the window is spent.
+     */
+    public function testALapsedAnnulmentTermIsClosedOnAChallengedCaseToo(): void
+    {
+        $case = $this->createCase(CaseStatus::IN_ANULARE, '2026-06-04');
+        $deadline = $this->createAppealDeadline($case);
+
+        $this->finalizer()->process(new \DateTimeImmutable('2027-01-01'));
+
+        $this->em->refresh($deadline);
+        $this->assertTrue($deadline->isCompleted());
+    }
+
+    /**
+     * The lawyer deciding early that he is not challenging the order closes the term, and
+     * that must not pull the case final any sooner. The debtor has his own ten days from
+     * the same service, and they run whatever the creditor decided, so finalization is
+     * recomputed from `rulingCommunicationDate` rather than read off the deadline row: a
+     * closed term is not evidence that the window is spent.
+     */
+    public function testAWaivedAnnulmentTermDoesNotFinalizeTheCaseAnySooner(): void
+    {
+        $communicationDate = '2026-06-04';
+        $case = $this->createCase(CaseStatus::ORDONANTA_EMISA, $communicationDate);
+        $deadline = $this->createAppealDeadline($case);
+
+        $this->deadlineService->waiveAnnulmentRequest($case, $this->user);
+        $this->em->refresh($deadline);
+        $this->assertTrue($deadline->isCompleted());
+
+        // On the maturity day the window is still open for the debtor.
+        $this->finalizer()->process($this->deadlineService->appealTermEnd(new \DateTimeImmutable($communicationDate)));
+        $this->assertSame(CaseStatus::ORDONANTA_EMISA, $case->getStatus());
+
+        $this->finalizer()->process($this->threshold($communicationDate));
+        $this->assertSame(CaseStatus::DEFINITIVA, $case->getStatus());
+    }
+
+    /**
+     * And the daily pass leaves the decision alone. It runs over open terms, so a waived
+     * one is simply not among them: the lawyer stays recorded as the one who closed it,
+     * instead of being overwritten by the platform on the next run.
+     */
+    public function testTheDailyPassDoesNotRewriteAWaivedTermAsALapse(): void
+    {
+        $case = $this->createCase(CaseStatus::ORDONANTA_EMISA, '2026-06-04');
+        $deadline = $this->createAppealDeadline($case);
+        $this->deadlineService->waiveAnnulmentRequest($case, $this->user);
+
+        $this->finalizer()->process(new \DateTimeImmutable('2027-01-01'));
+
+        $this->em->refresh($deadline);
+        $this->assertSame($this->user->getId(), $deadline->getCompletedBy()?->getId());
+        $this->assertSame(
+            ['annulment_request_waived'],
+            $this->closingReasons($deadline),
+            'The pass must not log a second, contradicting ending for the same term.',
+        );
+    }
+
+    /**
+     * Every closing logged against a deadline, by the reason each carries.
+     *
+     * @return list<string>
+     */
+    private function closingReasons(LegalDeadline $deadline): array
+    {
+        $entries = $this->em->getRepository(AuditLog::class)->findBy([
+            'category' => AuditLogService::CATEGORY_DEADLINE_COMPLETED,
+            'entityType' => LegalDeadline::class,
+            'entityId' => (string) $deadline->getId(),
+        ], ['id' => 'ASC']);
+
+        return array_values(array_map(
+            static fn (AuditLog $entry): string => (string) ($entry->getNewData()['reason'] ?? ''),
+            $entries,
+        ));
+    }
+
+    /** Without the date it runs from, the term cannot be proven lapsed, so it stays open. */
+    public function testAnAnnulmentTermWithoutACommunicationDateIsLeftAlone(): void
+    {
+        $case = $this->createCase(CaseStatus::ORDONANTA_EMISA, null);
+        $deadline = $this->createAppealDeadline($case);
+
+        $this->finalizer()->process(new \DateTimeImmutable('2027-01-01'));
+
+        $this->em->refresh($deadline);
+        $this->assertFalse($deadline->isCompleted());
+    }
+
+    /**
+     * The condition holds every day until the lawyer records the date, and the job runs
+     * daily, so the alert carries a key naming the week it belongs to. The dispatcher
+     * refuses the second delivery under the same key, on every channel.
+     */
+    public function testTheMissingDateAlertCarriesAWeeklyDedupKey(): void
+    {
+        $case = $this->createCase(CaseStatus::ORDONANTA_EMISA, null);
+
+        $this->finalizer()->process(new \DateTimeImmutable('2026-08-03')); // Monday
+        $this->finalizer()->process(new \DateTimeImmutable('2026-08-07')); // Friday, same week
+        $this->finalizer()->process(new \DateTimeImmutable('2026-08-10')); // the Monday after
+
+        $keys = array_values(array_map(
+            static fn (MissingCommunicationDateEvent $e): ?string => $e->dedupKey,
+            array_filter($this->missingEvents, static fn (MissingCommunicationDateEvent $e): bool => $e->case->getId() === $case->getId()),
+        ));
+
+        $this->assertCount(3, $keys);
+        $this->assertSame($keys[0], $keys[1], 'Two runs in the same week must carry the same key.');
+        $this->assertNotSame($keys[1], $keys[2], 'A new week is a new message.');
+    }
+
+    private function createAppealDeadline(LegalCase $case): LegalDeadline
+    {
+        $deadline = new LegalDeadline();
+        $deadline->setLegalCase($case);
+        $deadline->setType(DeadlineType::CERERE_IN_ANULARE);
+        $deadline->setDeadlineDate(new \DateTimeImmutable('2026-06-15'));
+        $deadline->setPriority(DeadlineType::CERERE_IN_ANULARE->defaultPriority());
+        $this->em->persist($deadline);
+        $this->em->flush();
+
+        return $deadline;
     }
 
     protected function tearDown(): void

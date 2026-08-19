@@ -21,12 +21,12 @@ final readonly class DeadlineAgendaItem
         /** Whole calendar days from today: negative when the date has passed, 0 today. */
         public int $daysRemaining,
         /**
-         * Translation key base of the marker printed under the date, resolved from the
-         * type by {@see DeadlineCertaintyResolver::estimateReasonKey()}. Only read when
-         * the certainty is ESTIMAT; on a certain date it names the reason that would
-         * have applied and nothing renders it.
+         * The marker printed under the date, resolved by
+         * {@see DeadlineEstimateNoteResolver}. Only read when the certainty is ESTIMAT;
+         * on a certain date it holds the wording that would have applied and nothing
+         * renders it.
          */
-        public string $estimateReasonKey,
+        public DeadlineEstimateNote $estimateNote,
     ) {}
 
     public function severityRank(): int

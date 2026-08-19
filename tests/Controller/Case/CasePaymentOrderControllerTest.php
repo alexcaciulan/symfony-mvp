@@ -23,8 +23,10 @@ use App\Tests\Support\CountyFixtureTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Tests for CasePaymentOrderController.
@@ -169,6 +171,36 @@ final class CasePaymentOrderControllerTest extends WebTestCase
     }
 
     /**
+     * The proof that the summons reached the debtor. Attached by default in the tests
+     * that expect the package to be produced, because the filing gate refuses without
+     * it (CPC art. 1015 para. 1); the gate itself has its own tests below.
+     */
+    private function attachCommunicationProof(): Document
+    {
+        $caseDir = $this->uploadsDir . '/cases/' . $this->case->getId();
+        if (!is_dir($caseDir)) {
+            mkdir($caseDir, 0755, true);
+        }
+        $storedFile = 'cases/' . $this->case->getId() . '/dovada-comunicare.pdf';
+        file_put_contents($this->uploadsDir . '/' . $storedFile, '%PDF-1.4 mock dovada');
+
+        $doc = new Document();
+        $doc->setLegalCase($this->case);
+        $doc->setDocumentType(DocumentType::DOVADA_COMUNICARE);
+        $doc->setOriginalFilename('DovadaComunicare.pdf');
+        $doc->setStoredFilename($storedFile);
+        $doc->setFileSize(20);
+        $doc->setMimeType('application/pdf');
+        $doc->setUploadedBy($this->user);
+        $doc->setExtractionStatus(ExtractionStatus::COMPLETED);
+        $this->em->persist($doc);
+        $this->em->flush();
+        $this->case->getDocuments()->add($doc);
+
+        return $doc;
+    }
+
+    /**
      * CPC art. 197: proof of the stamp duty is attached to the petition, and failing
      * to stamp it annuls the claim. So an unpaid duty must stop the filing package
      * from being produced at all.
@@ -205,6 +237,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
      */
     public function testGenerateIsAllowedWhenStampDutyIsDeferredToRegularization(): void
     {
+        $this->attachCommunicationProof();
         $this->attachSomatieFile();
         $this->case->setStampDutyStatus(StampDutyStatus::AMANATA_REGULARIZARE);
         $this->em->flush();
@@ -223,8 +256,290 @@ final class CasePaymentOrderControllerTest extends WebTestCase
         self::assertSame(CaseStatus::CERERE_GENERATA, $refreshed->getStatus());
     }
 
+    /**
+     * The petition rests on a communication that can be proved, and the court is shown
+     * the bailiff record or the postal acknowledgement rather than the date the lawyer
+     * typed (CPC art. 1015 para. 1). So the package must not be produced without it.
+     */
+    public function testGenerateIsBlockedWhenTheCommunicationProofIsMissing(): void
+    {
+        $this->attachSomatieFile();
+        $this->client->loginUser($this->user);
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/payment-order/generate', [
+            '_token' => $token,
+            'debitAcknowledgedStatus' => 'UNPAID',
+            'opGenerationConsent' => '1',
+        ]);
+
+        self::assertResponseRedirects('/case/' . $this->case->getId());
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame(CaseStatus::SOMATIE_TRIMISA, $refreshed->getStatus(), 'Without the proof the case must not reach CERERE_GENERATA.');
+
+        $documents = $this->em->getRepository(Document::class)->findBy(['legalCase' => $refreshed->getId()]);
+        $types = array_map(static fn (Document $d): DocumentType => $d->getDocumentType(), $documents);
+        self::assertNotContains(DocumentType::CERERE_OP, $types, 'No petition may be generated without the proof of communication.');
+    }
+
+    /**
+     * The date is saved freely so the 15-day term starts counting; only the filing waits
+     * for the document. A case whose date is missing altogether must therefore be stopped
+     * by the proof gate and not by anything about the date.
+     */
+    public function testGenerateIsBlockedOnTheProofEvenWithoutACommunicationDate(): void
+    {
+        $this->attachSomatieFile();
+        $this->client->loginUser($this->user);
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+
+        self::assertNull($this->case->getPaymentNoticeCommunicationDate());
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/payment-order/generate', [
+            '_token' => $token,
+            'debitAcknowledgedStatus' => 'UNPAID',
+            'opGenerationConsent' => '1',
+        ]);
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame(CaseStatus::SOMATIE_TRIMISA, $refreshed->getStatus());
+    }
+
+    /**
+     * The refusal has to name what is missing. A generic error would send the lawyer
+     * hunting through the stamp duty, the court and the payment term, which is the
+     * whole list this gate sits at the end of.
+     */
+    public function testTheRefusedFilingSaysThatTheProofIsWhatIsMissing(): void
+    {
+        $this->attachSomatieFile();
+        $this->client->loginUser($this->user);
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/payment-order/generate', [
+            '_token' => $token,
+            'debitAcknowledgedStatus' => 'UNPAID',
+            'opGenerationConsent' => '1',
+        ]);
+
+        self::assertSame(
+            ['case_overview.payment_order.flash_error_communication_proof_missing'],
+            $this->client->getRequest()->getSession()->getFlashBag()->peek('error'),
+        );
+    }
+
+    /**
+     * The way the modal actually posts. Turbo intercepts the submit and asks for a
+     * stream, which is a different branch of the answer, so a guard proven on the
+     * redirect alone is proven on the path nobody uses.
+     */
+    public function testTheProofGateReachesATurboClientAsTheSameRefusal(): void
+    {
+        $this->attachSomatieFile();
+        $this->client->loginUser($this->user);
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+
+        $this->client->request(
+            'POST',
+            '/case/' . $this->case->getId() . '/payment-order/generate',
+            ['_token' => $token, 'debitAcknowledgedStatus' => 'UNPAID', 'opGenerationConsent' => '1'],
+            [],
+            ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html'],
+        );
+
+        $translator = static::getContainer()->get(TranslatorInterface::class);
+        // Decoded, because the toast prints through Twig escaping and the message
+        // carries quotation marks.
+        $body = html_entity_decode((string) $this->client->getResponse()->getContent());
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString(
+            $translator->trans('case_overview.payment_order.flash_error_communication_proof_missing'),
+            $body,
+        );
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame(CaseStatus::SOMATIE_TRIMISA, $refreshed->getStatus());
+        self::assertNull($this->em->getRepository(Document::class)->findOneBy([
+            'legalCase' => $refreshed->getId(),
+            'documentType' => DocumentType::CERERE_OP,
+        ]));
+    }
+
+    /**
+     * The four places that offer the filing (hero, recommended actions, the petition
+     * card and the ZIP card) are triggers for ONE dialog, so they share a single form
+     * and a single POST. That is what makes a guard on the route a guard on every entry
+     * point, and a second form pointing at the same route would silently undo it.
+     *
+     * The disabled submit is pinned next to it as what it is: a courtesy, not the gate.
+     * The same post, sent by hand, is refused all the same.
+     */
+    public function testEveryEntryPointSharesTheOneFormAndTheDisabledSubmitIsNotTheGate(): void
+    {
+        $this->attachSomatieFile();
+        $this->client->loginUser($this->user);
+
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+        $forms = $crawler->filter('form[action$="/payment-order/generate"]');
+        self::assertCount(1, $forms, 'One dialog, one form: every trigger has to end up in the same guarded post.');
+        self::assertNotNull(
+            $forms->filter('button[type="submit"]')->first()->attr('disabled'),
+            'Without the proof the confirm button is disabled.',
+        );
+        self::assertGreaterThan(
+            1,
+            $crawler->filter('[data-hs-overlay="#hs-modal-cerere-op"]')->count(),
+            'The entry points are triggers for that dialog, which is why they need no form of their own.',
+        );
+
+        $token = (string) $forms->filter('input[name="_token"]')->first()->attr('value');
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/payment-order/generate', [
+            '_token' => $token,
+            'debitAcknowledgedStatus' => 'UNPAID',
+            'opGenerationConsent' => '1',
+        ]);
+
+        $this->em->clear();
+        self::assertSame(
+            CaseStatus::SOMATIE_TRIMISA,
+            $this->em->getRepository(LegalCase::class)->find($this->case->getId())->getStatus(),
+            'A hand-made post has no disabled attribute to respect, so the server must refuse it.',
+        );
+    }
+
+    /**
+     * The other half of the gate: it opens. The proof is uploaded through the ordinary
+     * document route, exactly as the lawyer does it from the dialog, and the filing that
+     * was refused a moment ago goes through unchanged.
+     */
+    public function testTheFilingGoesThroughOnceTheProofIsUploaded(): void
+    {
+        $this->attachSomatieFile();
+        $this->client->loginUser($this->user);
+
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/payment-order/generate', [
+            '_token' => $token,
+            'debitAcknowledgedStatus' => 'UNPAID',
+            'opGenerationConsent' => '1',
+        ]);
+
+        $this->em->clear();
+        self::assertSame(
+            CaseStatus::SOMATIE_TRIMISA,
+            $this->em->getRepository(LegalCase::class)->find($this->case->getId())->getStatus(),
+        );
+
+        $this->uploadCommunicationProof();
+
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/payment-order/generate', [
+            '_token' => $token,
+            'debitAcknowledgedStatus' => 'UNPAID',
+            'opGenerationConsent' => '1',
+        ]);
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame(CaseStatus::CERERE_GENERATA, $refreshed->getStatus());
+
+        $types = array_map(
+            static fn (Document $d): DocumentType => $d->getDocumentType(),
+            $this->em->getRepository(Document::class)->findBy(['legalCase' => $refreshed->getId()]),
+        );
+        self::assertContains(DocumentType::CERERE_OP, $types);
+        self::assertContains(DocumentType::OPIS, $types);
+    }
+
+    /** Uploads the proof through the route the dialog sends the lawyer to. */
+    private function uploadCommunicationProof(): void
+    {
+        $this->client->request('GET', '/case/' . $this->case->getId());
+        $token = (string) $this->client->getCrawler()
+            ->filter('input[name="document_upload[_token]"]')->first()->attr('value');
+
+        $path = tempnam(sys_get_temp_dir(), 'proof') . '.pdf';
+        file_put_contents($path, "%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF");
+
+        try {
+            $this->client->request(
+                'POST',
+                '/case/' . $this->case->getId() . '/document/upload',
+                ['document_upload' => ['_token' => $token, 'documentType' => 'dovada_comunicare']],
+                ['document_upload' => ['file' => new UploadedFile($path, 'DovadaComunicare.pdf', 'application/pdf', null, true)]],
+            );
+        } finally {
+            @unlink($path);
+        }
+
+        $this->em->clear();
+        self::assertNotNull(
+            $this->em->getRepository(Document::class)->findOneBy([
+                'legalCase' => $this->case->getId(),
+                'documentType' => DocumentType::DOVADA_COMUNICARE,
+            ]),
+            'The proof has to land on the case before the filing is retried.',
+        );
+    }
+
+    /**
+     * A case whose petition already exists is told exactly that, not sent looking for a
+     * proof that would change nothing: the idempotency guard runs before the proof one.
+     */
+    public function testAlreadyGeneratedCaseIsNotReportedAsMissingTheProof(): void
+    {
+        $this->attachSomatieFile();
+        $this->attachCommunicationProof();
+        $this->client->loginUser($this->user);
+
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/payment-order/generate', [
+            '_token' => $token,
+            'debitAcknowledgedStatus' => 'UNPAID',
+            'opGenerationConsent' => '1',
+        ]);
+
+        // The proof is removed after the fact, which is exactly the shape of a case
+        // generated before this gate existed.
+        $this->em->clear();
+        $proof = $this->em->getRepository(Document::class)->findOneBy([
+            'legalCase' => $this->case->getId(),
+            'documentType' => DocumentType::DOVADA_COMUNICARE,
+        ]);
+        $this->em->remove($proof);
+        $this->em->flush();
+
+        $token2 = $this->csrfTokenFromOverview($this->case->getId());
+        $this->client->request(
+            'POST',
+            '/case/' . $this->case->getId() . '/payment-order/generate',
+            ['_token' => $token2, 'debitAcknowledgedStatus' => 'UNPAID', 'opGenerationConsent' => '1'],
+            [],
+            ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html'],
+        );
+
+        $translator = static::getContainer()->get(TranslatorInterface::class);
+        // Decoded, because the toast prints through Twig escaping and the message
+        // carries quotation marks.
+        $body = html_entity_decode((string) $this->client->getResponse()->getContent());
+        self::assertStringContainsString(
+            $translator->trans('case_overview.payment_order.flash_error_wrong_status'),
+            $body,
+            'A case whose petition is out has already left SOMATIE_TRIMISA, and that is what it must be told.',
+        );
+        self::assertStringNotContainsString(
+            $translator->trans('case_overview.payment_order.flash_error_communication_proof_missing'),
+            $body,
+        );
+    }
+
     public function testGenerateHappyPathTransitionsToCerereGenerata(): void
     {
+        $this->attachCommunicationProof();
         $this->attachSomatieFile();
         $this->client->loginUser($this->user);
         $token = $this->csrfTokenFromOverview($this->case->getId());
@@ -263,6 +578,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
 
     public function testGenerateRespondsWithTurboStream(): void
     {
+        $this->attachCommunicationProof();
         $this->attachSomatieFile();
         $this->client->loginUser($this->user);
         $token = $this->csrfTokenFromOverview($this->case->getId());
@@ -422,6 +738,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
 
     public function testGenerateIdempotentWhenAlreadyExists(): void
     {
+        $this->attachCommunicationProof();
         $this->attachSomatieFile();
         $this->client->loginUser($this->user);
         $token = $this->csrfTokenFromOverview($this->case->getId());
@@ -488,6 +805,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
 
     public function testDownloadZipHappyPath(): void
     {
+        $this->attachCommunicationProof();
         $this->attachSomatieFile();
         $this->client->loginUser($this->user);
 
@@ -518,5 +836,43 @@ final class CasePaymentOrderControllerTest extends WebTestCase
         $this->client->request('GET', '/case/' . $this->case->getId() . '/zip-package/download');
 
         self::assertResponseRedirects('/case/' . $this->case->getId());
+    }
+
+    /**
+     * The generation gate cannot be the only one: the admin status override reaches a
+     * filed case without passing through it, leaving a package that would go to the
+     * court without the proof of service. Download refuses in that state.
+     */
+    public function testDownloadZipRefusesWithoutTheProofOfService(): void
+    {
+        $this->attachCommunicationProof();
+        $this->attachSomatieFile();
+        $this->client->loginUser($this->user);
+
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/payment-order/generate', [
+            '_token' => $token,
+            'debitAcknowledgedStatus' => 'UNPAID',
+            'opGenerationConsent' => '1',
+        ]);
+
+        // Drop the proof after the package exists, which is the state the override leaves behind.
+        $proof = $this->em->getRepository(Document::class)->findOneBy([
+            'legalCase' => $this->case,
+            'documentType' => DocumentType::DOVADA_COMUNICARE,
+        ]);
+        self::assertNotNull($proof, 'The proof must exist before the scenario removes it.');
+        $this->em->remove($proof);
+        $this->em->flush();
+        $this->em->clear();
+
+        $this->client->request('GET', '/case/' . $this->case->getId() . '/zip-package/download');
+
+        // The flash, not the redirect: every refusal on this route redirects to the
+        // same place, so asserting the status alone would pass for the wrong reason.
+        self::assertSame(
+            ['case_overview.zip_package.flash_error_missing_communication_proof'],
+            $this->client->getRequest()->getSession()->getFlashBag()->peek('error'),
+        );
     }
 }

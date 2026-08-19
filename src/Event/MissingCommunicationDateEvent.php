@@ -15,8 +15,16 @@ use App\Entity\LegalCase;
  *
  * Consumed by an event subscriber that prompts the lawyer to fill in the
  * communication date so the annulment-request term can start.
+ *
+ * The condition it reports is a standing one: it holds every day until the lawyer acts,
+ * and the cron runs daily, so without a dedup key the same case produces the same
+ * message every morning. The key is built by the producer, which is the only place that
+ * knows the day of the run, and encodes the period the message belongs to.
  */
 final readonly class MissingCommunicationDateEvent
 {
-    public function __construct(public LegalCase $case) {}
+    public function __construct(
+        public LegalCase $case,
+        public ?string $dedupKey = null,
+    ) {}
 }

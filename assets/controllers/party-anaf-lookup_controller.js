@@ -16,13 +16,16 @@ import { Controller } from '@hotwired/stimulus';
  *
  * On success the controller writes:
  *   - companyName  → the [name] target
- *   - composed address (street + nr + city + county) → the [address] target
+ *   - the street-level address (street, number, block, staircase, floor,
+ *     apartment, postal code) → the [address] target. It carries neither the
+ *     locality nor the county, which have their own fields.
  *   - county / locality → the [addressCounty] / [addressLocality] targets
  *     (structured: they feed the competent-court resolver for the debtor, and the
  *     stamp-duty payment UAT for the creditor)
  *   - anafStatus value (`ACTIV`/`INACTIV`/`RADIAT`) → the hidden [anafStatus]
  *   - ISO8601 timestamp → the hidden [anafCheckedAt]
- *   - the emerald "synced" badge is unhidden
+ *   - the emerald "synced" badge is unhidden, next to an undo button that
+ *     restores the values the sync overwrote
  *
  * Every target is optional, so a party that has no ANAF status field (the creditor)
  * simply omits it.
@@ -32,7 +35,7 @@ import { Controller } from '@hotwired/stimulus';
  * never prose, so each key is mapped to a template-provided translation here.
  */
 export default class extends Controller {
-    static targets = ['cui', 'name', 'address', 'addressCounty', 'addressLocality', 'anafStatus', 'anafCheckedAt', 'badge', 'spinner', 'syncButton'];
+    static targets = ['cui', 'name', 'address', 'addressCounty', 'addressLocality', 'anafStatus', 'anafCheckedAt', 'badge', 'spinner', 'syncButton', 'undoButton'];
     static values = {
         url: String,
         // English fallbacks. User-facing text comes from the template:
@@ -42,7 +45,28 @@ export default class extends Controller {
         unavailableMsg: { type: String, default: 'ANAF unavailable. Please retry.' },
         rateLimitedMsg: { type: String, default: 'Too many ANAF lookups. Try again later.' },
         notFoundMsg: { type: String, default: 'CUI not found in the ANAF registry.' },
+        successMsg: { type: String, default: 'Company data retrieved from ANAF.' },
+        undoneMsg: { type: String, default: 'Previous values restored.' },
+        fiscalDomicileMsg: { type: String, default: 'ANAF holds a different fiscal domicile. Check the unit details by hand.' },
+        postalCodeMissingMsg: { type: String, default: 'ANAF has no postal code for this company.' },
+        alreadySyncedTitle: { type: String, default: 'Already synced. Undo the sync to run it again.' },
     };
+
+    /** Payload key -> target name. The controller writes nothing else. */
+    static FIELD_MAP = {
+        companyName: 'name',
+        address: 'address',
+        county: 'addressCounty',
+        locality: 'addressLocality',
+        anafStatus: 'anafStatus',
+        anafCheckedAt: 'anafCheckedAt',
+    };
+
+    connect() {
+        this.loading = false;
+        this.synced = false;
+        this.previousValues = null;
+    }
 
     async lookup() {
         const raw = (this.cuiTarget.value || '').toUpperCase().replace(/\s+/g, '').trim();
@@ -60,7 +84,7 @@ export default class extends Controller {
             return;
         }
 
-        // Client-side guard — same shape as the LookupController requirements
+        // Client-side guard, same shape as the LookupController requirements
         // (regex `(RO)?\d{2,10}`). Saves an API round-trip on obvious typos.
         if (!/^(RO)?\d{2,10}$/.test(raw)) {
             this.dispatchToast('error', this.invalidMsgValue);
@@ -92,32 +116,94 @@ export default class extends Controller {
         }
     }
 
+    /*
+     * ANAF is the official register, so it wins over whatever the extraction
+     * or the lawyer had put in the field. The previous values are kept so the
+     * sync stays reversible: the register is occasionally poorer than the
+     * contract the case was built from.
+     *
+     * Same setFieldValue() path for every field, hidden ones included: a bare
+     * `.value =` skips the synthetic `input` event, and the Live Component then
+     * drops the value on its next re-render (add/remove debtor). A lost
+     * anafStatus makes OpAdmissibilityValidator block the case at step 4.
+     */
     populateFields(data) {
-        if (this.hasNameTarget && data.companyName) {
-            this.setFieldValue(this.nameTarget, data.companyName);
+        // Snapshot only on the first sync, and snapshot every mapped field
+        // rather than the ones this response happens to fill. Re-snapshotting
+        // would capture ANAF's own values, so undo would restore those instead
+        // of what the extraction had put in the fields.
+        if (this.previousValues === null) {
+            this.previousValues = new Map();
+
+            for (const targetName of Object.values(this.constructor.FIELD_MAP)) {
+                const field = this.fieldFor(targetName);
+                if (field) {
+                    this.previousValues.set(targetName, field.value);
+                }
+            }
         }
-        if (this.hasAddressTarget && data.address) {
-            this.setFieldValue(this.addressTarget, data.address);
+
+        for (const [key, targetName] of Object.entries(this.constructor.FIELD_MAP)) {
+            const field = this.fieldFor(targetName);
+            if (field && data[key]) {
+                this.setFieldValue(field, data[key]);
+            }
         }
-        if (this.hasAddressCountyTarget && data.county) {
-            this.setFieldValue(this.addressCountyTarget, data.county);
-        }
-        if (this.hasAddressLocalityTarget && data.locality) {
-            this.setFieldValue(this.addressLocalityTarget, data.locality);
-        }
-        // Same setFieldValue() path as the visible fields: a bare `.value =`
-        // skips the synthetic `input` event, and the Live Component then drops
-        // both on its next re-render (add/remove debtor). A lost anafStatus
-        // makes OpAdmissibilityValidator block the case at step 4.
-        if (this.hasAnafStatusTarget && data.anafStatus) {
-            this.setFieldValue(this.anafStatusTarget, data.anafStatus);
-        }
-        if (this.hasAnafCheckedAtTarget && data.anafCheckedAt) {
-            this.setFieldValue(this.anafCheckedAtTarget, data.anafCheckedAt);
-        }
+
+        // A second sync has nothing left to offer and would only muddy what
+        // undo means, so the button stays out of reach until the sync is undone.
+        this.synced = true;
+        this.refreshSyncButton();
+
         if (this.hasBadgeTarget) {
             this.badgeTarget.classList.remove('hidden');
         }
+        if (this.hasUndoButtonTarget) {
+            this.undoButtonTarget.classList.remove('hidden');
+        }
+
+        this.dispatchToast('success', this.successMsgValue);
+
+        // Two facts the lawyer has to act on now rather than discover once the
+        // somaţie comes back undelivered.
+        if (data.fiscalDomicileDiffers) {
+            this.dispatchToast('warning', this.fiscalDomicileMsgValue);
+        }
+        if (data.postalCodeMissing) {
+            this.dispatchToast('warning', this.postalCodeMissingMsgValue);
+        }
+    }
+
+    undo() {
+        if (this.previousValues === null) {
+            return;
+        }
+
+        for (const [targetName, value] of this.previousValues) {
+            const field = this.fieldFor(targetName);
+            if (field) {
+                this.setFieldValue(field, value);
+            }
+        }
+
+        this.previousValues = null;
+        this.synced = false;
+        this.refreshSyncButton();
+
+        if (this.hasUndoButtonTarget) {
+            this.undoButtonTarget.classList.add('hidden');
+        }
+        if (this.hasBadgeTarget) {
+            this.badgeTarget.classList.add('hidden');
+        }
+
+        this.dispatchToast('info', this.undoneMsgValue);
+    }
+
+    fieldFor(targetName) {
+        const capitalized = targetName.charAt(0).toUpperCase() + targetName.slice(1);
+
+        return this[`has${capitalized}Target`] ? this[`${targetName}Target`] : null;
     }
 
     translateError(key) {
@@ -141,16 +227,36 @@ export default class extends Controller {
         if (this.hasSpinnerTarget) {
             this.spinnerTarget.classList.toggle('hidden', !loading);
         }
-        if (this.hasSyncButtonTarget) {
-            this.syncButtonTarget.disabled = loading;
+        this.refreshSyncButton();
+    }
+
+    /**
+     * Single owner of the button state. `setLoading(false)` runs in the `finally`
+     * after a successful lookup, so a plain `disabled = loading` there would
+     * immediately re-enable a button the sync had just locked.
+     */
+    refreshSyncButton() {
+        if (!this.hasSyncButtonTarget) {
+            return;
+        }
+
+        this.syncButtonTarget.disabled = this.loading || this.synced;
+
+        if (this.synced) {
+            this.syncButtonTarget.title = this.alreadySyncedTitleValue;
+        } else {
+            this.syncButtonTarget.removeAttribute('title');
         }
     }
 
-    dispatchToast(type, message) {
+    dispatchToast(variant, message) {
+        // `variant` is the key toast_controller.js reads; sending `type` made
+        // every ANAF error render as a blue "info" notice with aria-live
+        // polite, indistinguishable from a successful sync.
         this.dispatch('show', {
             target: document.body,
             prefix: 'toast',
-            detail: { type, message },
+            detail: { variant, message },
             bubbles: true,
         });
     }

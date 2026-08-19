@@ -1,9 +1,10 @@
 {# Records the date the summons was received, from the agenda.
 
    The 15 day term of the debtor runs from communication (CPC art. 1015 para. 1), so
-   until that date is known the deadline on the row is an estimate. Collecting it
-   here is the point of the button: sending the lawyer into the case to type one date
-   is what makes a triage screen stop being one.
+   until that date is known the term does not exist and the case sits in the blockage
+   zone with no date on its row. Collecting the date here is the point of the button on
+   that row: sending the lawyer into the case to type one field is what makes a triage
+   screen stop being one.
 
    It posts to the route the case page posts to, with the same form name and the same
    token, and adds only the agenda context and the active filter, so the answer is
@@ -25,7 +26,7 @@
      tabindex="-1"
      aria-labelledby="hs-modal-agenda-summons-date-title">
     <div class="hs-overlay-open:mt-7 hs-overlay-open:opacity-100 hs-overlay-open:duration-500 mt-0 opacity-0 ease-out transition-all sm:max-w-lg sm:w-full m-3 sm:mx-auto">
-        <form method="post" class="flex flex-col bg-white border border-slate-200 shadow-lg rounded-2xl pointer-events-auto dark:bg-slate-900 dark:border-slate-800">
+        <form method="post" enctype="multipart/form-data" class="flex flex-col bg-white border border-slate-200 shadow-lg rounded-2xl pointer-events-auto dark:bg-slate-900 dark:border-slate-800">
             <input type="hidden" name="payment_notice_communication_date[_token]" value="{{ csrf_token('payment_notice_communication_date') }}">
             <input type="hidden" name="_context" value="agenda">
             {% for name, value in filter_fields %}
@@ -74,6 +75,18 @@
                         <option value="EXECUTOR">{{ 'enum.payment_notice_communication_method.EXECUTOR'|trans }}</option>
                         <option value="POSTA_RCD">{{ 'enum.payment_notice_communication_method.POSTA_RCD'|trans }}</option>
                     </select>
+                </div>
+
+                {# Același câmp opțional ca pe pagina dosarului: comunicarea prin poștă
+                   aduce data și dovada odată, deci ambele se pot închide de aici. #}
+                <div>
+                    <label for="agenda_summons_communication_proof" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'case_overview.summons.modal_communication_date.field_proof_label'|trans }}</label>
+                    <input type="file"
+                           id="agenda_summons_communication_proof"
+                           name="payment_notice_communication_date[communicationProof]"
+                           accept=".pdf,.jpg,.jpeg,.png"
+                           class="block w-full text-sm text-slate-600 dark:text-slate-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:cursor-pointer file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 dark:file:bg-slate-800 dark:file:text-slate-200 dark:hover:file:bg-slate-700">
+                    <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">{{ 'case_overview.summons.modal_communication_date.field_proof_hint'|trans }}</p>
                 </div>
             </div>
 

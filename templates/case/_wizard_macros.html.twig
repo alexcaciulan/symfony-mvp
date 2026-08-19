@@ -64,6 +64,21 @@
     </button>
 {% endmacro %}
 
+{# Revealed by the lookup once it has overwritten the fields, so an unwanted
+   sync is one click away from being reverted. ANAF is occasionally poorer than
+   the contract the case was built from. #}
+{% macro anaf_undo_button() %}
+    <button type="button"
+            data-action="party-anaf-lookup#undo"
+            data-party-anaf-lookup-target="undoButton"
+            class="hidden inline-flex items-center gap-1 mb-1.5 shrink-0 text-[11px] font-medium text-slate-500 hover:text-slate-700 hover:underline dark:text-slate-400 dark:hover:text-slate-200 transition-colors">
+        <svg class="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4"/>
+        </svg>
+        <span>{{ 'wizard.anaf.undo'|trans }}</span>
+    </button>
+{% endmacro %}
+
 {% macro field_errors(field) %}
     {% if field.vars.valid is defined and not field.vars.valid %}
         <div class="mt-1.5 flex items-start gap-1.5 text-sm text-red-600 dark:text-red-400" role="alert">

@@ -229,4 +229,91 @@ class AnafLookupServiceTest extends TestCase
         $this->assertSame('CLUJ', $result['county']);
         $this->assertFalse($result['platitorTVA']);
     }
+
+    /**
+     * ANAF stores postal codes with the leading zero stripped, so every
+     * Bucharest company came back one digit short ("61202" for 061202).
+     */
+    public function testPadsAFiveDigitPostalCodeBackToSixDigits(): void
+    {
+        $result = $this->lookupWithAddress(['scod_Postal' => '61202']);
+
+        $this->assertSame('061202', $result['postalCode']);
+    }
+
+    public function testKeepsASixDigitPostalCodeUnchanged(): void
+    {
+        $result = $this->lookupWithAddress(['scod_Postal' => '600093']);
+
+        $this->assertSame('600093', $result['postalCode']);
+    }
+
+    public function testFallsBackToTheGeneralPostalCodeWhenTheAddressBlockHasNone(): void
+    {
+        $result = $this->lookupWithAddress(['scod_Postal' => ''], ['codPostal' => '61192']);
+
+        $this->assertSame('061192', $result['postalCode']);
+    }
+
+    public function testReturnsNullWhenNeitherSourceHasAPostalCode(): void
+    {
+        $result = $this->lookupWithAddress(['scod_Postal' => ''], ['codPostal' => '']);
+
+        $this->assertNull($result['postalCode']);
+    }
+
+    /** Padding a truncated value would invent a code for the envelope. */
+    public function testDiscardsAPostalCodeOfAnImpossibleLength(): void
+    {
+        $result = $this->lookupWithAddress(['scod_Postal' => '612']);
+
+        $this->assertNull($result['postalCode']);
+    }
+
+    /** The only field carrying block / staircase / floor / apartment. */
+    public function testExposesTheFlatAddressAndTheFiscalDomicileBlock(): void
+    {
+        $result = $this->lookupWithAddress(
+            ['sdenumire_Strada' => 'Str. Test'],
+            ['adresa' => 'MUNICIPIUL BUCUREŞTI, SECTOR 6, STR. TEST, NR.1, AP.2'],
+            ['ddenumire_Strada' => 'Str. Alta', 'dcod_Postal' => '61202'],
+        );
+
+        $this->assertSame('MUNICIPIUL BUCUREŞTI, SECTOR 6, STR. TEST, NR.1, AP.2', $result['flatAddress']);
+        $this->assertSame('Str. Alta', $result['fiscalAddress']['street']);
+        $this->assertSame('061202', $result['fiscalAddress']['postalCode']);
+    }
+
+    public function testCollapsesInternalWhitespaceInScalarFields(): void
+    {
+        $result = $this->lookupWithAddress(['sdenumire_Strada' => "  Str.   Multe    Spatii \n"]);
+
+        $this->assertSame('Str. Multe Spatii', $result['street']);
+    }
+
+    private function lookupWithAddress(array $address = [], array $general = [], array $fiscal = []): array
+    {
+        $anafResponse = [
+            'found' => [
+                [
+                    'date_generale' => array_merge([
+                        'cui' => 12345678,
+                        'denumire' => 'TEST SRL',
+                    ], $general),
+                    'adresa_sediu_social' => array_merge([
+                        'sdenumire_Strada' => 'Str. Test',
+                        'snumar_Strada' => '1',
+                        'sdenumire_Localitate' => 'Sector 6 Mun. Bucureşti',
+                        'sdenumire_Judet' => 'MUNICIPIUL BUCUREŞTI',
+                    ], $address),
+                    'adresa_domiciliu_fiscal' => $fiscal,
+                    'inregistrare_scop_Tva' => ['scpTVA' => false],
+                    'stare_inactiv' => [],
+                ],
+            ],
+            'notFound' => [],
+        ];
+
+        return $this->createService(new MockResponse(json_encode($anafResponse)))->lookupByCui('12345678');
+    }
 }

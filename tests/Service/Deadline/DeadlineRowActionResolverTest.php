@@ -10,8 +10,8 @@ use App\Enum\CaseStatus;
 use App\Enum\DeadlineCertainty;
 use App\Enum\DeadlineType;
 use App\Service\Deadline\DeadlineAgendaItem;
-use App\Service\Deadline\DeadlineCertaintyResolver;
 use App\Service\Deadline\DeadlineConsequenceResolver;
+use App\Service\Deadline\DeadlineEstimateNote;
 use App\Service\Deadline\DeadlineRowActionResolver;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -24,6 +24,10 @@ use PHPUnit\Framework\TestCase;
  */
 class DeadlineRowActionResolverTest extends TestCase
 {
+    private const CLOSE_PRIMARY = 'primary';
+    private const CLOSE_SECONDARY = 'secondary';
+    private const CLOSE_NONE = 'none';
+
     private DeadlineRowActionResolver $resolver;
     private DeadlineConsequenceResolver $consequenceResolver;
 
@@ -36,21 +40,40 @@ class DeadlineRowActionResolverTest extends TestCase
     /** @return iterable<string, array{DeadlineType, string}> */
     public static function actOnTheSpotProvider(): iterable
     {
-        yield 'stamp duty' => [DeadlineType::TIMBRARE, 'deadlines.action.mark_stamped'];
-        yield 'annulment request' => [DeadlineType::CERERE_IN_ANULARE, 'deadlines.action.mark_done'];
-        yield 'free form reminder' => [DeadlineType::OTHER, 'deadlines.action.mark_done'];
+        yield 'stamp duty' => [DeadlineType::TIMBRARE, 'deadlines.action.mark_stamped', 'case_deadline_complete'];
+        yield 'free form reminder' => [DeadlineType::OTHER, 'deadlines.action.mark_done', 'case_deadline_complete'];
+        // The platform cannot draft the annulment request, so the only act it offers on
+        // this window is the decision not to use it, on a route of its own.
+        yield 'annulment request' => [DeadlineType::CERERE_IN_ANULARE, 'deadlines.action.no_annulment_request', 'case_deadline_no_annulment_request'];
     }
 
     /** When the act is performed here, the primary button is the close itself. */
     #[DataProvider('actOnTheSpotProvider')]
-    public function testActPerformedOnTheSpotHasTheCloseAsItsOnlyButton(DeadlineType $type, string $expectedLabel): void
+    public function testActPerformedOnTheSpotHasTheCloseAsItsOnlyButton(DeadlineType $type, string $expectedLabel, string $expectedRoute): void
     {
         $action = $this->resolver->resolve($this->item($type, daysRemaining: 3));
 
         self::assertSame($expectedLabel, $action->primary->label);
         self::assertTrue($action->primary->closesDeadline);
-        self::assertSame('case_deadline_complete', $action->primary->route);
+        self::assertSame($expectedRoute, $action->primary->route);
         self::assertNull($action->close, 'A row must never carry two close controls.');
+    }
+
+    /**
+     * The decision not to challenge the order posts to its own route and carries its own
+     * token id. Both matter: the audit trail has to tell a decision apart from the ten
+     * days simply lapsing, and a token id left pointing at the generic close would make
+     * every such post fail CSRF validation.
+     */
+    public function testTheAnnulmentWindowIsClosedByDecliningIt(): void
+    {
+        $deadline = $this->item(DeadlineType::CERERE_IN_ANULARE, daysRemaining: 5);
+        $action = $this->resolver->resolve($deadline);
+
+        self::assertSame('case_deadline_no_annulment_request', $action->primary->route);
+        self::assertSame('POST', $action->primary->method);
+        self::assertStringStartsWith('no_annulment_request_', (string) $action->primary->csrfTokenId);
+        self::assertSame('deadlines.action.note.no_annulment_request', $action->primary->note);
     }
 
     public function testHearingLeadsToThePortalAndKeepsTheCloseAsSecondary(): void
@@ -66,17 +89,6 @@ class DeadlineRowActionResolverTest extends TestCase
         self::assertTrue($action->close->closesDeadline);
     }
 
-    public function testEstimatedSummonsAnswerAsksForTheCommunicationDateFirst(): void
-    {
-        $action = $this->resolver->resolve(
-            $this->item(DeadlineType::RASPUNS_SOMATIE, daysRemaining: 5, certainty: DeadlineCertainty::ESTIMAT),
-        );
-
-        self::assertSame('deadlines.action.set_summons_communication_date', $action->primary->label);
-        self::assertSame('case_deadline_summons_communication_date', $action->primary->route);
-        self::assertNotNull($action->close);
-    }
-
     public function testExpiredSummonsAnswerOffersFilingThePaymentOrder(): void
     {
         $action = $this->resolver->resolve(
@@ -86,6 +98,38 @@ class DeadlineRowActionResolverTest extends TestCase
         self::assertSame('deadlines.action.generate_payment_order', $action->primary->label);
         self::assertSame('case_payment_order_generate', $action->primary->route);
         self::assertNotNull($action->close);
+    }
+
+    /**
+     * The agenda never posts the filing itself. The button carries no CSRF token id, so
+     * {@see \App\Service\Deadline\DeadlineActionButton::needsCaseDialog()} is true and the
+     * row renders a link into the case rather than a form of its own.
+     *
+     * That is what keeps the proof of communication (CPC art. 1015 para. 1) a single
+     * gate: a form here would be a second entry point into
+     * {@see \App\Controller\Case\CasePaymentOrderController::generate()}, offered from a
+     * screen that shows neither the stamp duty nor the proof, and pressed from a row
+     * whose case may be missing both.
+     */
+    #[DataProvider('filingFromTheAgendaProvider')]
+    public function testFilingIsNeverPostedStraightFromTheAgenda(DeadlineType $type, int $daysRemaining): void
+    {
+        $action = $this->resolver->resolve(
+            $this->item($type, daysRemaining: $daysRemaining, certainty: DeadlineCertainty::CERT, status: CaseStatus::SOMATIE_TRIMISA),
+        );
+
+        self::assertSame('case_payment_order_generate', $action->primary->route);
+        self::assertNull($action->primary->csrfTokenId);
+        self::assertTrue($action->primary->needsCaseDialog(), 'The row has to lead into the case, where every gate of the filing is shown.');
+        self::assertNull($action->primary->agendaDialogId, 'The agenda carries no dialog for the filing.');
+    }
+
+    /** @return iterable<string, array{DeadlineType, int}> */
+    public static function filingFromTheAgendaProvider(): iterable
+    {
+        yield 'expired summons answer' => [DeadlineType::RASPUNS_SOMATIE, -2];
+        yield 'claim limitation' => [DeadlineType::PRESCRIPTIE, 12];
+        yield 'filing the request' => [DeadlineType::DEPUNERE_CERERE, 6];
     }
 
     public function testRunningSummonsAnswerOnlyOffersTheClose(): void
@@ -117,18 +161,20 @@ class DeadlineRowActionResolverTest extends TestCase
         );
 
         self::assertSame($expectedLabel, $action->primary->label);
-        self::assertNotNull($action->close);
-        self::assertSame('deadlines.action.stop_tracking', $action->close->label, 'A limitation term is never "done".');
-        self::assertSame('deadlines.action.note.stop_tracking', $action->close->note);
+        self::assertNull($action->close, 'A limitation term cannot be dismissed from the agenda.');
     }
 
-    public function testEnforcementLimitationIsNeverLabelledAsDone(): void
+    /**
+     * Enforcement runs through a bailiff, outside the platform, and the term closes on
+     * its own when enforcement starts. So the row states the term and leads into the
+     * case, with nothing to press.
+     */
+    public function testEnforcementLimitationOnlyLeadsIntoTheCase(): void
     {
         $action = $this->resolver->resolve($this->item(DeadlineType::PRESCRIPTIE_EXECUTARE, daysRemaining: 20));
 
         self::assertSame('deadlines.action.open_case', $action->primary->label);
-        self::assertNotNull($action->close);
-        self::assertSame('deadlines.action.stop_tracking', $action->close->label);
+        self::assertNull($action->close);
     }
 
     /** @return iterable<string, array{DeadlineType}> */
@@ -163,7 +209,7 @@ class DeadlineRowActionResolverTest extends TestCase
         );
 
         self::assertSame('deadlines.action.generate_payment_order', $action->primary->label);
-        self::assertTrue($action->hasCloseButton());
+        self::assertFalse($action->hasCloseButton(), 'A limitation term is never dismissible from the agenda.');
     }
 
     public function testEveryTypeResolvesToAnAction(): void
@@ -177,42 +223,52 @@ class DeadlineRowActionResolverTest extends TestCase
     /**
      * The whole mapping in one place, one line per deadline type, read at a neutral
      * position: the date is certain and still ahead, so nothing is consumed yet. The
-     * third column says whether the close is a button of its own, which is exactly
-     * the question "is the primary act the closing of this term".
+     * third column says where the close lives, which is the same question as "what is
+     * this row for": PRIMARY when the act IS closing the term, SECONDARY when closing
+     * is a side move next to a real act, NONE for the three limitation terms, which the
+     * agenda deliberately gives no way to dismiss.
      *
-     * @return iterable<string, array{DeadlineType, string, bool}>
+     * @return iterable<string, array{DeadlineType, string, string}>
      */
     public static function primaryActionPerTypeProvider(): iterable
     {
-        yield 'stamp duty' => [DeadlineType::TIMBRARE, 'deadlines.action.mark_stamped', false];
-        yield 'annulment request' => [DeadlineType::CERERE_IN_ANULARE, 'deadlines.action.mark_done', false];
-        yield 'free form reminder' => [DeadlineType::OTHER, 'deadlines.action.mark_done', false];
-        yield 'summons answer' => [DeadlineType::RASPUNS_SOMATIE, 'deadlines.action.mark_done', false];
-        yield 'hearing' => [DeadlineType::JUDECATA, 'deadlines.action.open_portal', true];
+        yield 'stamp duty' => [DeadlineType::TIMBRARE, 'deadlines.action.mark_stamped', self::CLOSE_PRIMARY];
+        yield 'annulment request' => [DeadlineType::CERERE_IN_ANULARE, 'deadlines.action.no_annulment_request', self::CLOSE_PRIMARY];
+        yield 'free form reminder' => [DeadlineType::OTHER, 'deadlines.action.mark_done', self::CLOSE_PRIMARY];
+        yield 'summons answer' => [DeadlineType::RASPUNS_SOMATIE, 'deadlines.action.mark_done', self::CLOSE_PRIMARY];
+        yield 'hearing' => [DeadlineType::JUDECATA, 'deadlines.action.open_portal', self::CLOSE_SECONDARY];
         // The case is at SOMATIE_TRIMISA, so what stops the limitation period is the
         // request filed in court (CPC art. 1015 para. 2).
-        yield 'limitation' => [DeadlineType::PRESCRIPTIE, 'deadlines.action.generate_payment_order', true];
+        yield 'limitation' => [DeadlineType::PRESCRIPTIE, 'deadlines.action.generate_payment_order', self::CLOSE_NONE];
         // Satisfied by the same act as the limitation term, the request reaching the
         // court within the six months of NCC art. 2540, so it offers the same button.
-        yield 'filing the request' => [DeadlineType::DEPUNERE_CERERE, 'deadlines.action.generate_payment_order', true];
-        yield 'enforcement limitation' => [DeadlineType::PRESCRIPTIE_EXECUTARE, 'deadlines.action.open_case', true];
+        yield 'filing the request' => [DeadlineType::DEPUNERE_CERERE, 'deadlines.action.generate_payment_order', self::CLOSE_NONE];
+        yield 'enforcement limitation' => [DeadlineType::PRESCRIPTIE_EXECUTARE, 'deadlines.action.open_case', self::CLOSE_NONE];
     }
 
     #[DataProvider('primaryActionPerTypeProvider')]
-    public function testPrimaryActionPerType(DeadlineType $type, string $expectedLabel, bool $expectsSeparateClose): void
+    public function testPrimaryActionPerType(DeadlineType $type, string $expectedLabel, string $expectedClosePosition): void
     {
         $action = $this->resolver->resolve($this->item($type, daysRemaining: 6));
 
         self::assertSame($expectedLabel, $action->primary->label);
-        self::assertSame($expectsSeparateClose, $action->close !== null);
-        self::assertSame(!$expectsSeparateClose, $action->primary->closesDeadline);
-        self::assertTrue($action->hasCloseButton(), 'A term still running is always closeable, one way or the other.');
+        self::assertSame($expectedClosePosition === self::CLOSE_SECONDARY, $action->close !== null);
+        self::assertSame($expectedClosePosition === self::CLOSE_PRIMARY, $action->primary->closesDeadline);
+        self::assertSame($expectedClosePosition !== self::CLOSE_NONE, $action->hasCloseButton());
 
-        // Whichever side the close lands on, it posts to the route the case page has
-        // always used, carrying the token that route validates. Nothing on this page
-        // closes a deadline any other way.
+        if ($expectedClosePosition === self::CLOSE_NONE) {
+            return;
+        }
+
+        // Whichever side the close lands on, it posts to an existing route carrying the
+        // token that route validates. Nothing on this page closes a deadline any other
+        // way, and the annulment window is closed through the named decision rather than
+        // through the generic close.
         $close = $action->close ?? $action->primary;
-        self::assertSame('case_deadline_complete', $close->route);
+        self::assertSame(
+            $type === DeadlineType::CERERE_IN_ANULARE ? 'case_deadline_no_annulment_request' : 'case_deadline_complete',
+            $close->route,
+        );
         self::assertSame('POST', $close->method);
         self::assertNotNull($close->csrfTokenId);
         self::assertArrayHasKey('deadlineId', $close->routeParameters);
@@ -249,7 +305,7 @@ class DeadlineRowActionResolverTest extends TestCase
             consequence: $this->consequenceResolver->resolve($type),
             certainty: $certainty,
             daysRemaining: $daysRemaining,
-            estimateReasonKey: (new DeadlineCertaintyResolver())->estimateReasonKey($type),
+            estimateNote: new DeadlineEstimateNote('mark', 'note'),
         );
     }
 }

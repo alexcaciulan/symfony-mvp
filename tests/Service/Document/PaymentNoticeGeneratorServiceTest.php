@@ -75,7 +75,9 @@ final class PaymentNoticeGeneratorServiceTest extends KernelTestCase
         $debtor->setLegalCase($this->case);
         $debtor->setPersonType(PersonType::PJ);
         $debtor->setName('SC Test Debtor SRL');
-        $debtor->setAddress('Str. Test 2, București');
+        $debtor->setAddress('Strada Azurului, Nr. 25, Etaj 3, Ap. 20, cod poștal 061192');
+        $debtor->setAddressCounty('București');
+        $debtor->setAddressLocality('Sector 6');
         $debtor->setCui('RO88888222');
         $this->em->persist($debtor);
         $this->case->addDebtor($debtor);
@@ -114,6 +116,21 @@ final class PaymentNoticeGeneratorServiceTest extends KernelTestCase
         $html = $this->service->renderHtml($this->case);
 
         self::assertStringNotContainsString('30 zile', $html, 'Somația NU trebuie să conțină termenul de 30 zile (acela e Legea 72/2013 contractual, distinct de CPC).');
+    }
+
+    /**
+     * The stored address is street level; the locality and the county live in
+     * their own fields. The summons is served by post, so the rendered document
+     * has to carry all three, each exactly once.
+     */
+    public function testRenderHtmlCarriesTheCompleteMailingAddress(): void
+    {
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString(
+            'Strada Azurului, Nr. 25, Etaj 3, Ap. 20, cod poștal 061192, Sector 6, București',
+            $html,
+        );
     }
 
     public function testRenderHtmlContainsCreditorAndDebtorNames(): void

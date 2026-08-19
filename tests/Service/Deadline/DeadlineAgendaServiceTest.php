@@ -17,6 +17,7 @@ use App\Service\Deadline\DeadlineAgendaItem;
 use App\Service\Deadline\DeadlineAgendaService;
 use App\Service\Deadline\DeadlineCertaintyResolver;
 use App\Service\Deadline\DeadlineConsequenceResolver;
+use App\Service\Deadline\DeadlineEstimateNoteResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Clock\ClockInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -83,6 +84,7 @@ class DeadlineAgendaServiceTest extends KernelTestCase
             $this->repositoryOn($clock),
             new DeadlineConsequenceResolver(),
             new DeadlineCertaintyResolver(),
+            static::getContainer()->get(DeadlineEstimateNoteResolver::class),
             $clock,
         );
     }
@@ -233,22 +235,25 @@ class DeadlineAgendaServiceTest extends KernelTestCase
     }
 
     /**
-     * The marker under an estimated date says why the date is an estimate, and the
-     * reason is the opposite one on a limitation period: there the generating fact is
-     * confirmed and what is unmodelled is the interruption (NCC art. 2540).
+     * The marker under the date says what qualifies it, and on a limitation period that
+     * is the opposite of everywhere else: there the generating fact is confirmed and
+     * what the stored date ignores is the interruption (NCC art. 2540).
      */
-    public function testEstimateReasonFollowsTheTypeOfTheDeadline(): void
+    public function testEstimateNoteFollowsTheTypeOfTheDeadline(): void
     {
+        $this->case->setPaymentNoticeCommunicationDate($this->wednesday->modify('-10 days'));
+        $this->case->setStatus(CaseStatus::SOMATIE_TRIMISA);
         $this->deadline($this->wednesday, DeadlineType::PRESCRIPTIE);
         $this->deadline($this->wednesday, DeadlineType::CERERE_IN_ANULARE);
+        $this->em->flush();
 
         $keys = array_map(
-            static fn (DeadlineAgendaItem $i): string => $i->estimateReasonKey,
+            static fn (DeadlineAgendaItem $i): string => $i->estimateNote->markKey,
             $this->itemsOf($this->service($this->wednesday)->buildAgenda($this->user)),
         );
 
         self::assertSame(
-            ['deadlines.row.estimate.prescription_interruption', 'deadlines.row.estimate.unconfirmed_fact'],
+            ['deadlines.row.estimate.prescription_interrupted.mark', 'deadlines.row.estimate.unconfirmed_fact.mark'],
             $keys,
         );
     }

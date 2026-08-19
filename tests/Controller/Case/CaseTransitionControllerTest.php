@@ -615,6 +615,7 @@ final class CaseTransitionControllerTest extends WebTestCase
 
         $this->client->request('POST', '/case/' . $case->getId() . '/transition/executare', [
             '_token' => $token,
+            'enforcement_request_date' => '2026-07-20',
         ]);
 
         self::assertResponseRedirects('/case/' . $case->getId());
@@ -622,12 +623,14 @@ final class CaseTransitionControllerTest extends WebTestCase
         $this->em->clear();
         $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
         self::assertSame(CaseStatus::EXECUTARE, $refreshed->getStatus());
+        self::assertSame('2026-07-20', $refreshed->getEnforcementRequestDate()->format('Y-m-d'));
 
         $entries = $this->em->getRepository(AuditLog::class)->findBy([
             'category' => AuditLogService::CATEGORY_EXECUTION_STARTED,
             'entityId' => (string) $refreshed->getId(),
         ]);
         self::assertCount(1, $entries);
+        self::assertSame('2026-07-20', $entries[0]->getNewData()['enforcementRequestDate']);
     }
 
     public function testTransitionToExecutionBlockedWithoutRulingDocument(): void
@@ -672,6 +675,55 @@ final class CaseTransitionControllerTest extends WebTestCase
         self::assertSame(CaseStatus::AMIABIL, $refreshed->getStatus());
     }
 
+    /**
+     * The enforcement-limitation term is closed against the date the request was filed
+     * with the bailiff (CPC art. 708 alin. 1 pct. 2), so the transition refuses to run
+     * without it: a status alone would close an irreversible term on a declaration.
+     */
+    public function testTransitionToExecutionRequiresTheEnforcementRequestDate(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::DEFINITIVA);
+        $this->attachRulingDocument($case);
+
+        $this->client->request('GET', '/case/' . $case->getId());
+        $token = (string) $this->client->getCrawler()
+            ->filter('form[action$="/transition/executare"] input[name="_token"]')->first()->attr('value');
+
+        $this->client->request('POST', '/case/' . $case->getId() . '/transition/executare', ['_token' => $token]);
+
+        self::assertResponseRedirects('/case/' . $case->getId());
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame(CaseStatus::DEFINITIVA, $refreshed->getStatus());
+        self::assertNull($refreshed->getEnforcementRequestDate());
+    }
+
+    /** A filing date in the future describes an act that has not happened. */
+    public function testTransitionToExecutionRejectsAFutureEnforcementRequestDate(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::DEFINITIVA);
+        $this->attachRulingDocument($case);
+
+        $this->client->request('GET', '/case/' . $case->getId());
+        $token = (string) $this->client->getCrawler()
+            ->filter('form[action$="/transition/executare"] input[name="_token"]')->first()->attr('value');
+
+        $this->client->request('POST', '/case/' . $case->getId() . '/transition/executare', [
+            '_token' => $token,
+            'enforcement_request_date' => (new \DateTimeImmutable('tomorrow'))->format('Y-m-d'),
+        ]);
+
+        self::assertResponseRedirects('/case/' . $case->getId());
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame(CaseStatus::DEFINITIVA, $refreshed->getStatus());
+        self::assertNull($refreshed->getEnforcementRequestDate());
+    }
+
     public function testTransitionToExecutionFromOrdonantaEmisaRequiresCommunicationDate(): void
     {
         $this->client->loginUser($this->user);
@@ -702,7 +754,10 @@ final class CaseTransitionControllerTest extends WebTestCase
         $token = (string) $this->client->getCrawler()
             ->filter('form[action$="/transition/executare"] input[name="_token"]')->first()->attr('value');
 
-        $this->client->request('POST', '/case/' . $case->getId() . '/transition/executare', ['_token' => $token]);
+        $this->client->request('POST', '/case/' . $case->getId() . '/transition/executare', [
+            '_token' => $token,
+            'enforcement_request_date' => '2026-07-20',
+        ]);
 
         self::assertResponseRedirects('/case/' . $case->getId());
 
@@ -721,7 +776,10 @@ final class CaseTransitionControllerTest extends WebTestCase
         $token = (string) $this->client->getCrawler()
             ->filter('form[action$="/transition/executare"] input[name="_token"]')->first()->attr('value');
 
-        $this->client->request('POST', '/case/' . $case->getId() . '/transition/executare', ['_token' => $token]);
+        $this->client->request('POST', '/case/' . $case->getId() . '/transition/executare', [
+            '_token' => $token,
+            'enforcement_request_date' => '2026-07-20',
+        ]);
 
         self::assertResponseRedirects('/case/' . $case->getId());
 

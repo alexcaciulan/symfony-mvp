@@ -1,6 +1,12 @@
 #!/bin/sh
 set -e
 
+# Readiness marker for the `worker` container. This script clears var/cache near
+# the end, so a worker booting earlier would load a DI container that is deleted
+# mid-run. Drop the marker first thing, publish it once everything below is done.
+READY_MARKER="var/.app-ready"
+rm -f "$READY_MARKER"
+
 # Install composer dependencies if vendor doesn't exist
 if [ ! -d "vendor" ] || [ ! -f "vendor/autoload.php" ]; then
     echo "Installing composer dependencies..."
@@ -66,6 +72,13 @@ done
 
 echo "Database is up!"
 
+# Clear the cache here, before the long tail of imports and fixtures below,
+# rather than at the very end. Everything after this point leaves var/cache
+# alone, so a consumer that boots mid-sequence keeps a valid DI container.
+echo "Clearing cache..."
+php bin/console cache:clear --no-warmup
+php bin/console cache:warmup
+
 # Wait for Mercure hub (best-effort — don't fail boot if unavailable, just warn)
 echo "Waiting for Mercure hub..."
 mercure_attempts=0
@@ -122,11 +135,6 @@ if [ "$APP_ENV" = "dev" ]; then
     APP_ENV=test php bin/console doctrine:fixtures:load --no-interaction --append --group=baseline 2>/dev/null || true
 fi
 
-# Clear cache
-echo "Clearing cache..."
-php bin/console cache:clear --no-warmup
-php bin/console cache:warmup
-
 # Install assets
 echo "Installing assets..."
 php bin/console assets:install public
@@ -135,6 +143,10 @@ php bin/console importmap:install
 # Build Tailwind CSS
 echo "Building Tailwind CSS..."
 php bin/console tailwind:build
+
+# Release the worker: cache, assets and Tailwind are all settled by now.
+mkdir -p var
+touch "$READY_MARKER"
 
 # Set correct permissions
 chown -R www-data:www-data /var/www/html/var

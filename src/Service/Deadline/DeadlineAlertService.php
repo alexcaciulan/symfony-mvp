@@ -5,22 +5,30 @@ declare(strict_types=1);
 namespace App\Service\Deadline;
 
 use App\Entity\LegalDeadline;
+use App\Enum\DeadlineType;
 use App\Event\DeadlineAlertEvent;
 use App\Repository\LegalDeadlineRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
- * Emits alerts for procedural deadlines approaching expiry (7 / 3 / 1 days) or
- * already expired. Run daily by the `app:check-deadlines` command.
+ * Emits alerts for deadlines approaching expiry or already expired. Run daily by the
+ * `app:check-deadlines` command.
  *
- * This service only dispatches {@see DeadlineAlertEvent} and sets a per-deadline
- * dedup flag; the actual delivery (email, in-app notification, Mercure push) is
- * left to an event subscriber.
+ * This service only dispatches {@see DeadlineAlertEvent} and sets per-deadline dedup
+ * flags; the actual delivery (email, in-app notification) is left to an event
+ * subscriber.
  *
- * At most one alert per deadline per run: the tightest unset threshold wins
- * (`<= 7 / <= 3 / <= 1 / < 0`), not exact equality, so a missed cron day still
- * fires the alert the next day without sending duplicates.
+ * Most terms are procedural and short, so the ladder is 7 / 3 / 1 days. The
+ * limitation-type terms are the exception: on a three-year or six-month window a
+ * first warning at seven days leaves no time to act, so they get two extra tiers on
+ * top, spaced to the length of the window they guard.
+ *
+ * At most one alert per deadline per run: the tightest unset tier wins, on `<=` and
+ * not on exact equality, so a missed cron day still fires the alert the next day
+ * without sending duplicates. Firing a tier also marks every looser tier as sent,
+ * which is what keeps a deadline that first surfaced inside a tight tier from
+ * emitting the looser ones afterwards.
  */
 final class DeadlineAlertService
 {
@@ -37,33 +45,202 @@ final class DeadlineAlertService
     public function processAlerts(\DateTimeImmutable $now): DeadlineAlertReport
     {
         $nowDate = $now->setTime(0, 0);
-        $sent7 = $sent3 = $sent1 = $expired = 0;
+        $sent7 = $sent3 = $sent1 = $expired = $sentLongRange = 0;
 
         foreach ($this->deadlineRepository->findIncomplete() as $deadline) {
+            if ($this->alertsMuted($deadline)) {
+                continue;
+            }
+
             $days = $this->daysUntil($nowDate, $deadline);
 
-            if ($days < 0 && !$deadline->isAlertSentExpired()) {
-                $deadline->setAlertSentExpired(true);
-                $this->dispatch($deadline, $days);
-                ++$expired;
-            } elseif ($days >= 0 && $days <= self::THRESHOLD_URGENT_DAYS && !$deadline->isAlertSent1()) {
-                $deadline->setAlertSent7(true)->setAlertSent3(true)->setAlertSent1(true);
-                $this->dispatch($deadline, $days);
-                ++$sent1;
-            } elseif ($days <= self::THRESHOLD_MEDIUM_DAYS && !$deadline->isAlertSent3()) {
-                $deadline->setAlertSent7(true)->setAlertSent3(true);
-                $this->dispatch($deadline, $days);
-                ++$sent3;
-            } elseif ($days <= self::THRESHOLD_EARLY_DAYS && !$deadline->isAlertSent7()) {
-                $deadline->setAlertSent7(true);
-                $this->dispatch($deadline, $days);
-                ++$sent7;
+            if ($days < 0) {
+                if (!$deadline->isAlertSentExpired()) {
+                    $deadline->setAlertSentExpired(true);
+                    $this->dispatch($deadline, $days);
+                    ++$expired;
+                }
+
+                continue;
             }
+
+            $firedTier = $this->fireTightestTier($deadline, $days);
+
+            match ($firedTier) {
+                self::THRESHOLD_URGENT_DAYS => ++$sent1,
+                self::THRESHOLD_MEDIUM_DAYS => ++$sent3,
+                self::THRESHOLD_EARLY_DAYS => ++$sent7,
+                null => null,
+                default => ++$sentLongRange,
+            };
         }
 
         $this->em->flush();
 
-        return new DeadlineAlertReport($sent7, $sent3, $sent1, $expired);
+        return new DeadlineAlertReport($sent7, $sent3, $sent1, $expired, $sentLongRange);
+    }
+
+    /**
+     * Whether a term that is still open deliberately sends no reminders.
+     *
+     * One case so far: the enforcement limitation on a case where the lawyer has
+     * recorded the date he filed the enforcement request with the bailiff but the
+     * registration number confirming it has not come back yet. The act the term asks for
+     * has been performed, so warning about the term would be nagging about something
+     * done; what is actually missing is the confirmation, and that is chased once by
+     * {@see BlockedCaseAlertService}, not by this ladder. The term stays open rather than
+     * closed as a platform precaution, not because the law requires it: CPC art. 708
+     * para. 1 pt. 2 interrupts the limitation on the day the request was filed, whatever
+     * the bailiff does afterwards. Closing is irreversible on its own, so the application
+     * waits for the number before performing it.
+     *
+     * Read from the case rather than filtered in the repository query on purpose: this
+     * is a rule about one situation, and pushing it into the generic query of every open
+     * deadline would hide the term from everything that reads it.
+     */
+    public function alertsMuted(LegalDeadline $deadline): bool
+    {
+        if ($deadline->getType() !== DeadlineType::PRESCRIPTIE_EXECUTARE) {
+            return false;
+        }
+
+        $case = $deadline->getLegalCase();
+
+        return $case->getEnforcementRequestDate() !== null && ($case->getEnforcementRegistrationNumber() ?? '') === '';
+    }
+
+    /**
+     * The whole alert ladder of a deadline, loosest tier first, each with whether it
+     * has already gone out. Exposed for the card that lists the reminders of a term:
+     * the tiers depend on the type, so a template printing a fixed 7 / 3 / 1 would hide
+     * the two tiers a limitation term actually has.
+     *
+     * Empty on a muted term, so a card cannot promise reminders the job will not send.
+     *
+     * @return list<array{days: int, sent: bool}>
+     */
+    public function alertLadder(LegalDeadline $deadline): array
+    {
+        if ($this->alertsMuted($deadline)) {
+            return [];
+        }
+
+        $ladder = [];
+        foreach (array_reverse($this->tiers($deadline->getType())) as [$tierDays, $isSent]) {
+            $ladder[] = ['days' => $tierDays, 'sent' => $isSent($deadline)];
+        }
+
+        return $ladder;
+    }
+
+    /**
+     * How many days before expiry the next alert on this deadline will go out: the
+     * loosest tier not yet marked as sent, since firing one marks every looser one.
+     * Returns 0 when only the expiry alert is left and null when every alert has gone.
+     *
+     * Read only, nothing is written. It exists so a screen that promises the lawyer a
+     * reminder reads the ladder from the service that owns it: the tiers differ by
+     * type, and a template repeating 7 / 3 / 1 would promise a limitation term a
+     * warning a week ahead while the job actually sends it a month ahead. Null on a
+     * muted term for the same reason: nothing is scheduled on it.
+     */
+    public function nextAlertDaysBefore(LegalDeadline $deadline): ?int
+    {
+        if ($this->alertsMuted($deadline)) {
+            return null;
+        }
+
+        foreach (array_reverse($this->tiers($deadline->getType())) as [$tierDays, $isSent]) {
+            if (!$isSent($deadline)) {
+                return $tierDays;
+            }
+        }
+
+        return $deadline->isAlertSentExpired() ? null : 0;
+    }
+
+    /**
+     * Fires the tightest tier the deadline is inside and has not been alerted on yet,
+     * marking that tier and every looser one as sent. Returns the day count of the
+     * tier that fired, or null when nothing was due.
+     */
+    private function fireTightestTier(LegalDeadline $deadline, int $days): ?int
+    {
+        $tiers = $this->tiers($deadline->getType());
+
+        foreach ($tiers as $index => [$tierDays, $isSent]) {
+            if ($days > $tierDays || $isSent($deadline)) {
+                continue;
+            }
+
+            for ($looser = $index, $last = count($tiers); $looser < $last; ++$looser) {
+                $tiers[$looser][2]($deadline);
+            }
+
+            $this->dispatch($deadline, $days);
+
+            return $tierDays;
+        }
+
+        return null;
+    }
+
+    /**
+     * The alert ladder of a type, tightest tier first. Each entry carries the day
+     * count, a predicate telling whether that tier already fired, and the marker that
+     * records it, so the loop above stays free of per-tier branching.
+     *
+     * @return list<array{int, callable(LegalDeadline): bool, callable(LegalDeadline): void}>
+     */
+    private function tiers(DeadlineType $type): array
+    {
+        $tiers = [
+            [
+                self::THRESHOLD_URGENT_DAYS,
+                static fn (LegalDeadline $d): bool => $d->isAlertSent1(),
+                static function (LegalDeadline $d): void { $d->setAlertSent1(true); },
+            ],
+            [
+                self::THRESHOLD_MEDIUM_DAYS,
+                static fn (LegalDeadline $d): bool => $d->isAlertSent3(),
+                static function (LegalDeadline $d): void { $d->setAlertSent3(true); },
+            ],
+            [
+                self::THRESHOLD_EARLY_DAYS,
+                static fn (LegalDeadline $d): bool => $d->isAlertSent7(),
+                static function (LegalDeadline $d): void { $d->setAlertSent7(true); },
+            ],
+        ];
+
+        // Long-range tiers, outer first. The general limitation is warned at 30 and 14
+        // days; the six months that keep the interruption alive (NCC art. 2540) at 60
+        // and 30, because that window is shorter than three years and filing a
+        // payment-order request takes longer to prepare. Every other type stays on the
+        // procedural ladder: the annulment request in particular runs for ten days
+        // (CPC art. 1024 para. 1), so a 30-day reminder would fire before it starts.
+        $longRange = match ($type) {
+            DeadlineType::PRESCRIPTIE => [30, 14],
+            DeadlineType::DEPUNERE_CERERE => [60, 30],
+            default => null,
+        };
+
+        if ($longRange === null) {
+            return $tiers;
+        }
+
+        [$outer, $inner] = $longRange;
+        $tiers[] = [
+            $inner,
+            static fn (LegalDeadline $d): bool => $d->isAlertSentMidRange(),
+            static function (LegalDeadline $d): void { $d->setAlertSentMidRange(true); },
+        ];
+        $tiers[] = [
+            $outer,
+            static fn (LegalDeadline $d): bool => $d->isAlertSentLongRange(),
+            static function (LegalDeadline $d): void { $d->setAlertSentLongRange(true); },
+        ];
+
+        return $tiers;
     }
 
     /** Signed days remaining (negative = expired), at calendar-day granularity. */

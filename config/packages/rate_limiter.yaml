@@ -169,3 +169,8 @@ when@dev:
                 policy: no_limit
             forgot_password:
                 policy: no_limit
+            # Walking a real ANAF payload through the wizard burns one token per
+            # company, and 10/hour runs out mid-session. ANAF's own endpoint is
+            # free and unauthenticated, so the local budget protects nothing.
+            company_lookup:
+                policy: no_limit

@@ -202,6 +202,21 @@ language:
     switch: 'Language'
 
 # =============================================================================
+# Address components
+# Kept in lockstep with the ro catalogue for completeness. The formatter always
+# renders them with the locale pinned to `ro`, since the composed address goes
+# into a Romanian court document.
+# =============================================================================
+address:
+    part:
+        number: 'No.'
+        block: 'Block'
+        staircase: 'Staircase'
+        floor: 'Floor'
+        apartment: 'Apt.'
+        postal_code: 'postal code'
+
+# =============================================================================
 # Wizard
 # =============================================================================
 wizard:
@@ -218,6 +233,12 @@ wizard:
     anaf:
         sync_button: 'Sync ANAF data'
         synced: 'Data synced from ANAF'
+        sync_success: 'Company data retrieved from ANAF.'
+        undo: 'Undo sync'
+        already_synced: 'Data has already been synced from ANAF. Undo the sync to run it again.'
+        undo_done: 'The values from before the sync have been restored.'
+        fiscal_domicile_differs: 'ANAF holds a fiscal domicile different from the registered office. The registered office was filled in; check the block, staircase, floor and apartment by hand.'
+        postal_code_missing: 'ANAF has no postal code on file for this company. Fill it in manually.'
     stepper:
         label: 'Wizard steps'
         completed: 'Step completed'
@@ -660,10 +681,11 @@ wizard:
         gdpr:
             title: 'AI-extracted data: privacy'
             body_ai: 'AI extraction is active: uploaded files are sent in full, with national IDs and bank accounts unmasked, to an external provider in the USA (Anthropic).'
-            body_local: 'AI extraction is off: documents stay on our servers and are not sent to any external provider.'
+            body_local: 'AI extraction is off: documents stay on our servers and are not sent to any external provider. To turn it on, read and accept the document processing agreement.'
             settings_link: 'Review the AI processing agreement'
+            settings_link_inactive: 'Open the agreement and enable AI extraction'
         extraction_disabled: 'Automatic extraction is turned off in your privacy settings.'
-        extraction_disabled_link: 'Enable AI extraction'
+        extraction_disabled_link: 'Read and accept the agreement to enable AI extraction'
         failure_action:
             API_UNAVAILABLE: 'We will retry automatically. You can fill in the fields meanwhile.'
             RATE_LIMIT_EXCEEDED: 'We will retry automatically once the limit frees up.'
@@ -942,20 +964,26 @@ case_overview:
         alert_attach_proof: 'Attach proof of notice communication'
         alert_attach_proof_hint: 'Receipt from a court bailiff or registered-mail confirmation from the Romanian Post (R+CD+AR).'
         alert_attach_proof_remind: 'See legal options'
-        alert_confirm_date: 'Confirm communication date'
+        alert_in_service: 'The summons is being served'
+        alert_in_service_hint: 'The 15-day term runs from the debtor receiving the summons, not from it being generated (CPC art. 1015 para. 1), so it appears in the agenda only once you record the communication date.'
+        alert_in_service_cta: 'Record the communication date'
         modal_communication_date:
             title: 'Confirm the notice communication date'
             intro: 'Enter the date the debtor actually received the summons, per the proof of communication.'
-            hint: 'The 15-day payment term runs from the receipt of the summons (CPC art. 1015 para. 1), not from its generation. The displayed term is recomputed to the real date.'
+            hint: 'The 15-day payment term runs from the receipt of the summons (CPC art. 1015 para. 1), not from its generation. Until you record the date, the term does not appear in the agenda.'
             field_date_label: 'Notice receipt date'
             field_date_required: 'Fill in the communication date.'
             field_date_cannot_be_future: 'The communication date cannot be in the future.'
             field_method_label: 'Communication method'
             field_method_placeholder: '(Select the method)'
             field_method_required: 'Select the communication method.'
+            field_proof_label: 'Proof of communication (optional for now)'
+            field_proof_hint: 'If you already have the bailiff record or the acknowledgement of receipt, attach it here and the case stays complete. Without it the payment order request cannot be generated, but the 15-day term starts from the date you entered either way.'
             cancel: 'Cancel'
-            submit: 'Save and recompute'
-            flash_set: 'The communication date has been saved. The 15-day term has been recomputed.'
+            submit: 'Save and start the term'
+            flash_set: 'The communication date has been saved. The 15-day term runs from that date.'
+            flash_set_with_proof: 'The communication date and the proof have been saved. The 15-day term runs from that date.'
+            flash_set_proof_rate_limited: 'The communication date has been saved, but the proof was not attached: you reached the upload limit. Try the upload again shortly, from the Documents tab.'
         modal_c4:
             title: 'Notice communication: legal options'
             intro: 'Under CPC art. 1015 para. (1), the payment notice must reach the debtor via one of the two legal channels below. These are the only ones admissible as proof in court.'
@@ -1024,6 +1052,10 @@ case_overview:
         cta_download: 'Download ZIP pack'
         flash_error_incomplete: 'The package cannot be downloaded. Generate the payment-order petition first.'
         flash_error_file_missing: 'A document that must go into the package is no longer in storage, so the package would go out incomplete. Re-upload it from the Documents section or contact us.'
+        flash_error_missing_communication_proof: 'The package cannot be downloaded without the proof of service of the summons. Upload the bailiff receipt or the delivery confirmation under Documents, type "Proof of service".'
+        blocked_proof_title: 'The proof of service is missing'
+        blocked_proof_body: 'The package cannot be filed without it. Upload the bailiff receipt or the delivery confirmation, then download the package.'
+        blocked_proof_cta: 'Upload the proof of service'
     stamp_duty:
         title: 'Stamp duty'
         law_basis: 'OUG 80/2013 art. 6 para. 2'
@@ -1095,6 +1127,9 @@ case_overview:
             intro: 'Enter the date you received the court notice. The 10-day term runs from that day.'
             hint: 'The term is computed automatically and appears in the case deadlines.'
             field_date_label: 'Date the notice was received'
+            field_days_label: 'Term granted by the court'
+            days_option: '%count% days'
+            field_days_hint: 'The court grants at most 10 days from receipt of the notice (Code of Civil Procedure art. 200). If the notice says fewer, pick what it says. The application works out the exact date.'
             cancel: 'Cancel'
             submit: 'Compute the term'
         flash_success_paid: 'The proof of payment was saved. The stamp duty is recorded as paid.'
@@ -1113,8 +1148,9 @@ case_overview:
         flash_error_already_paid: 'The duty is already recorded as paid on this case.'
         flash_error_consent_required: 'Tick the risk acknowledgement to file without proof of payment.'
         flash_error_notice_date_invalid: 'The notice date is not valid.'
+        flash_error_granted_days_invalid: 'The term granted by the court must be between 1 and 10 days (Code of Civil Procedure art. 200).'
         flash_error_notice_date_future: 'The notice date cannot be in the future.'
-        flash_error_not_deferred: 'The stamping term is computed only for cases filed without proof of payment.'
+        flash_error_notice_when_paid: 'The duty is recorded as paid on this case, so no stamping term runs any more. If the court still asked for something, treat it as a separate deadline.'
         error:
             file_required: 'Attach the proof of payment.'
             paid_at_required: 'Fill in the payment date.'
@@ -1131,6 +1167,7 @@ case_overview:
         flash_error_debit_status_required: 'Select the debt status (unpaid or partially paid).'
         flash_error_consent_required: 'Confirm the term has expired and the debt is unpaid before generating.'
         flash_error_stamp_duty_missing: 'The stamp duty is not paid. Upload the proof of payment, or take responsibility for paying it during regularization, before generating the package.'
+        flash_error_communication_proof_missing: 'The proof of communication of the summons is missing. Upload the bailiff record or the acknowledgement of receipt in the Documents tab, under the "Proof of communication" type, then come back to generate the package.'
     communication_warning:
         title: 'Notice delivery proof missing'
         body: 'Add the bailiff receipt or the acknowledgment of receipt for the registered letter with declared contents, before filing.'
@@ -1151,6 +1188,7 @@ case_overview:
         flash_success_annulment_rejected: 'The annulment request was rejected. The order remains valid.'
         flash_error_needs_communication_date: 'Fill in the order communication date before starting enforcement from this status.'
         flash_error_needs_ruling_document: 'Attach the payment order issued by the court first. The bailiff needs it to start enforcement.'
+        flash_error_needs_enforcement_request_date: 'Enter the date you filed the enforcement request with the bailiff. The interruption of the limitation runs from it, so without it the term stays under watch.'
         flash_error_wrong_status: 'This transition is not allowed for the case''s current status.'
         flash_error_validation: 'The submitted data is invalid. Please check and try again.'
         court_case_number_required: 'Enter the case number received from the court registry.'
@@ -1205,6 +1243,11 @@ case_overview:
         executare_body_suffix: 'the enforcement phase will start based on the writ of execution. The case stays active until recovery or closure.'
         executare_cancel: 'Cancel'
         executare_confirm: 'Move to enforcement'
+        executare_request_date_label: 'Date the enforcement request was filed with the bailiff'
+        executare_request_date_hint: 'Filing the request, accompanied by the enforceable title, interrupts the enforcement limitation (CPC art. 708 para. 1 pt. 2). When the three-year term is closed, it is closed as of that date, not as of the moment this button is pressed. The closing itself happens when you enter the registration number below.'
+        executare_registration_number_label: 'Bailiff registration number (optional)'
+        executare_registration_number_placeholder: 'e.g. 412/2026'
+        executare_registration_number_hint: 'Fill it in if the bailiff has already sent it to you. It closes the three-year term, still counted from the date above. If you do not have it yet, you can add it from the case at any time; until then the term stays open, with its alerts silent.'
         executare_risk_title: 'Caution: annulment request pending'
         executare_risk_body: 'The annulment request does not suspend enforcement. Suspension may be granted, at the debtor''s request, only against a security deposit whose amount is set by the court (CPC art. 1024). If the annulment request is granted, the order is annulled in whole or in part, and the recovered amounts are refunded.'
         executare_voluntary_window_title: 'Voluntary payment window'
@@ -1265,6 +1308,11 @@ case_overview:
         generate_op_power_of_attorney_missing_body: 'A petition filed through a lawyer goes out together with proof of that capacity. You may continue, but if it never reaches the court the petition enters regularization.'
         generate_op_stamp_duty_blocked_title: 'The stamp duty is not paid'
         generate_op_stamp_duty_blocked_body: 'The proof of payment is attached to the petition, and failure to pay the duty annuls it (CCP art. 197). Upload the proof, or take responsibility for paying during regularization.'
+        generate_op_communication_proof_attached: 'The proof of communication of the summons is attached. It goes into the package filed with the court.'
+        generate_op_communication_proof_blocked_title: 'The proof of communication of the summons is missing'
+        generate_op_communication_proof_blocked_body: 'The proof of communication of the summons is attached to the petition under sanction of it being dismissed as inadmissible (CCP art. 1016 para. 2). The summons is served on the debtor through a bailiff or by registered letter with declared content and acknowledgement of receipt (CCP art. 1015 para. 1), and the court is shown the bailiff record or the acknowledgement of receipt. Upload it as "Proof of communication" and the generate button unlocks.'
+        generate_op_communication_proof_cta_upload: 'Upload the proof of communication'
+        generate_op_communication_proof_cta_methods: 'See the lawful methods'
         generate_op_cancel: 'Cancel'
         generate_op_confirm: 'Generate & download ZIP'
     portal:
@@ -1349,29 +1397,40 @@ case_overview:
         month_short_12: 'DEC'
         empty_title: 'No deadlines yet'
         empty_body: 'Deadlines are created automatically as the case progresses. You can also add your own.'
-        in_days: 'in %days% days'
-        overdue_by: 'overdue by %days% days'
         completed_on: '%date% (done)'
         date_in_days: '%date% (in %days% days)'
         prescription_covers: 'Limitation for the claim due on %date% (Civil Code art. 2517).'
-        filing_interruption_covers: 'The summons communicated on %date% interrupted the limitation period. File the request by this date, otherwise the interruption is deemed never to have happened (Civil Code art. 2540).'
+        filing_interruption_covers: 'The summons communicated on %date% interrupted the limitation period. The interruption only holds if the request reaches the court by this date. You may file later, but the limitation period is then computed as if the summons had never been sent (Civil Code art. 2540).'
         alerts_label: 'Alerts:'
-        alert_7_sent: '7d sent'
-        alert_7_pending: '7d pending'
-        alert_3_sent: '3d sent'
-        alert_3_pending: '3d pending'
-        alert_1_sent: '1d sent'
-        alert_1_pending: '1d pending'
+        alerts_muted: 'Alerts are off until the bailiff sends you the registration number.'
+        alert_tier_sent: '%days%d sent'
+        alert_tier_pending: '%days%d pending'
         calendar_title: 'Deadlines calendar · next 30 days'
         calendar_empty: '(no upcoming deadlines)'
         calendar_in_days: 'in %days% days · %priority%'
         alerts_card_title: 'Automatic alerts'
-        alerts_card_body: 'Email at 7/3/1 days before + "expired" alert. You will not miss deadlines even if you do not open the app.'
+        alerts_card_body: 'Email 7, 3 and 1 day before, plus an "expired" alert. Limitation terms are announced earlier: 30 and 14 days for the general one, 60 and 30 days for the six months to file. You will not miss deadlines even if you do not open the app.'
         mark_complete_aria: 'Mark deadline as completed'
         edit_aria: 'Edit deadline'
         delete_aria: 'Delete deadline'
         delete_confirm: 'Delete this deadline?'
         delete_confirm_critical: 'Warning: this is a CRITICAL deadline. Deleting it removes it from monitoring. Continue?'
+        reopen_execution_prescription_cta: 'The enforcement did not interrupt the limitation'
+        reopen_execution_prescription_confirm: 'Choose this if the enforcement was dismissed, annulled, allowed to lapse, or you abandoned it. In those cases the limitation was not interrupted (CPC art. 708 para. 3), so the three-year term goes back under watch with its original date and its alerts start again. The filing date and the registration number, if you entered one, are cleared. Continue?'
+        no_annulment_request_cta: 'I am not filing an annulment request'
+        no_annulment_request_confirm: 'You confirm that you are not challenging the order through an annulment request. The term closes now and you receive no further alerts on it. The ten days run to maturity regardless (CPC art. 1024 para. 1); if you change your mind you may still file until then, but the application will no longer remind you. Continue?'
+        awaiting_enforcement_registration_number: 'The enforcement request is recorded as filed on %date%. The term closes when you enter the registration number received from the bailiff; until then no alerts go out on it.'
+        enforcement_registration_number_cta: 'Enter the registration number'
+        modal_enforcement_registration_number:
+            title: 'Bailiff registration number'
+            intro: 'The bailiff registers the enforcement request as soon as it is received. The number you receive confirms the filing and closes the three-year enforcement limitation term (CPC art. 705 para. 1).'
+            hint: 'The term is closed as of the filing date, %date%, not as of the registration date: the interruption of the limitation attaches to the request filed (CPC art. 708 para. 1 pt. 2).'
+            field_label: 'Registration number'
+            field_placeholder: 'e.g. 412/2026'
+            field_required: 'Enter the registration number received from the bailiff.'
+            field_too_long: 'The registration number exceeds 100 characters.'
+            cancel: 'Cancel'
+            submit: 'Save and close the term'
         modal_edit:
             title: 'Edit deadline'
             critical_warning: 'Critical deadline. Changing the date detaches it from the automatically computed legal term (annulment: 10 days, CCP art. 1024; limitation: Civil Code art. 2517). Make sure the date respects the legal term.'
@@ -1392,6 +1451,15 @@ case_overview:
             field_description_too_long: 'Description exceeds 255 characters.'
             cancel: 'Cancel'
             submit: 'Add deadline'
+        modal_annulment_ruling_date:
+            title: 'Service date of the ruling on the annulment request'
+            intro: 'When the debtor filed an annulment request, the order became final through the ruling on it (CPC art. 1024 para. 8), and the 3-year enforcement limitation runs from the service of that ruling (CPC art. 705 para. 2).'
+            hint: 'This is the second ruling, the one given on the annulment request, not the initial order.'
+            field_label: 'Service date of the annulment ruling'
+            field_required: 'Select a date.'
+            field_cannot_be_future: 'The service date cannot be in the future.'
+            cancel: 'Cancel'
+            submit: 'Save and create deadline'
         modal_ruling_date:
             title: 'Order communication date'
             intro: 'The 10-day annulment-application window (CPC art. 1024 para. 1) runs from this date.'
@@ -1406,14 +1474,24 @@ case_overview:
         alert_set_ruling_date_title: 'Confirm the order communication date'
         alert_set_ruling_date_hint: 'The 10-day deadline for the annulment application (CPC art. 1024) starts running once you set the communication date.'
         alert_set_ruling_date_cta: 'Set date'
+        alert_set_annulment_ruling_date_title: 'Record the service date of the annulment ruling'
+        alert_set_annulment_ruling_date_hint: 'An annulment request was filed on this case and the order became final through the ruling on it. The 3 years of enforcement limitation run from the service of that ruling, not from the initial order. Until you record the date, the term is not created.'
+        alert_set_annulment_ruling_date_cta: 'Record the date'
         flash_marked_complete: 'Deadline marked as completed.'
         flash_added: 'Deadline added.'
         flash_edited: 'Deadline updated.'
         flash_deleted: 'Deadline deleted.'
         flash_ruling_date_set: 'Communication date saved. The annulment-application deadline has been created automatically.'
+        flash_annulment_ruling_date_set: 'Service date of the annulment ruling saved. The enforcement limitation deadline has been created automatically.'
+        flash_execution_prescription_reopened: 'The enforcement limitation deadline is back under watch, with its original date.'
+        flash_no_annulment_request: 'Noted that you are not filing an annulment request. The deadline has been closed.'
+        flash_enforcement_registration_number_set: 'The registration number has been saved. The enforcement limitation deadline has been closed.'
         flash_error_csrf: 'Your session expired. Reload the page and try again.'
         flash_error_validation: 'The form has errors. Check the fields and try again.'
         flash_error_completed_no_edit: 'A completed deadline can no longer be edited.'
+        flash_error_limitation_no_close: 'A limitation deadline is not closed by hand. It ends through the act that interrupts it, recorded by the application. If the deadline was created by mistake, delete it.'
+        flash_error_annulment_no_generic_close: 'The annulment-request deadline is not closed with a generic tick. If you have decided not to challenge the order, use "I am not filing an annulment request", so the case shows a decision rather than an unspecified completion. Otherwise the deadline closes on its own when the ten days lapse.'
+        flash_error_needs_enforcement_request_date: 'Enter the date the request was filed with the bailiff first. The deadline is closed as of that date, so without it the registration number has nothing to relate to.'
 
 # =============================================================================
 # PDF Templates (DomPDF rendered, strictly legal wording)
@@ -1725,6 +1803,10 @@ reset_password:
         title: 'Check your email'
         message: 'If an account exists for this email address, you will receive a password reset link.'
         expires: 'This link expires in %minutes% minutes.'
+        # Shown unconditionally: the reset bundle silently refuses a second
+        # request within the hour, and without this the page looks identical
+        # to a successful send. Static text, so it reveals nothing.
+        throttle_notice: 'Already requested a reset in the last hour? The first link you received is still valid. You can request another one hour after the previous request.'
     reset:
         title: 'Set new password'
         password_label: 'New password'
@@ -2135,6 +2217,7 @@ enum:
         case_status: 'Case status'
         deadline_alert: 'Deadline'
         missing_communication_date: 'Missing service date'
+        blocked_case_alert: 'Blocked case'
         portal_event: 'Portal activity'
         portal_ruling_confirmation: 'Ruling, confirmation required'
         portal_query_failed: 'Portal monitoring stopped'
@@ -2428,6 +2511,30 @@ email:
         subject: 'Enter the service date for case %case%'
         heading: 'Enter the payment order service date'
         body: 'To start the 10-day annulment request term (CPC art. 1024 para. 1), enter the date the order was served to the debtor on case %case%. Without this date, the case cannot be finalized automatically.'
+    # Alerts for cases blocked on an act, with no term running on them. The
+    # regularization wording is conditional on purpose: the application cannot know
+    # whether the notice arrived, its only evidence would be the very date it asks for.
+    blocked_case:
+        missing_label: 'What is missing:'
+        action_label: 'What to do:'
+        STAMP_DUTY_DUE:
+            subject: 'Pay the stamp duty for case %case%'
+            heading: 'The case has a file number, the stamp duty is due now'
+            body: 'Case %case% has a court file number and the stamp duty is still recorded as unpaid. The duty is paid in advance (OUG 80/2013 art. 33 para. 1), so do not wait for a regularization notice. Upload the proof on the case once paid.'
+            missing: 'Proof that the stamp duty was paid on case %case%.'
+            action: 'Pay the duty, then upload the proof on the case and mark the duty as paid.'
+        REGULARIZATION_NOTICE_DATE_MISSING:
+            subject: 'Case %case% is waiting for the regularization notice date'
+            heading: 'If you received the notice, enter its date'
+            body: 'On case %case% the stamp duty is deferred pending regularization and the notice date is not recorded. If you received the notice from the court, enter the date it was served: the 10 days to stamp run from it (OUG 80/2013 art. 33 para. 2), and missing them annuls the claim.'
+            missing: 'The date the regularization notice was served on case %case%.'
+            action: 'If you received the notice, open the case and enter the date it was served, so the 10-day term starts.'
+        ENFORCEMENT_REGISTRATION_NUMBER_MISSING:
+            subject: 'Case %case% is waiting for the bailiff registration number'
+            heading: 'Ask the bailiff for the registration number'
+            body: 'On case %case% you declared that you filed the enforcement request, but the registration number received from the bailiff is not recorded. That number closes the three-year enforcement limitation term, still counted from the filing date (CPC art. 708 para. 1 pt. 2). Until then the term stays open, with its alerts silent. This is the only message you will get on this subject; the case stays in the blockage zone for as long as the number is missing.'
+            missing: 'The registration number of the enforcement request on case %case%.'
+            action: 'Ask the bailiff for the number, then open the case and enter it in the Deadlines tab.'
 
 # =============================================================================
 # In-app notifications + Mercure toast text (NotificationDispatcher)
@@ -2503,6 +2610,16 @@ notification:
     missing_communication_date:
         title: 'Enter service date: %case%'
         message: 'Enter the payment order service date on case %case% to start the annulment request term.'
+    blocked_case:
+        STAMP_DUTY_DUE:
+            title: 'Pay the stamp duty: %case%'
+            message: 'Case %case% has a court file number and the stamp duty is still unpaid. The duty is paid in advance, so do not wait for a regularization notice.'
+        REGULARIZATION_NOTICE_DATE_MISSING:
+            title: 'Regularization notice date: %case%'
+            message: 'On case %case% the duty is deferred pending regularization. If you received the notice from the court, enter the date it was served so the 10-day term starts.'
+        ENFORCEMENT_REGISTRATION_NUMBER_MISSING:
+            title: 'Bailiff registration number: %case%'
+            message: 'On case %case% the enforcement request is recorded as filed, but the bailiff registration number is missing. Enter it so the enforcement limitation deadline closes.'
     payment_failed:
         title: 'Subscription renewal could not be charged'
         message: 'We could not automatically charge your monthly subscription. The saved card was declined or has insufficient funds. Update your payment method and resume the payment from your account.'
@@ -2644,43 +2761,70 @@ deadlines:
         open_portal: 'Open Portal'
         mark_done: 'Mark as done'
         mark_stamped: 'Mark as stamped'
-        stop_tracking: 'Stop tracking'
         send_summons: 'Send the summons'
         generate_payment_order: 'Generate the payment order request'
         confirm_filing: 'Confirm the filing'
-        set_summons_communication_date: 'Set the communication date'
+        no_annulment_request: 'I am not filing an annulment request'
         note:
             mark_done: 'Closes the deadline in the agenda and stops the alerts. It is not proof that the act was performed.'
-            stop_tracking: 'The limitation period runs regardless of this action. The button closes the deadline in the agenda and stops the alerts, with no legal effect.'
+            no_annulment_request: 'Closes the deadline and stops the alerts. The ten days run regardless; if you change your mind you may still file until they expire.'
     blockage:
         SUMMONS_COMMUNICATION_MISSING:
             label: 'The summons communication date is not recorded'
             missing: 'Answer to the summons, 15 days'
             legal_basis: 'CPC art. 1015 para. 1'
-            cause: 'The summons was generated, but the communication date is not recorded.'
-            consequence: 'The term is computed from the date the summons was generated, not from its receipt. It stays estimated until you record the communication date, and a payment order request filed on it may be dismissed as premature.'
-            action: 'Set the summons communication date'
+            state: 'Service in progress'
+            cause: 'The summons was generated, but the communication date is not recorded. Service is in progress.'
+            consequence: 'The 15-day term is not created at all: it runs from the debtor receiving the summons, not from it being generated. Until you record the communication date no term appears in the agenda, and a payment order request filed meanwhile may be dismissed as premature.'
+            action: 'Record the communication date'
+        SUMMONS_PROOF_MISSING:
+            label: 'The proof of communication of the summons is missing'
+            missing: 'The proof of communication, at filing'
+            legal_basis: 'CPC art. 1016 para. 2'
+            state: 'No proof attached'
+            cause: 'The communication date is recorded and the 15-day term is running. The proof of communication, however, is not attached to the case.'
+            consequence: 'The payment order request cannot be generated without the proof: the proof of communication is attached to the petition under sanction of it being dismissed as inadmissible, and the court is shown the bailiff record or the acknowledgement of receipt, not the date you stated. Attach the proof now, while you can still ask the bailiff or the post office for a copy, rather than on the day the package has to be filed.'
+            action: 'Upload the proof of communication'
         RULING_COMMUNICATION_MISSING:
             label: 'The ruling communication date is not recorded'
             missing: 'Annulment request, 10 days'
             legal_basis: 'CPC art. 1024 para. 1'
+            state: 'Service in progress'
             cause: 'The order was issued, but the ruling communication date is not recorded.'
             consequence: 'The term is one of forfeiture. Without the date it is never created and raises no alert.'
-            action: 'Set the ruling communication date'
+            action: 'Record the date the order was served'
         STAMP_DUTY_NOTICE_MISSING:
             label: 'The stamping notice date is not recorded'
             missing: 'Stamp duty, 10 days'
             legal_basis: 'OUG 80/2013 art. 33 para. 2'
+            state: 'Awaiting the notice'
             cause: 'The claim was filed with the duty unpaid or deferred to regularization, but the stamping notice date is not recorded.'
             consequence: 'Failing to stamp within the term granted by the court annuls the claim.'
-            action: 'Set the notice date'
+            action: 'Record the notice date'
+        ANNULMENT_RULING_COMMUNICATION_MISSING:
+            label: 'Service date of the annulment ruling is missing'
+            missing: 'Enforcement limitation, 3 years'
+            legal_basis: 'CPC art. 705 para. 2 read with art. 1024 para. 8'
+            state: 'Service in progress'
+            cause: 'An annulment request was filed on this case and the order became final through the ruling on it. The service date of that ruling is not recorded.'
+            consequence: 'The term is not created. Anchored on the initial order it would expire earlier than the real one, because the order did not become final when the 10 days lapsed. Until you record the date, the enforcement limitation is not tracked.'
+            action: 'Record the service date of the annulment ruling'
         EXECUTION_ANCHOR_MISSING:
             label: 'No date for the enforcement limitation period to run from'
             missing: 'Enforcement limitation, 3 years'
             legal_basis: 'CPC art. 705 para. 1'
-            cause: 'The case is final or already in enforcement, but neither the ruling communication date nor the pronouncement date is recorded.'
+            state: 'No date to run from'
+            cause: 'The case is final, but neither the ruling communication date nor the pronouncement date is recorded.'
             consequence: 'The term is not created: any date the application could use would be later than the real one, so it would show a term longer than the one actually running. Until you record one of the two dates, the enforcement limitation is not tracked.'
-            action: 'Set the ruling communication date'
+            action: 'Record the ruling communication date'
+        ENFORCEMENT_REGISTRATION_NUMBER_MISSING:
+            label: 'The bailiff registration number is missing'
+            missing: 'Closing the enforcement limitation'
+            legal_basis: 'CPC art. 705 para. 1'
+            state: 'Waiting for the number'
+            cause: 'The enforcement request is recorded as filed, but the registration number received from the bailiff is not entered.'
+            consequence: 'The limitation was interrupted on the very day the request was filed (CPC art. 708 para. 1 pt. 2), whether or not the number is entered. The application still keeps the three-year term open, with its alerts silent, until a confirmation arrives from outside: the registration number. That is an extra check the platform asks for before an irreversible closing, not a condition the law imposes. Enter the number and the term closes, still counted from the filing date.'
+            action: 'Record the registration number'
     counter_hint:
         today: 'through 24:00'
         blocked: 'cases, not deadlines'
@@ -2688,7 +2832,7 @@ deadlines:
         overdue: 'Overdue deadlines'
         today: 'Deadlines due today'
         fatal30: 'Fatal deadlines within the next 30 days'
-        blocked: 'Cases with a blocked fatal deadline'
+        blocked: 'Cases whose next step is blocked'
     filter:
         show_completed: 'Show completed'
         clear: 'Clear filters'
@@ -2717,21 +2861,9 @@ deadlines:
             title: 'Closing the stamp duty deadline'
             body: 'Failing to pay the stamp duty within the term granted by the court annuls the claim (Government Emergency Ordinance 80/2013 art. 33 para. 2, Code of Civil Procedure art. 197). Closing takes the deadline out of the agenda and stops the email alerts. It is not proof of payment: the receipt is attached to the claim and filed with the court.'
             warning_unpaid: 'On this case the duty is not recorded as paid. If you close it now, the agenda shows the stamp duty as settled while the application holds no proof of payment. Closing is a statement of yours, not evidence.'
-        limitation:
-            title: 'Stop tracking this limitation period'
-            body: 'The limitation period runs regardless of this action. The button neither interrupts nor suspends it: it takes the row out of the agenda and stops the email alerts. The period is interrupted by the claim filed in court (Civil Code art. 2537 pt. 2) or, conditionally, by the summons once communicated, provided the claim is filed within six months of that communication (Civil Code art. 2540, Code of Civil Procedure art. 1015 para. 2). If those six months lapse, the interruption is deemed not to have occurred.'
-            warning: 'After closing you get no further warning about this deadline. Once the period elapses the right of action is extinguished (Civil Code art. 2500 para. 1), the general term being three years (Civil Code art. 2517).'
-        filing_interruption:
-            title: 'Stop tracking the six-month term'
-            body: 'The communicated summons interrupted the limitation period, but the interruption holds only if the claim is filed within six months of that communication (Civil Code art. 2540, referred to by Code of Civil Procedure art. 1015 para. 2). The button does not extend that term: it takes the row out of the agenda and stops the email alerts. It is not proof that the claim was filed; the deadline closes on its own once the case moves to "claim filed".'
-            warning: 'If the six months lapse without the claim being filed, the interruption is deemed not to have occurred and the limitation period is computed as if the summons had never been sent. On a claim close to its limitation date, that means dismissal as time-barred.'
-        enforcement_limitation:
-            title: 'Stop tracking the enforcement limitation period'
-            body: 'The period for seeking enforcement runs regardless of this action. The button neither interrupts nor suspends it: it takes the row out of the agenda and stops the email alerts.'
-            warning: 'After closing you get no further warning about this deadline. Once it elapses the right to seek enforcement is extinguished and the title loses its enforceability (Code of Civil Procedure art. 706 para. 1).'
         forfeiture:
-            title: 'Closing a forfeiture deadline'
-            body: 'The annulment request is filed within 10 days of the ruling being communicated (Code of Civil Procedure art. 1024 para. 1). The term is one of forfeiture: missing it extinguishes the remedy, and reinstatement may be sought only by proving well founded reasons, within 15 days of the impediment ceasing (Code of Civil Procedure art. 186). Closing stops the alerts. It is not proof that the request was filed.'
+            title: 'Confirming that you are not filing an annulment request'
+            body: 'The annulment request is filed within 10 days of the ruling being communicated (Code of Civil Procedure art. 1024 para. 1). The term is one of forfeiture: missing it extinguishes the remedy, and reinstatement may be sought only by proving well founded reasons, within 15 days of the impediment ceasing (Code of Civil Procedure art. 186). Closing stops the alerts on this deadline. The ten days run to maturity regardless: if you change your mind you may still file until then, but the application will no longer remind you.'
     section:
         overdue: 'Overdue'
         unblocked: 'Unblocked: the payment order request can be filed'
@@ -2756,9 +2888,15 @@ deadlines:
             unconfirmed_fact:
                 mark: 'estimated date'
                 note: 'The date is computed from the fact that starts the term, and that fact has no confirmed date on the case. Record the real date on the case: the term is recomputed and becomes certain.'
-            prescription_interruption:
-                mark: 'the interruption of the limitation period holds conditionally'
-                note: 'A communicated summons interrupts the limitation period (CPC art. 1015 para. 2, referring to NCC art. 2540). The interruption holds only if the claim is filed in court within 6 months of the communication; otherwise it is deemed never to have happened. Those six months are tracked separately, as a "Petition filing" deadline. The date shown here is still the due date plus 3 years, computed without any interruption.'
+            # The date in the marker is computed, never written by hand: it is the date
+            # the summons was communicated plus 6 months, the same arithmetic the
+            # "Petition filing" deadline is stored with.
+            prescription_interrupted:
+                mark: 'limitation period interrupted until %date%'
+                note: 'The communicated summons interrupted the limitation period (CPC art. 1015 para. 2, referring to NCC art. 2540). The interruption holds if the request reaches the court by %date%, a date tracked separately as the "Petition filing" deadline. You may file later, but the limitation period is then computed as if the summons had never been sent. The date on the row is still the due date plus 3 years, computed without any interruption.'
+            prescription_interrupted_by_filing:
+                mark: 'limitation period interrupted by the request filed'
+                note: 'A request filed in court interrupts the limitation period on its own (NCC art. 2537 pt. 2), so the interruption no longer depends on the six months from the communication of the summons. It is deemed never to have happened only if the request is dismissed, annulled or lapses (NCC art. 2539 para. 2). The date on the row is still the due date plus 3 years, computed without any interruption.'
         internal_number: 'internal no.'
         no_court: 'not filed with a court'
         principal: 'principal %amount% %currency%'
@@ -2767,16 +2905,15 @@ deadlines:
     rail:
         heading: 'Limitation periods, long horizon'
         subtitle: 'More than 30 days out. Excluded from the triage counters.'
-        note: 'The enforcement limitation period is only created on final or enforced cases, 3 years from the date the ruling became enforceable, so it never shows up in the main column.'
-        empty: 'No limitation period beyond the agenda window.'
+        note: 'The enforcement limitation period is only created on final cases, 3 years from the service of the ruling that made the order final, and it closes when you record the registration number the bailiff assigned. Moving the case to enforcement does not close it on its own: while the number is missing the term stays open and only its alerts stop. It never shows up in the main column.'
     blockages:
-        heading: 'Blocked cases: fatal deadlines that are uncertain or missing'
+        heading: 'Blocked cases: what is holding up the next step'
         count: '(%count%)'
-        description: 'On these cases the generating fact is missing, so the term is either never created or stays estimated, and the agenda cannot show it.'
+        description: 'These cases are missing something only you can supply: either the date of the fact a fatal term runs from, in which case the term is never created, or a piece the procedure imposes, in which case the filing cannot go out. Supply it and the blockage is gone.'
         open: 'Open'
         close: 'Close'
         missing: 'Missing:'
-    footnote: 'Email alerts go out daily at 07:00, at 7, 3 and 1 day before and on the day of expiry. This page remains the primary warning mechanism.'
+    footnote: 'Email alerts go out daily at 07:00. Procedural terms are announced 7, 3 and 1 day before and on the day of expiry; limitation terms earlier: 30 and 14 days for the general one, 60 and 30 days for the six months to file. This page remains the primary warning mechanism.'
     empty:
         heading: 'No deadline to track'
         body: 'Deadlines appear on their own from the first case. You do not enter them: the application computes them from the data filled in the request and moves them if the date of the generating fact changes.'
@@ -2787,7 +2924,7 @@ deadlines:
             summons_answer: 'Answer to the summons, 15 days'
             summons_answer_hint: 'From the day the summons is communicated. CPC art. 1015 para. 1.'
             filing_interruption: 'Filing the request, 6 months'
-            filing_interruption_hint: 'From the communication of the summons. Past it, the interruption of the limitation period is deemed never to have happened. NCC art. 2540.'
+            filing_interruption_hint: 'From the communication of the summons. If the request reaches the court later, the interruption of the limitation period is deemed never to have happened. NCC art. 2540.'
             stamp_duty: 'Stamp duty, 10 days'
             stamp_duty_hint: 'From the court notice. Failing to stamp annuls the claim. OUG 80/2013 art. 33 para. 2.'
             annulment: 'Annulment request, 10 days'
@@ -2796,7 +2933,7 @@ deadlines:
             prescription_hint: 'One deadline for every invoice. Civil Code art. 2517.'
             hearing: 'Hearing dates'
             hearing_hint: 'Taken from portal.just.ro once the case receives a court number.'
-        alerts_note: 'Email alerts go out daily at 07:00, at 7, 3 and 1 day before and on the day of expiry.'
+        alerts_note: 'Email alerts go out daily at 07:00. Procedural terms: 7, 3 and 1 day before and on the day of expiry. General limitation: 30 and 14 days. The six months to file: 60 and 30 days.'
     clean:
         heading: 'Clean register'
         body: 'Zero overdue, zero deadlines due today, zero fatal deadlines in the next 30 days.'

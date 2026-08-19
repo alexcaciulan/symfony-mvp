@@ -6,8 +6,17 @@
     <turbo-stream action="update" target="panel-termene">
         <template>{{ include('case/overview/_tab_termene.html.twig') }}</template>
     </turbo-stream>
+    {# The summons alert is driven by the communication date, and that date is set from
+       this very response, so it has to be swapped here too: otherwise the case keeps
+       reading "in service" while the 15-day term it denies is already on the page. #}
+    <turbo-stream action="update" target="summons-communication-alert">
+        <template>{{ include('case/overview/_summons_communication_alert.html.twig') }}</template>
+    </turbo-stream>
     <turbo-stream action="update" target="ruling-communication-alert">
         <template>{{ include('case/overview/_ruling_communication_date_alert.html.twig') }}</template>
+    </turbo-stream>
+    <turbo-stream action="update" target="annulment-ruling-communication-alert">
+        <template>{{ include('case/overview/_annulment_ruling_communication_date_alert.html.twig') }}</template>
     </turbo-stream>
     {# Refresh the tab nav so the deadline count badge reflects add / delete. #}
     <turbo-stream action="replace" target="case-tabs-nav">
@@ -24,6 +33,16 @@
     </turbo-stream>
     <turbo-stream action="update" target="case-detalii-sidebar">
         <template>{{ include('case/overview/_detalii_sidebar.html.twig') }}</template>
+    </turbo-stream>
+    {# The communication-date dialog can carry the proof with it, so a response from here
+       may have added a document and lifted the gate on the petition. Both live outside
+       every region above: the documents panel would keep showing the case without its
+       proof, and the filing dialog would keep its button disabled until a reload. #}
+    <turbo-stream action="update" target="panel-documente">
+        <template>{{ include('case/overview/_tab_documente.html.twig') }}</template>
+    </turbo-stream>
+    <turbo-stream action="replace" target="hs-modal-cerere-op">
+        <template>{{ include('case/overview/_modal_generate_op.html.twig') }}</template>
     </turbo-stream>
 {% endif %}
 

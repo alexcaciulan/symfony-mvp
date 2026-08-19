@@ -53,7 +53,7 @@
             <div class="ptitle">{{ 'pdf.summons.header_to'|trans }}</div>
             {% if debtor %}
                 <div class="pname">{{ debtor.name }}</div>
-                <div>{{ debtor.address }}</div>
+                <div>{{ debtor.address|mailing_address(debtor.addressLocality, debtor.addressCounty) }}</div>
                 {% if debtor.administrator %}<div class="meta">{{ debtor.administrator }}</div>{% endif %}
             {% else %}
                 <div class="meta">{{ 'pdf.summons.debtor_missing'|trans }}</div>
@@ -63,7 +63,7 @@
             <div class="ptitle">{{ 'pdf.summons.header_from'|trans }}</div>
             {% if creditor %}
                 <div class="pname">{{ creditor.name }}</div>
-                <div>{{ creditor.address }}</div>
+                <div>{{ creditor.address|mailing_address(creditor.addressLocality, creditor.addressCounty) }}</div>
             {% else %}
                 <div class="meta">{{ 'pdf.summons.creditor_missing'|trans }}</div>
             {% endif %}
@@ -102,7 +102,7 @@
             {% set clauses = clauses|merge(['pdf.summons.conventional_rep'|trans({'%lawyer%': user.fullName})]) %}
         {% endif %}
     {% endif %}
-    <p>{{ 'pdf.summons.creditor_intro_lead'|trans({'%name%': creditor.name, '%address%': creditor.address}) }}{% if clauses is not empty %}, {{ clauses|join(', ') }}{% endif %}.</p>
+    <p>{{ 'pdf.summons.creditor_intro_lead'|trans({'%name%': creditor.name, '%address%': creditor.address|mailing_address(creditor.addressLocality, creditor.addressCounty)}) }}{% if clauses is not empty %}, {{ clauses|join(', ') }}{% endif %}.</p>
 {% endif %}
 
 {# 5. Domiciliu ales (art. 158 CPC) #}
@@ -158,7 +158,7 @@
     {% set dclauses = [] %}
     {% if debtor.onrcNumber %}{% set dclauses = dclauses|merge(['pdf.summons.clause_orc'|trans({'%onrc%': debtor.onrcNumber})]) %}{% endif %}
     {% if debtor.cui %}{% set dclauses = dclauses|merge(['pdf.summons.clause_cui'|trans({'%cui%': debtor.cui})]) %}{% endif %}
-    <p>{{ 'pdf.summons.debtor_identification_lead'|trans({'%name%': debtor.name, '%address%': debtor.address}) }}{% if dclauses is not empty %}, {{ dclauses|join(', ') }}{% endif %}.</p>
+    <p>{{ 'pdf.summons.debtor_identification_lead'|trans({'%name%': debtor.name, '%address%': debtor.address|mailing_address(debtor.addressLocality, debtor.addressCounty)}) }}{% if dclauses is not empty %}, {{ dclauses|join(', ') }}{% endif %}.</p>
 {% endif %}
 
 {# 10. Debit principal #}

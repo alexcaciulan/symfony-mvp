@@ -19,6 +19,13 @@
     <turbo-stream action="update" target="summons-communication-alert">
         <template>{{ include('case/overview/_summons_communication_alert.html.twig') }}</template>
     </turbo-stream>
+    {# The same upload lifts the gate on the petition. The dialog carrying that gate
+       lives at page level, outside every region above, so without this replace the
+       lawyer attaches the proof and still faces a disabled "Generează" button until he
+       reloads the page. #}
+    <turbo-stream action="replace" target="hs-modal-cerere-op">
+        <template>{{ include('case/overview/_modal_generate_op.html.twig') }}</template>
+    </turbo-stream>
 {% endif %}
 
 {% if close_modal_id is defined and close_modal_id %}
