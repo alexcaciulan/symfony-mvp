@@ -27,6 +27,7 @@ final class DeadlineRowActionResolver
     private const SEND_SUMMONS = 'deadlines.action.send_summons';
     private const GENERATE_PAYMENT_ORDER = 'deadlines.action.generate_payment_order';
     private const NO_ANNULMENT_REQUEST = 'deadlines.action.no_annulment_request';
+    private const CONFIRM_FILING = 'deadlines.action.confirm_filing';
 
     private const NOTE_MARK_DONE = 'deadlines.action.note.mark_done';
     private const NOTE_NO_ANNULMENT_REQUEST = 'deadlines.action.note.no_annulment_request';
@@ -127,6 +128,16 @@ final class DeadlineRowActionResolver
                 csrfTokenId: 'generate_summons_' . $case->getId(),
             ),
             CaseStatus::SOMATIE_TRIMISA => $this->generatePaymentOrder($case),
+            // The package exists and only the filing is missing, which is the very act
+            // that stops this term running. No CSRF token id: confirming needs a date
+            // and a channel, so the row links into the case dialog that asks for them
+            // rather than posting an empty payload the route would reject.
+            CaseStatus::CERERE_GENERATA => new DeadlineActionButton(
+                label: self::CONFIRM_FILING,
+                route: 'case_transition_file',
+                routeParameters: ['id' => $case->getId()],
+                method: 'POST',
+            ),
             default => $this->openCase($case),
         };
 

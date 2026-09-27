@@ -32,8 +32,11 @@ class AuditLogService
     /** Manual deletion of a deadline by the lawyer. */
     public const CATEGORY_DEADLINE_DELETED = 'DEADLINE_DELETED';
 
-    /** Payment-order petition + opis generation (SOMATIE_TRIMISA → CERERE_DEPUSA). */
+    /** Payment-order petition + opis generation (SOMATIE_TRIMISA to CERERE_GENERATA). */
     public const CATEGORY_PAYMENT_ORDER_GENERATED = 'PAYMENT_ORDER_GENERATED';
+
+    /** Lawyer-declared filing (`depune_cerere`): date, channel and receipt reference. */
+    public const CATEGORY_CASE_FILED = 'CASE_FILED';
 
     /**
      * Judicial stamp duty: proof uploaded, payment deferred to the court's
@@ -51,7 +54,7 @@ class AuditLogService
     /** Automatic transition to DEFINITIVA after the annulment window lapses (CPC art. 1024). */
     public const CATEGORY_AUTO_FINALIZED = 'AUTO_FINALIZED';
 
-    /** Manual `inregistreaza_dosar`: CERERE_DEPUSA → DOSAR_INREGISTRAT with ECRIS courtCaseNumber. */
+    /** Manual `inregistreaza_dosar`: to DOSAR_INREGISTRAT with the ECRIS courtCaseNumber. */
     public const CATEGORY_CASE_REGISTERED = 'CASE_REGISTERED';
 
     /** Manual `emite_ordonanta`: TERMEN_FIXAT → ORDONANTA_EMISA with rulingDate. */

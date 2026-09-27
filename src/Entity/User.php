@@ -458,6 +458,35 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, Equatab
      * (no trade-register number); natural persons by CNP. An address is always
      * needed. Used to gate paid actions before a charge is issued.
      */
+    /**
+     * The lawyer's office address as it can be written into a procedural document.
+     *
+     * Returns null unless street, number and city are all present: a half address on
+     * an act served to the debtor and read by the court is worse than none, because
+     * it purports to be where communications should go. The county is appended only
+     * when it adds something, which it does not for Bucharest and its sectors, where
+     * the locality already names the administrative unit.
+     */
+    public function getProceduralAddress(): ?string
+    {
+        $street = trim((string) $this->street);
+        $number = trim((string) $this->streetNumber);
+        $city = trim((string) $this->city);
+
+        if ($street === '' || $number === '' || $city === '') {
+            return null;
+        }
+
+        $parts = [$street . ' nr. ' . $number, $city];
+
+        $county = trim((string) $this->county);
+        if ($county !== '' && mb_strtolower($county) !== mb_strtolower($city) && !str_contains(mb_strtolower($city), 'sector')) {
+            $parts[] = $county;
+        }
+
+        return implode(', ', $parts);
+    }
+
     public function hasCompleteFiscalData(): bool
     {
         // Clients are law practices/companies, always identified by CIF (+ name

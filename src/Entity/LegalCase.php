@@ -4,9 +4,12 @@ namespace App\Entity;
 
 use App\Enum\CaseStatus;
 use App\Enum\DebitAcknowledgedStatus;
+use App\Enum\DocumentType;
 use App\Enum\ExtractionMode;
+use App\Enum\FilingChannel;
 use App\Enum\PaymentNoticeCommunicationMethod;
 use App\Enum\PenaltyType;
+use App\Enum\RejustStampDutyForm;
 use App\Enum\RelationshipType;
 use App\Enum\StampDutyStatus;
 use App\Repository\LegalCaseRepository;
@@ -201,6 +204,21 @@ class LegalCase
 
     #[ORM\Column(length: 50, nullable: true)]
     private ?string $courtCaseNumber = null;
+
+    /**
+     * Declared by the lawyer when confirming the filing. Not a finding of the
+     * platform: the proof of the filing date sits with the court (CPC art. 183
+     * alin. 3), so this records what they told us, nothing more.
+     */
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $filedAt = null;
+
+    #[ORM\Column(length: 20, nullable: true, enumType: FilingChannel::class)]
+    private ?FilingChannel $filingChannel = null;
+
+    /** Registration number from the channel's receipt, when the channel issues one. */
+    #[ORM\Column(length: 100, nullable: true)]
+    private ?string $filingReference = null;
 
     #[ORM\Column(type: Types::DATE_MUTABLE, nullable: true)]
     private ?\DateTimeInterface $hearingDate = null;
@@ -824,6 +842,152 @@ class LegalCase
         $this->courtCaseNumber = $courtCaseNumber;
 
         return $this;
+    }
+
+    /**
+     * Whether a proof of the stamp duty is actually attached to this case.
+     *
+     * Distinct from the status on purpose. Since payment can be confirmed as having
+     * gone through the electronic registry, which sends its own confirmation to the
+     * court, ACHITATA no longer implies a document in the package. The petition must
+     * not claim an annexed proof that is not there, so anything that speaks to the
+     * court asks this rather than reading the status.
+     */
+    public function hasStampDutyProof(): bool
+    {
+        return $this->hasDocumentOfType(DocumentType::DOVADA_TAXA_TIMBRU);
+    }
+
+    /**
+     * Whether the lawyer's power of attorney is on the case. The petition is filed
+     * through a representative, so the act proving that capacity travels with it.
+     */
+    public function hasPowerOfAttorney(): bool
+    {
+        return $this->hasDocumentOfType(DocumentType::IMPUTERNICIRE_AVOCATIALA);
+    }
+
+    public function hasDocumentOfType(DocumentType $type): bool
+    {
+        foreach ($this->documents as $document) {
+            if ($document->getDocumentType() === $type) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public function getFiledAt(): ?\DateTimeImmutable
+    {
+        return $this->filedAt;
+    }
+
+    public function setFiledAt(?\DateTimeImmutable $filedAt): static
+    {
+        $this->filedAt = $filedAt;
+
+        return $this;
+    }
+
+    public function getFilingChannel(): ?FilingChannel
+    {
+        return $this->filingChannel;
+    }
+
+    public function setFilingChannel(?FilingChannel $filingChannel): static
+    {
+        $this->filingChannel = $filingChannel;
+
+        return $this;
+    }
+
+    public function getFilingReference(): ?string
+    {
+        return $this->filingReference;
+    }
+
+    public function setFilingReference(?string $filingReference): static
+    {
+        $this->filingReference = $filingReference;
+
+        return $this;
+    }
+
+    /**
+     * Statuses in which the petition is with the court and the case is still live.
+     * Terminal and post-judgment places are out: chasing a duty on a case already
+     * rejected or closed only annoys.
+     */
+    public const REACHED_COURT_STATUSES = [
+        CaseStatus::CERERE_DEPUSA,
+        CaseStatus::DOSAR_INREGISTRAT,
+        CaseStatus::TERMEN_FIXAT,
+    ];
+
+    /**
+     * Whether the petition is with the court, whatever route it took to get there.
+     *
+     * Deliberately not keyed on `filedAt`: an ECRIS number entered from the portal
+     * registers the case straight from CERERE_GENERATA, so a lawyer who never opens
+     * the confirmation dialog still has a case demonstrably at the court, with no
+     * filing date recorded. Keying on the declaration alone would drop exactly those
+     * cases, the ones where the proof that the petition arrived is strongest.
+     */
+    public function hasReachedCourt(): bool
+    {
+        return in_array($this->status, self::REACHED_COURT_STATUSES, true);
+    }
+
+    /**
+     * Which registry form takes the stamp duty for this case as it stands.
+     *
+     * Keyed on whether the petition has left for the court, not on the file number
+     * alone: between filing and registration the case has no number yet, and the
+     * new-case form would have the lawyer register the same petition a second time.
+     * `courtArrivalDate()` widens the check beyond the live statuses, so a case that
+     * has since moved on to a judgment place is not sent back to filing either.
+     */
+    public function rejustStampDutyForm(): RejustStampDutyForm
+    {
+        if ($this->courtCaseNumber !== null) {
+            return RejustStampDutyForm::EXISTING_CASE;
+        }
+
+        if ($this->hasReachedCourt() || $this->courtArrivalDate() !== null) {
+            return RejustStampDutyForm::AWAITING_CASE_NUMBER;
+        }
+
+        return RejustStampDutyForm::NEW_CASE;
+    }
+
+    /**
+     * The day the petition is known to have been with the court, for terms that run
+     * from filing. The lawyer's declaration when there is one; otherwise the day the
+     * case was registered, which is the earliest moment we can prove it arrived.
+     */
+    public function courtArrivalDate(): ?\DateTimeImmutable
+    {
+        if ($this->filedAt !== null) {
+            return $this->filedAt;
+        }
+
+        $earliest = null;
+        foreach ($this->statusHistory as $entry) {
+            if (!in_array($entry->getNewStatus(), array_map(
+                static fn (CaseStatus $s): string => $s->value,
+                self::REACHED_COURT_STATUSES,
+            ), true)) {
+                continue;
+            }
+
+            $createdAt = $entry->getCreatedAt();
+            if ($earliest === null || $createdAt < $earliest) {
+                $earliest = $createdAt;
+            }
+        }
+
+        return $earliest;
     }
 
     public function getHearingDate(): ?\DateTimeInterface

@@ -224,7 +224,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
 
         $this->em->clear();
         $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
-        self::assertSame(CaseStatus::SOMATIE_TRIMISA, $refreshed->getStatus(), 'An unstamped case must not reach CERERE_DEPUSA.');
+        self::assertSame(CaseStatus::SOMATIE_TRIMISA, $refreshed->getStatus(), 'An unstamped case must not reach CERERE_GENERATA.');
 
         $documents = $this->em->getRepository(Document::class)->findBy(['legalCase' => $refreshed->getId()]);
         $types = array_map(static fn (Document $d): DocumentType => $d->getDocumentType(), $documents);
@@ -253,7 +253,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
 
         $this->em->clear();
         $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
-        self::assertSame(CaseStatus::CERERE_DEPUSA, $refreshed->getStatus());
+        self::assertSame(CaseStatus::CERERE_GENERATA, $refreshed->getStatus());
     }
 
     /**
@@ -277,7 +277,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
 
         $this->em->clear();
         $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
-        self::assertSame(CaseStatus::SOMATIE_TRIMISA, $refreshed->getStatus(), 'Without the proof the case must not reach CERERE_DEPUSA.');
+        self::assertSame(CaseStatus::SOMATIE_TRIMISA, $refreshed->getStatus(), 'Without the proof the case must not reach CERERE_GENERATA.');
 
         $documents = $this->em->getRepository(Document::class)->findBy(['legalCase' => $refreshed->getId()]);
         $types = array_map(static fn (Document $d): DocumentType => $d->getDocumentType(), $documents);
@@ -445,7 +445,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
 
         $this->em->clear();
         $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
-        self::assertSame(CaseStatus::CERERE_DEPUSA, $refreshed->getStatus());
+        self::assertSame(CaseStatus::CERERE_GENERATA, $refreshed->getStatus());
 
         $types = array_map(
             static fn (Document $d): DocumentType => $d->getDocumentType(),
@@ -537,7 +537,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
         );
     }
 
-    public function testGenerateHappyPathTransitionsToCerereDepusa(): void
+    public function testGenerateHappyPathTransitionsToCerereGenerata(): void
     {
         $this->attachCommunicationProof();
         $this->attachSomatieFile();
@@ -554,7 +554,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
 
         $this->em->clear();
         $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
-        self::assertSame(CaseStatus::CERERE_DEPUSA, $refreshed->getStatus(), 'Status must transition SOMATIE_TRIMISA → CERERE_DEPUSA.');
+        self::assertSame(CaseStatus::CERERE_GENERATA, $refreshed->getStatus(), 'Status must transition SOMATIE_TRIMISA to CERERE_GENERATA: the package exists, nothing has been filed.');
         self::assertSame(DebitAcknowledgedStatus::UNPAID, $refreshed->getDebitAcknowledgedStatus());
         self::assertTrue($refreshed->getOpGenerationConsent());
 
@@ -610,7 +610,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
 
         $this->em->clear();
         $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
-        self::assertSame(CaseStatus::CERERE_DEPUSA, $refreshed->getStatus());
+        self::assertSame(CaseStatus::CERERE_GENERATA, $refreshed->getStatus());
 
         // The re-rendered "Documente generate" panel must reflect the freshly
         // generated Cerere OP (regression: stale EXTRA_LAZY collection after the

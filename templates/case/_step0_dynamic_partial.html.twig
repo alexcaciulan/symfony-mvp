@@ -105,14 +105,18 @@
                                 {% if status == 'SKIPPED_BY_POLICY' %}
                                     <p class="mt-1 text-xs text-slate-600 dark:text-slate-400">
                                         {# Reason labels carry no final stop, so one is
-                                           added here to keep reason and link apart. #}
+                                           added here to keep reason and next step apart. #}
                                         {{ failure is not null
                                             ? ('enum.extraction_failure_reason.' ~ failure.value)|trans ~ '.'
                                             : 'wizard.step0.extraction_disabled'|trans }}
-                                        {# Breaks out of turbo-frame#step0-dynamic. The
-                                           agreement page has no such frame, so a framed
-                                           navigation renders "Content missing" instead. #}
-                                        <a href="{{ path('app_profile_ai_agreement') }}" data-turbo-frame="_top" class="underline">{{ 'wizard.step0.extraction_disabled_link'|trans }}</a>
+                                        {% if failure is null or failure.isPrivacySetting %}
+                                            {# Breaks out of turbo-frame#step0-dynamic. The
+                                               agreement page has no such frame, so a framed
+                                               navigation renders "Content missing" instead. #}
+                                            <a href="{{ path('app_profile_ai_agreement') }}" data-turbo-frame="_top" class="underline">{{ 'wizard.step0.extraction_disabled_link'|trans }}</a>
+                                        {% else %}
+                                            <span class="text-slate-500 dark:text-slate-500">{{ ('wizard.step0.failure_action.' ~ failure.value)|trans }}</span>
+                                        {% endif %}
                                     </p>
                                 {% elseif failure is not null and status != 'COMPLETED' %}
                                     <p class="mt-1 text-xs text-slate-600 dark:text-slate-400">

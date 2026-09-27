@@ -100,9 +100,16 @@ final class CasePortalController extends AbstractController
             $case->setPortalMonitoringActive(true);
             $this->em->flush();
 
-            // Spec Faza 3: introducerea nr. dosar din CERERE_DEPUSA înregistrează
-            // dosarul. Gardat cu can() — dacă dosarul e deja înregistrat
-            // (activare ulterioară), doar setăm câmpurile.
+            // An ECRIS number means the court has the request, so entering it registers
+            // the dosar. Guarded with can(): on a later re-activation the case is already
+            // registered and only the fields change.
+            //
+            // `filedAt` is deliberately left as it is. A dosar on the portal proves the
+            // request was filed but says nothing about when, and this field is the
+            // lawyer's declaration of the filing date, not our guess. The audit entry
+            // below records that the case reached DOSAR_INREGISTRAT without a confirmed
+            // filing, which is what a reader would otherwise find inexplicable.
+            $filingWasConfirmed = $case->getFiledAt() !== null;
             if ($this->workflowService->can($case, CaseTransition::INREGISTREAZA_DOSAR->value)) {
                 $this->workflowService->apply($case, CaseTransition::INREGISTREAZA_DOSAR->value);
             }
@@ -116,6 +123,7 @@ final class CasePortalController extends AbstractController
                     'caseNumber' => $case->getCaseNumber(),
                     'courtCaseNumber' => $courtCaseNumber,
                     'status' => $case->getStatus()->value,
+                    'filingWasConfirmed' => $filingWasConfirmed,
                 ],
                 category: AuditLogService::CATEGORY_PORTAL_MONITORING,
             );

@@ -10,6 +10,7 @@ use App\Entity\User;
 use App\Enum\DocumentType;
 use App\Enum\ExtractionStatus;
 use App\Service\Document\CaseFilesPackager;
+use App\Service\Document\MissingDocumentFileException;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
@@ -141,6 +142,58 @@ final class CaseFilesPackagerTest extends KernelTestCase
         self::assertContains('01_cerere_ordonanta_plata.pdf', $entries);
         self::assertContains('02_opis_documente.pdf', $entries);
         self::assertContains('03_somatie_de_plata.pdf', $entries);
+    }
+
+    /**
+     * A top-level piece missing from storage used to be skipped in silence, so the
+     * package went out without the proof of payment or of service while the petition
+     * inside it spoke of both as annexed. Missing proof of service alone gets the
+     * petition rejected as inadmissible, so this fails loudly instead.
+     */
+    public function testPackageRefusesToBuildWhenAMandatoryFileIsGoneFromStorage(): void
+    {
+        $this->attachDocument(DocumentType::CERERE_OP, 'cerere_op.pdf');
+        $this->attachDocument(DocumentType::OPIS, 'opis.pdf');
+        $proof = $this->attachDocument(DocumentType::DOVADA_TAXA_TIMBRU, 'dovada.pdf');
+
+        unlink($this->uploadsDir . '/' . $proof->getStoredFilename());
+
+        $this->expectException(MissingDocumentFileException::class);
+
+        $this->packager->package($this->case);
+    }
+
+    /**
+     * The proof that the summons was served is not at the top level of the archive,
+     * but its absence is the one that costs most: without it the petition is rejected
+     * as inadmissible, and no regularization term is granted for it.
+     */
+    public function testPackageRefusesToBuildWhenTheProofOfServiceIsGoneFromStorage(): void
+    {
+        $this->attachDocument(DocumentType::SOMATIE, 'somatie.pdf');
+        $proof = $this->attachDocument(DocumentType::DOVADA_COMUNICARE, 'AR_12345.pdf');
+
+        unlink($this->uploadsDir . '/' . $proof->getStoredFilename());
+
+        $this->expectException(MissingDocumentFileException::class);
+
+        $this->packager->package($this->case);
+    }
+
+    /**
+     * An annex is a different matter: its absence is visible to the lawyer and does
+     * not make the petition contradict itself, so the package still builds.
+     */
+    public function testPackageStillBuildsWhenAnAnnexFileIsGone(): void
+    {
+        $this->attachDocument(DocumentType::SOMATIE, 'somatie.pdf');
+        $annex = $this->attachDocument(DocumentType::CONTRACT, 'Contract.pdf');
+
+        unlink($this->uploadsDir . '/' . $annex->getStoredFilename());
+
+        $zipPath = $this->packager->package($this->case);
+
+        self::assertFileExists($zipPath);
     }
 
     public function testPackageGroupsAnnexesInAnexeFolder(): void

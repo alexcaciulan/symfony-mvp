@@ -19,8 +19,6 @@ final readonly class StampDutyPaymentTarget
     public function __construct(
         public StampDutyTargetStatus $status,
         public ?City $uat = null,
-        /** Court whose UAT applies when the claimant has no seat in Romania (art. 40 alin. 2). */
-        public ?string $courtName = null,
     ) {}
 
     public function isResolved(): bool

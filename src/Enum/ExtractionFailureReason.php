@@ -51,6 +51,13 @@ enum ExtractionFailureReason: string
      */
     case PROVIDER_UNAVAILABLE = 'PROVIDER_UNAVAILABLE';
 
+    /**
+     * The lawyer declared a type the pipeline does not read (see
+     * {@see \App\Enum\DocumentType::isClassifiable()}). Not a malfunction and not a
+     * setting: nothing about the account or the file would change the outcome.
+     */
+    case TYPE_NOT_EXTRACTABLE = 'TYPE_NOT_EXTRACTABLE';
+
     public function label(): string
     {
         return 'enum.extraction_failure_reason.' . $this->value;
@@ -76,6 +83,20 @@ enum ExtractionFailureReason: string
             // or recovers, so the lawyer gets a retry button and an honest "our
             // side" message rather than being told to fix their file.
             self::PROVIDER_UNAVAILABLE => true,
+            default => false,
+        };
+    }
+
+    /**
+     * Whether the skip came from a privacy choice on the account, which the lawyer
+     * can reverse from their profile. The UI offers the link to that setting only
+     * here: a type the pipeline never reads is skipped whatever the setting says,
+     * and pointing at the agreement would promise a fix that does nothing.
+     */
+    public function isPrivacySetting(): bool
+    {
+        return match ($this) {
+            self::LOCAL_ONLY_MODE, self::AGREEMENT_MISSING => true,
             default => false,
         };
     }

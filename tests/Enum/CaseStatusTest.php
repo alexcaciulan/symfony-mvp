@@ -7,9 +7,9 @@ use PHPUnit\Framework\TestCase;
 
 class CaseStatusTest extends TestCase
 {
-    public function testHasTwelveCases(): void
+    public function testHasThirteenCases(): void
     {
-        $this->assertCount(12, CaseStatus::cases());
+        $this->assertCount(13, CaseStatus::cases());
     }
 
     public function testAllCasesHaveLabels(): void

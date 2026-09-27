@@ -35,7 +35,7 @@
 {% if extra_toast_key is defined and extra_toast_key %}
     <turbo-stream action="append" target="toasts">
         <template>
-            {% include 'components/Toast.html.twig' with { message: extra_toast_key|trans, variant: 'warning', details: [] } only %}
+            {% include 'components/Toast.html.twig' with { message: extra_toast_key|trans, variant: extra_toast_variant|default('warning'), details: [] } only %}
         </template>
     </turbo-stream>
 {% endif %}

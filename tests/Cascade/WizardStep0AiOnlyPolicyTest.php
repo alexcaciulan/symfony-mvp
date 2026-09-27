@@ -95,7 +95,9 @@ final class WizardStep0AiOnlyPolicyTest extends WebTestCase
         self::assertResponseIsSuccessful();
         $html = $this->client->getResponse()->getContent();
 
-        self::assertStringContainsString('Extracție dezactivată', $html, 'The badge must name the outcome');
+        // The badge label had to widen: the same status now also covers document types
+        // that are never read automatically, so it can no longer say "disabled".
+        self::assertStringContainsString('Necitit automat', $html, 'The badge must name the outcome');
         self::assertStringContainsString(
             'dezactivată în setările tale',
             $html,

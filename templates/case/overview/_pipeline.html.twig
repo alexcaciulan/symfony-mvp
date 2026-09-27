@@ -3,10 +3,13 @@
    — mockup separă Monitorizare ca stadiu propriu pentru DOSAR_INREGISTRAT+TERMEN_FIXAT+ORDONANTA_EMISA+IN_ANULARE. #}
 {% from 'case/overview/_icons.html.twig' import icon_check, icon_clock, icon_document, icon_building, icon_eye %}
 
-{# Mapping CaseStatus.value → indice stadiu (0..4). #}
+{# Mapping CaseStatus.value → indice stadiu (0..4). CERERE_GENERATA și CERERE_DEPUSA
+   împart stadiul 3: pipeline-ul arată cât de departe a ajuns dosarul, iar diferența
+   dintre pachet generat și pachet depus o poartă starea și acțiunea din antet. #}
 {% set stage_map = {
     'AMIABIL': 0,
     'SOMATIE_TRIMISA': 1,
+    'CERERE_GENERATA': 2,
     'CERERE_DEPUSA': 2,
     'DOSAR_INREGISTRAT': 3,
     'TERMEN_FIXAT': 3,
@@ -30,9 +33,12 @@
 
 {# Date afișată per stadiu done: caută în statusHistory prima tranziție către un newStatus mapat la acest stadiu.
    Pentru stadiu 0 (AMIABIL) fallback la case.createdAt. #}
+{# CERERE_GENERATA shares the stage but must not date it: the stage reads „Cerere
+   depusă", and stamping it with the day the PDF was produced would show a filing
+   that had not happened. The date appears once the filing is confirmed. #}
 {% set history_dates = {} %}
 {% for entry in case.statusHistory %}
-    {% set stage_index = stage_map[entry.newStatus] ?? null %}
+    {% set stage_index = entry.newStatus == 'CERERE_GENERATA' ? null : (stage_map[entry.newStatus] ?? null) %}
     {% if stage_index is not null and history_dates[stage_index] is not defined %}
         {% set history_dates = history_dates|merge({(stage_index): entry.createdAt}) %}
     {% endif %}

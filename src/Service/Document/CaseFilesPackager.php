@@ -71,15 +71,28 @@ final class CaseFilesPackager
             DocumentType::OPIS->value => '02_opis_documente',
             DocumentType::SOMATIE->value => '03_somatie_de_plata',
             DocumentType::DOVADA_TAXA_TIMBRU->value => '04_dovada_taxa_timbru',
+            // Proof of the lawyer's authority to act, filed with the petition. Sits
+            // at the top level rather than among the exhibits because it is an act of
+            // the petition itself, not evidence of the debt.
+            DocumentType::IMPUTERNICIRE_AVOCATIALA->value => '05_imputernicire_avocatiala',
         ];
 
         foreach ($case->getDocuments() as $document) {
             $diskPath = $this->uploadsDir . '/' . $document->getStoredFilename();
+            $typeValue = $document->getDocumentType()->value;
+
             if (!file_exists($diskPath)) {
+                // A missing annex is a gap the lawyer can see and fix. These are not:
+                // the petition would go out claiming an annexed proof of payment or of
+                // service that is not in the package, and the absence of proof that the
+                // summons was served gets the petition rejected as inadmissible. Fail
+                // loudly rather than ship a package that contradicts its own contents.
+                if (isset($orderedTopLevel[$typeValue]) || $document->getDocumentType() === DocumentType::DOVADA_COMUNICARE) {
+                    throw new MissingDocumentFileException($document);
+                }
+
                 continue;
             }
-
-            $typeValue = $document->getDocumentType()->value;
 
             if (isset($orderedTopLevel[$typeValue])) {
                 $extension = pathinfo($document->getOriginalFilename(), PATHINFO_EXTENSION) ?: 'pdf';

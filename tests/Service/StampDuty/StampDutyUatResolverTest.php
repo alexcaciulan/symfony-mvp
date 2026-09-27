@@ -145,7 +145,7 @@ final class StampDutyUatResolverTest extends TestCase
     /**
      * A locality that matches no Romanian UAT is not silently swapped for the court's
      * seat: it may be a misspelling, or a claimant seated abroad (art. 40 alin. 2).
-     * Either way the lawyer decides, and the court name is carried along to help.
+     * Either way the lawyer decides.
      */
     public function testReportsUnmatchedWhenLocalityIsNotARomanianUat(): void
     {
@@ -157,7 +157,7 @@ final class StampDutyUatResolverTest extends TestCase
 
         self::assertSame(StampDutyTargetStatus::UNMATCHED, $target->status);
         self::assertFalse($target->isResolved());
-        self::assertSame('Judecătoria Cluj-Napoca', $target->courtName);
+        self::assertNull($target->uatName());
     }
 
     private function makeCase(?string $county, ?string $locality): LegalCase

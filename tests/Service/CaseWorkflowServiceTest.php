@@ -43,8 +43,10 @@ class CaseWorkflowServiceTest extends KernelTestCase
     {
         return [
             'trimite_somatie'      => [CaseStatus::AMIABIL,            'trimite_somatie',      CaseStatus::SOMATIE_TRIMISA],
-            'depune_cerere'        => [CaseStatus::SOMATIE_TRIMISA,    'depune_cerere',        CaseStatus::CERERE_DEPUSA],
+            'genereaza_cerere'     => [CaseStatus::SOMATIE_TRIMISA,    'genereaza_cerere',     CaseStatus::CERERE_GENERATA],
+            'depune_cerere'        => [CaseStatus::CERERE_GENERATA,    'depune_cerere',        CaseStatus::CERERE_DEPUSA],
             'inregistreaza_dosar'  => [CaseStatus::CERERE_DEPUSA,      'inregistreaza_dosar',  CaseStatus::DOSAR_INREGISTRAT],
+            'inregistreaza_dosar_din_generata' => [CaseStatus::CERERE_GENERATA, 'inregistreaza_dosar', CaseStatus::DOSAR_INREGISTRAT],
             'fixeaza_termen'       => [CaseStatus::DOSAR_INREGISTRAT,  'fixeaza_termen',       CaseStatus::TERMEN_FIXAT],
             'emite_ordonanta'      => [CaseStatus::TERMEN_FIXAT,       'emite_ordonanta',      CaseStatus::ORDONANTA_EMISA],
             'respinge'             => [CaseStatus::TERMEN_FIXAT,       'respinge',             CaseStatus::RESPINSA],

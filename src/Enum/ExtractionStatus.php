@@ -10,8 +10,9 @@ enum ExtractionStatus: string
     case FAILED = 'FAILED';
 
     /**
-     * No strategy ran because the user's privacy settings forbid it. Distinct
-     * from FAILED, which claims something broke.
+     * No strategy ran because a policy forbids it: the user's privacy settings, or
+     * a document type the pipeline does not read. Distinct from FAILED, which
+     * claims something broke.
      */
     case SKIPPED_BY_POLICY = 'SKIPPED_BY_POLICY';
 

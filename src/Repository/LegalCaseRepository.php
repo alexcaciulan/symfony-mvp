@@ -126,6 +126,7 @@ class LegalCaseRepository extends ServiceEntityRepository
             CaseStatus::ORDONANTA_EMISA->value,
             CaseStatus::DOSAR_INREGISTRAT->value,
             CaseStatus::CERERE_DEPUSA->value,
+            CaseStatus::CERERE_GENERATA->value,
             CaseStatus::SOMATIE_TRIMISA->value,
             CaseStatus::AMIABIL->value,
             CaseStatus::DEFINITIVA->value,
@@ -580,8 +581,13 @@ class LegalCaseRepository extends ServiceEntityRepository
     {
         return $this->stampDutyAlertQueryBuilder()
             ->andWhere('lc.courtCaseNumber IS NOT NULL')
-            ->andWhere('lc.stampDutyStatus = :stampDutyStatus')
-            ->setParameter('stampDutyStatus', StampDutyStatus::NEACHITATA)
+            // Both states mean the money has not moved. ACHITARE_LA_DEPUNERE is an
+            // intention declared before filing, and once the file number exists that
+            // intention should have become a payment; if it has not, this is the only
+            // thing that says so. Leaving it out would drop exactly the lawyers who
+            // told us they would pay and then did not.
+            ->andWhere('lc.stampDutyStatus IN (:stampDutyStatuses)')
+            ->setParameter('stampDutyStatuses', [StampDutyStatus::NEACHITATA, StampDutyStatus::ACHITARE_LA_DEPUNERE])
             ->getQuery()
             ->getResult();
     }

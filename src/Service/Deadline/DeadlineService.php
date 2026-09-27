@@ -36,10 +36,16 @@ final class DeadlineService
     /**
      * Statuses in which the payment-order request has not reached the court yet.
      * Mirrors the `depune_cerere` transition of config/packages/workflow.yaml
-     * (SOMATIE_TRIMISA -> CERERE_DEPUSA): every place from CERERE_DEPUSA onwards
+     * (CERERE_GENERATA -> CERERE_DEPUSA): every place from CERERE_DEPUSA onwards
      * means the request is filed, which is what stops the six-month term below.
+     * CERERE_GENERATA belongs here: having the package is not having filed it, and
+     * the interruption of NCC art. 2540 holds on the request reaching the court.
      */
-    private const STATUSES_BEFORE_FILING = [CaseStatus::AMIABIL, CaseStatus::SOMATIE_TRIMISA];
+    private const STATUSES_BEFORE_FILING = [
+        CaseStatus::AMIABIL,
+        CaseStatus::SOMATIE_TRIMISA,
+        CaseStatus::CERERE_GENERATA,
+    ];
 
     public function __construct(
         private readonly EntityManagerInterface $em,

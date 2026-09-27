@@ -27,6 +27,12 @@ enum DocumentType: string
     // uploadable, while this is a demand letter the lawyer already sent and
     // now files as evidence.
     case SOMATIE_ANTERIOARA = 'somatie_anterioara';
+    /**
+     * Proof that the lawyer represents the claimant, filed with the petition. Not
+     * evidence of the debt: it says nothing about what is owed, only about who may
+     * ask for it on whose behalf.
+     */
+    case IMPUTERNICIRE_AVOCATIALA = 'imputernicire_avocatiala';
     case ACT_ADITIONAL = 'act_aditional';
     case TITLU_VALOARE = 'titlu_valoare';
     case ALT_DOCUMENT = 'alt_document';
@@ -62,6 +68,20 @@ enum DocumentType: string
     }
 
     /**
+     * Whether the extraction pipeline reads a document of this type at all, and may
+     * classify a document as this type. The power of attorney is excluded on both
+     * counts: it carries no claim data, so offering it to the classifier only creates
+     * a way to mislabel an invoice as a representation act and lose the sums it was
+     * uploaded for, and reading one the lawyer declared as such would send the
+     * client's name, and often their CNP, to a sub-processor for a result that is
+     * empty by construction. It is chosen by the lawyer, never guessed.
+     */
+    public function isClassifiable(): bool
+    {
+        return $this !== self::IMPUTERNICIRE_AVOCATIALA;
+    }
+
+    /**
      * Pieces the procedure itself imposes, as opposed to evidence the lawyer chooses
      * to annex: the proof that the summons was communicated (CPC art. 1016 para. 2)
      * and the proof that the stamp duty was paid (CPC art. 197). Both gate the filing
@@ -69,11 +89,15 @@ enum DocumentType: string
      * the per-case attachment cap: a case that reached the cap on evidence would
      * otherwise be unable to attach the very document the gate asks for, turning a
      * product limit into a procedural dead end.
+     *
+     * The power of attorney joins them: the petition is filed through a representative
+     * and the act proving that capacity travels with it, so the cap must not stand
+     * between the lawyer and the one document the generation warning asks for.
      */
     public function isProceduralRequirement(): bool
     {
         return match ($this) {
-            self::DOVADA_COMUNICARE, self::DOVADA_TAXA_TIMBRU => true,
+            self::DOVADA_COMUNICARE, self::DOVADA_TAXA_TIMBRU, self::IMPUTERNICIRE_AVOCATIALA => true,
             default => false,
         };
     }

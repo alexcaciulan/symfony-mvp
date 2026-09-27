@@ -7,9 +7,9 @@ use PHPUnit\Framework\TestCase;
 
 class CaseTransitionTest extends TestCase
 {
-    public function testHasFourteenTransitions(): void
+    public function testHasFifteenTransitions(): void
     {
-        $this->assertCount(14, CaseTransition::cases());
+        $this->assertCount(15, CaseTransition::cases());
     }
 
     public function testAllCasesHaveLabels(): void

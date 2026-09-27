@@ -38,6 +38,9 @@ class CaseVoter extends Voter
     private const EDITABLE_STATUSES = [
         CaseStatus::AMIABIL,
         CaseStatus::SOMATIE_TRIMISA,
+        // The package exists but has not left yet, so an annex can still be added
+        // and the package rebuilt before filing.
+        CaseStatus::CERERE_GENERATA,
         CaseStatus::CERERE_DEPUSA,
     ];
 

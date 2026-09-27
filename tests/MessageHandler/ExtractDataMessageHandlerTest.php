@@ -393,14 +393,15 @@ class ExtractDataMessageHandlerTest extends TestCase
     {
         $cases = [];
         foreach (ExtractionFailureReason::cases() as $reason) {
-            // A policy skip is the one non-failure in the list: the orchestrator
-            // writes SKIPPED_BY_POLICY, and the handler must leave it alone
-            // rather than turn a settings choice into a malfunction.
+            // The policy skips are the non-failures in the list: the orchestrator
+            // writes SKIPPED_BY_POLICY, and the handler must leave it alone rather
+            // than turn a settings choice, or an unreadable type, into a malfunction.
             $cases[$reason->value] = [
                 $reason,
                 in_array($reason, [
                     ExtractionFailureReason::LOCAL_ONLY_MODE,
                     ExtractionFailureReason::AGREEMENT_MISSING,
+                    ExtractionFailureReason::TYPE_NOT_EXTRACTABLE,
                 ], true)
                     ? ExtractionStatus::SKIPPED_BY_POLICY
                     : ExtractionStatus::FAILED,

@@ -133,6 +133,17 @@ final class PaymentNoticeGeneratorServiceTest extends KernelTestCase
         );
     }
 
+    /**
+     * The bar roll number was dropped from the petition only. The summons is an
+     * out-of-court demand and keeps it, so removing it there is a regression.
+     */
+    public function testRenderHtmlKeepsTheBarRollNumberOnTheSummons(): void
+    {
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString('B-12345', $html);
+    }
+
     public function testRenderHtmlContainsCreditorAndDebtorNames(): void
     {
         $html = $this->service->renderHtml($this->case);

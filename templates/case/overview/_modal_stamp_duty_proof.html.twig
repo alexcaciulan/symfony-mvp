@@ -70,6 +70,12 @@
                            value="{{ case.creditor ? case.creditor.name : '' }}"
                            class="w-full py-2 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <p class="mt-1 text-[11px] text-slate-500">{{ 'case_overview.stamp_duty.modal_proof.payer_hint'|trans }}</p>
+
+                    <label class="mt-2 flex items-start gap-2.5 cursor-pointer">
+                        <input type="checkbox" name="stamp_duty_proof[payerOnBehalf]" value="1"
+                               class="mt-0.5 shrink-0 size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800">
+                        <span class="text-xs text-slate-600 dark:text-slate-400">{{ 'case_overview.stamp_duty.field.payer_on_behalf'|trans }}</span>
+                    </label>
                 </div>
 
                 <div>

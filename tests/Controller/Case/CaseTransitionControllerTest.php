@@ -12,6 +12,7 @@ use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\DocumentType;
+use App\Enum\FilingChannel;
 use App\Enum\PersonType;
 use App\Service\AuditLogService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -148,6 +149,129 @@ final class CaseTransitionControllerTest extends WebTestCase
         file_put_contents($path, "%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF");
 
         return new UploadedFile($path, $name, 'application/pdf', null, true);
+    }
+
+    public function testConfirmFilingHappyPathRecordsDateChannelAndReference(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::CERERE_GENERATA);
+
+        $token = $this->csrfForForm($case, 'confirm_filing');
+
+        $this->client->request('POST', '/case/' . $case->getId() . '/transition/file', [
+            'confirm_filing' => [
+                'filedAt' => '2026-03-10',
+                'filingChannel' => 'REJUST',
+                'filingReference' => 'REG-12345',
+                '_token' => $token,
+            ],
+        ]);
+
+        self::assertResponseRedirects('/case/' . $case->getId());
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame(CaseStatus::CERERE_DEPUSA, $refreshed->getStatus());
+        self::assertSame('2026-03-10', $refreshed->getFiledAt()->format('Y-m-d'));
+        self::assertSame(FilingChannel::REJUST, $refreshed->getFilingChannel());
+        self::assertSame('REG-12345', $refreshed->getFilingReference());
+
+        $entries = $this->em->getRepository(AuditLog::class)->findBy([
+            'category' => AuditLogService::CATEGORY_CASE_FILED,
+            'entityType' => LegalCase::class,
+            'entityId' => (string) $refreshed->getId(),
+        ]);
+        self::assertCount(1, $entries);
+        self::assertSame('REJUST', $entries[0]->getNewData()['filingChannel']);
+    }
+
+    /** The reference is optional: not every channel issues a receipt with a number. */
+    public function testConfirmFilingAcceptsAnEmptyReference(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::CERERE_GENERATA);
+
+        $token = $this->csrfForForm($case, 'confirm_filing');
+
+        $this->client->request('POST', '/case/' . $case->getId() . '/transition/file', [
+            'confirm_filing' => [
+                'filedAt' => '2026-03-10',
+                'filingChannel' => 'POSTA',
+                'filingReference' => '',
+                '_token' => $token,
+            ],
+        ]);
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame(CaseStatus::CERERE_DEPUSA, $refreshed->getStatus());
+        self::assertNull($refreshed->getFilingReference());
+    }
+
+    /** A filing cannot be declared for a day that has not happened yet. */
+    public function testConfirmFilingRejectsAFutureDate(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::CERERE_GENERATA);
+
+        $token = $this->csrfForForm($case, 'confirm_filing');
+        $future = (new \DateTimeImmutable('+3 days'))->format('Y-m-d');
+
+        $this->client->request('POST', '/case/' . $case->getId() . '/transition/file', [
+            'confirm_filing' => [
+                'filedAt' => $future,
+                'filingChannel' => 'REJUST',
+                '_token' => $token,
+            ],
+        ]);
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame(CaseStatus::CERERE_GENERATA, $refreshed->getStatus());
+        self::assertNull($refreshed->getFiledAt());
+    }
+
+    /** Nothing to confirm before the package exists. */
+    public function testConfirmFilingRejectsWrongStatus(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::SOMATIE_TRIMISA);
+
+        $token = $this->csrfForForm($case, 'confirm_filing');
+
+        $this->client->request('POST', '/case/' . $case->getId() . '/transition/file', [
+            'confirm_filing' => [
+                'filedAt' => '2026-03-10',
+                'filingChannel' => 'REJUST',
+                '_token' => $token,
+            ],
+        ]);
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame(CaseStatus::SOMATIE_TRIMISA, $refreshed->getStatus());
+        self::assertNull($refreshed->getFiledAt());
+    }
+
+    /**
+     * The portal can surface the ECRIS number before the lawyer confirms the filing,
+     * so registration must not be refused merely because that step was skipped.
+     */
+    public function testRegisterIsAcceptedStraightFromGenerated(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::CERERE_GENERATA);
+
+        $token = $this->csrfForForm($case, 'register_case_number');
+
+        $this->client->request('POST', '/case/' . $case->getId() . '/transition/register', [
+            'register_case_number' => ['courtCaseNumber' => '4521/302/2026', '_token' => $token],
+        ]);
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame(CaseStatus::DOSAR_INREGISTRAT, $refreshed->getStatus());
+        self::assertSame('4521/302/2026', $refreshed->getCourtCaseNumber());
     }
 
     public function testRegisterHappyPathTransitionsToDosarInregistrat(): void

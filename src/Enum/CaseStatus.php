@@ -18,6 +18,17 @@ enum CaseStatus: string
      * pe baza `paymentNoticeDate` setat la generare.
      */
     case SOMATIE_TRIMISA = 'SOMATIE_TRIMISA';
+
+    /**
+     * The petition package exists but nothing has left for the court yet. Filing
+     * is the lawyer's own act, on a channel the platform does not operate, so it
+     * cannot be inferred from the fact that a PDF was produced. Keeping the two
+     * apart matters beyond bookkeeping: the six-month term of NCC art. 2540 runs
+     * on the request reaching the court, not on generating it.
+     */
+    case CERERE_GENERATA = 'CERERE_GENERATA';
+
+    /** Confirmed by the lawyer, with the date and channel they filed on. */
     case CERERE_DEPUSA = 'CERERE_DEPUSA';
     case DOSAR_INREGISTRAT = 'DOSAR_INREGISTRAT';
     case TERMEN_FIXAT = 'TERMEN_FIXAT';
@@ -39,6 +50,7 @@ enum CaseStatus: string
         return match ($this) {
             self::AMIABIL => 'slate',
             self::SOMATIE_TRIMISA => 'amber',
+            self::CERERE_GENERATA => 'purple',
             self::CERERE_DEPUSA => 'sky',
             self::DOSAR_INREGISTRAT => 'blue',
             self::TERMEN_FIXAT => 'indigo',

@@ -5,6 +5,7 @@ namespace App\Enum;
 enum CaseTransition: string
 {
     case TRIMITE_SOMATIE = 'trimite_somatie';
+    case GENEREAZA_CERERE = 'genereaza_cerere';
     case DEPUNE_CERERE = 'depune_cerere';
     case INREGISTREAZA_DOSAR = 'inregistreaza_dosar';
     case FIXEAZA_TERMEN = 'fixeaza_termen';

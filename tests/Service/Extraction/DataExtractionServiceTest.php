@@ -218,6 +218,47 @@ class DataExtractionServiceTest extends TestCase
     }
 
     /**
+     * The power of attorney names the client and often carries their CNP, while
+     * saying nothing about the debt. It must not reach a strategy at all, and the
+     * account settings are irrelevant to that: this document holds even on the
+     * most permissive account, with the agreement given and AI allowed.
+     */
+    public function testANonClassifiableTypeReachesNoStrategy(): void
+    {
+        $recorder = $this->makeRecordingStrategy();
+        $service = new DataExtractionService([$recorder, new StubExtractionStrategy()]);
+
+        $document = $this->makeDocument(userMode: ExtractionMode::MAX_ACCURACY);
+        $document->setDocumentType(DocumentType::IMPUTERNICIRE_AVOCATIALA);
+
+        $result = $service->extract($document);
+
+        $this->assertSame(0, $recorder->extractCalls);
+        $this->assertSame(0, $recorder->supportsCalls);
+        $this->assertSame(ExtractionStatus::SKIPPED_BY_POLICY, $document->getExtractionStatus());
+        $this->assertSame(ExtractionFailureReason::TYPE_NOT_EXTRACTABLE, $result->failureReason);
+        $this->assertSame(DataExtractionService::NO_STRATEGY, $result->strategy);
+    }
+
+    /**
+     * The gate is on the declared type alone, so the ordinary evidence types must
+     * still run the cascade. Without this, a mistake in the predicate would turn
+     * off extraction for every document and only show up as empty wizards.
+     */
+    public function testAClassifiableTypeStillRunsTheCascade(): void
+    {
+        $recorder = $this->makeRecordingStrategy();
+        $service = new DataExtractionService([$recorder, new StubExtractionStrategy()]);
+
+        $document = $this->makeDocument(userMode: ExtractionMode::MAX_ACCURACY);
+        $document->setDocumentType(DocumentType::FACTURA);
+
+        $service->extract($document);
+
+        $this->assertSame(1, $recorder->extractCalls);
+    }
+
+    /**
      * The agreement is what covers sending a client's documents to a
      * third-party processor. An account that has never given it must not have
      * its documents leave the boundary, whatever the extraction mode says: the

@@ -116,18 +116,19 @@ class CaseWorkflowSubscriberTest extends KernelTestCase
         $this->workflowService->apply($case, 'trimite_somatie');
         $this->em->flush();
 
+        $this->workflowService->apply($case, 'genereaza_cerere');
         $this->workflowService->apply($case, 'depune_cerere');
         $this->em->flush();
 
         $histories = $this->em->getRepository(CaseStatusHistory::class)->findBy(['legalCase' => $caseId]);
-        $this->assertCount(2, $histories);
+        $this->assertCount(3, $histories);
 
         $logs = $this->em->getRepository(AuditLog::class)->findBy([
             'entityType' => 'LegalCase',
             'entityId' => (string) $caseId,
             'action' => 'case_status_change',
         ]);
-        $this->assertCount(2, $logs);
+        $this->assertCount(3, $logs);
     }
 
     public function testStatusHistoryHasNullUserInKernelContext(): void

@@ -10,6 +10,7 @@ use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Enum\DocumentType;
+use App\Enum\FilingChannel;
 use App\Enum\PenaltyType;
 use App\Enum\RelationshipType;
 use App\Repository\AuditLogRepository;
@@ -78,6 +79,7 @@ final class OverviewContextBuilder
             'payment_term_expired' => $this->deadlineService->isPaymentTermExpired($case, new \DateTimeImmutable('today')),
             'execution_recommended_date' => $this->deadlineService->recommendedExecutionDate($case),
             'document_upload_types' => DocumentType::uploadableTypes(),
+            'filing_channels' => FilingChannel::cases(),
             'stamp_duty_target' => $this->stampDutyUatResolver->resolve($case),
             'stamp_duty_proof' => $this->findStampDutyProof($case),
             // The duty is owed whether or not it was ever written onto the case (older

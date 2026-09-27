@@ -129,6 +129,27 @@ class DataExtractionService
      */
     public function extract(Document $document, ?float $confidenceThreshold = null): ExtractedDocumentData
     {
+        // Checked before anything else, because it holds whatever the account
+        // settings say: a type the pipeline does not read has nothing to give, so
+        // running the cascade would only expose the file to a sub-processor.
+        $declaredType = $document->getDocumentType();
+        if (!$declaredType->isClassifiable()) {
+            $this->logger->info('extraction.skipped_by_document_type', [
+                'documentId' => $document->getId(),
+                'documentType' => $declaredType->value,
+            ]);
+            $result = new ExtractedDocumentData(
+                sourceDocumentId: (int) $document->getId(),
+                strategy: self::NO_STRATEGY,
+                globalConfidence: 0.0,
+                extractedAt: new \DateTimeImmutable(),
+                failureReason: ExtractionFailureReason::TYPE_NOT_EXTRACTABLE,
+            );
+            $this->persistResult($document, $result, ExtractionStatus::SKIPPED_BY_POLICY);
+
+            return $result;
+        }
+
         $threshold = $confidenceThreshold ?? self::DEFAULT_REVIEW_THRESHOLD;
         $mode = $this->resolveExtractionMode($document);
         $pipeline = $this->resolvePipeline($document);

@@ -38,7 +38,11 @@ abstract class AbstractPdfGenerator
     {
         return [
             'case' => $case,
-            'user' => $this->security->getUser(),
+            // The lawyer of the case, not whoever is logged in. These documents carry
+            // a name, a bar number and now an address for service; taking them from
+            // the session makes them right only for as long as the two coincide, and
+            // silently wrong for anything generated outside a request by the owner.
+            'user' => $case->getUser(),
             'today' => new \DateTimeImmutable(),
         ];
     }
@@ -58,6 +62,24 @@ abstract class AbstractPdfGenerator
         $uploader = $this->security->getUser();
         if (!$uploader instanceof User) {
             $uploader = $case->getUser();
+        }
+
+        // The stem is stable per case, so a second generation overwrites the file on
+        // disk. Reusing the existing row rather than adding another keeps one document
+        // per generated type: two rows would put the same file in the package twice
+        // and leave the index listing a stale twin of itself.
+        $existing = null;
+        foreach ($case->getDocuments() as $candidate) {
+            if ($candidate->getDocumentType() === $this->documentType()) {
+                $existing = $candidate;
+                break;
+            }
+        }
+
+        if ($existing !== null) {
+            $existing->setFileSize(strlen($pdfContent));
+
+            return $existing;
         }
 
         $document = new Document();
