@@ -146,6 +146,100 @@ final class CaseStampDutyControllerTest extends WebTestCase
         return (string) $input->attr('value');
     }
 
+    /**
+     * The registry has no form that fits a petition already filed and still without a
+     * number. Offering the new-case form there would have the lawyer register the same
+     * petition a second time.
+     */
+    public function testTheCardOffersNoRegistryLinkOnACaseFiledWithoutAFileNumber(): void
+    {
+        $this->case->setStatus(CaseStatus::CERERE_DEPUSA);
+        $this->case->setFiledAt(new \DateTimeImmutable('2026-03-01'));
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $html = (string) $this->client->getResponse()->getContent();
+
+        self::assertStringNotContainsString('inregistreaza-un-dosar-nou', $html);
+        self::assertStringNotContainsString('plata-taxei-judiciare-de-timbru-intr-un-dosar-existent', $html);
+        self::assertStringContainsString(
+            static::getContainer()->get('translator')->trans('case_overview.stamp_duty.pay_awaiting_case_number'),
+            $html,
+        );
+    }
+
+    /**
+     * A lawyer who chose to pay at filing may already have paid inside the filing form.
+     * Telling them to wait for the file number would contradict the confirmation offered
+     * on the same card.
+     */
+    public function testTheCardDoesNotAskToWaitForTheFileNumberWhenPaymentWasDeclaredAtFiling(): void
+    {
+        $this->case->setStatus(CaseStatus::CERERE_DEPUSA);
+        $this->case->setFiledAt(new \DateTimeImmutable('2026-03-01'));
+        $this->case->setStampDutyStatus(StampDutyStatus::ACHITARE_LA_DEPUNERE);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $html = (string) $this->client->getResponse()->getContent();
+        $translator = static::getContainer()->get('translator');
+
+        self::assertStringNotContainsString($translator->trans('case_overview.stamp_duty.pay_awaiting_case_number'), $html);
+        self::assertStringContainsString($translator->trans('case_overview.stamp_duty.cta_registry_paid'), $html);
+    }
+
+    /**
+     * The reason to pay early belongs on the surface where the deferral is chosen. The
+     * lawyer weighs it while the consent checkbox is in front of him, not after filing.
+     */
+    public function testTheDeferralModalCarriesTheReasonToPayEarly(): void
+    {
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+
+        self::assertStringContainsString(
+            static::getContainer()->get('translator')->trans('case_overview.stamp_duty.modal_defer.practice_note'),
+            $this->client->getCrawler()->filter('#hs-modal-stamp-duty-defer')->text(),
+        );
+    }
+
+    /** Before anything leaves for the court the duty is paid inside the filing form itself. */
+    public function testTheCardLinksTheNewCaseFormBeforeFiling(): void
+    {
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString(
+            'inregistreaza-un-dosar-nou',
+            (string) $this->client->getResponse()->getContent(),
+        );
+    }
+
+    public function testTheCardLinksTheExistingCaseFormOnceTheFileNumberIsKnown(): void
+    {
+        $this->case->setStatus(CaseStatus::DOSAR_INREGISTRAT);
+        $this->case->setCourtCaseNumber('4521/302/2026');
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $html = (string) $this->client->getResponse()->getContent();
+
+        self::assertStringContainsString('plata-taxei-judiciare-de-timbru-intr-un-dosar-existent', $html);
+        self::assertStringNotContainsString('inregistreaza-un-dosar-nou', $html);
+    }
+
     public function testUploadProofMarksTheDutyPaidAndSnapshotsTheUat(): void
     {
         $this->client->loginUser($this->user);

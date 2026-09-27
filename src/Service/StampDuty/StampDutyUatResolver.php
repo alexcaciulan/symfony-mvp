@@ -17,9 +17,6 @@ use App\Service\Court\RomanianAddressNormalizer;
  */
 final class StampDutyUatResolver
 {
-    /** Distinct local-budget revenue account the duty must land in (art. 40 alin. 1). */
-    public const ACCOUNT_NAME = 'Taxe judiciare de timbru și alte taxe de timbru';
-
     public function __construct(
         private readonly CityRepository $cityRepository,
     ) {}
@@ -27,7 +24,6 @@ final class StampDutyUatResolver
     public function resolve(LegalCase $case): StampDutyPaymentTarget
     {
         $creditor = $case->getCreditor();
-        $courtName = $case->getCourt()?->getName();
 
         // Both ANAF and the AI extraction feed this field, and they decorate the
         // registered office differently: ANAF answers "MUNICIPIUL BUCUREŞTI" /
@@ -40,15 +36,15 @@ final class StampDutyUatResolver
         $locality = RomanianAddressNormalizer::normalizeLocality($creditor?->getAddressLocality(), $county);
 
         if ($county === null || $locality === null) {
-            return new StampDutyPaymentTarget(StampDutyTargetStatus::LOCATION_MISSING, courtName: $courtName);
+            return new StampDutyPaymentTarget(StampDutyTargetStatus::LOCATION_MISSING);
         }
 
         $uat = $this->cityRepository->findOneByCountyNameAndNormalizedName($county, $locality);
 
         if ($uat === null) {
-            return new StampDutyPaymentTarget(StampDutyTargetStatus::UNMATCHED, courtName: $courtName);
+            return new StampDutyPaymentTarget(StampDutyTargetStatus::UNMATCHED);
         }
 
-        return new StampDutyPaymentTarget(StampDutyTargetStatus::RESOLVED, $uat, $courtName);
+        return new StampDutyPaymentTarget(StampDutyTargetStatus::RESOLVED, $uat);
     }
 }

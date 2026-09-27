@@ -7,9 +7,9 @@ use PHPUnit\Framework\TestCase;
 
 class ExtractionFailureReasonTest extends TestCase
 {
-    public function testHasTwelveCases(): void
+    public function testHasThirteenCases(): void
     {
-        $this->assertCount(12, ExtractionFailureReason::cases());
+        $this->assertCount(13, ExtractionFailureReason::cases());
     }
 
     public function testLabelsFollowTheEnumKeyConvention(): void
@@ -44,6 +44,23 @@ class ExtractionFailureReasonTest extends TestCase
         // A billing or capacity refusal clears once the account is topped up, so
         // the lawyer gets a retry rather than being told to fix their file.
         $this->assertTrue(ExtractionFailureReason::PROVIDER_UNAVAILABLE->isTransient());
+        // Re-reading a document the pipeline does not read returns the same skip,
+        // so offering a retry would cost a click and change nothing.
+        $this->assertFalse(ExtractionFailureReason::TYPE_NOT_EXTRACTABLE->isTransient());
+    }
+
+    /**
+     * The profile link is the only remedy the skip branch can offer, and it is a
+     * remedy only where the account setting is what caused the skip.
+     */
+    public function testOnlyAccountSettingsCountAsPrivacyChoices(): void
+    {
+        $this->assertTrue(ExtractionFailureReason::LOCAL_ONLY_MODE->isPrivacySetting());
+        $this->assertTrue(ExtractionFailureReason::AGREEMENT_MISSING->isPrivacySetting());
+
+        $this->assertFalse(ExtractionFailureReason::TYPE_NOT_EXTRACTABLE->isPrivacySetting());
+        $this->assertFalse(ExtractionFailureReason::API_KEY_MISSING->isPrivacySetting());
+        $this->assertFalse(ExtractionFailureReason::FILE_TOO_LARGE->isPrivacySetting());
     }
 
     /**

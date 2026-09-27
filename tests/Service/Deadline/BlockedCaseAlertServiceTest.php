@@ -67,6 +67,23 @@ final class BlockedCaseAlertServiceTest extends KernelTestCase
         self::assertSame([BlockedCaseAlert::STAMP_DUTY_DUE], $this->reasonsFor($case));
     }
 
+    /**
+     * Declaring "I pay at filing" is an intention, not a payment. Once the file number
+     * exists that intention should have become money moved, and if it has not, this
+     * alert is the only thing that says so.
+     */
+    public function testACaseThatDeclaredPaymentAtFilingAndStillOwesTheDutyIsAlerted(): void
+    {
+        $case = $this->createCase(CaseStatus::DOSAR_INREGISTRAT);
+        $case->setCourtCaseNumber('801/211/2026');
+        $case->setStampDutyStatus(StampDutyStatus::ACHITARE_LA_DEPUNERE);
+        $this->em->flush();
+
+        $this->process();
+
+        self::assertSame([BlockedCaseAlert::STAMP_DUTY_DUE], $this->reasonsFor($case));
+    }
+
     /** No file number means the claim is not registered yet, so the duty is not due. */
     public function testACaseWithoutAFileNumberIsNotAlerted(): void
     {

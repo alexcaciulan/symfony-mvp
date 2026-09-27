@@ -10,7 +10,6 @@ use App\Form\Case\StampDutyProofType;
 use App\Repository\LegalCaseRepository;
 use App\Security\Voter\CaseVoter;
 use App\Service\Case\OverviewContextBuilder;
-use App\Service\StampDuty\StampDutyReminderService;
 use App\Service\StampDuty\StampDutyService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -32,7 +31,6 @@ final class CaseStampDutyController extends AbstractController
         private readonly LegalCaseRepository $legalCaseRepository,
         private readonly StampDutyService $stampDutyService,
         private readonly OverviewContextBuilder $contextBuilder,
-        private readonly StampDutyReminderService $reminderService,
         private readonly string $stampDutyLawVersion,
     ) {}
 
@@ -192,25 +190,6 @@ final class CaseStampDutyController extends AbstractController
             'case_overview.stamp_duty.flash_success_registry_paid',
             'hs-modal-stamp-duty-registry-paid',
         );
-    }
-
-    /**
-     * Stop chasing the duty on this case. Per case rather than a global preference:
-     * silence is wanted on the file already dealt with, not on every future one.
-     */
-    #[Route('/case/{id}/stamp-duty/mute-reminders', name: 'case_stamp_duty_mute_reminders', requirements: ['id' => '\d+'], methods: ['POST'])]
-    public function muteReminders(int $id, Request $request): Response
-    {
-        $case = $this->findOrThrow($id);
-        $this->denyAccessUnlessGranted(CaseVoter::STAMP_DUTY_MANAGE, $case);
-
-        if (!$this->isCsrfTokenValid('stamp_duty_mute_' . $id, $request->getPayload()->getString('_token'))) {
-            return $this->respond($request, $case, false, 'error', 'case_overview.stamp_duty.flash_error_csrf');
-        }
-
-        $this->reminderService->mute($case, new \DateTimeImmutable());
-
-        return $this->respond($request, $case, true, 'success', 'case_overview.stamp_duty.flash_success_reminders_muted');
     }
 
     #[Route('/case/{id}/stamp-duty/defer', name: 'case_stamp_duty_defer', requirements: ['id' => '\d+'], methods: ['POST'])]

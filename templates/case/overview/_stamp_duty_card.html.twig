@@ -10,12 +10,10 @@
    ca acest câmp să existe, iar „0 lei taxă de timbru" ar fi pur și simplu fals. #}
 {% set amount = stamp_duty_amount|default(case.stampDuty|default(0) + 0) %}
 
-{# Două formulare distincte pe portal, după cum dosarul are sau nu număr. Fără număr,
-   plata se face în chiar formularul de înregistrare a dosarului nou, care ia taxa și
-   cererea în același pas; trimiterea la rădăcina portalului lăsa avocatul să caute. #}
-{% set rejust_url = case.courtCaseNumber
-    ? 'https://registratura.rejust.ro/plata-taxei-judiciare-de-timbru-intr-un-dosar-existent'
-    : 'https://registratura.rejust.ro/inregistreaza-un-dosar-nou-pe-rolul-instantei-de-judecata' %}
+{# Which registry form takes the duty for this case. A petition already filed but
+   still without a file number fits neither form, so it carries no link: the new-case
+   form would have the same petition registered a second time. #}
+{% set rejust_url = case.rejustStampDutyForm.url %}
 
 <section id="case-stamp-duty-card" class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft overflow-hidden">
     <div class="p-5">
@@ -117,21 +115,31 @@
 
         <div class="space-y-2">
             {% if status.value != 'ACHITATA' %}
-                <a href="{{ rejust_url }}" target="_blank" rel="noopener noreferrer"
-                   class="w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-semibold rounded-lg bg-lex-navy text-white hover:bg-lex-navy-dark transition no-underline">
-                    {{ icon_external_link('size-4') }}
-                    {{ 'case_overview.stamp_duty.cta_pay'|trans }}
-                </a>
+                {% if rejust_url %}
+                    <a href="{{ rejust_url }}" target="_blank" rel="noopener noreferrer"
+                       class="w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-semibold rounded-lg bg-lex-navy text-white hover:bg-lex-navy-dark transition no-underline">
+                        {{ icon_external_link('size-4') }}
+                        {{ 'case_overview.stamp_duty.cta_pay'|trans }}
+                    </a>
+                {# A lawyer who chose to pay at filing may already have paid inside the
+                   filing form; telling them to wait for the file number would contradict
+                   the at-filing notice and the confirmation button below. #}
+                {% elseif status.value != 'ACHITARE_LA_DEPUNERE' %}
+                    <p class="rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 p-3 text-xs text-slate-600 dark:text-slate-300">
+                        {{ 'case_overview.stamp_duty.pay_awaiting_case_number'|trans }}
+                    </p>
+                {% endif %}
                 <button type="button" data-hs-overlay="#hs-modal-stamp-duty-proof"
                         class="w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-semibold rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
                     {{ 'case_overview.stamp_duty.cta_upload_proof'|trans }}
                 </button>
             {% endif %}
 
-            {# Plata pe canalul recomandat se face în chiar formularul de depunere, deci
-               după ce pachetul e gata. Fără această cale, avocatul care plătește corect
-               era obligat să bifeze amânarea la regularizare, iar cererea o afirma. #}
-            {% if status.value == 'NEACHITATA' %}
+            {# Paying on the recommended channel happens inside the filing form itself,
+               so this choice only exists while the petition has not left yet. Offering it
+               on a filed case would contradict the notice right above, which says the
+               registry cannot take the duty until the file number exists. #}
+            {% if status.value == 'NEACHITATA' and case.rejustStampDutyForm.value == 'NEW_CASE' %}
                 <button type="button" data-hs-overlay="#hs-modal-stamp-duty-at-filing"
                         class="w-full py-2 px-3 inline-flex items-center justify-center gap-2 text-xs font-medium rounded-lg border border-blue-300 dark:border-blue-800 text-blue-800 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition">
                     {{ 'case_overview.stamp_duty.cta_at_filing'|trans }}
@@ -157,21 +165,10 @@
             {% endif %}
         </div>
 
-        {# Cererea a plecat, taxa e încă datorată: aici riscul e real, iar mementourile
-           pornesc de la depunere fiindcă înștiințarea instanței poate ajunge la client. #}
+        {# The petition has left and the duty is still owed, so the annulment risk is real. #}
         {% if case.hasReachedCourt and status.isOutstanding %}
             <div class="mt-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 p-3">
                 <p class="text-xs text-amber-800 dark:text-amber-200">{{ 'case_overview.stamp_duty.filed_unpaid_banner'|trans }}</p>
-                {% if case.stampDutyRemindersMutedAt %}
-                    <p class="mt-1.5 text-[11px] text-amber-700 dark:text-amber-300">{{ 'case_overview.stamp_duty.reminders_muted_note'|trans }}</p>
-                {% else %}
-                    <form method="post" action="{{ path('case_stamp_duty_mute_reminders', {id: case.id}) }}" data-turbo-frame="_top" class="mt-2">
-                        <input type="hidden" name="_token" value="{{ csrf_token('stamp_duty_mute_' ~ case.id) }}">
-                        <button type="submit" class="text-[11px] font-medium text-amber-800 dark:text-amber-300 underline">
-                            {{ 'case_overview.stamp_duty.cta_mute_reminders'|trans }}
-                        </button>
-                    </form>
-                {% endif %}
             </div>
         {% endif %}
 

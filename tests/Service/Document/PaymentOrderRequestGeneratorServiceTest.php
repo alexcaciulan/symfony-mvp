@@ -228,6 +228,30 @@ final class PaymentOrderRequestGeneratorServiceTest extends KernelTestCase
         self::assertStringNotContainsString('domiciliul procedural ales', $html);
     }
 
+    /**
+     * On the petition counsel is identified by name alone: no bar roll number, in the
+     * representation clause or in the signature block. The summons and the documents
+     * index still carry it.
+     */
+    public function testRenderHtmlIdentifiesCounselWithoutTheBarRollNumber(): void
+    {
+        $this->user->setFirstName('Ion');
+        $this->user->setLastName('Popescu');
+        $this->user->setStreet('Str. Avocatilor');
+        $this->user->setStreetNumber('12');
+        $this->user->setCity('Cluj-Napoca');
+        $this->user->setCounty('Cluj');
+        $this->em->flush();
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString('Reprezentată convențional prin av. Ion Popescu.', $html);
+        self::assertStringContainsString('Ion Popescu', $html);
+        self::assertStringNotContainsString('B-77777', $html);
+        self::assertStringNotContainsString('Tabloul Baroului', $html);
+        self::assertStringNotContainsString('Nr. Barou', $html);
+    }
+
     private function attachStampDutyProof(): void
     {
         $proof = new Document();

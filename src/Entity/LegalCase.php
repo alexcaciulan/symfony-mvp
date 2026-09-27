@@ -9,6 +9,7 @@ use App\Enum\ExtractionMode;
 use App\Enum\FilingChannel;
 use App\Enum\PaymentNoticeCommunicationMethod;
 use App\Enum\PenaltyType;
+use App\Enum\RejustStampDutyForm;
 use App\Enum\RelationshipType;
 use App\Enum\StampDutyStatus;
 use App\Repository\LegalCaseRepository;
@@ -218,25 +219,6 @@ class LegalCase
     /** Registration number from the channel's receipt, when the channel issues one. */
     #[ORM\Column(length: 100, nullable: true)]
     private ?string $filingReference = null;
-
-    /**
-     * How many stamp-duty reminders have gone out on this case. Counted here rather
-     * than derived from the notifications table so the schedule survives pruning and
-     * cannot double-send if a run is repeated.
-     */
-    #[ORM\Column(type: Types::SMALLINT, options: ['default' => 0])]
-    private int $stampDutyRemindersSent = 0;
-
-    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
-    private ?\DateTimeImmutable $stampDutyLastReminderAt = null;
-
-    /**
-     * The lawyer asked us to stop reminding on this case. Deliberately per case and
-     * not a global preference: the ones who want silence want it on the file they
-     * have already dealt with, not on every file they will ever open.
-     */
-    #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: true)]
-    private ?\DateTimeImmutable $stampDutyRemindersMutedAt = null;
 
     #[ORM\Column(type: Types::DATE_MUTABLE, nullable: true)]
     private ?\DateTimeInterface $hearingDate = null;
@@ -949,12 +931,34 @@ class LegalCase
      * Deliberately not keyed on `filedAt`: an ECRIS number entered from the portal
      * registers the case straight from CERERE_GENERATA, so a lawyer who never opens
      * the confirmation dialog still has a case demonstrably at the court, with no
-     * filing date recorded. Anchoring the stamp-duty follow-up on the declaration
-     * alone would drop exactly those cases, the ones where the proof is strongest.
+     * filing date recorded. Keying on the declaration alone would drop exactly those
+     * cases, the ones where the proof that the petition arrived is strongest.
      */
     public function hasReachedCourt(): bool
     {
         return in_array($this->status, self::REACHED_COURT_STATUSES, true);
+    }
+
+    /**
+     * Which registry form takes the stamp duty for this case as it stands.
+     *
+     * Keyed on whether the petition has left for the court, not on the file number
+     * alone: between filing and registration the case has no number yet, and the
+     * new-case form would have the lawyer register the same petition a second time.
+     * `courtArrivalDate()` widens the check beyond the live statuses, so a case that
+     * has since moved on to a judgment place is not sent back to filing either.
+     */
+    public function rejustStampDutyForm(): RejustStampDutyForm
+    {
+        if ($this->courtCaseNumber !== null) {
+            return RejustStampDutyForm::EXISTING_CASE;
+        }
+
+        if ($this->hasReachedCourt() || $this->courtArrivalDate() !== null) {
+            return RejustStampDutyForm::AWAITING_CASE_NUMBER;
+        }
+
+        return RejustStampDutyForm::NEW_CASE;
     }
 
     /**
@@ -984,42 +988,6 @@ class LegalCase
         }
 
         return $earliest;
-    }
-
-    public function getStampDutyRemindersSent(): int
-    {
-        return $this->stampDutyRemindersSent;
-    }
-
-    public function setStampDutyRemindersSent(int $stampDutyRemindersSent): static
-    {
-        $this->stampDutyRemindersSent = $stampDutyRemindersSent;
-
-        return $this;
-    }
-
-    public function getStampDutyLastReminderAt(): ?\DateTimeImmutable
-    {
-        return $this->stampDutyLastReminderAt;
-    }
-
-    public function setStampDutyLastReminderAt(?\DateTimeImmutable $stampDutyLastReminderAt): static
-    {
-        $this->stampDutyLastReminderAt = $stampDutyLastReminderAt;
-
-        return $this;
-    }
-
-    public function getStampDutyRemindersMutedAt(): ?\DateTimeImmutable
-    {
-        return $this->stampDutyRemindersMutedAt;
-    }
-
-    public function setStampDutyRemindersMutedAt(?\DateTimeImmutable $stampDutyRemindersMutedAt): static
-    {
-        $this->stampDutyRemindersMutedAt = $stampDutyRemindersMutedAt;
-
-        return $this;
     }
 
     public function getHearingDate(): ?\DateTimeInterface

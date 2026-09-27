@@ -699,6 +699,7 @@ wizard:
             API_KEY_MISSING: 'AI extraction is not configured on this installation. Fill in the fields manually.'
             PROVIDER_REJECTED: 'The AI service could not process this document. Fill in the fields manually.'
             PROVIDER_UNAVAILABLE: 'The AI extraction service is temporarily unavailable (a platform issue, not your document). Try again later or fill in manually.'
+            TYPE_NOT_EXTRACTABLE: 'This type of document carries no claim data, so we do not send it for automatic reading. There is nothing to fill in from it.'
         retry:
             button: 'Retry extraction'
             queued: 'Extraction has been queued again.'
@@ -716,7 +717,7 @@ wizard:
             duplicate_skipped: 'File skipped ({files}): its content is identical to a document already uploaded in this case.'
             completed: 'Document processed. Extracted data is shown in the side panel.'
             failed: 'Extraction failed for a document. Please fill in the fields manually.'
-            skipped: 'AI extraction is off. Fill in the document data manually.'
+            skipped: 'The document was not read automatically. Fill in its data manually.'
     placeholder:
         not_implemented_title: 'Step {step}: coming soon'
         not_implemented_body: 'This step will be available in a future release (Step 3.1/3.2/3.3). Go back to documents.'
@@ -1064,7 +1065,10 @@ case_overview:
         county: '%county% county'
         uat_unknown: 'Undetermined'
         account: 'Into the account (name, not IBAN)'
-        account_name: 'Judicial stamp duties and other stamp duties'
+        # Official designation of the local-budget revenue account, kept in Romanian
+        # in every locale: the lawyer copies it verbatim into a payment order, and a
+        # translated name matches no account at any town hall.
+        account_name: 'Taxe judiciare de timbru și alte taxe de timbru'
         paid_on: 'Paid on %date%'
         presumed_paid: 'Recorded as stamped (case registered with the court before this feature existed).'
         paid_to: 'To the town hall of %uat%'
@@ -1073,12 +1077,13 @@ case_overview:
         at_filing_title: 'Paid together with the filing'
         at_filing_body: 'You pay in the electronic registry form, in the same step as filing the petition. After filing, confirm the payment here.'
         deferred_title: 'Filed without proof of payment'
-        deferred_body: 'The court will notify you to pay the duty. From that moment you have 10 days, or the petition is annulled.'
+        deferred_body: 'The duty is still owed. Ten days run from the day the court serves the stamping notice, or the petition is annulled.'
         cta_pay: 'Pay on registratura.rejust.ro'
+        pay_awaiting_case_number: 'The petition has been filed, but the court has not allocated a file number yet. Payment through the registry happens once the number is allocated. The button comes back here as soon as the number is known.'
         cta_upload_proof: 'Upload proof'
         cta_at_filing: 'I pay at filing, through the registry'
         cta_registry_paid: 'I paid through the registry'
-        cta_defer: 'File now, pay when the court asks'
+        cta_defer: 'File now, pay the duty later'
         cta_court_notice: 'I received the court notice'
         disclaimer: 'The platform does not collect the duty. Check the town hall account on the official portal before paying.'
         target:
@@ -1101,17 +1106,18 @@ case_overview:
             submit: 'Save proof'
         modal_defer:
             title: 'File without proof of payment'
-            intro: 'The law allows paying the duty later, at the court request. Choose this only if you know what it entails.'
+            intro: 'The law allows paying the duty later. Choose this only if you know what it entails.'
             risk_title: 'What happens next'
-            risk_body: 'The court will order you to pay the duty. From the day of that communication you have 10 days to pay and submit the proof, or the petition is annulled (OUG 80/2013 art. 33 para. 2).'
-            consent: 'I understand the risk and take responsibility for paying the duty during regularization.'
+            risk_body: 'The court will order the duty to be paid. Ten days run from the day of that communication, for the payment and for filing the proof, or the petition is annulled (OUG 80/2013 art. 33 para. 2).'
+            practice_note: 'In practice, some courts have served the notice at the home address of the client instead of the professional office of the lawyer. You find out late, while the term runs. Paying earlier removes this reason for a notice.'
+            consent: 'I understand the risk and take responsibility for paying the duty later.'
             cancel: 'Cancel'
             submit: 'File without proof'
         modal_at_filing:
             title: 'Paying the duty at filing'
             intro: 'The electronic registry takes the duty and the petition in one step, so payment happens at filing, not before. Choose this if you file on that channel.'
             note_title: 'What the platform records'
-            note_body: 'The petition will state that the duty is paid together with its registration. After filing, confirm the payment so we stop reminding you.'
+            note_body: 'The petition will state that the duty is paid together with its registration. After filing, confirm the payment here.'
             cancel: 'Cancel'
             submit: 'Understood, continue'
         modal_registry_paid:
@@ -1133,12 +1139,9 @@ case_overview:
             cancel: 'Cancel'
             submit: 'Compute the term'
         flash_success_paid: 'The proof of payment was saved. The stamp duty is recorded as paid.'
-        flash_success_deferred: 'The case was marked for payment during regularization. Tell us when the court notice arrives.'
+        flash_success_deferred: 'The case was marked for later payment of the duty. Confirm the payment here once you have paid.'
         flash_success_at_filing: 'Noted that you pay the duty at filing, through the electronic registry. The package can be generated.'
         flash_success_registry_paid: 'The registry payment was recorded. The stamp duty is marked as paid.'
-        flash_success_reminders_muted: 'You will no longer receive stamp-duty reminders on this case.'
-        cta_mute_reminders: 'Stop reminding me on this case'
-        reminders_muted_note: 'Stamp-duty reminders are off on this case.'
         filed_unpaid_banner: 'The petition has been filed, but the stamp duty is not recorded as paid. Non-payment annuls the petition, and the court notice may reach your client rather than you.'
         flash_success_court_notice: 'The stamp-duty term was computed and added to the case deadlines.'
         flash_warning_payer_mismatch: 'The proof names a payer other than the creditor. The duty is owed by the creditor (OUG 80/2013 art. 40), so the court may ask for clarification.'
@@ -1166,7 +1169,7 @@ case_overview:
         flash_error_term_not_expired: 'The 15-day summons payment term has not expired yet. The OP petition cannot be filed before it lapses.'
         flash_error_debit_status_required: 'Select the debt status (unpaid or partially paid).'
         flash_error_consent_required: 'Confirm the term has expired and the debt is unpaid before generating.'
-        flash_error_stamp_duty_missing: 'The stamp duty is not paid. Upload the proof of payment, or take responsibility for paying it during regularization, before generating the package.'
+        flash_error_stamp_duty_missing: 'The stamp duty is not paid. Upload the proof of payment, or take responsibility for paying it later, before generating the package.'
         flash_error_communication_proof_missing: 'The proof of communication of the summons is missing. Upload the bailiff record or the acknowledgement of receipt in the Documents tab, under the "Proof of communication" type, then come back to generate the package.'
     communication_warning:
         title: 'Notice delivery proof missing'
@@ -1303,11 +1306,11 @@ case_overview:
         generate_op_consent_label: 'I confirm the 15-day payment term from the receipt of the summons has expired and the debt has not been paid in full.'
         generate_op_stamp_duty_paid: 'The stamp duty is paid. The proof goes into the package filed with the court.'
         generate_op_stamp_duty_at_filing: 'The duty is paid together with the filing, through the electronic registry. The petition will state it as such.'
-        generate_op_stamp_duty_deferred: 'You are filing without proof of payment and will pay the duty at the court request.'
+        generate_op_stamp_duty_deferred: 'You are filing without proof of payment and will pay the duty later.'
         generate_op_power_of_attorney_missing_title: 'The power of attorney is not attached'
         generate_op_power_of_attorney_missing_body: 'A petition filed through a lawyer goes out together with proof of that capacity. You may continue, but if it never reaches the court the petition enters regularization.'
         generate_op_stamp_duty_blocked_title: 'The stamp duty is not paid'
-        generate_op_stamp_duty_blocked_body: 'The proof of payment is attached to the petition, and failure to pay the duty annuls it (CCP art. 197). Upload the proof, or take responsibility for paying during regularization.'
+        generate_op_stamp_duty_blocked_body: 'The proof of payment is attached to the petition, and failure to pay the duty annuls it (CCP art. 197). Upload the proof, or take responsibility for paying the duty later.'
         generate_op_communication_proof_attached: 'The proof of communication of the summons is attached. It goes into the package filed with the court.'
         generate_op_communication_proof_blocked_title: 'The proof of communication of the summons is missing'
         generate_op_communication_proof_blocked_body: 'The proof of communication of the summons is attached to the petition under sanction of it being dismissed as inadmissible (CCP art. 1016 para. 2). The summons is served on the debtor through a bailiff or by registered letter with declared content and acknowledgement of receipt (CCP art. 1015 para. 1), and the court is shown the bailiff record or the acknowledgement of receipt. Upload it as "Proof of communication" and the generate button unlocks.'
@@ -1603,7 +1606,6 @@ pdf:
         amount_principal: 'Principal (claim)'
         amount_interest: 'Accrued interest'
         conventional_rep: 'Represented by counsel, av. %lawyer%.'
-        conventional_rep_bar: 'Represented by counsel, av. %lawyer%, bar registration no. %bar%.'
         domiciliu_ales: 'With elected procedural domicile, under art. 158 of the Code of Civil Procedure, for the service of all procedural documents, at the professional office of counsel, located at %address%, the person designated to receive procedural documents being av. %lawyer%.'
         amount_stamp_duty: 'Judicial stamp duty'
         amount_principal_item: 'Invoice %number% (issued %date%, due %due_date%)'
@@ -1635,7 +1637,6 @@ pdf:
         field_phone: 'Phone'
         field_iban: 'IBAN'
         issued_on: 'Issued on %date%'
-        bar_number: 'Bar membership no. %number%'
         signature_label: '(signature and stamp)'
         footer_disclaimer: 'Document generated electronically through the LexRecovery platform. Filing with the competent court is done with proof of delivery.'
     document_index:
@@ -1859,7 +1860,7 @@ profile:
         last_name: 'Last name'
         phone: 'Phone'
         bar_number: 'Bar registration number'
-        bar_number_help: 'Appears on the summons, the petition and the index, next to your name.'
+        bar_number_help: 'Appears on the summons and the index, next to your name.'
         submit: 'Save changes'
         back: 'Back to profile'
         fiscal_section: 'Fiscal data'
@@ -2156,7 +2157,7 @@ enum:
         NEACHITATA: 'Unpaid'
         ACHITATA: 'Paid'
         ACHITARE_LA_DEPUNERE: 'Paid at filing'
-        AMANATA_REGULARIZARE: 'At regularization'
+        AMANATA_REGULARIZARE: 'To be paid later'
         RESTITUITA: 'Refunded'
     stamp_duty_target_status:
         RESOLVED: 'Determined'
@@ -2195,7 +2196,7 @@ enum:
         PROCESSING: 'Processing'
         COMPLETED: 'Data extracted'
         FAILED: 'Extraction failed'
-        SKIPPED_BY_POLICY: 'Extraction disabled'
+        SKIPPED_BY_POLICY: 'Not read automatically'
         PENDING_RETRY: 'Retrying'
     extraction_failure_reason:
         API_UNAVAILABLE: 'The extraction service is not responding'
@@ -2210,6 +2211,7 @@ enum:
         API_KEY_MISSING: 'AI extraction is not configured'
         PROVIDER_REJECTED: 'The extraction service rejected the document'
         PROVIDER_UNAVAILABLE: 'The AI extraction service is temporarily unavailable'
+        TYPE_NOT_EXTRACTABLE: 'Document not read automatically'
     notification_channel:
         email: 'Email'
         in_app: 'In-app'
@@ -2226,7 +2228,6 @@ enum:
         payment_succeeded: 'Payment received'
         invoice_issued: 'Invoice issued'
         slot_overage: 'Extra case billed'
-        stamp_duty_unpaid: 'Stamp duty unpaid'
     person_type:
         PF: 'Individual'
         PJ: 'Legal entity'
@@ -2500,13 +2501,6 @@ email:
         subject: 'New portal activity for case %case%'
         heading: 'New activity on the court portal'
         body: 'New activity was detected on portal.just.ro for case %case%.'
-    stamp_duty_unpaid:
-        subject: 'The stamp duty is not recorded as paid on case %case%'
-        heading: 'The stamp duty is still unpaid'
-        body: 'The payment order petition on case %case% has been filed, but we have no record of the stamp duty being paid. Non-payment annuls the petition, and the court notice may reach your client rather than you. Pay through the electronic registry and confirm it in the platform.'
-        court_case_number: 'Court case number: %number%.'
-        cta_pay: 'Pay on registratura.rejust.ro'
-        disclaimer: 'If you have already paid, confirm it on the case so we stop reminding you. You can also stop the reminders from the case page.'
     missing_communication_date:
         subject: 'Enter the service date for case %case%'
         heading: 'Enter the payment order service date'
@@ -2604,9 +2598,6 @@ notification:
     portal_query_failed:
         title: 'Portal monitoring stopped'
         message: 'Automatic monitoring of case %case% was stopped after 5 consecutive failed queries on portal.just.ro. Check the case number or re-activate monitoring from the case.'
-    stamp_duty_unpaid:
-        title: 'Stamp duty unpaid: %case%'
-        message: 'The petition on case %case% has been filed, but the stamp duty is not recorded as paid. Non-payment annuls the petition.'
     missing_communication_date:
         title: 'Enter service date: %case%'
         message: 'Enter the payment order service date on case %case% to start the annulment request term.'

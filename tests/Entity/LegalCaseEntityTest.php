@@ -11,6 +11,7 @@ use App\Enum\CaseStatus;
 use App\Enum\DeadlineType;
 use App\Enum\ExtractionMode;
 use App\Enum\PersonType;
+use App\Enum\RejustStampDutyForm;
 use App\Enum\RelationshipType;
 use PHPUnit\Framework\TestCase;
 
@@ -185,5 +186,51 @@ class LegalCaseEntityTest extends TestCase
 
         $case->setExtractionModeOverride(null);
         $this->assertNull($case->getExtractionModeOverride());
+    }
+
+    public function testANotYetFiledCasePointsToTheNewCaseRegistryForm(): void
+    {
+        $case = new LegalCase();
+        $case->setStatus(CaseStatus::CERERE_GENERATA);
+
+        $this->assertSame(RejustStampDutyForm::NEW_CASE, $case->rejustStampDutyForm());
+        $this->assertStringContainsString('inregistreaza-un-dosar-nou', (string) $case->rejustStampDutyForm()->url());
+    }
+
+    /**
+     * The bug this guards: the new-case form would have the lawyer register the same
+     * petition a second time, and nothing on the portal would flag the duplicate.
+     */
+    public function testAFiledCaseWithoutAFileNumberOffersNoRegistryForm(): void
+    {
+        $case = new LegalCase();
+        $case->setStatus(CaseStatus::CERERE_DEPUSA);
+        $case->setFiledAt(new \DateTimeImmutable('2026-03-01'));
+
+        $this->assertSame(RejustStampDutyForm::AWAITING_CASE_NUMBER, $case->rejustStampDutyForm());
+        $this->assertNull($case->rejustStampDutyForm()->url());
+    }
+
+    public function testACaseWithAFileNumberPointsToTheExistingCaseRegistryForm(): void
+    {
+        $case = new LegalCase();
+        $case->setStatus(CaseStatus::DOSAR_INREGISTRAT);
+        $case->setCourtCaseNumber('4521/302/2026');
+
+        $this->assertSame(RejustStampDutyForm::EXISTING_CASE, $case->rejustStampDutyForm());
+        $this->assertStringContainsString('plata-taxei-judiciare-de-timbru-intr-un-dosar-existent', (string) $case->rejustStampDutyForm()->url());
+    }
+
+    /**
+     * A case that moved past the live filing statuses is out of REACHED_COURT_STATUSES,
+     * yet it has certainly been filed, so it must not fall back to the new-case form.
+     */
+    public function testACaseBeyondTheFilingStatusesIsNotSentBackToTheNewCaseForm(): void
+    {
+        $case = new LegalCase();
+        $case->setStatus(CaseStatus::RESPINSA);
+        $case->setFiledAt(new \DateTimeImmutable('2026-03-01'));
+
+        $this->assertSame(RejustStampDutyForm::AWAITING_CASE_NUMBER, $case->rejustStampDutyForm());
     }
 }

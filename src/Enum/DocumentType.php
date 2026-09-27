@@ -68,10 +68,13 @@ enum DocumentType: string
     }
 
     /**
-     * Whether the extraction pipeline may classify a document as this type. The power
-     * of attorney is excluded: it carries no claim data, so offering it to the
-     * classifier only creates a way to mislabel an invoice as a representation act
-     * and lose the sums it was uploaded for. It is chosen by the lawyer, never guessed.
+     * Whether the extraction pipeline reads a document of this type at all, and may
+     * classify a document as this type. The power of attorney is excluded on both
+     * counts: it carries no claim data, so offering it to the classifier only creates
+     * a way to mislabel an invoice as a representation act and lose the sums it was
+     * uploaded for, and reading one the lawyer declared as such would send the
+     * client's name, and often their CNP, to a sub-processor for a result that is
+     * empty by construction. It is chosen by the lawyer, never guessed.
      */
     public function isClassifiable(): bool
     {

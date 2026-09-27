@@ -96,11 +96,7 @@
     {% if user and user.fullName and user.proceduralAddress %}
         <div class="block">
             <span class="value">
-                {% if user.barNumber %}
-                    {{ 'pdf.payment_order.conventional_rep_bar'|trans({'%lawyer%': user.fullName, '%bar%': user.barNumber}) }}
-                {% else %}
-                    {{ 'pdf.payment_order.conventional_rep'|trans({'%lawyer%': user.fullName}) }}
-                {% endif %}
+                {{ 'pdf.payment_order.conventional_rep'|trans({'%lawyer%': user.fullName}) }}
                 {{ 'pdf.payment_order.domiciliu_ales'|trans({'%lawyer%': user.fullName, '%address%': user.proceduralAddress}) }}
             </span>
         </div>
@@ -271,9 +267,6 @@
     <span class="line"></span>
     {% if user and user.fullName %}
         <div><strong>{{ user.fullName }}</strong></div>
-    {% endif %}
-    {% if user and user.barNumber %}
-        <div class="meta">{{ 'pdf.payment_order.bar_number'|trans({'%number%': user.barNumber}) }}</div>
     {% endif %}
     <div class="meta">{{ 'pdf.payment_order.signature_label'|trans }}</div>
 </div>
