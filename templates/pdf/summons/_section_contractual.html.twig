@@ -1,0 +1,57 @@
+<h2>{{ 'pdf.summons.contractual.title'|trans }}</h2>
+
+{% set clauseReference = case.penaltyClauseArticle ?: 'pdf.summons.contractual.clause_fallback'|trans %}
+{% if case.penaltyClauseText %}
+    <p>{{ 'pdf.summons.contractual.clause_intro'|trans({'%article%': clauseReference, '%document%': contractDocument}) }}</p>
+    <blockquote>{{ case.penaltyClauseText|nl2br }}</blockquote>
+{% else %}
+    <p>{{ 'pdf.summons.contractual.clause_without_text'|trans({'%article%': clauseReference, '%document%': contractDocument}) }}</p>
+{% endif %}
+
+{% if dailyRateFormatted %}
+    <p>{{ 'pdf.summons.contractual.obligation'|trans({'%label%': label, '%rate%': dailyRateFormatted}) }}</p>
+{% else %}
+    <p>{{ 'pdf.summons.contractual.obligation_without_rate'|trans({'%label%': label}) }}</p>
+{% endif %}
+<p>{{ 'pdf.summons.contractual.cc_1535'|trans }}</p>
+<p>{{ 'pdf.summons.contractual.og_art1'|trans }}</p>
+<p>{{ 'pdf.summons.contractual.cc_1538'|trans }}</p>
+<p>{{ 'pdf.summons.contractual.cc_1539'|trans }}</p>
+<p>{{ 'pdf.summons.contractual.owes'|trans({'%start%': calculationStart
+    ? 'pdf.summons.contractual.start_date'|trans({'%date%': calculationStart|date('d.m.Y')})
+    : 'pdf.summons.contractual.start_each'|trans}) }}</p>
+<p>{{ 'pdf.summons.contractual.table_intro'|trans }}</p>
+
+{% if summonsTables.contractualPenaltyRows is not empty %}
+<table class="grid">
+    <thead>
+        <tr>
+            <th>{{ 'pdf.summons.table.contractual.document'|trans }}</th>
+            <th>{{ 'pdf.summons.table.contractual.balance'|trans }}</th>
+            <th>{{ 'pdf.summons.table.contractual.due_date'|trans }}</th>
+            <th>{{ 'pdf.summons.table.contractual.period'|trans }}</th>
+            <th>{{ 'pdf.summons.table.contractual.days'|trans }}</th>
+            <th>{{ 'pdf.summons.table.contractual.rate'|trans }}</th>
+            <th>{{ 'pdf.summons.table.contractual.penalty'|trans }}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in summonsTables.contractualPenaltyRows %}
+            <tr>
+                <td>{% include 'pdf/summons/_document_cell.html.twig' %}</td>
+                <td class="num">{{ row.balance|number_format(2, ',', '.') }}</td>
+                <td class="center">{{ row.dueDate|date('d.m.Y') }}</td>
+                <td class="center">{{ row.periodStart|date('d.m.Y') }} – {{ row.periodEnd|date('d.m.Y') }}</td>
+                <td class="center">{{ row.days }}</td>
+                <td class="center">{{ 'pdf.summons.table.contractual.rate_cell'|trans({'%rate%': dailyRateFormatted ?: row.dailyRate}) }}</td>
+                <td class="num">{{ row.penalty|number_format(2, ',', '.') }}</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% if summonsTables.roundingNoteNeeded %}<p class="note">{{ 'pdf.summons.table.rounding_note'|trans }}</p>{% endif %}
+{% endif %}
+
+<p class="total">{{ 'pdf.summons.contractual.total'|trans({'%label%': label|upper, '%date%': noticeDateText, '%amount%': accessoryTotal|number_format(2, ',', '.')}) }}</p>
+<p>{{ 'pdf.summons.contractual.conclusion'|trans({'%label%': label, '%amount%': accessoryTotal|number_format(2, ',', '.')}) }}</p>
+<p>{{ 'pdf.summons.contractual.continues'|trans }}</p>

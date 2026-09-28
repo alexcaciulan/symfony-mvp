@@ -148,8 +148,14 @@
                         {{ f.field_errors(form.penaltyType) }}
                     </div>
 
+                </div>
+
+                {# The clause is what the contractual payment notice quotes. The
+                   inputs stay in the DOM on the statutory branch so switching back
+                   and forth keeps what was typed. #}
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 {{ this.isContractual ? '' : 'hidden' }}" data-contractual-fields>
                     <div>
-                        {{ f.field_label(form.contractualPenaltyRate, 'wizard.step3.field.contractual_penalty_rate', true) }}
+                        {{ f.field_label(form.contractualPenaltyRate, 'wizard.step3.field.contractual_penalty_rate') }}
                         {{ form_widget(form.contractualPenaltyRate, { attr: {
                             class: f.input_classes(form.contractualPenaltyRate)|trim,
                             inputmode: 'decimal',
@@ -160,12 +166,30 @@
                     </div>
 
                     <div>
-                        {{ f.field_label(form.contractReference, 'wizard.step3.field.contract_reference', true) }}
-                        {{ form_widget(form.contractReference, { attr: {
-                            class: f.input_classes(form.contractReference)|trim,
-                            placeholder: 'art. 3 din Contract',
+                        {{ f.field_label(form.contractualAccessoryLabel, 'wizard.step3.field.contractual_accessory_label', true) }}
+                        {{ form_widget(form.contractualAccessoryLabel, { attr: { class: f.input_classes(form.contractualAccessoryLabel)|trim }}) }}
+                        <p class="mt-1 text-[11px] text-slate-500">{{ 'wizard.step3.help.contractual_accessory_label'|trans }}</p>
+                        {{ f.field_errors(form.contractualAccessoryLabel) }}
+                    </div>
+
+                    <div>
+                        {{ f.field_label(form.penaltyClauseArticle, 'wizard.step3.field.penalty_clause_article', true) }}
+                        {{ form_widget(form.penaltyClauseArticle, { attr: {
+                            class: f.input_classes(form.penaltyClauseArticle)|trim,
+                            placeholder: 'wizard.step3.placeholder.penalty_clause_article'|trans,
                         }}) }}
-                        {{ f.field_errors(form.contractReference) }}
+                        {{ f.field_errors(form.penaltyClauseArticle) }}
+                    </div>
+
+                    <div class="sm:col-span-2">
+                        {{ f.field_label(form.penaltyClauseText, 'wizard.step3.field.penalty_clause_text', true) }}
+                        {{ form_widget(form.penaltyClauseText, { attr: {
+                            class: f.input_classes(form.penaltyClauseText)|trim,
+                            rows: 4,
+                            placeholder: 'wizard.step3.placeholder.penalty_clause_text'|trans,
+                        }}) }}
+                        <p class="mt-1 text-[11px] text-slate-500">{{ 'wizard.step3.help.penalty_clause_text'|trans }}</p>
+                        {{ f.field_errors(form.penaltyClauseText) }}
                     </div>
                 </div>
             </section>
@@ -207,6 +231,29 @@
                         {{ f.field_label(form.contractDate, 'wizard.step3.field.contract_date', true) }}
                         {{ form_widget(form.contractDate, { attr: { class: f.input_classes(form.contractDate)|trim }}) }}
                         {{ f.field_errors(form.contractDate) }}
+                    </div>
+                    <div class="sm:col-span-2">
+                        {{ f.field_label(form.contractObject, 'wizard.step3.field.contract_object', true) }}
+                        {{ form_widget(form.contractObject, { attr: {
+                            class: f.input_classes(form.contractObject)|trim,
+                            placeholder: 'wizard.step3.placeholder.contract_object'|trans,
+                        }}) }}
+                        <p class="mt-1 text-[11px] text-slate-500">{{ 'wizard.step3.help.contract_object'|trans }}</p>
+                        {{ f.field_errors(form.contractObject) }}
+                    </div>
+                </div>
+            </section>
+
+            <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-5 shadow-soft">
+                <div>
+                    <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">{{ 'wizard.step3.section.payment_notice'|trans }}</h3>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        {{ f.field_label(form.paymentNoticeNumber, 'wizard.step3.field.payment_notice_number', true) }}
+                        {{ form_widget(form.paymentNoticeNumber, { attr: { class: f.input_classes(form.paymentNoticeNumber)|trim }}) }}
+                        <p class="mt-1 text-[11px] text-slate-500">{{ 'wizard.step3.help.payment_notice_number'|trans }}</p>
+                        {{ f.field_errors(form.paymentNoticeNumber) }}
                     </div>
                 </div>
             </section>

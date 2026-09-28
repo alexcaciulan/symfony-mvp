@@ -1433,6 +1433,14 @@ final class CaseWizardController extends AbstractController
         // contract's object phrase lands in contractReference, say), so cap
         // each to its column length rather than let the save 500.
         $case->setContractReference(StringCapper::cap($claimDto->contractReference, 255));
+        $case->setContractObject(StringCapper::cap($this->trimmedOrNull($claimDto->contractObject), 255));
+        $case->setPaymentNoticeNumber(StringCapper::cap($this->trimmedOrNull($claimDto->paymentNoticeNumber), 50));
+        // The clause belongs to the contractual notice only; a statutory case
+        // keeps none, so switching the type never leaves a stale clause behind.
+        $isContractual = $case->getPenaltyType() === PenaltyType::CONTRACTUAL;
+        $case->setPenaltyClauseArticle($isContractual ? StringCapper::cap($this->trimmedOrNull($claimDto->penaltyClauseArticle), 100) : null);
+        $case->setPenaltyClauseText($isContractual ? $this->trimmedOrNull($claimDto->penaltyClauseText) : null);
+        $case->setContractualAccessoryLabel($isContractual ? $claimDto->contractualAccessoryLabel : null);
         $case->setClaimDescription($claimDto->description);
         $case->setInvoiceNumber(StringCapper::cap($claimDto->invoiceNumber, 100));
         $case->setInvoiceDate($claimDto->invoiceDate !== null ? \DateTime::createFromImmutable($claimDto->invoiceDate) : null);
@@ -1443,6 +1451,13 @@ final class CaseWizardController extends AbstractController
         $case->setLegalCostsSuccessPercent(
             $claimDto->legalCostsSuccessPercent !== null ? sprintf('%.2f', $claimDto->legalCostsSuccessPercent) : null
         );
+    }
+
+    private function trimmedOrNull(?string $value): ?string
+    {
+        $value = $value !== null ? trim($value) : null;
+
+        return $value !== '' ? $value : null;
     }
 
     /**

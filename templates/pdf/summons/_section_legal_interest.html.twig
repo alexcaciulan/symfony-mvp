@@ -1,0 +1,43 @@
+<h2>{{ 'pdf.summons.legal.title'|trans }}</h2>
+<p>{{ 'pdf.summons.legal.due_dates'|trans }}</p>
+<p>{{ 'pdf.summons.legal.owes_interest'|trans }}</p>
+<p>{{ 'pdf.summons.legal.cc_1535'|trans }}</p>
+<p>{{ 'pdf.summons.legal.og_art1'|trans }}</p>
+<p>{{ 'pdf.summons.legal.og_art2'|trans }}</p>
+<p>{{ 'pdf.summons.legal.og_art3_1'|trans }}</p>
+<p>{{ 'pdf.summons.legal.og_art3_2_1'|trans }}</p>
+<p>{{ 'pdf.summons.legal.table_intro'|trans }}</p>
+
+{% if summonsTables.legalInterestRows is not empty %}
+<table class="grid">
+    <thead>
+        <tr>
+            <th>{{ 'pdf.summons.table.legal.document'|trans }}</th>
+            <th>{{ 'pdf.summons.table.legal.balance'|trans }}</th>
+            <th>{{ 'pdf.summons.table.legal.period'|trans }}</th>
+            <th>{{ 'pdf.summons.table.legal.days'|trans }}</th>
+            <th>{{ 'pdf.summons.table.legal.nbr_rate'|trans }}</th>
+            <th>{{ 'pdf.summons.table.legal.applicable_rate'|trans }}</th>
+            <th>{{ 'pdf.summons.table.legal.interest'|trans }}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in summonsTables.legalInterestRows %}
+            <tr>
+                <td>{% include 'pdf/summons/_document_cell.html.twig' %}</td>
+                <td class="num">{{ row.balance|number_format(2, ',', '.') }}</td>
+                <td class="center">{{ row.periodStart|date('d.m.Y') }} – {{ row.periodEnd|date('d.m.Y') }}</td>
+                <td class="center">{{ row.days }}</td>
+                <td class="center">{{ row.nbrRate|number_format(2, ',', '.') }}%</td>
+                <td class="center">{{ row.applicableRate|number_format(2, ',', '.') }}%</td>
+                <td class="num">{{ row.interest|number_format(2, ',', '.') }}</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% if summonsTables.roundingNoteNeeded %}<p class="note">{{ 'pdf.summons.table.rounding_note'|trans }}</p>{% endif %}
+{% endif %}
+
+<p class="total">{{ 'pdf.summons.legal.total'|trans({'%date%': noticeDateText, '%amount%': accessoryTotal|number_format(2, ',', '.')}) }}</p>
+<p>{{ 'pdf.summons.legal.conclusion'|trans({'%amount%': accessoryTotal|number_format(2, ',', '.')}) }}</p>
+<p>{{ 'pdf.summons.legal.continues'|trans }}</p>

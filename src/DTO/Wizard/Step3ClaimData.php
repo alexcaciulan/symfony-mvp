@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\DTO\Wizard;
 
 use App\Enum\LegalGroundCategory;
+use App\Enum\ContractualAccessoryLabel;
 use App\Enum\PenaltyType;
 use App\Enum\RelationshipType;
 use Symfony\Component\Validator\Constraints as Assert;
@@ -76,6 +77,23 @@ class Step3ClaimData
         // message rather than being silently cut at persist.
         #[Assert\Length(max: 255, maxMessage: 'wizard.step3.error.contract_reference_too_long')]
         public ?string $contractReference = null,
+        // What the payment notice quotes for a contractual accessory. Only
+        // validated on that branch; the statutory notice never reads them.
+        #[Assert\When(
+            expression: 'this.penaltyType === enum("App\\\\Enum\\\\PenaltyType::CONTRACTUAL")',
+            constraints: [new Assert\Length(max: 100, maxMessage: 'wizard.step3.error.penalty_clause_article_too_long')],
+        )]
+        public ?string $penaltyClauseArticle = null,
+        #[Assert\When(
+            expression: 'this.penaltyType === enum("App\\\\Enum\\\\PenaltyType::CONTRACTUAL")',
+            constraints: [new Assert\Length(max: 10000, maxMessage: 'wizard.step3.error.penalty_clause_text_too_long')],
+        )]
+        public ?string $penaltyClauseText = null,
+        public ?ContractualAccessoryLabel $contractualAccessoryLabel = null,
+        #[Assert\Length(max: 255, maxMessage: 'wizard.step3.error.contract_object_too_long')]
+        public ?string $contractObject = null,
+        #[Assert\Length(max: 50, maxMessage: 'wizard.step3.error.payment_notice_number_too_long')]
+        public ?string $paymentNoticeNumber = null,
         #[Assert\Length(max: 100, maxMessage: 'wizard.step3.error.invoice_number_too_long')]
         public ?string $invoiceNumber = null,
         // A foreign-currency claim is converted to RON at the BNR rate of the

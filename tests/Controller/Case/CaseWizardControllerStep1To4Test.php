@@ -17,6 +17,8 @@ use App\Entity\Document;
 use App\Entity\InterestRateConfig;
 use App\Entity\LegalCase;
 use App\Entity\User;
+use App\Enum\PenaltyType;
+use App\Enum\ContractualAccessoryLabel;
 use App\Enum\AnafStatus;
 use App\Enum\CourtType;
 use App\Enum\DocumentType;
@@ -328,6 +330,70 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         self::assertCount(1, $cases, 'The case saves without a truncation 500');
         // Stored whole, not cut: the cause key that decides competence reads it in full.
         self::assertSame($reference, $cases[0]->getContractReference());
+    }
+
+    public function testConfirmationPersistsTheContractualPaymentNoticeFields(): void
+    {
+        $this->primeSessionForStep4(insolvencyCheckedAt: new \DateTimeImmutable('-1 day'), claim: new Step3ClaimData(
+            amount: 1000.0,
+            currency: 'RON',
+            dueDate: new \DateTimeImmutable('-30 days'),
+            relationshipType: RelationshipType::COMERCIAL,
+            penaltyType: PenaltyType::CONTRACTUAL,
+            contractualPenaltyRate: 0.1,
+            penaltyClauseArticle: '  art. 7.2 ',
+            penaltyClauseText: 'Întârzierea atrage penalități de 0,1% pe zi.',
+            contractualAccessoryLabel: ContractualAccessoryLabel::MAJORARI_INTARZIERE,
+            contractObject: 'prestarea de servicii de transport',
+            paymentNoticeNumber: '868',
+        ));
+
+        $case = $this->submitConfirmation();
+
+        self::assertSame('art. 7.2', $case->getPenaltyClauseArticle());
+        self::assertSame('Întârzierea atrage penalități de 0,1% pe zi.', $case->getPenaltyClauseText());
+        self::assertSame(ContractualAccessoryLabel::MAJORARI_INTARZIERE, $case->getContractualAccessoryLabel());
+        self::assertSame('prestarea de servicii de transport', $case->getContractObject());
+        self::assertSame('868', $case->getPaymentNoticeNumber());
+    }
+
+    public function testStatutoryCaseKeepsNoPenaltyClause(): void
+    {
+        $this->primeSessionForStep4(insolvencyCheckedAt: new \DateTimeImmutable('-1 day'), claim: new Step3ClaimData(
+            amount: 1000.0,
+            currency: 'RON',
+            dueDate: new \DateTimeImmutable('-30 days'),
+            relationshipType: RelationshipType::COMERCIAL,
+            penaltyType: PenaltyType::LEGAL_PENALIZATOARE,
+            penaltyClauseArticle: 'art. 7.2',
+            penaltyClauseText: 'text rămas de la varianta contractuală',
+            contractualAccessoryLabel: ContractualAccessoryLabel::MAJORARI_INTARZIERE,
+            contractObject: 'prestarea de servicii de transport',
+            paymentNoticeNumber: '   ',
+        ));
+
+        $case = $this->submitConfirmation();
+
+        self::assertNull($case->getPenaltyClauseArticle());
+        self::assertNull($case->getPenaltyClauseText());
+        self::assertNull($case->getContractualAccessoryLabel());
+        self::assertSame('prestarea de servicii de transport', $case->getContractObject());
+        self::assertNull($case->getPaymentNoticeNumber(), 'A blank number is no number.');
+    }
+
+    private function submitConfirmation(): LegalCase
+    {
+        $crawler = $this->client->request('GET', '/case/new/confirmation');
+        $token = $crawler->filter('form input[name="step4_confirmation[_token]"]')->first()->attr('value');
+        $this->client->request('POST', '/case/new/confirmation', [
+            'step4_confirmation' => ['_token' => $token, 'acceptTerms' => '1', 'acceptDataAccuracy' => '1'],
+        ]);
+        $this->em->clear();
+
+        $cases = $this->em->getRepository(LegalCase::class)->findBy(['user' => $this->user]);
+        self::assertCount(1, $cases);
+
+        return $cases[0];
     }
 
     public function testConfirmationSubmitHappyPathPersistsCaseDebtorAuditLogAndRedirects(): void
@@ -894,6 +960,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         string $creditorAddress = 'Str. Exemplu nr. 1, București',
         ?string $creditorAddressCounty = null,
         ?string $creditorAddressLocality = null,
+        ?Step3ClaimData $claim = null,
     ): void {
         $anafCheckedAt ??= new \DateTimeImmutable('-1 day');
 
@@ -918,7 +985,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
             insolvencyCheckedAt: $insolvencyCheckedAt,
         );
 
-        $claim = new Step3ClaimData(
+        $claim ??= new Step3ClaimData(
             amount: 1000.0,
             currency: 'RON',
             dueDate: new \DateTimeImmutable('-30 days'),

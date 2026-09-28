@@ -3,6 +3,7 @@
 namespace App\Entity;
 
 use App\Enum\CaseStatus;
+use App\Enum\ContractualAccessoryLabel;
 use App\Enum\DebitAcknowledgedStatus;
 use App\Enum\DocumentType;
 use App\Enum\ExtractionMode;
@@ -150,6 +151,34 @@ class LegalCase
      */
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $contractReference = null;
+
+    /**
+     * Where the penalty clause sits in the contract (e.g. "art. 7.2"), quoted by
+     * the contractual payment notice. Kept apart from {@see $contractReference},
+     * which extraction fills with free text and which also feeds the grouping
+     * of positions by cause.
+     */
+    #[ORM\Column(length: 100, nullable: true)]
+    private ?string $penaltyClauseArticle = null;
+
+    /** The penalty clause verbatim, quoted by the contractual payment notice. */
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
+    private ?string $penaltyClauseText = null;
+
+    /** How the contract names its accessory; null reads as the default label. */
+    #[ORM\Column(length: 40, nullable: true, enumType: ContractualAccessoryLabel::class)]
+    private ?ContractualAccessoryLabel $contractualAccessoryLabel = null;
+
+    /**
+     * Object of the contractual relationship as a short phrase that reads after
+     * "având ca obiect" (e.g. "prestarea de servicii de transport").
+     */
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $contractObject = null;
+
+    /** The lawyer's outgoing registry number for the payment notice. */
+    #[ORM\Column(length: 50, nullable: true)]
+    private ?string $paymentNoticeNumber = null;
 
     /**
      * What the claim is for, in the lawyer's own words. Per-invoice wording
@@ -708,6 +737,66 @@ class LegalCase
     public function setContractReference(?string $contractReference): static
     {
         $this->contractReference = $contractReference;
+
+        return $this;
+    }
+
+    public function getPenaltyClauseArticle(): ?string
+    {
+        return $this->penaltyClauseArticle;
+    }
+
+    public function setPenaltyClauseArticle(?string $penaltyClauseArticle): static
+    {
+        $this->penaltyClauseArticle = $penaltyClauseArticle;
+
+        return $this;
+    }
+
+    public function getPenaltyClauseText(): ?string
+    {
+        return $this->penaltyClauseText;
+    }
+
+    public function setPenaltyClauseText(?string $penaltyClauseText): static
+    {
+        $this->penaltyClauseText = $penaltyClauseText;
+
+        return $this;
+    }
+
+    public function getContractualAccessoryLabel(): ?ContractualAccessoryLabel
+    {
+        return $this->contractualAccessoryLabel;
+    }
+
+    public function setContractualAccessoryLabel(?ContractualAccessoryLabel $contractualAccessoryLabel): static
+    {
+        $this->contractualAccessoryLabel = $contractualAccessoryLabel;
+
+        return $this;
+    }
+
+    public function getContractObject(): ?string
+    {
+        return $this->contractObject;
+    }
+
+    public function setContractObject(?string $contractObject): static
+    {
+        $this->contractObject = $contractObject;
+
+        return $this;
+    }
+
+    public function getPaymentNoticeNumber(): ?string
+    {
+        return $this->paymentNoticeNumber;
+    }
+
+    public function setPaymentNoticeNumber(?string $paymentNoticeNumber): static
+    {
+        $this->paymentNoticeNumber = $paymentNoticeNumber;
 
         return $this;
     }

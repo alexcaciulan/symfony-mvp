@@ -1,0 +1,9 @@
+{%- if row.documentNumber and row.documentDate -%}
+    {{ 'pdf.summons.table.document_number_date'|trans({'%number%': row.documentNumber, '%date%': row.documentDate|date('d.m.Y')}) }}
+{%- elseif row.documentNumber -%}
+    {{ row.documentNumber }}
+{%- elseif row.documentDate -%}
+    {{ 'pdf.summons.table.document_date_only'|trans({'%date%': row.documentDate|date('d.m.Y')}) }}
+{%- else -%}
+    —
+{%- endif -%}
