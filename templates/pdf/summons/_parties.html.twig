@@ -1,0 +1,35 @@
+{# CĂTRE / DE LA header. A natural person has a domicile, not a registered
+   seat, and no trade-register entries. #}
+{% macro party(title, p, withAttention) %}
+    <div class="party">
+        <div class="ptitle">{{ title|trans }}</div>
+        {% if p %}
+            <div class="pname">{{ p.name }}</div>
+            {% set address = p.address|mailing_address(p.addressLocality, p.addressCounty) %}
+            {% if p.personType.value == 'PF' %}
+                <div>{{ 'pdf.summons.domicile_label'|trans({'%address%': address}) }}</div>
+            {% else %}
+                <div>{{ 'pdf.summons.seat_label'|trans({'%address%': address}) }}</div>
+                {% if p.cui %}<div>{{ 'pdf.summons.cui_label'|trans({'%cui%': p.cui}) }}</div>{% endif %}
+                {% if p.onrcNumber %}<div>{{ 'pdf.summons.onrc_label'|trans({'%onrc%': p.onrcNumber}) }}</div>{% endif %}
+            {% endif %}
+            {% if withAttention and p.administrator %}
+                <div>{{ 'pdf.summons.attention_label'|trans({'%name%': p.administrator}) }}</div>
+            {% endif %}
+        {% endif %}
+    </div>
+{% endmacro %}
+
+{{ _self.party('pdf.summons.header_to', debtor, true) }}
+{{ _self.party('pdf.summons.header_from', creditor, false) }}
+
+<div class="subject">
+    <strong>{{ 'pdf.summons.subject'|trans }}</strong>
+    {% if noticeNumber %}
+        {{ 'pdf.summons.number_and_date'|trans({'%number%': noticeNumber, '%date%': noticeDateText}) }}
+    {% else %}
+        {{ 'pdf.summons.date_only'|trans({'%date%': noticeDateText}) }}
+    {% endif %}
+</div>
+
+<p>{{ 'pdf.summons.salutation'|trans }}</p>

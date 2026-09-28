@@ -86,9 +86,11 @@ final class CaseSummonsController extends AbstractController
         }
 
         $this->em->wrapInTransaction(function () use ($case): void {
+            // Stored first, so the date printed on the notice is the one the
+            // payment order application later computes accessories to.
+            $case->setPaymentNoticeDate(new \DateTime());
             $document = $this->paymentNoticeGenerator->generate($case);
 
-            $case->setPaymentNoticeDate(new \DateTime());
             $this->workflowService->apply($case, 'trimite_somatie');
 
             $this->em->flush();

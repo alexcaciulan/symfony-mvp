@@ -6,6 +6,7 @@ namespace App\Form\Wizard;
 
 use App\DTO\Wizard\Step3ClaimData;
 use App\Enum\LegalGroundCategory;
+use App\Enum\ContractualAccessoryLabel;
 use App\Enum\PenaltyType;
 use App\Enum\RelationshipType;
 use Symfony\Component\Form\AbstractType;
@@ -88,8 +89,27 @@ final class Step3ClaimType extends AbstractType
                 'scale' => 3,
                 'required' => false,
             ])
-            ->add('contractReference', TextType::class, [
-                'label' => 'wizard.step3.field.contract_reference',
+            ->add('penaltyClauseArticle', TextType::class, [
+                'label' => 'wizard.step3.field.penalty_clause_article',
+                'required' => false,
+            ])
+            ->add('penaltyClauseText', TextareaType::class, [
+                'label' => 'wizard.step3.field.penalty_clause_text',
+                'required' => false,
+            ])
+            ->add('contractualAccessoryLabel', EnumType::class, [
+                'class' => ContractualAccessoryLabel::class,
+                'label' => 'wizard.step3.field.contractual_accessory_label',
+                'choice_label' => fn (ContractualAccessoryLabel $l) => $l->label(),
+                'placeholder' => false,
+                'required' => false,
+            ])
+            ->add('contractObject', TextType::class, [
+                'label' => 'wizard.step3.field.contract_object',
+                'required' => false,
+            ])
+            ->add('paymentNoticeNumber', TextType::class, [
+                'label' => 'wizard.step3.field.payment_notice_number',
                 'required' => false,
             ])
             ->add('invoiceNumber', TextType::class, [

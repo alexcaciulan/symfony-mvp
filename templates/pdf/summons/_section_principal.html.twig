@@ -1,0 +1,46 @@
+<h2>{{ 'pdf.summons.principal.title'|trans }}</h2>
+
+{% set object = case.contractObject %}
+<p>{{ (object ? 'pdf.summons.principal.relationship_with_object' : 'pdf.summons.principal.relationship')|trans({'%debtor%': debtor ? debtor.name : '', '%object%': object, '%documents%': documentsGenitive}) }}</p>
+<p>{{ (object ? 'pdf.summons.principal.performed_with_object' : 'pdf.summons.principal.performed')|trans({'%object%': object, '%documents%': documentsAccusative}) }}</p>
+<p>{{ 'pdf.summons.principal.invoices_issued'|trans }}</p>
+<p>{{ 'pdf.summons.principal.not_paid'|trans }}</p>
+<p>{{ 'pdf.summons.principal.binding_force'|trans }}</p>
+<p>{{ 'pdf.summons.principal.table_intro'|trans }}</p>
+
+<table class="grid">
+    <thead>
+        <tr>
+            <th>{{ 'pdf.summons.table.row_number'|trans }}</th>
+            <th>{{ 'pdf.summons.table.document'|trans }}</th>
+            <th>{{ 'pdf.summons.table.issue_date'|trans }}</th>
+            <th>{{ 'pdf.summons.table.due_date'|trans }}</th>
+            <th>{{ 'pdf.summons.table.amount'|trans }}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in summonsTables.principalRows %}
+            <tr>
+                <td class="center">{{ loop.index }}</td>
+                <td>{{ row.documentNumber ?: '—' }}</td>
+                <td class="center">{{ row.documentDate ? row.documentDate|date('d.m.Y') : '—' }}</td>
+                <td class="center">{{ row.dueDate ? row.dueDate|date('d.m.Y') : '—' }}</td>
+                <td class="num">
+                    {{ row.amount|number_format(2, ',', '.') }}
+                    {% if row.originalCurrency %}
+                        <br><span class="fx">{{ 'pdf.summons.table.fx_note'|trans({
+                            '%amount%': row.originalAmount|number_format(2, ',', '.'),
+                            '%currency%': row.originalCurrency,
+                            '%rate%': row.exchangeRate|number_format(4, ',', '.'),
+                            '%date%': row.exchangeRateDate ? row.exchangeRateDate|date('d.m.Y') : '—',
+                        }) }}</span>
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<p class="total">{{ 'pdf.summons.principal.total'|trans({'%amount%': principal|number_format(2, ',', '.')}) }}</p>
+<p>{{ 'pdf.summons.principal.conclusion'|trans({'%amount%': principal|number_format(2, ',', '.')}) }}</p>
+<p>{{ 'pdf.summons.principal.certain_claim'|trans }}</p>

@@ -8,6 +8,7 @@ use App\Entity\LegalCase;
 use App\Enum\DocumentType;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
+use Symfony\Component\Translation\LocaleSwitcher;
 use Twig\Environment;
 
 /**
@@ -29,6 +30,7 @@ final class PaymentNoticeGeneratorService extends AbstractPdfGenerator
         Security $security,
         string $uploadsDir,
         private readonly SummonsContextBuilder $contextBuilder,
+        private readonly LocaleSwitcher $localeSwitcher,
     ) {
         parent::__construct($twig, $em, $security, $uploadsDir);
     }
@@ -36,6 +38,14 @@ final class PaymentNoticeGeneratorService extends AbstractPdfGenerator
     protected function templatePath(): string
     {
         return 'pdf/payment_notice.html.twig';
+    }
+
+    /**
+     * A Romanian legal act, whatever language the lawyer uses the platform in.
+     */
+    public function renderHtml(LegalCase $case): string
+    {
+        return $this->localeSwitcher->runWithLocale('ro', fn (): string => parent::renderHtml($case));
     }
 
     protected function templateContext(LegalCase $case): array

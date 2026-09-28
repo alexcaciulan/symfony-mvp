@@ -72,6 +72,10 @@ wizard:
             legal_costs_fixed_positive: 'Onorariul fix nu poate fi negativ.'
             legal_costs_percent_range: 'Procentul onorariului de succes trebuie să fie între 0 și 100.'
             contract_reference_too_long: 'Referința contractului este prea lungă (maxim 255 de caractere). Scurteaz-o.'
+            penalty_clause_article_too_long: 'Articolul clauzei este prea lung (maxim 100 de caractere).'
+            penalty_clause_text_too_long: 'Textul clauzei este prea lung (maxim 10.000 de caractere).'
+            contract_object_too_long: 'Obiectul contractului este prea lung (maxim 255 de caractere).'
+            payment_notice_number_too_long: 'Numărul somației este prea lung (maxim 50 de caractere).'
             invoice_number_too_long: 'Numărul facturii este prea lung (maxim 100 de caractere).'
             contract_number_too_long: 'Numărul contractului este prea lung (maxim 100 de caractere).'
     step4:

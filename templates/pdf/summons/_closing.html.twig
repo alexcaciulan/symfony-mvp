@@ -1,0 +1,30 @@
+<p>{{ 'pdf.summons.closing.basis'|trans }}</p>
+<p class="somam">{{ 'pdf.summons.closing.somam'|trans }}</p>
+<p>{{ 'pdf.summons.closing.demand'|trans({'%total%': grandTotal|number_format(2, ',', '.')}) }}</p>
+{% include 'pdf/summons/_composition.html.twig' with {terminator: ','} %}
+<p>{% if isContractual %}{{ 'pdf.summons.closing.plus_contractual'|trans({'%label%': label}) }}{% else %}{{ 'pdf.summons.closing.plus_legal'|trans }}{% endif %}</p>
+
+{# Only when the platform holds the creditor's account. #}
+{% if creditor and creditor.iban %}
+    <p>
+        {%- if creditor.bankName -%}
+            {{ 'pdf.summons.closing.account_with_bank'|trans({'%iban%': creditor.iban, '%bank%': creditor.bankName, '%creditor%': creditor.name}) }}
+        {%- else -%}
+            {{ 'pdf.summons.closing.account'|trans({'%iban%': creditor.iban, '%creditor%': creditor.name}) }}
+        {%- endif -%}
+    </p>
+{% endif %}
+
+<p>{{ (isContractual ? 'pdf.summons.closing.court_contractual' : 'pdf.summons.closing.court_legal')|trans }}</p>
+<p>{{ 'pdf.summons.closing.enforcement'|trans }}</p>
+<p>{{ 'pdf.summons.closing.prior_procedure'|trans }}</p>
+
+<div class="closing">
+    <p>{{ 'pdf.summons.closing.regards'|trans }}</p>
+    {% if creditor %}<p><strong>{{ creditor.name }}</strong></p>{% endif %}
+    {% if user and user.fullName %}
+        <p>{{ 'pdf.summons.closing.by'|trans }}</p>
+        <p><strong>{{ user.fullName }}</strong></p>
+        <p>{{ 'pdf.summons.closing.lawyer'|trans }}</p>
+    {% endif %}
+</div>

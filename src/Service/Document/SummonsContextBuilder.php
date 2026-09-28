@@ -9,12 +9,15 @@ use App\DTO\Calculation\InterestResult;
 use App\DTO\Calculation\PenaltyResult;
 use App\Entity\ClaimItem;
 use App\Entity\LegalCase;
+use App\Enum\ContractualAccessoryLabel;
 use App\Enum\InterestKind;
 use App\Enum\PenaltyType;
 use App\Enum\RelationshipType;
 use App\Service\Calculation\ClaimInterestAggregator;
 use App\Service\Calculation\ContractualPenaltyCalculator;
 use App\Service\Calculation\InterestCalculatorService;
+use App\Service\Claim\ClaimCauseGrouper;
+use App\Service\Document\Summons\SummonsTableBuilder;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
@@ -36,6 +39,8 @@ final class SummonsContextBuilder
         private readonly ContractualPenaltyCalculator $penaltyCalculator,
         private readonly LoggerInterface $logger = new NullLogger(),
         private ?ClaimInterestAggregator $accessoryAggregator = null,
+        private readonly SummonsTableBuilder $tableBuilder = new SummonsTableBuilder(),
+        private readonly ClaimCauseGrouper $causeGrouper = new ClaimCauseGrouper(),
     ) {}
 
     /**
@@ -77,8 +82,23 @@ final class SummonsContextBuilder
             ? $itemAccessories->total
             : $this->resolveAccessoryTotal($case, $interestResult, $penaltyResult);
 
+        $isContractual = $penaltyType === PenaltyType::CONTRACTUAL;
+        $tables = $this->tableBuilder->build($case, $items, $itemAccessories, $interestResult, $penaltyResult, $accessoryTotal);
+
         return [
             'penaltyType' => $penaltyType,
+            'isContractual' => $isContractual,
+            'summonsTables' => $tables,
+            // The statutory branch has its own fixed wording; only the
+            // contractual one names the accessory as the contract does.
+            'accessoryLabel' => $isContractual
+                ? ($case->getContractualAccessoryLabel() ?? ContractualAccessoryLabel::DEFAULT)
+                : null,
+            'dailyRateFormatted' => $this->formatDailyRate($case->getContractualPenaltyRate()),
+            'calculationStart' => $this->calculationStart($tables->principalRows),
+            'namedContract' => $this->namedContract($case, $items),
+            'recipientDebtor' => $case->getDebtors()->first() ?: null,
+            'noticeNumber' => $case->getPaymentNoticeNumber(),
             'principal' => $principal,
             'currency' => $case->getCurrency(),
             'interestResult' => $interestResult,
@@ -212,15 +232,70 @@ final class SummonsContextBuilder
         ?InterestResult $interestResult,
         ?PenaltyResult $penaltyResult,
     ): float {
+        // Rounded once, as the per-position aggregate is, so the totals the
+        // notice prints are money and not raw floats.
         if ($interestResult !== null) {
-            return $interestResult->total;
+            return round($interestResult->total, 2);
         }
 
         if ($penaltyResult !== null) {
-            return $penaltyResult->total;
+            return round($penaltyResult->total, 2);
         }
 
         return (float) ($case->getCalculatedInterest() ?? '0');
+    }
+
+    /**
+     * The contract the claim rests on, when there is exactly one and it is
+     * identified. Several causes (CPC art. 99) or an unnamed contract leave the
+     * notice to speak of the invoices alone.
+     *
+     * @param list<ClaimItem> $items
+     *
+     * @return array{number: ?string, date: ?\DateTimeInterface}|null
+     */
+    private function namedContract(LegalCase $case, array $items): ?array
+    {
+        $number = $case->getContractNumber();
+        $date = $case->getContractDate();
+
+        if (($number === null || trim($number) === '') && $date === null) {
+            return null;
+        }
+
+        if ($items !== [] && !$this->causeGrouper->isSingleCause($items)) {
+            return null;
+        }
+
+        return ['number' => $number !== null && trim($number) !== '' ? $number : null, 'date' => $date];
+    }
+
+    /**
+     * The first day accessories accrue on, when there is a single document to
+     * speak of. With several, each accrues from its own due date and the
+     * notice says so in words.
+     *
+     * @param list<\App\DTO\Summons\PrincipalRow> $rows
+     */
+    private function calculationStart(array $rows): ?\DateTimeImmutable
+    {
+        if (count($rows) !== 1 || $rows[0]->dueDate === null) {
+            return null;
+        }
+
+        return $rows[0]->dueDate->modify('+1 day');
+    }
+
+    /** "0.100" reads "0,1", "0.015" reads "0,015": no trailing zeros. */
+    private function formatDailyRate(?string $rate): ?string
+    {
+        if ($rate === null) {
+            return null;
+        }
+
+        $formatted = rtrim(rtrim(number_format((float) $rate, 3, ',', '.'), '0'), ',');
+
+        return $formatted !== '' ? $formatted : null;
     }
 
     private function referenceDate(LegalCase $case): \DateTimeImmutable

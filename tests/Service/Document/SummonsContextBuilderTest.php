@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Tests\Service\Document;
 
+use App\Entity\ClaimItem;
 use App\Entity\InterestRateConfig;
 use App\Entity\LegalCase;
+use App\Enum\ContractualAccessoryLabel;
 use App\Enum\PenaltyType;
 use App\Enum\RelationshipType;
 use App\Repository\InterestRateConfigRepository;
@@ -88,6 +90,101 @@ final class SummonsContextBuilderTest extends TestCase
 
         self::assertSame(PenaltyType::LEGAL_PENALIZATOARE, $ctx['penaltyType']);
         self::assertNotNull($ctx['interestResult']);
+    }
+
+    public function testContractualCaseDefaultsToLatePaymentPenaltiesLabel(): void
+    {
+        $case = $this->makeCase(PenaltyType::CONTRACTUAL);
+        $case->setAmount('1000.00');
+
+        $ctx = $this->makeBuilder(['2024-01-01' => '6.50'])->build($case);
+
+        self::assertTrue($ctx['isContractual']);
+        self::assertSame(ContractualAccessoryLabel::PENALITATI_INTARZIERE, $ctx['accessoryLabel']);
+    }
+
+    public function testLegalCaseExposesNoAccessoryLabel(): void
+    {
+        $case = $this->makeCase(PenaltyType::LEGAL_PENALIZATOARE);
+        $case->setAmount('1000.00');
+        $case->setContractualAccessoryLabel(ContractualAccessoryLabel::MAJORARI_INTARZIERE);
+
+        $ctx = $this->makeBuilder(['2024-01-01' => '6.50'])->build($case);
+
+        self::assertFalse($ctx['isContractual']);
+        self::assertNull($ctx['accessoryLabel']);
+    }
+
+    public function testDailyRateIsFormattedWithoutTrailingZeros(): void
+    {
+        $builder = $this->makeBuilder(['2024-01-01' => '6.50']);
+
+        foreach (['0.100' => '0,1', '0.015' => '0,015', '1.000' => '1', '0.250' => '0,25'] as $stored => $shown) {
+            $case = $this->makeCase(PenaltyType::CONTRACTUAL);
+            $case->setContractualPenaltyRate($stored);
+
+            self::assertSame($shown, $builder->build($case)['dailyRateFormatted']);
+        }
+    }
+
+    public function testCalculationStartsTheDayAfterTheSingleDueDate(): void
+    {
+        $case = $this->makeCase(PenaltyType::CONTRACTUAL);
+        $case->setAmount('1000.00');
+        $case->setDueDate(new \DateTime('2025-02-18'));
+
+        $ctx = $this->makeBuilder(['2024-01-01' => '6.50'])->build($case);
+
+        self::assertSame('2025-02-19', $ctx['calculationStart']->format('Y-m-d'));
+    }
+
+    public function testNamedContractNeedsANumberOrADate(): void
+    {
+        $builder = $this->makeBuilder(['2024-01-01' => '6.50']);
+        $case = $this->makeCase(PenaltyType::LEGAL_PENALIZATOARE);
+
+        self::assertNull($builder->build($case)['namedContract']);
+
+        $case->setContractNumber('12');
+        self::assertSame('12', $builder->build($case)['namedContract']['number']);
+    }
+
+    public function testLumpSumAccessoryIsRoundedToTheBan(): void
+    {
+        $case = $this->makeCase(PenaltyType::LEGAL_PENALIZATOARE);
+        $case->setAmount('5000.00');
+        $case->setDueDate(new \DateTime('2025-01-01'));
+        $case->setPaymentNoticeDate(new \DateTime('2025-04-01'));
+
+        $ctx = $this->makeBuilder(['2024-01-01' => '6.50'])->build($case);
+
+        self::assertSame(round($ctx['accessoryTotal'], 2), $ctx['accessoryTotal']);
+    }
+
+    /**
+     * Positions that cannot accrue on their own (no due date) leave the
+     * accessory to the case-level computation; its rows must still be shown.
+     */
+    public function testCaseLevelAccessoryIsTabulatedWhenNoPositionCanAccrue(): void
+    {
+        $case = $this->makeCase(PenaltyType::LEGAL_PENALIZATOARE);
+        $case->setAmount('5000.00');
+        $case->setDueDate(new \DateTime('2025-01-01'));
+        $case->setPaymentNoticeDate(new \DateTime('2025-04-01'));
+        $item = new ClaimItem();
+        $item->setAmount('5000.00');
+        $item->setAmountRon('5000.00');
+        $item->setCurrency('RON');
+        $item->setConfirmedByLawyer(true);
+        $item->setDedupKey('inv:1');
+        $case->addClaimItem($item);
+
+        $ctx = $this->makeBuilder(['2024-01-01' => '6.50'])->build($case);
+
+        self::assertGreaterThan(0.0, $ctx['accessoryTotal']);
+        self::assertCount(1, $ctx['summonsTables']->principalRows);
+        self::assertNotEmpty($ctx['summonsTables']->legalInterestRows);
+        self::assertSame(90, $ctx['summonsTables']->legalInterestRows[0]->days);
     }
 
     /** @param array<string,string> $rates validFrom => referenceRate */

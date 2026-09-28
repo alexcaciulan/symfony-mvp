@@ -1,0 +1,17 @@
+{# "compus din" list, used in the summary and again in the summons proper.
+   `terminator` closes the last line: a period in the summary, a comma
+   before "la care se adaugă" in the summons. #}
+{% set hasAccessory = accessoryTotal > 0 %}
+<ul class="composition">
+    <li>{{ 'pdf.summons.line_principal'|trans({'%amount%': principal|number_format(2, ',', '.')}) }}{{ hasAccessory ? ';' : terminator }}</li>
+    {% if hasAccessory %}
+        <li>
+            {%- if isContractual -%}
+                {{ 'pdf.summons.line_accessory_contractual'|trans({'%amount%': accessoryTotal|number_format(2, ',', '.'), '%label%': label, '%date%': noticeDateText}) }}
+            {%- else -%}
+                {{ 'pdf.summons.line_interest_legal'|trans({'%amount%': accessoryTotal|number_format(2, ',', '.'), '%date%': noticeDateText}) }}
+            {%- endif -%}
+            {{ terminator }}
+        </li>
+    {% endif %}
+</ul>

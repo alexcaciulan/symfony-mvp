@@ -144,6 +144,11 @@ final class Step3ClaimLiveComponent extends AbstractController
         return $this->positionSummaryCache = $this->positionsSummarizer->summarize($rows, $relationship, $penalty, $rate);
     }
 
+    public function isContractual(): bool
+    {
+        return PenaltyType::tryFrom($this->stringFromFormValues('penaltyType') ?? '') === PenaltyType::CONTRACTUAL;
+    }
+
     public function getPositionCount(): int
     {
         return $this->getPositionSummary()['countedRows'];

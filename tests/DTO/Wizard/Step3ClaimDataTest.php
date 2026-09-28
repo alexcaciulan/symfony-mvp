@@ -239,6 +239,59 @@ final class Step3ClaimDataTest extends KernelTestCase
         self::assertCount(0, $violations, (string) $violations);
     }
 
+    public function testOverlongPenaltyClauseIsRejectedOnTheContractualBranch(): void
+    {
+        $dto = new Step3ClaimData(
+            amount: 1500.0,
+            currency: 'RON',
+            dueDate: new \DateTimeImmutable('-1 day'),
+            relationshipType: RelationshipType::COMERCIAL,
+            legalGround: LegalGroundCategory::CONTRACT_PRESTARI_SERVICII,
+            penaltyType: PenaltyType::CONTRACTUAL,
+            contractualPenaltyRate: 0.1,
+            penaltyClauseArticle: str_repeat('a', 101),
+            penaltyClauseText: str_repeat('a', 10001),
+        );
+
+        $messages = $this->messageTemplates($this->validator->validate($dto));
+
+        self::assertContains('wizard.step3.error.penalty_clause_article_too_long', $messages);
+        self::assertContains('wizard.step3.error.penalty_clause_text_too_long', $messages);
+    }
+
+    public function testPenaltyClauseIsNotValidatedOnTheStatutoryBranch(): void
+    {
+        $dto = new Step3ClaimData(
+            amount: 1500.0,
+            currency: 'RON',
+            dueDate: new \DateTimeImmutable('-1 day'),
+            relationshipType: RelationshipType::COMERCIAL,
+            legalGround: LegalGroundCategory::CONTRACT_PRESTARI_SERVICII,
+            penaltyType: PenaltyType::LEGAL_PENALIZATOARE,
+            penaltyClauseArticle: str_repeat('a', 101),
+        );
+
+        self::assertCount(0, $this->validator->validate($dto));
+    }
+
+    public function testOverlongNoticeNumberAndContractObjectAreRejected(): void
+    {
+        $dto = new Step3ClaimData(
+            amount: 1500.0,
+            currency: 'RON',
+            dueDate: new \DateTimeImmutable('-1 day'),
+            relationshipType: RelationshipType::COMERCIAL,
+            legalGround: LegalGroundCategory::CONTRACT_PRESTARI_SERVICII,
+            contractObject: str_repeat('a', 256),
+            paymentNoticeNumber: str_repeat('1', 51),
+        );
+
+        $messages = $this->messageTemplates($this->validator->validate($dto));
+
+        self::assertContains('wizard.step3.error.contract_object_too_long', $messages);
+        self::assertContains('wizard.step3.error.payment_notice_number_too_long', $messages);
+    }
+
     /**
      * @param \Symfony\Component\Validator\ConstraintViolationListInterface<int, \Symfony\Component\Validator\ConstraintViolationInterface> $violations
      * @return list<string>

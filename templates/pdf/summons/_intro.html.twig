@@ -1,0 +1,28 @@
+{# "Subscrisa ..." paragraph, the address for service (CPC art. 158) and the
+   legal basis. Every clause is dropped when its value is missing, so the
+   text never shows an empty slot. #}
+{% set lawyerName = user ? user.fullName : null %}
+{% if creditor %}
+    {% set address = creditor.address|mailing_address(creditor.addressLocality, creditor.addressCounty) %}
+    {% if creditor.personType.value == 'PF' %}
+        {% set clauses = ['pdf.summons.intro.lead_pf'|trans({'%name%': creditor.name, '%address%': address})] %}
+    {% else %}
+        {% set clauses = ['pdf.summons.intro.lead_pj'|trans({'%name%': creditor.name, '%address%': address})] %}
+        {% if creditor.onrcNumber %}{% set clauses = clauses|merge(['pdf.summons.intro.onrc'|trans({'%onrc%': creditor.onrcNumber})]) %}{% endif %}
+        {% if creditor.cui %}{% set clauses = clauses|merge(['pdf.summons.intro.cui'|trans({'%cui%': creditor.cui})]) %}{% endif %}
+        {% if creditor.legalRepresentative %}{% set clauses = clauses|merge(['pdf.summons.intro.legal_rep'|trans({'%rep%': creditor.legalRepresentative})]) %}{% endif %}
+    {% endif %}
+    {% if lawyerName %}{% set clauses = clauses|merge(['pdf.summons.intro.lawyer'|trans({'%lawyer%': lawyerName})]) %}{% endif %}
+    <p>{{ clauses|join(', ') }} {{ 'pdf.summons.intro.defined_as'|trans }}</p>
+{% endif %}
+
+{% if lawyerName %}
+    {% set lead = 'pdf.summons.service.lead'|trans %}
+    {% if user.proceduralAddress %}{% set lead = lead ~ ' ' ~ 'pdf.summons.service.address'|trans({'%address%': user.proceduralAddress}) %}{% endif %}
+    {% set service = [lead, 'pdf.summons.service.person'|trans({'%lawyer%': lawyerName})] %}
+    {% if user.email %}{% set service = service|merge(['pdf.summons.service.email'|trans({'%email%': user.email})]) %}{% endif %}
+    {% if user.phone %}{% set service = service|merge(['pdf.summons.service.phone'|trans({'%phone%': user.phone})]) %}{% endif %}
+    <p>{{ service|join(', ') }},</p>
+{% endif %}
+
+<p>{{ (isContractual ? 'pdf.summons.basis_contractual' : 'pdf.summons.basis_legal')|trans }}</p>
