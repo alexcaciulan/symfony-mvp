@@ -31,9 +31,17 @@ final class CreditorType extends AbstractType
 {
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
+        // New creditors are always legal persons (B2B product). A creditor
+        // already stored as PF keeps both choices, so it stays editable.
+        $data = $options['data'] ?? null;
+        $personTypes = $data instanceof Step1CreditorData && $data->personType === PersonType::PF
+            ? PersonType::cases()
+            : [PersonType::PJ];
+
         $builder
             ->add('personType', EnumType::class, [
                 'class' => PersonType::class,
+                'choices' => $personTypes,
                 'label' => 'wizard.step1.field.person_type',
                 'placeholder' => 'wizard.step1.placeholder.person_type',
                 'required' => true,

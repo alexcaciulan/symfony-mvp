@@ -83,18 +83,18 @@ final class Step1CreditorTypeTest extends KernelTestCase
         self::assertGreaterThan(0, $form->get('onrcNumber')->getErrors()->count());
     }
 
-    public function testManualPfWithoutCnpIsInvalid(): void
+    public function testPersonTypePfIsRejectedForCreditor(): void
     {
         $form = $this->buildForm();
         $form->submit([
             'personType' => 'PF',
             'name' => 'Ion Popescu',
-            // personalId missing — required for PF
+            'personalId' => '1980715221232',
             'address' => 'Str. Test 1, București',
         ]);
 
         self::assertFalse($form->isValid());
-        self::assertGreaterThan(0, $form->get('personalId')->getErrors()->count());
+        self::assertGreaterThan(0, $form->get('personType')->getErrors()->count());
     }
 
     public function testSubmitWithoutIdOrManualIsInvalid(): void
@@ -158,26 +158,6 @@ final class Step1CreditorTypeTest extends KernelTestCase
         self::assertTrue($options['csrf_protection']);
         self::assertSame('wizard_step1_creditor', $options['csrf_token_id']);
         self::assertSame('_token', $options['csrf_field_name']);
-    }
-
-    public function testPersonTypePfClearsCuiAndOnrcOnSubmit(): void
-    {
-        $form = $this->buildForm();
-        $form->submit([
-            'personType' => 'PF',
-            'name' => 'Ion Popescu',
-            'cui' => 'RO15193236',        // stale value from a previous PJ selection
-            'onrcNumber' => 'J40/1234/2018', // stale
-            'personalId' => '1980715221232',
-            'address' => 'Str. Test 1, București',
-        ]);
-
-        self::assertTrue($form->isValid(), (string) $form->getErrors(true));
-        $dto = $form->getData();
-        self::assertSame(PersonType::PF, $dto->personType);
-        self::assertNull($dto->cui, 'CUI must be cleared for PF');
-        self::assertNull($dto->onrcNumber, 'onrcNumber must be cleared for PF');
-        self::assertSame('1980715221232', $dto->personalId);
     }
 
     public function testPersonTypePjClearsPersonalIdOnSubmit(): void

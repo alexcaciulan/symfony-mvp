@@ -90,6 +90,21 @@ final class CreditorRepositoryTest extends KernelTestCase
         self::assertSame(['Alpha SRL', 'Mu SRL', 'Zeta SRL'], $names);
     }
 
+    public function testAutocompleteQueryBuilderSkipsNaturalPersonCreditors(): void
+    {
+        $user = $this->createUser('pf');
+        $this->createCreditor($user, 'Legal Person SRL', 'RO10000079');
+        $this->createCreditor($user, 'Ion Popescu', 'RO10000087')->setPersonType(PersonType::PF);
+        $this->em->flush();
+
+        $names = array_map(
+            static fn (Creditor $c): string => $c->getName(),
+            $this->repo->createAutocompleteQueryBuilder($user)->getQuery()->getResult(),
+        );
+
+        self::assertSame(['Legal Person SRL'], $names);
+    }
+
     private function createUser(string $suffix): User
     {
         $user = new User();

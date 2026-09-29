@@ -231,8 +231,8 @@
 
                     {# Lives inside the controller scope so the lookup can unhide it;
                        the pre-filled variant in the card header cannot be a target. #}
-                    <div data-party-anaf-lookup-target="badge"
-                         class="{% if entry_dto is null or entry_dto.anafStatus is null %}hidden {% endif %}flex items-center gap-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+                    <div data-party-anaf-lookup-target="badge"{% if entry_dto is null or entry_dto.anafStatus is null %} hidden{% endif %}
+                         class="flex items-center gap-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
                         <svg class="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
                         <span>{{ 'wizard.anaf.synced'|trans }}</span>
                     </div>

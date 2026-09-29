@@ -4,11 +4,20 @@
 
 {{ form_start(form, {'attr': {'novalidate': 'novalidate'}}) }}
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {# Only a creditor already stored as PF is offered the PF/PJ choice and the
+           CNP field; everyone else is a legal person (see CreditorType). #}
+        {% set offers_pf = form.personType.vars.choices|length > 1 %}
+        {% if offers_pf %}
         <div class="sm:col-span-2">
             {{ form_label(form.personType, null, {'label_attr': {'class': label_class}}) }}
             {{ form_widget(form.personType, {'attr': {'class': input_class ~ ' wizard-select'}}) }}
             {{ form_errors(form.personType) }}
         </div>
+        {% else %}
+        <input type="hidden" name="{{ form.personType.vars.full_name }}" value="{{ constant('App\\Enum\\PersonType::PJ').value }}">
+        {% do form.personType.setRendered %}
+        {% do form.personalId.setRendered %}
+        {% endif %}
 
         <div class="sm:col-span-2">
             {{ form_label(form.name, null, {'label_attr': {'class': label_class}}) }}
@@ -28,11 +37,13 @@
             {{ form_errors(form.onrcNumber) }}
         </div>
 
+        {% if offers_pf %}
         <div class="sm:col-span-2">
             {{ form_label(form.personalId, null, {'label_attr': {'class': label_class}}) }}
             {{ form_widget(form.personalId, {'attr': {'class': input_class}}) }}
             {{ form_errors(form.personalId) }}
         </div>
+        {% endif %}
 
         <div class="sm:col-span-2">
             {{ form_label(form.address, null, {'label_attr': {'class': label_class}}) }}

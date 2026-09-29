@@ -128,6 +128,60 @@ final class CreditorLibraryControllerTest extends WebTestCase
         self::assertSame('Newly Added SRL', $persisted->getName());
     }
 
+    public function testNewFormOffersOnlyLegalPerson(): void
+    {
+        $this->client->loginUser($this->createUser());
+        $this->client->request('GET', '/creditors/new');
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorExists('input[type="hidden"][name="creditor[personType]"][value="PJ"]');
+        self::assertSelectorNotExists('select[name="creditor[personType]"]');
+        self::assertSelectorNotExists('[name="creditor[personalId]"]');
+    }
+
+    public function testNewRejectsNaturalPersonSubmit(): void
+    {
+        $user = $this->createUser();
+        $this->client->loginUser($user);
+
+        $crawler = $this->client->request('GET', '/creditors/new');
+        $token = $crawler->filter('input[name="creditor[_token]"]')->attr('value');
+        $this->client->request('POST', '/creditors/new', ['creditor' => [
+            '_token' => $token,
+            'personType' => PersonType::PF->value,
+            'name' => 'Ion Popescu',
+            'personalId' => '1980715221232',
+            'address' => 'Str. Test 1, București',
+        ]]);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+        self::assertCount(0, $this->creditors->findByUser($user));
+    }
+
+    public function testEditKeepsChoiceForStoredNaturalPerson(): void
+    {
+        $user = $this->createUser();
+        $creditor = $this->createCreditor($user, 'Ion Popescu');
+        $creditor->setPersonType(PersonType::PF);
+        $creditor->setPersonalId('1980715221232');
+        $this->em->flush();
+        $this->client->loginUser($user);
+
+        $crawler = $this->client->request('GET', '/creditors/' . $creditor->getId() . '/edit');
+        self::assertResponseIsSuccessful();
+        self::assertSelectorExists('select[name="creditor[personType]"] option[value="PF"]');
+
+        $form = $crawler->filter('form:not([action="/logout"])')->form();
+        $form['creditor[name]'] = 'Ion Popescu Renamed';
+        $this->client->submit($form);
+
+        self::assertResponseRedirects('/creditors');
+        $this->em->clear();
+        $reloaded = $this->creditors->find($creditor->getId());
+        self::assertSame(PersonType::PF, $reloaded->getPersonType());
+        self::assertSame('Ion Popescu Renamed', $reloaded->getName());
+    }
+
     public function testEditUpdatesOwnedCreditor(): void
     {
         $user = $this->createUser();

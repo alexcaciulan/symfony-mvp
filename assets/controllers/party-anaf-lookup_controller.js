@@ -25,7 +25,8 @@ import { Controller } from '@hotwired/stimulus';
  *   - anafStatus value (`ACTIV`/`INACTIV`/`RADIAT`) → the hidden [anafStatus]
  *   - ISO8601 timestamp → the hidden [anafCheckedAt]
  *   - the emerald "synced" badge is unhidden, next to an undo button that
- *     restores the values the sync overwrote
+ *     restores the values the sync overwrote (both via the `hidden` attribute,
+ *     since their `flex`/`inline-flex` class can outrank `.hidden`)
  *
  * Every target is optional, so a party that has no ANAF status field (the creditor)
  * simply omits it.
@@ -156,10 +157,10 @@ export default class extends Controller {
         this.refreshSyncButton();
 
         if (this.hasBadgeTarget) {
-            this.badgeTarget.classList.remove('hidden');
+            this.badgeTarget.hidden = false;
         }
         if (this.hasUndoButtonTarget) {
-            this.undoButtonTarget.classList.remove('hidden');
+            this.undoButtonTarget.hidden = false;
         }
 
         this.dispatchToast('success', this.successMsgValue);
@@ -191,10 +192,10 @@ export default class extends Controller {
         this.refreshSyncButton();
 
         if (this.hasUndoButtonTarget) {
-            this.undoButtonTarget.classList.add('hidden');
+            this.undoButtonTarget.hidden = true;
         }
         if (this.hasBadgeTarget) {
-            this.badgeTarget.classList.add('hidden');
+            this.badgeTarget.hidden = true;
         }
 
         this.dispatchToast('info', this.undoneMsgValue);

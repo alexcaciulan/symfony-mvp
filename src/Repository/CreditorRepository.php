@@ -7,6 +7,7 @@ namespace App\Repository;
 use App\Entity\Creditor;
 use App\Entity\LegalCase;
 use App\Entity\User;
+use App\Enum\PersonType;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\QueryBuilder;
 use Doctrine\Persistence\ManagerRegistry;
@@ -37,9 +38,13 @@ class CreditorRepository extends ServiceEntityRepository
      */
     public function createAutocompleteQueryBuilder(User $user): QueryBuilder
     {
+        // The wizard takes only legal persons as creditor; a PF stored in the
+        // library before that rule stays editable there but is not offered.
         return $this->createQueryBuilder('c')
             ->andWhere('c.user = :user')
+            ->andWhere('c.personType = :personType')
             ->setParameter('user', $user)
+            ->setParameter('personType', PersonType::PJ)
             ->orderBy('c.name', 'ASC');
     }
 

@@ -455,11 +455,12 @@ final class PrefillFromExtractionService
     {
         $v = $aggregated->values;
 
+        // The creditor is always a legal person, whatever the extraction read,
+        // so a CNP it found has no field to land in.
         return new Step1CreditorData(
-            personType: $this->toPersonType($v['personType'] ?? null),
+            personType: PersonType::PJ,
             name: $this->toStringOrNull($v['name'] ?? null),
             cui: $this->toStringOrNull($v['cui'] ?? null),
-            personalId: $this->toStringOrNull($v['personalId'] ?? null),
             onrcNumber: $this->toStringOrNull($v['onrcNumber'] ?? null),
             address: $this->toStringOrNull($v['address'] ?? null),
             addressCounty: $this->toStringOrNull($v['county'] ?? null),

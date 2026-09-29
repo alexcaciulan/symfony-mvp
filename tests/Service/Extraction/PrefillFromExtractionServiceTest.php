@@ -159,6 +159,28 @@ final class PrefillFromExtractionServiceTest extends TestCase
         self::assertSame(['name'], $creditor->autoFilled);
     }
 
+    public function testCreditorExtractedAsNaturalPersonIsPrefilledAsLegalPerson(): void
+    {
+        $document = $this->buildDocumentWithExtractedData([
+            'creditor' => [
+                'personType' => 'PF',
+                'name' => 'Ion Popescu',
+                'personalId' => '1980715221232',
+                'confidencePerField' => [
+                    'personType' => 0.95,
+                    'name' => 0.95,
+                    'personalId' => 0.95,
+                ],
+            ],
+        ]);
+
+        $creditor = $this->buildServiceFor([$document])->aggregateForCreditor([1]);
+
+        self::assertSame(PersonType::PJ, $creditor->personType);
+        self::assertNull($creditor->personalId);
+        self::assertSame('Ion Popescu', $creditor->name);
+    }
+
     public function testDocumentWithoutExtractedDataIsSkippedGracefully(): void
     {
         $empty = $this->buildDocument(null); // extractedData = null (status PENDING/FAILED)

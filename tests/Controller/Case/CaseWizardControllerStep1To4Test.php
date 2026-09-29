@@ -108,6 +108,16 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         self::assertStringContainsString('name="step1_creditor[_token]"', $html);
     }
 
+    public function testCreditorFormOffersOnlyLegalPerson(): void
+    {
+        $this->client->request('GET', '/case/new/creditor');
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorExists('input[type="hidden"][name="step1_creditor[personType]"][value="PJ"]');
+        self::assertSelectorNotExists('input[type="radio"][name="step1_creditor[personType]"]');
+        self::assertSelectorNotExists('[name="step1_creditor[personalId]"]');
+    }
+
     public function testCreditorPostStoresDtoInSessionAndRedirectsToDebtor(): void
     {
         $crawler = $this->client->request('GET', '/case/new/creditor');
