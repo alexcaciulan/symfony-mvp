@@ -473,6 +473,15 @@ final class CaseWizardController extends AbstractController
         // lawyer edited is told from one they left as the aggregation had it.
         $rendered = $this->snapshotDto($dto);
         $form = $this->createForm(Step1CreditorType::class, $dto);
+        // The picker is unmapped, so a creditor chosen earlier has to be put
+        // back by hand; an empty picker on the next submit reads as "enter a
+        // new creditor manually" and would drop the choice.
+        if ($dto->creditorId !== null) {
+            $picked = $this->creditors->find($dto->creditorId);
+            if ($picked !== null && $picked->getUser()->getId() === $this->getUser()?->getId()) {
+                $form->get('creditorEntity')->setData($picked);
+            }
+        }
         $form->handleRequest($request);
 
         $submitted = $form->isSubmitted() && $form->isValid();

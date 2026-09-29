@@ -80,7 +80,7 @@ class CreditorLibraryController extends AbstractController
             throw $this->createAccessDeniedException();
         }
 
-        $dto = $this->dtoFromCreditor($creditor);
+        $dto = Step1CreditorData::fromCreditor($creditor);
         $form = $this->createForm(CreditorType::class, $dto);
         $form->handleRequest($request);
 
@@ -120,24 +120,6 @@ class CreditorLibraryController extends AbstractController
         ));
 
         return true;
-    }
-
-    private function dtoFromCreditor(Creditor $creditor): Step1CreditorData
-    {
-        $dto = new Step1CreditorData();
-        $dto->personType = $creditor->getPersonType();
-        $dto->name = $creditor->getName();
-        $dto->cui = $creditor->getCui();
-        $dto->personalId = $creditor->getPersonalId();
-        $dto->onrcNumber = $creditor->getOnrcNumber();
-        $dto->address = $creditor->getAddress();
-        $dto->email = $creditor->getEmail();
-        $dto->phone = $creditor->getPhone();
-        $dto->iban = $creditor->getIban();
-        $dto->bankName = $creditor->getBankName();
-        $dto->legalRepresentative = $creditor->getLegalRepresentative();
-
-        return $dto;
     }
 
     private function applyDtoToCreditor(Creditor $creditor, Step1CreditorData $dto): void

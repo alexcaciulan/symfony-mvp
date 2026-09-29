@@ -103,7 +103,7 @@ final class SummonsContextBuilder
             'currency' => $case->getCurrency(),
             'interestResult' => $interestResult,
             'penaltyResult' => $penaltyResult,
-            // CPC art. 1016 alin. (1) lit. c requires the sum and its basis to be
+            // CPC art. 1.017 requires the sum and its basis to be
             // stated, so several invoices are listed one by one with their own
             // interest rather than merged into a single figure.
             'claimItems' => $items,

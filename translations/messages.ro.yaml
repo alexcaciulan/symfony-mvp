@@ -254,7 +254,7 @@ wizard:
         help:
             title: 'Despre acest pas'
             body: 'Dacă creditorul este deja salvat în catalogul tău (cabinet), îl poți selecta. Altfel completează manual câmpurile principale: tip persoană, denumire, adresă. CUI și ONRC sunt opționale pentru persoane fizice.'
-            iban_format: 'Format: RO + 2 cifre + 4 litere bancă + 16 cifre cont. Spațiile sunt permise (le ignorăm la validare).'
+            iban_format: 'Format: RO + 2 cifre + 4 litere bancă + 16 caractere cont (cifre sau litere). Spațiile sunt permise (le ignorăm la validare).'
             anaf_lookup: 'Apasă „Sincronizează info ANAF" ca să completezi datele firmei din registrul ANAF.'
             stamp_duty_uat: 'Localitatea sediului stabilește primăria unde se achită taxa de timbru (OUG 80/2013 art. 40).'
         toggle:
@@ -372,7 +372,7 @@ wizard:
             description: 'Contravaloare %count% facturi neachitate: %numbers%.'
             description_generic: 'Contravaloarea a %count% facturi neachitate.'
         help:
-            due_date: 'Scadența trebuie să fie în trecut sau astăzi (creanță exigibilă, CPC art. 1013).'
+            due_date: 'Scadența trebuie să fie în trecut sau astăzi (creanță exigibilă, CPC art. 1014).'
             contractual_penalty_rate: 'Ex: 0,10 pentru 0,10%/zi de întârziere, conform clauzei penale din contract.'
             contractual_accessory_label: 'Somația folosește denumirea din contract în toate frazele despre accesorii.'
             penalty_clause_text: 'Se citează în somație. Dacă îl lași gol, somația spune doar că părțile au convenit o clauză penală.'
@@ -1323,7 +1323,7 @@ case_overview:
         generate_op_stamp_duty_blocked_body: 'Dovada achitării se atașează cererii, iar netimbrarea atrage anularea ei (CPC art. 197). Încărcați dovada sau asumați-vă timbrarea ulterioară.'
         generate_op_communication_proof_attached: 'Dovada comunicării somației este atașată. Intră în pachetul depus la instanță.'
         generate_op_communication_proof_blocked_title: 'Lipsește dovada comunicării somației'
-        generate_op_communication_proof_blocked_body: 'Dovada comunicării somației se atașează cererii sub sancțiunea respingerii ei ca inadmisibilă (CPC art. 1016 alin. 2). Somația se comunică debitorului prin executor judecătoresc sau prin scrisoare recomandată cu conținut declarat și confirmare de primire (CPC art. 1015 alin. 1), iar instanței i se prezintă recipisa executorului sau confirmarea de primire. Încărcați-o ca „Dovadă comunicare" și butonul de generare se deblochează.'
+        generate_op_communication_proof_blocked_body: 'Dovada comunicării somației se atașează cererii sub sancțiunea respingerii ei ca inadmisibilă (CPC art. 1017 alin. 2). Somația se comunică debitorului prin executor judecătoresc sau prin scrisoare recomandată cu conținut declarat și confirmare de primire (CPC art. 1015 alin. 1), iar instanței i se prezintă recipisa executorului sau confirmarea de primire. Încărcați-o ca „Dovadă comunicare" și butonul de generare se deblochează.'
         generate_op_communication_proof_cta_upload: 'Încarcă dovada comunicării'
         generate_op_communication_proof_cta_methods: 'Vezi modalitățile legale'
         generate_op_cancel: 'Renunță'
@@ -1656,7 +1656,7 @@ pdf:
             lawyer: 'Avocat'
     payment_order:
         heading: 'CERERE DE ORDONANȚĂ DE PLATĂ'
-        subheading: 'Formulată în temeiul art. 1013-1024 din Codul de procedură civilă'
+        subheading: 'Formulată în temeiul art. 1.014 și următoarele din Codul de procedură civilă'
         legal_basis_short: 'Procedura specială ordonanță de plată'
         case_reference: 'Referință dosar intern'
         court_block_title: 'Către'
@@ -1668,7 +1668,7 @@ pdf:
         claim_intro: 'Subsemnatul/creditorul %creditor% formulez prezenta cerere de emitere a ordonanței de plată împotriva debitorului %debtor%, solicitând obligarea acestuia la plata sumelor restante datorate.'
         claim_object_label: 'Obiectul creanței'
         facts_title: 'Expunere de fapt'
-        facts_body: 'Creanța are scadența la data de %due_date%. Somația de plată conform CPC art. 1015 a fost comunicată debitorului la data de %notice_date%, fără ca acesta să achite suma datorată în termenul legal. Suma principală restantă este de %amount% %currency%.'
+        facts_body: 'Creanța are scadența la data de %due_date%. Somația de plată conform CPC art. 1.015 a fost comunicată debitorului la data de %notice_date%, fără ca acesta să achite suma datorată în termenul legal. Suma principală restantă este de %amount% %currency%.'
         amounts_table_title: 'Sume solicitate'
         amount_label: 'Categorie'
         amount_value: 'Valoare'
@@ -1680,7 +1680,7 @@ pdf:
         amount_principal_item: 'Factura %number% (emisă %date%, scadentă %due_date%)'
         amount_principal_total: 'Total sumă principală'
         amount_interest_item: 'dobândă %sum% %currency%'
-        facts_body_items: 'Creanța izvorăște din %count% documente cu scadențe distincte, arătate individual în tabelul de mai jos, cea mai veche fiind %due_date%. Somația de plată conform CPC art. 1015 a fost comunicată debitorului la data de %notice_date%, fără ca acesta să achite sumele datorate în termenul legal. Suma principală restantă, cumulat, este de %amount% %currency%.'
+        facts_body_items: 'Creanța izvorăște din %count% documente cu scadențe distincte, arătate individual în tabelul de mai jos, cea mai veche fiind %due_date%. Somația de plată conform CPC art. 1.015 a fost comunicată debitorului la data de %notice_date%, fără ca acesta să achite sumele datorate în termenul legal. Suma principală restantă, cumulat, este de %amount% %currency%.'
         amount_interest_item_unavailable: 'dobândă nedeterminată'
         amount_principal_item_fx: '%amount% %currency% × curs BNR %rate% din %rate_date%'
         art99_note: 'Precizare privind competența (CPC art. 99): pretențiile deduse judecății izvorăsc din același raport juridic, astfel încât valoarea obiectului cererii este suma capetelor arătate mai sus. Valoarea fiecărei pretenții este arătată individual în tabelul de sume.'
@@ -1693,9 +1693,9 @@ pdf:
         costs_stamp_duty_deferred: 'Taxă judiciară de timbru: %amount% RON, urmând a fi achitată potrivit art. 33 alin. 2 din OUG 80/2013, cu depunerea dovezii la dosar.'
         costs_lawyer_fee: 'Onorariu avocațial: %fixed% %currency%, conform contractului de asistență juridică, urmând a fi dovedit cu înscrisurile depuse la dosar.'
         legal_basis_title: 'Temei juridic'
-        legal_basis_body: 'Art. 1013-1024 Codul de procedură civilă (procedura specială a ordonanței de plată). Creanță certă, lichidă și exigibilă rezultată dintr-un raport contractual între profesioniști. Prescripția dreptului material este 3 ani conform NCC art. 2517.'
+        legal_basis_body: 'Art. 1.014 și următoarele din Codul de procedură civilă (procedura specială a ordonanței de plată). Creanță certă, lichidă și exigibilă rezultată dintr-un raport contractual între profesioniști. Prescripția dreptului material este 3 ani conform NCC art. 2517.'
         annexes_title: 'Anexe'
-        annexes_body: 'Lista documentelor anexate este detaliată în opisul de documente atașat prezentei cereri (CPC art. 1016 alin. 1 lit. f).'
+        annexes_body: 'Lista documentelor anexate este detaliată în opisul de documente atașat prezentei cereri (art. 1.017 din Codul de procedură civilă).'
         creditor_missing: '(date creditor lipsă, completați fișa dosarului)'
         debtor_missing: '(date debitor lipsă, completați fișa dosarului)'
         field_name: 'Denumire'
@@ -1710,7 +1710,7 @@ pdf:
         footer_disclaimer: 'Document generat electronic prin platforma LexRecovery. Depunerea la instanța competentă se face cu confirmare de primire.'
     document_index:
         heading: 'OPIS DE DOCUMENTE'
-        subheading: 'Anexă la cererea de ordonanță de plată (CPC art. 1016)'
+        subheading: 'Anexă la cererea de ordonanță de plată (CPC art. 1.017)'
         case_reference: 'Dosar intern'
         creditor_label: 'Creditor'
         issued_label: 'Emis la data'
@@ -2400,7 +2400,7 @@ home:
             description: 'Generare automată a documentelor procedurale, fără cópy-paste între template-uri.'
         sigur:
             title: 'Sigur'
-            description: 'Conformitate OUG 80/2013 + CPC art. 1013-1024. Calcule automate dobândă (OG 13/2011) și taxă timbru.'
+            description: 'Conformitate OUG 80/2013 + CPC art. 1.014 și urm. Calcule automate dobândă (OG 13/2011) și taxă timbru.'
         clar:
             title: 'Clar'
             description: 'Toate termenele într-un singur dashboard. Notificări proactive când se apropie deadline-uri.'
@@ -2460,7 +2460,7 @@ court:
         art99_cause_unattributable: 'Dosarul conține mai multe cauze (%causes%), iar unele poziții nu arată din ce contract izvorăsc. Completează cauza fiecărei poziții la pasul 3 sau alege manual instanța: gruparea decide competența materială, care este de ordine publică (CPC art. 99).'
 
 # =============================================================================
-# Admisibilitate cerere ordonanță de plată (CPC art. 1013 + Legea 85/2014)
+# Admisibilitate cerere ordonanță de plată (CPC art. 1014 + Legea 85/2014)
 # Mesaje pentru OpAdmissibilityValidator — afișate în wizard / blocaj PDF.
 # =============================================================================
 validation:
@@ -2473,12 +2473,12 @@ validation:
         OP_INSOLVENCY_NOT_VERIFIED: 'Verifică statusul de insolvență al debitorului pe bpi.just.ro și confirmă în UI înainte de depunere (atașează PDF dovadă BPI).'
         OP_INSOLVENCY_STALE: 'Verificarea BPI (insolvență) este mai veche de 7 zile. Reverifică pe bpi.just.ro și actualizează dovada; insolvența se schimbă rapid.'
         OP_PF_BIPF_MANUAL_CHECK: 'Debitor persoană fizică: verifică manual BIPF (Buletinul Insolvenței Persoanelor Fizice, Legea 151/2015) pe bpi.just.ro înainte de depunere.'
-        OP_ITEM_NOT_YET_DUE: 'O poziție de creanță are scadența în viitor. Creanța nu este exigibilă (CPC art. 1013), iar cererea de ordonanță de plată este inadmisibilă pentru acea sumă. Corectează scadența, exclude poziția sau așteaptă împlinirea termenului.'
+        OP_ITEM_NOT_YET_DUE: 'O poziție de creanță are scadența în viitor. Creanța nu este exigibilă (CPC art. 1014), iar cererea de ordonanță de plată este inadmisibilă pentru acea sumă. Corectează scadența, exclude poziția sau așteaptă împlinirea termenului.'
         OP_ITEM_DUE_DATE_MISSING: 'O poziție de creanță nu are scadență. Fără scadență nu se poate proba exigibilitatea și nu se calculează dobânda. Completează data sau exclude poziția.'
         OP_ITEM_PRESCRIBED: 'O poziție de creanță are scadența mai veche de 3 ani, deci termenul de prescripție pare împlinit (C. civ. art. 2517, care curge de la scadența fiecărei facturi). Instanța NU aplică prescripția din oficiu (art. 2512), dar debitorul o poate invoca, iar în procedura ordonanței de plată o apărare care cere probe suplimentare poate atrage respingerea cererii, creditorul fiind îndrumat spre dreptul comun (CPC art. 1021 alin. 2). Decide expres dacă păstrezi acest capăt.'
-        OP_ITEM_UNIMPUTED_PAYMENT: 'O poziție de creanță are o plată înregistrată care nu a fost imputată. Suma cerută rămâne cea facturată, pentru că imputația se face după C. civ. art. 1507-1509 și este decizia ta. Verifică dacă suma solicitată mai este certă (CPC art. 1013 alin. 1).'
-        OP_ITEM_STATED_DEDUCTION: 'O poziție de creanță menționează în descriere un scăzământ (avans, reținere de garanție, plată parțială). Suma cerută este totalul facturat, nu diferența. Verifică documentul și, dacă este cazul, corectează poziția înainte de depunere: o creanță parțial încasată nu este certă (CPC art. 1013 alin. 1).'
-        OP_DEBT_NOT_YET_DUE: 'Scadența creanței este în viitor. Creanța nu este exigibilă (CPC art. 1013), iar cererea de ordonanță de plată este inadmisibilă: nu se poate solicita plata înainte de scadență. Corectează data scadenței sau așteaptă împlinirea termenului.'
+        OP_ITEM_UNIMPUTED_PAYMENT: 'O poziție de creanță are o plată înregistrată care nu a fost imputată. Suma cerută rămâne cea facturată, pentru că imputația se face după C. civ. art. 1507-1509 și este decizia ta. Verifică dacă suma solicitată mai este certă (CPC art. 1014 alin. 1).'
+        OP_ITEM_STATED_DEDUCTION: 'O poziție de creanță menționează în descriere un scăzământ (avans, reținere de garanție, plată parțială). Suma cerută este totalul facturat, nu diferența. Verifică documentul și, dacă este cazul, corectează poziția înainte de depunere: o creanță parțial încasată nu este certă (CPC art. 1014 alin. 1).'
+        OP_DEBT_NOT_YET_DUE: 'Scadența creanței este în viitor. Creanța nu este exigibilă (CPC art. 1014), iar cererea de ordonanță de plată este inadmisibilă: nu se poate solicita plata înainte de scadență. Corectează data scadenței sau așteaptă împlinirea termenului.'
 
 # =============================================================================
 # Email notifications (EmailNotificationSubscriber + templates/emails/)
@@ -2845,7 +2845,7 @@ deadlines:
         SUMMONS_PROOF_MISSING:
             label: 'Lipsește dovada comunicării somației'
             missing: 'Dovada comunicării, la depunere'
-            legal_basis: 'CPC art. 1016 alin. 2'
+            legal_basis: 'CPC art. 1017 alin. 2'
             state: 'Fără dovadă atașată'
             cause: 'Data comunicării este introdusă, iar termenul de 15 zile curge. Dovada comunicării nu este însă atașată la dosar.'
             consequence: 'Cererea de ordonanță nu se poate genera fără dovadă: dovada comunicării se atașează cererii sub sancțiunea respingerii ei ca inadmisibilă, iar instanței i se prezintă recipisa executorului sau confirmarea de primire, nu data declarată de tine. Atașează dovada acum, cât mai poți cere executorului sau poștei o copie, nu în ziua în care trebuie depus pachetul.'

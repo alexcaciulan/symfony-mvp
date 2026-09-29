@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\DTO\Wizard;
 
+use App\Entity\Creditor;
 use App\Enum\PersonType;
 use App\Validator\Constraints\ValidCnp;
 use App\Validator\Constraints\ValidCui;
@@ -70,12 +71,11 @@ class Step1CreditorData
         #[Assert\Length(max: 30)]
         public ?string $phone = null,
         // IBAN accepted with optional spaces (BCR/BT statements often show
-        // RO49 RNCB 0082 ...). Strip + upper before regex via normalizer in
-        // Step1CreditorType. The compiled value (no spaces, upper) matches
-        // \d{16} on the account part — the [A-Z0-9]{16} alternative would
-        // accept letters in the account portion which RO IBANs never have.
+        // RO49 RNCB 0082 ...). Step1CreditorType strips spaces and uppercases
+        // before this regex fires. The 16-character account part is
+        // alphanumeric (Treasury accounts carry letters, e.g. "XXX").
         #[Assert\Regex(
-            pattern: '/^RO\d{2}[A-Z]{4}\d{16}$/',
+            pattern: '/^RO\d{2}[A-Z]{4}[A-Z0-9]{16}$/',
             message: 'validation.iban.invalid_format',
         )]
         public ?string $iban = null,
@@ -83,6 +83,26 @@ class Step1CreditorData
         public ?string $legalRepresentative = null,
         public array $autoFilled = [],
     ) {}
+
+    public static function fromCreditor(Creditor $creditor): self
+    {
+        return new self(
+            creditorId: $creditor->getId(),
+            personType: $creditor->getPersonType(),
+            name: $creditor->getName(),
+            cui: $creditor->getCui(),
+            personalId: $creditor->getPersonalId(),
+            onrcNumber: $creditor->getOnrcNumber(),
+            address: $creditor->getAddress(),
+            addressCounty: $creditor->getAddressCounty(),
+            addressLocality: $creditor->getAddressLocality(),
+            email: $creditor->getEmail(),
+            phone: $creditor->getPhone(),
+            iban: $creditor->getIban(),
+            bankName: $creditor->getBankName(),
+            legalRepresentative: $creditor->getLegalRepresentative(),
+        );
+    }
 
     /**
      * Conditional NotBlank for PJ (CUI + ONRC) and PF (CNP).

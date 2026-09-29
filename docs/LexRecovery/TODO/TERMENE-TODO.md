@@ -33,7 +33,7 @@ L peste două zile.
 
 | # | Ce | Ce așteptăm |
 |---|---|---|
-| B1 | **Corectarea numerotării articolelor**, 1013 în 1014 și celelalte. Apare în traduceri, validatori, patru șabloane de documente și circa zece fișiere de cod. Patru apariții sunt text tipărit pe somația trimisă debitorului și pe cererea depusă la instanță | Lista completă, articol cu articol. Deplasarea nu e uniformă, deci nu se poate deduce prin regulă |
+| B1 | **Corectarea numerotării articolelor**, 1013 în 1014 și celelalte. *Aplicat parțial la 2026-09-29: somația, cererea și opisul citează art. 1.014 și art. 1.017, iar mesajele din interfață 1014 și 1017. Rămân neatinse trimiterile la 1020-1022 din interfață și comentariile din cod.* Apare în traduceri, validatori, patru șabloane de documente și circa zece fișiere de cod. Patru apariții sunt text tipărit pe somația trimisă debitorului și pe cererea depusă la instanță | Lista completă, articol cu articol. Deplasarea nu e uniformă, deci nu se poate deduce prin regulă |
 | B2 | **Modelul de timbrare.** Declanșatorul devine descoperirea numărului de dosar, cu memento la Z+1. Întrebarea e dacă ramura de regularizare dispare sau rămâne ca plasă de siguranță | Dacă renunțăm complet la ramura de regularizare |
 | B3 | **Momentul care oprește cele 6 luni.** Implementăm pe varianta depunerii, care e cea uzuală, dar întrebarea a rămas fără răspuns | Depunerea la instanță sau prima zi de judecată |
 | B4 | **Prescripția executării: art. 705 sau 706.** Mențiunea lui pare o scăpare, probabil a aplicat deplasarea de la 1013 în 1014 și aici | Confirmarea articolului, în ediția în care ordonanța de plată începe la 1014 |

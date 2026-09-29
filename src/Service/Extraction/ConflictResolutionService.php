@@ -585,7 +585,7 @@ final class ConflictResolutionService
         $valid = match ($field) {
             'cui' => PiiMasker::isValidCui(str_starts_with(strtoupper($value), 'RO') ? substr($value, 2) : $value),
             'personalId' => PiiMasker::isValidCnp($value),
-            'iban' => preg_match('/^RO\d{2}[A-Z]{4}\d{16}$/', strtoupper(str_replace(' ', '', $value))) === 1,
+            'iban' => preg_match('/^RO\d{2}[A-Z]{4}[A-Z0-9]{16}$/', strtoupper(str_replace(' ', '', $value))) === 1,
             'email' => filter_var($value, FILTER_VALIDATE_EMAIL) !== false,
             default => mb_strlen($value) <= (self::MAX_TEXT_LENGTH[$field] ?? 255),
         };

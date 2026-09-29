@@ -170,13 +170,15 @@ final class Step1CreditorType extends AbstractType
             if (!$dto instanceof Step1CreditorData) {
                 return;
             }
+            // A pick carries the creditor's own data; an empty picker means the
+            // manual fields rule, or a stale id would win at persist time.
             if ($picked instanceof Creditor) {
-                $dto->creditorId = $picked->getId();
+                foreach (get_object_vars(Step1CreditorData::fromCreditor($picked)) as $field => $value) {
+                    $dto->{$field} = $value;
+                }
+            } else {
+                $dto->creditorId = null;
             }
-            // If the user later clears the autocomplete, `creditorId` stays
-            // whatever it was rendered as (the hidden field round-trips it).
-            // The manual fill path then satisfies the `manual` group via
-            // per-property NotBlank + the conditional Callback on the DTO.
         }, priority: 10);
     }
 

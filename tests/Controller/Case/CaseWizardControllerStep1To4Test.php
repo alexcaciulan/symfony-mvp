@@ -167,6 +167,97 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         self::assertResponseRedirects('/case/new/debtor');
     }
 
+    /**
+     * The confirmation step and the documents read the step 1 DTO, so a library
+     * pick has to carry the creditor's own data, not the empty manual fields.
+     * Coming back to step 1 shows the pick again instead of an empty picker.
+     */
+    public function testLibraryPickFillsTheCreditorDataAndStaysSelected(): void
+    {
+        $existing = $this->persistLibraryCreditor('Library Creditor SRL', 'RO15193236');
+        $existing->setIban('RO49AAAA1B31007593840000');
+        $this->em->flush();
+
+        $this->postCreditorStep(['creditorEntity' => (string) $existing->getId()]);
+        self::assertResponseRedirects('/case/new/debtor');
+
+        $dto = $this->storedCreditorDto();
+        self::assertSame($existing->getId(), $dto->creditorId);
+        self::assertSame('Library Creditor SRL', $dto->name);
+        self::assertSame('RO15193236', $dto->cui);
+        self::assertSame('RO49AAAA1B31007593840000', $dto->iban);
+
+        $crawler = $this->client->request('GET', '/case/new/creditor');
+        self::assertSame(
+            (string) $existing->getId(),
+            $crawler->filter('select[name="step1_creditor[creditorEntity]"] option[selected]')->attr('value'),
+        );
+    }
+
+    /**
+     * Clearing the picker and typing another creditor must file the case under
+     * the typed one. The id of the earlier pick used to survive in the hidden
+     * field and win at persist time, so the documents named the wrong party.
+     */
+    public function testClearingTheLibraryPickFallsBackToTheManualCreditor(): void
+    {
+        $existing = $this->persistLibraryCreditor('Library Creditor SRL', 'RO15193236');
+
+        $this->postCreditorStep(['creditorEntity' => (string) $existing->getId()]);
+        self::assertResponseRedirects('/case/new/debtor');
+
+        $this->postCreditorStep([
+            'creditorEntity' => '',
+            'creditorId' => (string) $existing->getId(),
+            'personType' => PersonType::PJ->value,
+            'name' => 'Manual Creditor SRL',
+            'cui' => 'RO14186770',
+            'onrcNumber' => 'J40/1234/2018',
+            'address' => 'Str. Exemplu nr. 1, București',
+        ]);
+        self::assertResponseRedirects('/case/new/debtor');
+
+        $dto = $this->storedCreditorDto();
+        self::assertNull($dto->creditorId);
+        self::assertSame('Manual Creditor SRL', $dto->name);
+        self::assertSame('RO14186770', $dto->cui);
+    }
+
+    private function persistLibraryCreditor(string $name, string $cui): Creditor
+    {
+        $creditor = new Creditor();
+        $creditor->setUser($this->user);
+        $creditor->setPersonType(PersonType::PJ);
+        $creditor->setName($name);
+        $creditor->setAddress('Str. Bibliotecă nr. 2, Cluj-Napoca');
+        $creditor->setCui($cui);
+        $this->em->persist($creditor);
+        $this->em->flush();
+
+        return $creditor;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     */
+    private function postCreditorStep(array $fields): void
+    {
+        $crawler = $this->client->request('GET', '/case/new/creditor');
+        $token = $crawler->filter('form input[name="step1_creditor[_token]"]')->first()->attr('value');
+
+        $this->client->request('POST', '/case/new/creditor', [
+            'step1_creditor' => ['_token' => $token, ...$fields],
+        ]);
+    }
+
+    private function storedCreditorDto(): Step1CreditorData
+    {
+        $dto = $this->client->getRequest()->getSession()->get(self::SESSION_KEY)['creditor'] ?? null;
+        self::assertInstanceOf(Step1CreditorData::class, $dto);
+
+        return $dto;
+    }
+
     public function testDebtorPostWithEmptyFieldsRendersValidationErrorsAndDoesNotAdvance(): void
     {
         // Regression: previously the controller validated correctly (isValid=false

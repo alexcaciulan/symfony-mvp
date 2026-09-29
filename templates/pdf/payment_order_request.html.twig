@@ -1,4 +1,4 @@
-{# CPC art. 1013-1024: cerere de ordonanță de plată. Conținut obligatoriu per art. 1016: instanță competentă, părți, fapte, sume cerute, temei juridic, anexe. NU modifica fără confirmare juridică. #}
+{# CPC art. 1.014 și urm.: cerere de ordonanță de plată. Conținut obligatoriu per art. 1.017: instanță competentă, părți, fapte, sume cerute, temei juridic, anexe. NU modifica fără confirmare juridică. #}
 {% set creditor = case.creditor %}
 {% set debtors = case.debtors %}
 {% set principal = case.amount|default('0') %}
@@ -156,7 +156,7 @@
     </thead>
     <tbody>
         {# Several documents: each claim is shown on its own, with its own sum and its
-           own interest (CPC art. 1016 alin. 1 lit. c). A single position keeps the
+           own interest (CPC art. 1.017). A single position keeps the
            existing one-line rendering, so filed cases print exactly as before. #}
         {% if itemized %}
             {% for item in claim_items %}

@@ -174,6 +174,12 @@ class DocumentUploadServiceTest extends KernelTestCase
     protected function tearDown(): void
     {
         $conn = $this->em->getConnection();
+        // Taken before the rows go: the uploads directory is shared with the dev
+        // environment, so only this test's own case folders may be emptied.
+        $caseIds = $conn->fetchFirstColumn(
+            'SELECT lc.id FROM legal_case lc JOIN user u ON lc.user_id = u.id WHERE u.email LIKE ?',
+            [$this->testPrefix . '%'],
+        );
         $conn->executeStatement(
             "DELETE al FROM audit_log al WHERE al.entity_type = 'Document' AND al.entity_id IN (SELECT d.id FROM document d JOIN legal_case lc ON d.legal_case_id = lc.id JOIN user u ON lc.user_id = u.id WHERE u.email LIKE ?)",
             [$this->testPrefix . '%']
@@ -188,18 +194,14 @@ class DocumentUploadServiceTest extends KernelTestCase
         );
         $conn->executeStatement("DELETE FROM user WHERE email LIKE ?", [$this->testPrefix . '%']);
 
-        // Cleanup uploaded files
-        $casesDir = $this->uploadsDir . '/cases';
-        if (is_dir($casesDir)) {
-            $dirs = glob($casesDir . '/*', GLOB_ONLYDIR);
-            foreach ($dirs as $dir) {
-                $files = glob($dir . '/*');
-                foreach ($files as $file) {
-                    if (is_file($file)) {
-                        unlink($file);
-                    }
+        foreach ($caseIds as $caseId) {
+            $dir = $this->uploadsDir . '/cases/' . $caseId;
+            foreach (glob($dir . '/*') ?: [] as $file) {
+                if (is_file($file)) {
+                    unlink($file);
                 }
             }
+            @rmdir($dir);
         }
 
         parent::tearDown();

@@ -115,7 +115,8 @@ final class OpisGeneratorServiceTest extends KernelTestCase
 
         self::assertStringContainsString('OPIS DE DOCUMENTE', $html);
         self::assertStringContainsString($this->case->getCaseNumber(), $html);
-        self::assertStringContainsString('1016', $html, 'Anexă CPC art. 1016 citată în subheading.');
+        self::assertStringContainsString('art. 1.017', $html, 'Anexă CPC art. 1.017 citată în subheading.');
+        self::assertStringNotContainsString('1016', $html);
     }
 
     public function testRenderHtmlListsDocumentsNumbered(): void

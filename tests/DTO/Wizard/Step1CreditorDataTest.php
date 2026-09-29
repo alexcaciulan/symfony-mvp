@@ -237,6 +237,16 @@ final class Step1CreditorDataTest extends KernelTestCase
         self::assertSame('validation.iban.invalid_format', $violations[0]->getMessageTemplate());
     }
 
+    public function testIbanWithLettersInAccountPartIsAccepted(): void
+    {
+        // Treasury accounts carry letters in the 16-character account part.
+        foreach (['RO49AAAA1B31007593840000', 'RO12TREZ70020A335000XXXX'] as $iban) {
+            $violations = $this->validator->validate(new Step1CreditorData(creditorId: 1, iban: $iban));
+
+            self::assertCount(0, $violations, $iban . ': ' . (string) $violations);
+        }
+    }
+
     public function testInvalidCnpIsRejected(): void
     {
         $dto = new Step1CreditorData(
