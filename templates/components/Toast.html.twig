@@ -11,8 +11,12 @@
 {% set _base = 'pointer-events-auto border rounded-lg shadow-lg px-4 py-3 mb-2 text-sm flex items-start gap-3 max-w-sm ' ~ classes %}
 {# `attributes` e auto-injectat doar când componenta e randată prin `<twig:Toast>`;
    cu `{% include %}` nu există. Suportăm ambele moduri (vezi base.html.twig). #}
+{# Self-dismissing: the toast controller only enhances nodes present at page load,
+   so Turbo-Stream-appended toasts need their own timer and close button. Errors and
+   warnings stay longer because they usually ask the lawyer to act. #}
+{% set _timeout = (variant ?? 'info') in ['error', 'warning'] ? 8000 : 5000 %}
 <div role="status" aria-live="polite"
-     {% if attributes is defined %}{{ attributes.defaults({ class: _base }) }}{% else %}class="{{ _base }}"{% endif %}>
+     {% if attributes is defined %}{{ attributes.defaults({ class: _base, 'data-controller': 'autoremove', 'data-autoremove-timeout-value': _timeout }) }}{% else %}class="{{ _base }}" data-controller="autoremove" data-autoremove-timeout-value="{{ _timeout }}"{% endif %}>
     <div class="flex-1">
         <p class="font-medium">{{ message }}</p>
         {% if details is defined and details is not null and details|length > 0 %}
@@ -21,4 +25,5 @@
             </ul>
         {% endif %}
     </div>
+    <button type="button" class="opacity-60 hover:opacity-100 leading-none text-lg" aria-label="{{ 'common.close'|trans }}" data-toast-close data-action="click->autoremove#dismiss">&times;</button>
 </div>
