@@ -5,10 +5,13 @@ Stare la 2026-09-29. Fiecare punct a fost verificat în cod (analiză plus conte
 ## Rezolvat în runda 2026-09-29
 
 - **Concordanța somație / cerere (fostul punct 7).** Testul `SummonsPaymentOrderConcordanceTest` confirmă că cererea cere exact principalul, accesoriile și totalul din somație, pe ambele ramuri (dobândă legală, penalitate contractuală), cu două facturi și o notă de credit. Testul pică dacă cererea ar calcula la data de azi în loc de data somației.
-- **Numerotarea articolelor în cerere și opis.** Cererea citează acum „art. 1.014 și următoarele” și „art. 1.017”, iar opisul „CPC art. 1.017”, la fel ca somația. Intervalul „1013-1024” nu a fost înlocuit cu alt interval, pentru că al doilea capăt nu a fost confirmat. Mesajele din interfață trec de la 1013 la 1014 și de la „1016 alin. 2” la „1017 alin. 2” (alineatul e presupus neschimbat).
+- **Numerotarea articolelor în cerere și opis.** Cererea citează acum „art. 1.014 și următoarele”, „art. 1.015” (în expunerea de fapt, în același format cu punct) și „art. 1.017”, iar opisul „CPC art. 1.017”, la fel ca somația. Intervalul „1013-1024” nu a fost înlocuit cu alt interval, pentru că al doilea capăt nu a fost confirmat. Mesajele din interfață trec de la 1013 la 1014 și de la „1016 alin. 2” la „1017 alin. 2” (alineatul e presupus neschimbat).
 - **Suma golită în pasul „Creanță”.** Inputul primea un `value=""` înaintea valorii reale, iar browserul îl afișa pe primul. Defectul apărea și la prima afișare, și la scadență.
 - **Creditorul ales din bibliotecă.** Datele creditorului ales ajung acum în pasul de confirmare, iar alegerea rămâne selectată la revenirea pe pas. Totodată, golirea selecției și completarea manuală a altui creditor nu mai leagă dosarul de creditorul ales anterior. Înainte, id-ul rămas în câmpul ascuns câștiga la salvare, iar somația și cererea ieșeau pe numele creditorului greșit.
 - **Validarea IBAN.** Partea de cont acceptă 16 caractere alfanumerice (conturile de Trezorerie conțin litere), la fel ca validatorul Symfony pentru RO.
+- **Testul care ștergea documentele din dev.** `DocumentUploadServiceTest` golea la final toate directoarele din `var/uploads/cases`, care e comun testelor și mediului de dezvoltare. Fiecare rulare completă a testelor ștergea astfel PDF-urile reale ale dosarelor din dev. Acum șterge doar directoarele dosarelor create de el. Rămâne de făcut un director de upload separat pentru teste.
+
+Verificat live în browser pe un dosar nou (55), creat prin wizard: creditorul ales și apoi înlocuit manual, IBAN-uri cu litere, mesajul pentru scadență viitoare, apoi somația, cererea și opisul. Somația și cererea au aceleași sume (principal 12.345,67, dobândă 2.785,72, total 15.131,39). Livrat în `lexrecovery` prin merge `00e5046`.
 
 ## Rămas, cu motivul
 
@@ -53,6 +56,7 @@ Stare la 2026-09-29. Fiecare punct a fost verificat în cod (analiză plus conte
 
 ## Date de test rămase în mediul de dezvoltare
 
-- **Dosare:** patru dosare noi (50–53), toate în starea „Somație trimisă”. Dosarul 53 are două poziții adăugate direct în baza de date.
+- **Dosarele 50–53** sunt în starea „Somație trimisă”, cu excepția lui 53, trecut la testul live în „Cerere generată” (dovadă de comunicare de test, timbrare ulterioară). Fișierele somațiilor lor au fost șterse de testul de upload descris mai sus, deci nu se mai pot descărca. Dosarul 53 are două poziții adăugate direct în baza de date.
+- **Dosarul 55**, creat la testul live, are creditorul nou „SC Live Manual Test SRL” (IBAN de Trezorerie) și conține somație, dovadă de comunicare de test, cerere și opis.
 - **Abonament:** abonamentul avocatului de test e prelungit până la 21.10.2026.
 - **Creditor suprascris:** creditorul dosarului 50 a primit numele „SC Fara Cont Test SRL”, din cauza suprascrierii după CUI.
