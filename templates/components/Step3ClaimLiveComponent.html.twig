@@ -54,13 +54,15 @@
                     <div>
                         {{ f.field_label(form.amount, 'wizard.step3.field.amount', false, true) }}
                         <div class="relative">
+                            {# The value is overridden only when derived: a null value
+                               attribute renders as value="" ahead of the real one,
+                               and the browser shows the first, i.e. an empty field. #}
                             {{ form_widget(form.amount, { attr: {
                                 class: f.input_classes(form.amount, 'pr-14 tnum' ~ (derived_from_positions ? ' bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300' : ''))|trim,
                                 inputmode: 'decimal',
                                 placeholder: '47500.00',
                                 readonly: derived_from_positions,
-                                value: derived_from_positions ? this.positionPrincipal|number_format(2, '.', '') : null,
-                            }}) }}
+                            }|merge(derived_from_positions ? { value: this.positionPrincipal|number_format(2, '.', '') } : {}) }) }}
                             <span class="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500 dark:text-slate-400 pointer-events-none">{{ derived_from_positions ? 'RON' : currency }}</span>
                         </div>
                         {% if derived_from_positions %}
@@ -82,8 +84,7 @@
                         {{ form_widget(form.dueDate, { attr: {
                             class: f.input_classes(form.dueDate, derived_from_positions ? 'bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300' : '')|trim,
                             readonly: derived_from_positions,
-                            value: derived_from_positions and this.positionDueDate ? this.positionDueDate : null,
-                        }}) }}
+                        }|merge(derived_from_positions and this.positionDueDate ? { value: this.positionDueDate } : {}) }) }}
                         <p class="mt-1 text-[11px] text-slate-500">
                             {{ derived_from_positions ? 'wizard.step3.derived_from_positions.due_date'|trans : 'wizard.step3.help.due_date'|trans }}
                         </p>

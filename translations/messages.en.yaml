@@ -255,7 +255,7 @@ wizard:
         help:
             title: 'About this step'
             body: 'If the creditor is already in your cabinet catalog you can pick them. Otherwise fill in the manual fields: person type, name, address. CUI and ONRC are optional for individuals.'
-            iban_format: 'Format: RO + 2 digits + 4 bank letters + 16 account digits. Spaces are allowed (stripped on validation).'
+            iban_format: 'Format: RO + 2 digits + 4 bank letters + 16 account characters (digits or letters). Spaces are allowed (stripped on validation).'
             anaf_lookup: 'Press "Sync ANAF data" to fill in the company details from the ANAF registry.'
             stamp_duty_uat: 'The locality of the registered office decides the town hall where the stamp duty is paid (OUG 80/2013 art. 40).'
         toggle:
@@ -419,7 +419,7 @@ wizard:
             description: 'Amounts due on %count% unpaid invoices: %numbers%.'
             description_generic: 'Amounts due on %count% unpaid invoices.'
         help:
-            due_date: 'Due date must be in the past or today (claim must be exigible, CPC art. 1013).'
+            due_date: 'Due date must be in the past or today (claim must be exigible, CPC art. 1014).'
             contractual_penalty_rate: 'E.g. 0.10 for 0.10%/day of delay, per the penalty clause in the contract.'
             contractual_accessory_label: 'The notice uses the contract''s own term in every sentence about the accessory.'
             penalty_clause_text: 'Quoted in the notice. Left empty, the notice only says the parties agreed a penalty clause.'
@@ -1326,7 +1326,7 @@ case_overview:
         generate_op_stamp_duty_blocked_body: 'The proof of payment is attached to the petition, and failure to pay the duty annuls it (CCP art. 197). Upload the proof, or take responsibility for paying the duty later.'
         generate_op_communication_proof_attached: 'The proof of communication of the summons is attached. It goes into the package filed with the court.'
         generate_op_communication_proof_blocked_title: 'The proof of communication of the summons is missing'
-        generate_op_communication_proof_blocked_body: 'The proof of communication of the summons is attached to the petition under sanction of it being dismissed as inadmissible (CCP art. 1016 para. 2). The summons is served on the debtor through a bailiff or by registered letter with declared content and acknowledgement of receipt (CCP art. 1015 para. 1), and the court is shown the bailiff record or the acknowledgement of receipt. Upload it as "Proof of communication" and the generate button unlocks.'
+        generate_op_communication_proof_blocked_body: 'The proof of communication of the summons is attached to the petition under sanction of it being dismissed as inadmissible (CCP art. 1017 para. 2). The summons is served on the debtor through a bailiff or by registered letter with declared content and acknowledgement of receipt (CCP art. 1015 para. 1), and the court is shown the bailiff record or the acknowledgement of receipt. Upload it as "Proof of communication" and the generate button unlocks.'
         generate_op_communication_proof_cta_upload: 'Upload the proof of communication'
         generate_op_communication_proof_cta_methods: 'See the lawful methods'
         generate_op_cancel: 'Cancel'
@@ -1659,7 +1659,7 @@ pdf:
             lawyer: 'Lawyer'
     payment_order:
         heading: 'PAYMENT ORDER PETITION'
-        subheading: 'Filed under art. 1013-1024 of the Romanian Code of Civil Procedure'
+        subheading: 'Filed under art. 1.014 et seq. of the Romanian Code of Civil Procedure'
         legal_basis_short: 'Special procedure for the payment order'
         case_reference: 'Internal case reference'
         court_block_title: 'To'
@@ -1671,7 +1671,7 @@ pdf:
         claim_intro: 'The undersigned creditor %creditor% hereby files this payment-order petition against the debtor %debtor%, seeking judgment ordering payment of the outstanding amounts due.'
         claim_object_label: 'Subject of the claim'
         facts_title: 'Statement of facts'
-        facts_body: 'The claim became due on %due_date%. The payment notice under CPC art. 1015 was served on the debtor on %notice_date%, without payment being made within the legal deadline. The outstanding principal amount is %amount% %currency%.'
+        facts_body: 'The claim became due on %due_date%. The payment notice under CPC art. 1.015 was served on the debtor on %notice_date%, without payment being made within the legal deadline. The outstanding principal amount is %amount% %currency%.'
         amounts_table_title: 'Amounts claimed'
         amount_label: 'Category'
         amount_value: 'Amount'
@@ -1683,7 +1683,7 @@ pdf:
         amount_principal_item: 'Invoice %number% (issued %date%, due %due_date%)'
         amount_principal_total: 'Total principal'
         amount_interest_item: 'interest %sum% %currency%'
-        facts_body_items: 'The claim arises from %count% documents with distinct due dates, itemized in the table below, the earliest being %due_date%. The payment notice under CPC art. 1015 was served on the debtor on %notice_date%, without payment being made within the legal deadline. The outstanding principal, cumulated, is %amount% %currency%.'
+        facts_body_items: 'The claim arises from %count% documents with distinct due dates, itemized in the table below, the earliest being %due_date%. The payment notice under CPC art. 1.015 was served on the debtor on %notice_date%, without payment being made within the legal deadline. The outstanding principal, cumulated, is %amount% %currency%.'
         amount_interest_item_unavailable: 'interest undetermined'
         amount_principal_item_fx: '%amount% %currency% x NBR rate %rate% of %rate_date%'
         art99_note: 'Note on competence (CPC art. 99): the claims brought arise from the same legal relationship, so the value of the subject matter is the sum of the heads set out above. The value of each claim is stated individually in the amounts table.'
@@ -1696,9 +1696,9 @@ pdf:
         costs_stamp_duty_deferred: 'Judicial stamp duty: %amount% RON, to be paid under art. 33 para. 2 of OUG 80/2013, with the proof filed with the court.'
         costs_lawyer_fee: 'Lawyer fee: %fixed% %currency%, under the legal assistance contract, to be evidenced by the documents filed with the court.'
         legal_basis_title: 'Legal basis'
-        legal_basis_body: 'Art. 1013-1024 of the Romanian Code of Civil Procedure (special procedure for the payment order). Certain, liquid and exigible claim arising from a contractual relationship between professionals. Substantive prescription is 3 years under NCC art. 2517.'
+        legal_basis_body: 'Art. 1.014 et seq. of the Romanian Code of Civil Procedure (special procedure for the payment order). Certain, liquid and exigible claim arising from a contractual relationship between professionals. Substantive prescription is 3 years under NCC art. 2517.'
         annexes_title: 'Annexes'
-        annexes_body: 'The list of attached documents is detailed in the documents index appended to this petition (CPC art. 1016 para. 1 lit. f).'
+        annexes_body: 'The list of attached documents is detailed in the documents index appended to this petition (art. 1.017 of the Romanian Code of Civil Procedure).'
         creditor_missing: '(creditor data missing, please complete the case profile)'
         debtor_missing: '(debtor data missing, please complete the case profile)'
         field_name: 'Name'
@@ -1713,7 +1713,7 @@ pdf:
         footer_disclaimer: 'Document generated electronically through the LexRecovery platform. Filing with the competent court is done with proof of delivery.'
     document_index:
         heading: 'DOCUMENTS INDEX'
-        subheading: 'Annex to the payment-order petition (CPC art. 1016)'
+        subheading: 'Annex to the payment-order petition (CPC art. 1.017)'
         case_reference: 'Internal case'
         creditor_label: 'Creditor'
         issued_label: 'Issued on'
@@ -2403,7 +2403,7 @@ home:
             description: 'Automatic generation of procedural documents, no copy-paste between templates.'
         sigur:
             title: 'Reliable'
-            description: 'OUG 80/2013 + CPC art. 1013-1024 compliant. Automatic interest (OG 13/2011) and stamp duty calculations.'
+            description: 'OUG 80/2013 + CPC art. 1.014 et seq. compliant. Automatic interest (OG 13/2011) and stamp duty calculations.'
         clar:
             title: 'Clear'
             description: 'All deadlines on one dashboard. Proactive notifications as deadlines approach.'
@@ -2463,7 +2463,7 @@ court:
         art99_cause_unattributable: 'The file states several causes (%causes%) and some positions do not say which contract they arise from. Fill in the cause of each position at step 3, or pick the court manually: the grouping decides material competence, which is of public order (CPC art. 99).'
 
 # =============================================================================
-# Payment order admissibility (CPC art. 1013 + Law 85/2014)
+# Payment order admissibility (CPC art. 1014 + Law 85/2014)
 # Messages for OpAdmissibilityValidator — shown in wizard / PDF block.
 # =============================================================================
 validation:
@@ -2476,12 +2476,12 @@ validation:
         OP_INSOLVENCY_NOT_VERIFIED: 'Verify the debtor''s insolvency status on bpi.just.ro and confirm in the UI before filing (attach the BPI proof PDF).'
         OP_INSOLVENCY_STALE: 'The BPI (insolvency) check is older than 7 days. Re-verify on bpi.just.ro and update the proof; insolvency status changes rapidly.'
         OP_PF_BIPF_MANUAL_CHECK: 'Individual debtor: manually verify BIPF (Personal Insolvency Bulletin, Law 151/2015) on bpi.just.ro before filing.'
-        OP_ITEM_NOT_YET_DUE: 'One claim position has a due date in the future. The claim is not yet due and payable (CPC art. 1013) and the petition is inadmissible for that sum. Correct the due date, exclude the position, or wait until the term falls due.'
+        OP_ITEM_NOT_YET_DUE: 'One claim position has a due date in the future. The claim is not yet due and payable (CPC art. 1014) and the petition is inadmissible for that sum. Correct the due date, exclude the position, or wait until the term falls due.'
         OP_ITEM_DUE_DATE_MISSING: 'One claim position has no due date. Without one, exigibility cannot be proven and no interest is computed. Supply the date or exclude the position.'
         OP_ITEM_PRESCRIBED: 'One claim position fell due more than 3 years ago, so the prescription term appears to have run (Civil Code art. 2517, running from each invoice due date). The court does not apply prescription of its own motion (art. 2512), but the debtor may raise it, and in the payment-order procedure a defence requiring further evidence can lead to the petition being dismissed, with the creditor directed to ordinary proceedings (CPC art. 1021 para. 2). Decide explicitly whether to keep this head.'
-        OP_ITEM_UNIMPUTED_PAYMENT: 'One claim position carries a recorded payment that has not been imputed. The sum claimed stays the invoiced one, because imputation follows Civil Code art. 1507-1509 and is your decision. Check that the sum claimed is still certain (CPC art. 1013 para. 1).'
-        OP_ITEM_STATED_DEDUCTION: 'One claim position mentions a deduction in its description (advance, retention, partial payment). The sum claimed is the invoiced total, not the difference. Check the document and correct the position before filing: a partly settled claim is not certain (CPC art. 1013 para. 1).'
-        OP_DEBT_NOT_YET_DUE: 'The claim''s due date is in the future. The claim is not yet due and payable (CPC art. 1013) and the payment order petition is inadmissible: payment cannot be demanded before the due date. Correct the due date or wait until the term falls due.'
+        OP_ITEM_UNIMPUTED_PAYMENT: 'One claim position carries a recorded payment that has not been imputed. The sum claimed stays the invoiced one, because imputation follows Civil Code art. 1507-1509 and is your decision. Check that the sum claimed is still certain (CPC art. 1014 para. 1).'
+        OP_ITEM_STATED_DEDUCTION: 'One claim position mentions a deduction in its description (advance, retention, partial payment). The sum claimed is the invoiced total, not the difference. Check the document and correct the position before filing: a partly settled claim is not certain (CPC art. 1014 para. 1).'
+        OP_DEBT_NOT_YET_DUE: 'The claim''s due date is in the future. The claim is not yet due and payable (CPC art. 1014) and the payment order petition is inadmissible: payment cannot be demanded before the due date. Correct the due date or wait until the term falls due.'
 
 # =============================================================================
 # Email notifications (EmailNotificationSubscriber + templates/emails/)
@@ -2847,7 +2847,7 @@ deadlines:
         SUMMONS_PROOF_MISSING:
             label: 'The proof of communication of the summons is missing'
             missing: 'The proof of communication, at filing'
-            legal_basis: 'CPC art. 1016 para. 2'
+            legal_basis: 'CPC art. 1017 para. 2'
             state: 'No proof attached'
             cause: 'The communication date is recorded and the 15-day term is running. The proof of communication, however, is not attached to the case.'
             consequence: 'The payment order request cannot be generated without the proof: the proof of communication is attached to the petition under sanction of it being dismissed as inadmissible, and the court is shown the bailiff record or the acknowledgement of receipt, not the date you stated. Attach the proof now, while you can still ask the bailiff or the post office for a copy, rather than on the day the package has to be filed.'

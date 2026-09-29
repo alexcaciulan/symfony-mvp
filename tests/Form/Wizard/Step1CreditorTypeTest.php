@@ -30,7 +30,12 @@ final class Step1CreditorTypeTest extends KernelTestCase
         $this->factory = self::getContainer()->get(FormFactoryInterface::class);
     }
 
-    public function testSubmitWithCreditorIdOnlyIsValid(): void
+    /**
+     * Only the library picker selects an existing creditor. An id left in the
+     * hidden field by an earlier pick must not survive an empty picker, or the
+     * case would be filed under that creditor instead of the one typed in.
+     */
+    public function testCreditorIdWithoutALibraryPickIsIgnored(): void
     {
         $form = $this->buildForm();
         $form->submit([
@@ -38,10 +43,10 @@ final class Step1CreditorTypeTest extends KernelTestCase
         ]);
 
         self::assertTrue($form->isSubmitted());
-        self::assertTrue($form->isValid(), (string) $form->getErrors(true));
+        self::assertFalse($form->isValid());
         $dto = $form->getData();
         self::assertInstanceOf(Step1CreditorData::class, $dto);
-        self::assertSame(42, $dto->creditorId);
+        self::assertNull($dto->creditorId);
     }
 
     public function testSubmitWithFullManualFillIsValid(): void

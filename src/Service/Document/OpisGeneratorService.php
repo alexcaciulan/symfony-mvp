@@ -12,7 +12,7 @@ use App\Enum\DocumentType;
 /**
  * Generează opisul documentelor (lista numerotată cu toate documentele
  * atașate dosarului). Anexă obligatorie a cererii de ordonanță de plată
- * (CPC art. 1016 alin. (1) lit. f). Sortare: SOMATIE prima, apoi
+ * (CPC art. 1.017). Sortare: SOMATIE prima, apoi
  * DOVADA_COMUNICARE, apoi restul cronologic după createdAt.
  */
 final class OpisGeneratorService extends AbstractPdfGenerator
@@ -39,8 +39,8 @@ final class OpisGeneratorService extends AbstractPdfGenerator
 
     /**
      * Listă sortată SOMATIE → DOVADA_COMUNICARE → restul. Opisul + cererea OP
-     * sunt excluse: opisul listează ANEXELE cererii (CPC art. 1016 alin. 1
-     * lit. f), iar cererea însăși NU este o anexă a propriei cereri.
+     * sunt excluse: opisul listează ANEXELE cererii (CPC art. 1.017),
+     * iar cererea însăși NU este o anexă a propriei cereri.
      *
      * @return array<string, mixed>
      */

@@ -92,6 +92,30 @@ final class Step3ClaimLiveComponentTest extends WebTestCase
         self::assertGreaterThan(0.0, $interest->total);
     }
 
+    /**
+     * Without positions the amount and the due date are typed by hand. An
+     * empty value attribute rendered before the real one made the browser
+     * show the fields blank, even though the component still held the values.
+     */
+    public function testHandTypedAmountAndDueDateAreRenderedInTheirInputs(): void
+    {
+        $html = $this->mount(new Step3ClaimData(
+                amount: 1234.5,
+                currency: 'RON',
+                dueDate: new \DateTimeImmutable('2025-03-10'),
+                relationshipType: RelationshipType::COMERCIAL,
+            ))->render()->toString();
+
+        self::assertMatchesRegularExpression('/<input[^>]*name="step3_claim\\[amount\\]"[^>]*>/', $html);
+        preg_match('/<input[^>]*name="step3_claim\\[amount\\]"[^>]*>/', $html, $amount);
+        preg_match('/<input[^>]*name="step3_claim\\[dueDate\\]"[^>]*>/', $html, $dueDate);
+
+        self::assertSame(1, preg_match_all('/\svalue="/', $amount[0]), $amount[0]);
+        self::assertStringContainsString('value="1234.5', $amount[0]);
+        self::assertSame(1, preg_match_all('/\svalue="/', $dueDate[0]), $dueDate[0]);
+        self::assertStringContainsString('value="2025-03-10"', $dueDate[0]);
+    }
+
     public function testFutureDueDateReturnsNullInterest(): void
     {
         $testComponent = $this->mount(new Step3ClaimData(

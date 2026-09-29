@@ -18,11 +18,11 @@ use Symfony\Bundle\SecurityBundle\Security;
 use Twig\Environment;
 
 /**
- * Generează cererea de ordonanță de plată (CPC art. 1013-1024).
+ * Generează cererea de ordonanță de plată (CPC art. 1.014 și urm.).
  *
  * Documentul cu care creditorul se adresează instanței competente după ce
  * somația (CPC art. 1015) a fost comunicată debitorului fără rezultat. Conține
- * elementele obligatorii prevăzute la CPC art. 1016: instanța competentă,
+ * elementele obligatorii prevăzute la CPC art. 1.017: instanța competentă,
  * datele părților, expunerea faptelor, sumele cerute (principal + dobândă +
  * cheltuieli judiciare), temei juridic și anexe (referință la opis).
  */
@@ -55,7 +55,7 @@ final class PaymentOrderRequestGeneratorService extends AbstractPdfGenerator
         return [
             ...parent::templateContext($case),
             'stamp_duty_amount' => (float) ($case->getStampDuty() ?? $this->stampDutyCalculator->calculate()->amount),
-            // CPC art. 1016 alin. (1) lit. c: the sums and what they rest on. A
+            // CPC art. 1.017: the sums and what they rest on. A
             // file with several invoices states each of them, with its own
             // interest, instead of one merged figure the debtor cannot check.
             'claim_items' => $items,

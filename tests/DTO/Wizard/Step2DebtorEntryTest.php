@@ -39,6 +39,39 @@ final class Step2DebtorEntryTest extends KernelTestCase
         self::assertCount(0, $violations, (string) $violations);
     }
 
+    public function testIbanWithLettersInAccountPartIsAccepted(): void
+    {
+        $dto = new Step2DebtorEntry(
+            personType: PersonType::PJ,
+            name: 'SC Bar SRL',
+            cui: '14186770',
+            onrcNumber: 'J40/8765/2019',
+            address: 'Bd. Test 2, Cluj-Napoca',
+            iban: 'RO12TREZ70020A335000XXXX',
+            insolvencyCheckedAt: new \DateTimeImmutable(),
+        );
+
+        self::assertCount(0, $this->validator->validate($dto));
+    }
+
+    public function testIbanWithWrongLengthIsRejected(): void
+    {
+        $dto = new Step2DebtorEntry(
+            personType: PersonType::PJ,
+            name: 'SC Bar SRL',
+            cui: '14186770',
+            onrcNumber: 'J40/8765/2019',
+            address: 'Bd. Test 2, Cluj-Napoca',
+            iban: 'RO12TREZ70020A335000XXX',
+            insolvencyCheckedAt: new \DateTimeImmutable(),
+        );
+
+        $violations = $this->validator->validate($dto);
+
+        self::assertCount(1, $violations);
+        self::assertSame('validation.iban.invalid_format', $violations[0]->getMessageTemplate());
+    }
+
     /**
      * A PF debtor is valid WITHOUT a BPI attestation: BPI (Legea 85/2014) covers
      * legal entities searchable by CUI, while an individual's insolvency lives in

@@ -1,33 +1,26 @@
 # Somația de plată V2: ce a rămas neimplementat sau de clarificat
 
-Stare la 2026-09-28, după commit-ul `6b245e3` pe `feature/somatie-avocat-v2`.
+Stare la 2026-09-29. Fiecare punct a fost verificat în cod (analiză plus contestare independentă) pe branch-ul `feature/somatie-v2-followups`. Ce era necesar s-a rezolvat. Restul fie așteaptă un răspuns al avocatului, fie nu se poate produce azi.
 
-## Neimplementat, în ordinea importanței
+## Rezolvat în runda 2026-09-29
 
-1. **Blocarea generării când datele nu permit o somație corectă.** Butonul „Trimite somația” ar trebui ascuns, cu motivul afișat în locul lui, în toate cele 4 locuri de unde se poate genera: butonul principal din pagina dosarului, lista de documente, acțiunile recomandate și agenda de termene. Cazurile de blocat:
-   - dosar marcat „penalitate contractuală”, dar fără rată. Azi somația iese cu dobândă legală etichetată drept penalitate contractuală și fără tabel de calcul. E singurul caz care produce un document juridic greșit, deci are prioritate. Wizard-ul nu mai permite un dosar nou așa, dar pot exista dosare vechi;
-   - nicio factură nu are scadență sau sumă, deci nu se poate calcula nimic;
-   - o factură nu e încă scadentă la data generării, deci creanța nu e exigibilă.
+- **Concordanța somație / cerere (fostul punct 7).** Testul `SummonsPaymentOrderConcordanceTest` confirmă că cererea cere exact principalul, accesoriile și totalul din somație, pe ambele ramuri (dobândă legală, penalitate contractuală), cu două facturi și o notă de credit. Testul pică dacă cererea ar calcula la data de azi în loc de data somației.
+- **Numerotarea articolelor în cerere și opis.** Cererea citează acum „art. 1.014 și următoarele” și „art. 1.017”, iar opisul „CPC art. 1.017”, la fel ca somația. Intervalul „1013-1024” nu a fost înlocuit cu alt interval, pentru că al doilea capăt nu a fost confirmat. Mesajele din interfață trec de la 1013 la 1014 și de la „1016 alin. 2” la „1017 alin. 2” (alineatul e presupus neschimbat).
+- **Suma golită în pasul „Creanță”.** Inputul primea un `value=""` înaintea valorii reale, iar browserul îl afișa pe primul. Defectul apărea și la prima afișare, și la scadență.
+- **Creditorul ales din bibliotecă.** Datele creditorului ales ajung acum în pasul de confirmare, iar alegerea rămâne selectată la revenirea pe pas. Totodată, golirea selecției și completarea manuală a altui creditor nu mai leagă dosarul de creditorul ales anterior. Înainte, id-ul rămas în câmpul ascuns câștiga la salvare, iar somația și cererea ieșeau pe numele creditorului greșit.
+- **Validarea IBAN.** Partea de cont acceptă 16 caractere alfanumerice (conturile de Trezorerie conțin litere), la fel ca validatorul Symfony pentru RO.
 
-   Dacă cererea de generare ajunge totuși la server, răspunsul trebuie să arate motivul pe loc, fără reîncărcarea paginii.
+## Rămas, cu motivul
 
-2. **Plățile parțiale nu sunt scăzute.** Aplicația permite înregistrarea unei plăți parțiale pe o factură, dar somația cere tot soldul inițial, deci o sumă mai mare decât cea datorată. Până la decizia avocatului, minimul ar fi un avertisment vizibil înainte de generare: „există plăți parțiale înregistrate care nu sunt reflectate în sold”.
-
-3. **Nota de credit nu reduce baza de calcul a dobânzii.** Principalul scade corect cu valoarea notei, dar dobânda se calculează pe facturile întregi. Exemplu: facturi de 10.000 + 6.000 și o notă de credit de 1.500 pe prima factură dau un principal de 14.500, dar dobânda se calculează pe 16.000.
-
-4. **Dosarele cu mai mulți debitori.** Somația e adresată doar primului debitor, dar cuprinde facturile tuturor. Primul debitor ar primi astfel și facturile altuia.
-
-5. **Editarea câmpurilor noi pe dosarele deja create.** Obiectul contractului, articolul și textul clauzei, denumirea accesoriilor, numărul somației și rata se pot completa doar în wizard, la crearea dosarului. Dosarele existente nu le pot primi, așa că somația lor folosește formulările generice de rezervă.
-
-6. **Numărul somației se cere prea devreme.** Acum se introduce în wizard, deși numărul din registrul de ieșire al cabinetului se atribuie de obicei la emitere. Ar fi mai firesc un câmp opțional lângă butonul de generare.
-
-7. **Concordanța dintre somație și cererea de ordonanță.** Data somației se salvează acum înainte de generarea PDF-ului, ca ambele documente să calculeze dobânda până la aceeași dată. Lipsește un test care să confirme că sumele din cele două documente coincid.
-
-8. **Completarea automată din contract.** Articolul și textul clauzei penale, obiectul contractului și denumirea accesoriilor ar putea fi extrase de AI din contractul încărcat. Asta presupune trimiterea contractului la un serviciu AI, deci acordul clientului și respectarea secretului profesional.
-
-9. **Mărunțișuri.**
-   - Fraza „La aceste sume se adaugă dobânda…” apare și când accesoriul e 0, adică scadența e chiar în ziua generării.
-   - Câmpurile noi lipsesc din interfața de administrare.
+1. **Poarta de readiness înainte de generare (fostul punct 1).** Nu se poate ajunge azi în niciuna dintre stările descrise. Wizard-ul cere rata pe ramura contractuală din prima zi a acestui mod, scadența e obligatorie și nu poate fi în viitor, iar o poziție nescadentă dă eroare de admisibilitate. Dosarul nu se poate edita după creare (nici din administrare). În baza de dev nu există niciun dosar afectat. Devine necesar odată cu punctul 5: atunci constrângerile din `Step3ClaimData` se pun și în formularul de editare, iar `CaseSummonsController::generate` primește o gardă scurtă, cu răspuns prin `respond()` (Turbo Stream cu toast), după modelul din `CasePaymentOrderController`.
+2. **Plățile parțiale (fostul punct 2).** Premisa era greșită: suma achitată pe factură nu se completează din niciun flux, deci somația nu poate ignora o plată înregistrată. Plățile menționate în documente sunt doar semnalate în wizard (scăzământ în descriere, plată în extras) și cer confirmare individuală. Decizia de fond rămâne întrebarea 4.
+3. **Nota de credit și baza dobânzii (fostul punct 3).** Confirmat: principalul scade cu nota, dobânda se calculează pe facturile întregi. Corectarea cere o regulă juridică (dobânda pe partea stornată până la data notei sau deloc), deci așteaptă întrebarea 15. Somația și cererea rămân consecvente între ele.
+4. **Mai mulți debitori (fostul punct 4).** Pozițiile nu sunt legate de un anumit debitor, deci nu e vorba de „facturile altuia”. Problema reală e că doar primul debitor primește somație. Așteaptă întrebarea 7.
+5. **Editarea câmpurilor pe dosarele existente.** Lipsa e generală: după creare nu se poate edita nimic din dosar (nici suma, nici părțile). Un formular doar pentru clauză ar fi parțial și ar trebui refăcut după întrebările 8, 11 și 12. PDF-ul folosește formulările de rezervă, deci nu iese greșit.
+6. **Numărul somației.** Așteaptă întrebarea 10. Dacă se mută la generare, câmpul trebuie pus în ambele formulare vizibile din pagina dosarului (butonul principal și lista de documente), nu doar într-unul. Altfel numărul s-ar pierde, pentru că somația nu se mai poate regenera după trimitere.
+7. **Completarea automată din contract.** Așteaptă întrebarea 8 și rezolvarea secretului profesional (AI Vision nu a rulat în producție).
+8. **Fraza „La aceste sume se adaugă dobânda…” la accesoriu 0.** Nu se schimbă. Fraza anunță dobânda care va curge de acum înainte, iar asta rămâne adevărat și când accesoriul calculat până la data somației e 0.
+9. **Câmpurile noi în administrare.** Nu se adaugă: panoul e numai pentru citire pe dosare, deci nu aduce nimic documentului.
 
 ## De clarificat cu avocatul
 
@@ -47,18 +40,16 @@ Stare la 2026-09-28, după commit-ul `6b245e3` pe `feature/somatie-avocat-v2`.
 14. **Creanțe în valută.** Sub fiecare factură convertită apare nota „X EUR × curs BNR Y din data Z”. O păstrăm?
 15. **Nota de credit.** Trebuie să reducă suma pe care se calculează dobânda pentru factura pe care o corectează?
 16. **Ziua schimbării ratei BNR.** În ziua în care intră în vigoare o nouă rată, calculul folosește încă rata veche. E corect juridic?
+17. **Restul numerotării din Titlul IX.** Cuprinsul ediției curente a codului arată Titlul IX între art. 1.014 și 1.025, deci pare deplasat în întregime cu o unitate. Răspunsul anterior spunea însă că art. 1015 și 1024 rămân. Care sunt, în ediția folosită, articolele pentru comunicarea somației, dovada comunicării (azi citată „art. 1017 alin. 2”) și cererea în anulare (azi „art. 1024”)? Până la răspuns, actele tipărite citează doar art. 1.014, 1.015 și 1.017.
 
 ## Inconsecvențe cunoscute între documente
 
-- **Numerotarea articolelor.** Cererea de ordonanță de plată citează încă „art. 1013–1024 CPC”, în timp ce somația folosește numerotarea confirmată de avocat (art. 1.014 pentru creanța certă, lichidă și exigibilă, art. 1.015 pentru somație). Renumerotarea trebuie aplicată și în cerere.
-- **Mai mulți debitori.** Pe astfel de dosare, somația și cererea de ordonanță pot avea totaluri diferite până se decide cum se tratează acești debitori.
+- **Mai mulți debitori.** Totalurile somației și ale cererii coincid (aceleași poziții, același calcul, confirmat prin test). Diferă doar destinatarul: somația merge la primul debitor, cererea îi cuprinde pe toți. Ține de întrebarea 7.
+- **Alte articole din procedură.** Trimiterile la art. 1020-1022 apar doar în interfață, nu în actele depuse. Deplasarea cu o unitate nu a fost confirmată de avocat, deci nu s-au schimbat.
 
-## Probleme existente în wizard, fără legătură cu somația
+## Wizard
 
-1. **Suma se golește.** În pasul „Creanță”, câmpul sumei se golește vizual după modificarea altui câmp, deși aplicația reține valoarea. Comportamentul exista dinainte.
-2. **Creditorul se suprascrie după CUI.** Un creditor nou cu același CUI ca unul existent îl suprascrie (se schimbă numele și pe dosarele vechi), iar un IBAN lăsat gol nu șterge IBAN-ul salvat anterior.
-3. **Biblioteca de creditori.** Selectarea unui creditor din bibliotecă nu completează formularul.
-4. **Validarea IBAN** respinge litere în partea de cont, deși unele IBAN-uri românești reale le conțin.
+- **Creditorul se suprascrie după CUI.** Nu se schimbă. Același CUI înseamnă aceeași persoană juridică, iar constrângerea UNIQUE(user, cui) e voită. Actele deja emise sunt PDF-uri fixe, iar denumirea nouă e cea corectă pentru actele viitoare. Un IBAN lăsat gol înseamnă „nu știu”, nu „șterge”.
 
 ## Date de test rămase în mediul de dezvoltare
 

@@ -25,9 +25,9 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 /**
  * Pas 5.2 — Tests for PaymentOrderRequestGeneratorService.
  *
- * Critical legal assertions: CPC art. 1013-1024 + raport COMERCIAL + numele
+ * Critical legal assertions: CPC art. 1.014 et seq. + raport COMERCIAL + numele
  * instanței obligatorii. Template trebuie să afișeze toate elementele cerute
- * de art. 1016 (instanță, părți, sume, temei, anexe).
+ * de art. 1.017 (instanță, părți, sume, temei, anexe).
  */
 final class PaymentOrderRequestGeneratorServiceTest extends KernelTestCase
 {
@@ -117,8 +117,11 @@ final class PaymentOrderRequestGeneratorServiceTest extends KernelTestCase
         $html = $this->service->renderHtml($this->case);
 
         self::assertStringContainsString('CERERE DE ORDONANȚĂ DE PLATĂ', $html);
-        self::assertStringContainsString('1013-1024', $html, 'Temeiul legal CPC art. 1013-1024 trebuie citat.');
-        self::assertStringContainsString('1016', $html, 'CPC art. 1016 (conținut cerere) trebuie referit.');
+        // Article numbering confirmed by the lawyer: 1.014 (certain, liquid and exigible claim), 1.017 (annexes).
+        self::assertStringContainsString('art. 1.014 și următoarele', $html);
+        self::assertStringContainsString('art. 1.017', $html);
+        self::assertStringNotContainsString('1013', $html);
+        self::assertStringNotContainsString('1016', $html);
     }
 
     public function testRenderHtmlContainsPartiesAndCourt(): void
