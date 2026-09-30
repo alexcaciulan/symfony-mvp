@@ -1295,8 +1295,6 @@ final class CaseWizardController extends AbstractController
         $creditor->setCui($dto->cui);
         $creditor->setPersonalId($dto->personalId);
         $creditor->setOnrcNumber($dto->onrcNumber);
-        $creditor->setEmail($dto->email);
-        $creditor->setPhone($dto->phone);
         $creditor->setIban($dto->iban);
         $creditor->setBankName($dto->bankName);
         $creditor->setLegalRepresentative($dto->legalRepresentative);
@@ -1349,8 +1347,6 @@ final class CaseWizardController extends AbstractController
             'AddressLocality' => $dto->addressLocality,
             'OnrcNumber' => $dto->onrcNumber,
             'LegalRepresentative' => $dto->legalRepresentative,
-            'Email' => $dto->email,
-            'Phone' => $dto->phone,
             'Iban' => $dto->iban,
             'BankName' => $dto->bankName,
         ];

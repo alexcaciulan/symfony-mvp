@@ -227,7 +227,7 @@ final class LegacyExtractionPayloadCompatibilityTest extends TestCase
         self::assertSame('Tehno Construct SRL', $creditor->name);
         self::assertSame('București', $creditor->addressCounty);
         self::assertSame('Banca Transilvania', $creditor->bankName);
-        self::assertCount(12, $creditor->autoFilled);
+        self::assertCount(10, $creditor->autoFilled);
 
         $debtor = $service->aggregateForDebtor([7]);
         self::assertSame('Datornic Trans SA', $debtor->name);

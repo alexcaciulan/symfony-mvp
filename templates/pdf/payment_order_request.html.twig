@@ -79,12 +79,6 @@
         <div class="block"><span class="label">{{ 'pdf.payment_order.field_onrc'|trans }}:</span> <span class="value">{{ creditor.onrcNumber }}</span></div>
     {% endif %}
     <div class="block"><span class="label">{{ 'pdf.payment_order.field_address'|trans }}:</span> <span class="value">{{ creditor.address|mailing_address(creditor.addressLocality, creditor.addressCounty) }}</span></div>
-    {% if creditor.email %}
-        <div class="block"><span class="label">{{ 'pdf.payment_order.field_email'|trans }}:</span> <span class="value">{{ creditor.email }}</span></div>
-    {% endif %}
-    {% if creditor.phone %}
-        <div class="block"><span class="label">{{ 'pdf.payment_order.field_phone'|trans }}:</span> <span class="value">{{ creditor.phone }}</span></div>
-    {% endif %}
     {% if creditor.iban %}
         <div class="block"><span class="label">{{ 'pdf.payment_order.field_iban'|trans }}:</span> <span class="value">{{ creditor.iban }}</span></div>
     {% endif %}
@@ -98,6 +92,12 @@
             <span class="value">
                 {{ 'pdf.payment_order.conventional_rep'|trans({'%lawyer%': user.fullName}) }}
                 {{ 'pdf.payment_order.domiciliu_ales'|trans({'%lawyer%': user.fullName, '%address%': user.proceduralAddress}) }}
+                {# Communications go to counsel, so the contact details are the
+                   lawyer's, named as such so they are not read as the creditor's. #}
+                {% set contacts = [] %}
+                {% if user.email %}{% set contacts = contacts|merge(['pdf.payment_order.contact_email'|trans({'%email%': user.email})]) %}{% endif %}
+                {% if user.phone %}{% set contacts = contacts|merge(['pdf.payment_order.contact_phone'|trans({'%phone%': user.phone})]) %}{% endif %}
+                {% if contacts is not empty %}{{ 'pdf.payment_order.lawyer_contact'|trans({'%contacts%': contacts|join(', ')}) }}{% endif %}
             </span>
         </div>
     {% endif %}

@@ -158,18 +158,6 @@
                 {{ form_widget(form.bankName, { attr: { class: f.input_classes(form.bankName)|trim, placeholder: 'Banca Transilvania' }}) }}
                 {{ f.field_errors(form.bankName) }}
             </div>
-
-            <div>
-                {{ f.field_label(form.email, 'wizard.step1.field.email', true) }}
-                {{ form_widget(form.email, { attr: { class: f.input_classes(form.email)|trim }}) }}
-                {{ f.field_errors(form.email) }}
-            </div>
-
-            <div>
-                {{ f.field_label(form.phone, 'wizard.step1.field.phone', true) }}
-                {{ form_widget(form.phone, { attr: { class: f.input_classes(form.phone)|trim }}) }}
-                {{ f.field_errors(form.phone) }}
-            </div>
         </div>
 
         {# Hidden int — populated by Step1CreditorType POST_SUBMIT listener when

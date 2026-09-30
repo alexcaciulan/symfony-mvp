@@ -192,6 +192,47 @@ final class PaymentOrderRequestGeneratorServiceTest extends KernelTestCase
         self::assertStringContainsString('se achită odată cu înregistrarea', $html);
     }
 
+    public function testRenderHtmlGivesTheLawyerContactAsCounselsNotTheCreditors(): void
+    {
+        $this->giveTheLawyerAFullOfficeAddress();
+        $this->user->setPhone('0744111222');
+        $this->case->getCreditor()->setEmail('office@creditor.ro');
+        $this->case->getCreditor()->setPhone('0211234567');
+        $this->em->flush();
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString(
+            'Date de contact ale avocatului: e-mail ' . $this->user->getEmail() . ', telefon 0744111222.',
+            $html,
+        );
+        self::assertStringNotContainsString('office@creditor.ro', $html);
+        self::assertStringNotContainsString('0211234567', $html);
+    }
+
+    /**
+     * Without the representation mention, the contact details would belong to no one
+     * the act names.
+     */
+    public function testRenderHtmlOmitsTheLawyerContactWithoutTheRepresentationMention(): void
+    {
+        $this->user->setPhone('0744111222');
+        $this->em->flush();
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringNotContainsString('Date de contact ale avocatului', $html);
+        self::assertStringNotContainsString('0744111222', $html);
+    }
+
+    private function giveTheLawyerAFullOfficeAddress(): void
+    {
+        $this->user->setStreet('Str. Avocatilor');
+        $this->user->setStreetNumber('12');
+        $this->user->setCity('Cluj-Napoca');
+        $this->user->setCounty('Cluj');
+    }
+
     /**
      * The petition is what fixes where the court sends everything afterwards. Without
      * both the elected domicile and the person designated to receive documents, the

@@ -167,7 +167,6 @@ final class T5ChimeraAdversarialReviewTest extends TestCase
         self::assertSame('11111111', $creditor->cui);
         self::assertNull($creditor->address, 'a stranger\'s address must not reach the creditor card');
         self::assertNull($creditor->addressCounty, 'the county selects the stamp-duty town hall');
-        self::assertNull($creditor->email);
     }
 
     /**

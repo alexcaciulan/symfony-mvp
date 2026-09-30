@@ -298,13 +298,11 @@ final class PrefillFromExtractionServiceTest extends TestCase
         // alin. 1) and reach the form as addressCounty/addressLocality.
         self::assertSame('București', $creditor->addressCounty);
         self::assertSame('Sector 1', $creditor->addressLocality);
-        self::assertSame('contact@tehno.ro', $creditor->email);
-        self::assertSame('0721234567', $creditor->phone);
         self::assertSame('RO49AAAA1B31007593840000', $creditor->iban);
         self::assertSame('Popescu Ion', $creditor->legalRepresentative);
         self::assertSame('Banca Transilvania', $creditor->bankName);
         self::assertEqualsCanonicalizing(
-            ['personType', 'name', 'cui', 'onrcNumber', 'address', 'addressCounty', 'addressLocality', 'email', 'phone', 'iban', 'legalRepresentative', 'bankName'],
+            ['personType', 'name', 'cui', 'onrcNumber', 'address', 'addressCounty', 'addressLocality', 'iban', 'legalRepresentative', 'bankName'],
             $creditor->autoFilled,
         );
 

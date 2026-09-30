@@ -61,7 +61,6 @@ final class Step1CreditorDataTest extends KernelTestCase
             cui: '15193236',
             onrcNumber: 'J40/1234/2018',
             address: 'Str. Test 1, București',
-            email: 'foo@example.com',
             iban: 'RO49RNCB0082004480010001',
         );
 
@@ -209,19 +208,6 @@ final class Step1CreditorDataTest extends KernelTestCase
             $messages[] = $v->getMessageTemplate();
         }
         self::assertContains('validation.cui.invalid_checksum', $messages);
-    }
-
-    public function testInvalidEmailIsRejected(): void
-    {
-        $dto = new Step1CreditorData(
-            creditorId: 1,
-            email: 'not-an-email',
-        );
-
-        $violations = $this->validator->validate($dto);
-
-        self::assertSame(1, $violations->count());
-        self::assertSame('validation.email.invalid', $violations[0]->getMessageTemplate());
     }
 
     public function testInvalidIbanIsRejected(): void

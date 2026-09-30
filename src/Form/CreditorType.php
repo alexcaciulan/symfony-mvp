@@ -7,7 +7,6 @@ namespace App\Form;
 use App\DTO\Wizard\Step1CreditorData;
 use App\Enum\PersonType;
 use Symfony\Component\Form\AbstractType;
-use Symfony\Component\Form\Extension\Core\Type\EmailType;
 use Symfony\Component\Form\Extension\Core\Type\EnumType;
 use Symfony\Component\Form\Extension\Core\Type\TextareaType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
@@ -69,14 +68,6 @@ final class CreditorType extends AbstractType
             ->add('address', TextareaType::class, [
                 'label' => 'wizard.step1.field.address',
                 'required' => true,
-            ])
-            ->add('email', EmailType::class, [
-                'label' => 'wizard.step1.field.email',
-                'required' => false,
-            ])
-            ->add('phone', TextType::class, [
-                'label' => 'wizard.step1.field.phone',
-                'required' => false,
             ])
             ->add('iban', TextType::class, [
                 'label' => 'wizard.step1.field.iban',

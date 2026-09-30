@@ -62,7 +62,7 @@ final class PrefillFromExtractionService
     /** @var list<string> */
     private const CREDITOR_FIELDS = [
         'personType', 'name', 'cui', 'personalId', 'onrcNumber', 'address', 'county',
-        'locality', 'email', 'phone', 'iban', 'legalRepresentative', 'bankName',
+        'locality', 'iban', 'legalRepresentative', 'bankName',
     ];
 
     /** @var list<string> */
@@ -465,8 +465,6 @@ final class PrefillFromExtractionService
             address: $this->toStringOrNull($v['address'] ?? null),
             addressCounty: $this->toStringOrNull($v['county'] ?? null),
             addressLocality: $this->toStringOrNull($v['locality'] ?? null),
-            email: $this->toStringOrNull($v['email'] ?? null),
-            phone: $this->toStringOrNull($v['phone'] ?? null),
             iban: $this->toStringOrNull($v['iban'] ?? null),
             legalRepresentative: $this->toStringOrNull($v['legalRepresentative'] ?? null),
             bankName: $this->toStringOrNull($v['bankName'] ?? null),
