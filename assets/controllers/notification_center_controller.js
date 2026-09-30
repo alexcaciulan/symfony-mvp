@@ -17,6 +17,7 @@ export default class extends Controller {
         dropdownUrl: String,
         interval: { type: Number, default: 45000 },
         newMessage: { type: String, default: '' },
+        initialCount: { type: Number, default: 0 },
     };
 
     initialize() {
@@ -25,7 +26,9 @@ export default class extends Controller {
         this._loadingPanel = false;
         this._panelLoaded = false;
         this._wasOpen = false;
-        this._known = this._readBadge();
+        // Exact server count; the badge text caps at "9+" and would read as 9,
+        // making every navigation with 10+ unread look like a new arrival.
+        this._known = this.initialCountValue;
         this._onVisibility = () => this._handleVisibility();
         this._onFocus = () => this._refresh();
         this._onChanged = () => this._refresh();
@@ -150,11 +153,5 @@ export default class extends Controller {
         const badge = this.badgeTarget;
         badge.textContent = count > 9 ? '9+' : String(count);
         badge.classList.toggle('hidden', count <= 0);
-    }
-
-    _readBadge() {
-        if (!this.hasBadgeTarget) return 0;
-        const raw = (this.badgeTarget.textContent || '').trim();
-        return raw.endsWith('+') ? 9 : (Number(raw) || 0);
     }
 }
