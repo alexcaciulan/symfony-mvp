@@ -3,7 +3,7 @@
 namespace App\Service\Validation;
 
 use App\DTO\Validation\AdmissibilityIssue;
-use App\Entity\Debtor;
+use App\Entity\LegalCaseDebtor;
 use App\Entity\LegalCase;
 use App\Enum\AnafStatus;
 use App\Enum\IssueSeverity;
@@ -25,18 +25,18 @@ use App\Service\Case\ClaimTextSignals;
  *   0d. payment recorded, not imputed     → WARNING OP_ITEM_UNIMPUTED_PAYMENT
  *   0e. deduction stated on the document   → WARNING OP_ITEM_STATED_DEDUCTION
  *
- * Regulile per debitor (post-N4 din 2026-05-09 — verificare BPI obligatorie):
+ * Per-debtor rules (the check on the Law 85/2014 proceedings is mandatory):
  *   1. PJ + anafStatus = RADIAT          → ERROR  OP_BLOCKED_DEREGISTERED
  *   2. PJ + inInsolvency = true          → ERROR  OP_BLOCKED_INSOLVENCY        (fail-fast)
  *   3. PJ + anafStatus = INACTIV         → WARNING OP_DEFENDANT_FISCALLY_INACTIVE
  *   4. PJ + anafStatus IS NULL           → WARNING OP_ANAF_NOT_VERIFIED         (exclude rule 5)
- *   5. PJ + anafCheckedAt > 30 zile      → WARNING OP_ANAF_STALE
- *   6. PJ + insolvencyCheckedAt IS NULL  → ERROR  OP_INSOLVENCY_NOT_VERIFIED   (N4: era WARNING)
- *   7. PJ + insolvencyCheckedAt > 7 zile → ERROR  OP_INSOLVENCY_STALE          (N4 nou)
- *   8. PF                                → WARNING OP_PF_BIPF_MANUAL_CHECK     (memento manual L 151/2015)
+ *   5. PJ + anafCheckedAt > 30 days     → WARNING OP_ANAF_STALE
+ *   6. PJ + insolvencyCheckedAt IS NULL  → ERROR  OP_INSOLVENCY_NOT_VERIFIED
+ *   7. PJ + insolvencyCheckedAt > 7 days → ERROR  OP_INSOLVENCY_STALE
+ *   8. PF                                → WARNING OP_PF_BIPF_MANUAL_CHECK     (manual reminder, Law 151/2015)
  *
- * Regulile 1+2 sunt fail-fast per debitor (un debitor blocat nu mai are sens să fie verificat BPI).
- * Regulile 6+7 se exclud reciproc (null vs vechi).
+ * Rules 1 and 2 stop the checks for that debtor (a blocked debtor needs no further check).
+ * Rules 6 and 7 are mutually exclusive (missing vs stale).
  */
 final class OpAdmissibilityValidator
 {
@@ -47,10 +47,9 @@ final class OpAdmissibilityValidator
     private const ANAF_STALE_DAYS = 30;
 
     /**
-     * Prag intern de prudență pentru "vechime verificare BPI acceptabilă" — NU este un termen legal.
-     * Legea 85/2014 nu fixează valabilitatea unei verificări BPI. Decizie de produs: insolvența se
-     * poate deschide și publica în BPI într-o săptămână, deci o verificare > 7z e neacceptabilă pentru
-     * depunere. Re-verifică pe bpi.just.ro.
+     * Internal prudence threshold, not a legal term: Law 85/2014 sets no validity for the
+     * check. Proceedings can be opened and published within a week, so an older check is
+     * not accepted for filing.
      */
     private const INSOLVENCY_STALE_DAYS = 7;
 
@@ -201,10 +200,10 @@ final class OpAdmissibilityValidator
     /**
      * @return list<AdmissibilityIssue>
      */
-    private function validateDebtor(Debtor $debtor, \DateTimeImmutable $now): array
+    private function validateDebtor(LegalCaseDebtor $debtor, \DateTimeImmutable $now): array
     {
         if ($debtor->getPersonType() !== PersonType::PJ) {
-            // PF: BIPF (Legea 151/2015) nu are API; emitem WARNING static ca memento pentru avocat.
+            // Natural person: the Law 151/2015 check is manual, so this is only a reminder.
             return [new AdmissibilityIssue(
                 IssueSeverity::WARNING,
                 'OP_PF_BIPF_MANUAL_CHECK',

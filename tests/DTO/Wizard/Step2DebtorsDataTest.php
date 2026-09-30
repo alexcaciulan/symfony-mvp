@@ -39,9 +39,9 @@ final class Step2DebtorsDataTest extends KernelTestCase
         self::assertSame('wizard.step2.error.at_least_one_debtor', $violations[0]->getMessageTemplate());
     }
 
-    public function testSixDebtorsIsInvalid(): void
+    public function testMoreDebtorsThanTheCapIsInvalid(): void
     {
-        $dto = new Step2DebtorsData(array_fill(0, 6, $this->makeValidDebtor()));
+        $dto = new Step2DebtorsData(array_fill(0, Step2DebtorsData::MAX_DEBTORS + 1, $this->makeValidDebtor()));
 
         $violations = $this->validator->validate($dto);
 

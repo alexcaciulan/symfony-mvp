@@ -19,7 +19,7 @@
             {% for row in rows %}
                 {% set deadline = row.deadline() %}
                 {% set legal_case = row.legalCase() %}
-                {% set debtor = legal_case.debtors|length > 0 ? legal_case.debtors|first : null %}
+                {% set debtor = legal_case.primaryDebtor %}
                 <div class="px-4 py-2.5 {{ row.isEstimated() ? 'border-l-2 border-l-amber-400' : '' }}">
                     <div class="flex items-baseline justify-between gap-2">
                         <span class="text-xs font-semibold">{{ deadline.type.label()|trans }}</span>

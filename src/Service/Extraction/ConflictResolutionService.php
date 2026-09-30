@@ -306,6 +306,21 @@ final class ConflictResolutionService
     }
 
     /**
+     * Blocking conflicts that neither a choice nor an acknowledgement can pass:
+     * only changing the documents settles them.
+     *
+     * @param list<PrefillConflict> $conflicts
+     * @return list<PrefillConflict>
+     */
+    public function unresolvableBlocks(array $conflicts): array
+    {
+        return array_values(array_filter(
+            $conflicts,
+            static fn (PrefillConflict $c): bool => $c->blocks() && $c->options === [] && !$c->acknowledgeable,
+        ));
+    }
+
+    /**
      * Blocking conflicts that offer nothing to choose between, so the only thing
      * the lawyer can do is state they have read them. Two invoices issued to two
      * different debtors is the case: the answer is not a value, it is whether
@@ -318,7 +333,7 @@ final class ConflictResolutionService
     {
         return array_values(array_filter(
             $conflicts,
-            static fn (PrefillConflict $c): bool => $c->blocks() && $c->options === [],
+            static fn (PrefillConflict $c): bool => $c->blocks() && $c->options === [] && $c->acknowledgeable,
         ));
     }
 
@@ -473,6 +488,9 @@ final class ConflictResolutionService
         }
 
         if ((string) $choice === self::MANUAL_CHOICE) {
+            if (!$conflict->manualAllowed) {
+                return null;
+            }
             $value = $this->coerce($conflict->field, is_string($typed) ? $typed : '');
 
             return $value === null ? null : new ConflictResolution(

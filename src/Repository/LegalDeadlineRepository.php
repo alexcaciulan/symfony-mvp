@@ -253,6 +253,7 @@ class LegalDeadlineRepository extends ServiceEntityRepository
             ->addSelect('lc', 'court', 'debtors')
             ->leftJoin('lc.court', 'court')
             ->leftJoin('lc.debtors', 'debtors')
+            ->leftJoin('debtors.debtor', 'debtorCompany')->addSelect('debtorCompany')
             ->andWhere('d.deadlineDate >= :from')
             ->andWhere('d.deadlineDate <= :to')
             ->setParameter('from', $from, Types::DATE_IMMUTABLE)
@@ -397,7 +398,7 @@ class LegalDeadlineRepository extends ServiceEntityRepository
         }
 
         $this->getEntityManager()
-            ->createQuery(sprintf('SELECT c, debtors FROM %s c LEFT JOIN c.debtors debtors WHERE c.id IN (:ids)', LegalCase::class))
+            ->createQuery(sprintf('SELECT c, debtors, company FROM %s c LEFT JOIN c.debtors debtors LEFT JOIN debtors.debtor company WHERE c.id IN (:ids)', LegalCase::class))
             ->setParameter('ids', $caseIds)
             ->getResult();
     }
@@ -413,6 +414,7 @@ class LegalDeadlineRepository extends ServiceEntityRepository
             ->addSelect('lc', 'court', 'debtors')
             ->leftJoin('lc.court', 'court')
             ->leftJoin('lc.debtors', 'debtors')
+            ->leftJoin('debtors.debtor', 'debtorCompany')->addSelect('debtorCompany')
             ->andWhere('d.deadlineDate < :today')
             ->setParameter('today', $this->today(), Types::DATE_IMMUTABLE)
             ->orderBy('d.deadlineDate', 'ASC');

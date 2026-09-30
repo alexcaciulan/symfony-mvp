@@ -49,7 +49,8 @@ class DashboardController extends AbstractDashboardController
         yield MenuItem::section('Dosare');
         yield MenuItem::linkTo(LegalCaseCrudController::class, 'Dosare', 'fas fa-folder-open')->setAction(Action::INDEX);
         yield MenuItem::linkTo(CreditorCrudController::class, 'Creditori', 'fas fa-hand-holding-usd')->setAction(Action::INDEX);
-        yield MenuItem::linkTo(DebtorCrudController::class, 'Debitori', 'fas fa-user-tag')->setAction(Action::INDEX);
+        yield MenuItem::linkTo(DebtorCrudController::class, 'Debitori (firme)', 'fas fa-user-tag')->setAction(Action::INDEX);
+        yield MenuItem::linkTo(LegalCaseDebtorCrudController::class, 'Debitori pe dosare', 'fas fa-user-check')->setAction(Action::INDEX);
         yield MenuItem::linkTo(ClaimItemCrudController::class, 'Poziții creanță', 'fas fa-list-ol')->setAction(Action::INDEX);
         yield MenuItem::linkTo(DocumentCrudController::class, 'Documente', 'fas fa-file-lines')->setAction(Action::INDEX);
         yield MenuItem::linkTo(LegalDeadlineCrudController::class, 'Termene', 'fas fa-calendar-day')->setAction(Action::INDEX);

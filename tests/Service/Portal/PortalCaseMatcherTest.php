@@ -7,6 +7,7 @@ namespace App\Tests\Service\Portal;
 use App\Entity\Court;
 use App\Entity\Creditor;
 use App\Entity\Debtor;
+use App\Entity\LegalCaseDebtor;
 use App\Entity\LegalCase;
 use App\Service\Portal\PortalCaseMatcher;
 use App\Service\Portal\PortalJustClient;
@@ -79,7 +80,7 @@ final class PortalCaseMatcherTest extends TestCase
         foreach ($debtorNames as $name) {
             $debtor = new Debtor();
             $debtor->setName($name);
-            $case->addDebtor($debtor);
+            $case->addDebtor(new LegalCaseDebtor($debtor));
         }
 
         return $case;

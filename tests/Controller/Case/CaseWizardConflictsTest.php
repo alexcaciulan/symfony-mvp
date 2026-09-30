@@ -85,11 +85,14 @@ final class CaseWizardConflictsTest extends WebTestCase
 
         $crawler = $this->client->request('GET', '/case/new/debtor');
 
-        self::assertSame(1, $crawler->filter('[data-testid="prefill-conflicts-ack"]')->count());
-        self::assertStringContainsString(
-            'nu pot fi adunate într-o singură ordonanță de plată',
-            $crawler->filter('[data-testid="prefill-conflicts"]')->text(),
-        );
+        // Nothing to tick: the other debtor's invoices have to leave the case.
+        self::assertSame(0, $crawler->filter('[data-testid="prefill-conflicts-ack"]')->count());
+        self::assertSame(1, $crawler->filter('[data-testid="prefill-conflicts-documents-change-required"]')->count());
+        $panel = $crawler->filter('[data-testid="prefill-conflicts"]')->text();
+        self::assertStringContainsString('Documentele cu creanțe privesc mai mulți debitori', $panel);
+        // The lawyer is also asked which party the case is against, by name.
+        self::assertStringContainsString('Alfa Construct SRL (CUI 11111111)', $panel);
+        self::assertStringContainsString('Beta Logistic SRL (CUI 22222222)', $panel);
     }
 
     public function testADivergentCreditorNumberBlocksTheStepUntilTheLawyerChooses(): void

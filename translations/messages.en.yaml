@@ -21,7 +21,6 @@ layout:
         plan_summary: '%plan% · %consumed%/%included% cases'
         no_plan: 'No subscription'
         current_cabinet: 'Current practice'
-        coming_soon: 'Coming soon'
         nav:
             dashboard: 'Dashboard'
             cases: 'Cases'
@@ -251,7 +250,7 @@ wizard:
     step1:
         title: 'Creditor details'
         subtitle: 'Step 1 of 4 · Creditor details. Fields tagged with ⚡ auto were extracted automatically from documents.'
-        save_to_library: 'Save to creditor library for reuse'
+        library_autosave_hint: 'The creditor is saved to your library automatically when the case is submitted. For your next cases, pick it from the search above.'
         help:
             title: 'About this step'
             body: 'If the creditor is already in your cabinet catalog you can pick them. Otherwise fill in the manual fields: person type, name, address. CUI and ONRC are optional for individuals.'
@@ -267,6 +266,8 @@ wizard:
             hint: 'Search by name or fiscal code. Fill manually if not in your library.'
             placeholder: 'Search existing creditor...'
             no_results: 'No creditor matches this search.'
+            invalid_title: 'The creditor picked from the library has data that fails the checks:'
+            invalid_fix: 'Correct the creditor in the library'
         button:
             continue: 'Continue to step 2 (debtor)'
         county: 'County'
@@ -292,20 +293,38 @@ wizard:
     step2:
         title: 'Debtor(s) details'
         subtitle: 'Step 2 of 4 · Liable party. Fields tagged with ⚡ auto were extracted automatically from documents.'
-        save_to_library: 'Save to debtor library for reuse'
         entry_heading: 'Debtor #%index%'
-        toggle:
-            existing: 'Pick existing debtor'
-            new: 'New debtor'
-            existing_disabled_title: 'Available from Pas 3.3 (UX Autocomplete + ANAF lookup).'
+        entry_heading_single: 'Debtor'
+        library:
+            title: 'Pick from the debtor library'
+            hint: 'Search by name or tax ID for a company you have pursued before. The ANAF check and the check on the proceedings provided for by Law 85/2014 are done again for this case.'
+            manage: 'Manage the library'
+            placeholder: 'Search debtor by name or tax ID...'
+            use: 'Use this debtor'
+            replace_confirm: 'The debtor data in this step will be replaced with the library data.'
+            edit: 'Edit in the library'
+            unpick: 'Cancel'
+            badge: 'From the library'
+            differs_title: 'Your library already holds %name%, with the same tax ID and other data. The case will use the library company: choose which data stands.'
+            differs_update_refused: 'The company has already been summoned in a case, so its library data is not updated from here. If it changed, correct it from the debtor library: the change is recorded on each case, and you confirm you saw it when generating the payment order petition.'
+            differs_library: 'In the library'
+            differs_step: 'In this step'
+            differs_use_library: 'Use the library data. The company''s empty fields are filled from this step (county and locality only when the address is the same), and the fill is recorded in the history of the cases naming the company.'
+            differs_update: 'Update the library company with this step''s data. The change is recorded in the history of the cases the company appears in, and their regenerations will use the new data.'
+            reverify_notice: 'Debtor from the library: the identification data is changed only in the library. For this case check again the ANAF status, the proceedings provided for by Law 85/2014 and the registered office, which decides the competent court.'
+            invalid: 'The library company''s data fails the checks (see the marked fields). It can only be corrected in the library.'
+            invalid_fix: 'Correct the debtor in the library'
         button:
             add_debtor: 'Add secondary debtor'
             continue: 'Continue to claim'
             remove_debtor: 'Remove this debtor'
             max_reached: 'Max 5 debtors reached'
         add_debtor_hint: 'for joint-and-several obligations'
+        person_type_not_offered_note: 'The documents seem to describe a natural person. If the debtor is a sole trader (PFA), individual or family business, enter it with its CUI and registration number. Unregistered natural-person debtors are not accepted for now.'
         flash:
             max_debtors_reached: 'Max 5 debtors per case (product cap).'
+            person_type_not_offered: 'Only legal-person debtors are accepted for now. Fill in the debtor again, with its CUI and registration number.'
+            too_many_debtors: 'A case has a single debtor for now. Keep only the debtor you pursue.'
         help:
             anaf_lookup: 'Press "Sync ANAF data" to verify the debtor and fill in the details from the ANAF registry.'
         anaf:
@@ -314,7 +333,7 @@ wizard:
             checked_at: 'ANAF checked at %date%'
         bpi:
             title: 'BPI verification required (Law 85/2014)'
-            body: 'Before submitting the payment order you must check whether the debtor is in insolvency proceedings. Go to <a href="https://www.bpi.just.ro/" target="_blank" rel="noopener" class="underline font-medium">bpi.just.ro</a> → search by CUI → confirm the result.'
+            body: 'Before filing the payment order you must check that the debtor is not subject to any of the proceedings provided for by Law 85/2014.'
         type: 'Claimant type'
         type_pf: 'Individual'
         type_pj: 'Legal entity'
@@ -352,7 +371,7 @@ wizard:
             iban: 'IBAN'
             administrator: 'Administrator'
             in_insolvency_short: 'Insolvency'
-            bpi_verified_today: 'I checked BPI; the debtor is NOT in insolvency'
+            bpi_verified_today: 'I have checked: the debtor is not subject to the proceedings provided for by Law 85/2014'
         placeholder:
             person_type: '-- Select person type --'
     step3:
@@ -512,6 +531,7 @@ wizard:
             penalty_clause_text: 'Copy the clause from the contract word for word.'
             contract_object: 'E.g. the provision of transport services'
     step4:
+        bpi_label: 'BPI check'
         claim_items:
             title: 'Claim positions carried by the case'
             positions_note: 'Total over %count% claim positions, each with its own due date.'
@@ -530,6 +550,7 @@ wizard:
             documents_empty: 'No documents uploaded. No AI pre-fill available.'
             creditor: 'Creditor'
             debtors: 'Debtor(s) · %count%'
+            debtor: 'Debtor'
             claim: 'Claim'
             edit: 'Edit'
             bpi_verified: 'BPI verified'
@@ -744,6 +765,7 @@ wizard:
         acknowledge: 'I have reviewed the divergences above and take responsibility for the values in the form.'
         acknowledge_required: 'Confirm that you have reviewed the divergences between documents before continuing.'
         choice_required: 'Choose which value stays in the file for each blocking divergence.'
+        documents_change_required: 'Some divergences can only be settled by changing the case documents. Go back to step 0.'
         unsettled_at_confirmation: 'Blocking divergences are still unresolved. Go back to the step and choose the value that stays in the file.'
         back_to_resolve: 'Back to the form steps'
         suggested: 'Suggested'
@@ -790,7 +812,10 @@ wizard:
         debtor_set:
             too_many: 'The documents describe more debtors than one case can carry. Check whether these are in fact separate cases.'
             multiple: 'The documents describe several debtors. Check each card.'
-            claims_span_debtors: 'The invoices are issued to different debtors. Their amounts cannot be added into one payment order unless there is a common ground for joinder, typically joint liability (CPC art. 59). Otherwise these are separate cases with separate stamp duty.'
+            claims_span_debtors: 'The claim documents concern several debtors. A case has a single debtor for now: keep in step 0 only the documents of the debtor you pursue in this case. Joint debtors are pursued in separate cases for now, with a shared document attached to each.'
+            claims_of_another_party: 'The sums in the documents are owed by a debtor other than the one chosen. Choose the debtor that owes them, or upload in step 0 the documents proving the claim against the chosen debtor.'
+            library_mismatch: 'The debtor picked from the library has a tax ID other than the company named in the documents. Check it is the same company before continuing.'
+            choose: 'The documents name several debtors. A case has a single debtor for now: choose the debtor the petition is against.'
         claim_item:
             amount_mismatch: 'The same invoice appears with different amounts. Choose the correct one.'
             due_date_mismatch: 'The same invoice appears with different due dates. Choose the correct one.'
@@ -1176,6 +1201,7 @@ case_overview:
         flash_error_wrong_status: 'The petition can only be generated from the "Payment notice sent" status.'
         flash_error_no_court: 'The competent court is missing. Fill in the "Court" field before generating the petition.'
         flash_error_already_generated: 'The petition has already been generated. Download the existing package.'
+        flash_error_debtor_changed: 'The debtor''s data changed after the case was opened or after the summons. Confirm in the generation window that you have seen the changes.'
         flash_error_csrf: 'Your session expired. Reload the page and try again.'
         flash_error_term_not_expired: 'The 15-day summons payment term has not expired yet. The OP petition cannot be filed before it lapses.'
         flash_error_debit_status_required: 'Select the debt status (unpaid or partially paid).'
@@ -1315,6 +1341,20 @@ case_overview:
         generate_op_term_unknown: 'The summons communication date is not set. Confirm below that the 15-day term from receipt has expired (you can set the exact date in the Deadlines section).'
         generate_op_debit_status_label: 'Debt status'
         generate_op_consent_label: 'I confirm the 15-day payment term from the receipt of the summons has expired and the debt has not been paid in full.'
+        court_mismatch_text: 'The case is at %case_court%, and the debtor''s current registered office points to %seat_court%. The petition will carry the debtor''s current office.'
+        debtor_changed_text: 'The debtor''s data changed after the summons was issued. The petition will carry the current data:'
+        debtor_changed_ack: 'I have seen the changes and take responsibility for the court seised and the debtor''s data in the petition (for example a court chosen or agreed by the parties).'
+        debtor_field:
+            name: 'Name'
+            cui: 'Tax ID'
+            onrcNumber: 'Trade Registry no.'
+            address: 'Address'
+            addressCounty: 'County'
+            addressLocality: 'Locality'
+            administrator: 'Administrator'
+            email: 'Email'
+            phone: 'Phone'
+            iban: 'IBAN'
         generate_op_stamp_duty_paid: 'The stamp duty is paid. The proof goes into the package filed with the court.'
         generate_op_stamp_duty_at_filing: 'The duty is paid together with the filing, through the electronic registry. The petition will state it as such.'
         generate_op_stamp_duty_deferred: 'You are filing without proof of payment and will pay the duty later.'
@@ -2472,9 +2512,9 @@ validation:
         OP_DEFENDANT_FISCALLY_INACTIVE: 'The debtor is declared fiscally inactive by ANAF. The payment order remains legally admissible, but the chances of recovery are low.'
         OP_ANAF_NOT_VERIFIED: 'The debtor''s ANAF status has not been verified. Look up the company by CUI before filing.'
         OP_ANAF_STALE: 'The ANAF check is older than 30 days. Re-verify the fiscal status before filing.'
-        OP_INSOLVENCY_NOT_VERIFIED: 'Verify the debtor''s insolvency status on bpi.just.ro and confirm in the UI before filing (attach the BPI proof PDF).'
-        OP_INSOLVENCY_STALE: 'The BPI (insolvency) check is older than 7 days. Re-verify on bpi.just.ro and update the proof; insolvency status changes rapidly.'
-        OP_PF_BIPF_MANUAL_CHECK: 'Individual debtor: manually verify BIPF (Personal Insolvency Bulletin, Law 151/2015) on bpi.just.ro before filing.'
+        OP_INSOLVENCY_NOT_VERIFIED: 'You have not confirmed that the debtor is not subject to the proceedings provided for by Law 85/2014. Go back to the Debtor step and tick the confirmation before filing.'
+        OP_INSOLVENCY_STALE: 'The check on the proceedings provided for by Law 85/2014 is older than 7 days, and the situation can change quickly. Check the debtor again, then in the Debtor step untick the confirmation, save and tick it again.'
+        OP_PF_BIPF_MANUAL_CHECK: 'Individual debtor: before filing, manually check that the debtor is not subject to the proceedings provided for by Law 151/2015.'
         OP_ITEM_NOT_YET_DUE: 'One claim position has a due date in the future. The claim is not yet due and payable (CPC art. 1014) and the petition is inadmissible for that sum. Correct the due date, exclude the position, or wait until the term falls due.'
         OP_ITEM_DUE_DATE_MISSING: 'One claim position has no due date. Without one, exigibility cannot be proven and no interest is computed. Supply the date or exclude the position.'
         OP_ITEM_PRESCRIBED: 'One claim position fell due more than 3 years ago, so the prescription term appears to have run (Civil Code art. 2517, running from each invoice due date). The court does not apply prescription of its own motion (art. 2512), but the debtor may raise it, and in the payment-order procedure a defence requiring further evidence can lead to the petition being dismissed, with the creditor directed to ordinary proceedings (CPC art. 1021 para. 2). Decide explicitly whether to keep this head.'
@@ -2748,7 +2788,7 @@ library:
         edit:
             title: 'Edit creditor'
             heading: 'Edit creditor'
-            subtitle: 'Changes apply to future cases, not to ones already filed.'
+            subtitle: 'Changes are used by the documents generated from now on, including regenerated documents of this creditor''s existing cases. Documents already generated do not change.'
         form:
             create_submit: 'Save creditor'
             update_submit: 'Save changes'
@@ -2758,6 +2798,38 @@ library:
             updated: 'The creditor was updated.'
         error:
             cui_duplicate: 'You already have a creditor with this tax ID in your library.'
+    debtors:
+        title: 'Debtors'
+        heading: 'Debtors'
+        subtitle: 'Your debtor library (companies), reusable when creating cases. The ANAF check and the check on the proceedings provided for by Law 85/2014 are done separately, on each case.'
+        new_button: 'New debtor'
+        new:
+            title: 'New debtor'
+            heading: 'New debtor'
+            subtitle: 'You will be able to pick it from the search on your next cases.'
+        edit:
+            title: 'Edit debtor'
+            heading: 'Edit debtor'
+            subtitle: 'Changes are used by the documents generated from now on. Documents already generated do not change.'
+            shared_warning: 'This company appears in %count% cases. Documents already generated do not change, but a regeneration will use the new data. The change is recorded in each case''s history, and a new tax ID requires the checks to be done again on those cases.'
+            cases_title: 'Cases it appears in (%count%)'
+            cases_empty: 'It does not appear in any case yet.'
+        form:
+            create_submit: 'Save debtor'
+            update_submit: 'Save changes'
+            cancel: 'Cancel'
+            court_hint: 'The county and locality of the registered office decide the competent court.'
+        delete:
+            button: 'Delete debtor'
+            confirm: 'Delete this debtor from your library for good?'
+        flash:
+            created: 'The debtor was added to your library.'
+            updated: 'The debtor was updated.'
+            deleted: 'The debtor was deleted from your library.'
+            in_use: 'The debtor appears in cases and cannot be deleted.'
+        error:
+            cui_duplicate: 'You already have a debtor with this tax ID in your library.'
+            cui_after_summons: 'The company has already been summoned in a case, so its tax ID can no longer change. A new tax ID is another company: add it as a new debtor.'
 
 # =============================================================================
 # Tables (server-side data grids — column headers per table key)
@@ -2798,6 +2870,16 @@ table:
             actions: 'Actions'
         filter:
             person_type_placeholder: 'All types'
+            search_placeholder: 'Search by name or tax ID...'
+    debtors:
+        columns:
+            name: 'Name'
+            cui: 'Tax ID'
+            county: 'County'
+            cases: 'Cases'
+            date: 'Modified'
+            actions: 'Actions'
+        filter:
             search_placeholder: 'Search by name or tax ID...'
     fiscal_invoices:
         columns:

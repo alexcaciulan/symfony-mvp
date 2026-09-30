@@ -24,6 +24,7 @@ use App\Entity\ClaimItem;
 use App\Entity\Court;
 use App\Entity\Creditor;
 use App\Entity\Debtor;
+use App\Entity\LegalCaseDebtor;
 use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\User;
@@ -32,15 +33,19 @@ use App\Enum\DocumentType;
 use App\Enum\ExtractionStatus;
 use App\Enum\IssueSeverity;
 use App\Enum\PenaltyType;
+use App\Enum\PersonType;
 use App\Enum\RelationshipType;
+use App\Form\Wizard\DebtorPickType;
 use App\Form\Wizard\Step0DocumentsType;
 use App\Form\Wizard\Step1CreditorType;
+use App\Form\Wizard\Step2DebtorEntryType;
 use App\Form\Wizard\Step2DebtorsType;
 use App\Form\Wizard\Step3ClaimType;
 use App\Form\Wizard\Step4ConfirmationType;
 use App\Message\ExtractDataMessage;
 use App\Repository\CourtRepository;
 use App\Repository\CreditorRepository;
+use App\Repository\DebtorRepository;
 use App\Repository\DocumentRepository;
 use App\Service\AuditLogService;
 use App\Service\Calculation\ClaimInterestAggregator;
@@ -59,6 +64,10 @@ use App\Service\Document\UploadDeduplicator;
 use App\Service\Document\UploadRateLimiter;
 use App\Service\Extraction\ConflictChoiceApplier;
 use App\Service\Extraction\ConflictResolutionService;
+use App\Service\Party\CuiNormalizer;
+use App\Enum\ConflictSeverity;
+use App\Service\Debtor\DebtorLibraryService;
+use App\DTO\Library\DebtorLibraryData;
 use App\Service\Extraction\PrefillFromExtractionService;
 use App\Service\Validation\OpAdmissibilityValidator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -115,6 +124,8 @@ final class CaseWizardController extends AbstractController
         private readonly ValidatorInterface $validator,
         private readonly DocumentRepository $documents,
         private readonly CreditorRepository $creditors,
+        private readonly DebtorRepository $debtorLibrary,
+        private readonly DebtorLibraryService $debtorLibraryService,
         private readonly CourtRepository $courts,
         private readonly EntityManagerInterface $em,
         private readonly OpAdmissibilityValidator $admissibility,
@@ -518,13 +529,18 @@ final class CaseWizardController extends AbstractController
     }
 
     #[Route('/debtor', name: 'debtor', methods: ['GET', 'POST'])]
-    public function debtor(Request $request): Response
+    public function debtor(Request $request, #[CurrentUser] User $user): Response
     {
         $session = $request->getSession();
         $bag = $this->loadBag($session);
 
         [$prefill, $conflicts] = $this->prefillWithConflicts($bag, [ConflictScope::DEBTOR, ConflictScope::DEBTOR_SET]);
         $dto = $bag['debtors'] ?? $prefill->debtors;
+        // Shown afresh on arrival; a submission carries what the page showed,
+        // which matchLibraryDebtors() sets against the library itself.
+        if ($bag['debtors'] !== null && !$request->isMethod('POST')) {
+            $this->refreshPickedDebtors($bag['debtors'], $user);
+        }
 
         // Pas 3.3 — add/remove debtor happens through Step2DebtorsLiveComponent
         // (LiveActions on the component re-render only its template). The
@@ -539,7 +555,11 @@ final class CaseWizardController extends AbstractController
         $acknowledged = true;
         $rejected = [];
         if ($form->isSubmitted()) {
+            $shownParty = $this->chosenParty($bag, $conflicts);
             $acknowledged = $this->settleConflicts($request, $bag, 'debtors', $conflicts);
+            if ($this->chosenParty($bag, $conflicts) !== $shownParty) {
+                return $this->showChosenParty($session, $bag);
+            }
             $rejected = $this->conflictResolutions->rejectedChoices(
                 $request->request->all('prefill_conflict'),
                 $conflicts,
@@ -548,8 +568,13 @@ final class CaseWizardController extends AbstractController
             $stands = $this->applyChosenValues($bag, ConflictScope::DEBTOR, $rendered, $form->getData(), $rejected);
             $acknowledged = $acknowledged && $stands;
         }
+        $libraryDiffers = [];
         if ($submitted && $acknowledged) {
+            $libraryDiffers = $this->matchLibraryDebtors($form->getData(), $user, $request->request->all('library_debtor_choice'));
+        }
+        if ($submitted && $acknowledged && $libraryDiffers === []) {
             $bag['debtors'] = $form->getData();
+            $this->bindLibraryDebtors($bag['debtors'], $user);
             $this->saveBag($session, $bag);
 
             return $this->redirectToRoute('case_wizard_claim');
@@ -559,9 +584,232 @@ final class CaseWizardController extends AbstractController
         return $this->render('case/_step2_debtor_content.html.twig', [
             'current_step' => 2,
             'form' => $form,
+            'pick_form' => $this->createForm(DebtorPickType::class, null, [
+                'action' => $this->generateUrl('case_wizard_debtor_pick'),
+            ]),
+            'library_differs' => $libraryDiffers,
             'dto' => $form->getData() ?? $dto,
             ...$this->conflictViewVars($bag, $conflicts, 'debtors', $rejected),
-        ], $this->stepRejected($acknowledged));
+        ], $this->stepRejected($acknowledged && $libraryDiffers === []));
+    }
+
+    /** The identity and contact fields a library company and a debtor entry share. */
+    private const LIBRARY_FIELDS = ['name', 'onrcNumber', 'address', 'addressCounty', 'addressLocality', 'administrator', 'email', 'phone', 'iban'];
+
+    /**
+     * A debtor typed or extracted in this step may be a company the library
+     * already holds (same CUI). Then the case links to that company, so the
+     * acts would carry the library's data: when the two differ, the lawyer
+     * decides, entry by entry, which data stands, never the wizard alone.
+     * Updating the library is not offered for a company another case has
+     * already summoned: its petition must name the company as summoned.
+     *
+     * @param array<array-key, mixed> $choices entry index to 'library' or 'update'
+     * @return array<int, array{name: string, differs: array<string, array{?string, ?string}>, canUpdate: bool}>
+     *         the entries still waiting for that decision; empty when none
+     */
+    private function matchLibraryDebtors(Step2DebtorsData $debtors, User $user, array $choices): array
+    {
+        $pending = [];
+        foreach ($debtors->debtors as $index => $entry) {
+            $entry->updateLibrary = false;
+            $key = CuiNormalizer::canonical($entry->cui);
+
+            // A link whose CUI no longer matches its company is another company now.
+            $company = $entry->debtorId !== null ? $this->debtorLibrary->findOwned($user, $entry->debtorId) : null;
+            if ($company !== null && $company->getCuiKey() !== $key) {
+                $company = null;
+            }
+            if ($company === null) {
+                $entry->debtorId = null;
+                if ($key === null || $entry->personType !== PersonType::PJ) {
+                    continue;
+                }
+                $company = $this->debtorLibrary->findOneByUserAndCuiKey($user, $key);
+                if ($company === null) {
+                    continue;
+                }
+            }
+
+            $differs = [];
+            $library = $this->entryFromLibrary($company);
+            foreach (self::LIBRARY_FIELDS as $field) {
+                $mine = trim((string) $entry->{$field});
+                $theirs = trim((string) $library->{$field});
+                if ($mine !== '' && $theirs !== '' && $mine !== $theirs) {
+                    $differs[$field] = [$library->{$field}, $entry->{$field}];
+                }
+            }
+
+            $canUpdate = !$this->debtorLibraryService->hasSummonedCase($company);
+            $choice = is_string($choices[$index] ?? null) ? $choices[$index] : '';
+            $decided = $choice === 'library' || ($choice === 'update' && $canUpdate);
+            if ($differs !== [] && !$decided) {
+                $pending[$index] = ['name' => $company->getName(), 'differs' => $differs, 'canUpdate' => $canUpdate];
+
+                continue;
+            }
+            $entry->debtorId = $company->getId();
+            $entry->updateLibrary = $differs !== [] && $choice === 'update';
+        }
+
+        return $pending;
+    }
+
+    /**
+     * Takes the case's debtor from the lawyer's library. The identity comes
+     * from the library; nothing checked for another case comes with it (ANAF,
+     * the Law 85/2014 attestation): those are done again for this case. What
+     * the step held before is kept so "Renunță" can bring it back.
+     */
+    #[Route('/debtor/pick', name: 'debtor_pick', methods: ['POST'])]
+    public function pickDebtor(Request $request, #[CurrentUser] User $user): Response
+    {
+        $form = $this->createForm(DebtorPickType::class);
+        $form->handleRequest($request);
+        $chosen = $form->isSubmitted() && $form->isValid() ? $form->get('debtor')->getData() : null;
+        $picked = $chosen instanceof Debtor ? $this->debtorLibrary->findOwned($user, (int) $chosen->getId()) : null;
+        if ($picked === null || $picked->getCuiKey() === null) {
+            return $this->redirectToRoute('case_wizard_debtor', status: Response::HTTP_SEE_OTHER);
+        }
+
+        $session = $request->getSession();
+        $bag = $this->loadBag($session);
+        $current = $bag['debtors']->debtors[0] ?? null;
+        if ($current === null || $current->debtorId === null) {
+            $bag['debtorBeforePick'] = $bag['debtors'];
+        }
+        $bag['debtors'] = new Step2DebtorsData([$this->entryFromLibrary($picked)]);
+        $bag['conflictResolutions'] = array_filter(
+            $bag['conflictResolutions'],
+            static fn (ConflictResolution $r): bool => $r->scope !== ConflictScope::DEBTOR,
+        );
+        $this->saveBag($session, $bag);
+
+        return $this->redirectToRoute('case_wizard_debtor', status: Response::HTTP_SEE_OTHER);
+    }
+
+    #[Route('/debtor/unpick', name: 'debtor_unpick', methods: ['POST'])]
+    public function unpickDebtor(Request $request): Response
+    {
+        if (!$this->isCsrfTokenValid('wizard_debtor_unpick', $request->getPayload()->getString('_token'))) {
+            throw $this->createAccessDeniedException();
+        }
+        $session = $request->getSession();
+        $bag = $this->loadBag($session);
+        // Only a debtor that still comes from the library is given back: a
+        // repeated request must not wipe what the first one restored.
+        if (($bag['debtors']->debtors[0]->debtorId ?? null) !== null) {
+            $bag['debtors'] = $bag['debtorBeforePick'];
+            $bag['debtorBeforePick'] = null;
+            $this->saveBag($session, $bag);
+        }
+
+        return $this->redirectToRoute('case_wizard_debtor', status: Response::HTTP_SEE_OTHER);
+    }
+
+    /**
+     * A posted library link is kept only for a company of this lawyer whose
+     * CUI still matches, and then the identity is the library's whatever the
+     * page sent: the case will name that company, not a copy edited on the way.
+     */
+    private function bindLibraryDebtors(Step2DebtorsData $debtors, User $user): void
+    {
+        foreach ($debtors->debtors as $entry) {
+            if ($entry->debtorId === null) {
+                continue;
+            }
+            $company = $this->debtorLibrary->findOwned($user, $entry->debtorId);
+            if ($company === null || $company->getCuiKey() === null
+                || $company->getCuiKey() !== CuiNormalizer::canonical($entry->cui)) {
+                $entry->debtorId = null;
+
+                continue;
+            }
+            // A summoned company is not changed from the wizard, not even its
+            // empty fields: the case reads its debtor from the company, and the
+            // petition must name the company as it was summoned.
+            $frozen = $this->debtorLibraryService->hasSummonedCase($company);
+            if ($frozen) {
+                $entry->updateLibrary = false;
+            }
+            $library = $this->entryFromLibrary($company);
+            // County and locality go with the address they belong to: they
+            // decide the court, so they are taken from this step only with it.
+            $sameAddress = trim((string) $entry->address) === trim((string) $library->address);
+            foreach (['personType', 'name', 'cui', 'onrcNumber', 'address', 'addressCounty', 'addressLocality', 'email', 'phone', 'iban', 'administrator'] as $field) {
+                // The library's data stands, except where the lawyer chose this
+                // step's data to update it; an empty library field takes this
+                // step's value otherwise.
+                $mine = $entry->{$field};
+                $fillsEmpty = !$frozen
+                    && ($library->{$field} === null || $library->{$field} === '')
+                    && ($sameAddress || !in_array($field, ['addressCounty', 'addressLocality'], true));
+                $useMine = $mine !== null && $mine !== '' && ($entry->updateLibrary || $fillsEmpty);
+                $entry->{$field} = $useMine ? $mine : $library->{$field};
+            }
+        }
+    }
+
+    /**
+     * A debtor picked from the library shows the library's identity read-only,
+     * so it follows the company when the company is corrected there (the way
+     * out of a stored value that fails the checks), except where the lawyer
+     * chose this step's data to update it. A new CUI makes it another company
+     * for the checks: what was verified for the old one is withdrawn.
+     */
+    private function refreshPickedDebtors(Step2DebtorsData $debtors, User $user): void
+    {
+        foreach ($debtors->debtors as $entry) {
+            if ($entry->debtorId === null) {
+                continue;
+            }
+            $company = $this->debtorLibrary->findOwned($user, $entry->debtorId);
+            if ($company === null) {
+                $entry->debtorId = null;
+
+                continue;
+            }
+            $cuiChanged = $company->getCuiKey() !== CuiNormalizer::canonical($entry->cui);
+            // The lawyer chose this step's data to update the company with.
+            if (!$cuiChanged && $entry->updateLibrary) {
+                continue;
+            }
+            $library = $this->entryFromLibrary($company);
+            foreach (['personType', 'name', 'cui', 'onrcNumber', 'address', 'addressCounty', 'addressLocality', 'email', 'phone', 'iban', 'administrator'] as $field) {
+                // An empty library field keeps what this step filled it with.
+                if ($cuiChanged || ($library->{$field} !== null && $library->{$field} !== '')) {
+                    $entry->{$field} = $library->{$field};
+                }
+            }
+            if (!$cuiChanged) {
+                continue;
+            }
+            $entry->insolvencyCheckedAt = null;
+            $entry->inInsolvency = false;
+            $entry->anafStatus = null;
+            $entry->anafCheckedAt = null;
+            $entry->autoFilled = [];
+            $entry->updateLibrary = false;
+        }
+    }
+
+    private function entryFromLibrary(Debtor $debtor): Step2DebtorEntry
+    {
+        return new Step2DebtorEntry(
+            personType: $debtor->getPersonType(),
+            name: $debtor->getName(),
+            cui: $debtor->getCui(),
+            onrcNumber: $debtor->getOnrcNumber(),
+            address: $debtor->getAddress(),
+            addressCounty: $debtor->getAddressCounty(),
+            addressLocality: $debtor->getAddressLocality(),
+            email: $debtor->getEmail(),
+            phone: $debtor->getPhone(),
+            iban: $debtor->getIban(),
+            administrator: $debtor->getAdministrator(),
+            debtorId: $debtor->getId(),
+        );
     }
 
     #[Route('/claim', name: 'claim', methods: ['GET', 'POST'])]
@@ -569,6 +817,9 @@ final class CaseWizardController extends AbstractController
     {
         $session = $request->getSession();
         $bag = $this->loadBag($session);
+        if (($back = $this->redirectForDebtorsNoLongerOffered($bag)) !== null) {
+            return $back;
+        }
 
         [$prefill, $claimConflicts] = $this->prefillWithConflicts($bag, [ConflictScope::CLAIM]);
         $collected = $this->claimItemFactory->collectRows($bag['documentIds']);
@@ -858,6 +1109,9 @@ final class CaseWizardController extends AbstractController
     ): Response {
         $session = $request->getSession();
         $bag = $this->loadBag($session);
+        if (($back = $this->redirectForDebtorsNoLongerOffered($bag)) !== null) {
+            return $back;
+        }
 
         $creditorDto = $bag['creditor'] ?? null;
         $debtorsDto = $bag['debtors'] ?? null;
@@ -875,15 +1129,19 @@ final class CaseWizardController extends AbstractController
         if ($claimDto === null) {
             return $this->redirectToRoute('case_wizard_claim');
         }
+        // A library company may have been edited since it was picked: the
+        // court and the summary are worked out from what the case will carry.
+        $this->refreshPickedDebtors($debtorsDto, $user);
+        $this->bindLibraryDebtors($debtorsDto, $user);
 
         // Everything the documents disagree about, checked once more here. A
         // blocking conflict still open at this point was walked past rather than
         // decided, and this is the last screen before a filing is created.
         $prefill = $this->prefill->aggregate($bag['documentIds'], $bag['conflictResolutions']);
-        $conflicts = array_values([
+        $conflicts = $this->withLibraryDebtor($bag, $prefill, array_values([
             ...$prefill->conflicts,
             ...$this->claimItemFactory->collectRows($bag['documentIds'])->conflicts,
-        ]);
+        ]));
         // Every disagreement of the file is on this screen, so a decision with
         // no conflict left to match is about documents that are no longer here
         // and has to go rather than wait for its key to mean something else.
@@ -1174,10 +1432,16 @@ final class CaseWizardController extends AbstractController
                 $case->setCourt($court);
             }
 
+            $debtorSources = [];
             foreach ($debtorsDto->debtors as $entry) {
-                $debtor = $this->buildDebtor($entry);
-                $debtor->setLegalCase($case);
-                $case->addDebtor($debtor);
+                $link = $this->buildDebtorLink($user, $entry);
+                $debtorSources[] = match (true) {
+                    $link->getDebtor()->getId() === null => 'new',
+                    $entry->updateLibrary => 'library_updated',
+                    default => 'library',
+                };
+                $this->em->persist($link->getDebtor());
+                $case->addDebtor($link);
             }
 
             // The positions are the claim; the case scalars are their total,
@@ -1205,6 +1469,14 @@ final class CaseWizardController extends AbstractController
                     'admissibility_warnings' => array_map(static fn (AdmissibilityIssue $i) => $i->code, $warnings),
                     'court_resolution' => $courtResolution,
                     'court_id' => $court?->getId(),
+                    // Which company the case pursues, and whether it was reused
+                    // from the library (updated with this step's data or not)
+                    // or created with this case.
+                    'debtors' => array_map(
+                        static fn (LegalCaseDebtor $link, string $source): array => ['debtorId' => $link->getDebtor()->getId(), 'source' => $source],
+                        $case->getDebtors()->toArray(),
+                        $debtorSources,
+                    ),
                     // What the lawyer signed off on, position by position: the
                     // table-wide tick is only as good as the record of what it
                     // covered, and an exclusion has to stay provable.
@@ -1398,9 +1670,33 @@ final class CaseWizardController extends AbstractController
         }
     }
 
-    private function buildDebtor(Step2DebtorEntry $entry): Debtor
+    /**
+     * The debtor of the case: the company (identity), and its link to the case
+     * carrying what was checked for this case.
+     *
+     * @param bool $write whether the library company may be written (the
+     *        submission); the preview built for validation never writes
+     */
+    private function buildDebtorLink(User $user, Step2DebtorEntry $entry, bool $write = true): LegalCaseDebtor
     {
+        $picked = $entry->debtorId !== null ? $this->debtorLibrary->findOwned($user, $entry->debtorId) : null;
+        if ($picked !== null && $picked->getCuiKey() !== null && $picked->getCuiKey() === CuiNormalizer::canonical($entry->cui)) {
+            if ($write) {
+                $data = $this->libraryDataFrom($entry);
+                if (!$this->debtorLibraryService->hasSummonedCase($picked)) {
+                    if ($entry->updateLibrary) {
+                        $this->debtorLibraryService->update($picked, $data);
+                    } else {
+                        $this->debtorLibraryService->completeEmpty($picked, $data);
+                    }
+                }
+            }
+
+            return $this->linkWithChecks(new LegalCaseDebtor($picked), $entry);
+        }
+
         $debtor = new Debtor();
+        $debtor->setUser($user);
         // The DTO NotNull/NotBlank on personType/name/address has already
         // fired by the time we reach persistWizard; trust the contract.
         $debtor->setPersonType($entry->personType);
@@ -1415,12 +1711,35 @@ final class CaseWizardController extends AbstractController
         $debtor->setPhone($entry->phone);
         $debtor->setIban($entry->iban);
         $debtor->setAdministrator($entry->administrator);
-        $debtor->setAnafStatus($entry->anafStatus);
-        $debtor->setAnafCheckedAt($entry->anafCheckedAt);
-        $debtor->setInInsolvency($entry->inInsolvency);
-        $debtor->setInsolvencyCheckedAt($entry->insolvencyCheckedAt);
 
-        return $debtor;
+        return $this->linkWithChecks(new LegalCaseDebtor($debtor), $entry);
+    }
+
+    private function libraryDataFrom(Step2DebtorEntry $entry): DebtorLibraryData
+    {
+        return new DebtorLibraryData(
+            name: $entry->name,
+            cui: $entry->cui,
+            onrcNumber: $entry->onrcNumber,
+            address: $entry->address,
+            addressCounty: $entry->addressCounty,
+            addressLocality: $entry->addressLocality,
+            administrator: $entry->administrator,
+            email: $entry->email,
+            phone: $entry->phone,
+            iban: $entry->iban,
+        );
+    }
+
+    /** What was checked about the debtor for this case, on the case's link. */
+    private function linkWithChecks(LegalCaseDebtor $link, Step2DebtorEntry $entry): LegalCaseDebtor
+    {
+        $link->setAnafStatus($entry->anafStatus);
+        $link->setAnafCheckedAt($entry->anafCheckedAt);
+        $link->setInInsolvency($entry->inInsolvency);
+        $link->setInsolvencyCheckedAt($entry->insolvencyCheckedAt);
+
+        return $link;
     }
 
     /**
@@ -1559,9 +1878,7 @@ final class CaseWizardController extends AbstractController
             if ($entry->personType === null && ($entry->name === null || $entry->name === '')) {
                 continue;
             }
-            $debtor = $this->buildDebtor($entry);
-            $debtor->setLegalCase($case);
-            $case->addDebtor($debtor);
+            $case->addDebtor($this->buildDebtorLink($user, $entry, write: false));
         }
 
         // Transient positions: never persisted from here, but enough for the
@@ -1852,6 +2169,7 @@ final class CaseWizardController extends AbstractController
             'documentIds' => [],
             'creditor' => null,
             'debtors' => null,
+            'debtorBeforePick' => null,
             'claim' => null,
             'claimItems' => null,
             'claimItemsTableConfirmed' => false,
@@ -1899,12 +2217,75 @@ final class CaseWizardController extends AbstractController
 
         $reconciled = $this->conflictResolutions->reconcile($bag['conflictResolutions'], $conflicts);
         if ($reconciled !== $bag['conflictResolutions']) {
+            // The documents changed under a choice of party: the debtor card
+            // kept in the session describes a party that is no longer the
+            // chosen one, so it goes, with the field choices made for it.
+            if ($this->droppedPartyChoice($bag['conflictResolutions'], $reconciled)) {
+                $bag['debtors'] = null;
+                $reconciled = array_filter(
+                    $reconciled,
+                    static fn (ConflictResolution $r): bool => $r->scope !== ConflictScope::DEBTOR,
+                );
+            }
             $bag['conflictResolutions'] = $reconciled;
             $prefill = $this->prefill->aggregate($bag['documentIds'], $reconciled);
             $conflicts = $this->conflictsInScope($prefill, $scopes);
         }
 
+        if (in_array(ConflictScope::DEBTOR_SET, $scopes, true)) {
+            $conflicts = $this->withLibraryDebtor($bag, $prefill, $conflicts);
+        }
+
         return [$prefill, $conflicts];
+    }
+
+    /**
+     * With the debtor taken from the library, its identity is the library's:
+     * what the documents disagree about in the debtor's fields no longer
+     * decides anything and is not asked. What is asked is whether the company
+     * the documents name is the one picked, when their CUIs differ.
+     *
+     * @param array<string, mixed> $bag
+     * @param list<PrefillConflict> $conflicts
+     * @return list<PrefillConflict>
+     */
+    private function withLibraryDebtor(array $bag, WizardPrefillResult $prefill, array $conflicts): array
+    {
+        $entry = $bag['debtors']->debtors[0] ?? null;
+        if (!$entry instanceof Step2DebtorEntry || $entry->debtorId === null) {
+            return $conflicts;
+        }
+
+        $conflicts = array_values(array_filter(
+            $conflicts,
+            static fn (PrefillConflict $c): bool => $c->scope !== ConflictScope::DEBTOR,
+        ));
+        $documentsCui = CuiNormalizer::canonical($prefill->debtors->debtors[0]->cui ?? null);
+        if ($documentsCui !== null && $documentsCui !== CuiNormalizer::canonical($entry->cui)) {
+            $conflicts[] = new PrefillConflict(
+                scope: ConflictScope::DEBTOR_SET,
+                severity: ConflictSeverity::ERROR,
+                messageKey: 'wizard.conflict.debtor_set.library_mismatch',
+                field: 'libraryDebtor',
+            );
+        }
+
+        return $conflicts;
+    }
+
+    /**
+     * @param array<string, ConflictResolution> $before
+     * @param array<string, ConflictResolution> $after
+     */
+    private function droppedPartyChoice(array $before, array $after): bool
+    {
+        foreach (array_diff_key($before, $after) as $resolution) {
+            if ($resolution->scope === ConflictScope::DEBTOR_SET && $resolution->field === 'debtors') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -2004,6 +2385,11 @@ final class CaseWizardController extends AbstractController
 
             return false;
         }
+        if ($this->conflictResolutions->unresolvableBlocks($conflicts) !== []) {
+            $this->addFlash('error', 'wizard.conflict.documents_change_required');
+
+            return false;
+        }
 
         $pending = $this->conflictResolutions->pendingAcknowledgement($conflicts);
         if ($pending === []) {
@@ -2083,7 +2469,10 @@ final class CaseWizardController extends AbstractController
      */
     private function unsettledConflicts(array $bag, array $conflicts): array
     {
-        $unsettled = $this->conflictResolutions->pendingChoices($conflicts, $bag['conflictResolutions']);
+        $unsettled = [
+            ...$this->conflictResolutions->pendingChoices($conflicts, $bag['conflictResolutions']),
+            ...$this->conflictResolutions->unresolvableBlocks($conflicts),
+        ];
         $acknowledged = $this->acknowledgements($bag, $conflicts);
         foreach ($this->conflictResolutions->pendingAcknowledgement($conflicts) as $conflict) {
             if (!isset($acknowledged[$conflict->key()])) {
@@ -2194,6 +2583,78 @@ final class CaseWizardController extends AbstractController
         return $acknowledged ? null : new Response(status: Response::HTTP_UNPROCESSABLE_ENTITY);
     }
 
+    /**
+     * Which of the parties named by the documents the debtor card shows (the
+     * one the lawyer chose, or the first while nothing is chosen), by its label
+     * rather than its position, which moves when documents are added.
+     *
+     * @param array<string, mixed> $bag
+     * @param list<PrefillConflict> $conflicts
+     */
+    private function chosenParty(array $bag, array $conflicts): string
+    {
+        foreach ($conflicts as $conflict) {
+            if ($conflict->messageKey === PrefillFromExtractionService::DEBTOR_CHOICE_MESSAGE) {
+                $index = $bag['conflictResolutions'][$conflict->key()]->optionIndex ?? 0;
+
+                return ($conflict->options[$index] ?? $conflict->options[0])->displayValue();
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * The lawyer picked another party than the card showed. The submitted card
+     * describes the previous one, so it is discarded, and so are the field
+     * choices and checks made for that party; the step is shown again with the
+     * chosen party's data.
+     *
+     * @param array<string, mixed> $bag
+     */
+    private function showChosenParty(SessionInterface $session, array $bag): Response
+    {
+        $bag['debtors'] = null;
+        $bag['conflictResolutions'] = array_filter(
+            $bag['conflictResolutions'],
+            static fn (ConflictResolution $r): bool => $r->scope !== ConflictScope::DEBTOR,
+        );
+        $this->saveBag($session, $bag);
+
+        return $this->redirectToRoute('case_wizard_debtor');
+    }
+
+    /**
+     * A wizard session saved before a person type or the second debtor was
+     * hidden can still hold them. It is sent back to the debtor step rather
+     * than converted silently: the lawyer re-enters the party with the data
+     * the product accepts, or removes the extra debtor.
+     *
+     * @param array<string, mixed> $bag
+     */
+    private function redirectForDebtorsNoLongerOffered(array $bag): ?Response
+    {
+        $debtors = $bag['debtors'] ?? null;
+        if (!$debtors instanceof Step2DebtorsData) {
+            return null;
+        }
+        if (count($debtors->debtors) > Step2DebtorsData::MAX_DEBTORS) {
+            $this->addFlash('warning', 'wizard.step2.flash.too_many_debtors');
+
+            return $this->redirectToRoute('case_wizard_debtor');
+        }
+        foreach ($debtors->debtors as $entry) {
+            if ($entry->personType !== null
+                && !in_array($entry->personType, Step2DebtorEntryType::OFFERED_PERSON_TYPES, true)) {
+                $this->addFlash('warning', 'wizard.step2.flash.person_type_not_offered');
+
+                return $this->redirectToRoute('case_wizard_debtor');
+            }
+        }
+
+        return null;
+    }
+
     private function loadBag(SessionInterface $session): array
     {
         $raw = $session->get(self::SESSION_KEY, []);
@@ -2212,6 +2673,10 @@ final class CaseWizardController extends AbstractController
         $debtors = $raw['debtors'] ?? null;
         if (!$debtors instanceof Step2DebtorsData) {
             $debtors = null;
+        }
+        $debtorBeforePick = $raw['debtorBeforePick'] ?? null;
+        if (!$debtorBeforePick instanceof Step2DebtorsData) {
+            $debtorBeforePick = null;
         }
 
         $claim = $raw['claim'] ?? null;
@@ -2251,6 +2716,7 @@ final class CaseWizardController extends AbstractController
             'documentIds' => $ids,
             'creditor' => $creditor,
             'debtors' => $debtors,
+            'debtorBeforePick' => $debtorBeforePick,
             'claim' => $claim,
             'claimItems' => $claimItems,
             'claimItemsTableConfirmed' => (bool) ($raw['claimItemsTableConfirmed'] ?? false),

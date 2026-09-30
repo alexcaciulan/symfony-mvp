@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Repository;
 
 use App\Entity\Debtor;
+use App\Entity\LegalCaseDebtor;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Entity\User;
@@ -51,7 +52,7 @@ class LegalDeadlineAgendaTest extends KernelTestCase
         $ids = [$this->user->getId(), $this->otherUser->getId()];
         $conn = $this->em->getConnection();
         $conn->executeStatement(
-            'DELETE FROM debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id IN (?))',
+            'DELETE FROM legal_case_debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id IN (?))',
             [$ids],
             [ArrayParameterType::INTEGER],
         );
@@ -340,11 +341,14 @@ class LegalDeadlineAgendaTest extends KernelTestCase
         $prescription = $this->createDeadline($case, '+400 days', DeadlineType::PRESCRIPTIE);
         foreach (['Debitor Unu SRL', 'Debitor Doi SRL'] as $name) {
             $debtor = new Debtor();
-            $debtor->setLegalCase($case);
+            $debtor->setUser($case->getUser());
             $debtor->setPersonType(PersonType::PJ);
             $debtor->setName($name);
             $debtor->setAddress('str. Testului nr. 1');
             $this->em->persist($debtor);
+            $link = new LegalCaseDebtor($debtor);
+            $case->addDebtor($link);
+            $this->em->persist($link);
         }
         $this->em->flush();
         $this->em->clear();
@@ -380,11 +384,14 @@ class LegalDeadlineAgendaTest extends KernelTestCase
         $deadline = $this->createDeadline($case, 'today');
         foreach (['Debitor Unu SRL', 'Debitor Doi SRL'] as $name) {
             $debtor = new Debtor();
-            $debtor->setLegalCase($case);
+            $debtor->setUser($case->getUser());
             $debtor->setPersonType(PersonType::PJ);
             $debtor->setName($name);
             $debtor->setAddress('str. Testului nr. 1');
             $this->em->persist($debtor);
+            $link = new LegalCaseDebtor($debtor);
+            $case->addDebtor($link);
+            $this->em->persist($link);
         }
         $this->em->flush();
         $this->em->clear();

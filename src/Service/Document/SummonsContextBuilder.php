@@ -97,7 +97,7 @@ final class SummonsContextBuilder
             'dailyRateFormatted' => $this->formatDailyRate($case->getContractualPenaltyRate()),
             'calculationStart' => $this->calculationStart($tables->principalRows),
             'namedContract' => $this->namedContract($case, $items),
-            'recipientDebtor' => $case->getDebtors()->first() ?: null,
+            'recipientDebtor' => $case->getPrimaryDebtor(),
             'noticeNumber' => $case->getPaymentNoticeNumber(),
             'principal' => $principal,
             'currency' => $case->getCurrency(),

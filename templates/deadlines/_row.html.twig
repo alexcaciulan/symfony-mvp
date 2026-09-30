@@ -74,7 +74,7 @@
     : (urgent ? 'font-bold text-red-600 dark:text-red-400' : (days <= 7 ? 'font-semibold text-amber-700 dark:text-amber-400' : 'font-medium text-slate-600 dark:text-slate-300')) %}
 
 {% set primary_style = consumed ? 'primary' : (neutral ? 'secondary' : (irreversible and days <= 3 ? 'danger' : 'primary')) %}
-{% set debtor = legal_case.debtors|length > 0 ? legal_case.debtors|first : null %}
+{% set debtor = legal_case.primaryDebtor %}
 
 <article id="deadline-row-{{ deadline.id }}"
          class="relative flex flex-wrap items-start gap-3 px-4 py-3 {{ consumed or closed ? 'bg-slate-50/70 dark:bg-slate-800/25' : 'hover:bg-slate-50 dark:hover:bg-slate-800/40 transition' }}">

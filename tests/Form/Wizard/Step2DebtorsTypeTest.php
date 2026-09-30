@@ -45,7 +45,7 @@ final class Step2DebtorsTypeTest extends KernelTestCase
         self::assertInstanceOf(Step2DebtorEntry::class, $dto->debtors[0]);
     }
 
-    public function testSubmitWithMultipleDebtorsIsValid(): void
+    public function testSubmitWithASecondDebtorIsRejectedWhileTheCapIsOne(): void
     {
         $form = $this->buildForm();
         $form->submit([
@@ -55,8 +55,8 @@ final class Step2DebtorsTypeTest extends KernelTestCase
             ],
         ]);
 
-        self::assertTrue($form->isValid(), (string) $form->getErrors(true));
-        self::assertCount(2, $form->getData()->debtors);
+        // A forged addCollectionItem cannot get a second debtor past the cap.
+        self::assertFalse($form->isValid());
     }
 
     public function testSubmitWithSixDebtorsIsInvalid(): void

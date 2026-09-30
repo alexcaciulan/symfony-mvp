@@ -4,10 +4,16 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller\Case;
 
+use App\DTO\Extraction\ConflictResolution;
+use App\DTO\Extraction\PrefillConflict;
+use App\Enum\ConflictScope;
+use App\Enum\ConflictSeverity;
+use App\Service\Extraction\PrefillFromExtractionService;
 use App\DTO\Wizard\Step1CreditorData;
 use App\DTO\Wizard\Step2DebtorEntry;
 use App\DTO\Wizard\Step2DebtorsData;
 use App\DTO\Wizard\Step3ClaimData;
+use App\Entity\Debtor;
 use App\Entity\AuditLog;
 use App\Entity\Document;
 use App\Entity\User;
@@ -68,7 +74,7 @@ final class CaseWizardConflictRecordTest extends WebTestCase
         $conn->executeStatement('DELETE FROM audit_log WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM claim_item WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM document WHERE uploaded_by_id = :id', ['id' => $userId]);
-        $conn->executeStatement('DELETE FROM debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
+        $conn->executeStatement('DELETE FROM legal_case_debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM legal_deadline WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM case_status_history WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM legal_case WHERE user_id = :id', ['id' => $userId]);
@@ -170,41 +176,116 @@ final class CaseWizardConflictRecordTest extends WebTestCase
     }
 
     /**
-     * Where the documents offer nothing to choose between, all the lawyer can do
-     * is say they have read the disagreement. That statement is about the
-     * disagreements in front of them: a document uploaded afterwards can raise
-     * another one, and carrying the old statement onto it would put in the file
-     * an assumption nobody made.
+     * A case has one debtor for now. When the documents name a second party
+     * (a guarantor on the contract), the lawyer picks the one the case is
+     * against, and the card then shows that party, not the first one read.
      */
-    public function testAnAcknowledgementDoesNotCoverADisagreementThatAppearsLater(): void
+    public function testChoosingAnotherPartyShowsItsDataOnTheDebtorCard(): void
     {
-        $ids = $this->primeDocuments([
+        $this->primeDocuments([
             $this->debtorWithClaim('Alfa Construct SRL', '15193236', 1000.0),
-            $this->debtorWithClaim('Beta Logistic SRL', '14186770', 2000.0),
+            $this->debtorWithClaim('Beta Garant SRL', '14186770', 0.0),
         ]);
 
         $crawler = $this->client->request('GET', '/case/new/debtor');
-        self::assertSame(1, $crawler->filter('[data-testid="prefill-conflicts-ack"]')->count());
-        $this->postDebtor($crawler, ['prefill_conflicts_acknowledged' => '1']);
-        self::assertResponseRedirects('/case/new/claim');
+        $choice = $crawler->filter('input[type="radio"][name^="prefill_conflict["]');
+        self::assertSame(2, $choice->count(), 'one option per party, and no typed value');
+        self::assertSame('Alfa Construct SRL', $this->fieldValue($crawler, 'step2_debtors[debtors][0][name]'));
 
-        // Four more parties: over the product cap, which is a second blocking
-        // disagreement with nothing to choose between.
-        $more = $this->primeDocuments([
-            $this->debtorWithClaim('Gama SRL', '42000006', 3000.0),
-            $this->debtorWithClaim('Delta SRL', '13548146', 4000.0),
-            $this->debtorWithClaim('Epsilon SRL', '16018400', 5000.0),
-            $this->debtorWithClaim('Zeta SRL', '14399840', 6000.0),
+        $this->postDebtor($crawler, ['prefill_conflict' => [$this->choiceKey($choice) => '1']]);
+        self::assertResponseRedirects('/case/new/debtor');
+
+        $crawler = $this->client->request('GET', '/case/new/debtor');
+        self::assertSame('Beta Garant SRL', $this->fieldValue($crawler, 'step2_debtors[debtors][0][name]'));
+    }
+
+    public function testTheDebtorStepWaitsForTheChoiceOfParty(): void
+    {
+        $this->primeDocuments([
+            $this->debtorWithClaim('Alfa Construct SRL', '15193236', 1000.0),
+            $this->debtorWithClaim('Beta Garant SRL', '14186770', 0.0),
         ]);
-        $this->writeBag(['documentIds' => [...$ids, ...$more]]);
 
         $crawler = $this->client->request('GET', '/case/new/debtor');
         $this->postDebtor($crawler);
 
-        self::assertResponseStatusCodeSame(
-            Response::HTTP_UNPROCESSABLE_ENTITY,
-            'A disagreement the lawyer has never seen cannot count as assumed',
+        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+    }
+
+    /**
+     * The debtor step was passed, then documents naming another debtor's sums
+     * joined the case. The confirmation must not file: only removing those
+     * documents settles it, so there is nothing to tick at step 4 either.
+     */
+    public function testTheConfirmationRefusesClaimsOfAnotherDebtorAddedLater(): void
+    {
+        // Same amount on both, so the only thing standing is whose sums they are.
+        $this->primeDocuments([
+            $this->debtorWithClaim('Alfa Construct SRL', '15193236', 1000.0),
+            $this->debtorWithClaim('Beta Logistic SRL', '14186770', 1000.0),
+        ]);
+
+        $this->writeBag(['creditor' => new Step1CreditorData(
+            personType: PersonType::PJ,
+            name: 'Acme Creditor SRL',
+            cui: 'RO14399840',
+            onrcNumber: 'J40/1234/2018',
+            address: 'Str. Exemplu nr. 1, București',
+        )]);
+        $this->fillStepsPastCreditor();
+        // The party was chosen at step 2; only the other debtor's sums remain.
+        $choice = new PrefillConflict(ConflictScope::DEBTOR_SET, ConflictSeverity::ERROR, PrefillFromExtractionService::DEBTOR_CHOICE_MESSAGE, 'debtors');
+        $this->writeBag(['conflictResolutions' => [$choice->key() => new ConflictResolution(
+            conflictKey: $choice->key(),
+            scope: ConflictScope::DEBTOR_SET,
+            field: 'debtors',
+            entityKey: null,
+            value: 'Alfa Construct SRL (CUI 15193236)',
+            optionIndex: 0,
+            optionSignature: 'Alfa Construct SRL (CUI 15193236)',
+        )]]);
+
+        $crawler = $this->client->request('GET', '/case/new/confirmation');
+        $this->client->request('POST', '/case/new/confirmation', [
+            'step4_confirmation' => [
+                '_token' => $this->fieldValue($crawler, 'step4_confirmation[_token]'),
+                'acceptTerms' => '1',
+                'acceptDataAccuracy' => '1',
+            ],
+        ]);
+
+        self::assertNull(
+            $this->em->getRepository(\App\Entity\LegalCase::class)->findOneBy(['user' => $this->user]),
+            'no case is filed while another debtor\'s sums are in the documents',
         );
+    }
+
+    public function testALibraryDebtorWhoseCuiDiffersFromTheDocumentsIsAsked(): void
+    {
+        $this->primeDocuments([$this->debtorWithClaim('Alfa Construct SRL', '15193236', 1000.0)]);
+        $company = (new Debtor())->setUser($this->user)->setPersonType(PersonType::PJ)->setName('Altă Firmă SRL')->setCui('RO14186770')->setAddress('Str. X 1');
+        $this->em->persist($company);
+        $this->em->flush();
+        $this->writeBag(['debtors' => new Step2DebtorsData([new Step2DebtorEntry(
+            personType: PersonType::PJ,
+            name: 'Altă Firmă SRL',
+            cui: 'RO14186770',
+            address: 'Str. X 1',
+            debtorId: $company->getId(),
+        )])]);
+
+        $crawler = $this->client->request('GET', '/case/new/debtor');
+
+        $panel = $crawler->filter('[data-testid="prefill-conflicts"]')->text();
+        self::assertStringContainsString('Debitorul ales din bibliotecă are alt CUI', $panel);
+        self::assertSame(1, $crawler->filter('[data-testid="prefill-conflicts-ack"]')->count());
+    }
+
+    private function choiceKey(Crawler $radios): string
+    {
+        preg_match('/^prefill_conflict\[(.+)\]$/', (string) $radios->first()->attr('name'), $m);
+
+        return $m[1];
     }
 
     /**

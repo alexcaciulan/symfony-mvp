@@ -35,13 +35,23 @@
                PF entries hide CUI/ONRC/administrator + the ANAF lookup wrapper,
                PJ entries hide CNP. Stimulus auto-initializes the controller on
                each new entry rendered by LiveCollectionTrait (add debitor). #}
+            {# A debtor taken from the library keeps the library's identity: the
+               fields are read-only here and the ANAF sync records the status only. #}
+            {% set from_library = entry.debtorId.vars.value is not empty %}
             <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-6 shadow-soft"
                  data-controller="person-type-toggle">
                 <header class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                     <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                        {{ 'wizard.step2.entry_heading'|trans({ '%index%': loop.index }) }}
+                        {% if constant('App\\Twig\\Components\\Step2DebtorsLiveComponent::MAX_DEBTORS') > 1 %}
+                            {{ 'wizard.step2.entry_heading'|trans({ '%index%': loop.index }) }}
+                        {% else %}
+                            {{ 'wizard.step2.entry_heading_single'|trans }}
+                        {% endif %}
                     </h3>
                     <div class="flex items-center gap-2">
+                        {% if from_library %}
+                            <span class="inline-flex items-center gap-1 text-[11px] font-medium text-blue-700 bg-blue-50 dark:bg-blue-950/40 dark:text-blue-300 px-2 py-0.5 rounded-full" data-testid="debtor-from-library">{{ 'wizard.step2.library.badge'|trans }}</span>
+                        {% endif %}
                         {# Reflects the persisted status only. The live "synced" badge is
                            rendered inside the party-anaf-lookup scope below, since Stimulus
                            resolves targets within the controller element and this header is
@@ -72,34 +82,51 @@
                    Pre-3.4 relied on Live Component re-render on each radio
                    click (POST /_components/...); CSS-only drops the round-trip
                    while keeping the visual swap instant. #}
-                {% set effective_person_type = entry.personType.vars.value ?: entry.personType.vars.choices|first.value %}
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ 'wizard.step2.field.person_type'|trans }}</label>
-                    <div class="grid grid-cols-2 gap-3 max-w-md">
-                        {% for choice in entry.personType.vars.choices %}
-                            <label class="relative flex items-center cursor-pointer rounded-lg border-2 p-3 transition
-                                          border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600
-                                          has-[:checked]:border-blue-500
-                                          has-[:checked]:bg-gradient-to-br has-[:checked]:from-blue-50 has-[:checked]:to-blue-100/30
-                                          dark:has-[:checked]:from-blue-950/30 dark:has-[:checked]:to-blue-950/10">
-                                <input type="radio" name="{{ entry.personType.vars.full_name }}" value="{{ choice.value }}"
-                                       {% if effective_person_type == choice.value %}checked{% endif %}
-                                       class="peer sr-only"
-                                       data-person-type-toggle-target="radio"
-                                       data-action="change->person-type-toggle#update">
-                                <span class="text-sm font-semibold text-slate-700 dark:text-slate-300
-                                             peer-checked:font-bold peer-checked:text-blue-900 dark:peer-checked:text-blue-200">
-                                    {{ choice.label|trans }}
-                                </span>
-                                <svg class="ml-auto size-5 text-blue-600 dark:text-blue-400 hidden peer-checked:block"
-                                     fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-                                </svg>
-                            </label>
-                        {% endfor %}
+                {# Only the offered person types are rendered as cards
+                   (Step2DebtorEntryType::OFFERED_PERSON_TYPES). With a single one the
+                   choice is a hidden input; the toggle controller then treats the
+                   entry as PJ and keeps the PF-only fields hidden. #}
+                {% if entry.personType.vars.choices|length > 1 %}
+                    {% set effective_person_type = entry.personType.vars.value ?: entry.personType.vars.choices|first.value %}
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ 'wizard.step2.field.person_type'|trans }}</label>
+                        <div class="grid grid-cols-2 gap-3 max-w-md">
+                            {% for choice in entry.personType.vars.choices %}
+                                <label class="relative flex items-center cursor-pointer rounded-lg border-2 p-3 transition
+                                              border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600
+                                              has-[:checked]:border-blue-500
+                                              has-[:checked]:bg-gradient-to-br has-[:checked]:from-blue-50 has-[:checked]:to-blue-100/30
+                                              dark:has-[:checked]:from-blue-950/30 dark:has-[:checked]:to-blue-950/10">
+                                    <input type="radio" name="{{ entry.personType.vars.full_name }}" value="{{ choice.value }}"
+                                           {% if effective_person_type == choice.value %}checked{% endif %}
+                                           class="peer sr-only"
+                                           data-person-type-toggle-target="radio"
+                                           data-action="change->person-type-toggle#update">
+                                    <span class="text-sm font-semibold text-slate-700 dark:text-slate-300
+                                                 peer-checked:font-bold peer-checked:text-blue-900 dark:peer-checked:text-blue-200">
+                                        {{ choice.label|trans }}
+                                    </span>
+                                    <svg class="ml-auto size-5 text-blue-600 dark:text-blue-400 hidden peer-checked:block"
+                                         fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                                    </svg>
+                                </label>
+                            {% endfor %}
+                        </div>
+                        {{ f.field_errors(entry.personType) }}
                     </div>
+                {% else %}
+                    <input type="hidden" name="{{ entry.personType.vars.full_name }}" value="{{ (entry.personType.vars.choices|first).value }}">
                     {{ f.field_errors(entry.personType) }}
-                </div>
+                    {# The documents describe a type the wizard does not offer yet
+                       (a natural person); say why a CUI is now asked for. #}
+                    {% if entry_dto is not null and entry_dto.personType is not null
+                          and entry_dto.personType.value != (entry.personType.vars.choices|first).value %}
+                        <p class="text-xs text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-lg px-3 py-2">
+                            {{ 'wizard.step2.person_type_not_offered_note'|trans }}
+                        </p>
+                    {% endif %}
+                {% endif %}
                 {% set _ = form_widget(entry.personType) %}
 
                 {# Field order mirrors Step 1 (creditor) exactly: name, cui,
@@ -122,11 +149,25 @@
                      data-party-anaf-lookup-fiscal-domicile-msg-value="{{ 'wizard.anaf.fiscal_domicile_differs'|trans }}"
                      data-party-anaf-lookup-postal-code-missing-msg-value="{{ 'wizard.anaf.postal_code_missing'|trans }}"
                      data-party-anaf-lookup-already-synced-title-value="{{ 'wizard.anaf.already_synced'|trans }}"
+                     data-party-anaf-lookup-status-only-value="{{ from_library ? 'true' : 'false' }}"
                      class="space-y-6">
+                    {% if from_library %}
+                        <p class="text-xs text-blue-900 dark:text-blue-200 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/60 rounded-lg px-3 py-2">{{ 'wizard.step2.library.reverify_notice'|trans }}</p>
+                        {# The identity is read-only here, so a stored value that
+                           fails the checks can only be corrected in the library. #}
+                        {% set identity_invalid = ['name', 'cui', 'onrcNumber', 'address', 'addressCounty', 'addressLocality', 'administrator', 'iban', 'email', 'phone']|filter(n => entry[n].vars.errors|length > 0) is not empty %}
+                        {% if identity_invalid %}
+                            <div role="alert" class="text-sm text-red-800 dark:text-red-200 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/60 rounded-lg px-3 py-2" data-testid="library-debtor-invalid">
+                                {{ 'wizard.step2.library.invalid'|trans }}
+                                <a href="{{ path('app_debtors_edit', {id: entry.debtorId.vars.value}) }}" data-turbo-frame="_top" class="font-semibold underline">{{ 'wizard.step2.library.invalid_fix'|trans }}</a>
+                            </div>
+                        {% endif %}
+                    {% endif %}
+                    {{ form_widget(entry.debtorId) }}
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="md:col-span-2">
                             {{ f.field_label(entry.name, 'wizard.step2.field.name', false, true) }}
-                            {{ form_widget(entry.name, { attr: {
+                            {{ form_widget(entry.name, { attr: { readonly: from_library,
                                 class: f.input_classes(entry.name)|trim,
                                 'data-party-anaf-lookup-target': 'name',
                             }}) }}
@@ -142,7 +183,7 @@
                                 </div>
                             </div>
                             <div class="relative">
-                                {{ form_widget(entry.cui, { attr: {
+                                {{ form_widget(entry.cui, { attr: { readonly: from_library,
                                     class: f.input_classes(entry.cui, 'font-mono')|trim,
                                     placeholder: 'RO12345678',
                                     'data-party-anaf-lookup-target': 'cui',
@@ -161,7 +202,7 @@
 
                         <div data-person-type-toggle-target="pjOnly">
                             {{ f.field_label(entry.onrcNumber, 'wizard.step2.field.onrc_number', false, true) }}
-                            {{ form_widget(entry.onrcNumber, { attr: { class: f.input_classes(entry.onrcNumber, 'font-mono')|trim, placeholder: 'J40/8765/2019' }}) }}
+                            {{ form_widget(entry.onrcNumber, { attr: { readonly: from_library, class: f.input_classes(entry.onrcNumber, 'font-mono')|trim, placeholder: 'J40/8765/2019' }}) }}
                             {{ f.field_errors(entry.onrcNumber) }}
                         </div>
 
@@ -175,13 +216,13 @@
                            kept pjOnly because a natural-person debtor has no administrator. #}
                         <div data-person-type-toggle-target="pjOnly">
                             {{ f.field_label(entry.administrator, 'wizard.step2.field.administrator', true) }}
-                            {{ form_widget(entry.administrator, { attr: { class: f.input_classes(entry.administrator)|trim }}) }}
+                            {{ form_widget(entry.administrator, { attr: { readonly: from_library, class: f.input_classes(entry.administrator)|trim }}) }}
                             {{ f.field_errors(entry.administrator) }}
                         </div>
 
                         <div class="md:col-span-2">
                             {{ f.field_label(entry.address, 'wizard.step2.field.address', false, true) }}
-                            {{ form_widget(entry.address, { attr: {
+                            {{ form_widget(entry.address, { attr: { readonly: from_library,
                                 class: f.input_classes(entry.address)|trim,
                                 rows: 2,
                                 'data-party-anaf-lookup-target': 'address',
@@ -194,7 +235,7 @@
                            sync; editable as manual fallback. #}
                         <div>
                             {{ f.field_label(entry.addressCounty, 'wizard.step2.field.address_county', true) }}
-                            {{ form_widget(entry.addressCounty, { attr: {
+                            {{ form_widget(entry.addressCounty, { attr: { readonly: from_library,
                                 class: f.input_classes(entry.addressCounty)|trim,
                                 'data-party-anaf-lookup-target': 'addressCounty',
                             }}) }}
@@ -203,7 +244,7 @@
 
                         <div>
                             {{ f.field_label(entry.addressLocality, 'wizard.step2.field.address_locality', true) }}
-                            {{ form_widget(entry.addressLocality, { attr: {
+                            {{ form_widget(entry.addressLocality, { attr: { readonly: from_library,
                                 class: f.input_classes(entry.addressLocality)|trim,
                                 'data-party-anaf-lookup-target': 'addressLocality',
                             }}) }}
@@ -212,19 +253,19 @@
 
                         <div class="md:col-span-2">
                             {{ f.field_label(entry.iban, 'wizard.step2.field.iban', true) }}
-                            {{ form_widget(entry.iban, { attr: { class: f.input_classes(entry.iban, 'font-mono')|trim, placeholder: 'RO49 RNCB 0082 0044 8001 0001' }}) }}
+                            {{ form_widget(entry.iban, { attr: { readonly: from_library, class: f.input_classes(entry.iban, 'font-mono')|trim, placeholder: 'RO49 RNCB 0082 0044 8001 0001' }}) }}
                             {{ f.field_errors(entry.iban) }}
                         </div>
 
                         <div>
                             {{ f.field_label(entry.email, 'wizard.step2.field.email', true) }}
-                            {{ form_widget(entry.email, { attr: { class: f.input_classes(entry.email)|trim }}) }}
+                            {{ form_widget(entry.email, { attr: { readonly: from_library, class: f.input_classes(entry.email)|trim }}) }}
                             {{ f.field_errors(entry.email) }}
                         </div>
 
                         <div>
                             {{ f.field_label(entry.phone, 'wizard.step2.field.phone', true) }}
-                            {{ form_widget(entry.phone, { attr: { class: f.input_classes(entry.phone)|trim }}) }}
+                            {{ form_widget(entry.phone, { attr: { readonly: from_library, class: f.input_classes(entry.phone)|trim }}) }}
                             {{ f.field_errors(entry.phone) }}
                         </div>
                     </div>
@@ -252,14 +293,14 @@
                    debtor is inadmissible, so the lawyer must attest the check before the
                    case can move on. The former "debtor is insolvent" checkbox was removed
                    from the wizard (a lawyer who finds insolvency must not file at all);
-                   Debtor::$inInsolvency itself stays, written from the admin surface. #}
+                   the case's inInsolvency column stays, unwritten for now. #}
                 <div class="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-lg p-4 space-y-3"
                      data-person-type-toggle-target="pjOnly">
                     <div class="flex items-start gap-2.5">
                         <svg class="size-5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"/></svg>
                         <div class="text-sm">
                             <div class="font-semibold text-amber-900 dark:text-amber-200">{{ 'wizard.step2.bpi.title'|trans }}</div>
-                            <p class="mt-0.5 text-xs text-amber-800 dark:text-amber-200/80">{{ 'wizard.step2.bpi.body'|trans|raw }}</p>
+                            <p class="mt-0.5 text-xs text-amber-800 dark:text-amber-200/80">{{ 'wizard.step2.bpi.body'|trans }}</p>
                         </div>
                     </div>
 
@@ -274,18 +315,14 @@
                     </label>
                     {{ f.field_errors(entry.bpiVerifiedToday) }}
                 </div>
-
-                {% if loop.last %}
-                    {{ include('case/_save_to_library_cosmetic.html.twig', { label_key: 'wizard.step2.save_to_library' }) }}
-                {% endif %}
             </div>
         {% endfor %}
 
-        {# LiveAction add-debtor button — uses LiveCollectionTrait's
-           `addCollectionItem` which appends to `step2_debtors[debtors]` in
-           `formValues`. No full page reload, partial re-render only.
-           Disabled when cap of 5 is reached so the UI mirrors a server-side
-           cap check that we keep for safety in a future submit handler. #}
+        {# LiveAction add-debtor button (LiveCollectionTrait's `addCollectionItem`,
+           partial re-render only). Hidden while the product allows one debtor;
+           with a larger cap it is disabled once the cap is reached, mirroring the
+           Assert\Count on Step2DebtorsData that rejects a forged extra entry. #}
+        {% if constant('App\\Twig\\Components\\Step2DebtorsLiveComponent::MAX_DEBTORS') > 1 %}
         <button type="button"
                 data-action="live#action"
                 data-live-action-param="addCollectionItem"
@@ -301,5 +338,6 @@
                 {% endif %}
             </span>
         </button>
+        {% endif %}
     {{ form_end(form) }}
 </div>

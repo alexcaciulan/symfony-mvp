@@ -51,9 +51,9 @@ wizard:
             cui_required: 'Debtor CUI is required for a legal entity.'
             onrc_required: 'Debtor ONRC number is required for a legal entity.'
             cnp_required: 'Debtor CNP is required for an individual.'
-            bpi_verification_required: 'Confirm the BPI check to continue. A payment order cannot be filed against a debtor in insolvency.'
+            bpi_verification_required: 'Confirm the debtor check to continue. A payment order cannot be filed against a debtor subject to the proceedings provided for by Law 85/2014.'
             at_least_one_debtor: 'You must add at least one debtor.'
-            too_many_debtors: 'You can add at most 5 debtors per case.'
+            too_many_debtors: 'The maximum number of debtors in a case is {{ limit }}.'
     step3:
         error:
             amount_required: 'Enter the amount owed.'

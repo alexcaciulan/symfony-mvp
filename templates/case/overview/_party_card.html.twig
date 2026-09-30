@@ -2,7 +2,7 @@
 {% from 'case/overview/_icons.html.twig' import icon_eye, icon_edit %}
 
 {% set creditor = case.creditor %}
-{% set primary_debtor = case.debtors|length > 0 ? case.debtors|first : null %}
+{% set primary_debtor = case.primaryDebtor %}
 {% set anaf_status = primary_debtor and primary_debtor.anafStatus ? primary_debtor.anafStatus.value : null %}
 
 {# ANAF badge styling map — single source of truth (Tailwind classes + dot color + i18n key). #}

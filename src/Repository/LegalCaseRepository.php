@@ -34,6 +34,7 @@ class LegalCaseRepository extends ServiceEntityRepository
         return $this->createQueryBuilder('lc')
             ->leftJoin('lc.creditor', 'cr')->addSelect('cr')
             ->leftJoin('lc.debtors', 'db')->addSelect('db')
+            ->leftJoin('db.debtor', 'dbf')->addSelect('dbf')
             ->leftJoin('lc.court', 'ct')->addSelect('ct')
             ->leftJoin('lc.statusHistory', 'sh')->addSelect('sh')
             ->andWhere('lc.id = :id')
@@ -653,6 +654,7 @@ class LegalCaseRepository extends ServiceEntityRepository
     {
         return $this->createQueryBuilder('lc')
             ->leftJoin('lc.debtors', 'db')->addSelect('db')
+            ->leftJoin('db.debtor', 'dbf')->addSelect('dbf')
             ->leftJoin('lc.court', 'ct')->addSelect('ct')
             ->where('lc.user = :user')
             ->andWhere('lc.deletedAt IS NULL')

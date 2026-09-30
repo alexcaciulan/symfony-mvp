@@ -11,8 +11,9 @@ use Symfony\Component\Validator\Constraints as Assert;
  *
  * Seeded with one entry per party the uploaded documents describe, at least one
  * so the form always has a primary debtor card to render, and made interactive
- * by `Step2DebtorsLiveComponent` (add/remove). The cap is a product decision to
- * keep the wizard usable; CPC art. 1015 itself does not limit the number.
+ * by `Step2DebtorsLiveComponent` (add/remove). The cap is a product decision;
+ * CPC art. 1015 itself does not limit the number. It is one for now: several
+ * debtors come after launch, and the collection stays for them.
  */
 class Step2DebtorsData
 {
@@ -21,16 +22,14 @@ class Step2DebtorsData
      * component because the constraint below and the prefill both need it, and
      * a second copy is a second thing to forget.
      */
-    public const MAX_DEBTORS = 5;
+    public const MAX_DEBTORS = 1;
 
     /** @param list<Step2DebtorEntry> $debtors */
     public function __construct(
-        #[Assert\Count(
-            min: 1,
-            max: self::MAX_DEBTORS,
-            minMessage: 'wizard.step2.error.at_least_one_debtor',
-            maxMessage: 'wizard.step2.error.too_many_debtors',
-        )]
+        // Two constraints rather than one: with a cap of one, a single Count
+        // with min equal to max reports the "exactly" message for both cases.
+        #[Assert\Count(min: 1, minMessage: 'wizard.step2.error.at_least_one_debtor')]
+        #[Assert\Count(max: self::MAX_DEBTORS, maxMessage: 'wizard.step2.error.too_many_debtors')]
         #[Assert\Valid]
         public array $debtors = [],
     ) {}

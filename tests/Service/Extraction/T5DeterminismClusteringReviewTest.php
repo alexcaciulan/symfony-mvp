@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Service\Extraction;
 
+use App\DTO\Extraction\WizardPrefillResult;
 use App\Entity\Document;
 use App\Enum\ConflictScope;
 use App\Enum\ConflictSeverity;
@@ -56,12 +57,11 @@ final class T5DeterminismClusteringReviewTest extends TestCase
             $this->debtorDocument(4, DocumentType::FACTURA, 'Patru SRL', '44444444'),
         ];
 
-        $a = $this->serviceForOrdered($docs)->aggregate([7, 4])->debtors->debtors;
-        $b = $this->serviceForOrdered($docs)->aggregate([4, 7])->debtors->debtors;
+        $a = $this->parties($this->serviceForOrdered($docs)->aggregate([7, 4]));
+        $b = $this->parties($this->serviceForOrdered($docs)->aggregate([4, 7]));
 
-        self::assertSame('Patru SRL', $a[0]->name, 'the lowest document id anchors the first card');
-        self::assertSame('Sapte SRL', $a[1]->name);
-        self::assertEquals($a, $b);
+        self::assertSame(['Patru SRL (CUI 44444444)', 'Sapte SRL (CUI 77777777)'], $a, 'the lowest document id comes first');
+        self::assertSame($a, $b);
     }
 
     // ---------- scenario 4a: same party, different spelling, merges ----------
@@ -103,12 +103,9 @@ final class T5DeterminismClusteringReviewTest extends TestCase
         $a = $this->debtorDocument(1, DocumentType::FACTURA, 'Alfa SRL', '11111111');
         $b = $this->debtorDocument(2, DocumentType::FACTURA, 'Alfa Prod SRL', '22222222');
 
-        $debtors = $this->serviceForOrdered([$a, $b])->aggregateForDebtors([1, 2])->debtors;
+        $parties = $this->parties($this->serviceForOrdered([$a, $b])->aggregate([1, 2]));
 
-        self::assertCount(2, $debtors);
-        $cuis = array_map(static fn ($d) => $d->cui, $debtors);
-        sort($cuis);
-        self::assertSame(['11111111', '22222222'], $cuis);
+        self::assertSame(['Alfa SRL (CUI 11111111)', 'Alfa Prod SRL (CUI 22222222)'], $parties);
     }
 
     public function testIdenticalNamesWithDifferentCuisStayApart(): void
@@ -118,14 +115,12 @@ final class T5DeterminismClusteringReviewTest extends TestCase
         $a = $this->debtorDocument(1, DocumentType::FACTURA, 'Transport SRL', '11111111');
         $b = $this->debtorDocument(2, DocumentType::FACTURA, 'Transport SRL', '99999999');
 
-        $debtors = $this->serviceForOrdered([$a, $b])->aggregateForDebtors([1, 2])->debtors;
-
-        self::assertCount(2, $debtors);
+        self::assertCount(2, $this->parties($this->serviceForOrdered([$a, $b])->aggregate([1, 2])));
     }
 
     // ---------- scenario 4c: over the cap is signalled, not truncated silently ----------
 
-    public function testSixDistinctDebtorsAreSignalledAndCappedNotDroppedSilently(): void
+    public function testSixDistinctDebtorsAreAllOfferedNotDroppedSilently(): void
     {
         $docs = [];
         for ($i = 1; $i <= 6; ++$i) {
@@ -139,15 +134,30 @@ final class T5DeterminismClusteringReviewTest extends TestCase
 
         $result = $this->serviceForOrdered($docs)->aggregate(range(1, 6));
 
-        self::assertCount(5, $result->debtors->debtors, 'capped at the product limit');
-        self::assertTrue($result->hasBlockingConflicts(), 'the truncation is a blocking conflict, never silent');
+        self::assertCount(1, $result->debtors->debtors, 'one card at the product limit');
+        self::assertCount(6, $this->parties($result), 'every party is offered, none dropped');
         $blocking = $result->blockingConflicts()[0];
         self::assertSame(ConflictScope::DEBTOR_SET, $blocking->scope);
         self::assertSame(ConflictSeverity::ERROR, $blocking->severity);
-        self::assertSame('wizard.conflict.debtor_set.too_many', $blocking->messageKey);
     }
 
     // ---------- helpers ----------
+
+    /**
+     * The parties the documents name, as offered in the choice of debtor.
+     *
+     * @return list<string>
+     */
+    private function parties(WizardPrefillResult $result): array
+    {
+        foreach ($result->conflicts as $conflict) {
+            if ($conflict->messageKey === 'wizard.conflict.debtor_set.choose') {
+                return array_map(static fn ($o): string => $o->displayValue(), $conflict->options);
+            }
+        }
+
+        return array_map(static fn ($d): string => (string) $d->name, $result->debtors->debtors);
+    }
 
     /**
      * @param \App\DTO\Extraction\WizardPrefillResult $result

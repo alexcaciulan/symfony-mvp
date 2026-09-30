@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Tests\Controller\Case;
 
 use App\Entity\AuditLog;
+use App\Entity\City;
+use App\Service\Court\LocalityNormalizer;
 use App\Entity\Court;
 use App\Entity\Creditor;
 use App\Entity\Debtor;
+use App\Entity\LegalCaseDebtor;
 use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\User;
@@ -89,13 +92,13 @@ final class CasePaymentOrderControllerTest extends WebTestCase
         $this->em->persist($this->case);
 
         $debtor = new Debtor();
-        $debtor->setLegalCase($this->case);
+        $debtor->setUser($this->case->getUser());
         $debtor->setPersonType(PersonType::PJ);
         $debtor->setName('SC Debitor Ctrl SRL');
         $debtor->setAddress('Str. Ctrl 2, București');
         $debtor->setCui('RO99992222');
         $this->em->persist($debtor);
-        $this->case->addDebtor($debtor);
+        $this->case->addDebtor(new LegalCaseDebtor($debtor));
 
         $this->em->flush();
     }
@@ -124,7 +127,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
         $conn->executeStatement('DELETE FROM legal_deadline WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = ?)', [$userId]);
         $conn->executeStatement('DELETE FROM document WHERE uploaded_by_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM case_status_history WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = ?)', [$userId]);
-        $conn->executeStatement('DELETE FROM debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = ?)', [$userId]);
+        $conn->executeStatement('DELETE FROM legal_case_debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = ?)', [$userId]);
         $conn->executeStatement('DELETE FROM notification WHERE user_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM legal_case WHERE user_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM creditor WHERE user_id = ?', [$userId]);
@@ -535,6 +538,99 @@ final class CasePaymentOrderControllerTest extends WebTestCase
             $translator->trans('case_overview.payment_order.flash_error_communication_proof_missing'),
             $body,
         );
+    }
+
+    /**
+     * The debtor's office was corrected after the court was decided and now
+     * lies in another court's territory: the petition waits for the lawyer to
+     * confirm, knowingly, and the confirmation is recorded.
+     */
+    public function testGenerateWaitsForAConfirmationWhenTheDebtorNowSitsUnderAnotherCourt(): void
+    {
+        $town = 'Orastest' . strtolower(substr(md5(uniqid()), 0, 6));
+        $county = $this->createCounty($this->em, 'Cluj');
+        $city = (new City())->setCounty($county)->setName($town)->setNormalizedName(LocalityNormalizer::normalize($town) ?? $town);
+        $this->em->persist($city);
+        $other = (new Court())->setName('Judecătoria ' . $town)->setCounty($county)->setType(CourtType::JUDECATORIE)->setActive(true);
+        $other->addCoveredCity($city);
+        $this->em->persist($other);
+        $this->case->getPrimaryDebtor()->getDebtor()->setAddressCounty('Cluj')->setAddressLocality($town);
+        $this->em->flush();
+
+        $this->attachCommunicationProof();
+        $this->attachSomatieFile();
+        $this->client->loginUser($this->user);
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+        $payload = ['_token' => $token, 'debitAcknowledgedStatus' => 'UNPAID', 'opGenerationConsent' => '1'];
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/payment-order/generate', $payload);
+        $this->em->clear();
+        self::assertSame(CaseStatus::SOMATIE_TRIMISA, $this->em->getRepository(LegalCase::class)->find($this->case->getId())->getStatus());
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/payment-order/generate', $payload + ['debtorChangesAcknowledged' => '1']);
+        $this->em->clear();
+        self::assertSame(CaseStatus::CERERE_GENERATA, $this->em->getRepository(LegalCase::class)->find($this->case->getId())->getStatus());
+        $entry = $this->em->getRepository(AuditLog::class)->findOneBy([
+            'category' => AuditLogService::CATEGORY_PAYMENT_ORDER_GENERATED,
+            'entityId' => (string) $this->case->getId(),
+        ]);
+        self::assertSame('Judecătoria ' . $town, $entry->getNewData()['debtorChangesAcknowledged']['courtPointedToBySeat'] ?? null);
+    }
+
+    public function testGenerateShowsWhatChangedInTheDebtorSinceTheSummons(): void
+    {
+        $this->attachCommunicationProof();
+        $this->attachSomatieFile();
+        static::getContainer()->get(AuditLogService::class)->log(
+            action: 'debtor_identity_changed',
+            entityType: LegalCase::class,
+            entityId: (string) $this->case->getId(),
+            oldData: ['name' => 'SC Debitor Ctrl SRL'],
+            newData: ['name' => 'SC Debitor Redenumit SRL'],
+        );
+        $this->em->flush();
+        $this->client->loginUser($this->user);
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+        $payload = ['_token' => $token, 'debitAcknowledgedStatus' => 'UNPAID', 'opGenerationConsent' => '1'];
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/payment-order/generate', $payload);
+        $this->em->clear();
+        self::assertSame(CaseStatus::SOMATIE_TRIMISA, $this->em->getRepository(LegalCase::class)->find($this->case->getId())->getStatus());
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/payment-order/generate', $payload + ['debtorChangesAcknowledged' => '1']);
+        $this->em->clear();
+        self::assertSame(CaseStatus::CERERE_GENERATA, $this->em->getRepository(LegalCase::class)->find($this->case->getId())->getStatus());
+    }
+
+    public function testAChangeMadeBeforeTheSummonsOnTheSameDayIsNotReported(): void
+    {
+        $this->attachCommunicationProof();
+        $this->attachSomatieFile();
+        $audit = static::getContainer()->get(AuditLogService::class);
+        $audit->log(
+            action: 'debtor_identity_changed',
+            entityType: LegalCase::class,
+            entityId: (string) $this->case->getId(),
+            oldData: ['name' => 'SC Debitor Ctrl SRL'],
+            newData: ['name' => 'SC Debitor Redenumit SRL'],
+        );
+        $audit->log(action: 'summons_generated', entityType: LegalCase::class, entityId: (string) $this->case->getId());
+        $this->em->flush();
+        $this->em->getConnection()->executeStatement(
+            "UPDATE audit_log SET created_at = created_at - INTERVAL 1 MINUTE WHERE action = 'debtor_identity_changed' AND entity_id = :id",
+            ['id' => (string) $this->case->getId()],
+        );
+        $this->client->loginUser($this->user);
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/payment-order/generate', [
+            '_token' => $token,
+            'debitAcknowledgedStatus' => 'UNPAID',
+            'opGenerationConsent' => '1',
+        ]);
+
+        $this->em->clear();
+        self::assertSame(CaseStatus::CERERE_GENERATA, $this->em->getRepository(LegalCase::class)->find($this->case->getId())->getStatus(), 'the somatie already carried the new name');
     }
 
     public function testGenerateHappyPathTransitionsToCerereGenerata(): void

@@ -34,4 +34,47 @@ class AuditLogRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    /**
+     * When the case's first somatie was generated; null for a case whose
+     * somatie predates this record.
+     */
+    public function findFirstSummonsGeneratedAt(LegalCase $case): ?\DateTimeImmutable
+    {
+        $entry = $this->createQueryBuilder('a')
+            ->andWhere('a.entityType = :type')
+            ->andWhere('a.entityId = :id')
+            ->andWhere('a.action = :action')
+            ->setParameter('type', LegalCase::class)
+            ->setParameter('id', (string) $case->getId())
+            ->setParameter('action', 'summons_generated')
+            ->orderBy('a.createdAt', 'ASC')
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        return $entry instanceof AuditLog ? \DateTimeImmutable::createFromInterface($entry->getCreatedAt()) : null;
+    }
+
+    /**
+     * Changes to the case's debtor company recorded after the given moment,
+     * oldest first.
+     *
+     * @return list<AuditLog>
+     */
+    public function findDebtorChangesSince(LegalCase $case, \DateTimeInterface $since): array
+    {
+        return $this->createQueryBuilder('a')
+            ->andWhere('a.entityType = :type')
+            ->andWhere('a.entityId = :id')
+            ->andWhere('a.action = :action')
+            ->andWhere('a.createdAt > :since')
+            ->setParameter('type', LegalCase::class)
+            ->setParameter('id', (string) $case->getId())
+            ->setParameter('action', 'debtor_identity_changed')
+            ->setParameter('since', \DateTimeImmutable::createFromInterface($since))
+            ->orderBy('a.createdAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
 }

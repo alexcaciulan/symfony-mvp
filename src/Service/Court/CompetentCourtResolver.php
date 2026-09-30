@@ -225,6 +225,26 @@ final class CompetentCourtResolver
         return $this->causeGrouper ??= new ClaimCauseGrouper();
     }
 
+    /**
+     * The court of the given kind that a registered office points to, by the
+     * same territorial rules as {@see self::resolve()}; null when the office
+     * does not single one out (unknown county, ambiguous or unmatched locality).
+     * Lets a case check that its debtor still answers where the case is filed.
+     */
+    public function courtForSeat(CourtType $type, ?string $county, ?string $locality): ?Court
+    {
+        if ($county === null || trim($county) === '') {
+            return null;
+        }
+
+        $breakdown = new ClaimValueBreakdown(0.0, 0.0, 0.0, 0.0);
+        $result = $type === CourtType::JUDECATORIE
+            ? $this->resolveLocalCourt($county, $locality, $breakdown)
+            : $this->resolveTribunal($county, $breakdown);
+
+        return $result->court;
+    }
+
     private function courtTypeFor(float $principal): CourtType
     {
         return $principal > self::JURISDICTION_THRESHOLD_RON ? CourtType::TRIBUNAL : CourtType::JUDECATORIE;

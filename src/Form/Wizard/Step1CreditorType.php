@@ -39,6 +39,13 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
  */
 final class Step1CreditorType extends AbstractType
 {
+    /**
+     * Person types the wizard offers for the creditor. Natural persons are
+     * hidden for now (B2B product): the PF branch below and in the template
+     * stays in place, and adding PersonType::PF back here brings the choice back.
+     */
+    public const OFFERED_PERSON_TYPES = [PersonType::PJ];
+
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $builder
@@ -50,12 +57,12 @@ final class Step1CreditorType extends AbstractType
                 'label' => false,
                 'required' => false,
             ])
-            // The creditor is always a legal person (B2B product); a submitted
-            // PF is rejected as an invalid choice.
+            // A person type that is not offered is rejected as an invalid choice.
             ->add('personType', EnumType::class, [
                 'class' => PersonType::class,
-                'choices' => [PersonType::PJ],
+                'choices' => self::OFFERED_PERSON_TYPES,
                 'label' => 'wizard.step1.field.person_type',
+                'placeholder' => 'wizard.step1.placeholder.person_type',
                 'required' => true,
                 'choice_label' => fn (PersonType $t) => $t->label(),
             ])
@@ -120,8 +127,11 @@ final class Step1CreditorType extends AbstractType
         // strict-format Assert\Regex on the DTO accepts user-friendly input
         // like "RO49 RNCB 0082 0044 8001 0001" or "ro15193236".
         //
-        // A tampered or stale CNP is cleared for PJ, otherwise the validator
-        // would check a field the lawyer never sees.
+        // Also acts as defense-in-depth for the `person-type-toggle` Stimulus
+        // controller: even if JS is disabled / DevTools tampers with the hidden
+        // fields, we clear the fields that aren't applicable to the picked
+        // personType (CUI/ONRC for PF, CNP for PJ). Symfony forms otherwise
+        // try to validate stale values from a previous personType selection.
         $builder->addEventListener(FormEvents::PRE_SUBMIT, static function (FormEvent $event): void {
             $data = $event->getData();
             if (!is_array($data)) {
@@ -134,7 +144,11 @@ final class Step1CreditorType extends AbstractType
                 $data['cui'] = strtoupper(preg_replace('/\s+/', '', $data['cui']) ?? '');
             }
 
-            if (($data['personType'] ?? null) === PersonType::PJ->value) {
+            $personType = $data['personType'] ?? null;
+            if ($personType === PersonType::PF->value) {
+                $data['cui'] = null;
+                $data['onrcNumber'] = null;
+            } elseif ($personType === PersonType::PJ->value) {
                 $data['personalId'] = null;
             }
 

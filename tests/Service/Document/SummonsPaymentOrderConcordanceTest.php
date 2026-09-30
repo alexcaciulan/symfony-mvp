@@ -8,6 +8,7 @@ use App\Entity\ClaimItem;
 use App\Entity\Court;
 use App\Entity\Creditor;
 use App\Entity\Debtor;
+use App\Entity\LegalCaseDebtor;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\ClaimItemKind;
@@ -56,7 +57,7 @@ final class SummonsPaymentOrderConcordanceTest extends KernelTestCase
         $conn->executeStatement('DELETE FROM audit_log WHERE user_id = ?', [$userId]);
         $conn->executeStatement('DELETE ci FROM claim_item ci JOIN legal_case lc ON ci.legal_case_id = lc.id WHERE lc.user_id = ?', [$userId]);
         $conn->executeStatement('DELETE d FROM legal_deadline d JOIN legal_case lc ON d.legal_case_id = lc.id WHERE lc.user_id = ?', [$userId]);
-        $conn->executeStatement('DELETE FROM debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = ?)', [$userId]);
+        $conn->executeStatement('DELETE FROM legal_case_debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = ?)', [$userId]);
         $conn->executeStatement('DELETE FROM legal_case WHERE user_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM creditor WHERE user_id = ?', [$userId]);
         $conn->executeStatement("DELETE FROM court WHERE name = 'Judecătoria Concordanță'");
@@ -130,13 +131,13 @@ final class SummonsPaymentOrderConcordanceTest extends KernelTestCase
         $case->addClaimItem($this->item(ClaimItemKind::CREDIT_NOTE, '1500.00', null, 'cn:1'));
 
         $debtor = new Debtor();
-        $debtor->setLegalCase($case);
+        $debtor->setUser($case->getUser());
         $debtor->setPersonType(PersonType::PJ);
         $debtor->setName('SC Concordanta Debtor SRL');
         $debtor->setAddress('Str. Debtor 2, București');
         $debtor->setCui('RO22222222');
         $this->em->persist($debtor);
-        $case->addDebtor($debtor);
+        $case->addDebtor(new LegalCaseDebtor($debtor));
 
         $this->em->flush();
 

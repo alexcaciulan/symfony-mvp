@@ -45,7 +45,7 @@
         {% for row in blockages %}
             {% set legal_case = row.legalCase() %}
             {% set reason = row.reason() %}
-            {% set debtor = legal_case.debtors|length > 0 ? legal_case.debtors|first : null %}
+            {% set debtor = legal_case.primaryDebtor %}
             <div class="px-4 py-3 flex flex-col lg:flex-row lg:items-center gap-3">
                 <div class="flex-1 min-w-0">
                     <div class="flex flex-wrap items-center gap-1.5 text-sm font-semibold">

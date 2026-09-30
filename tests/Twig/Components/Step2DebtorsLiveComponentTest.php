@@ -147,20 +147,21 @@ final class Step2DebtorsLiveComponentTest extends WebTestCase
         self::assertStringContainsString('Beta', $html);
     }
 
-    public function testAddButtonIsDisabledAtCapInRenderedHtml(): void
+    public function testAddButtonIsHiddenWhileTheCapIsOneDebtor(): void
     {
-        $initial = new Step2DebtorsData(array_map(
-            fn (int $i) => $this->makeEntry('Debtor ' . $i),
-            range(1, 5),
-        ));
-        $testComponent = $this->mount($initial);
+        $testComponent = $this->mount(new Step2DebtorsData([$this->makeEntry('Alpha')]));
 
         $html = $testComponent->render()->toString();
-        $this->assertDebtorCardCount(5, $html);
-        // The add button must carry `disabled` / `aria-disabled="true"` when
-        // the cap is reached so non-LiveAction click handlers (and a11y
-        // tooling) can read the state.
-        self::assertStringContainsString('aria-disabled="true"', $html);
+        $this->assertDebtorCardCount(1, $html);
+        self::assertStringNotContainsString('data-live-action-param="addCollectionItem"', $html);
+    }
+
+    public function testAStaleSessionWithTwoDebtorsCanRemoveOne(): void
+    {
+        $testComponent = $this->mount(new Step2DebtorsData([$this->makeEntry('Alpha'), $this->makeEntry('Beta')]));
+
+        $html = $testComponent->render()->toString();
+        self::assertStringContainsString('data-live-action-param="removeCollectionItem"', $html);
     }
 
     private function assertDebtorCardCount(int $expected, string $html): void
