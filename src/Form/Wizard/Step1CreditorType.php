@@ -8,7 +8,6 @@ use App\DTO\Wizard\Step1CreditorData;
 use App\Entity\Creditor;
 use App\Enum\PersonType;
 use Symfony\Component\Form\AbstractType;
-use Symfony\Component\Form\Extension\Core\Type\EmailType;
 use Symfony\Component\Form\Extension\Core\Type\EnumType;
 use Symfony\Component\Form\Extension\Core\Type\HiddenType;
 use Symfony\Component\Form\Extension\Core\Type\IntegerType;
@@ -101,14 +100,6 @@ final class Step1CreditorType extends AbstractType
                 'required' => false,
             ])
             ->add('anafCheckedAt', HiddenType::class, [
-                'required' => false,
-            ])
-            ->add('email', EmailType::class, [
-                'label' => 'wizard.step1.field.email',
-                'required' => false,
-            ])
-            ->add('phone', TextType::class, [
-                'label' => 'wizard.step1.field.phone',
                 'required' => false,
             ])
             ->add('iban', TextType::class, [

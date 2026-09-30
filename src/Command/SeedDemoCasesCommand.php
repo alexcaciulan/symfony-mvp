@@ -212,8 +212,6 @@ class SeedDemoCasesCommand extends Command
         $creditor->setCui('RO12345678');
         $creditor->setOnrcNumber('J40/1234/2020');
         $creditor->setAddress('Bd. Demo 100, București, Sector 1');
-        $creditor->setEmail('contact@demo-recovery.ro');
-        $creditor->setPhone('0721234567');
         $creditor->setIban('RO49AAAA1B31007593840000');
         $creditor->setLegalRepresentative('Demo Administrator');
         $this->em->persist($creditor);
@@ -284,8 +282,6 @@ class SeedDemoCasesCommand extends Command
                 'personalId' => null,
                 'onrcNumber' => 'J40/1234/2020',
                 'address' => 'Bd. Demo 100, București, Sector 1',
-                'email' => 'contact@demo-recovery.ro',
-                'phone' => '0721234567',
                 'iban' => 'RO49AAAA1B31007593840000',
                 'legalRepresentative' => 'Demo Administrator',
                 'confidencePerField' => [
@@ -293,8 +289,6 @@ class SeedDemoCasesCommand extends Command
                     'cui' => 0.99,
                     'onrcNumber' => 0.9,
                     'address' => 0.88,
-                    'email' => 0.85,
-                    'phone' => 0.8,
                     'iban' => 0.92,
                     'legalRepresentative' => 0.78,
                     'personType' => 0.99,

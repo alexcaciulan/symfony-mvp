@@ -12,9 +12,7 @@ use EasyCorp\Bundle\EasyAdminBundle\Controller\AbstractCrudController;
 use EasyCorp\Bundle\EasyAdminBundle\Field\AssociationField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\ChoiceField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\DateTimeField;
-use EasyCorp\Bundle\EasyAdminBundle\Field\EmailField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\IdField;
-use EasyCorp\Bundle\EasyAdminBundle\Field\TelephoneField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\TextareaField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\TextField;
 use EasyCorp\Bundle\EasyAdminBundle\Filter\ChoiceFilter;
@@ -57,8 +55,6 @@ class CreditorCrudController extends AbstractCrudController
         yield TextField::new('cui', 'CUI');
         yield TextField::new('onrcNumber', 'Nr. ONRC')->hideOnIndex();
         yield TextField::new('personalId', 'CNP')->onlyOnDetail();
-        yield EmailField::new('email', 'Email')->hideOnIndex();
-        yield TelephoneField::new('phone', 'Telefon')->hideOnIndex();
         yield TextField::new('iban', 'IBAN')->onlyOnDetail();
         yield TextField::new('legalRepresentative', 'Reprezentant legal')->onlyOnDetail();
         yield TextareaField::new('address', 'Adresă')->onlyOnDetail();

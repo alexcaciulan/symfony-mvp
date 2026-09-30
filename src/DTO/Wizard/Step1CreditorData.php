@@ -66,10 +66,6 @@ class Step1CreditorData
         #[Assert\Length(max: 150)]
         public ?string $addressLocality = null,
         public ?string $anafCheckedAt = null,
-        #[Assert\Email(message: 'validation.email.invalid')]
-        public ?string $email = null,
-        #[Assert\Length(max: 30)]
-        public ?string $phone = null,
         // IBAN accepted with optional spaces (BCR/BT statements often show
         // RO49 RNCB 0082 ...). Step1CreditorType strips spaces and uppercases
         // before this regex fires. The 16-character account part is
@@ -96,8 +92,6 @@ class Step1CreditorData
             address: $creditor->getAddress(),
             addressCounty: $creditor->getAddressCounty(),
             addressLocality: $creditor->getAddressLocality(),
-            email: $creditor->getEmail(),
-            phone: $creditor->getPhone(),
             iban: $creditor->getIban(),
             bankName: $creditor->getBankName(),
             legalRepresentative: $creditor->getLegalRepresentative(),

@@ -130,7 +130,7 @@ final class Step1CreditorTypeTest extends KernelTestCase
 
         self::assertSame('true', $view->children['name']->vars['attr']['data-auto-filled'] ?? null);
         self::assertSame('true', $view->children['address']->vars['attr']['data-auto-filled'] ?? null);
-        self::assertArrayNotHasKey('data-auto-filled', $view->children['email']->vars['attr']);
+        self::assertArrayNotHasKey('data-auto-filled', $view->children['iban']->vars['attr']);
     }
 
     public function testUnknownAutoFilledFieldIsIgnored(): void
