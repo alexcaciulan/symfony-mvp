@@ -1034,13 +1034,14 @@ case_overview:
             flash_set_proof_rate_limited: 'The communication date has been saved, but the proof was not attached: you reached the upload limit. Try the upload again shortly, from the Documents tab.'
         modal_c4:
             title: 'Notice communication: legal options'
-            intro: 'Under CPC art. 1015 para. (1), the payment notice must reach the debtor via one of the two legal channels below. These are the only ones admissible as proof in court.'
+            intro: 'Under CPC art. 1015 para. (1), the payment notice is served on the debtor by a court bailiff or by registered letter with declared contents and proof of delivery. Only these are admissible as proof in court.'
             option_executor_title: 'Through a court bailiff'
             option_executor_body: 'Recommended for sensitive claims. The bailiff issues an official service record with maximum evidentiary value.'
             option_posta_title: 'Through Romanian Post (R+CD+AR)'
             option_posta_body: 'Registered letter with declared contents and proof of delivery. Only Romanian Post offers the "declared contents" service: the post office certifies on the duplicate the exact contents of the letter.'
-            warning_courier_title: 'Private courier is NOT admissible'
-            warning_courier_body: 'Cargus, FAN Courier, DPD and other private couriers do NOT offer the "declared contents" service. Communication via private courier cannot be used as proof in court.'
+            option_lexrecovery_title: 'Through LexRecovery services'
+            option_lexrecovery_badge: 'Coming later'
+            option_lexrecovery_body: 'The notice is sent digitally, with an electronic signature, to a court bailiff, who serves it on the debtor as the law provides. No extra LexRecovery cost: you pay the bailiff fee.'
             dismiss: 'Got it'
     documents:
         generated_title: 'Generated documents'

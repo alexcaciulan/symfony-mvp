@@ -1,8 +1,6 @@
-{# Modal Preline „Comunicarea somației — modalități legale" (CPC art. 1015 alin. 1).
-   Afișat post-generare PDF la primul click pe „Generează somația". Conține
-   cele 2 modalități legale + warning roșu curier privat (Cargus/FAN/DPD nu sunt
-   admisibile — nu oferă „conținut declarat"). #}
-{% from 'case/overview/_icons.html.twig' import icon_warning, icon_check %}
+{# Notice communication channels (CPC art. 1015 para. 1). The LexRecovery card
+   is a bailiff service announced for later: informative only, never an action. #}
+{% from 'case/overview/_icons.html.twig' import icon_warning, icon_check, icon_clock %}
 
 <div id="hs-modal-c4-summons"
      class="hs-overlay hidden size-full fixed top-0 start-0 z-[80] overflow-x-hidden overflow-y-auto pointer-events-none"
@@ -49,14 +47,17 @@
                             <div class="text-xs text-slate-600 dark:text-slate-400 mt-1">{{ 'case_overview.summons.modal_c4.option_posta_body'|trans }}</div>
                         </div>
                     </div>
-                </div>
 
-                <div class="rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 p-3">
-                    <div class="flex items-start gap-2">
-                        <span class="text-red-600 dark:text-red-400 mt-0.5">{{ icon_warning('size-4') }}</span>
+                    <div class="flex items-start gap-3 rounded-lg border border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/40 p-3" data-testid="summons-option-lexrecovery">
+                        <span class="inline-flex items-center justify-center size-7 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 shrink-0">
+                            {{ icon_clock('size-4') }}
+                        </span>
                         <div>
-                            <div class="text-sm font-bold text-red-700 dark:text-red-300">{{ 'case_overview.summons.modal_c4.warning_courier_title'|trans }}</div>
-                            <div class="text-xs text-red-600 dark:text-red-400 mt-1">{{ 'case_overview.summons.modal_c4.warning_courier_body'|trans }}</div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="text-sm font-semibold text-slate-700 dark:text-slate-200">{{ 'case_overview.summons.modal_c4.option_lexrecovery_title'|trans }}</span>
+                                <span class="inline-flex items-center rounded-full bg-slate-200 dark:bg-slate-700 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-300">{{ 'case_overview.summons.modal_c4.option_lexrecovery_badge'|trans }}</span>
+                            </div>
+                            <div class="text-xs text-slate-600 dark:text-slate-400 mt-1">{{ 'case_overview.summons.modal_c4.option_lexrecovery_body'|trans }}</div>
                         </div>
                     </div>
                 </div>

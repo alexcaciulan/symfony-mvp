@@ -208,6 +208,20 @@ final class CaseSummonsControllerTest extends WebTestCase
         self::assertSame(CaseStatus::SOMATIE_TRIMISA, $refreshed->getStatus());
     }
 
+    public function testCommunicationModalAnnouncesLexRecoveryServiceWithoutOfferingIt(): void
+    {
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorExists('#hs-modal-c4-summons [data-testid="summons-option-lexrecovery"]');
+        // Informative only: nothing inside the card can be clicked or submitted.
+        self::assertSelectorNotExists('[data-testid="summons-option-lexrecovery"] :is(button, a, input, [data-hs-overlay])');
+        // Only the admissible channels are listed; the courier warning is gone.
+        self::assertSelectorTextNotContains('#hs-modal-c4-summons', 'Curier');
+        self::assertSelectorTextNotContains('#hs-modal-c4-summons', 'curier');
+    }
+
     /**
      * The same route is the primary button of a limitation row on the global agenda,
      * where a case still in the amiable stage has the summons as the act that

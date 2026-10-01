@@ -1034,13 +1034,14 @@ case_overview:
             flash_set_proof_rate_limited: 'Data comunicării a fost salvată, dar dovada nu a fost atașată: ai atins limita de încărcări. Reîncearcă încărcarea peste puțin timp, din tab Documente.'
         modal_c4:
             title: 'Comunicarea somației: modalități legale'
-            intro: 'Conform CPC art. 1015 alin. (1), somația se comunică debitorului prin una dintre cele două modalități legale de mai jos. Acestea sunt singurele admisibile ca dovadă în fața instanței.'
+            intro: 'Conform CPC art. 1015 alin. (1), somația se comunică debitorului prin executor judecătoresc sau prin scrisoare recomandată cu conținut declarat și confirmare de primire. Doar acestea sunt admisibile ca dovadă în fața instanței.'
             option_executor_title: 'Prin executor judecătoresc'
             option_executor_body: 'Recomandat pentru creanțe sensibile. Executorul întocmește proces verbal de comunicare, cu valoare probantă maximă.'
             option_posta_title: 'Prin Poșta Română (R+CD+AR)'
             option_posta_body: 'Scrisoare recomandată cu conținut declarat și confirmare de primire. Doar Poșta Română oferă serviciul „conținut declarat": oficiul certifică pe duplicat conținutul exact al scrisorii.'
-            warning_courier_title: 'Curier privat NU e admisibil'
-            warning_courier_body: 'Cargus, FAN Courier, DPD și ceilalți curieri privați NU oferă serviciul „conținut declarat". O comunicare prin curier privat nu poate fi folosită ca dovadă în fața instanței.'
+            option_lexrecovery_title: 'Prin serviciile LexRecovery'
+            option_lexrecovery_badge: 'Implementare viitoare'
+            option_lexrecovery_body: 'Somația se transmite digital, cu semnătură electronică, unui executor judecătoresc, care o comunică debitorului potrivit legii. Fără costuri suplimentare din partea LexRecovery: plătești onorariul executorului.'
             dismiss: 'Am înțeles'
     documents:
         generated_title: 'Documente generate'
