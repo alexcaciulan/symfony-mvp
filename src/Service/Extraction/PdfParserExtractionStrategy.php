@@ -652,46 +652,33 @@ final class PdfParserExtractionStrategy implements ExtractionStrategyInterface
     /**
      * @return array{value: string, confidence: float}|null
      *
-     * Romanian Trade Registry number (Registrul Comerțului): `J/F + county/4 +
-     * sequence/4-5 + year/4` per OUG 99/2006. Canonical form `J40/1234/2025`.
-     * The leading letter is J (companies) or F (sole proprietorships).
+     * Romanian Trade Registry number (Registrul Comerțului), in the classic
+     * `J40/1234/2025` spelling (J companies, F sole proprietorships, C
+     * cooperatives) or the single-string form the registry now issues
+     * (`J2003011043402`). Kept as written; {@see \App\Service\Party\OnrcNumber} compares the two.
      */
     private function extractOnrcForRole(string $rawText, string $normalized, string $expectedRole): ?array
     {
-        $matches = [];
-        if (preg_match_all(
-            '/\b([JF])\s*(\d{1,5})\s*\/\s*(\d{1,5})\s*\/\s*(\d{4})\b/',
-            $rawText,
-            $matches,
-            PREG_OFFSET_CAPTURE,
-        ) === false) {
-            return null;
-        }
-
-        $best = null;
-        $count = count($matches[0]);
-        for ($i = 0; $i < $count; $i++) {
-            $offset = $matches[0][$i][1];
-            $canonical = sprintf(
-                '%s%s/%s/%s',
-                strtoupper($matches[1][$i][0]),
-                $matches[2][$i][0],
-                $matches[3][$i][0],
-                $matches[4][$i][0],
-            );
-
-            $sectionRole = $this->findSectionRole($normalized, $offset);
-            if ($sectionRole !== $expectedRole) {
-                continue;
+        $candidates = [];
+        if (preg_match_all('/\b([JFC])\s*(\d{1,5})\s*\/\s*(\d{1,5})\s*\/\s*(\d{4})\b/', $rawText, $classic, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) > 0) {
+            foreach ($classic as $m) {
+                $candidates[] = [$m[0][1], sprintf('%s%s/%s/%s', strtoupper($m[1][0]), $m[2][0], $m[3][0], $m[4][0])];
             }
-
-            $confidence = 0.9;
-            if ($best === null || $confidence > $best['confidence']) {
-                $best = ['value' => $canonical, 'confidence' => $confidence];
+        }
+        if (preg_match_all('/\b[JFC](?:19|20)\d{11}\b/', $rawText, $compact, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) > 0) {
+            foreach ($compact as $m) {
+                $candidates[] = [$m[0][1], $m[0][0]];
             }
         }
 
-        return $best;
+        usort($candidates, static fn (array $a, array $b): int => $a[0] <=> $b[0]);
+        foreach ($candidates as [$offset, $value]) {
+            if ($this->findSectionRole($normalized, $offset) === $expectedRole) {
+                return ['value' => $value, 'confidence' => 0.9];
+            }
+        }
+
+        return null;
     }
 
     /**

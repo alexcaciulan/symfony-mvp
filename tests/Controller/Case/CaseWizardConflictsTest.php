@@ -236,6 +236,13 @@ final class CaseWizardConflictsTest extends WebTestCase
         self::assertResponseIsSuccessful();
         self::assertSame(1, $crawler->filter('[data-testid="prefill-conflicts"]')->count());
         self::assertSame(0, $crawler->filter('[data-testid="prefill-conflict-option"]')->count());
+
+        // One line, worded by the lawyer: the panel says the information is
+        // validated later and lists what differs, without promising where.
+        $panel = $crawler->filter('[data-testid="prefill-conflicts"]')->text();
+        self::assertStringContainsString('Documentele nu spun același lucru, informațiile vor fi validate în pașii următori.', $panel);
+        self::assertStringNotContainsString('Alegerea s', $panel);
+        self::assertGreaterThan(0, $crawler->filter('[data-testid="prefill-conflict"]')->count());
     }
 
     public function testTheSourceOfEachValueIsNamedByItsFile(): void
@@ -250,6 +257,9 @@ final class CaseWizardConflictsTest extends WebTestCase
         // The file name is what the lawyer has open next to the screen; a
         // document id is not something they can look up.
         self::assertStringContainsString('factura-0.pdf', $crawler->filter('[data-testid="prefill-conflicts"]')->text());
+        // The extractor's self-reported score is not shown: it rates how
+        // clearly the text was read, not which document is right.
+        self::assertStringNotContainsString('încredere', $crawler->filter('[data-testid="prefill-conflicts"]')->text());
     }
 
     public function testAFileWithoutDisagreementShowsNoPanel(): void

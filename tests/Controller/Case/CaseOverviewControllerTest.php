@@ -673,8 +673,11 @@ final class CaseOverviewControllerTest extends WebTestCase
         self::assertSelectorTextContains('#panel-documente', 'Niciun document încărcat încă');
     }
 
-    public function testDocumenteSourceListExtractionPctRendered(): void
+    public function testDocumenteSourceListShowsNoExtractionPercentage(): void
     {
+        // The score is the extractor's own estimate of how clearly it read the
+        // fields it found, not how much of the document it read or whether it
+        // is right; shown as a percentage it reads as a quality grade.
         $this->attachDocument(DocumentType::CONTRACT, 0.95, 'contract-95.pdf');
         $this->em->clear();
 
@@ -682,7 +685,8 @@ final class CaseOverviewControllerTest extends WebTestCase
         $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
-        self::assertSelectorTextContains('#panel-documente', 'extracție 95%');
+        self::assertSelectorTextContains('#panel-documente', 'contract-95.pdf');
+        self::assertSelectorTextNotContains('#panel-documente', '95%');
     }
 
     public function testDocumenteSourceListShowsExtractionStatusBadge(): void

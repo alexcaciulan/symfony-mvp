@@ -1,4 +1,4 @@
-{# Pas 3.0 aggregated "Date detectate" sidecard — re-rendered atomically by
+{# Aggregated "Date detectate" sidecard: re-rendered atomically by
    Turbo Stream from both POST upload and Mercure terminal events. Wrapped in
    a turbo-frame so frame.reload() (driven by wizard-step0#onMessage) can pull
    a fresh snapshot when extraction finishes for one of the session documents. #}
@@ -18,47 +18,38 @@
             </div>
         {% else %}
             <div class="px-5 py-4 space-y-5 text-sm">
-                {# Expected field counts per section — used to compute the coverage
-                   percentage shown next to each section title. These match the
-                   number of prefillable fields each wizard DTO exposes
-                   (Step1CreditorData / Step2DebtorEntry / Step3ClaimData), so the
-                   percentage answers "how many of the prefillable wizard inputs did
-                   we manage to extract", which is what the lawyer actually cares
-                   about (not the average confidence of the few fields the parser
-                   happened to pick up). Keep in lockstep with those DTOs: creditor
-                   adds bankName; debtor adds addressCounty/addressLocality; claim
-                   adds invoice/contract/penalty metadata. #}
-                {% set sections = [
-                    { key: 'creditor', accent: 'blue',  dto: creditor_preview, expected: 11 },
-                    { key: 'debtor',   accent: 'orange', dto: debtor_preview,  expected: 12 },
-                    { key: 'claim',    accent: 'green',  dto: claim_preview,   expected: 12 },
-                ] %}
-                {% for section in sections %}
-                    {% set dto = section.dto %}
-                    {% set filled_count = dto.autoFilled is defined ? dto.autoFilled|length : 0 %}
-                    {% set has_data = filled_count > 0 %}
-                    {# min(100) guards against future field additions outrunning the
-                       expected count before this triple is bumped. #}
-                    {% set coverage_pct = min([(filled_count / section.expected * 100)|round, 100]) %}
-                    <div>
-                        <div class="flex items-center justify-between mb-2">
-                            <div class="text-[10px] font-bold uppercase tracking-wide
-                                {% if section.accent == 'blue' %}text-blue-600 dark:text-blue-400
-                                {% elseif section.accent == 'orange' %}text-orange-600 dark:text-orange-400
-                                {% else %}text-emerald-600 dark:text-emerald-400{% endif %}">
+                {# Sections, rows and counts come from DetectedDataPreviewBuilder:
+                   the fraction counts only the fields this case needs from the
+                   section, so it can be checked against the rows below it. Until
+                   every document is done the set is not final and no count is
+                   shown. #}
+                {% set accents = {
+                    creditor: 'text-blue-600 dark:text-blue-400',
+                    debtor: 'text-orange-600 dark:text-orange-400',
+                    claim: 'text-emerald-600 dark:text-emerald-400',
+                } %}
+                {% for section in detected_sections %}
+                    {% set pct = section.percent %}
+                    {% set complete = section.filled == section.required %}
+                    <div data-testid="detected-section-{{ section.key }}">
+                        <div class="flex items-center justify-between gap-3 mb-2">
+                            <div class="text-[10px] font-bold uppercase tracking-wide {{ accents[section.key] }}">
                                 {{ ('wizard.step0.detected_data.' ~ section.key)|trans }}
                             </div>
-                            <span class="text-[10px] font-semibold tabular-nums
-                                {% if coverage_pct == 0 %}text-slate-400 dark:text-slate-500
-                                {% elseif coverage_pct < 40 %}text-amber-600 dark:text-amber-400
-                                {% elseif coverage_pct < 70 %}text-blue-600 dark:text-blue-400
-                                {% else %}text-emerald-600 dark:text-emerald-400{% endif %}">
-                                {{ filled_count }}/{{ section.expected }} · {{ coverage_pct }}%
-                            </span>
+                            {% if not all_terminal %}
+                                <span class="text-[10px] font-semibold text-slate-400 dark:text-slate-500">{{ 'wizard.step0.detected_data.processing'|trans }}</span>
+                            {% elseif section.choiceRequired %}
+                                <span class="text-[10px] font-semibold text-amber-700 dark:text-amber-400">{{ 'wizard.step0.detected_data.choose_debtor'|trans }}</span>
+                            {% else %}
+                                <span class="text-[10px] font-semibold tabular-nums {{ complete ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400' }}"
+                                      title="{{ 'wizard.step0.detected_data.completeness_hint'|trans }}"
+                                      data-testid="detected-completeness">
+                                    {{ 'wizard.step0.detected_data.completeness'|trans({'%filled%': section.filled, '%required%': section.required, '%percent%': pct}) }}
+                                </span>
+                            {% endif %}
                         </div>
                         {# With several invoices the claim is their sum, not the one
-                           invoice the aggregation happened to keep. Showing that
-                           figure alone reads as if the others had been missed. #}
+                           invoice the aggregation happened to keep. #}
                         {% set positions = claim_positions_preview|default(null) %}
                         {% if section.key == 'claim' and positions %}
                             <div class="mb-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 px-2.5 py-2">
@@ -74,59 +65,42 @@
                                 {% endif %}
                             </div>
                         {% endif %}
-                        {# When the total banner is shown, the per-invoice figures
-                           (sum, due date, invoice number/date) belong to one
-                           invoice and contradict it; the table on step 3 carries
-                           each one. Keep only the fields that describe the claim
-                           as a whole (currency, basis, description). #}
-                        {% set per_invoice_fields = ['amount', 'dueDate', 'invoiceNumber', 'invoiceDate'] %}
-                        {% if not has_data %}
-                            <p class="text-xs text-slate-400 dark:text-slate-500 italic">—</p>
-                        {% else %}
-                            <dl class="space-y-1.5">
-                                {% for field in dto.autoFilled %}
-                                    {% set field_value = attribute(dto, field) %}
-                                    {% if field_value is not null and not (section.key == 'claim' and positions and field in per_invoice_fields) %}
-                                        <div class="flex justify-between gap-3">
-                                            <dt class="text-slate-500 dark:text-slate-400 truncate">{{ ('wizard.step0.detected_data.field.' ~ field)|trans }}</dt>
-                                            <dd class="font-medium text-slate-900 dark:text-slate-100 text-right truncate ml-2">
-                                                {# GDPR art. 5(1)(c) — minimise CNP/IBAN exposure in HTML body, server access
-                                                   logs, browser dev tools and Turbo response cache. The unmasked value stays
-                                                   in the session-bound DTO that will pre-populate Step 1+ forms; only the
-                                                   render surface is masked. #}
-                                                {% if field == 'personalId' %}
-                                                    {{ field_value|mask_cnp }}
-                                                {% elseif field == 'iban' %}
-                                                    {{ field_value|mask_iban }}
-                                                {% elseif field_value is iterable %}
-                                                    {{ field_value|json_encode }}
-                                                {% elseif field_value.value is defined %}
-                                                    {{ field_value.value }}
-                                                {% elseif field_value.format is defined %}
-                                                    {{ field_value|date('d.m.Y') }}
-                                                {% else %}
-                                                    {{ field_value }}
-                                                {% endif %}
-                                            </dd>
-                                        </div>
-                                    {% endif %}
+                        {% if section.hasData %}
+                            {# Label above value: long names, addresses and contract
+                               references wrap instead of truncating either side. #}
+                            <dl class="space-y-2">
+                                {% for row in section.rows %}
+                                    <div data-testid="detected-row" data-field="{{ row.field }}">
+                                        <dt class="text-xs text-slate-500 dark:text-slate-400">{{ ('wizard.step0.detected_data.field.' ~ row.field)|trans }}</dt>
+                                        <dd class="font-medium text-slate-900 dark:text-slate-100 break-words line-clamp-3" title="{{ row.format == 'iban' ? '' : (row.format == 'trans' ? row.value|trans : row.value) }}">
+                                            {# GDPR art. 5(1)(c): keep the IBAN out of the HTML body,
+                                               access logs and Turbo cache; the unmasked value stays in
+                                               the session DTO that prefills the next steps. #}
+                                            {% if row.format == 'iban' %}
+                                                {{ row.value|mask_iban }}
+                                            {% elseif row.format == 'trans' %}
+                                                {{ row.value|trans }}
+                                            {% else %}
+                                                {{ row.value }}
+                                            {% endif %}
+                                            {% if row.inConflict %}
+                                                <span class="ml-1 inline-flex items-center rounded-full bg-amber-100 dark:bg-amber-950/50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:text-amber-300 whitespace-nowrap" data-testid="detected-row-conflict">{{ 'wizard.step0.detected_data.in_conflict'|trans({'%step%': section.step}) }}</span>
+                                            {% endif %}
+                                        </dd>
+                                    </div>
                                 {% endfor %}
                             </dl>
+                        {% elseif all_terminal and not (section.key == 'claim' and positions) %}
+                            <p class="text-xs text-slate-400 dark:text-slate-500 italic">{{ 'wizard.step0.detected_data.none'|trans }}</p>
                         {% endif %}
-                        {# Confidence/coverage progress bar — gradient width proportional to coverage_pct,
-                           color tier matches the badge in the section header (slate/amber/blue/emerald). #}
-                        <div class="mt-2 flex items-center gap-1 text-[11px]" aria-label="{{ 'wizard.step0.detected_data.confidence_label'|trans }}: {{ coverage_pct }}%">
-                            <span class="inline-block h-1 rounded-full bg-gradient-to-r
-                                {% if coverage_pct < 40 %}from-amber-400 to-amber-600
-                                {% elseif coverage_pct < 70 %}from-blue-400 to-blue-600
-                                {% else %}from-emerald-400 to-emerald-600{% endif %}"
-                                style="width: {{ (coverage_pct * 48 / 100)|round }}px;" aria-hidden="true"></span>
-                            <span class="font-bold tabular-nums
-                                {% if coverage_pct == 0 %}text-slate-400 dark:text-slate-500
-                                {% elseif coverage_pct < 40 %}text-amber-600 dark:text-amber-400
-                                {% elseif coverage_pct < 70 %}text-blue-600 dark:text-blue-400
-                                {% else %}text-emerald-600 dark:text-emerald-400{% endif %}">{{ coverage_pct }}%</span>
-                        </div>
+                        {% if all_terminal and section.missing is not empty %}
+                            <p class="mt-2 text-xs text-amber-700 dark:text-amber-400" data-testid="detected-missing">
+                                {{ 'wizard.step0.detected_data.missing_hint'|trans({
+                                    '%step%': section.step,
+                                    '%fields%': section.missing|map(f => ('wizard.step0.detected_data.field.' ~ f)|trans)|join(', '),
+                                }) }}
+                            </p>
+                        {% endif %}
                     </div>
                     {% if not loop.last %}<hr class="border-slate-100 dark:border-slate-800">{% endif %}
                 {% endfor %}
@@ -140,6 +114,6 @@
        learning that two files describe the party differently before they have
        filled three steps on one of them. #}
     <div class="mt-4">
-        {{ include('case/_prefill_conflicts.html.twig', { conflicts_readonly: true }) }}
+        {{ include('case/_prefill_conflicts.html.twig', { conflicts_readonly: true, conflicts_title_key: 'wizard.conflict.title_step0', conflicts_intro_key: null }) }}
     </div>
 </turbo-frame>

@@ -320,6 +320,24 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         self::assertSame($company->getId(), $entry->debtorId);
     }
 
+    public function testTheRegistrySpellingOfTheSameNumberIsNotADifference(): void
+    {
+        // The library holds the single-string form ANAF returns; the step has
+        // the classic form read off the invoice. Same registration, no question.
+        $company = $this->libraryDebtor($this->user, 'Acme Debtor SRL', 'RO14186770');
+        $company->setOnrcNumber('J2019008765401');
+        $this->em->flush();
+        $this->primeSessionForStep4(insolvencyCheckedAt: new \DateTimeImmutable('-1 hour'));
+        $crawler = $this->client->request('GET', '/case/new/debtor');
+        $token = $crawler->filter('input[name="step2_debtors[_token]"]')->first()->attr('value');
+
+        $this->client->request('POST', '/case/new/debtor', $this->debtorPost($token, '14186770'));
+
+        self::assertResponseRedirects('/case/new/claim');
+        $entry = $this->client->getRequest()->getSession()->get(self::SESSION_KEY)['debtors']->debtors[0];
+        self::assertSame($company->getId(), $entry->debtorId);
+    }
+
     public function testAnotherLawyersCompanyWithTheSameCuiIsNotLinked(): void
     {
         $other = new User();
@@ -721,6 +739,19 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         self::assertStringContainsString('adresa debitorului', $html);
         self::assertStringContainsString('CUI-ul debitorului este obligatoriu', $html);
         self::assertStringContainsString('Numărul ONRC al debitorului este obligatoriu', $html);
+    }
+
+    public function testClaimStepNamesTheSourceOfTheClaimNotItsLegalGround(): void
+    {
+        // The lawyer's term for the act the claim comes from (lease, sale,
+        // services). "Temei juridic" stays reserved for the CPC articles.
+        self::assertTrue($this->primeSessionForClaimStep(), 'session bag must be primed');
+
+        $crawler = $this->client->request('GET', '/case/new/claim');
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('Izvor creanță', $crawler->filter('body')->text());
+        self::assertStringNotContainsString('Temei juridic', $crawler->filter('body')->text());
     }
 
     public function testClaimPostWithMissingRequiredFieldsRendersValidationErrorsAndDoesNotAdvance(): void
