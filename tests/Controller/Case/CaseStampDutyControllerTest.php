@@ -173,7 +173,8 @@ final class CaseStampDutyControllerTest extends WebTestCase
     }
 
     /**
-     * A lawyer who chose to pay at filing may already have paid inside the filing form.
+     * A case that declared payment at filing before that choice was withdrawn may
+     * already have paid inside the filing form.
      * Telling them to wait for the file number would contradict the confirmation offered
      * on the same card.
      */
@@ -196,6 +197,28 @@ final class CaseStampDutyControllerTest extends WebTestCase
     }
 
     /**
+     * The platform files the petition by email, so the registry can only take the duty
+     * in an existing case. Before the court assigns a number the button is shown but
+     * inactive. The "pay at filing" choice stays for now, flagged as provisional until
+     * the lawyer confirms it can go.
+     */
+    public function testTheRegistryButtonStaysInactiveUntilTheCourtAssignsAFileNumber(): void
+    {
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $crawler = $this->client->getCrawler()->filter('#case-stamp-duty-card');
+        $translator = static::getContainer()->get('translator');
+
+        self::assertCount(0, $crawler->filter('a[href*="registratura.rejust.ro"]'));
+        self::assertCount(1, $crawler->filter('button[disabled][aria-describedby="stamp-duty-registry-hint"]'));
+        self::assertStringContainsString($translator->trans('case_overview.stamp_duty.pay_after_case_number'), $crawler->html());
+        self::assertCount(1, $crawler->filter('[data-hs-overlay="#hs-modal-stamp-duty-at-filing"]'));
+        self::assertStringContainsString($translator->trans('case_overview.stamp_duty.at_filing_provisional'), $crawler->html());
+    }
+
+    /**
      * The reason to pay early belongs on the surface where the deferral is chosen. The
      * lawyer weighs it while the consent checkbox is in front of him, not after filing.
      */
@@ -212,33 +235,97 @@ final class CaseStampDutyControllerTest extends WebTestCase
         );
     }
 
-    /** Before anything leaves for the court the duty is paid inside the filing form itself. */
-    public function testTheCardLinksTheNewCaseFormBeforeFiling(): void
+    /** The provisional warning sits where the choice is confirmed, not only on the card. */
+    public function testTheAtFilingModalCarriesTheProvisionalWarning(): void
     {
         $this->client->loginUser($this->user);
         $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
         self::assertStringContainsString(
-            'inregistreaza-un-dosar-nou',
-            (string) $this->client->getResponse()->getContent(),
+            static::getContainer()->get('translator')->trans('case_overview.stamp_duty.at_filing_provisional'),
+            $this->client->getCrawler()->filter('#hs-modal-stamp-duty-at-filing')->text(),
         );
     }
 
-    public function testTheCardLinksTheExistingCaseFormOnceTheFileNumberIsKnown(): void
+    /** The lawyer who declared paying at filing needs the form where that payment happens. */
+    public function testTheRegistryButtonLinksToTheNewCaseFormAfterDeclaringPaymentAtFiling(): void
     {
-        $this->case->setStatus(CaseStatus::DOSAR_INREGISTRAT);
-        $this->case->setCourtCaseNumber('4521/302/2026');
+        $this->case->setStampDutyStatus(StampDutyStatus::ACHITARE_LA_DEPUNERE);
         $this->em->flush();
 
         $this->client->loginUser($this->user);
         $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
-        $html = (string) $this->client->getResponse()->getContent();
+        $crawler = $this->client->getCrawler()->filter('#case-stamp-duty-card');
 
-        self::assertStringContainsString('plata-taxei-judiciare-de-timbru-intr-un-dosar-existent', $html);
-        self::assertStringNotContainsString('inregistreaza-un-dosar-nou', $html);
+        self::assertSame(
+            'https://registratura.rejust.ro/inregistreaza-un-dosar-nou-pe-rolul-instantei-de-judecata',
+            $crawler->filter('a[href*="registratura.rejust.ro"]')->attr('href'),
+        );
+        self::assertCount(0, $crawler->filter('button[disabled][aria-describedby="stamp-duty-registry-hint"]'));
+    }
+
+    public function testTheRegistryButtonLinksToTheExistingCaseFormOnceTheFileNumberIsKnown(): void
+    {
+        $this->case->setStatus(CaseStatus::DOSAR_INREGISTRAT);
+        $this->case->setCourtCaseNumber('4521/211/2026');
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $crawler = $this->client->getCrawler()->filter('#case-stamp-duty-card');
+
+        self::assertSame(
+            'https://registratura.rejust.ro/plata-taxei-judiciare-de-timbru-intr-un-dosar-existent',
+            $crawler->filter('a[href*="registratura.rejust.ro"]')->attr('href'),
+        );
+        self::assertCount(0, $crawler->filter('button[disabled][aria-describedby="stamp-duty-registry-hint"]'));
+    }
+
+    /**
+     * In Bucharest the duty goes to the sector and is collected by the sector's local
+     * tax directorate. Naming a town hall, or Bucharest as a county, sends the lawyer
+     * looking for the wrong payee.
+     */
+    public function testTheCardNamesTheSectorTaxDirectorateForABucharestCreditor(): void
+    {
+        $creditor = $this->case->getCreditor();
+        $creditor->setAddressCounty('București');
+        $creditor->setAddressLocality('Sector 3');
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $html = $this->client->getCrawler()->filter('#case-stamp-duty-card')->html();
+        $translator = static::getContainer()->get('translator');
+
+        self::assertStringContainsString($translator->trans('case_overview.stamp_duty.uat_sector', ['%sector%' => 3]), $html);
+        self::assertStringContainsString($translator->trans('case_overview.stamp_duty.municipality_bucharest'), $html);
+        self::assertStringContainsString($translator->trans('case_overview.stamp_duty.uat_sector_note'), $html);
+        self::assertStringNotContainsString($translator->trans('case_overview.stamp_duty.uat'), $html);
+    }
+
+    public function testThePaidCardNamesTheSectorTaxDirectorate(): void
+    {
+        $this->case->setStampDutyStatus(StampDutyStatus::ACHITATA);
+        $this->case->setStampDutyPaidAt(new \DateTimeImmutable('2026-07-15'));
+        $this->case->setStampDutyUat('Sector 3');
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $html = $this->client->getCrawler()->filter('#case-stamp-duty-card')->html();
+        $translator = static::getContainer()->get('translator');
+
+        self::assertStringContainsString($translator->trans('case_overview.stamp_duty.paid_to_sector', ['%sector%' => 3]), $html);
     }
 
     public function testUploadProofMarksTheDutyPaidAndSnapshotsTheUat(): void

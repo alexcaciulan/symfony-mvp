@@ -10,10 +10,11 @@
    ca acest câmp să existe, iar „0 lei taxă de timbru" ar fi pur și simplu fals. #}
 {% set amount = stamp_duty_amount|default(case.stampDuty|default(0) + 0) %}
 
-{# Which registry form takes the duty for this case. A petition already filed but
-   still without a file number fits neither form, so it carries no link: the new-case
-   form would have the same petition registered a second time. #}
-{% set rejust_url = case.rejustStampDutyForm.url %}
+{# The platform files the petition by email, so the registry normally takes the duty
+   in an existing case and the button stays inactive until the court assigns a file
+   number. A lawyer who declared paying at filing is sent to the new-case form. #}
+{% set rejust_form = case.rejustStampDutyForm %}
+{% set rejust_url = rejust_form.url %}
 
 <section id="case-stamp-duty-card" class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft overflow-hidden">
     <div class="p-5">
@@ -44,7 +45,9 @@
                         {% else %}
                             <p class="font-semibold">{{ 'case_overview.stamp_duty.presumed_paid'|trans }}</p>
                         {% endif %}
-                        {% if case.stampDutyUat %}
+                        {% if case.stampDutyUatSectorNumber %}
+                            <p class="mt-0.5">{{ 'case_overview.stamp_duty.paid_to_sector'|trans({'%sector%': case.stampDutyUatSectorNumber}) }}</p>
+                        {% elseif case.stampDutyUat %}
                             <p class="mt-0.5">{{ 'case_overview.stamp_duty.paid_to'|trans({'%uat%': case.stampDutyUat}) }}</p>
                         {% endif %}
                         {% if proof %}
@@ -90,10 +93,16 @@
                     <dt class="text-slate-500">{{ 'case_overview.stamp_duty.payer'|trans }}</dt>
                     <dd class="font-medium text-slate-900 dark:text-slate-100">{{ case.creditor ? case.creditor.name : '—' }}</dd>
                 </div>
+                {# In Bucharest the sector's tax directorate collects the duty, not a
+                   town hall, and Bucharest is a municipality, not a county. #}
+                {% set sector = target and target.isResolved ? target.bucharestSectorNumber : null %}
                 <div>
-                    <dt class="text-slate-500">{{ 'case_overview.stamp_duty.uat'|trans }}</dt>
+                    <dt class="text-slate-500">{{ (sector ? 'case_overview.stamp_duty.uat_sector_label' : 'case_overview.stamp_duty.uat')|trans }}</dt>
                     <dd class="font-medium text-slate-900 dark:text-slate-100">
-                        {% if target and target.isResolved %}
+                        {% if sector %}
+                            {{ 'case_overview.stamp_duty.uat_sector'|trans({'%sector%': sector}) }}<span class="text-slate-500 font-normal">, {{ 'case_overview.stamp_duty.municipality_bucharest'|trans }}</span>
+                            <span class="block mt-0.5 text-[11px] font-normal text-slate-500">{{ 'case_overview.stamp_duty.uat_sector_note'|trans }}</span>
+                        {% elseif target and target.isResolved %}
                             {{ target.uatName }}<span class="text-slate-500 font-normal">, {{ 'case_overview.stamp_duty.county'|trans({'%county%': target.countyName}) }}</span>
                         {% else %}
                             <span class="text-amber-700 dark:text-amber-400">{{ 'case_overview.stamp_duty.uat_unknown'|trans }}</span>
@@ -121,13 +130,20 @@
                         {{ icon_external_link('size-4') }}
                         {{ 'case_overview.stamp_duty.cta_pay'|trans }}
                     </a>
-                {# A lawyer who chose to pay at filing may already have paid inside the
-                   filing form; telling them to wait for the file number would contradict
-                   the at-filing notice and the confirmation button below. #}
+                {# A legacy case that declared payment at filing may already have paid
+                   inside the filing form; telling it to wait for the file number would
+                   contradict the confirmation button below. #}
                 {% elseif status.value != 'ACHITARE_LA_DEPUNERE' %}
-                    <p class="rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 p-3 text-xs text-slate-600 dark:text-slate-300">
-                        {{ 'case_overview.stamp_duty.pay_awaiting_case_number'|trans }}
-                    </p>
+                    <div>
+                        <button type="button" disabled aria-describedby="stamp-duty-registry-hint"
+                                class="w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed select-none">
+                            {{ icon_external_link('size-4') }}
+                            {{ 'case_overview.stamp_duty.cta_pay'|trans }}
+                        </button>
+                        <p id="stamp-duty-registry-hint" class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                            {{ (rejust_form.value == 'AWAITING_CASE_NUMBER' ? 'case_overview.stamp_duty.pay_awaiting_case_number' : 'case_overview.stamp_duty.pay_after_case_number')|trans }}
+                        </p>
+                    </div>
                 {% endif %}
                 <button type="button" data-hs-overlay="#hs-modal-stamp-duty-proof"
                         class="w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-semibold rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
@@ -135,15 +151,17 @@
                 </button>
             {% endif %}
 
-            {# Paying on the recommended channel happens inside the filing form itself,
-               so this choice only exists while the petition has not left yet. Offering it
-               on a filed case would contradict the notice right above, which says the
-               registry cannot take the duty until the file number exists. #}
-            {% if status.value == 'NEACHITATA' and case.rejustStampDutyForm.value == 'NEW_CASE' %}
-                <button type="button" data-hs-overlay="#hs-modal-stamp-duty-at-filing"
-                        class="w-full py-2 px-3 inline-flex items-center justify-center gap-2 text-xs font-medium rounded-lg border border-blue-300 dark:border-blue-800 text-blue-800 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition">
-                    {{ 'case_overview.stamp_duty.cta_at_filing'|trans }}
-                </button>
+            {# Kept provisionally until the lawyer confirms it can go: with the petition
+               sent by email the registry's new-case form is never filled, so paying at
+               filing may no longer be possible. Only offered before the petition leaves. #}
+            {% if status.value == 'NEACHITATA' and rejust_form.value == 'NOT_FILED' %}
+                <div>
+                    <button type="button" data-hs-overlay="#hs-modal-stamp-duty-at-filing"
+                            class="w-full py-2 px-3 inline-flex items-center justify-center gap-2 text-xs font-medium rounded-lg border border-blue-300 dark:border-blue-800 text-blue-800 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition">
+                        {{ 'case_overview.stamp_duty.cta_at_filing'|trans }}
+                    </button>
+                    <p class="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">{{ 'case_overview.stamp_duty.at_filing_provisional'|trans }}</p>
+                </div>
             {% endif %}
 
             {% if status.value == 'ACHITARE_LA_DEPUNERE' %}

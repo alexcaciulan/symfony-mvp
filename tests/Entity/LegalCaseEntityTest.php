@@ -14,6 +14,7 @@ use App\Enum\ExtractionMode;
 use App\Enum\PersonType;
 use App\Enum\RejustStampDutyForm;
 use App\Enum\RelationshipType;
+use App\Enum\StampDutyStatus;
 use PHPUnit\Framework\TestCase;
 
 class LegalCaseEntityTest extends TestCase
@@ -190,13 +191,39 @@ class LegalCaseEntityTest extends TestCase
         $this->assertNull($case->getExtractionModeOverride());
     }
 
-    public function testANotYetFiledCasePointsToTheNewCaseRegistryForm(): void
+    /**
+     * The platform files the petition by email, so the lawyer never fills the
+     * registry's new-case form and there is nothing to pay there before filing.
+     */
+    public function testANotYetFiledCaseOffersNoRegistryForm(): void
     {
         $case = new LegalCase();
         $case->setStatus(CaseStatus::CERERE_GENERATA);
 
+        $this->assertSame(RejustStampDutyForm::NOT_FILED, $case->rejustStampDutyForm());
+        $this->assertNull($case->rejustStampDutyForm()->url());
+    }
+
+    /** Paying at filing happens inside the registry's new-case form. */
+    public function testANotYetFiledCaseThatDeclaredPaymentAtFilingPointsToTheNewCaseForm(): void
+    {
+        $case = new LegalCase();
+        $case->setStatus(CaseStatus::CERERE_GENERATA);
+        $case->setStampDutyStatus(StampDutyStatus::ACHITARE_LA_DEPUNERE);
+
         $this->assertSame(RejustStampDutyForm::NEW_CASE, $case->rejustStampDutyForm());
         $this->assertStringContainsString('inregistreaza-un-dosar-nou', (string) $case->rejustStampDutyForm()->url());
+    }
+
+    /** Once the petition has left, the new-case form would register it a second time. */
+    public function testAFiledCaseThatDeclaredPaymentAtFilingIsNotSentToTheNewCaseForm(): void
+    {
+        $case = new LegalCase();
+        $case->setStatus(CaseStatus::CERERE_DEPUSA);
+        $case->setFiledAt(new \DateTimeImmutable('2026-03-01'));
+        $case->setStampDutyStatus(StampDutyStatus::ACHITARE_LA_DEPUNERE);
+
+        $this->assertSame(RejustStampDutyForm::AWAITING_CASE_NUMBER, $case->rejustStampDutyForm());
     }
 
     /**
@@ -225,14 +252,26 @@ class LegalCaseEntityTest extends TestCase
 
     /**
      * A case that moved past the live filing statuses is out of REACHED_COURT_STATUSES,
-     * yet it has certainly been filed, so it must not fall back to the new-case form.
+     * yet it has certainly been filed, so it must not be described as not sent yet.
      */
-    public function testACaseBeyondTheFilingStatusesIsNotSentBackToTheNewCaseForm(): void
+    public function testACaseBeyondTheFilingStatusesIsNotDescribedAsUnsent(): void
     {
         $case = new LegalCase();
         $case->setStatus(CaseStatus::RESPINSA);
         $case->setFiledAt(new \DateTimeImmutable('2026-03-01'));
 
         $this->assertSame(RejustStampDutyForm::AWAITING_CASE_NUMBER, $case->rejustStampDutyForm());
+    }
+
+    public function testTheStampDutyUatSnapshotIsRecognisedAsABucharestSector(): void
+    {
+        $case = new LegalCase();
+        $this->assertNull($case->getStampDutyUatSectorNumber());
+
+        $case->setStampDutyUat('Cluj-Napoca');
+        $this->assertNull($case->getStampDutyUatSectorNumber());
+
+        $case->setStampDutyUat('Sector 3');
+        $this->assertSame(3, $case->getStampDutyUatSectorNumber());
     }
 }
