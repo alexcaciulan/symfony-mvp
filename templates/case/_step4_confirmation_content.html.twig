@@ -293,6 +293,7 @@
     </div>
 
     {# Final calculations strip — navy gradient with 4-col stats + court footer. #}
+    {% set contractual_label_key = claim.contractualAccessoryLabelKey() %}
     <section class="bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white rounded-2xl shadow-lg overflow-hidden mb-6">
         <div class="px-5 py-4 border-b border-white/10">
             <h3 class="text-sm font-semibold">{{ 'wizard.step4.final_calculations.title'|trans }}</h3>
@@ -303,7 +304,7 @@
                 <div class="mt-1 text-lg font-bold tnum">{{ final_principal is null ? '—' : final_principal|number_format(2, '.', ',') }}</div>
             </div>
             <div>
-                <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.interest_label'|trans }}</div>
+                <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ contractual_label_key ? contractual_label_key|trans : 'wizard.step3.sidebar.interest_label'|trans }}</div>
                 <div class="mt-1 text-lg font-bold tnum text-amber-300">{{ accessory_total > 0 ? '+ ' ~ accessory_total|number_format(2, '.', ',') : '—' }}</div>
             </div>
             <div>
@@ -343,7 +344,7 @@
                             <th class="px-5 py-2 text-left">{{ 'wizard.step3.claim_items.column.document_date'|trans }}</th>
                             <th class="px-5 py-2 text-left">{{ 'wizard.step3.claim_items.column.due_date'|trans }}</th>
                             <th class="px-5 py-2 text-right">{{ 'wizard.step3.claim_items.column.amount'|trans }}</th>
-                            <th class="px-5 py-2 text-right">{{ 'wizard.step3.claim_items.column.interest'|trans }}</th>
+                            <th class="px-5 py-2 text-right">{{ contractual_label_key ? contractual_label_key|trans : 'wizard.step3.claim_items.column.interest'|trans }}</th>
                             <th class="px-5 py-2 text-left">{{ 'wizard.step3.claim_items.column.cause'|trans }}</th>
                         </tr>
                     </thead>
@@ -367,7 +368,7 @@
                                     {% if itemAccessory %}
                                         {{ itemAccessory.total|number_format(2, ',', '.') }}
                                     {% elseif item.dueDate and not item.isCreditNote %}
-                                        <span class="text-xs" title="{{ 'wizard.step3.claim_items.no_interest_hint'|trans }}">{{ 'wizard.step3.claim_items.interest_unavailable'|trans }}</span>
+                                        <span class="text-xs" title="{{ (contractual_label_key ? 'wizard.step3.claim_items.no_penalty_hint' : 'wizard.step3.claim_items.no_interest_hint')|trans }}">{{ 'wizard.step3.claim_items.interest_unavailable'|trans }}</span>
                                     {% else %}
                                         <span class="text-slate-400">{{ 'wizard.step3.claim_items.interest_none'|trans }}</span>
                                     {% endif %}

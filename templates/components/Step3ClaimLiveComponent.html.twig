@@ -13,6 +13,10 @@
 {% import 'case/_wizard_macros.html.twig' as f %}
 
 {% set interest = this.getInterest() %}
+{% set penalty = this.getPenalty() %}
+{# Contractual branch: the accessory carries the contract's own name, never "interest". #}
+{% set contractual_label_key = this.contractualAccessoryLabelKey %}
+{% set contractual_rate_missing = this.contractualRateMissing %}
 {% set stamp_duty = this.getStampDuty() %}
 {% set due_in_future = this.isDueDateInFuture() %}
 {% set amount = this.getAmount() %}
@@ -315,7 +319,7 @@
                 <div class="px-4 pb-2 space-y-3">
                     {% for index, row in this.getRows() %}
                         {% set needsOwnTick = this.rowRequiresConfirmation(row) %}
-                        {% set rowAccessory = summary.accessoryByRow[index]|default(null) %}
+                        {% set rowAccessory = contractual_rate_missing ? null : summary.accessoryByRow[index]|default(null) %}
                         {% set periods = summary.breakdownByRow[index]|default([]) %}
                         {% set isCreditNote = row.kind == 'credit_note' %}
                         <article data-testid="claim-item-row"
@@ -330,7 +334,12 @@
                                     </div>
                                     <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                                         {% if row.documentDate %}{{ 'wizard.step3.claim_items.issued'|trans({'%date%': row.documentDate|date('d.m.Y')}) }} · {% endif %}
-                                        {{ row.sourceDocumentId ? 'wizard.step3.claim_items.source_document'|trans({'%id%': row.sourceDocumentId}) : 'wizard.step3.claim_items.source_manual'|trans }}
+                                        {% if row.sourceDocumentId %}
+                                            {% set source_name = this.sourceDocumentName(row.sourceDocumentId) %}
+                                            <span class="inline-block max-w-64 truncate align-bottom" title="{{ source_name }}" data-testid="claim-item-source">{{ source_name ?? 'wizard.step3.claim_items.source_document_unnamed'|trans }}</span>
+                                        {% else %}
+                                            {{ 'wizard.step3.claim_items.source_manual'|trans }}
+                                        {% endif %}
                                     </p>
                                 </div>
                                 <div class="flex flex-col items-end gap-1.5 shrink-0 text-right">
@@ -372,7 +381,7 @@
                                     {% endif %}
                                 </div>
                                 <div class="sm:text-right">
-                                    <span class="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 mb-1">{{ 'wizard.step3.claim_items.column.interest'|trans }}</span>
+                                    <span class="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 mb-1">{{ contractual_label_key ? contractual_label_key|trans : 'wizard.step3.claim_items.column.interest'|trans }}</span>
                                     {% if rowAccessory is not null %}
                                         <div class="text-lg font-semibold tnum text-amber-700 dark:text-amber-400" data-testid="claim-item-interest">{{ rowAccessory|number_format(2, ',', '.') }} <span class="text-xs font-normal text-slate-400">RON</span></div>
                                         {% if periods|length > 0 %}
@@ -392,8 +401,10 @@
                                                 </ul>
                                             </details>
                                         {% endif %}
+                                    {% elseif contractual_rate_missing and not isCreditNote %}
+                                        <div class="text-xs text-slate-500 dark:text-slate-400">{{ 'wizard.step3.claim_items.penalty_rate_missing'|trans }}</div>
                                     {% elseif index in summary.unavailableRows %}
-                                        <div class="text-xs text-amber-600 dark:text-amber-400" title="{{ 'wizard.step3.claim_items.no_interest_hint'|trans }}">{{ 'wizard.step3.claim_items.interest_unavailable'|trans }}</div>
+                                        <div class="text-xs text-amber-600 dark:text-amber-400" title="{{ (contractual_label_key ? 'wizard.step3.claim_items.no_penalty_hint' : 'wizard.step3.claim_items.no_interest_hint')|trans }}">{{ 'wizard.step3.claim_items.interest_unavailable'|trans }}</div>
                                     {% else %}
                                         <div class="text-sm text-slate-400">{{ 'wizard.step3.claim_items.interest_none'|trans }}</div>
                                     {% endif %}
@@ -454,7 +465,9 @@
                 {% set display_principal = positions_mode ? this.positionPrincipal : (conv is not null ? conv.ronAmount : amount) %}
                 {# With positions, the accessory is their sum, computed once by the
                    controller on exactly the rows the submit path will persist. #}
-                {% set accessory_total = positions_mode ? this.positionAccessory : (interest is not null ? interest.total : null) %}
+                {% set scalar_accessory = contractual_label_key ? penalty : interest %}
+                {% set accessory_total = positions_mode ? (contractual_rate_missing ? null : this.positionAccessory) : (scalar_accessory is not null ? scalar_accessory.total : null) %}
+                {% set accessory_placeholder = contractual_label_key ? 'wizard.step3.sidebar.penalty_placeholder' : 'wizard.step3.sidebar.interest_placeholder' %}
                 <div>
                     <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.principal_label'|trans }}</div>
                     {% if display_principal is not null and display_principal > 0 %}
@@ -468,25 +481,25 @@
                 </div>
 
                 <div>
-                    <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.interest_label'|trans }}</div>
+                    <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ contractual_label_key ? contractual_label_key|trans : 'wizard.step3.sidebar.interest_label'|trans }}</div>
                     {% if positions_mode %}
                         {% if accessory_total is null %}
-                            <div class="mt-1 text-xs text-white/60">{{ 'wizard.step3.sidebar.interest_placeholder'|trans }}</div>
+                            <div class="mt-1 text-xs text-white/60">{{ accessory_placeholder|trans }}</div>
                         {% else %}
                             <div class="mt-1 text-2xl font-bold tnum text-amber-300">+ {{ accessory_total|number_format(2, '.', ',') }} <span class="text-sm font-normal text-white/70">{{ display_currency }}</span></div>
-                            <div class="mt-1 text-[11px] text-white/50">{{ 'wizard.step3.sidebar.interest_from_positions'|trans({'%count%': this.positionCount}) }}</div>
+                            <div class="mt-1 text-[11px] text-white/50">{{ (contractual_label_key ? 'wizard.step3.sidebar.penalty_from_positions' : 'wizard.step3.sidebar.interest_from_positions')|trans({'%count%': this.positionCount}) }}</div>
                         {% endif %}
-                    {% elseif interest is null %}
+                    {% elseif accessory_total is null %}
                         {% if due_in_future %}
                             <div class="mt-1 text-xs text-amber-300">{{ 'wizard.step3.live.error.due_date_future'|trans }}</div>
                         {% elseif currency != 'RON' and conv is null %}
                             <div class="mt-1 text-xs text-amber-300">{{ 'wizard.step3.live.error.exchange_rate_missing'|trans }}</div>
                         {% else %}
-                            <div class="mt-1 text-xs text-white/60">{{ 'wizard.step3.sidebar.interest_placeholder'|trans }}</div>
+                            <div class="mt-1 text-xs text-white/60">{{ accessory_placeholder|trans }}</div>
                         {% endif %}
                     {% else %}
-                        <div class="mt-1 text-2xl font-bold tnum text-amber-300">+ {{ interest.total|number_format(2, '.', ',') }} <span class="text-sm font-normal text-white/70">{{ display_currency }}</span></div>
-                        {% if interest.breakdown|length > 0 %}
+                        <div class="mt-1 text-2xl font-bold tnum text-amber-300">+ {{ accessory_total|number_format(2, '.', ',') }} <span class="text-sm font-normal text-white/70">{{ display_currency }}</span></div>
+                        {% if interest is not null and interest.breakdown|length > 0 %}
                             {% set last = interest.breakdown|last %}
                             <div class="mt-1 text-[11px] text-white/50">{{ 'wizard.step3.sidebar.interest_last_rate'|trans({ '%rate%': last.applicableRate|number_format(2) }) }}</div>
                         {% endif %}

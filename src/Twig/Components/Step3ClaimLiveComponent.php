@@ -6,13 +6,16 @@ namespace App\Twig\Components;
 
 use App\DTO\Calculation\CurrencyConversionResult;
 use App\DTO\Calculation\InterestResult;
+use App\DTO\Calculation\PenaltyResult;
 use App\DTO\Calculation\StampDutyResult;
 use App\DTO\Wizard\ClaimItemRow;
 use App\DTO\Wizard\Step3ClaimData;
 use App\Enum\ClaimItemKind;
+use App\Enum\ContractualAccessoryLabel;
 use App\Enum\PenaltyType;
 use App\Enum\RelationshipType;
 use App\Form\Wizard\Step3ClaimType;
+use App\Service\Calculation\ContractualPenaltyCalculator;
 use App\Service\Calculation\CurrencyConverter;
 use App\Service\Calculation\InterestCalculatorService;
 use App\Service\Calculation\StampDutyCalculator;
@@ -85,6 +88,15 @@ final class Step3ClaimLiveComponent extends AbstractController
     public array $claimItemsErrors = [];
 
     /**
+     * Original filenames of the wizard's source documents, so a position names
+     * the file it was read from rather than an internal id.
+     *
+     * @var array<int, string>
+     */
+    #[LiveProp]
+    public array $sourceDocumentNames = [];
+
+    /**
      * @var array<string, mixed>|null Memoized within one render: the aggregator
      *      is not free to run once per template getter.
      */
@@ -95,6 +107,7 @@ final class Step3ClaimLiveComponent extends AbstractController
         private readonly StampDutyCalculator $stampDutyCalculator,
         private readonly CurrencyConverter $currencyConverter,
         private readonly ClaimPositionsSummarizer $positionsSummarizer,
+        private readonly ContractualPenaltyCalculator $penaltyCalculator,
     ) {}
 
     protected function instantiateForm(): FormInterface
@@ -147,6 +160,37 @@ final class Step3ClaimLiveComponent extends AbstractController
     public function isContractual(): bool
     {
         return PenaltyType::tryFrom($this->stringFromFormValues('penaltyType') ?? '') === PenaltyType::CONTRACTUAL;
+    }
+
+    /**
+     * Translation key for what the accessory is called: the contract's own term
+     * on the contractual branch, null on the statutory one (plain interest).
+     */
+    public function getContractualAccessoryLabelKey(): ?string
+    {
+        if (!$this->isContractual()) {
+            return null;
+        }
+
+        return (ContractualAccessoryLabel::tryFrom($this->stringFromFormValues('contractualAccessoryLabel') ?? '')
+            ?? ContractualAccessoryLabel::DEFAULT)->label();
+    }
+
+    /**
+     * Contractual branch picked but no usable daily rate yet. The positions
+     * aggregator then falls back to statutory interest, a figure that must not
+     * be shown under the contract's penalty label.
+     */
+    public function isContractualRateMissing(): bool
+    {
+        $rate = $this->floatFromFormValues('contractualPenaltyRate');
+
+        return $this->isContractual() && ($rate === null || $rate <= 0.0);
+    }
+
+    public function sourceDocumentName(mixed $documentId): ?string
+    {
+        return is_numeric($documentId) ? ($this->sourceDocumentNames[(int) $documentId] ?? null) : null;
     }
 
     public function getPositionCount(): int
@@ -243,9 +287,57 @@ final class Step3ClaimLiveComponent extends AbstractController
 
     public function getInterest(): ?InterestResult
     {
+        if ($this->isContractual()) {
+            return null;
+        }
+
+        $base = $this->scalarAccrualBase();
+        $relationship = RelationshipType::tryFrom($this->stringFromFormValues('relationshipType') ?? '');
+        if ($base === null || $relationship === null) {
+            return null;
+        }
+
+        try {
+            return $this->interestService->calculate(
+                amount: $base['amount'],
+                dueDate: $base['dueDate'],
+                referenceDate: new \DateTimeImmutable('today'),
+                relationshipType: $relationship,
+                currency: 'RON',
+                invoiceDate: $this->getInvoiceDate(),
+            );
+        } catch (\DomainException | \InvalidArgumentException | \RuntimeException) {
+            return null;
+        }
+    }
+
+    /** The contractual counterpart of {@see getInterest()}, for a claim without positions. */
+    public function getPenalty(): ?PenaltyResult
+    {
+        if (!$this->isContractual()) {
+            return null;
+        }
+
+        $base = $this->scalarAccrualBase();
+        $rate = $this->floatFromFormValues('contractualPenaltyRate');
+        if ($base === null || $rate === null || $rate <= 0.0) {
+            return null;
+        }
+
+        return $this->penaltyCalculator->calculate($base['amount'], $rate, $base['dueDate'], new \DateTimeImmutable('today'));
+    }
+
+    /**
+     * RON principal and due date the scalar claim accrues on, or null when the
+     * form does not yet describe a past-due amount.
+     *
+     * @return array{amount: float, dueDate: \DateTimeImmutable}|null
+     */
+    private function scalarAccrualBase(): ?array
+    {
         if ($this->isPositionDriven()) {
             // Each position accrues from its own due date; one aggregate figure
-            // from one due date is exactly the claim T4 exists to stop making.
+            // from one due date is exactly what per-position accrual replaces.
             return null;
         }
 
@@ -263,47 +355,25 @@ final class Step3ClaimLiveComponent extends AbstractController
             return null;
         }
 
-        $relationshipRaw = $this->stringFromFormValues('relationshipType');
-        if ($relationshipRaw === null) {
-            return null;
-        }
-        $relationship = RelationshipType::tryFrom($relationshipRaw);
-        if ($relationship === null) {
-            return null;
-        }
-
-        $now = new \DateTimeImmutable('today');
-        if ($dueDate >= $now) {
-            // Future / today → no interest accrues yet; we surface as null so
-            // the template prints the explicit "due_date_future" placeholder
-            // instead of "0,00 RON" (which looks like a calculated zero).
+        if ($dueDate >= new \DateTimeImmutable('today')) {
+            // Future / today → nothing accrues yet; null lets the template print
+            // the explicit "due_date_future" placeholder instead of "0,00 RON"
+            // (which looks like a calculated zero).
             return null;
         }
 
-        // Foreign currency: interest is computed on the RON-converted principal.
-        // If the conversion can't be resolved yet (no invoice date / missing
-        // rate) we return null and the template shows the FX placeholder.
-        $ronAmount = $amount;
+        // Foreign currency: the accessory is computed on the RON-converted
+        // principal. If the conversion can't be resolved yet (no invoice date /
+        // missing rate) we return null and the template shows the FX placeholder.
         if ($this->getCurrency() !== 'RON') {
             $conversion = $this->getConversion();
             if ($conversion === null) {
                 return null;
             }
-            $ronAmount = $conversion->ronAmount;
+            $amount = $conversion->ronAmount;
         }
 
-        try {
-            return $this->interestService->calculate(
-                amount: $ronAmount,
-                dueDate: $dueDate,
-                referenceDate: $now,
-                relationshipType: $relationship,
-                currency: 'RON',
-                invoiceDate: $this->getInvoiceDate(),
-            );
-        } catch (\DomainException | \InvalidArgumentException | \RuntimeException) {
-            return null;
-        }
+        return ['amount' => $amount, 'dueDate' => $dueDate];
     }
 
     /**

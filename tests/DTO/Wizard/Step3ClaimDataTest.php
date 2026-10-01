@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\DTO\Wizard;
 
 use App\DTO\Wizard\Step3ClaimData;
+use App\Enum\ContractualAccessoryLabel;
 use App\Enum\LegalGroundCategory;
 use App\Enum\PenaltyType;
 use App\Enum\RelationshipType;
@@ -35,6 +36,19 @@ final class Step3ClaimDataTest extends KernelTestCase
         $violations = $this->validator->validate($dto);
 
         self::assertCount(0, $violations, (string) $violations);
+    }
+
+    public function testAccessoryLabelKeyFollowsThePenaltyType(): void
+    {
+        self::assertNull((new Step3ClaimData())->contractualAccessoryLabelKey(), 'Statutory branch is plain interest.');
+        self::assertSame(
+            ContractualAccessoryLabel::DEFAULT->label(),
+            (new Step3ClaimData(penaltyType: PenaltyType::CONTRACTUAL))->contractualAccessoryLabelKey(),
+        );
+        self::assertSame(
+            ContractualAccessoryLabel::DOBANZI_PENALIZATOARE->label(),
+            (new Step3ClaimData(penaltyType: PenaltyType::CONTRACTUAL, contractualAccessoryLabel: ContractualAccessoryLabel::DOBANZI_PENALIZATOARE))->contractualAccessoryLabelKey(),
+        );
     }
 
     public function testNegativeAmountIsRejected(): void

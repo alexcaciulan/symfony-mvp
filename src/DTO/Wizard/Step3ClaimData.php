@@ -128,4 +128,15 @@ class Step3ClaimData
         public ?float $legalCostsSuccessPercent = null,
         public array $autoFilled = [],
     ) {}
+
+    /**
+     * Translation key naming the contractual accessory the way the contract
+     * does, or null on the statutory branch where it is plain interest.
+     */
+    public function contractualAccessoryLabelKey(): ?string
+    {
+        return $this->penaltyType === PenaltyType::CONTRACTUAL
+            ? ($this->contractualAccessoryLabel ?? ContractualAccessoryLabel::DEFAULT)->label()
+            : null;
+    }
 }

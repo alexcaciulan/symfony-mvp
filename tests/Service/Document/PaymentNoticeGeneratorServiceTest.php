@@ -309,7 +309,7 @@ final class PaymentNoticeGeneratorServiceTest extends KernelTestCase
 
         $html = $this->service->renderHtml($this->case);
 
-        self::assertStringContainsString('Părțile au convenit, potrivit clauzei penale din contractul încheiat între părți, un mecanism de penalizare pentru întârzierea la plată.', $html);
+        self::assertStringContainsString('Părțile au convenit, potrivit clauzei contractuale din contractul încheiat între părți, un mecanism de penalizare pentru întârzierea la plată.', $html);
         self::assertStringNotContainsString('Părțile au convenit următoarele:', $html);
     }
 

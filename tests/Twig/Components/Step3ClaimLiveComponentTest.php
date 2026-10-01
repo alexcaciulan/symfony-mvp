@@ -6,6 +6,7 @@ namespace App\Tests\Twig\Components;
 
 use App\DTO\Wizard\Step3ClaimData;
 use App\Entity\User;
+use App\Enum\PenaltyType;
 use App\Enum\RelationshipType;
 use App\Twig\Components\Step3ClaimLiveComponent;
 use Doctrine\ORM\EntityManagerInterface;
@@ -90,6 +91,26 @@ final class Step3ClaimLiveComponentTest extends WebTestCase
 
         self::assertNotNull($interest, 'Expected a positive interest on a 30-day-overdue B2B claim');
         self::assertGreaterThan(0.0, $interest->total);
+    }
+
+    public function testContractualModeComputesThePenaltyNotStatutoryInterest(): void
+    {
+        $testComponent = $this->mount(new Step3ClaimData(
+            amount: 10000.0,
+            currency: 'RON',
+            dueDate: new \DateTimeImmutable('-30 days'),
+            relationshipType: RelationshipType::COMERCIAL,
+            penaltyType: PenaltyType::CONTRACTUAL,
+            contractualPenaltyRate: 0.1,
+        ));
+
+        /** @var Step3ClaimLiveComponent $component */
+        $component = $testComponent->component();
+
+        self::assertNull($component->getInterest(), 'The statutory figure must not stand in for the contractual one.');
+        // 10000 * 0.1% * 30 days.
+        self::assertEqualsWithDelta(300.0, $component->getPenalty()?->total, 0.001);
+        self::assertStringContainsString('+ 300.00', (string) $testComponent->render());
     }
 
     /**

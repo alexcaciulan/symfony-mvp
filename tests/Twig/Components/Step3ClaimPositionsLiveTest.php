@@ -8,6 +8,8 @@ use App\DTO\Wizard\ClaimItemRow;
 use App\DTO\Wizard\Step3ClaimData;
 use App\Entity\User;
 use App\Enum\ClaimItemKind;
+use App\Enum\ContractualAccessoryLabel;
+use App\Enum\PenaltyType;
 use App\Enum\RelationshipType;
 use App\Util\ClaimRowLiveMapper;
 use Doctrine\ORM\EntityManagerInterface;
@@ -136,6 +138,74 @@ final class Step3ClaimPositionsLiveTest extends WebTestCase
             $html,
             'Credit-note position must show its kind badge in the live table.',
         );
+    }
+
+    public function testContractualPositionsUseTheContractTermInsteadOfInterest(): void
+    {
+        $rows = ClaimRowLiveMapper::toArrays([$this->row('TES 0036', 1000.0, '2024-05-01')]);
+
+        $component = $this->createLiveComponent('Step3ClaimLiveComponent', [
+            'initialFormData' => new Step3ClaimData(
+                currency: 'RON',
+                relationshipType: RelationshipType::COMERCIAL,
+                penaltyType: PenaltyType::CONTRACTUAL,
+                contractualPenaltyRate: 0.1,
+                contractualAccessoryLabel: ContractualAccessoryLabel::MAJORARI_INTARZIERE,
+            ),
+            'rows' => $rows,
+        ])->actingAs($this->user);
+
+        $html = (string) $component->render();
+        $translator = static::getContainer()->get('translator');
+
+        self::assertStringContainsString($translator->trans('enum.contractual_accessory_label.MAJORARI_INTARZIERE', locale: 'ro'), $html);
+        self::assertStringNotContainsString($translator->trans('wizard.step3.sidebar.interest_label', locale: 'ro'), $html);
+        self::assertStringNotContainsString($translator->trans('wizard.step3.claim_items.column.interest', locale: 'ro') . '</span>', $html);
+    }
+
+    public function testContractualWithoutRateShowsNoStatutoryFigureUnderThePenaltyLabel(): void
+    {
+        $component = $this->createLiveComponent('Step3ClaimLiveComponent', [
+            'initialFormData' => new Step3ClaimData(
+                currency: 'RON',
+                relationshipType: RelationshipType::COMERCIAL,
+                penaltyType: PenaltyType::CONTRACTUAL,
+            ),
+            'rows' => ClaimRowLiveMapper::toArrays([$this->row('TES 0036', 1000.0, '2024-05-01')]),
+        ])->actingAs($this->user);
+
+        $html = (string) $component->render();
+        $translator = static::getContainer()->get('translator');
+
+        self::assertStringNotContainsString('data-testid="claim-item-interest"', $html, 'The aggregator falls back to statutory interest without a rate.');
+        self::assertStringContainsString($translator->trans('wizard.step3.claim_items.penalty_rate_missing', locale: 'ro'), $html);
+        self::assertStringContainsString($translator->trans('wizard.step3.sidebar.penalty_placeholder', locale: 'ro'), $html);
+    }
+
+    public function testPositionNamesItsSourceFileNotItsId(): void
+    {
+        $sourced = new ClaimItemRow(
+            dedupKey: 'inv:JSA9581',
+            amount: 29003.40,
+            currency: 'RON',
+            documentNumber: 'JSA9581',
+            documentDate: new \DateTimeImmutable('2024-06-17'),
+            dueDate: new \DateTimeImmutable('2024-06-22'),
+            amountRon: 29003.40,
+            sourceDocumentId: 24,
+            confirmed: true,
+        );
+
+        $component = $this->createLiveComponent('Step3ClaimLiveComponent', [
+            'initialFormData' => new Step3ClaimData(currency: 'RON', relationshipType: RelationshipType::COMERCIAL),
+            'rows' => ClaimRowLiveMapper::toArrays([$sourced]),
+            'sourceDocumentNames' => [24 => 'factura_JSA9581.pdf'],
+        ])->actingAs($this->user);
+
+        $html = (string) $component->render();
+
+        self::assertStringContainsString('factura_JSA9581.pdf', $html);
+        self::assertStringNotContainsString('#24', $html);
     }
 
     private function row(string $number, float $amount, string $due): ClaimItemRow

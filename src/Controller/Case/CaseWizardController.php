@@ -1059,6 +1059,7 @@ final class CaseWizardController extends AbstractController
             'claim_items_table_confirmed' => $tableConfirmed,
             'claim_items_review_threshold' => $this->confidenceThreshold,
             'claim_items_errors' => $rowErrors,
+            'claim_items_source_names' => $this->conflictDocumentNames($bag['documentIds']),
             ...$this->conflictViewVars($bag, $conflicts, 'claim', $rejected),
         ], $this->stepRejected($acknowledged));
     }
