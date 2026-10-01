@@ -45,6 +45,16 @@ class PdfParserExtractionStrategyTest extends TestCase
             <p>Scadenta factura: 30.06.2026</p>
         ');
 
+        // Creditor with the classic registry number, debtor with the single
+        // string the registry now issues.
+        self::generatePdf('factura-onrc.pdf', '
+            <h1>Factura fiscala nr. INV-2026-101</h1>
+            <p><b>Furnizor:</b> SC Alpha SRL, CUI RO15193236, Nr. ORC J40/11043/2003</p>
+            <p><b>Client:</b> SC Beta SRL, CUI RO14186770, Reg. Com. J2016014941403</p>
+            <p>Total de plata: 1.250,75 RON</p>
+            <p>Scadenta factura: 30.06.2026</p>
+        ');
+
         self::generatePdf('text-minimal.pdf', '<p>X</p>');
 
         // Same content as contract, but with deliberately invalid CUI for the creditor.
@@ -147,6 +157,14 @@ class PdfParserExtractionStrategyTest extends TestCase
 
         $this->assertNotNull($result->primaryDebtor());
         $this->assertSame('14186770', $result->primaryDebtor()->cui);
+    }
+
+    public function testExtractsBothSpellingsOfTheRegistryNumberAsWritten(): void
+    {
+        $result = $this->strategy->extract($this->makeDocument('factura-onrc.pdf'));
+
+        $this->assertSame('J40/11043/2003', $result->creditor?->onrcNumber);
+        $this->assertSame('J2016014941403', $result->primaryDebtor()?->onrcNumber);
     }
 
     public function testExtractsAmountAndDueDateFromContract(): void

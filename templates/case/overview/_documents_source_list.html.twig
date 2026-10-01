@@ -86,12 +86,7 @@
                     <div class="flex-1 min-w-0">
                         <div class="font-medium text-sm truncate">{{ doc.originalFilename }}</div>
                         <div class="text-xs text-slate-500">
-                            {% if doc.extractionConfidence is not null %}
-                                {% set pct = (doc.extractionConfidence * 100)|round(0) %}
-                                {{ 'case_overview.documents.extraction_hint_pct'|trans({'%type%': type_label, '%size%': size_label, '%date%': date_label, '%pct%': pct}) }}
-                            {% else %}
-                                {{ 'case_overview.documents.extraction_hint_no_pct'|trans({'%type%': type_label, '%size%': size_label, '%date%': date_label}) }}
-                            {% endif %}
+                            {{ 'case_overview.documents.extraction_hint'|trans({'%type%': type_label, '%size%': size_label, '%date%': date_label}) }}
                         </div>
                         {% set status_badge = extraction_status_map[doc.extractionStatus.value]|default(default_status_badge) %}
                         <div class="mt-1 flex items-center gap-1.5 flex-wrap">
