@@ -2,7 +2,7 @@
 {% from 'case/overview/_icons.html.twig' import icon_calendar, icon_building %}
 
 {% set creditor_name = case.creditor ? case.creditor.name : ('case_overview.header.no_creditor'|trans) %}
-{% set debtor_name = case.debtors|first ? case.debtors|first.name : ('case_overview.header.no_debtor'|trans) %}
+{% set debtor_name = case.primaryDebtor ? case.primaryDebtor.name : ('case_overview.header.no_debtor'|trans) %}
 {% set court_label = case.court ? case.court.name : ('case_overview.header.court_undetermined'|trans) %}
 {% set pulse_status = not case.status.isTerminal() %}
 

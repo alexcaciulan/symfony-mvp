@@ -7,6 +7,7 @@ namespace App\Tests\Controller\Case;
 use App\Entity\AuditLog;
 use App\Entity\Creditor;
 use App\Entity\Debtor;
+use App\Entity\LegalCaseDebtor;
 use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\User;
@@ -84,7 +85,7 @@ final class CaseTransitionControllerTest extends WebTestCase
         $conn->executeStatement('DELETE FROM document WHERE uploaded_by_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM legal_deadline WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM case_status_history WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
-        $conn->executeStatement('DELETE FROM debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
+        $conn->executeStatement('DELETE FROM legal_case_debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM notification WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM legal_case WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM creditor WHERE user_id = :id', ['id' => $userId]);
@@ -103,13 +104,13 @@ final class CaseTransitionControllerTest extends WebTestCase
         $this->em->persist($case);
 
         $debtor = new Debtor();
-        $debtor->setLegalCase($case);
+        $debtor->setUser($case->getUser());
         $debtor->setPersonType(PersonType::PJ);
         $debtor->setName('SC Debitor Transition SRL');
         $debtor->setAddress('Str. Test 2, București');
         $debtor->setCui('RO44445555');
         $this->em->persist($debtor);
-        $case->addDebtor($debtor);
+        $case->addDebtor(new LegalCaseDebtor($debtor));
 
         $this->em->flush();
 

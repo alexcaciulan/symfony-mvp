@@ -4,11 +4,16 @@ namespace App\Tests\Service\Court;
 
 use App\Entity\City;
 use App\Entity\County;
+use App\Entity\Debtor;
+use App\Entity\LegalCase;
+use App\Entity\LegalCaseDebtor;
+use App\Service\Case\DebtorSeatCourtCheck;
 use App\Entity\Court;
 use App\Entity\InterestRateConfig;
 use App\Enum\CourtType;
 use App\Service\Court\LocalityNormalizer;
 use App\Enum\RelationshipType;
+use App\Repository\AuditLogRepository;
 use App\Repository\CourtRepository;
 use App\Repository\InterestRateConfigRepository;
 use App\Service\Calculation\InterestCalculatorService;
@@ -512,6 +517,37 @@ class CompetentCourtResolverTest extends TestCase
             debtorCounty: 'Cluj',
             debtorLocality: 'Cluj-Napoca',
         );
+    }
+
+    public function testTheSeatPointsToTheCourtCoveringItsLocality(): void
+    {
+        $resolver = $this->makeResolver($this->clujCourts(), []);
+
+        self::assertSame('Judecătoria Dej', $resolver->courtForSeat(CourtType::JUDECATORIE, 'Cluj', 'Dej')?->getName());
+        self::assertSame('Tribunalul Cluj', $resolver->courtForSeat(CourtType::TRIBUNAL, 'Cluj', 'Dej')?->getName());
+    }
+
+    public function testASeatThatSinglesOutNoCourtPointsNowhere(): void
+    {
+        $resolver = $this->makeResolver($this->clujCourts(), []);
+
+        self::assertNull($resolver->courtForSeat(CourtType::JUDECATORIE, 'Cluj', 'Localitate Necunoscută'));
+        self::assertNull($resolver->courtForSeat(CourtType::JUDECATORIE, null, 'Dej'));
+        self::assertNull($resolver->courtForSeat(CourtType::JUDECATORIE, 'Cluj', null));
+    }
+
+    public function testTheCaseIsFlaggedWhenItsDebtorNowSitsUnderAnotherCourt(): void
+    {
+        $courts = $this->clujCourts();
+        $check = new DebtorSeatCourtCheck($this->makeResolver($courts, []), $this->createStub(AuditLogRepository::class));
+        $company = (new Debtor())->setName('Mutat SRL')->setAddressCounty('Cluj')->setAddressLocality('Cluj-Napoca');
+        $case = (new LegalCase())->setCourt($courts[1]);
+        $case->addDebtor(new LegalCaseDebtor($company));
+
+        self::assertNull($check->courtNowPointedTo($case), 'the seat still points to the case court');
+
+        $company->setAddressLocality('Dej');
+        self::assertSame('Judecătoria Dej', $check->courtNowPointedTo($case)?->getName());
     }
 
     /**

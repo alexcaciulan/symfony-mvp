@@ -5,7 +5,7 @@
    The interactive multi-debtor body lives in `Step2DebtorsLiveComponent`
    (add/remove without page reload, ANAF lookup on the explicit sync
    button). This shell
-   only owns the page-level header (toggle bar) and the nav bar (Back +
+   only owns the page-level header (library picker) and the nav bar (Back +
    Continue submit via form="step2-debtors-form"). The Live Component
    renders the `<form>` tag itself with `action="case_wizard_debtor"`. #}
 
@@ -16,22 +16,73 @@
 {% block wizard_step_content %}
     {{ include('case/_prefill_conflicts.html.twig', { conflicts_form_id: 'step2-debtors-form' }) }}
 
-    {# Toggle bar — "Selectează debitor existent" disabled (cabinet library is post-MVP, Pas 6.x). #}
-    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 mb-6 shadow-soft">
-        <div class="grid grid-cols-2 gap-2">
-            <button type="button" disabled aria-disabled="true"
-                    title="{{ 'wizard.step2.toggle.existing_disabled_title'|trans }}"
-                    class="flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-400 cursor-not-allowed">
-                <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                <span>{{ 'wizard.step2.toggle.existing'|trans }}</span>
-            </button>
-            <button type="button" aria-pressed="true"
-                    class="flex items-center justify-center gap-2 p-3 rounded-lg border-2 border-blue-500 bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/40 dark:to-blue-950/20 text-sm font-bold text-blue-700 dark:text-blue-300">
-                <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
-                <span>{{ 'wizard.step2.toggle.new'|trans }}</span>
-            </button>
+    {# Debtor library: pick a company the lawyer already keeps, outside the Live
+       Component so the pick is a plain server round-trip. The identity then
+       comes from the library; the checks are done again for this case. #}
+    {% set picked = (dto.debtors|first).debtorId|default(null) ? dto.debtors|first : null %}
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 mb-6 shadow-soft" data-testid="debtor-library">
+        <div class="flex items-start gap-3 mb-3">
+            <svg class="size-5 text-blue-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <div class="flex-1">
+                <div class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ 'wizard.step2.library.title'|trans }}</div>
+                <p class="text-xs text-slate-500 mt-0.5">{{ 'wizard.step2.library.hint'|trans }} <a href="{{ path('app_debtors') }}" class="underline" data-turbo-frame="_top">{{ 'wizard.step2.library.manage'|trans }}</a></p>
+            </div>
         </div>
+        {% if picked %}
+            <div class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-200 dark:border-blue-900/60 bg-blue-50/60 dark:bg-blue-950/30 px-3 py-2" data-testid="debtor-picked">
+                <span class="text-sm font-medium text-slate-900 dark:text-slate-100">{{ picked.name }} <span class="text-slate-500 font-normal">(CUI {{ picked.cui }})</span></span>
+                <div class="flex items-center gap-3">
+                    <a href="{{ path('app_debtors_edit', {id: picked.debtorId}) }}" class="text-xs font-medium text-blue-700 dark:text-blue-300 underline" data-turbo-frame="_top">{{ 'wizard.step2.library.edit'|trans }}</a>
+                    <form method="post" action="{{ path('case_wizard_debtor_unpick') }}">
+                        <input type="hidden" name="_token" value="{{ csrf_token('wizard_debtor_unpick') }}">
+                        <button type="submit" class="text-xs font-medium text-slate-600 dark:text-slate-300 hover:underline" data-testid="debtor-unpick">{{ 'wizard.step2.library.unpick'|trans }}</button>
+                    </form>
+                </div>
+            </div>
+        {% else %}
+            {{ form_start(pick_form, { attr: { class: 'flex flex-col sm:flex-row gap-2', 'data-testid': 'debtor-pick-form' } }) }}
+                <div class="flex-1">{{ form_widget(pick_form.debtor) }}</div>
+                <button type="submit" class="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-lex-navy hover:bg-lex-navy-dark text-white text-sm font-semibold transition"
+                        {% if (dto.debtors|first).name|default(null) %}data-turbo-confirm="{{ 'wizard.step2.library.replace_confirm'|trans }}"{% endif %}>
+                    {{ 'wizard.step2.library.use'|trans }}
+                </button>
+            {{ form_end(pick_form) }}
+        {% endif %}
     </div>
+
+    {# The debtor typed here has a CUI the library already holds, with other
+       data: the case links to that company, so the lawyer says which data
+       stands. Posted with the step form. #}
+    {% if library_recheck|default(false) %}
+        <div class="rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 p-4 mb-6 text-sm text-amber-900 dark:text-amber-200" role="alert" data-testid="library-recheck">
+            {{ 'wizard.step2.library.recheck'|trans }}
+        </div>
+    {% endif %}
+    {% for index, pending in library_differs|default([]) %}
+        <div class="rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 p-5 mb-6 space-y-3" role="alert" data-testid="library-differs">
+            <p class="text-sm font-semibold text-amber-900 dark:text-amber-200">{{ 'wizard.step2.library.differs_title'|trans({'%name%': pending.name}) }}</p>
+            <table class="w-full text-xs text-amber-900 dark:text-amber-200">
+                <thead><tr class="text-left"><th class="py-1 pr-3"></th><th class="py-1 pr-3">{{ 'wizard.step2.library.differs_library'|trans }}</th><th class="py-1">{{ 'wizard.step2.library.differs_step'|trans }}</th></tr></thead>
+                <tbody>
+                    {% for field, pair in pending.differs %}
+                        <tr><td class="py-1 pr-3 font-medium">{{ ('case_overview.modal.debtor_field.' ~ field)|trans }}</td><td class="py-1 pr-3">{{ pair[0] }}</td><td class="py-1">{{ pair[1] }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <label class="flex items-start gap-2 text-sm text-amber-900 dark:text-amber-200">
+                <input type="radio" form="step2-debtors-form" name="library_debtor_choice[{{ index }}]" value="library" required class="mt-0.5">
+                <span>{{ 'wizard.step2.library.differs_use_library'|trans }}</span>
+            </label>
+            {% if pending.canUpdate %}
+                <label class="flex items-start gap-2 text-sm text-amber-900 dark:text-amber-200">
+                    <input type="radio" form="step2-debtors-form" name="library_debtor_choice[{{ index }}]" value="update" class="mt-0.5">
+                    <span>{{ 'wizard.step2.library.differs_update'|trans }}</span>
+                </label>
+            {% else %}
+                <p class="text-xs text-amber-900 dark:text-amber-200">{{ 'wizard.step2.library.differs_update_refused'|trans }}</p>
+            {% endif %}
+        </div>
+    {% endfor %}
 
     {# Pass `form` (FormView — Symfony's render auto-converts FormInterface to
        FormView for template variables) so ComponentWithFormTrait::initializeForm

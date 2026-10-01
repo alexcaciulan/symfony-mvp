@@ -6,6 +6,7 @@ namespace App\Tests\Service\Document;
 
 use App\Entity\Creditor;
 use App\Entity\Debtor;
+use App\Entity\LegalCaseDebtor;
 use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\User;
@@ -71,7 +72,7 @@ final class PaymentNoticeGeneratorServiceTest extends KernelTestCase
         $this->em->persist($this->case);
 
         $debtor = new Debtor();
-        $debtor->setLegalCase($this->case);
+        $debtor->setUser($this->case->getUser());
         $debtor->setPersonType(PersonType::PJ);
         $debtor->setName('SC Test Debtor SRL');
         $debtor->setAddress('Strada Azurului, Nr. 25, Etaj 3, Ap. 20, cod poștal 061192');
@@ -79,7 +80,7 @@ final class PaymentNoticeGeneratorServiceTest extends KernelTestCase
         $debtor->setAddressLocality('Sector 6');
         $debtor->setCui('RO88888222');
         $this->em->persist($debtor);
-        $this->case->addDebtor($debtor);
+        $this->case->addDebtor(new LegalCaseDebtor($debtor));
 
         $this->em->flush();
     }
@@ -89,7 +90,7 @@ final class PaymentNoticeGeneratorServiceTest extends KernelTestCase
         $userId = $this->user->getId();
         $conn = $this->em->getConnection();
         $conn->executeStatement('DELETE FROM document WHERE uploaded_by_id = :id', ['id' => $userId]);
-        $conn->executeStatement('DELETE FROM debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
+        $conn->executeStatement('DELETE FROM legal_case_debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM legal_case WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM creditor WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM `user` WHERE id = :id', ['id' => $userId]);
@@ -432,7 +433,7 @@ final class PaymentNoticeGeneratorServiceTest extends KernelTestCase
 
     public function testAttentionLineComesFromTheDebtorAdministrator(): void
     {
-        $this->case->getDebtors()->first()->setAdministrator('Maria Ionescu');
+        $this->case->getPrimaryDebtor()->getDebtor()->setAdministrator('Maria Ionescu');
 
         $html = $this->service->renderHtml($this->case);
 

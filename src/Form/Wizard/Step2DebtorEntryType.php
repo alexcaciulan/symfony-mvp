@@ -7,7 +7,9 @@ namespace App\Form\Wizard;
 use App\DTO\Wizard\Step2DebtorEntry;
 use App\Enum\AnafStatus;
 use App\Enum\PersonType;
+use App\Service\Party\CuiNormalizer;
 use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\CallbackTransformer;
 use Symfony\Component\Form\Extension\Core\Type\CheckboxType;
 use Symfony\Component\Form\Extension\Core\Type\EmailType;
 use Symfony\Component\Form\Extension\Core\Type\EnumType;
@@ -31,18 +33,26 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
  * listener; it is mandatory for PJ debtors only, since BPI (Legea 85/2014) is
  * searched by CUI and the wizard collects a CUI only for PJ (see the caveat on
  * professional-individual debtors in {@see Step2DebtorEntry}).
- * The `Debtor::$inInsolvency` flag is no longer written from the wizard (a
- * lawyer who finds the debtor in BPI must not file); it stays on the admin
- * surface. The ANAF metadata fields (`anafStatus`, `anafCheckedAt`) are hidden
+ * The case's `inInsolvency` flag is not written from the wizard (a lawyer who
+ * finds the debtor in the Law 85/2014 proceedings must not file). The ANAF
+ * metadata fields (`anafStatus`, `anafCheckedAt`) are hidden
  * inputs the party-anaf-lookup Stimulus controller fills on an explicit sync.
  */
 final class Step2DebtorEntryType extends AbstractType
 {
+    /**
+     * Person types the wizard offers for a debtor. Natural persons are hidden
+     * for now (B2B product): the PF branch below and in the template stays in
+     * place, and adding PersonType::PF back here brings the choice back.
+     */
+    public const OFFERED_PERSON_TYPES = [PersonType::PJ];
+
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $builder
             ->add('personType', EnumType::class, [
                 'class' => PersonType::class,
+                'choices' => $options['person_types'],
                 'label' => 'wizard.step2.field.person_type',
                 'placeholder' => 'wizard.step2.placeholder.person_type',
                 'required' => true,
@@ -125,7 +135,14 @@ final class Step2DebtorEntryType extends AbstractType
                 'mapped' => false,
                 'required' => false,
             ])
+            ->add('debtorId', HiddenType::class, [
+                'required' => false,
+            ])
         ;
+        $builder->get('debtorId')->addModelTransformer(new CallbackTransformer(
+            static fn (?int $id): string => $id === null ? '' : (string) $id,
+            static fn (?string $raw): ?int => $raw === null || $raw === '' || !ctype_digit($raw) ? null : (int) $raw,
+        ));
 
         // PRE_SUBMIT normalizer — same UX as Step1CreditorType: accept IBAN
         // with spaces / lowercase CUI and strip+upper before strict regex.
@@ -160,6 +177,11 @@ final class Step2DebtorEntryType extends AbstractType
                 unset($data['bpiVerifiedToday']);
             } elseif ($personType === PersonType::PJ->value) {
                 $data['personalId'] = null;
+            }
+
+            $bound = $event->getForm()->getData();
+            if ($bound instanceof Step2DebtorEntry) {
+                $data = self::dropChecksOfAnotherCompany($bound, $data);
             }
 
             $event->setData($data);
@@ -212,6 +234,45 @@ final class Step2DebtorEntryType extends AbstractType
         });
     }
 
+    /**
+     * The attestation and the ANAF status describe the company they were made
+     * for. When the lawyer changes the CUI of a debtor that already carries
+     * them, they no longer apply: the tick has to be given again and the ANAF
+     * status is dropped unless this submission brings a fresh sync.
+     *
+     * This runs where the form is bound to the DTO kept in the wizard session
+     * (the controller submit). The Live Component rebuilds a fresh DTO on every
+     * render, so there the bound CUI is empty and nothing is compared.
+     *
+     * @param array<string, mixed> $data
+     *
+     * @return array<string, mixed>
+     */
+    private static function dropChecksOfAnotherCompany(Step2DebtorEntry $bound, array $data): array
+    {
+        $boundCui = CuiNormalizer::canonical($bound->cui);
+        $submittedCui = CuiNormalizer::canonical(is_string($data['cui'] ?? null) ? $data['cui'] : null);
+        if ($boundCui === null || $boundCui === $submittedCui) {
+            return $data;
+        }
+
+        $bound->insolvencyCheckedAt = null;
+        $bound->inInsolvency = false;
+        $bound->autoFilled = [];
+        unset($data['bpiVerifiedToday']);
+
+        $submittedCheckedAt = is_string($data['anafCheckedAt'] ?? null) ? $data['anafCheckedAt'] : '';
+        $boundCheckedAt = $bound->anafCheckedAt?->format(\DateTimeInterface::ATOM) ?? '';
+        if ($submittedCheckedAt === '' || $submittedCheckedAt === $boundCheckedAt) {
+            $bound->anafStatus = null;
+            $bound->anafCheckedAt = null;
+            $data['anafStatus'] = null;
+            $data['anafCheckedAt'] = null;
+        }
+
+        return $data;
+    }
+
     public function finishView(FormView $view, FormInterface $form, array $options): void
     {
         $dto = $form->getData();
@@ -226,6 +287,7 @@ final class Step2DebtorEntryType extends AbstractType
     {
         $resolver->setDefaults([
             'data_class' => Step2DebtorEntry::class,
+            'person_types' => self::OFFERED_PERSON_TYPES,
             'empty_data' => fn () => new Step2DebtorEntry(),
             // CSRF is owned by the wrapping Step2DebtorsType — entries are
             // children of the collection and inherit no token of their own.
@@ -234,5 +296,6 @@ final class Step2DebtorEntryType extends AbstractType
             // violation on the checkbox the lawyer actually sees.
             'error_mapping' => ['insolvencyCheckedAt' => 'bpiVerifiedToday'],
         ]);
+        $resolver->setAllowedTypes('person_types', PersonType::class . '[]');
     }
 }

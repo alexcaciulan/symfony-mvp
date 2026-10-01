@@ -10,7 +10,9 @@ use Doctrine\ORM\Mapping as ORM;
  * Shared identity and contact fields for a party (Creditor or Debtor).
  *
  * These are the columns common to both parties; party-specific data (creditor
- * bank details, debtor ANAF/BPI verification) stays on the owning entity. Using
+ * bank details) stays on the owning entity, and what is checked about a debtor
+ * for a case (ANAF status, the Law 85/2014 attestation) lives on
+ * {@see \App\Entity\LegalCaseDebtor}. Using
  * a trait keeps the columns flat on each table (so DQL stays `c.name` and
  * criteria stay `['cui' => ...]`) and exposes the getters/setters natively
  * without delegation.

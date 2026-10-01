@@ -1,0 +1,58 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ 'library.debtors.edit.title'|trans }} - {{ parent() }}{% endblock %}
+
+{% block breadcrumb %}
+    <li><a href="{{ path('app_debtors') }}" class="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 no-underline">{{ 'library.debtors.heading'|trans }}</a></li>
+    <li class="text-slate-400" aria-hidden="true">/</li>
+    <li class="font-medium text-slate-700 dark:text-slate-300">{{ debtor.name }}</li>
+{% endblock %}
+
+{% block body %}
+<div class="max-w-3xl mx-auto space-y-6">
+    <div>
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight">{{ 'library.debtors.edit.heading'|trans }}</h1>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">{{ 'library.debtors.edit.subtitle'|trans }}</p>
+    </div>
+
+    {# The company is shared by the cases below: an edit reaches their future
+       regenerations, not the documents already generated. #}
+    {% if cases|length > 0 %}
+        <div class="rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 p-4 text-sm text-amber-900 dark:text-amber-200" data-testid="debtor-shared-warning">
+            {{ 'library.debtors.edit.shared_warning'|trans({'%count%': cases|length}) }}
+        </div>
+    {% endif %}
+
+    <div class="bg-white dark:bg-slate-900 rounded-xl shadow-card border border-slate-200 dark:border-slate-800 p-6 sm:p-8">
+        {{ include('debtors/_form.html.twig', {submit_label: 'library.debtors.form.update_submit'}) }}
+    </div>
+
+    <div class="bg-white dark:bg-slate-900 rounded-xl shadow-card border border-slate-200 dark:border-slate-800 p-6 sm:p-8" data-testid="debtor-cases">
+        <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ 'library.debtors.edit.cases_title'|trans({'%count%': cases|length}) }}</h2>
+        {% if cases|length > 0 %}
+            <ul class="mt-3 divide-y divide-slate-100 dark:divide-slate-800">
+                {% for case in cases %}
+                    <li class="py-2 flex items-center justify-between gap-3 text-sm">
+                        <a href="{{ path('case_overview', {id: case.id}) }}" class="font-medium text-lex-navy dark:text-blue-400 no-underline hover:underline">{{ case.caseNumber }}</a>
+                        <span class="text-slate-500">{{ case.status.label|trans }}</span>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="mt-2 text-sm text-slate-500">{{ 'library.debtors.edit.cases_empty'|trans }}</p>
+        {% endif %}
+    </div>
+
+    {# Deleting is offered only where it can succeed: a company a case names
+       stays, since the case is the record of whom the lawyer pursued. #}
+    {% if links == 0 %}
+        <form method="post" action="{{ path('app_debtors_delete', {id: debtor.id}) }}"
+              data-turbo-confirm="{{ 'library.debtors.delete.confirm'|trans }}" class="flex justify-end">
+            <input type="hidden" name="_token" value="{{ csrf_token('debtor_delete_' ~ debtor.id) }}">
+            <button type="submit" class="py-2 px-4 rounded-lg text-sm font-semibold text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition" data-testid="debtor-delete">
+                {{ 'library.debtors.delete.button'|trans }}
+            </button>
+        </form>
+    {% endif %}
+</div>
+{% endblock %}

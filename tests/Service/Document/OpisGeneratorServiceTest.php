@@ -7,6 +7,7 @@ namespace App\Tests\Service\Document;
 use App\Entity\ClaimItem;
 use App\Entity\Creditor;
 use App\Entity\Debtor;
+use App\Entity\LegalCaseDebtor;
 use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\User;
@@ -64,13 +65,13 @@ final class OpisGeneratorServiceTest extends KernelTestCase
         $this->em->persist($this->case);
 
         $debtor = new Debtor();
-        $debtor->setLegalCase($this->case);
+        $debtor->setUser($this->case->getUser());
         $debtor->setPersonType(PersonType::PJ);
         $debtor->setName('SC Opis Debtor SRL');
         $debtor->setAddress('Str. Opis 2, București');
         $debtor->setCui('RO44444444');
         $this->em->persist($debtor);
-        $this->case->addDebtor($debtor);
+        $this->case->addDebtor(new LegalCaseDebtor($debtor));
 
         $this->em->flush();
     }
@@ -84,7 +85,7 @@ final class OpisGeneratorServiceTest extends KernelTestCase
         $conn->executeStatement('DELETE ci FROM claim_item ci JOIN legal_case lc ON ci.legal_case_id = lc.id WHERE lc.user_id = ?', [$userId]);
         $conn->executeStatement('DELETE d FROM legal_deadline d JOIN legal_case lc ON d.legal_case_id = lc.id WHERE lc.user_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM document WHERE uploaded_by_id = ?', [$userId]);
-        $conn->executeStatement('DELETE FROM debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = ?)', [$userId]);
+        $conn->executeStatement('DELETE FROM legal_case_debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = ?)', [$userId]);
         $conn->executeStatement('DELETE FROM legal_case WHERE user_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM creditor WHERE user_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM `user` WHERE id = ?', [$userId]);

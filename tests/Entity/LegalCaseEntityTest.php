@@ -4,6 +4,7 @@ namespace App\Tests\Entity;
 
 use App\Entity\Creditor;
 use App\Entity\Debtor;
+use App\Entity\LegalCaseDebtor;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Entity\User;
@@ -107,10 +108,11 @@ class LegalCaseEntityTest extends TestCase
         $debtor->setName('Debitor SRL');
         $debtor->setAddress('str. X nr. 1');
 
-        $case->addDebtor($debtor);
+        $link = new LegalCaseDebtor($debtor);
+        $case->addDebtor($link);
 
         $this->assertCount(1, $case->getDebtors());
-        $this->assertSame($case, $debtor->getLegalCase());
+        $this->assertSame($case, $link->getLegalCase());
     }
 
     public function testAddDeadlineSetsBackReference(): void

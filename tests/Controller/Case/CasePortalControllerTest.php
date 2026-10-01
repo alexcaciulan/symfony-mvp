@@ -8,6 +8,7 @@ use App\Entity\Court;
 use App\Entity\CourtPortalEvent;
 use App\Entity\Creditor;
 use App\Entity\Debtor;
+use App\Entity\LegalCaseDebtor;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\CaseStatus;
@@ -352,10 +353,12 @@ final class CasePortalControllerTest extends WebTestCase
         $case->setCreditor($creditor);
 
         $debtor = new Debtor();
+        $debtor->setUser($this->user);
         $debtor->setPersonType(PersonType::PJ);
         $debtor->setName($debtorName);
         $debtor->setAddress('Str. Debitor 2');
-        $case->addDebtor($debtor);
+        $this->em->persist($debtor);
+        $case->addDebtor(new LegalCaseDebtor($debtor));
 
         $this->em->persist($case);
         $this->em->flush();
@@ -589,7 +592,7 @@ final class CasePortalControllerTest extends WebTestCase
             [$userId]
         );
         $conn->executeStatement(
-            'DELETE d FROM debtor d JOIN legal_case lc ON d.legal_case_id = lc.id WHERE lc.user_id = ?',
+            'DELETE l FROM legal_case_debtor l JOIN legal_case lc ON l.legal_case_id = lc.id WHERE lc.user_id = ?',
             [$userId]
         );
         $conn->executeStatement('DELETE FROM legal_case WHERE user_id = ?', [$userId]);

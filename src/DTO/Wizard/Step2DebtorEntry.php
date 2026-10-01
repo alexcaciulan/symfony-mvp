@@ -12,19 +12,20 @@ use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Component\Validator\Context\ExecutionContextInterface;
 
 /**
- * Wizard step 2 — one debtor in the (potentially multi-debtor) collection.
+ * Wizard step 2: one debtor in the (potentially multi-debtor) collection.
  *
  * Public mutable properties so the form can bind. `personType`, `name`, and
- * `address` are always required (a debtor can never be referenced by id —
- * the lawyer must spell them out). For PJ, `cui` and `onrcNumber` are also
+ * `address` are always required, also for a company taken from the library
+ * (`debtorId`), whose identity is shown read-only and checked the same way.
+ * For PJ, `cui` and `onrcNumber` are also
  * required; for PF, `personalId` (CNP) is required — enforced by the
  * `validateConditionalRequiredFields` callback.
  *
  * `anafStatus` / `anafCheckedAt` are filled by the ANAF lookup Stimulus
  * controller; `insolvencyCheckedAt` by the mandatory BPI confirmation checkbox.
- * `inInsolvency` is no longer writable from the wizard (a lawyer who finds the
- * debtor in BPI must not file at all) but is still read by
- * OpAdmissibilityValidator and writable from the admin surface.
+ * `inInsolvency` is not written by the wizard (a lawyer who finds the debtor in
+ * the Law 85/2014 proceedings must not file at all); OpAdmissibilityValidator
+ * still reads it.
  */
 class Step2DebtorEntry
 {
@@ -76,7 +77,23 @@ class Step2DebtorEntry
         // treating it as a full professional debtor is deferred, see backlog.)
         public ?\DateTimeImmutable $insolvencyCheckedAt = null,
         public array $autoFilled = [],
-    ) {}
+        ?int $debtorId = null,
+        bool $updateLibrary = false,
+    ) {
+        $this->debtorId = $debtorId;
+        $this->updateLibrary = $updateLibrary;
+    }
+
+    /**
+     * The library company this entry was picked from; its identity then comes
+     * from the library and the case links to that company. Declared with a
+     * default (not promoted) so an entry unserialized from a session written
+     * before the property existed reads null rather than failing.
+     */
+    public ?int $debtorId = null;
+
+    /** Set when the lawyer chose to update the library company with this step's data. */
+    public bool $updateLibrary = false;
 
     /**
      * Conditional NotBlank for PJ (CUI + ONRC) and PF (CNP).

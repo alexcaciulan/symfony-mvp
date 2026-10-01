@@ -50,9 +50,9 @@ class ClaimItem
      * every position belongs to the only debtor; populated once positions have
      * to be told apart (joint debtors on one file).
      */
-    #[ORM\ManyToOne(targetEntity: Debtor::class)]
+    #[ORM\ManyToOne(targetEntity: LegalCaseDebtor::class)]
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
-    private ?Debtor $debtor = null;
+    private ?LegalCaseDebtor $debtor = null;
 
     #[ORM\Column(length: 30, enumType: ClaimItemKind::class)]
     private ClaimItemKind $kind = ClaimItemKind::INVOICE;
@@ -155,12 +155,12 @@ class ClaimItem
         return $this;
     }
 
-    public function getDebtor(): ?Debtor
+    public function getDebtor(): ?LegalCaseDebtor
     {
         return $this->debtor;
     }
 
-    public function setDebtor(?Debtor $debtor): static
+    public function setDebtor(?LegalCaseDebtor $debtor): static
     {
         $this->debtor = $debtor;
 

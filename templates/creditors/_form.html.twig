@@ -1,8 +1,15 @@
 {# Shared creditor form body. Expects `form` and `submit_label`. #}
+{% import 'case/_wizard_macros.html.twig' as f %}
 {% set input_class = 'w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-lex-navy/40 focus:border-lex-navy transition' %}
 {% set label_class = 'block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1' %}
 
-{{ form_start(form, {'attr': {'novalidate': 'novalidate'}}) }}
+{# Plain submission: a Turbo render of the 422 page is turned into a full
+   reload (the tracked importmap scripts carry a per-response CSP nonce), which
+   would drop the validation errors. #}
+{{ form_start(form, {'attr': {'novalidate': 'novalidate', 'data-turbo': 'false'}}) }}
+    {% if form.vars.errors|length > 0 %}
+        <div role="alert" class="mb-4 rounded-lg border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 p-4 text-sm text-red-800 dark:text-red-200">{{ form_errors(form) }}</div>
+    {% endif %}
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {# Only a creditor already stored as PF is offered the PF/PJ choice and the
            CNP field; everyone else is a legal person (see CreditorType). #}
@@ -11,7 +18,7 @@
         <div class="sm:col-span-2">
             {{ form_label(form.personType, null, {'label_attr': {'class': label_class}}) }}
             {{ form_widget(form.personType, {'attr': {'class': input_class ~ ' wizard-select'}}) }}
-            {{ form_errors(form.personType) }}
+            {{ f.field_errors(form.personType) }}
         </div>
         {% else %}
         <input type="hidden" name="{{ form.personType.vars.full_name }}" value="{{ constant('App\\Enum\\PersonType::PJ').value }}">
@@ -22,51 +29,51 @@
         <div class="sm:col-span-2">
             {{ form_label(form.name, null, {'label_attr': {'class': label_class}}) }}
             {{ form_widget(form.name, {'attr': {'class': input_class}}) }}
-            {{ form_errors(form.name) }}
+            {{ f.field_errors(form.name) }}
         </div>
 
         <div>
             {{ form_label(form.cui, null, {'label_attr': {'class': label_class}}) }}
             {{ form_widget(form.cui, {'attr': {'class': input_class}}) }}
-            {{ form_errors(form.cui) }}
+            {{ f.field_errors(form.cui) }}
         </div>
 
         <div>
             {{ form_label(form.onrcNumber, null, {'label_attr': {'class': label_class}}) }}
             {{ form_widget(form.onrcNumber, {'attr': {'class': input_class}}) }}
-            {{ form_errors(form.onrcNumber) }}
+            {{ f.field_errors(form.onrcNumber) }}
         </div>
 
         {% if offers_pf %}
         <div class="sm:col-span-2">
             {{ form_label(form.personalId, null, {'label_attr': {'class': label_class}}) }}
             {{ form_widget(form.personalId, {'attr': {'class': input_class}}) }}
-            {{ form_errors(form.personalId) }}
+            {{ f.field_errors(form.personalId) }}
         </div>
         {% endif %}
 
         <div class="sm:col-span-2">
             {{ form_label(form.address, null, {'label_attr': {'class': label_class}}) }}
             {{ form_widget(form.address, {'attr': {'class': input_class, 'rows': 2}}) }}
-            {{ form_errors(form.address) }}
+            {{ f.field_errors(form.address) }}
         </div>
 
         <div>
             {{ form_label(form.iban, null, {'label_attr': {'class': label_class}}) }}
             {{ form_widget(form.iban, {'attr': {'class': input_class}}) }}
-            {{ form_errors(form.iban) }}
+            {{ f.field_errors(form.iban) }}
         </div>
 
         <div>
             {{ form_label(form.bankName, null, {'label_attr': {'class': label_class}}) }}
             {{ form_widget(form.bankName, {'attr': {'class': input_class}}) }}
-            {{ form_errors(form.bankName) }}
+            {{ f.field_errors(form.bankName) }}
         </div>
 
         <div class="sm:col-span-2">
             {{ form_label(form.legalRepresentative, null, {'label_attr': {'class': label_class}}) }}
             {{ form_widget(form.legalRepresentative, {'attr': {'class': input_class}}) }}
-            {{ form_errors(form.legalRepresentative) }}
+            {{ f.field_errors(form.legalRepresentative) }}
         </div>
     </div>
 

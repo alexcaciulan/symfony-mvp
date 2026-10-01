@@ -43,8 +43,15 @@ class LegalCase
     #[ORM\JoinColumn(nullable: true)]
     private ?Creditor $creditor = null;
 
-    /** @var Collection<int, Debtor> */
-    #[ORM\OneToMany(targetEntity: Debtor::class, mappedBy: 'legalCase', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    /**
+     * The case's debtors: links to the companies, carrying what was checked
+     * for this case. The order is `position`; hydration through a fetch join
+     * ignores OrderBy, hence {@see self::getPrimaryDebtor()}.
+     *
+     * @var Collection<int, LegalCaseDebtor>
+     */
+    #[ORM\OneToMany(targetEntity: LegalCaseDebtor::class, mappedBy: 'legalCase', cascade: ['persist', 'remove'], orphanRemoval: true)]
+    #[ORM\OrderBy(['position' => 'ASC'])]
     private Collection $debtors;
 
     #[ORM\Column(length: 30, enumType: CaseStatus::class)]
@@ -466,25 +473,42 @@ class LegalCase
         return $this;
     }
 
-    /** @return Collection<int, Debtor> */
+    /** @return Collection<int, LegalCaseDebtor> */
     public function getDebtors(): Collection
     {
         return $this->debtors;
     }
 
-    public function addDebtor(Debtor $debtor): static
+    /**
+     * The debtor the somatie is addressed to (position 0). Sorted here rather
+     * than trusted from the collection, whose order a fetch join does not keep.
+     */
+    public function getPrimaryDebtor(): ?LegalCaseDebtor
     {
-        if (!$this->debtors->contains($debtor)) {
-            $this->debtors->add($debtor);
-            $debtor->setLegalCase($this);
+        $primary = null;
+        foreach ($this->debtors as $link) {
+            if ($primary === null || $link->getPosition() < $primary->getPosition()) {
+                $primary = $link;
+            }
+        }
+
+        return $primary;
+    }
+
+    public function addDebtor(LegalCaseDebtor $link): static
+    {
+        if (!$this->debtors->contains($link)) {
+            $link->setPosition($this->debtors->count());
+            $this->debtors->add($link);
+            $link->setLegalCase($this);
         }
 
         return $this;
     }
 
-    public function removeDebtor(Debtor $debtor): static
+    public function removeDebtor(LegalCaseDebtor $link): static
     {
-        $this->debtors->removeElement($debtor);
+        $this->debtors->removeElement($link);
 
         return $this;
     }

@@ -140,7 +140,7 @@ final class Step2DebtorEntryTypeTest extends KernelTestCase
 
     public function testSubmitPfMissingCnpIsInvalid(): void
     {
-        $form = $this->buildForm();
+        $form = $this->buildFormOfferingNaturalPersons();
         $form->submit([
             'personType' => 'PF',
             'name' => 'Ion Popescu',
@@ -150,6 +150,20 @@ final class Step2DebtorEntryTypeTest extends KernelTestCase
 
         self::assertFalse($form->isValid());
         self::assertGreaterThan(0, $form->get('personalId')->getErrors()->count());
+    }
+
+    public function testNaturalPersonIsRejectedWhileHidden(): void
+    {
+        $form = $this->buildForm();
+        $form->submit([
+            'personType' => 'PF',
+            'name' => 'Ion Popescu',
+            'personalId' => '1980715221232',
+            'address' => 'Str. Test 1',
+        ]);
+
+        self::assertFalse($form->isValid());
+        self::assertGreaterThan(0, $form->get('personType')->getErrors()->count());
     }
 
     public function testSubmitMissingRequiredIsInvalid(): void
@@ -165,7 +179,7 @@ final class Step2DebtorEntryTypeTest extends KernelTestCase
 
     public function testPersonTypePfClearsCuiOnrcAndAdministratorOnSubmit(): void
     {
-        $form = $this->buildForm();
+        $form = $this->buildFormOfferingNaturalPersons();
         $form->submit([
             'personType' => 'PF',
             'name' => 'Ion Popescu',
@@ -195,7 +209,7 @@ final class Step2DebtorEntryTypeTest extends KernelTestCase
      */
     public function testPfDebtorIsValidWithoutBpiAttestation(): void
     {
-        $form = $this->buildForm();
+        $form = $this->buildFormOfferingNaturalPersons();
         $form->submit([
             'personType' => 'PF',
             'name' => 'Ion Popescu',
@@ -288,5 +302,17 @@ final class Step2DebtorEntryTypeTest extends KernelTestCase
     private function buildForm(?Step2DebtorEntry $data = null): FormInterface
     {
         return $this->factory->create(Step2DebtorEntryType::class, $data, ['csrf_protection' => false]);
+    }
+
+    /**
+     * The natural-person branch is hidden in the wizard, not removed; these
+     * tests offer both types to keep that branch covered.
+     */
+    private function buildFormOfferingNaturalPersons(): FormInterface
+    {
+        return $this->factory->create(Step2DebtorEntryType::class, null, [
+            'csrf_protection' => false,
+            'person_types' => [PersonType::PJ, PersonType::PF],
+        ]);
     }
 }

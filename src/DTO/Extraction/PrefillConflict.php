@@ -26,6 +26,11 @@ final readonly class PrefillConflict
      *        order; empty when the conflict is not a choice between values
      * @param ?int $suggestedIndex index into $options the aggregation would
      *        take; null when it declined to suggest one
+     * @param bool $acknowledgeable whether a blocking conflict without options
+     *        can be passed by stating it was read; false when only changing the
+     *        documents can settle it
+     * @param bool $manualAllowed whether the lawyer may type a value instead of
+     *        choosing an option; false when the options are the only answers
      */
     public function __construct(
         public ConflictScope $scope,
@@ -35,6 +40,8 @@ final readonly class PrefillConflict
         public ?string $entityKey = null,
         public array $options = [],
         public ?int $suggestedIndex = null,
+        public bool $acknowledgeable = true,
+        public bool $manualAllowed = true,
     ) {}
 
     /**
@@ -72,6 +79,8 @@ final readonly class PrefillConflict
             'entityKey' => $this->entityKey,
             'options' => array_map(static fn (ConflictOption $o): array => $o->toArray(), $this->options),
             'suggestedIndex' => $this->suggestedIndex,
+            'acknowledgeable' => $this->acknowledgeable,
+            'manualAllowed' => $this->manualAllowed,
         ];
     }
 }

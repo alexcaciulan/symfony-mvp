@@ -159,7 +159,7 @@ final class PrefillFromExtractionServiceTest extends TestCase
         self::assertSame(['name'], $creditor->autoFilled);
     }
 
-    public function testCreditorExtractedAsNaturalPersonIsPrefilledAsLegalPerson(): void
+    public function testCreditorExtractedAsNaturalPersonKeepsWhatTheExtractionRead(): void
     {
         $document = $this->buildDocumentWithExtractedData([
             'creditor' => [
@@ -176,8 +176,9 @@ final class PrefillFromExtractionServiceTest extends TestCase
 
         $creditor = $this->buildServiceFor([$document])->aggregateForCreditor([1]);
 
-        self::assertSame(PersonType::PJ, $creditor->personType);
-        self::assertNull($creditor->personalId);
+        // Extraction stays untouched; hiding natural persons is the form's job.
+        self::assertSame(PersonType::PF, $creditor->personType);
+        self::assertSame('1980715221232', $creditor->personalId);
         self::assertSame('Ion Popescu', $creditor->name);
     }
 

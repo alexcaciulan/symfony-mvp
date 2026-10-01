@@ -13,6 +13,7 @@ use App\Enum\IssueSeverity;
 use App\Repository\DocumentRepository;
 use App\Repository\LegalCaseRepository;
 use App\Security\Voter\CaseVoter;
+use App\Service\Case\DebtorSeatCourtCheck;
 use App\Service\AuditLogService;
 use App\Service\Case\CaseWorkflowService;
 use App\Service\Case\OverviewContextBuilder;
@@ -52,6 +53,7 @@ final class CasePaymentOrderController extends AbstractController
         private readonly DeadlineService $deadlineService,
         private readonly EntityManagerInterface $em,
         private readonly OpAdmissibilityValidator $admissibility,
+        private readonly DebtorSeatCourtCheck $seatCheck,
     ) {}
 
     #[Route('/case/{id}/payment-order/generate', name: 'case_payment_order_generate', requirements: ['id' => '\d+'], methods: ['POST'])]
@@ -74,6 +76,17 @@ final class CasePaymentOrderController extends AbstractController
 
         if ($this->hasDocument($case, DocumentType::CERERE_OP)) {
             return $this->respond($request, $case, false, 'warning', 'case_overview.payment_order.flash_error_already_generated');
+        }
+
+        // The debtor is a company shared across cases and may have been
+        // corrected since this case was opened: its office may now point to
+        // another court, or its identity may differ from the one summoned.
+        // The petition is generated only once the lawyer has seen that.
+        $courtNowPointedTo = $this->seatCheck->courtNowPointedTo($case);
+        $changesSinceSummons = $this->seatCheck->changesSinceSummons($case);
+        if (($courtNowPointedTo !== null || $changesSinceSummons !== [])
+            && !$request->getPayload()->getBoolean('debtorChangesAcknowledged')) {
+            return $this->respond($request, $case, false, 'error', 'case_overview.payment_order.flash_error_debtor_changed');
         }
 
         // Procedural prerequisite (CPC art. 1015-1016): the 15-day payment term
@@ -138,7 +151,7 @@ final class CasePaymentOrderController extends AbstractController
             }
         }
 
-        $this->em->wrapInTransaction(function () use ($case, $debitStatus): void {
+        $this->em->wrapInTransaction(function () use ($case, $debitStatus, $courtNowPointedTo, $changesSinceSummons): void {
             $case->setDebitAcknowledgedStatus($debitStatus);
             $case->setOpGenerationConsent(true);
 
@@ -158,6 +171,17 @@ final class CasePaymentOrderController extends AbstractController
                     'opisDocumentId' => $opis->getId(),
                     'debitAcknowledgedStatus' => $debitStatus->value,
                     'opGenerationConsent' => true,
+                    'debtorChangesAcknowledged' => $courtNowPointedTo === null && $changesSinceSummons === [] ? null : [
+                        'caseCourt' => $case->getCourt()?->getName(),
+                        'courtPointedToBySeat' => $courtNowPointedTo?->getName(),
+                        'changesSinceSummons' => $changesSinceSummons,
+                        'debtor' => [
+                            'name' => $case->getPrimaryDebtor()?->getName(),
+                            'cui' => $case->getPrimaryDebtor()?->getCui(),
+                            'county' => $case->getPrimaryDebtor()?->getAddressCounty(),
+                            'locality' => $case->getPrimaryDebtor()?->getAddressLocality(),
+                        ],
+                    ],
                 ],
                 category: AuditLogService::CATEGORY_PAYMENT_ORDER_GENERATED,
             );

@@ -7,6 +7,7 @@ namespace App\Tests\Service\Case;
 use App\Entity\ClaimItem;
 use App\Entity\Creditor;
 use App\Entity\Debtor;
+use App\Entity\LegalCaseDebtor;
 use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\User;
@@ -78,7 +79,7 @@ final class ClaimItemPersistenceAdversarialTest extends KernelTestCase
         $conn->executeStatement('DELETE FROM audit_log WHERE user_id IS NULL', []);
         $conn->executeStatement('DELETE d FROM legal_deadline d JOIN legal_case lc ON d.legal_case_id = lc.id WHERE lc.user_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM document WHERE uploaded_by_id = ?', [$userId]);
-        $conn->executeStatement('DELETE FROM debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = ?)', [$userId]);
+        $conn->executeStatement('DELETE FROM legal_case_debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = ?)', [$userId]);
         $conn->executeStatement('DELETE FROM legal_case WHERE user_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM creditor WHERE user_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM `user` WHERE id = ?', [$userId]);
@@ -281,13 +282,13 @@ final class ClaimItemPersistenceAdversarialTest extends KernelTestCase
         $this->em->persist($case);
 
         $debtor = new Debtor();
-        $debtor->setLegalCase($case);
+        $debtor->setUser($case->getUser());
         $debtor->setPersonType(PersonType::PJ);
         $debtor->setName('SC Pozitii Debtor SRL');
         $debtor->setAddress('Str. Debtor 2, București');
         $debtor->setCui('RO66666666');
         $this->em->persist($debtor);
-        $case->addDebtor($debtor);
+        $case->addDebtor(new LegalCaseDebtor($debtor));
 
         return $case;
     }

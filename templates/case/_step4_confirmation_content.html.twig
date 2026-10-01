@@ -171,7 +171,7 @@
                     <span class="inline-flex items-center justify-center size-7 rounded-lg bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950/50 dark:to-orange-900/30 text-orange-600">
                         <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                     </span>
-                    <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ 'wizard.step4.card.debtors'|trans({ '%count%': debtors.debtors|length }) }}</h3>
+                    <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ (debtors.debtors|length > 1 ? 'wizard.step4.card.debtors' : 'wizard.step4.card.debtor')|trans({ '%count%': debtors.debtors|length }) }}</h3>
                 </div>
                 <a href="{{ path('case_wizard_debtor') }}" class="text-xs font-medium text-blue-600 hover:underline no-underline">{{ 'wizard.step4.card.edit'|trans }}</a>
             </header>
@@ -195,12 +195,24 @@
                                 <span class="font-mono">{{ entry.cui }}</span>
                             </div>
                         {% endif %}
+                        {% if entry.onrcNumber %}
+                            <div class="flex justify-between gap-2" data-testid="step4-debtor-onrc">
+                                <span class="text-slate-500">{{ 'wizard.step2.field.onrc_number'|trans }}</span>
+                                <span class="font-mono">{{ entry.onrcNumber }}</span>
+                            </div>
+                        {% endif %}
+                        {% if entry.administrator %}
+                            <div class="flex justify-between gap-2" data-testid="step4-debtor-administrator">
+                                <span class="text-slate-500">{{ 'wizard.step2.field.administrator'|trans }}</span>
+                                <span class="font-medium text-right">{{ entry.administrator }}</span>
+                            </div>
+                        {% endif %}
                         <div class="flex justify-between gap-2">
                             <span class="text-slate-500">{{ 'wizard.step2.field.address'|trans }}</span>
                             <span class="font-medium text-right text-xs">{{ entry.address|mailing_address(entry.addressLocality, entry.addressCounty)|default('—') }}</span>
                         </div>
                         <div class="flex justify-between gap-2 items-center">
-                            <span class="text-slate-500">{{ 'wizard.step2.bpi.title'|trans|split('(')|first|trim }}</span>
+                            <span class="text-slate-500">{{ 'wizard.step4.bpi_label'|trans }}</span>
                             {% if entry.inInsolvency %}
                                 <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300">
                                     <span class="size-1.5 rounded-full bg-red-500"></span>

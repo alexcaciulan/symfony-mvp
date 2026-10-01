@@ -105,6 +105,16 @@ class AdminAccessTest extends WebTestCase
         $this->assertStringContainsString('Jurnal audit', $content);
     }
 
+    public function testDebtorCompaniesAndCaseDebtorsListsRender(): void
+    {
+        $this->client->loginUser($this->admin);
+
+        $this->client->request('GET', '/admin/debtor');
+        self::assertResponseIsSuccessful();
+        $this->client->request('GET', '/admin/legal-case-debtor');
+        self::assertResponseIsSuccessful();
+    }
+
     public function testChangeStatusPageAccessibleByAdmin(): void
     {
         $this->client->loginUser($this->admin);

@@ -3,7 +3,8 @@
 {# Wizard step 1: creditor.
    Mockup: docs/LexRecovery/mockups/v2/03-wizard/step1-creditor.html.
    Page-level h1 + subtitle + breadcrumb come from wizard.html.twig shell
-   via block overrides below. personType is fixed to PJ (hidden input).
+   via block overrides below. personType is rendered as radio cards when
+   more than one type is offered (Step1CreditorType::OFFERED_PERSON_TYPES).
    Auto-filled fields (detected via AutoFilledMarker's `data-auto-filled`
    attribute) get a ⚡ auto badge + blue-tinted input styling. #}
 
@@ -35,6 +36,26 @@
                 'data-action': 'change->creditor-mode#toggle',
                 'form': 'step1-creditor-form',
             }}) }}
+            {# A picked creditor hides the manual fields, so what its stored data
+               fails is shown here, with the way to correct it. #}
+            {% set picked_errors = [] %}
+            {% if form.vars.submitted and dto.creditorId %}
+                {% for child in form.children|filter(c => c.vars.name != 'creditorEntity' and c.vars.errors|length > 0) %}
+                    {% for error in child.vars.errors %}
+                        {% set picked_errors = picked_errors|merge([(child.vars.label ? child.vars.label|trans ~ ': ' : '') ~ error.message]) %}
+                    {% endfor %}
+                {% endfor %}
+            {% endif %}
+            {% if picked_errors is not empty %}
+                <div role="alert" class="mt-3 rounded-lg border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 p-4 text-sm text-red-800 dark:text-red-200" data-testid="picked-creditor-invalid">
+                    <p class="font-semibold">{{ 'wizard.step1.autocomplete.invalid_title'|trans }}</p>
+                    <ul class="mt-1 list-disc pl-5">
+                        {% for message in picked_errors %}<li>{{ message }}</li>{% endfor %}
+                    </ul>
+                    <a href="{{ path('app_creditors_edit', {id: dto.creditorId}) }}" data-turbo-frame="_top"
+                       class="mt-2 inline-block font-semibold underline">{{ 'wizard.step1.autocomplete.invalid_fix'|trans }}</a>
+                </div>
+            {% endif %}
         </div>
 
     {# The ANAF lookup, triggered by the explicit sync button, fills the
@@ -47,7 +68,7 @@
         'class': 'bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-6 shadow-soft',
         'novalidate': 'novalidate',
         'data-creditor-mode-target': 'manualFields',
-        'data-controller': 'party-anaf-lookup',
+        'data-controller': 'person-type-toggle party-anaf-lookup',
         'data-party-anaf-lookup-url-value': anaf_lookup_url,
         'data-party-anaf-lookup-invalid-msg-value': 'exception.anaf.cui_invalid'|trans,
         'data-party-anaf-lookup-rate-limited-msg-value': 'exception.anaf.rate_limited'|trans,
@@ -70,12 +91,44 @@
             </div>
         {% endif %}
 
-        {# The creditor is always a legal person: the product targets B2B claims,
-           so the PF/PJ choice is not offered. A PFA still fits here, since it
-           has a CUI and a trade register number. The form type accepts only PJ. #}
-        <input type="hidden" name="{{ form.personType.vars.full_name }}" value="{{ constant('App\\Enum\\PersonType::PJ').value }}">
-        {% do form.personType.setRendered %}
-        {% do form.personalId.setRendered %}
+        {# Only the offered person types are rendered as cards. With a single one
+           (natural persons are hidden for now) the choice is a hidden input; the
+           toggle controller then treats the form as PJ and keeps the PF-only
+           fields hidden. #}
+        {% if form.personType.vars.choices|length > 1 %}
+            {% set effective_person_type = form.personType.vars.value ?: form.personType.vars.choices|first.value %}
+            <div>
+                <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{{ 'wizard.step1.field.person_type'|trans }}</label>
+                <div class="grid grid-cols-2 gap-3 max-w-md">
+                    {% for choice in form.personType.vars.choices %}
+                        <label class="relative flex items-center cursor-pointer rounded-lg border-2 p-3 transition
+                                      border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600
+                                      has-[:checked]:border-blue-500
+                                      has-[:checked]:bg-gradient-to-br has-[:checked]:from-blue-50 has-[:checked]:to-blue-100/30
+                                      dark:has-[:checked]:from-blue-950/30 dark:has-[:checked]:to-blue-950/10">
+                            <input type="radio" name="{{ form.personType.vars.full_name }}" value="{{ choice.value }}"
+                                   {% if effective_person_type == choice.value %}checked{% endif %}
+                                   class="peer sr-only"
+                                   data-person-type-toggle-target="radio"
+                                   data-action="change->person-type-toggle#update">
+                            <span class="text-sm font-semibold text-slate-700 dark:text-slate-300
+                                         peer-checked:font-bold peer-checked:text-blue-900 dark:peer-checked:text-blue-200">
+                                {{ choice.label|trans }}
+                            </span>
+                            <svg class="ml-auto size-5 text-blue-600 dark:text-blue-400 hidden peer-checked:block"
+                                 fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                            </svg>
+                        </label>
+                    {% endfor %}
+                </div>
+                {{ f.field_errors(form.personType) }}
+            </div>
+        {% else %}
+            <input type="hidden" name="{{ form.personType.vars.full_name }}" value="{{ (form.personType.vars.choices|first).value }}">
+            {{ f.field_errors(form.personType) }}
+        {% endif %}
+        {% set _ = form_widget(form.personType) %}
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div class="md:col-span-2">
@@ -84,7 +137,7 @@
                 {{ f.field_errors(form.name) }}
             </div>
 
-            <div>
+            <div data-person-type-toggle-target="pjOnly">
                 <div class="flex items-center justify-between gap-2">
                     {{ f.field_label(form.cui, 'wizard.step1.field.cui', false, true) }}
                     <div class="flex items-center gap-3">
@@ -111,10 +164,16 @@
                 {{ f.field_errors(form.cui) }}
             </div>
 
-            <div>
+            <div data-person-type-toggle-target="pjOnly">
                 {{ f.field_label(form.onrcNumber, 'wizard.step1.field.onrc_number', false, true) }}
                 {{ form_widget(form.onrcNumber, { attr: { class: f.input_classes(form.onrcNumber)|trim, placeholder: 'J40/1234/2018' }}) }}
                 {{ f.field_errors(form.onrcNumber) }}
+            </div>
+
+            <div data-person-type-toggle-target="pfOnly">
+                {{ f.field_label(form.personalId, 'wizard.step1.field.personal_id', false, true) }}
+                {{ form_widget(form.personalId, { attr: { class: f.input_classes(form.personalId, 'font-mono')|trim }}) }}
+                {{ f.field_errors(form.personalId) }}
             </div>
 
             <div>
@@ -165,11 +224,12 @@
         {{ form_widget(form.creditorId, { attr: { class: 'hidden', style: 'display:none' }}) }}
         {{ form_widget(form.anafCheckedAt, { attr: { 'data-party-anaf-lookup-target': 'anafCheckedAt' }}) }}
 
-        {# COSMETIC ONLY — NOT connected to DTO/backend.
-           Cabinet creditor library is post-MVP (Pas 6.x). Shared partial with
-           Step 2 to guarantee byte-identical render (CSS scope differs between
-           server-rendered Step 1 and LC-rendered Step 2). #}
-        {{ include('case/_save_to_library_cosmetic.html.twig', { label_key: 'wizard.step1.save_to_library' }) }}
+        {# The creditor reaches the library on its own when the case is submitted
+           (CaseWizardController::reuseOrCreateCreditor), so there is nothing to opt into. #}
+        <p class="flex items-start gap-2 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
+            <svg class="size-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span>{{ 'wizard.step1.library_autosave_hint'|trans }}</span>
+        </p>
     {{ form_end(form) }}
 
     {# Navigation bar — outside the form card, per v2 mockup. The Continue button

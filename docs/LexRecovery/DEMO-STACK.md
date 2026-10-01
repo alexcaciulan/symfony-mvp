@@ -165,6 +165,22 @@ make demo-db-copy       # copiază o dată baza de date de dev peste cea demo
 Atenție: worktree-ul demo vede doar ce e **comis** pe `lexrecovery`. Modificările
 necomise din checkout-ul tău principal nu ajung în demo.
 
+### Backup înainte de o migrare care mută date
+
+Unele migrări nu sunt tranzacționale (MySQL nu poate anula DDL-ul), de exemplu
+`Version20260930150000` (biblioteca de debitori: `debtor` devine firmă, plus
+`legal_case_debtor`). Dacă una pică la jumătate, schema rămâne pe jumătate
+migrată și nu se reia singură. Înainte de `make demo-sync` cu o astfel de migrare:
+
+```bash
+docker exec lexdemo-db sh -c 'mysqldump -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" --no-tablespaces "$MYSQL_DATABASE"' \
+  > var/backup-demo-$(date +%Y%m%d-%H%M).sql
+```
+
+Pentru biblioteca de debitori, după `demo-sync` urmează, în ordine:
+`./scripts/demo.sh restart php worker`, apoi `docs/LexRecovery/DEMO-COMASARE-DEBITORI.sql`
+pe `lexdemo-db` (întâi SELECT-ul de la început).
+
 ## Note
 
 - `APP_ENV` pentru demo se controlează cu `DEMO_APP_ENV` din `.env.demo`. Pe

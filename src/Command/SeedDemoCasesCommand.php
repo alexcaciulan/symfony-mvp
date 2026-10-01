@@ -5,6 +5,7 @@ namespace App\Command;
 use App\Entity\Court;
 use App\Entity\Creditor;
 use App\Entity\Debtor;
+use App\Entity\LegalCaseDebtor;
 use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
@@ -35,6 +36,9 @@ class SeedDemoCasesCommand extends Command
 {
     private const LAWYER_EMAIL = 'avocat@test.com';
 
+    private const DEMO_CREDITOR_CUI = 'RO12345674';
+    private const LEGACY_DEMO_CREDITOR_CUI = 'RO12345678';
+
     /** @var array<int, array{status: CaseStatus, amount: string, debtorPersonType: PersonType, debtorName: string, debtorCui: ?string, debtorPersonalId: ?string, courtCaseNumber: ?string, hearingOffsetDays: ?int, dueOffsetDays: int}> */
     private const CASES = [
         [
@@ -53,7 +57,7 @@ class SeedDemoCasesCommand extends Command
             'amount' => '7800.00',
             'debtorPersonType' => PersonType::PJ,
             'debtorName' => 'Restanțier SRL',
-            'debtorCui' => 'RO87654321',
+            'debtorCui' => 'RO87654329',
             'debtorPersonalId' => null,
             'courtCaseNumber' => null,
             'hearingOffsetDays' => null,
@@ -64,7 +68,7 @@ class SeedDemoCasesCommand extends Command
             'amount' => '12500.00',
             'debtorPersonType' => PersonType::PJ,
             'debtorName' => 'Datornic Trans SA',
-            'debtorCui' => 'RO11223344',
+            'debtorCui' => 'RO11223342',
             'debtorPersonalId' => null,
             'courtCaseNumber' => 'DEMO-3/2026',
             'hearingOffsetDays' => -30,
@@ -159,13 +163,19 @@ class SeedDemoCasesCommand extends Command
             }
 
             $debtor = new Debtor();
-            $debtor->setLegalCase($case);
+            $debtor->setUser($lawyer);
             $debtor->setPersonType($row['debtorPersonType']);
             $debtor->setName($row['debtorName']);
             $debtor->setCui($row['debtorCui']);
             $debtor->setPersonalId($row['debtorPersonalId']);
+            // A legal person needs its trade register number to be picked from
+            // the library in a new case.
+            if ($row['debtorPersonType'] === PersonType::PJ) {
+                $debtor->setOnrcNumber(sprintf('J40/%d/2020', 1000 + $idx));
+            }
             $debtor->setAddress('Str. Demo nr. ' . ($idx + 1) . ', București');
-            $case->addDebtor($debtor);
+            $this->em->persist($debtor);
+            $case->addDebtor(new LegalCaseDebtor($debtor));
 
             foreach ($this->deadlinesFor($row['status'], $now, $case) as $deadline) {
                 $this->em->persist($deadline);
@@ -200,8 +210,14 @@ class SeedDemoCasesCommand extends Command
 
     private function getOrCreateDemoCreditor(User $lawyer): Creditor
     {
-        $existing = $this->creditorRepo->findOneBy(['user' => $lawyer, 'cui' => 'RO12345678']);
+        $existing = $this->creditorRepo->findOneBy(['user' => $lawyer, 'cui' => self::DEMO_CREDITOR_CUI])
+            ?? $this->creditorRepo->findOneBy(['user' => $lawyer, 'cui' => self::LEGACY_DEMO_CREDITOR_CUI]);
         if ($existing !== null) {
+            // Earlier seeds stored a CUI failing the ANAF checksum, which blocks
+            // the wizard once the creditor is picked from the library.
+            $existing->setCui(self::DEMO_CREDITOR_CUI);
+            $this->em->flush();
+
             return $existing;
         }
 
@@ -209,7 +225,7 @@ class SeedDemoCasesCommand extends Command
         $creditor->setUser($lawyer);
         $creditor->setPersonType(PersonType::PJ);
         $creditor->setName('Demo Recovery SRL');
-        $creditor->setCui('RO12345678');
+        $creditor->setCui(self::DEMO_CREDITOR_CUI);
         $creditor->setOnrcNumber('J40/1234/2020');
         $creditor->setAddress('Bd. Demo 100, București, Sector 1');
         $creditor->setIban('RO49AAAA1B31007593840000');
@@ -277,7 +293,7 @@ class SeedDemoCasesCommand extends Command
             'creditor' => [
                 'personType' => PersonType::PJ->value,
                 'name' => 'Demo Recovery SRL',
-                'cui' => 'RO12345678',
+                'cui' => self::DEMO_CREDITOR_CUI,
                 'isVatPayer' => true,
                 'personalId' => null,
                 'onrcNumber' => 'J40/1234/2020',

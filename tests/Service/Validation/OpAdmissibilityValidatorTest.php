@@ -3,6 +3,7 @@
 namespace App\Tests\Service\Validation;
 
 use App\Entity\Debtor;
+use App\Entity\LegalCaseDebtor;
 use App\Entity\LegalCase;
 use App\Enum\AnafStatus;
 use App\Enum\IssueSeverity;
@@ -285,7 +286,7 @@ class OpAdmissibilityValidatorTest extends TestCase
         $this->assertSame([], $issues);
     }
 
-    private function makeCaseWithDebtor(Debtor $debtor): LegalCase
+    private function makeCaseWithDebtor(LegalCaseDebtor $debtor): LegalCase
     {
         $case = new LegalCase();
         $case->addDebtor($debtor);
@@ -299,17 +300,19 @@ class OpAdmissibilityValidatorTest extends TestCase
         ?\DateTimeImmutable $anafCheckedAt = null,
         bool $inInsolvency = false,
         ?\DateTimeImmutable $insolvencyCheckedAt = null,
-    ): Debtor {
+    ): LegalCaseDebtor {
         $debtor = new Debtor();
         $debtor->setPersonType($personType);
         $debtor->setName('Debitor Test');
         $debtor->setAddress('Str. Test 1');
-        $debtor->setAnafStatus($anafStatus);
-        $debtor->setAnafCheckedAt($anafCheckedAt);
-        $debtor->setInInsolvency($inInsolvency);
-        $debtor->setInsolvencyCheckedAt($insolvencyCheckedAt);
 
-        return $debtor;
+        $link = new LegalCaseDebtor($debtor);
+        $link->setAnafStatus($anafStatus);
+        $link->setAnafCheckedAt($anafCheckedAt);
+        $link->setInInsolvency($inInsolvency);
+        $link->setInsolvencyCheckedAt($insolvencyCheckedAt);
+
+        return $link;
     }
 
     private function now(): \DateTimeImmutable

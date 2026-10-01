@@ -3,24 +3,39 @@
 namespace App\Entity;
 
 use App\Entity\Concern\PartyContactInfoTrait;
-use App\Enum\AnafStatus;
 use App\Repository\DebtorRepository;
+use App\Service\Party\CuiNormalizer;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * A company the lawyer pursues, kept once per lawyer and reused across cases,
+ * like {@see Creditor}. It holds identity only: what was checked about it for a
+ * given case (ANAF status, the Law 85/2014 attestation) lives on the
+ * {@see LegalCaseDebtor} link, so a check never carries over to another case.
+ */
 #[ORM\Entity(repositoryClass: DebtorRepository::class)]
 #[ORM\HasLifecycleCallbacks]
+#[ORM\Index(name: 'idx_debtor_user_cui_key', columns: ['user_id', 'cui_key'])]
 class Debtor
 {
-    use PartyContactInfoTrait;
+    use PartyContactInfoTrait {
+        setCui as private writeCui;
+    }
 
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
     private ?int $id = null;
 
-    #[ORM\ManyToOne(targetEntity: LegalCase::class, inversedBy: 'debtors')]
-    #[ORM\JoinColumn(nullable: false)]
-    private LegalCase $legalCase;
+    #[ORM\ManyToOne(targetEntity: User::class)]
+    #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
+    private User $user;
+
+    /** Canonical CUI ({@see CuiNormalizer}), the key two spellings of one company share. */
+    #[ORM\Column(length: 20, nullable: true)]
+    private ?string $cuiKey = null;
 
     #[ORM\Column(length: 100, nullable: true)]
     private ?string $addressCounty = null;
@@ -31,24 +46,9 @@ class Debtor
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $administrator = null;
 
-    #[ORM\Column(length: 20, nullable: true, enumType: AnafStatus::class)]
-    private ?AnafStatus $anafStatus = null;
-
-    #[ORM\Column(nullable: true)]
-    private ?\DateTimeImmutable $anafCheckedAt = null;
-
-    #[ORM\Column(options: ['default' => false])]
-    private bool $inInsolvency = false;
-
-    #[ORM\Column(nullable: true)]
-    private ?\DateTimeImmutable $insolvencyCheckedAt = null;
-
-    #[ORM\ManyToOne(targetEntity: Document::class)]
-    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
-    private ?Document $bpiProofDocument = null;
-
-    #[ORM\Column(length: 500, nullable: true)]
-    private ?string $bpiVerifiedNote = null;
+    /** @var Collection<int, LegalCaseDebtor> */
+    #[ORM\OneToMany(targetEntity: LegalCaseDebtor::class, mappedBy: 'debtor')]
+    private Collection $legalCaseLinks;
 
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
@@ -60,6 +60,7 @@ class Debtor
     {
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = new \DateTimeImmutable();
+        $this->legalCaseLinks = new ArrayCollection();
     }
 
     #[ORM\PreUpdate]
@@ -73,16 +74,29 @@ class Debtor
         return $this->id;
     }
 
-    public function getLegalCase(): LegalCase
+    public function getUser(): User
     {
-        return $this->legalCase;
+        return $this->user;
     }
 
-    public function setLegalCase(LegalCase $legalCase): static
+    public function setUser(User $user): static
     {
-        $this->legalCase = $legalCase;
+        $this->user = $user;
 
         return $this;
+    }
+
+    public function setCui(?string $cui): static
+    {
+        $this->writeCui($cui);
+        $this->cuiKey = CuiNormalizer::canonical($cui);
+
+        return $this;
+    }
+
+    public function getCuiKey(): ?string
+    {
+        return $this->cuiKey;
     }
 
     public function getAddressCounty(): ?string
@@ -121,76 +135,10 @@ class Debtor
         return $this;
     }
 
-    public function getAnafStatus(): ?AnafStatus
+    /** @return Collection<int, LegalCaseDebtor> */
+    public function getLegalCaseLinks(): Collection
     {
-        return $this->anafStatus;
-    }
-
-    public function setAnafStatus(?AnafStatus $anafStatus): static
-    {
-        $this->anafStatus = $anafStatus;
-
-        return $this;
-    }
-
-    public function getAnafCheckedAt(): ?\DateTimeImmutable
-    {
-        return $this->anafCheckedAt;
-    }
-
-    public function setAnafCheckedAt(?\DateTimeImmutable $anafCheckedAt): static
-    {
-        $this->anafCheckedAt = $anafCheckedAt;
-
-        return $this;
-    }
-
-    public function isInInsolvency(): bool
-    {
-        return $this->inInsolvency;
-    }
-
-    public function setInInsolvency(bool $inInsolvency): static
-    {
-        $this->inInsolvency = $inInsolvency;
-
-        return $this;
-    }
-
-    public function getInsolvencyCheckedAt(): ?\DateTimeImmutable
-    {
-        return $this->insolvencyCheckedAt;
-    }
-
-    public function setInsolvencyCheckedAt(?\DateTimeImmutable $insolvencyCheckedAt): static
-    {
-        $this->insolvencyCheckedAt = $insolvencyCheckedAt;
-
-        return $this;
-    }
-
-    public function getBpiProofDocument(): ?Document
-    {
-        return $this->bpiProofDocument;
-    }
-
-    public function setBpiProofDocument(?Document $bpiProofDocument): static
-    {
-        $this->bpiProofDocument = $bpiProofDocument;
-
-        return $this;
-    }
-
-    public function getBpiVerifiedNote(): ?string
-    {
-        return $this->bpiVerifiedNote;
-    }
-
-    public function setBpiVerifiedNote(?string $bpiVerifiedNote): static
-    {
-        $this->bpiVerifiedNote = $bpiVerifiedNote;
-
-        return $this;
+        return $this->legalCaseLinks;
     }
 
     public function getCreatedAt(): \DateTimeImmutable

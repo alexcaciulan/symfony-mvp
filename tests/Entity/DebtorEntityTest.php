@@ -5,87 +5,105 @@ namespace App\Tests\Entity;
 use App\Entity\Debtor;
 use App\Entity\Document;
 use App\Entity\LegalCase;
+use App\Entity\LegalCaseDebtor;
+use App\Entity\User;
 use App\Enum\AnafStatus;
 use App\Enum\PersonType;
 use PHPUnit\Framework\TestCase;
 
 class DebtorEntityTest extends TestCase
 {
-    public function testGettersAndSetters(): void
+    public function testTheCompanyKeepsIdentityOnly(): void
     {
+        $user = new User();
         $debtor = new Debtor();
-        $case = new LegalCase();
-        $bpiProof = new Document();
-        $anafChecked = new \DateTimeImmutable('2026-05-09 10:00:00');
-        $bpiChecked = new \DateTimeImmutable('2026-05-09 10:30:00');
-
-        $debtor->setLegalCase($case);
+        $debtor->setUser($user);
         $debtor->setPersonType(PersonType::PJ);
         $debtor->setName('Debitor SRL');
         $debtor->setCui('RO87654321');
-        $debtor->setPersonalId('2900101654321');
         $debtor->setOnrcNumber('J12/456/2019');
         $debtor->setAddress('Str. Datoriei nr. 5, Cluj-Napoca');
+        $debtor->setAddressCounty('Cluj');
+        $debtor->setAddressLocality('Cluj-Napoca');
         $debtor->setEmail('contact@debitor.ro');
         $debtor->setPhone('+40798765432');
         $debtor->setIban('RO99BBBB2C42008684951111');
         $debtor->setAdministrator('Maria Ionescu');
-        $debtor->setAnafStatus(AnafStatus::ACTIV);
-        $debtor->setAnafCheckedAt($anafChecked);
-        $debtor->setInInsolvency(false);
-        $debtor->setInsolvencyCheckedAt($bpiChecked);
-        $debtor->setBpiProofDocument($bpiProof);
-        $debtor->setBpiVerifiedNote('Verificat BPI 2026-05-09, fără mențiuni.');
 
-        $this->assertSame($case, $debtor->getLegalCase());
-        $this->assertSame(PersonType::PJ, $debtor->getPersonType());
+        $this->assertSame($user, $debtor->getUser());
         $this->assertSame('Debitor SRL', $debtor->getName());
-        $this->assertSame('RO87654321', $debtor->getCui());
-        $this->assertSame('2900101654321', $debtor->getPersonalId());
-        $this->assertSame('J12/456/2019', $debtor->getOnrcNumber());
-        $this->assertSame('Str. Datoriei nr. 5, Cluj-Napoca', $debtor->getAddress());
-        $this->assertSame('contact@debitor.ro', $debtor->getEmail());
-        $this->assertSame('+40798765432', $debtor->getPhone());
-        $this->assertSame('RO99BBBB2C42008684951111', $debtor->getIban());
+        $this->assertSame('RO87654321', $debtor->getCui(), 'the typed spelling is what the acts print');
+        $this->assertSame('87654321', $debtor->getCuiKey());
+        $this->assertSame('Cluj', $debtor->getAddressCounty());
         $this->assertSame('Maria Ionescu', $debtor->getAdministrator());
-        $this->assertSame(AnafStatus::ACTIV, $debtor->getAnafStatus());
-        $this->assertSame($anafChecked, $debtor->getAnafCheckedAt());
-        $this->assertFalse($debtor->isInInsolvency());
-        $this->assertSame($bpiChecked, $debtor->getInsolvencyCheckedAt());
-        $this->assertSame($bpiProof, $debtor->getBpiProofDocument());
-        $this->assertSame('Verificat BPI 2026-05-09, fără mențiuni.', $debtor->getBpiVerifiedNote());
+        $this->assertSame('Debitor SRL', (string) $debtor);
     }
 
-    public function testNullableFieldsDefaultToNull(): void
+    public function testTheCuiKeyFollowsTheCui(): void
     {
         $debtor = new Debtor();
+        $debtor->setCui(' ro 0123 ');
+        $this->assertSame('123', $debtor->getCuiKey());
 
-        $this->assertNull($debtor->getCui());
-        $this->assertNull($debtor->getPersonalId());
-        $this->assertNull($debtor->getOnrcNumber());
-        $this->assertNull($debtor->getEmail());
-        $this->assertNull($debtor->getPhone());
-        $this->assertNull($debtor->getIban());
-        $this->assertNull($debtor->getAdministrator());
-        $this->assertNull($debtor->getAnafStatus());
-        $this->assertNull($debtor->getAnafCheckedAt());
-        $this->assertNull($debtor->getInsolvencyCheckedAt());
-        $this->assertNull($debtor->getBpiProofDocument());
-        $this->assertNull($debtor->getBpiVerifiedNote());
+        $debtor->setCui(null);
+        $this->assertNull($debtor->getCuiKey());
     }
 
-    public function testInInsolvencyDefaultsToFalse(): void
+    public function testTheLinkReadsIdentityFromTheCompanyAndKeepsItsOwnChecks(): void
     {
         $debtor = new Debtor();
+        $debtor->setPersonType(PersonType::PJ);
+        $debtor->setName('Debitor SRL');
+        $debtor->setCui('RO87654321');
+        $debtor->setAddress('Str. Datoriei nr. 5');
 
-        $this->assertFalse($debtor->isInInsolvency());
+        $link = new LegalCaseDebtor($debtor);
+        $proof = new Document();
+        $anafChecked = new \DateTimeImmutable('2026-05-09 10:00:00');
+        $bpiChecked = new \DateTimeImmutable('2026-05-09 10:30:00');
+        $link->setAnafStatus(AnafStatus::ACTIV);
+        $link->setAnafCheckedAt($anafChecked);
+        $link->setInsolvencyCheckedAt($bpiChecked);
+        $link->setBpiProofDocument($proof);
+        $link->setBpiVerifiedNote('Verificat 2026-05-09, fără mențiuni.');
+
+        $this->assertSame($debtor, $link->getDebtor());
+        $this->assertSame('Debitor SRL', $link->getName());
+        $this->assertSame('RO87654321', $link->getCui());
+        $this->assertSame(PersonType::PJ, $link->getPersonType());
+        $this->assertSame(AnafStatus::ACTIV, $link->getAnafStatus());
+        $this->assertSame($anafChecked, $link->getAnafCheckedAt());
+        $this->assertSame($bpiChecked, $link->getInsolvencyCheckedAt());
+        $this->assertFalse($link->isInInsolvency());
+        $this->assertSame($proof, $link->getBpiProofDocument());
+        $this->assertSame('Debitor SRL', (string) $link);
     }
 
-    public function testToStringReturnsName(): void
+    public function testChecksDoNotTravelBetweenCasesOfTheSameCompany(): void
     {
         $debtor = new Debtor();
-        $debtor->setName('Test Debitor SRL');
+        $debtor->setName('Debitor SRL');
 
-        $this->assertSame('Test Debitor SRL', (string) $debtor);
+        $first = new LegalCaseDebtor($debtor);
+        $first->setInsolvencyCheckedAt(new \DateTimeImmutable('2026-05-09'));
+        $first->setAnafStatus(AnafStatus::ACTIV);
+        $second = new LegalCaseDebtor($debtor);
+
+        $this->assertNull($second->getInsolvencyCheckedAt());
+        $this->assertNull($second->getAnafStatus());
+    }
+
+    public function testTheCaseKeepsTheOrderOfItsDebtors(): void
+    {
+        $case = new LegalCase();
+        $first = new LegalCaseDebtor((new Debtor())->setName('Unu SRL'));
+        $second = new LegalCaseDebtor((new Debtor())->setName('Doi SRL'));
+        $case->addDebtor($first);
+        $case->addDebtor($second);
+
+        $this->assertSame(0, $first->getPosition());
+        $this->assertSame(1, $second->getPosition());
+        $this->assertSame($case, $first->getLegalCase());
+        $this->assertSame($first, $case->getPrimaryDebtor());
     }
 }

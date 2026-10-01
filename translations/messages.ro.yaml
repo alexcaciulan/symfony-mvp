@@ -21,7 +21,6 @@ layout:
         plan_summary: '%plan% · %consumed%/%included% dosare'
         no_plan: 'Fără abonament'
         current_cabinet: 'Cabinet curent'
-        coming_soon: 'În curând'
         nav:
             dashboard: 'Dashboard'
             cases: 'Dosare'
@@ -250,7 +249,7 @@ wizard:
     step1:
         title: 'Date creditor'
         subtitle: 'Pas 1 din 4 · Date creditor. Câmpurile cu badge ⚡ auto au fost detectate automat din documente.'
-        save_to_library: 'Salvează în biblioteca de creditori pentru reutilizare'
+        library_autosave_hint: 'Creditorul se salvează automat în biblioteca ta la trimiterea dosarului. La dosarele următoare îl alegi din căutarea de mai sus.'
         help:
             title: 'Despre acest pas'
             body: 'Dacă creditorul este deja salvat în catalogul tău (cabinet), îl poți selecta. Altfel completează manual câmpurile principale: tip persoană, denumire, adresă. CUI și ONRC sunt opționale pentru persoane fizice.'
@@ -266,6 +265,8 @@ wizard:
             hint: 'Caută după denumire sau CUI. Dacă nu există, completează manual.'
             placeholder: 'Caută creditor existent...'
             no_results: 'Niciun creditor găsit cu acest text.'
+            invalid_title: 'Creditorul ales din bibliotecă are date care nu trec verificarea:'
+            invalid_fix: 'Corectează creditorul în bibliotecă'
         button:
             continue: 'Continuă la pas 2 (debitor)'
         county: 'Județul'
@@ -291,20 +292,39 @@ wizard:
     step2:
         title: 'Date debitor(i)'
         subtitle: 'Pas 2 din 4 · Persoana datoare. Câmpurile cu badge ⚡ auto au fost detectate automat din documente.'
-        save_to_library: 'Salvează în biblioteca de debitori pentru reutilizare'
         entry_heading: 'Debitor #%index%'
-        toggle:
-            existing: 'Selectează debitor existent'
-            new: 'Debitor nou'
-            existing_disabled_title: 'Disponibil din Pas 3.3 (UX Autocomplete + ANAF lookup).'
+        entry_heading_single: 'Debitor'
+        library:
+            title: 'Alege din biblioteca de debitori'
+            hint: 'Caută după denumire sau CUI o societate pe care ai mai urmărit-o. Verificările ANAF și cele privind procedurile prevăzute de Legea 85/2014 se fac din nou pentru acest dosar.'
+            manage: 'Gestionează biblioteca'
+            placeholder: 'Caută debitor după denumire sau CUI...'
+            use: 'Folosește debitorul'
+            replace_confirm: 'Datele debitorului din acest pas se înlocuiesc cu cele din bibliotecă.'
+            edit: 'Editează în bibliotecă'
+            unpick: 'Renunță'
+            badge: 'Din bibliotecă'
+            differs_title: 'Ai deja în bibliotecă firma %name%, cu același CUI și cu alte date. Dosarul va folosi firma din bibliotecă: alege ce date rămân.'
+            differs_update_refused: 'Firma a fost deja somată într-un dosar, deci datele ei din bibliotecă nu se actualizează de aici. Dacă s-au schimbat, corectează-le din biblioteca de debitori: modificarea se notează în fiecare dosar, iar la generarea cererii de ordonanță vei confirma că ai văzut-o.'
+            differs_library: 'În bibliotecă'
+            differs_step: 'În acest pas'
+            differs_use_library: 'Folosește datele din bibliotecă. Câmpurile goale ale firmei se completează din acest pas (județul și localitatea doar dacă adresa e aceeași), iar completarea se notează în istoricul dosarelor în care apare firma.'
+            differs_update: 'Actualizează firma din bibliotecă cu datele din acest pas. Schimbarea se notează în istoricul dosarelor în care apare firma, iar regenerările din ele vor folosi noile date.'
+            reverify_notice: 'Debitor din bibliotecă: datele de identificare se modifică doar din bibliotecă. Pentru acest dosar verifică din nou starea ANAF, procedurile prevăzute de Legea 85/2014 și sediul, de care depinde instanța competentă.'
+            recheck: 'Între timp, firma debitorului a fost adăugată în biblioteca ta, cu alte date decât cele din acest pas. Continuă și alege ce date rămân în dosar.'
+            invalid: 'Datele firmei din bibliotecă nu trec verificarea (vezi câmpurile marcate). Le poți corecta doar în bibliotecă.'
+            invalid_fix: 'Corectează debitorul în bibliotecă'
         button:
             add_debtor: 'Adaugă debitor secundar'
             continue: 'Continuă la creanță'
             remove_debtor: 'Elimină acest debitor'
             max_reached: 'Limită maxim 5 debitori atinsă'
         add_debtor_hint: 'pentru obligații solidare'
+        person_type_not_offered_note: 'Documentele par să descrie o persoană fizică. Dacă debitorul este PFA, întreprindere individuală sau familială, introdu-l cu CUI și număr de înregistrare. Debitorii persoane fizice neautorizate nu sunt acceptați momentan.'
         flash:
             max_debtors_reached: 'Maxim 5 debitori per dosar (limită produs).'
+            person_type_not_offered: 'Momentan se acceptă doar debitori persoane juridice. Completează din nou debitorul, cu CUI și număr de înregistrare.'
+            too_many_debtors: 'Un dosar are momentan un singur debitor. Păstrează doar debitorul pe care îl urmărești.'
         help:
             anaf_lookup: 'Apasă „Sincronizează info ANAF" ca să verifici debitorul și să completezi datele din registrul ANAF.'
         anaf:
@@ -312,8 +332,8 @@ wizard:
             lookup_loading: 'Verificare ANAF...'
             checked_at: 'Verificat ANAF la %date%'
         bpi:
-            title: 'Verificare BPI obligatorie (Legea 85/2014)'
-            body: 'Înainte de a depune ordonanța de plată trebuie să verifici dacă debitorul nu e în procedura insolvenței. Accesează <a href="https://www.bpi.just.ro/" target="_blank" rel="noopener" class="underline font-medium">bpi.just.ro</a> → caută debitorul după CUI → confirmă rezultatul.'
+            title: 'Verificare obligatorie (Legea 85/2014)'
+            body: 'Înainte de a depune ordonanța de plată trebuie să verifici dacă debitorul nu se află în procedurile prevăzute de Legea 85/2014.'
         type: 'Tip reclamant'
         type_pf: 'Persoană fizică'
         type_pj: 'Persoană juridică'
@@ -351,7 +371,7 @@ wizard:
             iban: 'IBAN'
             administrator: 'Administrator'
             in_insolvency_short: 'Insolvență'
-            bpi_verified_today: 'Am verificat BPI; debitorul NU este în insolvență'
+            bpi_verified_today: 'Am verificat: debitorul nu se află în procedurile prevăzute de Legea 85/2014'
         placeholder:
             person_type: '-- Selectează tip persoană --'
     step3:
@@ -511,6 +531,7 @@ wizard:
             penalty_clause_text: 'Copiază clauza din contract, cuvânt cu cuvânt.'
             contract_object: 'Ex: prestarea de servicii de transport'
     step4:
+        bpi_label: 'Verificare Legea 85/2014'
         claim_items:
             title: 'Poziții de creanță incluse în dosar'
             positions_note: 'Total pe %count% poziții de creanță, fiecare cu scadența ei.'
@@ -529,10 +550,11 @@ wizard:
             documents_empty: 'Niciun document încărcat. Nu există pre-populare AI.'
             creditor: 'Creditor'
             debtors: 'Debitor(i) · %count%'
+            debtor: 'Debitor'
             claim: 'Creanță'
             edit: 'Editează'
-            bpi_verified: 'BPI verificat'
-            bpi_unverified: 'BPI neverificat'
+            bpi_verified: 'Verificat'
+            bpi_unverified: 'Neverificat'
         gdpr:
             title: 'Confidențialitate date'
             body_ai: 'Extracția AI este activă: documentele încărcate se transmit integral furnizorului AI (Anthropic, SUA), fără mascarea CNP-ului și a IBAN-ului. Poți renunța oricând din profil.'
@@ -743,6 +765,7 @@ wizard:
         acknowledge: 'Am verificat divergențele de mai sus și îmi asum valorile din formular.'
         acknowledge_required: 'Confirmă că ai verificat divergențele dintre documente înainte de a continua.'
         choice_required: 'Alege ce valoare rămâne în dosar pentru fiecare divergență blocantă.'
+        documents_change_required: 'Unele divergențe se rezolvă doar schimbând documentele dosarului. Revino la Pasul 0.'
         unsettled_at_confirmation: 'Există divergențe blocante nerezolvate. Întoarce-te la pasul respectiv și alege valoarea care rămâne în dosar.'
         back_to_resolve: 'Înapoi la pașii de completare'
         suggested: 'Sugerat'
@@ -789,7 +812,10 @@ wizard:
         debtor_set:
             too_many: 'Documentele descriu mai mulți debitori decât poate purta un dosar. Verifică dacă nu sunt de fapt dosare distincte.'
             multiple: 'Documentele descriu mai mulți debitori. Verifică fiecare fișă.'
-            claims_span_debtors: 'Facturile sunt emise către debitori diferiți. Sumele nu pot fi adunate într-o singură ordonanță de plată decât dacă există un temei comun de coparticipare, de regulă solidaritatea (CPC art. 59). Altfel sunt dosare distincte, cu taxă de timbru separată.'
+            claims_span_debtors: 'Documentele cu creanțe privesc mai mulți debitori. Un dosar are momentan un singur debitor: păstrează la Pasul 0 doar documentele debitorului pe care îl urmărești în acest dosar. Debitorii solidari se urmăresc momentan în dosare separate, iar un document comun se atașează în fiecare.'
+            claims_of_another_party: 'Sumele din documente sunt datorate de alt debitor decât cel ales. Alege debitorul care datorează sumele sau încarcă la Pasul 0 documentele care dovedesc creanța față de debitorul ales.'
+            library_mismatch: 'Debitorul ales din bibliotecă are alt CUI decât societatea numită în documente. Verifică dacă este aceeași firmă înainte de a continua.'
+            choose: 'Documentele numesc mai mulți debitori. Un dosar are momentan un singur debitor: alege debitorul împotriva căruia se face cererea.'
         claim_item:
             amount_mismatch: 'Aceeași factură apare cu sume diferite. Alege suma corectă.'
             due_date_mismatch: 'Aceeași factură apare cu scadențe diferite. Alege scadența corectă.'
@@ -1173,6 +1199,7 @@ case_overview:
         flash_error_wrong_status: 'Cererea de OP poate fi generată doar din starea „Somație trimisă".'
         flash_error_no_court: 'Lipsește instanța competentă. Completați câmpul „Instanță" înainte de a genera cererea.'
         flash_error_already_generated: 'Cererea de OP a fost deja generată. Descărcați pachetul existent.'
+        flash_error_debtor_changed: 'Datele debitorului s-au schimbat după crearea dosarului sau după somație. Confirmă în fereastra de generare că ai văzut modificările.'
         flash_error_csrf: 'Sesiunea a expirat. Reîncărcați pagina și reîncercați.'
         flash_error_term_not_expired: 'Termenul de plată de 15 zile din somație nu a expirat încă. Cererea OP nu poate fi depusă înainte de împlinirea lui.'
         flash_error_debit_status_required: 'Selectați statusul debitului (neachitat sau achitat parțial).'
@@ -1312,6 +1339,20 @@ case_overview:
         generate_op_term_unknown: 'Data comunicării somației nu e completată. Confirmă mai jos că termenul de 15 zile de la primire a expirat (poți completa data exactă din secțiunea Termene).'
         generate_op_debit_status_label: 'Statusul debitului'
         generate_op_consent_label: 'Confirm că termenul de plată de 15 zile de la primirea somației a expirat și debitul nu a fost achitat integral.'
+        court_mismatch_text: 'Dosarul este la %case_court%, iar sediul actual al debitorului indică %seat_court%. Cererea va purta sediul actual al debitorului.'
+        debtor_changed_text: 'Datele debitorului s-au schimbat după emiterea somației. Cererea le va purta pe cele actuale:'
+        debtor_changed_ack: 'Am văzut modificările și îmi asum instanța sesizată și datele debitorului din cerere (de exemplu competența aleasă sau convenită de părți).'
+        debtor_field:
+            name: 'Denumire'
+            cui: 'CUI'
+            onrcNumber: 'Nr. Reg. Comerțului'
+            address: 'Adresă'
+            addressCounty: 'Județ'
+            addressLocality: 'Localitate'
+            administrator: 'Administrator'
+            email: 'Email'
+            phone: 'Telefon'
+            iban: 'IBAN'
         generate_op_stamp_duty_paid: 'Taxa de timbru este achitată. Dovada intră în pachetul depus la instanță.'
         generate_op_stamp_duty_at_filing: 'Taxa se achită odată cu depunerea, prin registratura electronică. Cererea o va arăta ca atare.'
         generate_op_stamp_duty_deferred: 'Depuneți fără dovadă de plată, urmând să timbrați ulterior.'
@@ -2469,9 +2510,9 @@ validation:
         OP_DEFENDANT_FISCALLY_INACTIVE: 'Debitorul este declarat inactiv fiscal de ANAF. Cererea OP rămâne admisibilă, dar șansele de recuperare sunt reduse.'
         OP_ANAF_NOT_VERIFIED: 'Statusul ANAF al debitorului nu a fost verificat. Apelează ANAF pe baza CUI înainte de depunere.'
         OP_ANAF_STALE: 'Verificarea ANAF e mai veche de 30 de zile. Reverifică statusul fiscal înainte de depunere.'
-        OP_INSOLVENCY_NOT_VERIFIED: 'Verifică statusul de insolvență al debitorului pe bpi.just.ro și confirmă în UI înainte de depunere (atașează PDF dovadă BPI).'
-        OP_INSOLVENCY_STALE: 'Verificarea BPI (insolvență) este mai veche de 7 zile. Reverifică pe bpi.just.ro și actualizează dovada; insolvența se schimbă rapid.'
-        OP_PF_BIPF_MANUAL_CHECK: 'Debitor persoană fizică: verifică manual BIPF (Buletinul Insolvenței Persoanelor Fizice, Legea 151/2015) pe bpi.just.ro înainte de depunere.'
+        OP_INSOLVENCY_NOT_VERIFIED: 'Nu ai confirmat că debitorul nu se află în procedurile prevăzute de Legea 85/2014. Revino la pasul Debitor și bifează confirmarea înainte de depunere.'
+        OP_INSOLVENCY_STALE: 'Verificarea privind procedurile prevăzute de Legea 85/2014 este mai veche de 7 zile, iar situația se poate schimba rapid. Reverifică debitorul, apoi la pasul Debitor debifează confirmarea, salvează și bifeaz-o din nou.'
+        OP_PF_BIPF_MANUAL_CHECK: 'Debitor persoană fizică: verifică manual, înainte de depunere, dacă debitorul nu se află în procedurile prevăzute de Legea 151/2015.'
         OP_ITEM_NOT_YET_DUE: 'O poziție de creanță are scadența în viitor. Creanța nu este exigibilă (CPC art. 1014), iar cererea de ordonanță de plată este inadmisibilă pentru acea sumă. Corectează scadența, exclude poziția sau așteaptă împlinirea termenului.'
         OP_ITEM_DUE_DATE_MISSING: 'O poziție de creanță nu are scadență. Fără scadență nu se poate proba exigibilitatea și nu se calculează dobânda. Completează data sau exclude poziția.'
         OP_ITEM_PRESCRIBED: 'O poziție de creanță are scadența mai veche de 3 ani, deci termenul de prescripție pare împlinit (C. civ. art. 2517, care curge de la scadența fiecărei facturi). Instanța NU aplică prescripția din oficiu (art. 2512), dar debitorul o poate invoca, iar în procedura ordonanței de plată o apărare care cere probe suplimentare poate atrage respingerea cererii, creditorul fiind îndrumat spre dreptul comun (CPC art. 1021 alin. 2). Decide expres dacă păstrezi acest capăt.'
@@ -2746,7 +2787,7 @@ library:
         edit:
             title: 'Editează creditor'
             heading: 'Editează creditor'
-            subtitle: 'Modificările se aplică la dosarele viitoare, nu la cele deja depuse.'
+            subtitle: 'Modificările se folosesc la actele generate de acum înainte, inclusiv la regenerarea actelor din dosarele existente ale acestui creditor. Actele deja generate nu se schimbă.'
         form:
             create_submit: 'Salvează creditorul'
             update_submit: 'Salvează modificările'
@@ -2756,6 +2797,38 @@ library:
             updated: 'Creditorul a fost actualizat.'
         error:
             cui_duplicate: 'Ai deja un creditor cu acest CUI în bibliotecă.'
+    debtors:
+        title: 'Debitori'
+        heading: 'Debitori'
+        subtitle: 'Biblioteca ta de debitori (societăți), reutilizabili la crearea dosarelor. Verificările ANAF și cele privind procedurile prevăzute de Legea 85/2014 se fac separat, la fiecare dosar.'
+        new_button: 'Debitor nou'
+        new:
+            title: 'Debitor nou'
+            heading: 'Debitor nou'
+            subtitle: 'Îl vei putea alege din căutare la următoarele dosare.'
+        edit:
+            title: 'Editează debitor'
+            heading: 'Editează debitor'
+            subtitle: 'Modificările se folosesc la actele generate de acum înainte. Actele deja generate nu se schimbă.'
+            shared_warning: 'Această firmă apare în %count% dosare. Actele deja generate nu se schimbă, dar o regenerare va folosi noile date. Schimbarea se notează în istoricul fiecărui dosar, iar un CUI nou cere refacerea verificărilor pe dosarele respective.'
+            cases_title: 'Dosare în care apare (%count%)'
+            cases_empty: 'Nu apare încă în niciun dosar.'
+        form:
+            create_submit: 'Salvează debitorul'
+            update_submit: 'Salvează modificările'
+            cancel: 'Renunță'
+            court_hint: 'Județul și localitatea sediului stabilesc instanța competentă.'
+        delete:
+            button: 'Șterge debitorul'
+            confirm: 'Ștergi definitiv acest debitor din bibliotecă?'
+        flash:
+            created: 'Debitorul a fost adăugat în bibliotecă.'
+            updated: 'Debitorul a fost actualizat.'
+            deleted: 'Debitorul a fost șters din bibliotecă.'
+            in_use: 'Debitorul apare în dosare și nu poate fi șters.'
+        error:
+            cui_duplicate: 'Ai deja un debitor cu acest CUI în bibliotecă.'
+            cui_after_summons: 'Firma a fost deja somată într-un dosar, deci CUI-ul ei nu se mai poate schimba. Un CUI nou înseamnă altă societate: adaug-o ca debitor nou.'
 
 # =============================================================================
 # Tables (server-side data grids — column headers per table key)
@@ -2797,6 +2870,16 @@ table:
         filter:
             person_type_placeholder: 'Toate tipurile'
             search_placeholder: 'Caută după nume sau CUI...'
+    debtors:
+        columns:
+            name: 'Denumire'
+            cui: 'CUI'
+            county: 'Județ'
+            cases: 'Dosare'
+            date: 'Modificat'
+            actions: 'Acțiuni'
+        filter:
+            search_placeholder: 'Caută după denumire sau CUI...'
     fiscal_invoices:
         columns:
             number: 'Serie / număr'

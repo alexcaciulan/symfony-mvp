@@ -212,6 +212,48 @@ final class ConflictResolutionTest extends TestCase
         self::assertSame([$optionless], $this->service->pendingAcknowledgement([$optionless]));
     }
 
+    public function testAConflictOnlyTheDocumentsCanSettleIsNeitherChosenNorAcknowledged(): void
+    {
+        $blocking = new PrefillConflict(
+            scope: ConflictScope::DEBTOR_SET,
+            severity: ConflictSeverity::ERROR,
+            messageKey: 'wizard.conflict.debtor_set.claims_span_debtors',
+            field: 'debtors',
+            acknowledgeable: false,
+        );
+
+        self::assertSame([], $this->service->pendingChoices([$blocking], []));
+        self::assertSame([], $this->service->pendingAcknowledgement([$blocking]));
+        self::assertSame([$blocking], $this->service->unresolvableBlocks([$blocking]));
+    }
+
+    public function testAnAcknowledgementIsBoundToTheDisagreementsItWasGivenFor(): void
+    {
+        $first = new PrefillConflict(ConflictScope::DEBTOR_SET, ConflictSeverity::ERROR, 'wizard.conflict.debtor_set.too_many', 'debtors');
+        $later = new PrefillConflict(ConflictScope::CLAIM, ConflictSeverity::ERROR, 'wizard.conflict.claim.amount', 'amount');
+
+        self::assertNotSame(
+            $this->service->acknowledgementFingerprint([$first]),
+            $this->service->acknowledgementFingerprint([$first, $later]),
+        );
+    }
+
+    public function testAChoiceThatAllowsNoTypedValueRejectsOne(): void
+    {
+        $choice = new PrefillConflict(
+            scope: ConflictScope::DEBTOR_SET,
+            severity: ConflictSeverity::ERROR,
+            messageKey: 'wizard.conflict.debtor_set.choose',
+            field: 'debtors',
+            options: [new ConflictOption('Alfa (CUI 1)'), new ConflictOption('Beta (CUI 2)')],
+            manualAllowed: false,
+        );
+
+        $resolved = $this->service->collect([$choice->key() => 'manual'], [$choice->key() => 'Gama'], [$choice], []);
+
+        self::assertSame([], $resolved);
+    }
+
     public function testTheAuditEntryStatesWhatWasOfferedAndWhatWasRetained(): void
     {
         $conflict = $this->conflict('cui', ['11111111', '22222222'], ConflictSeverity::ERROR);

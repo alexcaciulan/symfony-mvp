@@ -7,6 +7,7 @@ namespace App\Tests\Controller\Case;
 use App\Entity\Court;
 use App\Entity\Creditor;
 use App\Entity\Debtor;
+use App\Entity\LegalCaseDebtor;
 use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
@@ -84,13 +85,13 @@ final class CaseStampDutyControllerTest extends WebTestCase
         $this->em->persist($this->case);
 
         $debtor = new Debtor();
-        $debtor->setLegalCase($this->case);
+        $debtor->setUser($this->case->getUser());
         $debtor->setPersonType(PersonType::PJ);
         $debtor->setName('SC Debitor Timbru SRL');
         $debtor->setAddress('Str. Debitor 2, Cluj-Napoca');
         $debtor->setCui('RO87654321');
         $this->em->persist($debtor);
-        $this->case->addDebtor($debtor);
+        $this->case->addDebtor(new LegalCaseDebtor($debtor));
 
         $this->em->flush();
     }
@@ -113,7 +114,7 @@ final class CaseStampDutyControllerTest extends WebTestCase
         $conn->executeStatement('DELETE FROM legal_deadline WHERE legal_case_id = ?', [$caseId]);
         $conn->executeStatement('DELETE FROM document WHERE legal_case_id = ?', [$caseId]);
         $conn->executeStatement('DELETE FROM case_status_history WHERE legal_case_id = ?', [$caseId]);
-        $conn->executeStatement('DELETE FROM debtor WHERE legal_case_id = ?', [$caseId]);
+        $conn->executeStatement('DELETE FROM legal_case_debtor WHERE legal_case_id = ?', [$caseId]);
         $conn->executeStatement('DELETE FROM notification WHERE user_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM legal_case WHERE user_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM creditor WHERE user_id = ?', [$userId]);

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service\Extraction;
 
 use App\DTO\Extraction\AggregatedFields;
+use App\DTO\Extraction\ConflictOption;
 use App\DTO\Extraction\ConflictResolution;
 use App\DTO\Extraction\DocumentClassification;
 use App\DTO\Extraction\ExtractedDocumentData;
@@ -58,6 +59,9 @@ final class PrefillFromExtractionService
      * the prefill contract rather than as an aggregation detail.
      */
     public const MIN_CONFIDENCE = CoherentAggregator::MIN_CONFIDENCE;
+
+    /** Message of the conflict asking which party the case is against. */
+    public const DEBTOR_CHOICE_MESSAGE = 'wizard.conflict.debtor_set.choose';
 
     /** @var list<string> */
     private const CREDITOR_FIELDS = [
@@ -115,7 +119,24 @@ final class PrefillFromExtractionService
         $debtorEntries = [];
         $debtorConflicts = [];
         $debtorProvenance = [];
-        foreach ($clusters as $index => $cluster) {
+
+        // One debtor per case for now: when the documents name several, the
+        // lawyer picks the one this case is against. The other parties are not
+        // dropped in silence, they stay on the choice (and in its record).
+        $partyChoice = null;
+        $chosen = 0;
+        $chosenClusters = $clusters;
+        if (count($clusters) > Step2DebtorsData::MAX_DEBTORS && Step2DebtorsData::MAX_DEBTORS === 1) {
+            $partyChoice = $this->debtorChoice($clusters);
+            $chosen = $resolutions[$partyChoice->key()]->optionIndex ?? 0;
+            if (!isset($clusters[$chosen])) {
+                $chosen = 0;
+            }
+            $chosenClusters = [$clusters[$chosen]];
+            $debtorConflicts[] = $partyChoice;
+        }
+
+        foreach ($chosenClusters as $index => $cluster) {
             $aggregated = $this->aggregator->aggregate(
                 $cluster,
                 $this->fieldGroups(self::DEBTOR_FIELDS, FieldGroup::partyFieldMap()),
@@ -138,7 +159,7 @@ final class PrefillFromExtractionService
         // Over the product cap the extra parties are reported, never dropped in
         // silence: a debtor that disappears between the documents and the form
         // is a party the lawyer never learns the documents named.
-        if (count($debtorEntries) > Step2DebtorsData::MAX_DEBTORS) {
+        if ($partyChoice === null && count($debtorEntries) > Step2DebtorsData::MAX_DEBTORS) {
             $debtorConflicts[] = new PrefillConflict(
                 scope: ConflictScope::DEBTOR_SET,
                 severity: ConflictSeverity::ERROR,
@@ -146,7 +167,7 @@ final class PrefillFromExtractionService
                 field: 'debtors',
             );
             $debtorEntries = array_slice($debtorEntries, 0, Step2DebtorsData::MAX_DEBTORS);
-        } elseif (count($debtorEntries) > 1) {
+        } elseif ($partyChoice === null && count($debtorEntries) > 1) {
             $debtorConflicts[] = new PrefillConflict(
                 scope: ConflictScope::DEBTOR_SET,
                 severity: ConflictSeverity::INFO,
@@ -158,15 +179,32 @@ final class PrefillFromExtractionService
         // Sums owed by different debtors are different claims. A payment order
         // adding them together states a debt nobody owes, and nothing in the
         // documents says the debtors answer for one another, so the wizard must
-        // not settle it: either they are jointly liable (CPC art. 59) or these
-        // are separate cases with separate stamp duty.
+        // not settle it.
         $claimBearing = $this->claimBearingIds($documents);
-        if ($this->claimsSpanDebtors($claimBearing, $clusters)) {
+        $spanMessage = null;
+        if ($partyChoice !== null) {
+            // With one debtor chosen, a claim document is fine when the chosen
+            // party is named in it, even next to others (joint debtors on one
+            // contract: the creditor may pursue either). It is not when it names
+            // only other parties: those sums are owed by someone else.
+            [$withChosen, $withoutChosen] = $this->claimDocumentsByChosenParty($claimBearing, $clusters, $chosen);
+            if ($withoutChosen > 0) {
+                $spanMessage = $withChosen > 0
+                    ? 'wizard.conflict.debtor_set.claims_span_debtors'
+                    : 'wizard.conflict.debtor_set.claims_of_another_party';
+            }
+        } elseif ($this->claimsSpanDebtors($claimBearing, $clusters)) {
+            $spanMessage = 'wizard.conflict.debtor_set.claims_span_debtors';
+        }
+        if ($spanMessage !== null) {
+            // Nothing to acknowledge: a sum owed by another debtor would enter
+            // this case. The documents of that debtor have to leave the case.
             $debtorConflicts[] = new PrefillConflict(
                 scope: ConflictScope::DEBTOR_SET,
                 severity: ConflictSeverity::ERROR,
-                messageKey: 'wizard.conflict.debtor_set.claims_span_debtors',
+                messageKey: $spanMessage,
                 field: 'debtors',
+                acknowledgeable: false,
             );
         }
 
@@ -364,6 +402,32 @@ final class PrefillFromExtractionService
      * @param array<int, true> $claimBearing
      * @param list<list<FieldSource>> $clusters
      */
+    /**
+     * How many documents that state a debt name the chosen party, and how many
+     * name only other parties. A claim document naming no debtor at all counts
+     * in neither.
+     *
+     * @param array<int, true> $claimBearing
+     * @param list<list<FieldSource>> $clusters
+     * @return array{int, int}
+     */
+    private function claimDocumentsByChosenParty(array $claimBearing, array $clusters, int $chosen): array
+    {
+        /** @var array<int, bool> $namesChosen claim document id to whether it names the chosen party */
+        $namesChosen = [];
+        foreach ($clusters as $index => $cluster) {
+            foreach ($cluster as $source) {
+                if (isset($claimBearing[$source->documentId])) {
+                    $namesChosen[$source->documentId] = ($namesChosen[$source->documentId] ?? false) || $index === $chosen;
+                }
+            }
+        }
+
+        $with = count(array_filter($namesChosen));
+
+        return [$with, count($namesChosen) - $with];
+    }
+
     private function claimsSpanDebtors(array $claimBearing, array $clusters): bool
     {
         if (count($clusters) < 2) {
@@ -455,12 +519,11 @@ final class PrefillFromExtractionService
     {
         $v = $aggregated->values;
 
-        // The creditor is always a legal person, whatever the extraction read,
-        // so a CNP it found has no field to land in.
         return new Step1CreditorData(
-            personType: PersonType::PJ,
+            personType: $this->toPersonType($v['personType'] ?? null),
             name: $this->toStringOrNull($v['name'] ?? null),
             cui: $this->toStringOrNull($v['cui'] ?? null),
+            personalId: $this->toStringOrNull($v['personalId'] ?? null),
             onrcNumber: $this->toStringOrNull($v['onrcNumber'] ?? null),
             address: $this->toStringOrNull($v['address'] ?? null),
             addressCounty: $this->toStringOrNull($v['county'] ?? null),
@@ -487,6 +550,41 @@ final class PrefillFromExtractionService
             'locality' => 'addressLocality',
             default => $f,
         }, $autoFilled);
+    }
+
+    /**
+     * The choice of the one debtor this case is against, one option per party
+     * the documents name, labelled by name and CUI. No suggestion: picking the
+     * wrong party would put the case against someone the lawyer did not mean.
+     *
+     * @param list<list<FieldSource>> $clusters
+     */
+    private function debtorChoice(array $clusters): PrefillConflict
+    {
+        $options = [];
+        foreach ($clusters as $cluster) {
+            $name = null;
+            $cui = null;
+            foreach ($cluster as $source) {
+                $name ??= is_string($source->values['name'] ?? null) ? $source->values['name'] : null;
+                $cui ??= is_scalar($source->values['cui'] ?? null) ? (string) $source->values['cui'] : null;
+            }
+            $label = trim(($name ?? '') . ($cui !== null ? ' (CUI ' . $cui . ')' : ''));
+            $options[] = new ConflictOption(
+                value: $label,
+                documentId: $cluster[0]->documentId,
+                documentType: $cluster[0]->documentType,
+            );
+        }
+
+        return new PrefillConflict(
+            scope: ConflictScope::DEBTOR_SET,
+            severity: ConflictSeverity::ERROR,
+            messageKey: self::DEBTOR_CHOICE_MESSAGE,
+            field: 'debtors',
+            options: $options,
+            manualAllowed: false,
+        );
     }
 
     private function buildDebtorEntry(AggregatedFields $aggregated): Step2DebtorEntry

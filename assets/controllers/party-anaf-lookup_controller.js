@@ -51,6 +51,9 @@ export default class extends Controller {
         fiscalDomicileMsg: { type: String, default: 'ANAF holds a different fiscal domicile. Check the unit details by hand.' },
         postalCodeMissingMsg: { type: String, default: 'ANAF has no postal code for this company.' },
         alreadySyncedTitle: { type: String, default: 'Already synced. Undo the sync to run it again.' },
+        // For a party picked from the library the identity is the library's:
+        // the sync then only records the ANAF status for this case.
+        statusOnly: { type: Boolean, default: false },
     };
 
     /** Payload key -> target name. The controller writes nothing else. */
@@ -145,6 +148,9 @@ export default class extends Controller {
         }
 
         for (const [key, targetName] of Object.entries(this.constructor.FIELD_MAP)) {
+            if (this.statusOnlyValue && !['anafStatus', 'anafCheckedAt'].includes(targetName)) {
+                continue;
+            }
             const field = this.fieldFor(targetName);
             if (field && data[key]) {
                 this.setFieldValue(field, data[key]);

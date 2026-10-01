@@ -270,7 +270,7 @@ Verifică **prescripție**:
 - 🟡 WARNING refresh policy: cache > X zile fără re-fetch înainte de generare cerere
 - 🟡 WARNING confuzie sediu social ANAF vs adresa de comunicare procedurală
 
-**BPI** (Buletinul Procedurilor de Insolvență — `bpi.just.ro`):
+**BPI** (Buletinul Procedurilor de Insolvență, Legea 85/2014; consultat de avocat, fără un site numit în aplicație):
 - 🔴 BLOCKER cod care presupune integrare API automată (BPI nu are API public)
 - 🔴 BLOCKER acces la date insolvență fără verificare PDF atașat manual
 - 🔴 BLOCKER creare cerere OP împotriva debitor cu status insolvență `IN_PROCEDURĂ` (concurează cu masa credală — Legea 85/2014)

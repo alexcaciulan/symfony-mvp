@@ -8,6 +8,7 @@ use App\Entity\ClaimItem;
 use App\Entity\Court;
 use App\Entity\Creditor;
 use App\Entity\Debtor;
+use App\Entity\LegalCaseDebtor;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Entity\CaseStatusHistory;
@@ -79,7 +80,7 @@ final class CaseOverviewControllerTest extends WebTestCase
         $conn->executeStatement('DELETE FROM court_portal_event WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM legal_deadline WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM document WHERE uploaded_by_id = :id', ['id' => $userId]);
-        $conn->executeStatement('DELETE FROM debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
+        $conn->executeStatement('DELETE FROM legal_case_debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM case_status_history WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM legal_case WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM creditor WHERE user_id = :id', ['id' => $userId]);
@@ -175,16 +176,15 @@ final class CaseOverviewControllerTest extends WebTestCase
         $this->em->persist($creditor);
 
         $debtor = new Debtor();
-        $debtor->setLegalCase($this->case);
+        $debtor->setUser($this->case->getUser());
         $debtor->setPersonType(PersonType::PJ);
         $debtor->setName('SC Beta Solutions SRL');
         $debtor->setAddress('Str. Iuliu Maniu 152, București');
         $debtor->setCui('RO87654321');
         $debtor->setAdministrator('Constantin Marinescu');
-        if ($debtorAnafStatus !== null) {
-            $debtor->setAnafStatus($debtorAnafStatus);
-        }
         $this->em->persist($debtor);
+        $debtorLink = new LegalCaseDebtor($debtor);
+        $debtorLink->setAnafStatus($debtorAnafStatus);
 
         $court = new Court();
         $court->setName('Test Court ' . uniqid());
@@ -193,7 +193,7 @@ final class CaseOverviewControllerTest extends WebTestCase
         $this->em->persist($court);
 
         $this->case->setCreditor($creditor);
-        $this->case->addDebtor($debtor);
+        $this->case->addDebtor($debtorLink);
         $this->case->setCourt($court);
         $this->case->setAmount('47500.00');
         $this->case->setCurrency('RON');
