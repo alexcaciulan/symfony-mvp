@@ -1076,11 +1076,9 @@ class LegalCase
     }
 
     /**
-     * Whether the registry can take the stamp duty for this case as it stands. Only
-     * the file number opens it; whether the petition has left yet only picks the
-     * explanation shown while the number is missing. `courtArrivalDate()` widens the
-     * check beyond the live statuses, so a case that has since moved on to a judgment
-     * place is not described as unsent.
+     * Which registry form takes the duty now. The new-case form only before filing and
+     * only for payment at filing; once filed without a number, none (it would register
+     * the petition twice).
      */
     public function rejustStampDutyForm(): RejustStampDutyForm
     {
@@ -1090,6 +1088,10 @@ class LegalCase
 
         if ($this->hasReachedCourt() || $this->courtArrivalDate() !== null) {
             return RejustStampDutyForm::AWAITING_CASE_NUMBER;
+        }
+
+        if ($this->stampDutyStatus === StampDutyStatus::ACHITARE_LA_DEPUNERE) {
+            return RejustStampDutyForm::NEW_CASE;
         }
 
         return RejustStampDutyForm::NOT_FILED;

@@ -37,6 +37,7 @@ class UatTypeTest extends TestCase
         yield 'not a sector number' => ['Sector 7', null];
         yield 'town' => ['Cluj-Napoca', null];
         yield 'prefix only' => ['Sector 3 Nord', null];
+        yield 'trailing newline' => ["Sector 3\n", null];
         yield 'missing' => [null, null];
     }
 

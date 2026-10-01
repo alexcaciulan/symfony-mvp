@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Service\StampDuty;
 
+use App\DTO\StampDuty\StampDutyPaymentTarget;
 use App\Entity\City;
 use App\Entity\County;
 use App\Entity\Court;
@@ -11,7 +12,6 @@ use App\Entity\Creditor;
 use App\Entity\LegalCase;
 use App\Enum\CourtType;
 use App\Enum\PersonType;
-use App\DTO\StampDuty\StampDutyPaymentTarget;
 use App\Enum\StampDutyTargetStatus;
 use App\Enum\UatType;
 use App\Repository\CityRepository;

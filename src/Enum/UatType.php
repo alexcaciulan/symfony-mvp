@@ -25,6 +25,6 @@ enum UatType: string
      */
     public static function bucharestSectorNumber(?string $uatName): ?int
     {
-        return $uatName !== null && preg_match('/^Sector ([1-6])$/', $uatName, $m) === 1 ? (int) $m[1] : null;
+        return $uatName !== null && preg_match('/^Sector ([1-6])\z/', $uatName, $m) === 1 ? (int) $m[1] : null;
     }
 }

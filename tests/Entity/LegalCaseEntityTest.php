@@ -14,6 +14,7 @@ use App\Enum\ExtractionMode;
 use App\Enum\PersonType;
 use App\Enum\RejustStampDutyForm;
 use App\Enum\RelationshipType;
+use App\Enum\StampDutyStatus;
 use PHPUnit\Framework\TestCase;
 
 class LegalCaseEntityTest extends TestCase
@@ -201,6 +202,28 @@ class LegalCaseEntityTest extends TestCase
 
         $this->assertSame(RejustStampDutyForm::NOT_FILED, $case->rejustStampDutyForm());
         $this->assertNull($case->rejustStampDutyForm()->url());
+    }
+
+    /** Paying at filing happens inside the registry's new-case form. */
+    public function testANotYetFiledCaseThatDeclaredPaymentAtFilingPointsToTheNewCaseForm(): void
+    {
+        $case = new LegalCase();
+        $case->setStatus(CaseStatus::CERERE_GENERATA);
+        $case->setStampDutyStatus(StampDutyStatus::ACHITARE_LA_DEPUNERE);
+
+        $this->assertSame(RejustStampDutyForm::NEW_CASE, $case->rejustStampDutyForm());
+        $this->assertStringContainsString('inregistreaza-un-dosar-nou', (string) $case->rejustStampDutyForm()->url());
+    }
+
+    /** Once the petition has left, the new-case form would register it a second time. */
+    public function testAFiledCaseThatDeclaredPaymentAtFilingIsNotSentToTheNewCaseForm(): void
+    {
+        $case = new LegalCase();
+        $case->setStatus(CaseStatus::CERERE_DEPUSA);
+        $case->setFiledAt(new \DateTimeImmutable('2026-03-01'));
+        $case->setStampDutyStatus(StampDutyStatus::ACHITARE_LA_DEPUNERE);
+
+        $this->assertSame(RejustStampDutyForm::AWAITING_CASE_NUMBER, $case->rejustStampDutyForm());
     }
 
     /**

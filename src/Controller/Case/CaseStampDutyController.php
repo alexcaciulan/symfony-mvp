@@ -112,6 +112,36 @@ final class CaseStampDutyController extends AbstractController
     }
 
     /**
+     * The lawyer will pay in the electronic registry form, together with filing.
+     * Unblocks the package without pretending the money has moved.
+     */
+    #[Route('/case/{id}/stamp-duty/at-filing', name: 'case_stamp_duty_at_filing', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function atFiling(int $id, Request $request): Response
+    {
+        $case = $this->findOrThrow($id);
+        $this->denyAccessUnlessGranted(CaseVoter::STAMP_DUTY_MANAGE, $case);
+
+        if (!$this->isCsrfTokenValid('stamp_duty_at_filing_' . $id, $request->getPayload()->getString('_token'))) {
+            return $this->respond($request, $case, false, 'error', 'case_overview.stamp_duty.flash_error_csrf');
+        }
+
+        if ($case->getStampDutyStatus() === StampDutyStatus::ACHITATA) {
+            return $this->respond($request, $case, false, 'warning', 'case_overview.stamp_duty.flash_error_already_paid');
+        }
+
+        $this->stampDutyService->declarePaymentAtFiling($case, $this->getUser());
+
+        return $this->respond(
+            $request,
+            $case,
+            true,
+            'success',
+            'case_overview.stamp_duty.flash_success_at_filing',
+            'hs-modal-stamp-duty-at-filing',
+        );
+    }
+
+    /**
      * Payment went through the electronic registry, so the confirmation reached the
      * court on its own channel and there is no file for us to hold.
      */

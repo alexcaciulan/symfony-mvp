@@ -124,6 +124,31 @@ final class StampDutyService
     }
 
     /**
+     * The lawyer will pay in the electronic registry form, which takes the duty and
+     * the petition together. Nothing is owed differently and no term starts: this
+     * only unblocks the package, because the package is what carries the payment.
+     */
+    public function declarePaymentAtFiling(LegalCase $case, UserInterface $user): void
+    {
+        $this->em->wrapInTransaction(function () use ($case, $user): void {
+            $case->setStampDutyStatus(StampDutyStatus::ACHITARE_LA_DEPUNERE);
+            $this->em->flush();
+
+            $this->auditLogService->log(
+                action: 'stamp_duty_declared_at_filing',
+                entityType: LegalCase::class,
+                entityId: (string) $case->getId(),
+                newData: [
+                    'caseNumber' => $case->getCaseNumber(),
+                    'declaredBy' => $user->getUserIdentifier(),
+                ],
+                category: AuditLogService::CATEGORY_STAMP_DUTY,
+            );
+            $this->em->flush();
+        });
+    }
+
+    /**
      * Payment went through the electronic registry, which transmits the confirmation
      * to the court together with the petition (OUG 80/2013 art. 40 alin. 3, as added
      * by Legea 268/2024). There is no file to attach here: the proof is already where
