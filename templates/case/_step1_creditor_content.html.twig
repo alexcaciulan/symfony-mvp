@@ -58,6 +58,39 @@
             {% endif %}
         </div>
 
+    {% if creditor_library_recheck|default(false) %}
+        <div class="rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 p-4 mb-6 text-sm text-amber-900 dark:text-amber-200" role="alert" data-testid="creditor-library-recheck">
+            {{ 'wizard.step1.library.recheck'|trans }}
+        </div>
+    {% endif %}
+    {% set pending = creditor_library_differs|default(null) %}
+    {% if pending %}
+        {% set field_labels = {name: 'name', onrcNumber: 'onrc_number', address: 'address', addressCounty: 'address_county', addressLocality: 'address_locality', legalRepresentative: 'legal_representative', iban: 'iban', bankName: 'bank_name'} %}
+        <div class="rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 p-5 mb-6 space-y-3" role="alert" data-testid="creditor-library-differs">
+            <p class="text-sm font-semibold text-amber-900 dark:text-amber-200">{{ 'wizard.step1.library.differs_title'|trans({'%name%': pending.name}) }}</p>
+            <table class="w-full text-xs text-amber-900 dark:text-amber-200">
+                <thead><tr class="text-left"><th class="py-1 pr-3"></th><th class="py-1 pr-3">{{ 'wizard.step2.library.differs_library'|trans }}</th><th class="py-1">{{ 'wizard.step2.library.differs_step'|trans }}</th></tr></thead>
+                <tbody>
+                    {% for field, pair in pending.differs %}
+                        <tr><td class="py-1 pr-3 font-medium">{{ ('wizard.step1.field.' ~ field_labels[field])|trans }}</td><td class="py-1 pr-3">{{ pair[0] }}</td><td class="py-1">{{ pair[1] }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            <label class="flex items-start gap-2 text-sm text-amber-900 dark:text-amber-200">
+                <input type="radio" form="step1-creditor-form" name="library_creditor_choice" value="library" required class="mt-0.5">
+                <span>{{ 'wizard.step1.library.differs_use_library'|trans }}</span>
+            </label>
+            {% if pending.canUpdate %}
+                <label class="flex items-start gap-2 text-sm text-amber-900 dark:text-amber-200">
+                    <input type="radio" form="step1-creditor-form" name="library_creditor_choice" value="update" class="mt-0.5">
+                    <span>{{ 'wizard.step1.library.differs_update'|trans }}</span>
+                </label>
+            {% else %}
+                <p class="text-xs text-amber-900 dark:text-amber-200">{{ 'wizard.step1.library.differs_update_refused'|trans }}</p>
+            {% endif %}
+        </div>
+    {% endif %}
+
     {# The ANAF lookup, triggered by the explicit sync button, fills the
        registered office, including the structured county + locality that decide
        where the stamp duty is paid (OUG 80/2013 art. 40 alin. 1). Same

@@ -4,16 +4,19 @@ namespace App\Entity;
 
 use App\Entity\Concern\PartyContactInfoTrait;
 use App\Repository\CreditorRepository;
+use App\Service\Party\CuiNormalizer;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: CreditorRepository::class)]
 #[ORM\HasLifecycleCallbacks]
-#[ORM\UniqueConstraint(name: 'uniq_creditor_user_cui', columns: ['user_id', 'cui'])]
+#[ORM\UniqueConstraint(name: 'uniq_creditor_user_cui_key', columns: ['user_id', 'cui_key'])]
 class Creditor
 {
-    use PartyContactInfoTrait;
+    use PartyContactInfoTrait {
+        setCui as private writeCui;
+    }
 
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -23,6 +26,14 @@ class Creditor
     #[ORM\ManyToOne(targetEntity: User::class)]
     #[ORM\JoinColumn(nullable: false)]
     private User $user;
+
+    /**
+     * The CUI however the lawyer typed it is what the acts print; this canonical
+     * form ({@see CuiNormalizer}) is what tells one company from another, so
+     * "RO15193236" and "15193236" are the same creditor.
+     */
+    #[ORM\Column(length: 20, nullable: true)]
+    private ?string $cuiKey = null;
 
     /**
      * Structured registered-office location, mirroring {@see Debtor}. Drives the
@@ -83,6 +94,19 @@ class Creditor
         $this->user = $user;
 
         return $this;
+    }
+
+    public function setCui(?string $cui): static
+    {
+        $this->writeCui($cui);
+        $this->cuiKey = CuiNormalizer::canonical($cui);
+
+        return $this;
+    }
+
+    public function getCuiKey(): ?string
+    {
+        return $this->cuiKey;
     }
 
     public function getAddressCounty(): ?string

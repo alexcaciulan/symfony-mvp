@@ -249,4 +249,22 @@ final class Step1CreditorDataTest extends KernelTestCase
         self::assertContains('validation.cnp.invalid_checksum', $messages);
     }
 
+
+    public function testACreditorStoredBeforeTheUpdateFlagReadsAsNotUpdating(): void
+    {
+        $serialized = serialize(new Step1CreditorData(name: 'Vechi SRL', cui: 'RO15193236'));
+        $withoutFlag = str_replace('s:13:"updateLibrary";b:0;', '', $serialized, $removed);
+        self::assertSame(1, $removed);
+        $withoutFlag = (string) preg_replace_callback(
+            '/^(O:\d+:"[^"]+":)(\d+)/',
+            static fn (array $m): string => $m[1] . ((int) $m[2] - 1),
+            $withoutFlag,
+        );
+
+        $dto = unserialize($withoutFlag, ['allowed_classes' => true]);
+
+        self::assertInstanceOf(Step1CreditorData::class, $dto);
+        self::assertSame('Vechi SRL', $dto->name);
+        self::assertFalse($dto->updateLibrary);
+    }
 }

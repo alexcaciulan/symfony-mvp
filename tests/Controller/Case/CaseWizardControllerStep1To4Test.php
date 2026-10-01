@@ -1146,97 +1146,185 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
     }
 
     /**
-     * The lawyer synced the creditor from ANAF, and only then did the CUI turn
-     * out to match one already in their library. Before, everything but a
-     * missing county/locality was dropped on save: the wizard showed the fresh
-     * address, the case kept the stale one, and the somaţie went to the old
-     * registered office.
+     * A creditor typed at step 1 whose company reached the library with other
+     * data is not written over silently at submission: the lawyer goes back to
+     * step 1 and chooses which data stands.
      */
-    public function testConfirmationSubmitRefreshesAReusedCreditorWithTheSyncedData(): void
+    public function testACreditorFoundInTheLibraryWithOtherDataSendsTheLawyerBackToChoose(): void
     {
-        $existing = new Creditor();
-        $existing->setUser($this->user);
-        $existing->setPersonType(PersonType::PJ);
-        $existing->setName('Acme Creditor SRL');
-        $existing->setAddress('Str. Veche nr. 9, Cluj-Napoca');
-        $existing->setCui('RO15193236');
-        $this->em->persist($existing);
-        $this->em->flush();
-        $existingId = $existing->getId();
+        $this->libraryCreditor('Acme Creditor SRL', 'RO15193236', 'Str. Veche nr. 9, Cluj-Napoca');
+        $this->primeSessionForStep4(insolvencyCheckedAt: new \DateTimeImmutable('-1 day'));
 
-        $this->primeSessionForStep4(
-            anafCheckedAt: new \DateTimeImmutable('-1 day'),
-            insolvencyCheckedAt: new \DateTimeImmutable('-1 day'),
-            creditorAddress: 'Strada Răsăritului, Nr. 5, Bloc 4C, Scara A, Etaj 3, Ap. 12, cod poștal 061202',
-            creditorAddressCounty: 'București',
-            creditorAddressLocality: 'Sector 6',
-        );
+        $this->client->request('GET', '/case/new/confirmation');
 
-        $crawler = $this->client->request('GET', '/case/new/confirmation');
-        $token = $crawler->filter('form input[name="step4_confirmation[_token]"]')->first()->attr('value');
-
-        $this->client->request('POST', '/case/new/confirmation', [
-            'step4_confirmation' => [
-                '_token' => $token,
-                'acceptTerms' => '1',
-                'acceptDataAccuracy' => '1',
-            ],
-        ]);
-
-        $this->em->clear();
-        $refreshed = $this->em->getRepository(Creditor::class)->find($existingId);
-        self::assertSame(
-            'Strada Răsăritului, Nr. 5, Bloc 4C, Scara A, Etaj 3, Ap. 12, cod poștal 061202',
-            $refreshed->getAddress(),
-        );
-        self::assertSame('București', $refreshed->getAddressCounty());
-        self::assertSame('Sector 6', $refreshed->getAddressLocality());
-
-        // The creditor is shared with the lawyer's other cases, so the change
-        // has to be reconstructable months later.
-        $audit = $this->em->getRepository(AuditLog::class)->findOneBy([
-            'action' => 'creditor_refreshed',
-            'entityId' => (string) $existingId,
-        ]);
-        self::assertNotNull($audit);
-        self::assertSame('Str. Veche nr. 9, Cluj-Napoca', $audit->getNewData()['address']['from']);
+        self::assertResponseRedirects('/case/new/creditor');
+        $this->client->request('GET', '/case/new/creditor');
+        self::assertSelectorExists('[data-testid="creditor-library-recheck"]');
     }
 
-    /** A value the register does not carry must not blank a curated one. */
-    public function testConfirmationSubmitDoesNotBlankAReusedCreditorFieldTheFormLeftEmpty(): void
+    public function testChoosingToUpdateTheLibraryCreditorWritesTheStepData(): void
     {
-        $existing = new Creditor();
-        $existing->setUser($this->user);
-        $existing->setPersonType(PersonType::PJ);
-        $existing->setName('Acme Creditor SRL');
-        $existing->setAddress('Str. Veche nr. 9, Cluj-Napoca');
-        $existing->setCui('RO15193236');
+        $existing = $this->libraryCreditor('Acme Creditor SRL', 'RO15193236', 'Str. Veche nr. 9, Cluj-Napoca');
+        $fields = [
+            'personType' => PersonType::PJ->value,
+            'name' => 'Acme Creditor SRL',
+            'cui' => '15193236',
+            'onrcNumber' => 'J40/1234/2018',
+            'address' => 'Strada Răsăritului, Nr. 5, cod poștal 061202',
+        ];
+
+        $this->postCreditorStep($fields);
+        self::assertResponseStatusCodeSame(422);
+        self::assertSelectorExists('[data-testid="creditor-library-differs"] input[name="library_creditor_choice"][value="update"]');
+
+        $this->postCreditorStepWithChoice($fields, 'update');
+        self::assertResponseRedirects('/case/new/debtor');
+        $dto = $this->storedCreditorDto();
+        self::assertSame($existing->getId(), $dto->creditorId);
+        self::assertTrue($dto->updateLibrary);
+
+        $this->submitWithCreditor($dto);
+
+        $this->em->clear();
+        self::assertSame('Strada Răsăritului, Nr. 5, cod poștal 061202', $this->em->find(Creditor::class, $existing->getId())->getAddress());
+        self::assertCount(1, $this->em->getRepository(Creditor::class)->findBy(['user' => $this->user]), 'no second row for another spelling of the CUI');
+        $audit = $this->em->getRepository(AuditLog::class)->findOneBy(['action' => 'creditor_updated', 'entityId' => (string) $existing->getId()]);
+        self::assertSame('Str. Veche nr. 9, Cluj-Napoca', $audit->getOldData()['address']);
+        $submit = $this->em->getRepository(AuditLog::class)->findOneBy(['action' => 'wizard_submit', 'user' => $this->user]);
+        self::assertEquals(['creditorId' => $existing->getId(), 'source' => 'library_updated'], $submit->getNewData()['creditor']);
+    }
+
+    /** Keeping the library data never blanks what the step leaves empty. */
+    public function testChoosingTheLibraryCreditorKeepsItsData(): void
+    {
+        $existing = $this->libraryCreditor('Acme Creditor SRL', 'RO15193236', 'Str. Veche nr. 9, Cluj-Napoca');
         $existing->setIban('RO49AAAA1B31007593840000');
         $existing->setEmail('contact@acme.test');
-        $this->em->persist($existing);
         $this->em->flush();
-        $existingId = $existing->getId();
+        $fields = [
+            'personType' => PersonType::PJ->value,
+            'name' => 'Acme Creditor SRL',
+            'cui' => 'RO15193236',
+            'onrcNumber' => 'J40/1234/2018',
+            'address' => 'Str. Nouă nr. 1, București',
+        ];
 
-        $this->primeSessionForStep4(
-            anafCheckedAt: new \DateTimeImmutable('-1 day'),
-            insolvencyCheckedAt: new \DateTimeImmutable('-1 day'),
-        );
+        $this->postCreditorStepWithChoice($fields, 'library');
+        self::assertResponseRedirects('/case/new/debtor');
+        $this->submitWithCreditor($this->storedCreditorDto());
+
+        $this->em->clear();
+        $reloaded = $this->em->find(Creditor::class, $existing->getId());
+        self::assertSame('Str. Veche nr. 9, Cluj-Napoca', $reloaded->getAddress());
+        self::assertSame('RO49AAAA1B31007593840000', $reloaded->getIban());
+        self::assertSame('contact@acme.test', $reloaded->getEmail());
+        self::assertSame('J40/1234/2018', $reloaded->getOnrcNumber(), 'an empty library field is completed');
+    }
+
+    public function testASummonedCreditorIsNotUpdatedFromTheWizard(): void
+    {
+        $existing = $this->libraryCreditor('Acme Creditor SRL', 'RO15193236', 'Str. Veche nr. 9, Cluj-Napoca');
+        $case = new LegalCase();
+        $case->setUser($this->user);
+        $case->setCreditor($existing);
+        $case->setStatus(CaseStatus::SOMATIE_TRIMISA);
+        $this->em->persist($case);
+        $this->em->flush();
+        $fields = [
+            'personType' => PersonType::PJ->value,
+            'name' => 'Acme Creditor SRL',
+            'cui' => 'RO15193236',
+            'onrcNumber' => 'J40/1234/2018',
+            'address' => 'Str. Nouă nr. 1, București',
+        ];
+
+        $this->postCreditorStepWithChoice($fields, 'update');
+
+        self::assertResponseStatusCodeSame(422, 'a forged update choice is not accepted');
+        self::assertSelectorNotExists('input[name="library_creditor_choice"][value="update"]');
+    }
+
+    public function testACreditorTypedWithTheLibraryDataIsLinkedWithoutAsking(): void
+    {
+        $existing = $this->libraryCreditor('Acme Creditor SRL', 'RO15193236', 'Str. Veche nr. 9, Cluj-Napoca');
+
+        $this->postCreditorStep([
+            'personType' => PersonType::PJ->value,
+            'name' => 'Acme Creditor SRL',
+            'cui' => ' ro 15193236 ',
+            'onrcNumber' => 'J40/1234/2018',
+            'address' => 'Str. Veche nr. 9, Cluj-Napoca',
+        ]);
+
+        self::assertResponseRedirects('/case/new/debtor');
+        self::assertSame($existing->getId(), $this->storedCreditorDto()->creditorId);
+    }
+
+    public function testReturningToStep1AfterChoosingUpdateAsksAgainInsteadOfDroppingTheData(): void
+    {
+        $this->libraryCreditor('Acme Creditor SRL', 'RO15193236', 'Str. Veche nr. 9, Cluj-Napoca');
+        $fields = [
+            'personType' => PersonType::PJ->value,
+            'name' => 'Acme Creditor SRL',
+            'cui' => 'RO15193236',
+            'onrcNumber' => 'J40/1234/2018',
+            'address' => 'Str. Nouă nr. 1, București',
+        ];
+        $this->postCreditorStepWithChoice($fields, 'update');
+        self::assertResponseRedirects('/case/new/debtor');
+
+        $crawler = $this->client->request('GET', '/case/new/creditor');
+        self::assertSame('Str. Nouă nr. 1, București', $crawler->filter('textarea[name="step1_creditor[address]"]')->text());
+        self::assertCount(0, $crawler->filter('select[name="step1_creditor[creditorEntity]"] option[selected]'));
+
+        $this->postCreditorStep($fields);
+        self::assertResponseStatusCodeSame(422);
+        self::assertSelectorExists('[data-testid="creditor-library-differs"]');
+    }
+
+    private function libraryCreditor(string $name, string $cui, string $address): Creditor
+    {
+        $creditor = new Creditor();
+        $creditor->setUser($this->user);
+        $creditor->setPersonType(PersonType::PJ);
+        $creditor->setName($name);
+        $creditor->setCui($cui);
+        $creditor->setAddress($address);
+        $this->em->persist($creditor);
+        $this->em->flush();
+
+        return $creditor;
+    }
+
+    /** @param array<string, string> $fields */
+    private function postCreditorStepWithChoice(array $fields, string $choice): void
+    {
+        $crawler = $this->client->request('GET', '/case/new/creditor');
+        $token = $crawler->filter('form input[name="step1_creditor[_token]"]')->first()->attr('value');
+
+        $this->client->request('POST', '/case/new/creditor', [
+            'step1_creditor' => ['_token' => $token, ...$fields],
+            'library_creditor_choice' => $choice,
+        ]);
+    }
+
+    /** Runs steps 2 to 4 on the prepared session, keeping this step 1 creditor. */
+    private function submitWithCreditor(Step1CreditorData $creditor): void
+    {
+        $this->primeSessionForStep4(insolvencyCheckedAt: new \DateTimeImmutable('-1 day'));
+        $session = $this->client->getRequest()->getSession();
+        $bag = $session->get(self::SESSION_KEY);
+        $bag['creditor'] = $creditor;
+        $session->set(self::SESSION_KEY, $bag);
+        $session->save();
 
         $crawler = $this->client->request('GET', '/case/new/confirmation');
         $token = $crawler->filter('form input[name="step4_confirmation[_token]"]')->first()->attr('value');
-
-        $this->client->request('POST', '/case/new/confirmation', [
-            'step4_confirmation' => [
-                '_token' => $token,
-                'acceptTerms' => '1',
-                'acceptDataAccuracy' => '1',
-            ],
-        ]);
-
-        $this->em->clear();
-        $refreshed = $this->em->getRepository(Creditor::class)->find($existingId);
-        self::assertSame('RO49AAAA1B31007593840000', $refreshed->getIban());
-        self::assertSame('contact@acme.test', $refreshed->getEmail());
+        $this->client->request('POST', '/case/new/confirmation', ['step4_confirmation' => [
+            '_token' => $token,
+            'acceptTerms' => '1',
+            'acceptDataAccuracy' => '1',
+        ]]);
     }
 
     public function testConfirmationGetBlocksWhenInsolvencyNotVerified(): void

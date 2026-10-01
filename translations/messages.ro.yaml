@@ -260,6 +260,12 @@ wizard:
             existing: 'Selectează creditor existent'
             new: 'Creditor nou'
             existing_disabled_title: 'Disponibil din Pas 3.3 (UX Autocomplete).'
+        library:
+            recheck: 'Între timp, creditorul a fost adăugat în biblioteca ta, cu alte date decât cele din acest pas. Continuă și alege ce date rămân în dosar.'
+            differs_title: 'Ai deja în bibliotecă creditorul %name%, cu același CUI și cu alte date. Dosarul va folosi creditorul din bibliotecă: alege ce date rămân.'
+            differs_use_library: 'Folosește datele din bibliotecă. Câmpurile goale ale creditorului se completează din acest pas (județul și localitatea doar dacă adresa e aceeași), iar completarea se notează în istoricul dosarelor în care apare.'
+            differs_update: 'Actualizează creditorul din bibliotecă cu datele din acest pas. Schimbarea se notează în istoricul dosarelor în care apare, iar cererile de ordonanță generate de acum în ele vor folosi noile date.'
+            differs_update_refused: 'Creditorul apare deja într-un dosar în care s-a trimis somația, deci datele lui din bibliotecă nu se actualizează de aici. Dacă s-au schimbat, corectează-le din biblioteca de creditori.'
         autocomplete:
             title: 'Selectează creditor din biblioteca cabinetului'
             hint: 'Caută după denumire sau CUI. Dacă nu există, completează manual.'
@@ -1199,7 +1205,7 @@ case_overview:
         flash_error_wrong_status: 'Cererea de OP poate fi generată doar din starea „Somație trimisă".'
         flash_error_no_court: 'Lipsește instanța competentă. Completați câmpul „Instanță" înainte de a genera cererea.'
         flash_error_already_generated: 'Cererea de OP a fost deja generată. Descărcați pachetul existent.'
-        flash_error_debtor_changed: 'Datele debitorului s-au schimbat după crearea dosarului sau după somație. Confirmă în fereastra de generare că ai văzut modificările.'
+        flash_error_debtor_changed: 'Datele părților s-au schimbat după crearea dosarului sau după somație. Confirmă în fereastra de generare că ai văzut modificările.'
         flash_error_csrf: 'Sesiunea a expirat. Reîncărcați pagina și reîncercați.'
         flash_error_term_not_expired: 'Termenul de plată de 15 zile din somație nu a expirat încă. Cererea OP nu poate fi depusă înainte de împlinirea lui.'
         flash_error_debit_status_required: 'Selectați statusul debitului (neachitat sau achitat parțial).'
@@ -1342,6 +1348,18 @@ case_overview:
         court_mismatch_text: 'Dosarul este la %case_court%, iar sediul actual al debitorului indică %seat_court%. Cererea va purta sediul actual al debitorului.'
         debtor_changed_text: 'Datele debitorului s-au schimbat după emiterea somației. Cererea le va purta pe cele actuale:'
         debtor_changed_ack: 'Am văzut modificările și îmi asum instanța sesizată și datele debitorului din cerere (de exemplu competența aleasă sau convenită de părți).'
+        creditor_changed_text: 'Datele creditorului s-au schimbat după emiterea somației. Cererea le va purta pe cele actuale:'
+        creditor_iban_changed_text: 'IBAN-ul creditorului s-a schimbat după somație: debitorul a fost somat să plătească în alt cont. O plată făcută în contul din somație trebuie luată în calcul, iar debitorul trebuie anunțat de noul cont.'
+        parties_changed_ack: 'Am văzut modificările și îmi asum instanța sesizată și datele părților din cerere (de exemplu competența aleasă sau convenită de părți).'
+        creditor_field:
+            name: 'Denumire'
+            cui: 'CUI'
+            onrcNumber: 'Nr. Reg. Comerțului'
+            address: 'Adresă'
+            addressCounty: 'Județ'
+            addressLocality: 'Localitate'
+            legalRepresentative: 'Reprezentant legal'
+            iban: 'IBAN'
         debtor_field:
             name: 'Denumire'
             cui: 'CUI'
@@ -2788,6 +2806,7 @@ library:
             title: 'Editează creditor'
             heading: 'Editează creditor'
             subtitle: 'Modificările se folosesc la actele generate de acum înainte, inclusiv la regenerarea actelor din dosarele existente ale acestui creditor. Actele deja generate nu se schimbă.'
+            shared_warning: 'Acest creditor apare în %count% dosare. Actele deja generate nu se schimbă, dar o regenerare va folosi noile date. Schimbarea se notează în istoricul fiecărui dosar, iar în dosarele în care s-a trimis somația o vei confirma la generarea cererii de ordonanță.'
         form:
             create_submit: 'Salvează creditorul'
             update_submit: 'Salvează modificările'
@@ -2797,6 +2816,7 @@ library:
             updated: 'Creditorul a fost actualizat.'
         error:
             cui_duplicate: 'Ai deja un creditor cu acest CUI în bibliotecă.'
+            cui_after_summons: 'Creditorul apare deja într-un dosar în care s-a trimis somația, deci CUI-ul lui nu se mai poate schimba. Un CUI nou înseamnă altă societate: adaugă-o ca creditor nou.'
     debtors:
         title: 'Debitori'
         heading: 'Debitori'
@@ -2828,7 +2848,7 @@ library:
             in_use: 'Debitorul apare în dosare și nu poate fi șters.'
         error:
             cui_duplicate: 'Ai deja un debitor cu acest CUI în bibliotecă.'
-            cui_after_summons: 'Firma a fost deja somată într-un dosar, deci CUI-ul ei nu se mai poate schimba. Un CUI nou înseamnă altă societate: adaug-o ca debitor nou.'
+            cui_after_summons: 'Firma a fost deja somată într-un dosar, deci CUI-ul ei nu se mai poate schimba. Un CUI nou înseamnă altă societate: adaugă-o ca debitor nou.'
 
 # =============================================================================
 # Tables (server-side data grids — column headers per table key)

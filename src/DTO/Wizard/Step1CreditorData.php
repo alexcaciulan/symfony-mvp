@@ -80,6 +80,9 @@ class Step1CreditorData
         public array $autoFilled = [],
     ) {}
 
+    /** Step 1 chose to update the library creditor; outside the constructor so old sessions read false. */
+    public bool $updateLibrary = false;
+
     public static function fromCreditor(Creditor $creditor): self
     {
         return new self(

@@ -84,7 +84,8 @@ final class CasePaymentOrderController extends AbstractController
         // The petition is generated only once the lawyer has seen that.
         $courtNowPointedTo = $this->seatCheck->courtNowPointedTo($case);
         $changesSinceSummons = $this->seatCheck->changesSinceSummons($case);
-        if (($courtNowPointedTo !== null || $changesSinceSummons !== [])
+        $creditorChangesSinceSummons = $this->seatCheck->creditorChangesSinceSummons($case);
+        if (($courtNowPointedTo !== null || $changesSinceSummons !== [] || $creditorChangesSinceSummons !== [])
             && !$request->getPayload()->getBoolean('debtorChangesAcknowledged')) {
             return $this->respond($request, $case, false, 'error', 'case_overview.payment_order.flash_error_debtor_changed');
         }
@@ -151,7 +152,7 @@ final class CasePaymentOrderController extends AbstractController
             }
         }
 
-        $this->em->wrapInTransaction(function () use ($case, $debitStatus, $courtNowPointedTo, $changesSinceSummons): void {
+        $this->em->wrapInTransaction(function () use ($case, $debitStatus, $courtNowPointedTo, $changesSinceSummons, $creditorChangesSinceSummons): void {
             $case->setDebitAcknowledgedStatus($debitStatus);
             $case->setOpGenerationConsent(true);
 
@@ -171,10 +172,11 @@ final class CasePaymentOrderController extends AbstractController
                     'opisDocumentId' => $opis->getId(),
                     'debitAcknowledgedStatus' => $debitStatus->value,
                     'opGenerationConsent' => true,
-                    'debtorChangesAcknowledged' => $courtNowPointedTo === null && $changesSinceSummons === [] ? null : [
+                    'debtorChangesAcknowledged' => $courtNowPointedTo === null && $changesSinceSummons === [] && $creditorChangesSinceSummons === [] ? null : [
                         'caseCourt' => $case->getCourt()?->getName(),
                         'courtPointedToBySeat' => $courtNowPointedTo?->getName(),
                         'changesSinceSummons' => $changesSinceSummons,
+                        'creditorChangesSinceSummons' => $creditorChangesSinceSummons,
                         'debtor' => [
                             'name' => $case->getPrimaryDebtor()?->getName(),
                             'cui' => $case->getPrimaryDebtor()?->getCui(),

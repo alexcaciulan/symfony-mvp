@@ -21,6 +21,7 @@ final class CaseCourtExtension extends AbstractExtension
         return [
             new TwigFunction('debtor_seat_court', fn (LegalCase $case): ?Court => $this->seatCheck->courtNowPointedTo($case)),
             new TwigFunction('debtor_changes_since_summons', fn (LegalCase $case): array => $this->seatCheck->changesSinceSummons($case)),
+            new TwigFunction('creditor_changes_since_summons', fn (LegalCase $case): array => $this->seatCheck->creditorChangesSinceSummons($case)),
         ];
     }
 }
