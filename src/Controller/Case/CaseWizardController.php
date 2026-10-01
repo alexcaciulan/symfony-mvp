@@ -1712,7 +1712,7 @@ final class CaseWizardController extends AbstractController
     }
 
     /**
-     * @param array{wasReused: bool, source: string} $outcome — out-param flag signaling reuse so the
+     * @param array{wasReused: bool, source: string} $outcome: out-param flag signaling reuse so the
      *        caller can emit a flash AFTER the transaction commits (emitting it
      *        inside `wrapInTransaction` would leak the message even when the
      *        outer commit fails and rolls back).
