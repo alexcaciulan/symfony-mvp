@@ -9,9 +9,11 @@ use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\DocumentType;
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
@@ -89,7 +91,7 @@ final class DocumentControllerTest extends WebTestCase
     }
 
     /** Persists a Document row directly (no file on disk needed for cap counting). */
-    private function persistDocument(DocumentType $type): void
+    private function persistDocument(DocumentType $type): int
     {
         $doc = new Document();
         $doc->setLegalCase($this->case);
@@ -101,6 +103,32 @@ final class DocumentControllerTest extends WebTestCase
         $doc->setUploadedBy($this->user);
         $this->em->persist($doc);
         $this->em->flush();
+
+        return (int) $doc->getId();
+    }
+
+    /**
+     * A valid delete token minted from the session, for documents whose row renders
+     * no delete form to scrape it from. Without it a refusal test would pass on the
+     * CSRF check instead of the guard it is meant to exercise.
+     */
+    private function sessionDeleteToken(int $documentId): string
+    {
+        $this->client->request('GET', '/case/' . $this->case->getId());
+        $request = $this->client->getRequest();
+
+        $stack = static::getContainer()->get(RequestStack::class);
+        $stack->push($request);
+
+        try {
+            $token = static::getContainer()->get('security.csrf.token_manager')->getToken('delete-document-' . $documentId)->getValue();
+        } finally {
+            $stack->pop();
+        }
+
+        $request->getSession()->save();
+
+        return $token;
     }
 
     /** Minimal valid PDF written to a temp file, wrapped as a test UploadedFile. */
@@ -413,28 +441,110 @@ final class DocumentControllerTest extends WebTestCase
     public function testDeleteRefusesTheStampDutyProof(): void
     {
         $this->client->loginUser($this->user);
+        $proofId = $this->persistDocument(DocumentType::DOVADA_TAXA_TIMBRU);
 
-        $proof = new Document();
-        $proof->setLegalCase($this->case);
-        $proof->setDocumentType(DocumentType::DOVADA_TAXA_TIMBRU);
-        $proof->setOriginalFilename('dovada.pdf');
-        $proof->setStoredFilename('cases/' . $this->case->getId() . '/dovada.pdf');
-        $proof->setFileSize(100);
-        $proof->setMimeType('application/pdf');
-        $proof->setUploadedBy($this->user);
-        $this->em->persist($proof);
-        $this->em->flush();
-        $proofId = $proof->getId();
+        $this->client->request(
+            'POST',
+            sprintf('/case/%d/document/%d/delete', $this->case->getId(), $proofId),
+            ['_token' => $this->sessionDeleteToken($proofId)],
+            [],
+            ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html'],
+        );
 
-        $this->client->request('POST', sprintf('/case/%d/document/%d/delete', $this->case->getId(), $proofId), [
-            '_token' => $this->deleteToken($proofId),
-        ]);
-
+        self::assertStringContainsString(
+            'Dovada plății taxei de timbru nu se poate șterge',
+            (string) $this->client->getResponse()->getContent(),
+        );
         $this->em->clear();
         self::assertNotNull(
             $this->em->getRepository(Document::class)->find($proofId),
             'The stamp-duty proof must survive a delete attempt from the generic flow.',
         );
+    }
+
+    /** @return iterable<string, array{DocumentType}> */
+    public static function claimEvidenceTypes(): iterable
+    {
+        yield 'contract' => [DocumentType::CONTRACT];
+        yield 'addendum' => [DocumentType::ACT_ADITIONAL];
+        yield 'invoice' => [DocumentType::FACTURA];
+    }
+
+    /**
+     * Claim items point at the contract and invoices and the generated acts list them,
+     * so deleting one would leave sums in the case with nothing proving them.
+     */
+    #[DataProvider('claimEvidenceTypes')]
+    public function testDeleteRefusesClaimEvidenceOnDirectRequest(DocumentType $type): void
+    {
+        $this->client->loginUser($this->user);
+        $docId = $this->persistDocument($type);
+
+        $this->client->request(
+            'POST',
+            sprintf('/case/%d/document/%d/delete', $this->case->getId(), $docId),
+            ['_token' => $this->sessionDeleteToken($docId)],
+            [],
+            ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html'],
+        );
+
+        self::assertStringContainsString(
+            'nu se pot șterge: pe ele se sprijină creanța',
+            (string) $this->client->getResponse()->getContent(),
+        );
+        $this->em->clear();
+        self::assertNotNull($this->em->getRepository(Document::class)->find($docId));
+    }
+
+    /** @return iterable<string, array{DocumentType}> */
+    public static function generatedTypes(): iterable
+    {
+        yield 'summons' => [DocumentType::SOMATIE];
+        yield 'petition' => [DocumentType::CERERE_OP];
+        yield 'index' => [DocumentType::OPIS];
+    }
+
+    #[DataProvider('generatedTypes')]
+    public function testDeleteRefusesGeneratedDocumentsWithTheirOwnMessage(DocumentType $type): void
+    {
+        $this->client->loginUser($this->user);
+        $docId = $this->persistDocument($type);
+
+        $this->client->request(
+            'POST',
+            sprintf('/case/%d/document/%d/delete', $this->case->getId(), $docId),
+            ['_token' => $this->sessionDeleteToken($docId)],
+            [],
+            ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html'],
+        );
+
+        self::assertStringContainsString(
+            'Documentele generate de platformă',
+            (string) $this->client->getResponse()->getContent(),
+        );
+        $this->em->clear();
+        self::assertNotNull($this->em->getRepository(Document::class)->find($docId));
+    }
+
+    public function testDocumentsTabOffersDeleteOnlyForDeletableTypes(): void
+    {
+        $this->client->loginUser($this->user);
+        $protectedIds = [
+            $this->persistDocument(DocumentType::CONTRACT),
+            $this->persistDocument(DocumentType::ACT_ADITIONAL),
+            $this->persistDocument(DocumentType::FACTURA),
+            $this->persistDocument(DocumentType::DOVADA_TAXA_TIMBRU),
+        ];
+        $deletableId = $this->persistDocument(DocumentType::EXTRAS_CONT);
+        $this->em->clear();
+
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        foreach ($protectedIds as $id) {
+            self::assertCount(0, $crawler->filter(sprintf('form[action$="/document/%d/delete"]', $id)));
+            self::assertGreaterThan(0, $crawler->filter(sprintf('a[href$="/document/%d/download"]', $id))->count());
+        }
+        self::assertCount(1, $crawler->filter(sprintf('form[action$="/document/%d/delete"]', $deletableId)));
     }
 
     public function testDeleteReturnsTurboStreamWhenRequested(): void

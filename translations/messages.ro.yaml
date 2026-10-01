@@ -1808,8 +1808,9 @@ document:
     delete:
         button: 'Șterge'
         success: 'Documentul a fost șters.'
-        cerere_pdf_protected: 'Cererea PDF generată automat nu poate fi ștearsă.'
+        generated_protected: 'Documentele generate de platformă (somația, cererea și opisul) nu se pot șterge.'
         stamp_duty_proof_protected: 'Dovada plății taxei de timbru nu se poate șterge de aici: de ea depinde ce afirmă cererea în fața instanței.'
+        evidence_protected: 'Contractul, actul adițional și factura nu se pot șterge: pe ele se sprijină creanța din dosar.'
         confirm: 'Sigur doriți să ștergeți acest document?'
         invalid_csrf: 'Token invalid. Reîncercați.'
     type:

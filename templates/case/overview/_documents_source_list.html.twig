@@ -105,19 +105,24 @@
                        class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition">
                         {{ icon_download('size-3.5 text-slate-500 dark:text-slate-400') }}
                     </a>
-                    <form method="post"
-                          action="{{ path('case_document_delete', {caseId: case.id, documentId: doc.id}) }}"
-                          data-turbo-frame="_top"
-                          class="inline-flex">
-                        <input type="hidden" name="_token" value="{{ csrf_token('delete-document-' ~ doc.id) }}">
-                        <button type="submit"
-                                data-turbo-confirm="{{ 'case_overview.documents.delete_confirm'|trans }}"
-                                title="{{ 'case_overview.documents.action_delete'|trans }}"
-                                aria-label="{{ 'case_overview.documents.action_delete'|trans }}"
-                                class="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-950/40 transition">
-                            {{ icon_trash('size-3.5 text-slate-500 dark:text-slate-400') }}
-                        </button>
-                    </form>
+                    {% if doc.documentType.isDeletable() %}
+                        <form method="post"
+                              action="{{ path('case_document_delete', {caseId: case.id, documentId: doc.id}) }}"
+                              data-turbo-frame="_top"
+                              class="inline-flex">
+                            <input type="hidden" name="_token" value="{{ csrf_token('delete-document-' ~ doc.id) }}">
+                            <button type="submit"
+                                    data-turbo-confirm="{{ 'case_overview.documents.delete_confirm'|trans }}"
+                                    title="{{ 'case_overview.documents.action_delete'|trans }}"
+                                    aria-label="{{ 'case_overview.documents.action_delete'|trans }}"
+                                    class="p-1.5 rounded hover:bg-red-100 dark:hover:bg-red-950/40 transition">
+                                {{ icon_trash('size-3.5 text-slate-500 dark:text-slate-400') }}
+                            </button>
+                        </form>
+                    {% else %}
+                        {# Keeps the download icons aligned across rows. #}
+                        <span class="p-1.5 inline-flex" aria-hidden="true"><span class="size-3.5"></span></span>
+                    {% endif %}
                 </div>
             {% endfor %}
         </div>
