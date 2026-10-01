@@ -170,6 +170,18 @@ final class CaseWizardControllerStep0Test extends WebTestCase
         // Two invoices for the same debtor: the card must show their sum, and
         // the per-invoice sum/due-date/number rows must not sit under the total
         // contradicting it (the failure the lawyer reported).
+        $this->openStep0WithTwoInvoices();
+        $html = $this->client->getResponse()->getContent();
+
+        // The aggregate is shown: sum of the two invoices.
+        self::assertStringContainsString('986,53', $html);
+        // The single-invoice figure that used to sit under it is gone.
+        self::assertStringNotContainsString('493,30', $html);
+        self::assertStringNotContainsString('493.30', $html);
+    }
+
+    private function openStep0WithTwoInvoices(): void
+    {
         $ids = [];
         foreach ([['FF 0036', '2026-02-06', 493.30], ['FF 0038', '2026-03-11', 493.23]] as $i => [$number, $due, $amount]) {
             $doc = new Document();
@@ -209,13 +221,43 @@ final class CaseWizardControllerStep0Test extends WebTestCase
 
         $this->client->request('GET', '/case/new/documents');
         self::assertResponseIsSuccessful();
-        $html = $this->client->getResponse()->getContent();
+    }
 
-        // The aggregate is shown: sum of the two invoices.
-        self::assertStringContainsString('986,53', $html);
-        // The single-invoice figure that used to sit under it is gone.
-        self::assertStringNotContainsString('493,30', $html);
-        self::assertStringNotContainsString('493.30', $html);
+    public function testStep0CardGivesNoVerdictWhileTheDocumentIsProcessing(): void
+    {
+        $this->uploadOneFile();
+
+        $crawler = $this->client->request('GET', '/case/new/documents');
+
+        $card = $crawler->filter('#step0-sidecard');
+        self::assertStringContainsString('În procesare', $card->text());
+        self::assertStringNotContainsString('Nimic găsit', $card->text());
+        self::assertSame(0, $card->filter('[data-testid="detected-completeness"]')->count());
+        self::assertSame(0, $card->filter('[data-testid="detected-missing"]')->count());
+    }
+
+    public function testStep0CardCountsOnlyTheFieldsTheCaseNeeds(): void
+    {
+        // Same two invoices: the total covers the sum and due date, so the
+        // claim is complete; the creditor has a name and a CUI and is told
+        // exactly which four fields are left for step 1.
+        $this->openStep0WithTwoInvoices();
+        $crawler = $this->client->getCrawler();
+
+        $claim = $crawler->filter('[data-testid="detected-section-claim"]');
+        self::assertSame('2/2 · 100%', trim($claim->filter('[data-testid="detected-completeness"]')->text()));
+        $legalGround = $claim->filter('[data-testid="detected-row"][data-field="legalGround"]');
+        self::assertStringContainsString('Izvor creanță', $legalGround->text());
+        self::assertStringNotContainsString('FACTURA_ACCEPTATA', $claim->text());
+
+        $creditor = $crawler->filter('[data-testid="detected-section-creditor"]');
+        self::assertSame('2/6 · 33%', trim($creditor->filter('[data-testid="detected-completeness"]')->text()));
+        self::assertSame(
+            'De completat la pasul 1: Reg. Comerțului, Adresă, Județ, Localitate',
+            trim($creditor->filter('[data-testid="detected-missing"]')->text()),
+        );
+        self::assertSame(2, $creditor->filter('[data-testid="detected-row"]')->count());
+        self::assertStringNotContainsString('Încredere', $crawler->filter('#step0-sidecard')->html());
     }
 
     public function testSkipClearsSessionAndRedirectsToCreditor(): void

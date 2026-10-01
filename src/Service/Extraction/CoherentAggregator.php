@@ -12,6 +12,7 @@ use App\DTO\Extraction\PrefillConflict;
 use App\Enum\ConflictScope;
 use App\Enum\ConflictSeverity;
 use App\Enum\FieldGroup;
+use App\Service\Party\OnrcNumber;
 
 /**
  * Picks one document per group of fields and takes the group whole.
@@ -577,6 +578,7 @@ final class CoherentAggregator
                 'cui' => (string) $this->normalizedCui($value),
                 'personalId', 'phone' => (string) $this->digitsOnly($value),
                 'name' => $this->normalizedName($value),
+                'onrcNumber' => OnrcNumber::key($value) ?? mb_strtoupper(trim($value)),
                 default => mb_strtoupper(trim($value)),
             };
         }

@@ -167,6 +167,25 @@ final class CoherentAggregatorTest extends TestCase
         self::assertSame(ConflictSeverity::WARNING, $byField['name']->severity, 'a second spelling of a name is not blocking');
     }
 
+    public function testTheTwoSpellingsOfOneRegistrationNumberAreNotAConflict(): void
+    {
+        // The invoice prints the classic form, the registry the single string
+        // it now issues; both name registration 11043 of 2003 in Bucharest.
+        $a = $this->party(1, DocumentType::FACTURA, ['name' => 'Juressa Net SRL', 'cui' => '15663826', 'onrcNumber' => 'J40/11043/2003']);
+        $b = $this->party(2, DocumentType::CONTRACT, ['name' => 'Juressa Net SRL', 'cui' => '15663826', 'onrcNumber' => 'J2003011043402']);
+
+        self::assertSame([], $this->aggregateParty([$a, $b])->conflicts);
+    }
+
+    public function testTwoDifferentRegistrationNumbersStillConflict(): void
+    {
+        $a = $this->party(1, DocumentType::FACTURA, ['name' => 'Juressa Net SRL', 'cui' => '15663826', 'onrcNumber' => 'J40/11043/2003']);
+        $b = $this->party(2, DocumentType::CONTRACT, ['name' => 'Juressa Net SRL', 'cui' => '15663826', 'onrcNumber' => 'J2003011044402']);
+
+        $fields = array_map(static fn ($c) => $c->field, $this->aggregateParty([$a, $b])->conflicts);
+        self::assertContains('onrcNumber', $fields);
+    }
+
     public function testValuesBelowTheConfidenceThresholdAreNotUsed(): void
     {
         $source = $this->party(1, DocumentType::FACTURA, ['name' => 'Nesigur SRL'], 0.79);
@@ -210,7 +229,7 @@ final class CoherentAggregatorTest extends TestCase
         return $this->aggregator->aggregate(
             $sources,
             $this->fieldGroups(
-                ['personType', 'name', 'cui', 'personalId', 'address', 'county', 'locality', 'phone', 'iban'],
+                ['personType', 'name', 'cui', 'personalId', 'onrcNumber', 'address', 'county', 'locality', 'phone', 'iban'],
                 FieldGroup::partyFieldMap(),
             ),
             $scope,

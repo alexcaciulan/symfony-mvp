@@ -367,6 +367,7 @@ Confidence per câmp: 0..1, reflectă cât de sigur ești pe baza textului OCR
 (text clar = 0.95+; ambiguu sau OCR cu erori = 0.5-0.7; ghicit din context = 0.3-0.5).
 Pentru email/phone returnează `null` dacă nu apar explicit — nu inventa.
 Pentru onrcNumber respectă format `J40/1234/2025` (litera + cifre + slash + cifre + slash + an cu 4 cifre).
+Dacă documentul îl scrie în forma nouă, dintr-un singur șir (ex: `J2003011043402`), returnează-l exact așa.
 PROMPT;
 
         return [

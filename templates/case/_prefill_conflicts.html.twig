@@ -14,7 +14,8 @@
 
    Rendered read-only in the step 0 side card and on the confirmation screen:
    there the documents may still be processing, or the decision belongs to a
-   step already behind. #}
+   step already behind. The step 0 card passes its own one-line title and no
+   intro (`conflicts_title_key`, `conflicts_intro_key: null`). #}
 {# Enum-valued fields carry a code (CONTRACT_PRESTARI_SERVICII), not a phrase; show
    the label the rest of the wizard uses so the lawyer reads what the value means,
    not the field key it is stored under. Everything else prints as read. #}
@@ -34,8 +35,11 @@
         <div class="flex items-start gap-3">
             <svg class="size-5 shrink-0 mt-0.5 {{ blocking ? 'text-red-600' : 'text-amber-600' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
             <div class="flex-1 min-w-0">
-                <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ 'wizard.conflict.title'|trans }}</h2>
-                <p class="text-xs text-slate-600 dark:text-slate-300 mt-0.5">{{ readonly ? 'wizard.conflict.intro_readonly'|trans : 'wizard.conflict.intro'|trans }}</p>
+                <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ conflicts_title_key|default('wizard.conflict.title')|trans }}</h2>
+                {% set intro_key = conflicts_intro_key is defined ? conflicts_intro_key : (readonly ? 'wizard.conflict.intro_readonly' : 'wizard.conflict.intro') %}
+                {% if intro_key %}
+                    <p class="text-xs text-slate-600 dark:text-slate-300 mt-0.5">{{ intro_key|trans }}</p>
+                {% endif %}
 
                 <ul class="mt-3 space-y-4">
                     {% for conflict in conflicts %}

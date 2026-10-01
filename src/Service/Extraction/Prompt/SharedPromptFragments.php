@@ -149,6 +149,8 @@ final class SharedPromptFragments
         Pentru email și telefon omite câmpul dacă nu apar explicit. Nu inventa.
         Pentru onrcNumber respectă formatul canonic `J40/1234/2025` (acceptă și
         „Nr. ORC”, „Reg. Com.”, „J40/...”, „C.U.I./J...” din antetul documentului).
+        Dacă documentul scrie numărul în forma nouă, dintr-un singur șir (ex:
+        `J2003011043402`), returnează-l exact așa, fără să-l convertești.
         FRAGMENT;
     }
 
@@ -168,7 +170,8 @@ final class SharedPromptFragments
           • `cui`: doar cifrele, fără prefixul „RO” și fără spații (ex: 12345678).
           • `personalId`: CNP, exact 13 cifre, doar pentru persoane fizice.
           • `onrcNumber`: forma canonică `J40/1234/2025` (acceptă și „Nr. ORC”,
-            „Reg. Com.”, „C.U.I./J...” din antetul documentului).
+            „Reg. Com.”, „C.U.I./J...” din antetul documentului); forma nouă
+            dintr-un singur șir (ex: `J2003011043402`) se returnează exact așa.
           • `iban`: fără spații, „RO” plus 22 de caractere.
           • `phone`: format compact, `0XXXXXXXXX` sau `+40XXXXXXXXX`, fără
             puncte, spații sau paranteze.

@@ -68,7 +68,6 @@
                                     <span class="text-xs text-slate-500 dark:text-slate-400">
                                         {{ 'wizard.step0.document_type.detected'|trans({
                                             '{type}': ('document.type.' ~ document.detectedType.value)|trans,
-                                            '{confidence}': (document.detectedTypeConfidence * 100)|number_format(0),
                                         }) }}
                                     </span>
                                 {% endif %}
@@ -132,15 +131,10 @@
                                         </button>
                                     </form>
                                 {% endif %}
-                                {# We deliberately don't surface the per-document
-                                   confidence here. It's the mean of per-field
-                                   confidences for the fields that DID extract
-                                   — which is misleading (95% on one extracted
-                                   field reads as "95% complete" but really
-                                   leaves 19 other fields empty). The side-card
-                                   shows per-section coverage (filled/expected)
-                                   which answers the question lawyers actually
-                                   care about. #}
+                                {# No per-document confidence anywhere in the UI: it is the
+                                   mean of the scores the extractor gave the fields it did
+                                   find, so 95% on one field reads as "95% complete". The
+                                   side card shows how complete each section is instead. #}
                             </div>
                         </div>
                     </li>

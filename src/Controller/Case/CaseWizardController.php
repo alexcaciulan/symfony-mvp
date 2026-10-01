@@ -65,10 +65,12 @@ use App\Service\Document\UploadRateLimiter;
 use App\Service\Extraction\ConflictChoiceApplier;
 use App\Service\Extraction\ConflictResolutionService;
 use App\Service\Party\CuiNormalizer;
+use App\Service\Party\OnrcNumber;
 use App\Enum\ConflictSeverity;
 use App\Service\Creditor\CreditorLibraryService;
 use App\Service\Debtor\DebtorLibraryService;
 use App\DTO\Library\DebtorLibraryData;
+use App\Service\Extraction\DetectedDataPreviewBuilder;
 use App\Service\Extraction\PrefillFromExtractionService;
 use App\Service\Validation\OpAdmissibilityValidator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -137,6 +139,7 @@ final class CaseWizardController extends AbstractController
         private readonly StampDutyCalculator $stampDutyCalculator,
         private readonly CompetentCourtResolver $courtResolver,
         private readonly ClaimItemFactory $claimItemFactory,
+        private readonly DetectedDataPreviewBuilder $detectedDataPreview,
         private readonly ClaimTotalsService $claimTotals,
         private readonly ClaimInterestAggregator $accessoryAggregator,
         private readonly AuditLogService $auditLog,
@@ -260,14 +263,17 @@ final class CaseWizardController extends AbstractController
                 // have to agree with each other, and three passes over the same
                 // documents is three chances for them not to.
                 $preview = $this->prefill->aggregate($bag['documentIds'], $bag['conflictResolutions']);
+                $positions = $this->positionsPreview($bag['documentIds']);
 
                 return $this->render('case/_step0_upload_stream.html.twig', [
                     'documents' => $documents,
                     'creditor_preview' => $preview->creditor,
                     'debtor_preview' => $preview->debtors->debtors[0],
                     'claim_preview' => $preview->claim,
-            'claim_positions_preview' => $this->positionsPreview($bag['documentIds']),
+                    'claim_positions_preview' => $positions,
+                    'detected_sections' => $this->detectedDataPreview->build($preview->creditor, $preview->debtors->debtors[0], $preview->claim, $preview->conflicts, $positions, $bag['conflictResolutions']),
                     'prefill_conflicts' => $preview->conflicts,
+                    'prefill_conflict_resolutions' => $bag['conflictResolutions'],
                     'prefill_conflict_documents' => $this->conflictDocumentNames($bag['documentIds']),
                     'all_terminal' => $this->allTerminal($documents),
                     'document_types' => DocumentType::uploadableTypes(),
@@ -299,6 +305,7 @@ final class CaseWizardController extends AbstractController
         $this->saveBag($session, $bag);
 
         $preview = $this->prefill->aggregate($bag['documentIds'], $bag['conflictResolutions']);
+        $positions = $this->positionsPreview($bag['documentIds']);
         $viewVars = [
             'current_step' => 0,
             'form' => $form,
@@ -306,13 +313,15 @@ final class CaseWizardController extends AbstractController
             'creditor_preview' => $preview->creditor,
             'debtor_preview' => $preview->debtors->debtors[0],
             'claim_preview' => $preview->claim,
-            'claim_positions_preview' => $this->positionsPreview($bag['documentIds']),
+            'claim_positions_preview' => $positions,
+            'detected_sections' => $this->detectedDataPreview->build($preview->creditor, $preview->debtors->debtors[0], $preview->claim, $preview->conflicts, $positions, $bag['conflictResolutions']),
             // Shown here as soon as the documents disagree, read only: the
             // extraction of the other files may still be running, so the set is
             // not final and the decision belongs on the step that owns the
             // field. Seeing it now is what stops the lawyer filling three steps
             // on a party two documents describe differently.
             'prefill_conflicts' => $preview->conflicts,
+            'prefill_conflict_resolutions' => $bag['conflictResolutions'],
             'prefill_conflict_documents' => $this->conflictDocumentNames($bag['documentIds']),
             'all_terminal' => $this->allTerminal($documents),
             // Choices for the per-document type correction shown on each card.
@@ -592,12 +601,21 @@ final class CaseWizardController extends AbstractController
         foreach (self::CREDITOR_LIBRARY_FIELDS as $field) {
             $mine = trim((string) $dto->{$field});
             $theirs = trim((string) $library->{$field});
-            if ($mine !== '' && $theirs !== '' && $mine !== $theirs) {
+            if ($mine !== '' && $theirs !== '' && !$this->sameLibraryValue($field, $mine, $theirs)) {
                 $differs[$field] = [$library->{$field}, $dto->{$field}];
             }
         }
 
         return $differs;
+    }
+
+    /**
+     * A registration number in its classic and its compact registry form is
+     * one value, not a difference to ask the lawyer about.
+     */
+    private function sameLibraryValue(string $field, string $mine, string $theirs): bool
+    {
+        return $field === 'onrcNumber' ? OnrcNumber::sameRegistration($mine, $theirs) : $mine === $theirs;
     }
 
     /**
@@ -794,7 +812,7 @@ final class CaseWizardController extends AbstractController
         foreach (self::LIBRARY_FIELDS as $field) {
             $mine = trim((string) $entry->{$field});
             $theirs = trim((string) $library->{$field});
-            if ($mine !== '' && $theirs !== '' && $mine !== $theirs) {
+            if ($mine !== '' && $theirs !== '' && !$this->sameLibraryValue($field, $mine, $theirs)) {
                 $differs[$field] = [$library->{$field}, $entry->{$field}];
             }
         }
