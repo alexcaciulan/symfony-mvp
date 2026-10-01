@@ -98,9 +98,19 @@ class CaseVoter extends Voter
         return $legalCase->getUser() === $user;
     }
 
+    /**
+     * A case closed on full payment has nothing left to time: its deadlines were all
+     * closed with it. Other terminal cases keep the right, because enforcement terms
+     * still run after a closing without recovery.
+     */
     private function canManageDeadlines(LegalCase $legalCase, User $user): bool
     {
-        return $legalCase->getUser() === $user;
+        return $legalCase->getUser() === $user && !$this->isClosedOnFullPayment($legalCase);
+    }
+
+    private function isClosedOnFullPayment(LegalCase $legalCase): bool
+    {
+        return $legalCase->getStatus() === CaseStatus::INCHIS_SUCCES && $legalCase->getFullPaymentDate() !== null;
     }
 
     private function canManageStampDuty(LegalCase $legalCase, User $user): bool

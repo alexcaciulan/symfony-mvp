@@ -1,0 +1,33 @@
+{# Success of the full-payment closing, answered in place: a redirect would be
+   followed by a full reload (tracked importmap with a per-response CSP nonce) that
+   eats the flash. Every region the closing changes is swapped, the modal is closed
+   and the lawyer stays on the tab he was on. #}
+<turbo-stream action="replace" target="case-hero">
+    <template>{{ include('case/overview/_hero.html.twig') }}</template>
+</turbo-stream>
+<turbo-stream action="replace" target="case-kpi-grid">
+    <template>{{ include('case/overview/_kpi_grid.html.twig') }}</template>
+</turbo-stream>
+<turbo-stream action="replace" target="case-pipeline">
+    <template>{{ include('case/overview/_pipeline.html.twig') }}</template>
+</turbo-stream>
+<turbo-stream action="update" target="summons-communication-alert">
+    <template>{{ include('case/overview/_summons_communication_alert.html.twig') }}</template>
+</turbo-stream>
+<turbo-stream action="update" target="case-detalii-sidebar">
+    <template>{{ include('case/overview/_detalii_sidebar.html.twig') }}</template>
+</turbo-stream>
+<turbo-stream action="update" target="panel-documente">
+    <template>{{ include('case/overview/_tab_documente.html.twig') }}</template>
+</turbo-stream>
+<turbo-stream action="update" target="panel-termene">
+    <template>{{ include('case/overview/_tab_termene.html.twig') }}</template>
+</turbo-stream>
+<turbo-stream action="append" target="toasts">
+    <template><div data-controller="close-modal" data-close-modal-target-id-value="hs-modal-full-payment"></div></template>
+</turbo-stream>
+<turbo-stream action="append" target="toasts">
+    <template>
+        {% include 'components/Toast.html.twig' with { message: 'case_overview.transition.flash_success_full_payment'|trans, variant: 'success', details: [] } only %}
+    </template>
+</turbo-stream>

@@ -70,7 +70,7 @@ class AuditLogService
      */
     public const CATEGORY_ANNULMENT_REJECTED = 'ANNULMENT_REJECTED';
 
-    /** Manual `inchide_succes` / `inchide_fara_recuperare` from DEFINITIVA or EXECUTARE. */
+    /** Manual `inchide_succes` / `inchide_fara_recuperare` from DEFINITIVA or EXECUTARE, or `inchide_plata_integrala` from AMIABIL or SOMATIE_TRIMISA. */
     public const CATEGORY_CASE_CLOSED = 'CASE_CLOSED';
 
     /** Manual `trece_la_executare` from ORDONANTA_EMISA / IN_ANULARE / DEFINITIVA: enforcement phase started. */

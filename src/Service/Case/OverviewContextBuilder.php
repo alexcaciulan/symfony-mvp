@@ -9,6 +9,7 @@ use App\Entity\ClaimItem;
 use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
+use App\Enum\CaseStatus;
 use App\Enum\DocumentType;
 use App\Enum\FilingChannel;
 use App\Enum\PenaltyType;
@@ -41,6 +42,7 @@ final class OverviewContextBuilder
         private readonly StampDutyUatResolver $stampDutyUatResolver,
         private readonly StampDutyCalculator $stampDutyCalculator,
         private readonly ClaimInterestAggregator $accessoryAggregator,
+        private readonly CaseFullPaymentClosureService $fullPaymentClosure,
     ) {}
 
     /**
@@ -86,8 +88,39 @@ final class OverviewContextBuilder
             // cases predate the field), so fall back to the statutory amount rather
             // than telling the lawyer the duty is 0 lei.
             'stamp_duty_amount' => (float) ($case->getStampDuty() ?? $this->stampDutyCalculator->calculate()->amount),
+            'can_close_full_payment' => $this->fullPaymentClosure->canClose($case),
+            'closed_from_status' => $this->closedFromStatus($case),
+            'debtor_count' => $case->getDebtors()->count(),
             'just_created' => false,
         ], $extra);
+    }
+
+    /**
+     * The status a terminal case was closed from, so the pipeline can stop at the
+     * stage the case actually reached. Terminal statuses have no way out, so there is
+     * a single history entry into one. Null when the case is not terminal or predates
+     * the history.
+     */
+    private function closedFromStatus(LegalCase $case): ?CaseStatus
+    {
+        if (!$case->getStatus()->isTerminal()) {
+            return null;
+        }
+
+        foreach ($case->getStatusHistory() as $entry) {
+            if ($entry->getNewStatus() === $case->getStatus()->value) {
+                return CaseStatus::tryFrom($entry->getOldStatus());
+            }
+        }
+
+        // The history entry is written while the closing flushes, so a response built
+        // in the same request may not see it yet. A full-payment closing can only come
+        // from two places, and the summons date tells them apart.
+        if ($case->getFullPaymentDate() !== null) {
+            return $case->getPaymentNoticeDate() !== null ? CaseStatus::SOMATIE_TRIMISA : CaseStatus::AMIABIL;
+        }
+
+        return null;
     }
 
     /**

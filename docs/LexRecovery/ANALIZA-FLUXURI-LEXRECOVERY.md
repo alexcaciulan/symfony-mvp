@@ -292,6 +292,8 @@ stateDiagram-v2
     ORDONANTA_EMISA --> DEFINITIVA: marcheaza_definitiva
     IN_ANULARE --> DEFINITIVA: respinge_cerere_anulare
     IN_ANULARE --> RESPINSA: admite_cerere_anulare
+    AMIABIL --> INCHIS_SUCCES: inchide_plata_integrala
+    SOMATIE_TRIMISA --> INCHIS_SUCCES: inchide_plata_integrala
     DEFINITIVA --> INCHIS_SUCCES: inchide_succes
     DEFINITIVA --> INCHIS_PARTIAL_INSOLVABIL: inchide_insolvabil
     RESPINSA --> [*]
@@ -314,6 +316,7 @@ stateDiagram-v2
 | `respinge_cerere_anulare` | Manual | Avocat marchează după soluție instanță |
 | `admite_cerere_anulare` | Manual | Avocat marchează |
 | `inchide_succes` | Manual | Avocat confirmă plata |
+| `inchide_plata_integrala` | Manual | Avocat confirmă plata integrală înainte de cererea OP (din AMIABIL sau SOMATIE_TRIMISA); închide și termenele deschise |
 | `inchide_insolvabil` | Manual | Avocat marchează |
 
 ---

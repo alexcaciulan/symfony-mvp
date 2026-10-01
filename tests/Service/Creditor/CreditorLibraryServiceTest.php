@@ -77,6 +77,22 @@ final class CreditorLibraryServiceTest extends KernelTestCase
         self::assertTrue($this->library->cuiChangeRefused($creditor, 'RO14186770'));
     }
 
+    /** A case closed on full payment straight from AMIABIL sent no somatie, so the CUI may still move. */
+    public function testACaseClosedOnFullPaymentBeforeTheSomatieDoesNotLockTheCui(): void
+    {
+        $creditor = $this->creditor();
+        $case = $this->caseFor($creditor, CaseStatus::INCHIS_SUCCES);
+        $case->setFullPaymentDate(new \DateTimeImmutable('2026-01-10'));
+        $this->em->flush();
+
+        self::assertFalse($this->library->cuiChangeRefused($creditor, 'RO14186770'));
+
+        $case->setPaymentNoticeDate(new \DateTime('2026-01-02'));
+        $this->em->flush();
+
+        self::assertTrue($this->library->cuiChangeRefused($creditor, 'RO14186770'), 'Closed after the somatie went out: the CUI is locked.');
+    }
+
     private function creditor(): Creditor
     {
         $creditor = new Creditor();

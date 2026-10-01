@@ -391,8 +391,11 @@ stateDiagram-v2
     INCHIS_SUCCES --> [*]
     INCHIS_PARTIAL --> [*]
     INCHIS_INSOLVABIL --> [*]
-    AMIABIL --> INCHIS_SUCCES : Plată amiabilă
+    AMIABIL --> INCHIS_SUCCES : inchide_plata_integrala
+    SOMATIE_TRIMISA --> INCHIS_SUCCES : inchide_plata_integrala
 ```
+
+Plata integrală înainte de cererea OP (feedback avocat 2026-10-01): tranziția dedicată `inchide_plata_integrala` închide dosarul din AMIABIL sau SOMATIE_TRIMISA cu data plății (`fullPaymentDate`) și închide în aceeași tranzacție toate termenele deschise. Deciziile complete (D1-D14) sunt în `PLAN-INCHIDERE-PLATA-INTEGRALA.md`.
 
 ### Implementare tranziție status
 

@@ -549,8 +549,40 @@ final class DeadlineService
     private function closeDeadline(LegalCase $legalCase, DeadlineType $type, string $action, string $reason, array $extraAuditData = [], ?User $user = null): ?LegalDeadline
     {
         $deadline = $this->deadlineRepository->findOneByCaseAndType($legalCase, $type);
-        if ($deadline === null || $deadline->isCompleted()) {
-            return $deadline;
+        if ($deadline !== null) {
+            $this->closeDeadlineEntity($deadline, $action, $reason, $extraAuditData, $user);
+        }
+
+        return $deadline;
+    }
+
+    /**
+     * Closes every open deadline of a case paid in full before the payment order
+     * request, the limitation term and the lawyer's own reminders included: nothing is
+     * left to act on, and an open term would keep the alert cron firing on a closed case.
+     *
+     * @return int how many deadlines were closed
+     */
+    public function closeAllOpenOnFullPayment(LegalCase $legalCase, User $user): int
+    {
+        $closed = 0;
+        foreach ($this->deadlineRepository->findIncompleteByCase($legalCase) as $deadline) {
+            $this->closeDeadlineEntity($deadline, 'deadline_completed', 'case_closed_full_payment', user: $user);
+            ++$closed;
+        }
+
+        return $closed;
+    }
+
+    /**
+     * Idempotent: an already closed deadline is left untouched.
+     *
+     * @param array<string, string> $extraAuditData merged into the audit payload
+     */
+    private function closeDeadlineEntity(LegalDeadline $deadline, string $action, string $reason, array $extraAuditData = [], ?User $user = null): void
+    {
+        if ($deadline->isCompleted()) {
+            return;
         }
 
         $deadline->markCompleted($user);
@@ -562,8 +594,8 @@ final class DeadlineService
             entityId: (string) $deadline->getId(),
             newData: [
                 'deadlineId' => $deadline->getId(),
-                'type' => $type->value,
-                'caseNumber' => $legalCase->getCaseNumber(),
+                'type' => $deadline->getType()->value,
+                'caseNumber' => $deadline->getLegalCase()->getCaseNumber(),
                 'deadlineDate' => $deadline->getDeadlineDate()->format('Y-m-d'),
                 'reason' => $reason,
                 ...$extraAuditData,
@@ -571,8 +603,6 @@ final class DeadlineService
             category: AuditLogService::CATEGORY_DEADLINE_COMPLETED,
         );
         $this->em->flush();
-
-        return $deadline;
     }
 
     /**

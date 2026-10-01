@@ -862,7 +862,6 @@ case_overview:
         coming_soon_share: 'Partajare și colaboratori (în curând)'
         coming_soon_edit: 'Editare detalii (în curând)'
         coming_soon_duplicate: 'Duplică dosar (în curând)'
-        coming_soon_mark_paid: 'Marchează plată amiabilă (în curând)'
     header:
         type_op: 'Ordonanță de plată'
         vs: 'vs'
@@ -871,6 +870,7 @@ case_overview:
         no_debtor: '(fără debitor)'
         court_undetermined: 'Instanță needeterminată'
         payment_term_expired: 'termen somație expirat'
+        full_payment_chip: 'Plată integrală · %date%'
     hero:
         next_step_badge: 'Următorul pas'
     cta:
@@ -909,6 +909,9 @@ case_overview:
         stage_4_monitorizare: 'Monitorizare'
         stage_5_definitiva: 'Definitivă'
         stage_pending_label: '—'
+        closed_at_stage: 'Închis la stadiul %current% din %total%: %label%'
+        closed_full_payment_label: 'Închis: plată integrală · %date%'
+        stage_skipped_label: 'Nu a fost necesar'
         stage_in_progress_label: 'în mers'
         title_executoriu: 'titlu executoriu'
     parties:
@@ -982,6 +985,8 @@ case_overview:
         recommended_badge: 'recomandat'
         mark_paid: 'Marchează plată amiabilă'
         mark_paid_hint: 'Achitat înainte de instanță'
+        case_closed_full_payment: 'Dosar închis: creanță achitată integral la %date%'
+        case_closed_full_payment_hint: 'Închis înainte de cererea de ordonanță de plată.'
         confirm_filing: 'Confirmă depunerea la instanță'
         confirm_filing_hint: 'Pachetul e generat. Spune-ne când și pe ce cale l-ai depus.'
         register_case: 'Înregistrează dosar la instanță'
@@ -1061,6 +1066,8 @@ case_overview:
         cerere_status_missing: '(lipsește)'
         cerere_pending_hint: 'Va fi generată la depunere cerere, pre-completată cu datele dosarului.'
         cerere_missing_hint: 'Generați mai întâi somația, apoi cererea de OP devine disponibilă.'
+        not_needed: '(nu a fost necesar)'
+        not_needed_full_payment_hint: 'Dosarul a fost închis: creanța a fost achitată integral.'
         cerere_generated_on: 'Generată %date%'
         cerere_cta: 'Generează acum'
         cerere_download: 'Descarcă PDF'
@@ -1233,6 +1240,7 @@ case_overview:
         flash_warning_ruling_document: 'Ordonanța a fost confirmată, dar atașarea documentului a eșuat. Îl poți încărca din secțiunea Documente.'
         flash_success_reject: 'Dosarul a fost marcat ca respins.'
         flash_success_close: 'Dosarul a fost închis. Datele rămân arhivate.'
+        flash_success_full_payment: 'Dosarul a fost închis: creanța a fost achitată integral. Termenele deschise au fost închise.'
         flash_success_executare: 'Dosarul a trecut în faza de executare silită.'
         flash_success_annulment_rejected: 'Cererea în anulare a fost respinsă. Ordonanța rămâne valabilă.'
         flash_error_needs_communication_date: 'Completează data comunicării ordonanței înainte de a porni executarea din această stare.'
@@ -1286,6 +1294,20 @@ case_overview:
         close_case_reason_insolvent: 'Debitor insolvabil'
         close_case_reason_abandoned: 'Abandon dosar (decizie client)'
         close_case_cancel: 'Renunță'
+        full_payment_title: 'Debitorul a achitat integral'
+        full_payment_intro: 'Închide dosarul fără cerere de ordonanță de plată: debitorul a achitat întreaga creanță.'
+        full_payment_field_date_label: 'Data plății'
+        full_payment_field_date_reference: 'Somația a fost emisă la %date%.'
+        full_payment_field_amount_label: 'Suma încasată (RON, opțional)'
+        full_payment_field_details_label: 'Mențiuni (opțional)'
+        full_payment_field_details_help: 'Nu introduce date personale inutile (CNP, IBAN).'
+        full_payment_field_confirm_label: 'Confirm că întreaga creanță din acest dosar a fost achitată: principalul, dobânzile sau penalitățile până la data plății și cheltuielile de recuperare. Nu mai rămâne nimic de recuperat de la niciunul dintre debitori.'
+        full_payment_warning_multi_debtor: 'Dosarul are %count% debitori. Închide-l doar dacă nu mai ai nimic de recuperat de la niciunul.'
+        full_payment_warning_accessories: 'Dacă dobânzile, penalitățile sau cheltuielile de recuperare nu au fost achitate, nu închide dosarul: ele pot fi cerute prin ordonanța de plată.'
+        full_payment_warning_proof: 'Încarcă dovada plății în tab-ul Documente înainte de închidere. După închidere dosarul devine doar pentru citire.'
+        full_payment_warning_irreversible: 'Închiderea nu mai poate fi anulată din aplicație. Dosarul primește statusul Închis cu succes, iar toate termenele deschise se închid, inclusiv prescripția și termenele adăugate de tine.'
+        full_payment_cancel: 'Renunță'
+        full_payment_submit: 'Închide dosarul'
         close_case_confirm: 'Închide dosar'
         executare_title: 'Inițiază executarea silită'
         executare_body_prefix: 'Pentru dosarul'
@@ -2253,6 +2275,7 @@ enum:
         trece_la_executare: 'Trece la executare silită'
         inchide_succes: 'Închide cu succes'
         inchide_fara_recuperare: 'Închide fără recuperare'
+        inchide_plata_integrala: 'Închide: plată integrală'
     court_type:
         judecatorie: 'Judecătorie'
         tribunal: 'Tribunal'
@@ -2617,6 +2640,10 @@ email:
             subject: 'Dosar închis cu recuperare: %case%'
             heading: 'Dosarul a fost închis cu recuperare'
             body: 'Dosarul %case% a fost închis cu succes: creanța a fost recuperată.'
+        inchis_plata_integrala:
+            subject: 'Dosar închis, creanță achitată integral: %case%'
+            heading: 'Dosarul a fost închis: creanța a fost achitată integral'
+            body: 'Dosarul %case% a fost închis: creanța a fost achitată integral înainte de cererea de ordonanță de plată.'
         inchis_fara_recuperare:
             subject: 'Dosar închis fără recuperare: %case%'
             heading: 'Dosarul a fost închis fără recuperare'
@@ -2724,6 +2751,9 @@ notification:
         inchis_succes:
             title: 'Dosar închis cu recuperare: %case%'
             message: 'Dosarul %case% a fost închis cu succes: creanța a fost recuperată.'
+        inchis_plata_integrala:
+            title: 'Dosar închis, creanță achitată integral: %case%'
+            message: 'Dosarul %case% a fost închis: creanța a fost achitată integral înainte de cererea de ordonanță de plată.'
         inchis_fara_recuperare:
             title: 'Dosar închis fără recuperare: %case%'
             message: 'Dosarul %case% a fost închis fără recuperarea creanței.'

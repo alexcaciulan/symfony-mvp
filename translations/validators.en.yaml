@@ -96,3 +96,10 @@ validation:
         invalid: 'Email address is not in a valid format.'
     iban:
         invalid_format: 'IBAN must follow the Romanian format (ROXX BBBB XXXXXXXXXXXXXXXX).'
+
+full_payment:
+    date_required: 'Enter the payment date.'
+    date_future: 'The payment date cannot be in the future.'
+    confirm_required: 'Confirm that the whole claim was paid.'
+    details_max: 'Notes can be at most {{ limit }} characters.'
+    amount_positive: 'The amount received cannot be negative.'

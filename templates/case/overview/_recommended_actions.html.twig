@@ -1,8 +1,10 @@
 {# Sidebar Acțiuni recomandate cu 4 buttons enum-mapped pe CaseStatus. Reflectă mockup linii 600-624. #}
 {% from 'case/overview/_icons.html.twig' import icon_check, icon_document, icon_money, icon_chevron_right %}
 
-{# A case has its summons sent (or beyond) when its status is past AMIABIL in the pipeline. #}
-{% set summons_done = case.status.value != 'AMIABIL' %}
+{# A case has its summons sent (or beyond) when its status is past AMIABIL in the
+   pipeline, unless it was closed straight from AMIABIL on full payment. #}
+{% set closed_from = closed_from_status|default(null) %}
+{% set summons_done = case.status.value != 'AMIABIL' and not (closed_from and closed_from.value == 'AMIABIL') %}
 
 {# Find the date when SOMATIE_TRIMISA was first reached, if any, to display under "deja generată".
    Filter the Doctrine collection then take the first match — Twig 3.x dropped `for...if` syntax. #}
@@ -30,7 +32,7 @@
                     {% endif %}
                 </div>
             </div>
-        {% else %}
+        {% elseif case.status.value == 'AMIABIL' %}
             <form method="post"
                   action="{{ path('case_summons_generate', {id: case.id}) }}"
                   data-turbo-frame="_top"
@@ -70,19 +72,34 @@
             </button>
         {% endif %}
 
-        {# 3. Mark amicable payment — disabled (coming soon). #}
-        <button type="button"
-                aria-disabled="true"
-                title="{{ 'case_overview.tooltip.coming_soon_mark_paid'|trans }}"
-                class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg opacity-60 cursor-not-allowed hover:bg-slate-50 dark:hover:bg-slate-800/50 transition">
-            <div class="size-9 rounded-lg bg-green-100 dark:bg-green-950/40 text-green-600 dark:text-green-400 flex items-center justify-center shrink-0">
-                {{ icon_money('size-4') }}
+        {# 3. Full payment before the payment order request: offered only while the
+           case can still close that way (AMIABIL, SOMATIE_TRIMISA). Once closed, the
+           card states how and when. #}
+        {% if can_close_full_payment|default(false) %}
+            <button type="button"
+                    data-hs-overlay="#hs-modal-full-payment"
+                    data-testid="action-full-payment"
+                    class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg hover:bg-green-50 dark:hover:bg-green-950/30 border border-transparent hover:border-green-200/60 dark:hover:border-green-900/40 transition group">
+                <div class="size-9 rounded-lg bg-green-100 dark:bg-green-950/40 text-green-600 dark:text-green-400 flex items-center justify-center shrink-0">
+                    {{ icon_money('size-4') }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium text-slate-900 dark:text-white">{{ 'case_overview.recommended_actions.mark_paid'|trans }}</div>
+                    <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{{ 'case_overview.recommended_actions.mark_paid_hint'|trans }}</div>
+                </div>
+                {{ icon_chevron_right('size-4 text-green-600 dark:text-green-400 shrink-0') }}
+            </button>
+        {% elseif case.fullPaymentDate %}
+            <div class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200/60 dark:border-green-900/40" data-testid="action-full-payment-done">
+                <div class="size-9 rounded-lg bg-green-100 dark:bg-green-950/40 text-green-600 dark:text-green-400 flex items-center justify-center shrink-0">
+                    {{ icon_check('size-4') }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-semibold text-green-800 dark:text-green-200">{{ 'case_overview.recommended_actions.case_closed_full_payment'|trans({'%date%': case.fullPaymentDate|date('d.m.Y')}) }}</div>
+                    <div class="text-[11px] text-green-700/80 dark:text-green-300/80 mt-0.5">{{ 'case_overview.recommended_actions.case_closed_full_payment_hint'|trans }}</div>
+                </div>
             </div>
-            <div class="flex-1 min-w-0">
-                <div class="text-sm font-medium text-slate-900 dark:text-white">{{ 'case_overview.recommended_actions.mark_paid'|trans }}</div>
-                <div class="text-[11px] text-slate-500 mt-0.5">{{ 'case_overview.recommended_actions.mark_paid_hint'|trans }}</div>
-            </div>
-        </button>
+        {% endif %}
 
         {# Status-driven transitions exposed inline as secondary CTAs. Each opens the matching
            Preline modal; the controller validates and applies the workflow transition. #}

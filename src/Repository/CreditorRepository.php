@@ -111,7 +111,8 @@ class CreditorRepository extends ServiceEntityRepository
 
     /**
      * Whether a case past the amicable stage names the creditor (a somatie went
-     * out). Soft-deleted cases count: the somatie they sent still stands.
+     * out). Soft-deleted cases count: the somatie they sent still stands. A case
+     * closed on full payment straight from AMIABIL sent none.
      */
     public function hasSummonedCase(Creditor $creditor): bool
     {
@@ -120,6 +121,7 @@ class CreditorRepository extends ServiceEntityRepository
             ->from(LegalCase::class, 'lc')
             ->andWhere('lc.creditor = :creditor')
             ->andWhere('lc.status <> :amicable')
+            ->andWhere('lc.fullPaymentDate IS NULL OR lc.paymentNoticeDate IS NOT NULL')
             ->setParameter('creditor', $creditor)
             ->setParameter('amicable', CaseStatus::AMIABIL)
             ->getQuery()

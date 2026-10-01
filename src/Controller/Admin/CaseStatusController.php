@@ -37,7 +37,12 @@ class CaseStatusController extends AbstractController
             throw $this->createNotFoundException();
         }
 
-        $availableTransitions = $this->workflowService->getAvailableTransitions($case);
+        // The full-payment closing needs a payment date and closes the case's deadlines:
+        // it only goes through the case overview, never as a bare status change.
+        $availableTransitions = array_values(array_diff(
+            $this->workflowService->getAvailableTransitions($case),
+            [CaseTransition::INCHIDE_PLATA_INTEGRALA->value],
+        ));
 
         if ($request->isMethod('POST')) {
             $transition = $request->getPayload()->getString('transition');

@@ -45,6 +45,22 @@ class LegalDeadlineRepository extends ServiceEntityRepository
     }
 
     /**
+     * Open deadlines of one case, of every type, earliest first.
+     *
+     * @return LegalDeadline[]
+     */
+    public function findIncompleteByCase(LegalCase $case): array
+    {
+        return $this->createQueryBuilder('d')
+            ->andWhere('d.legalCase = :case')
+            ->andWhere('d.completed = false')
+            ->setParameter('case', $case)
+            ->orderBy('d.deadlineDate', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * All incomplete deadlines (global, not scoped per user) for the alert cron
      * (DeadlineAlertService). Excludes deadlines on soft-deleted cases. Ordered
      * chronologically for deterministic output.

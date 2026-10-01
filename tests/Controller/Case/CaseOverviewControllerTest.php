@@ -228,6 +228,80 @@ final class CaseOverviewControllerTest extends WebTestCase
         return $entry;
     }
 
+    public function testFullPaymentActionAndModalOfferedOnAmiabilAndSomatie(): void
+    {
+        $this->client->loginUser($this->user);
+        $this->enrichCase();
+
+        foreach ([CaseStatus::AMIABIL, CaseStatus::SOMATIE_TRIMISA] as $status) {
+            $this->case->setStatus($status);
+            $this->em->flush();
+            $this->client->request('GET', '/case/' . $this->case->getId());
+
+            self::assertResponseIsSuccessful();
+            self::assertSelectorExists('[data-testid="action-full-payment"][data-hs-overlay="#hs-modal-full-payment"]', $status->value);
+            self::assertSelectorExists('#hs-modal-full-payment form[action$="/transition/full-payment"]', $status->value);
+            self::assertSelectorNotExists('[data-testid="full-payment-multi-debtor"]', 'Single debtor: no multi-debtor warning.');
+        }
+    }
+
+    public function testFullPaymentActionAbsentOnceRequestGenerated(): void
+    {
+        $this->enrichCase(CaseStatus::CERERE_GENERATA);
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertSelectorNotExists('[data-testid="action-full-payment"]');
+        self::assertSelectorNotExists('#hs-modal-full-payment');
+    }
+
+    public function testFullPaymentModalWarnsWhenSeveralDebtors(): void
+    {
+        $this->enrichCase(CaseStatus::SOMATIE_TRIMISA);
+        $second = new Debtor();
+        $second->setUser($this->user);
+        $second->setPersonType(PersonType::PJ);
+        $second->setName('SC Gamma Distribution SRL');
+        $second->setAddress('Str. Lunga 3, Brașov');
+        $second->setCui('RO11223344');
+        $this->em->persist($second);
+        $this->case->addDebtor(new LegalCaseDebtor($second));
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertSelectorExists('[data-testid="full-payment-multi-debtor"]');
+    }
+
+    /** Closed from Somație trimisă: the pipeline stops there, later stages read as not needed. */
+    public function testCaseClosedOnFullPaymentShowsWhereItStopped(): void
+    {
+        $this->enrichCase(CaseStatus::INCHIS_SUCCES);
+        $this->case->setFullPaymentDate(new \DateTimeImmutable('2026-01-15'));
+        $this->case->setPaymentNoticeDate(new \DateTime('2026-01-05'));
+        $this->em->flush();
+        $this->recordTransition('SOMATIE_TRIMISA');
+        $this->recordTransition('INCHIS_SUCCES', 'SOMATIE_TRIMISA');
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        $translator = static::getContainer()->get('translator');
+        self::assertSelectorTextContains('#case-pipeline h2', $translator->trans('case_overview.pipeline.closed_at_stage', ['%current%' => 2, '%total%' => 5, '%label%' => $translator->trans('case_overview.pipeline.stage_2_somatie')]));
+        self::assertSelectorTextContains('[data-testid="pipeline-closed-full-payment"]', '15.01.2026');
+        self::assertSelectorTextNotContains('#case-pipeline', $translator->trans('case_overview.pipeline.stage_in_progress_label'));
+        self::assertSelectorExists('[data-testid="hero-full-payment"]');
+        self::assertSelectorExists('[data-testid="action-full-payment-done"]');
+        self::assertSelectorNotExists('[data-testid="action-full-payment"]');
+        self::assertSelectorNotExists('#hs-modal-add-deadline');
+        self::assertSelectorNotExists('#case-recommended-actions [data-hs-overlay="#hs-modal-cerere-op"]');
+        self::assertSelectorNotExists('#panel-documente [data-hs-overlay="#hs-modal-cerere-op"]');
+        self::assertSelectorTextContains('#panel-documente', $translator->trans('case_overview.documents.not_needed'));
+        self::assertSelectorNotExists('#panel-documente [data-hs-overlay="#hs-modal-upload-document"]');
+        self::assertSelectorTextNotContains('#panel-documente', $translator->trans('case_overview.documents.opis_status_pending'));
+    }
+
     public function testGetOverviewForOwnedCaseReturns200(): void
     {
         $this->client->loginUser($this->user);

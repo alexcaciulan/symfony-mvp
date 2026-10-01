@@ -225,6 +225,20 @@ final class EmailNotificationSubscriberTest extends TestCase
         self::assertSame('notification.case_status.inchis_succes.message', $request->message);
     }
 
+    public function testWorkflowFullPaymentClosureUsesDedicatedNotificationKeys(): void
+    {
+        $spy = new SpyNotificationDispatcher();
+        $transition = new Transition('inchide_plata_integrala', 'SOMATIE_TRIMISA', 'INCHIS_SUCCES');
+
+        $this->subscriber($spy)->onInchisSucces(new EnteredEvent($this->case(), new Marking(), $transition));
+
+        $request = $spy->last();
+        self::assertSame('success', $request->variant);
+        self::assertSame('notification.case_status.inchis_plata_integrala.title', $request->title);
+        self::assertSame('notification.case_status.inchis_plata_integrala.message', $request->message);
+        self::assertSame('email.case_status.inchis_plata_integrala.subject', $request->emailSubject);
+    }
+
     public function testWorkflowInchisFaraRecuperareMapsToWarningStatusNotification(): void
     {
         $spy = new SpyNotificationDispatcher();

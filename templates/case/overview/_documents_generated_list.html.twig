@@ -61,9 +61,9 @@
                 <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2 flex-wrap">
                         <span class="font-semibold text-sm text-slate-500">{{ 'case_overview.documents.somatie_label'|trans }}</span>
-                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">{{ 'case_overview.documents.somatie_status_missing'|trans }}</span>
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">{{ (case.fullPaymentDate ? 'case_overview.documents.not_needed' : 'case_overview.documents.somatie_status_missing')|trans }}</span>
                     </div>
-                    <div class="text-xs text-slate-400 mt-0.5">{{ 'case_overview.documents.somatie_missing_hint'|trans }}</div>
+                    <div class="text-xs text-slate-400 mt-0.5">{{ (case.fullPaymentDate ? 'case_overview.documents.not_needed_full_payment_hint' : 'case_overview.documents.somatie_missing_hint')|trans }}</div>
                 </div>
             </div>
         {% endif %}
@@ -108,9 +108,9 @@
                 <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2 flex-wrap">
                         <span class="font-semibold text-sm text-slate-500">{{ 'case_overview.documents.cerere_label'|trans }}</span>
-                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">{{ 'case_overview.documents.cerere_status_missing'|trans }}</span>
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">{{ (case.fullPaymentDate ? 'case_overview.documents.not_needed' : 'case_overview.documents.cerere_status_missing')|trans }}</span>
                     </div>
-                    <div class="text-xs text-slate-400 mt-0.5">{{ 'case_overview.documents.cerere_missing_hint'|trans }}</div>
+                    <div class="text-xs text-slate-400 mt-0.5">{{ (case.fullPaymentDate ? 'case_overview.documents.not_needed_full_payment_hint' : 'case_overview.documents.cerere_missing_hint')|trans }}</div>
                 </div>
             </div>
         {% endif %}
@@ -138,9 +138,9 @@
                 <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2 flex-wrap">
                         <span class="font-semibold text-sm text-slate-500">{{ 'case_overview.documents.opis_label'|trans }}</span>
-                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">{{ 'case_overview.documents.opis_status_pending'|trans }}</span>
+                        <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">{{ (case.fullPaymentDate ? 'case_overview.documents.not_needed' : 'case_overview.documents.opis_status_pending')|trans }}</span>
                     </div>
-                    <div class="text-xs text-slate-400 mt-0.5">{{ 'case_overview.documents.opis_pending_hint'|trans }}</div>
+                    <div class="text-xs text-slate-400 mt-0.5">{{ (case.fullPaymentDate ? 'case_overview.documents.not_needed_full_payment_hint' : 'case_overview.documents.opis_pending_hint')|trans }}</div>
                 </div>
             </div>
         {% endif %}

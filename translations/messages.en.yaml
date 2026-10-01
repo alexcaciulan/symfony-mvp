@@ -862,7 +862,6 @@ case_overview:
         coming_soon_share: 'Sharing and collaborators (coming soon)'
         coming_soon_edit: 'Edit details (coming soon)'
         coming_soon_duplicate: 'Duplicate case (coming soon)'
-        coming_soon_mark_paid: 'Mark amicable payment (coming soon)'
     header:
         type_op: 'Payment order'
         vs: 'vs'
@@ -871,6 +870,7 @@ case_overview:
         no_debtor: '(no debtor)'
         court_undetermined: 'Court undetermined'
         payment_term_expired: 'summons term expired'
+        full_payment_chip: 'Paid in full · %date%'
     hero:
         next_step_badge: 'Next step'
     cta:
@@ -909,6 +909,9 @@ case_overview:
         stage_4_monitorizare: 'Monitoring'
         stage_5_definitiva: 'Final'
         stage_pending_label: '—'
+        closed_at_stage: 'Closed at stage %current% of %total%: %label%'
+        closed_full_payment_label: 'Closed: paid in full · %date%'
+        stage_skipped_label: 'Not needed'
         stage_in_progress_label: 'in progress'
         title_executoriu: 'enforceable title'
     parties:
@@ -982,6 +985,8 @@ case_overview:
         recommended_badge: 'recommended'
         mark_paid: 'Mark amicable payment'
         mark_paid_hint: 'Settled before court'
+        case_closed_full_payment: 'Case closed: claim paid in full on %date%'
+        case_closed_full_payment_hint: 'Closed before the payment order request.'
         confirm_filing: 'Confirm the filing with the court'
         confirm_filing_hint: 'The package is generated. Tell us when and how you filed it.'
         register_case: 'Register case with court'
@@ -1061,6 +1066,8 @@ case_overview:
         cerere_status_missing: '(missing)'
         cerere_pending_hint: 'Will be generated on filing, pre-filled with case data.'
         cerere_missing_hint: 'Generate the payment notice first, then the petition becomes available.'
+        not_needed: '(not needed)'
+        not_needed_full_payment_hint: 'The case was closed: the claim was paid in full.'
         cerere_generated_on: 'Generated %date%'
         cerere_cta: 'Generate now'
         cerere_download: 'Download PDF'
@@ -1236,6 +1243,7 @@ case_overview:
         flash_warning_ruling_document: 'The ruling was confirmed, but attaching the document failed. You can upload it from the Documents section.'
         flash_success_reject: 'The case has been marked as rejected.'
         flash_success_close: 'The case has been closed. Data remains archived.'
+        flash_success_full_payment: 'The case has been closed: the claim was paid in full. Open deadlines were closed.'
         flash_success_executare: 'The case has moved to the enforcement phase.'
         flash_success_annulment_rejected: 'The annulment request was rejected. The order remains valid.'
         flash_error_needs_communication_date: 'Fill in the order communication date before starting enforcement from this status.'
@@ -1289,6 +1297,20 @@ case_overview:
         close_case_reason_insolvent: 'Debtor insolvent'
         close_case_reason_abandoned: 'Case abandoned (client decision)'
         close_case_cancel: 'Cancel'
+        full_payment_title: 'The debtor paid in full'
+        full_payment_intro: 'Close the case without a payment order request: the debtor paid the whole claim.'
+        full_payment_field_date_label: 'Payment date'
+        full_payment_field_date_reference: 'The payment notice was issued on %date%.'
+        full_payment_field_amount_label: 'Amount received (RON, optional)'
+        full_payment_field_details_label: 'Notes (optional)'
+        full_payment_field_details_help: 'Do not enter unnecessary personal data (personal ID number, IBAN).'
+        full_payment_field_confirm_label: 'I confirm the whole claim in this case was paid: principal, interest or penalties up to the payment date and the recovery costs. Nothing is left to recover from any of the debtors.'
+        full_payment_warning_multi_debtor: 'The case has %count% debtors. Close it only if nothing is left to recover from any of them.'
+        full_payment_warning_accessories: 'If interest, penalties or recovery costs were not paid, do not close the case: they can be claimed through the payment order.'
+        full_payment_warning_proof: 'Upload the proof of payment in the Documents tab before closing. Once closed, the case is read-only.'
+        full_payment_warning_irreversible: 'The closing cannot be undone from the application. The case gets the status Closed successfully and every open deadline closes, the limitation term and your own deadlines included.'
+        full_payment_cancel: 'Cancel'
+        full_payment_submit: 'Close the case'
         close_case_confirm: 'Close case'
         executare_title: 'Start enforcement'
         executare_body_prefix: 'For case'
@@ -2256,6 +2278,7 @@ enum:
         trece_la_executare: 'Move to enforcement'
         inchide_succes: 'Close: recovered'
         inchide_fara_recuperare: 'Close: not recovered'
+        inchide_plata_integrala: 'Close: paid in full'
     court_type:
         judecatorie: 'Local court'
         tribunal: 'Tribunal'
@@ -2620,6 +2643,10 @@ email:
             subject: 'Case closed with recovery: %case%'
             heading: 'The case was closed with recovery'
             body: 'Case %case% was closed successfully: the claim was recovered.'
+        inchis_plata_integrala:
+            subject: 'Case closed, claim paid in full: %case%'
+            heading: 'The case was closed: the claim was paid in full'
+            body: 'Case %case% was closed: the claim was paid in full before the payment order request.'
         inchis_fara_recuperare:
             subject: 'Case closed without recovery: %case%'
             heading: 'The case was closed without recovery'
@@ -2726,6 +2753,9 @@ notification:
         inchis_succes:
             title: 'Case closed with recovery: %case%'
             message: 'Case %case% was closed successfully: the claim was recovered.'
+        inchis_plata_integrala:
+            title: 'Case closed, claim paid in full: %case%'
+            message: 'Case %case% was closed: the claim was paid in full before the payment order request.'
         inchis_fara_recuperare:
             title: 'Case closed without recovery: %case%'
             message: 'Case %case% was closed without recovering the claim.'

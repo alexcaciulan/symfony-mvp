@@ -238,6 +238,10 @@ class LegalCase
     #[ORM\Column(type: Types::DATE_MUTABLE, nullable: true)]
     private ?\DateTimeInterface $paymentNoticeDate = null;
 
+    /** When the debtor paid the whole claim, for a case closed before the payment order request. */
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $fullPaymentDate = null;
+
     #[ORM\Column(length: 50, nullable: true)]
     private ?string $courtCaseNumber = null;
 
@@ -941,6 +945,18 @@ class LegalCase
     public function setPaymentNoticeDate(?\DateTimeInterface $paymentNoticeDate): static
     {
         $this->paymentNoticeDate = $paymentNoticeDate;
+
+        return $this;
+    }
+
+    public function getFullPaymentDate(): ?\DateTimeImmutable
+    {
+        return $this->fullPaymentDate;
+    }
+
+    public function setFullPaymentDate(?\DateTimeImmutable $fullPaymentDate): static
+    {
+        $this->fullPaymentDate = $fullPaymentDate;
 
         return $this;
     }

@@ -19,6 +19,7 @@ enum CaseTransition: string
     case TRECE_LA_EXECUTARE = 'trece_la_executare';
     case INCHIDE_SUCCES = 'inchide_succes';
     case INCHIDE_FARA_RECUPERARE = 'inchide_fara_recuperare';
+    case INCHIDE_PLATA_INTEGRALA = 'inchide_plata_integrala';
 
     public function label(): string
     {

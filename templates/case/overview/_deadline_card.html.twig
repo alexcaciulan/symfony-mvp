@@ -237,17 +237,20 @@
                 </button>
             {% endif %}
 
-            <form method="post"
-                  action="{{ path('case_deadline_delete', {caseId: deadline.legalCase.id, deadlineId: deadline.id}) }}"
-                  data-turbo-frame="_top"
-                  data-turbo-confirm="{{ (is_critical ? 'case_overview.deadlines.delete_confirm_critical' : 'case_overview.deadlines.delete_confirm')|trans }}">
-                <input type="hidden" name="_token" value="{{ csrf_token('delete_deadline_' ~ deadline.id) }}">
-                <button type="submit"
-                        aria-label="{{ 'case_overview.deadlines.delete_aria'|trans }}"
-                        class="inline-flex items-center justify-center size-6 rounded-full text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition">
-                    {{ icon_trash('size-3.5') }}
-                </button>
-            </form>
+            {# A case closed on full payment is read-only: its deadlines were closed with it. #}
+            {% if not deadline.legalCase.fullPaymentDate %}
+                <form method="post"
+                      action="{{ path('case_deadline_delete', {caseId: deadline.legalCase.id, deadlineId: deadline.id}) }}"
+                      data-turbo-frame="_top"
+                      data-turbo-confirm="{{ (is_critical ? 'case_overview.deadlines.delete_confirm_critical' : 'case_overview.deadlines.delete_confirm')|trans }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token('delete_deadline_' ~ deadline.id) }}">
+                    <button type="submit"
+                            aria-label="{{ 'case_overview.deadlines.delete_aria'|trans }}"
+                            class="inline-flex items-center justify-center size-6 rounded-full text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition">
+                        {{ icon_trash('size-3.5') }}
+                    </button>
+                </form>
+            {% endif %}
         </div>
     </div>
 </section>
