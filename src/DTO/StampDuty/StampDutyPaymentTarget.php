@@ -6,6 +6,7 @@ namespace App\DTO\StampDuty;
 
 use App\Entity\City;
 use App\Enum\StampDutyTargetStatus;
+use App\Enum\UatType;
 
 /**
  * Where the judicial stamp duty must be paid (OUG 80/2013 art. 40). Deliberately
@@ -13,6 +14,9 @@ use App\Enum\StampDutyTargetStatus;
  * consolidated official registry, and paying into the wrong UAT's account is
  * treated as non-payment, so the platform names the town hall and lets the
  * official portal resolve the account.
+ *
+ * In Bucharest the duty goes to the sector's budget and is collected by the sector's
+ * local tax directorate, not by a town hall, so the card names that body instead.
  */
 final readonly class StampDutyPaymentTarget
 {
@@ -35,6 +39,12 @@ final readonly class StampDutyPaymentTarget
     public function uatName(): ?string
     {
         return $this->uat?->getName();
+    }
+
+    /** Set only for a Bucharest sector, whose payee is the sector's tax directorate. */
+    public function bucharestSectorNumber(): ?int
+    {
+        return $this->uat?->getType() === UatType::SECTOR ? UatType::bucharestSectorNumber($this->uat->getName()) : null;
     }
 
     public function countyName(): ?string

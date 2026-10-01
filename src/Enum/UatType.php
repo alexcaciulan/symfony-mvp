@@ -17,4 +17,14 @@ enum UatType: string
     {
         return 'enum.uat_type.' . $this->value;
     }
+
+    /**
+     * The sector number when the name is a Bucharest sector as SIRUTA spells it
+     * ("Sector 3"). Works on a bare name because some callers only keep the name,
+     * such as the UAT snapshot taken when the stamp duty is paid.
+     */
+    public static function bucharestSectorNumber(?string $uatName): ?int
+    {
+        return $uatName !== null && preg_match('/^Sector ([1-6])$/', $uatName, $m) === 1 ? (int) $m[1] : null;
+    }
 }

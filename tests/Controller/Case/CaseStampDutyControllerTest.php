@@ -173,7 +173,8 @@ final class CaseStampDutyControllerTest extends WebTestCase
     }
 
     /**
-     * A lawyer who chose to pay at filing may already have paid inside the filing form.
+     * A case that declared payment at filing before that choice was withdrawn may
+     * already have paid inside the filing form.
      * Telling them to wait for the file number would contradict the confirmation offered
      * on the same card.
      */
@@ -196,199 +197,83 @@ final class CaseStampDutyControllerTest extends WebTestCase
     }
 
     /**
-     * The reason to pay early belongs on the surface where the deferral is chosen. The
-     * lawyer weighs it while the consent checkbox is in front of him, not after filing.
+     * The platform files the petition by email, so the registry can only take the duty
+     * in an existing case. Before the court assigns a number the button is shown but
+     * inactive, and the old "pay at filing" choice is no longer offered.
      */
-    public function testTheDeferralModalCarriesTheReasonToPayEarly(): void
+    public function testTheRegistryButtonStaysInactiveUntilTheCourtAssignsAFileNumber(): void
     {
         $this->client->loginUser($this->user);
         $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
+        $crawler = $this->client->getCrawler()->filter('#case-stamp-duty-card');
+        $translator = static::getContainer()->get('translator');
 
-        self::assertStringContainsString(
-            static::getContainer()->get('translator')->trans('case_overview.stamp_duty.modal_defer.practice_note'),
-            $this->client->getCrawler()->filter('#hs-modal-stamp-duty-defer')->text(),
-        );
+        self::assertCount(0, $crawler->filter('a[href*="registratura.rejust.ro"]'));
+        self::assertCount(1, $crawler->filter('[aria-disabled="true"]'));
+        self::assertStringContainsString($translator->trans('case_overview.stamp_duty.pay_after_case_number'), $crawler->html());
+        self::assertStringNotContainsString('hs-modal-stamp-duty-at-filing', (string) $this->client->getResponse()->getContent());
     }
 
-    /** Before anything leaves for the court the duty is paid inside the filing form itself. */
-    public function testTheCardLinksTheNewCaseFormBeforeFiling(): void
-    {
-        $this->client->loginUser($this->user);
-        $this->client->request('GET', '/case/' . $this->case->getId());
-
-        self::assertResponseIsSuccessful();
-        self::assertStringContainsString(
-            'inregistreaza-un-dosar-nou',
-            (string) $this->client->getResponse()->getContent(),
-        );
-    }
-
-    public function testTheCardLinksTheExistingCaseFormOnceTheFileNumberIsKnown(): void
+    public function testTheRegistryButtonLinksToTheExistingCaseFormOnceTheFileNumberIsKnown(): void
     {
         $this->case->setStatus(CaseStatus::DOSAR_INREGISTRAT);
-        $this->case->setCourtCaseNumber('4521/302/2026');
+        $this->case->setCourtCaseNumber('4521/211/2026');
         $this->em->flush();
 
         $this->client->loginUser($this->user);
         $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
-        $html = (string) $this->client->getResponse()->getContent();
+        $crawler = $this->client->getCrawler()->filter('#case-stamp-duty-card');
 
-        self::assertStringContainsString('plata-taxei-judiciare-de-timbru-intr-un-dosar-existent', $html);
-        self::assertStringNotContainsString('inregistreaza-un-dosar-nou', $html);
-    }
-
-    public function testUploadProofMarksTheDutyPaidAndSnapshotsTheUat(): void
-    {
-        $this->client->loginUser($this->user);
-
-        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/proof', [
-            'stamp_duty_proof' => [
-                '_token' => $this->csrfToken('/stamp-duty/proof', 'stamp_duty_proof[_token]'),
-                'paidAt' => '2026-07-10',
-                'paidAmount' => '200',
-                'payerName' => 'SC Creditor Timbru SRL',
-                'paymentReference' => 'OP 4471',
-            ],
-        ], [
-            'stamp_duty_proof' => ['file' => $this->proofFile()],
-        ]);
-
-        self::assertResponseRedirects('/case/' . $this->case->getId());
-
-        $this->em->clear();
-        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
-
-        self::assertSame(StampDutyStatus::ACHITATA, $refreshed->getStampDutyStatus());
-        self::assertSame('2026-07-10', $refreshed->getStampDutyPaidAt()->format('Y-m-d'));
-        self::assertSame('200.00', $refreshed->getStampDutyPaidAmount());
-        self::assertSame('OP 4471', $refreshed->getStampDutyPaymentReference());
-        // Snapshot of the town hall we advised: the creditor's office may move later,
-        // and the account the duty landed in is what a dispute turns on.
-        self::assertSame('Cluj-Napoca', $refreshed->getStampDutyUat());
-        self::assertNotNull($refreshed->getStampDutyLawVersion());
-
-        $documents = $this->em->getRepository(Document::class)->findBy(['legalCase' => $refreshed->getId()]);
-        $types = array_map(static fn (Document $d): DocumentType => $d->getDocumentType(), $documents);
-        self::assertContains(DocumentType::DOVADA_TAXA_TIMBRU, $types);
-    }
-
-    /**
-     * Art. 40 alin. 3 presumes payment from an order signed by the debtor of the duty
-     * (the claimant), so a proof in another name is surfaced. Advisory, not a block:
-     * the client may legitimately have paid from a group account.
-     */
-    public function testProofWarnsWhenThePayerIsNotTheCreditor(): void
-    {
-        $this->client->loginUser($this->user);
-
-        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/proof', [
-            'stamp_duty_proof' => [
-                '_token' => $this->csrfToken('/stamp-duty/proof', 'stamp_duty_proof[_token]'),
-                'paidAt' => '2026-07-10',
-                'payerName' => 'Cabinet Avocat Popescu',
-            ],
-        ], [
-            'stamp_duty_proof' => ['file' => $this->proofFile()],
-        ]);
-
-        self::assertResponseRedirects('/case/' . $this->case->getId());
-
-        $flashes = $this->client->getRequest()->getSession()->getFlashBag()->peekAll();
-        self::assertContains(
-            'case_overview.stamp_duty.flash_warning_payer_mismatch',
-            $flashes['warning'] ?? [],
-            'A proof naming someone other than the claimant must be flagged.',
+        self::assertSame(
+            'https://registratura.rejust.ro/plata-taxei-judiciare-de-timbru-intr-un-dosar-existent',
+            $crawler->filter('a[href*="registratura.rejust.ro"]')->attr('href'),
         );
-
-        // Still recorded: the warning informs, it does not reject the payment.
-        $this->em->clear();
-        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
-        self::assertSame(StampDutyStatus::ACHITATA, $refreshed->getStampDutyStatus());
-    }
-
-    /** A second proof would leave two competing documents in the filing package. */
-    public function testProofIsRejectedWhenOneIsAlreadyOnTheCase(): void
-    {
-        $this->client->loginUser($this->user);
-
-        // First upload succeeds and marks the duty paid.
-        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/proof', [
-            'stamp_duty_proof' => [
-                '_token' => $this->csrfToken('/stamp-duty/proof', 'stamp_duty_proof[_token]'),
-                'paidAt' => '2026-07-10',
-            ],
-        ], [
-            'stamp_duty_proof' => ['file' => $this->proofFile()],
-        ]);
-
-        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/proof', [
-            'stamp_duty_proof' => [
-                '_token' => $this->csrfToken('/stamp-duty/proof', 'stamp_duty_proof[_token]'),
-                'paidAt' => '2026-07-11',
-            ],
-        ], [
-            'stamp_duty_proof' => ['file' => $this->proofFile()],
-        ]);
-
-        $this->em->clear();
-        $documents = $this->em->getRepository(Document::class)->findBy([
-            'legalCase' => $this->case->getId(),
-            'documentType' => DocumentType::DOVADA_TAXA_TIMBRU,
-        ]);
-        self::assertCount(1, $documents, 'The package must not carry two competing proofs.');
+        self::assertCount(0, $crawler->filter('[aria-disabled="true"]'));
     }
 
     /**
-     * A payment confirmed through the electronic registry leaves the case paid with
-     * no proof of our own. The receipt the lawyer obtains later must still be filable,
-     * so the guard keys on the document rather than on the status.
+     * In Bucharest the duty goes to the sector and is collected by the sector's local
+     * tax directorate. Naming a town hall, or Bucharest as a county, sends the lawyer
+     * looking for the wrong payee.
      */
-    public function testProofIsAcceptedAfterAPaymentConfirmedThroughTheRegistry(): void
+    public function testTheCardNamesTheSectorTaxDirectorateForABucharestCreditor(): void
     {
-        $this->case->setStampDutyStatus(StampDutyStatus::ACHITATA);
+        $creditor = $this->case->getCreditor();
+        $creditor->setAddressCounty('București');
+        $creditor->setAddressLocality('Sector 3');
         $this->em->flush();
 
         $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
 
-        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/proof', [
-            'stamp_duty_proof' => [
-                '_token' => $this->csrfToken('/stamp-duty/proof', 'stamp_duty_proof[_token]'),
-                'paidAt' => '2026-07-10',
-            ],
-        ], [
-            'stamp_duty_proof' => ['file' => $this->proofFile()],
-        ]);
+        self::assertResponseIsSuccessful();
+        $html = $this->client->getCrawler()->filter('#case-stamp-duty-card')->html();
+        $translator = static::getContainer()->get('translator');
 
-        $this->em->clear();
-        $documents = $this->em->getRepository(Document::class)->findBy([
-            'legalCase' => $this->case->getId(),
-            'documentType' => DocumentType::DOVADA_TAXA_TIMBRU,
-        ]);
-        self::assertCount(1, $documents);
+        self::assertStringContainsString($translator->trans('case_overview.stamp_duty.uat_sector', ['%sector%' => 3]), $html);
+        self::assertStringContainsString($translator->trans('case_overview.stamp_duty.municipality_bucharest'), $html);
+        self::assertStringNotContainsString($translator->trans('case_overview.stamp_duty.uat'), $html);
     }
 
-    /**
-     * The recommended channel takes the duty in the filing form itself, so the package
-     * has to be buildable before the money moves. Without this path the lawyer who
-     * pays correctly had to claim a deferral to regularization the petition then
-     * asserted to the court.
-     */
-    public function testDeclaringPaymentAtFilingUnblocksTheFilingGate(): void
+    public function testThePaidCardNamesTheSectorTaxDirectorate(): void
     {
+        $this->case->setStampDutyStatus(StampDutyStatus::ACHITATA);
+        $this->case->setStampDutyPaidAt(new \DateTimeImmutable('2026-07-15'));
+        $this->case->setStampDutyUat('Sector 3');
+        $this->em->flush();
+
         $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
 
-        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/at-filing', [
-            '_token' => $this->csrfToken('/stamp-duty/at-filing', '_token'),
-        ]);
+        self::assertResponseIsSuccessful();
+        $html = $this->client->getCrawler()->filter('#case-stamp-duty-card')->html();
+        $translator = static::getContainer()->get('translator');
 
-        $this->em->clear();
-        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
-        self::assertSame(StampDutyStatus::ACHITARE_LA_DEPUNERE, $refreshed->getStampDutyStatus());
-        self::assertTrue($refreshed->getStampDutyStatus()->allowsFiling());
+        self::assertStringContainsString($translator->trans('case_overview.stamp_duty.paid_to_sector', ['%sector%' => 3]), $html);
     }
 
     /** Confirming the registry payment needs no file: the portal already sent one. */

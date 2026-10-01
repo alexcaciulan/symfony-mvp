@@ -3,6 +3,7 @@
 namespace App\Tests\Enum;
 
 use App\Enum\UatType;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class UatTypeTest extends TestCase
@@ -26,5 +27,22 @@ class UatTypeTest extends TestCase
         $this->assertSame(UatType::ORAS, UatType::from('oras'));
         $this->assertSame(UatType::COMUNA, UatType::from('comuna'));
         $this->assertSame(UatType::SECTOR, UatType::from('sector'));
+    }
+
+    /** @return iterable<string, array{?string, ?int}> */
+    public static function sectorNames(): iterable
+    {
+        yield 'sector' => ['Sector 3', 3];
+        yield 'last sector' => ['Sector 6', 6];
+        yield 'not a sector number' => ['Sector 7', null];
+        yield 'town' => ['Cluj-Napoca', null];
+        yield 'prefix only' => ['Sector 3 Nord', null];
+        yield 'missing' => [null, null];
+    }
+
+    #[DataProvider('sectorNames')]
+    public function testBucharestSectorNumberIsReadOnlyFromASectorName(?string $name, ?int $expected): void
+    {
+        $this->assertSame($expected, UatType::bucharestSectorNumber($name));
     }
 }

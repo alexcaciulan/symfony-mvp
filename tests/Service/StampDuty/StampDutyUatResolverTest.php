@@ -11,7 +11,9 @@ use App\Entity\Creditor;
 use App\Entity\LegalCase;
 use App\Enum\CourtType;
 use App\Enum\PersonType;
+use App\DTO\StampDuty\StampDutyPaymentTarget;
 use App\Enum\StampDutyTargetStatus;
+use App\Enum\UatType;
 use App\Repository\CityRepository;
 use App\Service\StampDuty\StampDutyUatResolver;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -158,6 +160,29 @@ final class StampDutyUatResolverTest extends TestCase
         self::assertSame(StampDutyTargetStatus::UNMATCHED, $target->status);
         self::assertFalse($target->isResolved());
         self::assertNull($target->uatName());
+    }
+
+    /**
+     * In Bucharest the sector's local tax directorate collects the duty, so the card
+     * has to know when the payee is a sector rather than a town hall.
+     */
+    public function testATargetInABucharestSectorExposesTheSectorNumber(): void
+    {
+        $sector = $this->makeCity('Sector 3', 'sector 3', $this->makeCounty('București', 'bucuresti'));
+        $sector->setType(UatType::SECTOR);
+
+        $target = new StampDutyPaymentTarget(StampDutyTargetStatus::RESOLVED, $sector);
+
+        self::assertSame(3, $target->bucharestSectorNumber());
+    }
+
+    public function testATargetOutsideBucharestHasNoSectorNumber(): void
+    {
+        $town = $this->makeCity('Cluj-Napoca', 'cluj-napoca', $this->makeCounty('Cluj', 'cluj'));
+        $town->setType(UatType::MUNICIPIU);
+
+        self::assertNull((new StampDutyPaymentTarget(StampDutyTargetStatus::RESOLVED, $town))->bucharestSectorNumber());
+        self::assertNull((new StampDutyPaymentTarget(StampDutyTargetStatus::UNMATCHED))->bucharestSectorNumber());
     }
 
     private function makeCase(?string $county, ?string $locality): LegalCase

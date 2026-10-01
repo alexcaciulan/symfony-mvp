@@ -13,6 +13,7 @@ use App\Enum\PenaltyType;
 use App\Enum\RejustStampDutyForm;
 use App\Enum\RelationshipType;
 use App\Enum\StampDutyStatus;
+use App\Enum\UatType;
 use App\Repository\LegalCaseRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
@@ -702,6 +703,12 @@ class LegalCase
         return $this->stampDutyUat;
     }
 
+    /** Sector number when the UAT recorded at payment is a Bucharest sector. */
+    public function getStampDutyUatSectorNumber(): ?int
+    {
+        return UatType::bucharestSectorNumber($this->stampDutyUat);
+    }
+
     public function setStampDutyUat(?string $stampDutyUat): static
     {
         $this->stampDutyUat = $stampDutyUat;
@@ -1069,13 +1076,11 @@ class LegalCase
     }
 
     /**
-     * Which registry form takes the stamp duty for this case as it stands.
-     *
-     * Keyed on whether the petition has left for the court, not on the file number
-     * alone: between filing and registration the case has no number yet, and the
-     * new-case form would have the lawyer register the same petition a second time.
-     * `courtArrivalDate()` widens the check beyond the live statuses, so a case that
-     * has since moved on to a judgment place is not sent back to filing either.
+     * Whether the registry can take the stamp duty for this case as it stands. Only
+     * the file number opens it; whether the petition has left yet only picks the
+     * explanation shown while the number is missing. `courtArrivalDate()` widens the
+     * check beyond the live statuses, so a case that has since moved on to a judgment
+     * place is not described as unsent.
      */
     public function rejustStampDutyForm(): RejustStampDutyForm
     {
@@ -1087,7 +1092,7 @@ class LegalCase
             return RejustStampDutyForm::AWAITING_CASE_NUMBER;
         }
 
-        return RejustStampDutyForm::NEW_CASE;
+        return RejustStampDutyForm::NOT_FILED;
     }
 
     /**
