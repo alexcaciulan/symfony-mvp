@@ -7,6 +7,7 @@ namespace App\Repository;
 use App\Entity\Creditor;
 use App\Entity\LegalCase;
 use App\Entity\User;
+use App\Enum\CaseStatus;
 use App\Enum\PersonType;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\QueryBuilder;
@@ -76,5 +77,52 @@ class CreditorRepository extends ServiceEntityRepository
 
         /** @var list<array{value: int, label: string}> */
         return $qb->getQuery()->getArrayResult();
+    }
+
+    /** The lawyer's creditor with this canonical CUI ({@see \App\Service\Party\CuiNormalizer}). */
+    public function findOneByUserAndCuiKey(User $user, string $cuiKey): ?Creditor
+    {
+        return $this->findOneBy(['user' => $user, 'cuiKey' => $cuiKey]);
+    }
+
+    /** The lawyer's own creditor with this id; another lawyer's reads as absent. */
+    public function findOwned(User $user, int $id): ?Creditor
+    {
+        return $this->findOneBy(['id' => $id, 'user' => $user]);
+    }
+
+    /**
+     * The cases naming the creditor, newest first.
+     *
+     * @return list<LegalCase>
+     */
+    public function casesUsing(Creditor $creditor): array
+    {
+        return $this->getEntityManager()->createQueryBuilder()
+            ->select('lc')
+            ->from(LegalCase::class, 'lc')
+            ->andWhere('lc.creditor = :creditor')
+            ->andWhere('lc.deletedAt IS NULL')
+            ->setParameter('creditor', $creditor)
+            ->orderBy('lc.createdAt', 'DESC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * Whether a case past the amicable stage names the creditor (a somatie went
+     * out). Soft-deleted cases count: the somatie they sent still stands.
+     */
+    public function hasSummonedCase(Creditor $creditor): bool
+    {
+        return (int) $this->getEntityManager()->createQueryBuilder()
+            ->select('COUNT(lc.id)')
+            ->from(LegalCase::class, 'lc')
+            ->andWhere('lc.creditor = :creditor')
+            ->andWhere('lc.status <> :amicable')
+            ->setParameter('creditor', $creditor)
+            ->setParameter('amicable', CaseStatus::AMIABIL)
+            ->getQuery()
+            ->getSingleScalarResult() > 0;
     }
 }

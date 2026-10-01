@@ -633,6 +633,39 @@ final class CasePaymentOrderControllerTest extends WebTestCase
         self::assertSame(CaseStatus::CERERE_GENERATA, $this->em->getRepository(LegalCase::class)->find($this->case->getId())->getStatus(), 'the somatie already carried the new name');
     }
 
+    public function testGenerateAsksAboutTheCreditorChangedSinceTheSummons(): void
+    {
+        $this->attachCommunicationProof();
+        $this->attachSomatieFile();
+        static::getContainer()->get(AuditLogService::class)->log(
+            action: 'creditor_identity_changed',
+            entityType: LegalCase::class,
+            entityId: (string) $this->case->getId(),
+            oldData: ['iban' => 'RO49AAAA1B31007593840000'],
+            newData: ['iban' => 'RO09BCYP0000001234567890'],
+        );
+        $this->em->flush();
+        $this->client->loginUser($this->user);
+
+        $this->client->request('GET', '/case/' . $this->case->getId());
+        self::assertSelectorExists('[data-testid="creditor-iban-changed"]');
+
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+        $payload = ['_token' => $token, 'debitAcknowledgedStatus' => 'UNPAID', 'opGenerationConsent' => '1'];
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/payment-order/generate', $payload);
+        $this->em->clear();
+        self::assertSame(CaseStatus::SOMATIE_TRIMISA, $this->em->getRepository(LegalCase::class)->find($this->case->getId())->getStatus());
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/payment-order/generate', $payload + ['debtorChangesAcknowledged' => '1']);
+        $this->em->clear();
+        self::assertSame(CaseStatus::CERERE_GENERATA, $this->em->getRepository(LegalCase::class)->find($this->case->getId())->getStatus());
+        $entry = $this->em->getRepository(AuditLog::class)->findOneBy([
+            'category' => AuditLogService::CATEGORY_PAYMENT_ORDER_GENERATED,
+            'entityId' => (string) $this->case->getId(),
+        ]);
+        self::assertSame(['RO49AAAA1B31007593840000', 'RO09BCYP0000001234567890'], $entry->getNewData()['debtorChangesAcknowledged']['creditorChangesSinceSummons']['iban']);
+    }
+
     public function testGenerateHappyPathTransitionsToCerereGenerata(): void
     {
         $this->attachCommunicationProof();

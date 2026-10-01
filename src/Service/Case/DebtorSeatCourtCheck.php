@@ -53,6 +53,25 @@ final class DebtorSeatCourtCheck
      */
     public function changesSinceSummons(LegalCase $case): array
     {
+        return $this->identityChangesSinceSummons($case, 'debtor_identity_changed');
+    }
+
+    /**
+     * The creditor's identity fields changed since the somatie was generated
+     * (a library creditor is shared too): the petition must name the creditor
+     * the debtor was summoned by, and an IBAN changed since then is not the
+     * account the debtor was told to pay into.
+     *
+     * @return array<string, array{?string, ?string}>
+     */
+    public function creditorChangesSinceSummons(LegalCase $case): array
+    {
+        return $this->identityChangesSinceSummons($case, 'creditor_identity_changed');
+    }
+
+    /** @return array<string, array{?string, ?string}> */
+    private function identityChangesSinceSummons(LegalCase $case, string $action): array
+    {
         if ($case->getPaymentNoticeDate() === null || $case->getId() === null) {
             return [];
         }
@@ -63,7 +82,7 @@ final class DebtorSeatCourtCheck
         $since = $this->auditLogs->findFirstSummonsGeneratedAt($case) ?? $case->getPaymentNoticeDate();
 
         $changes = [];
-        foreach ($this->auditLogs->findDebtorChangesSince($case, $since) as $entry) {
+        foreach ($this->auditLogs->findDebtorChangesSince($case, $since, $action) as $entry) {
             foreach ($entry->getNewData() ?? [] as $field => $value) {
                 $before = array_key_exists($field, $changes) ? $changes[$field][0] : ($entry->getOldData()[$field] ?? null);
                 $changes[$field] = [$before, $value];

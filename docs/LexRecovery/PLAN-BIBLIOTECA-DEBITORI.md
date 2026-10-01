@@ -696,3 +696,13 @@ De discutat cu avocatul:
 - C4 coloana `in_insolvency` (nescrisă de nimeni, citită de validator): scoasă complet sau legată de o acțiune pe dosar.
 
 După lansare: numărarea dosarelor în lista bibliotecii fără N+1; avertismentele din fereastra cererii OP calculate doar când acțiunea e disponibilă; test pentru mutarea datelor din migrare; logica bibliotecii mutată din controller într-un serviciu.
+
+## 13. Creditorul aliniat la regulile debitorului (2026-10-01, branch `feature/creditor-aliniere-debitor`)
+
+- `creditor.cui_key` (CUI normalizat) + migrare `Version20261001120000` (completare SQL, oprire dacă un avocat are același CUI scris în două feluri, unicitate pe `(user_id, cui_key)`).
+- `CreditorLibraryService`: dubluri după cheie, CUI blocat după somație, editare și completare cu istoric pe fiecare dosar (`creditor_identity_changed`).
+- `/creditors`: dubluri refuzate oricum ar fi scris CUI-ul, avertisment „apare în N dosare”, CUI blocat după somație.
+- Pasul 1: creditor tastat/extras existent în bibliotecă se leagă dacă datele coincid; altfel panou bibliotecă/actualizare (actualizarea refuzată după somație). Suprascrierea tăcută la salvare a dispărut. Revenirea în Pasul 1 după „actualizează” păstrează datele tastate și întreabă din nou.
+- Pasul 4: creditorul ales arată datele curente din bibliotecă (strict, pentru un creditor somat); unul apărut în bibliotecă după Pasul 1 se leagă sau trimite înapoi la Pasul 1.
+- Cererea de ordonanță: modificările creditorului după prima somație (nume, CUI, ONRC, adresă, județ, localitate, reprezentant, IBAN) se listează și cer aceeași confirmare ca la debitor; IBAN-ul schimbat are avertisment separat (debitorul a fost somat să plătească în alt cont).
+- Demo: migrarea rulează la următorul `demo-sync`; pe demo nu există dubluri de creditor în același cont, deci `abortIf` nu se declanșează.

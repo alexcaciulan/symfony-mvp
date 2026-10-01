@@ -15,6 +15,14 @@
         <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">{{ 'library.creditors.edit.subtitle'|trans }}</p>
     </div>
 
+    {# The creditor is shared by the cases below: an edit reaches their future
+       regenerations, not the documents already generated. #}
+    {% if cases|length > 0 %}
+        <div class="rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 p-4 text-sm text-amber-900 dark:text-amber-200" data-testid="creditor-shared-warning">
+            {{ 'library.creditors.edit.shared_warning'|trans({'%count%': cases|length}) }}
+        </div>
+    {% endif %}
+
     <div class="bg-white dark:bg-slate-900 rounded-xl shadow-card border border-slate-200 dark:border-slate-800 p-6 sm:p-8">
         {{ include('creditors/_form.html.twig', {submit_label: 'library.creditors.form.update_submit'}) }}
     </div>

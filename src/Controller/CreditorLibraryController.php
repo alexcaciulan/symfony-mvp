@@ -7,8 +7,10 @@ use App\Entity\Creditor;
 use App\Entity\User;
 use App\Form\CreditorType;
 use App\Repository\CreditorRepository;
+use App\Service\Creditor\CreditorLibraryService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -28,6 +30,7 @@ class CreditorLibraryController extends AbstractController
     public function __construct(
         private EntityManagerInterface $em,
         private CreditorRepository $creditors,
+        private CreditorLibraryService $library,
         private TranslatorInterface $translator,
     ) {}
 
@@ -84,8 +87,13 @@ class CreditorLibraryController extends AbstractController
         $form = $this->createForm(CreditorType::class, $dto);
         $form->handleRequest($request);
 
+        if ($form->isSubmitted() && $form->isValid() && $this->library->cuiChangeRefused($creditor, $dto->cui)) {
+            $form->get('cui')->addError(new FormError(
+                $this->translator->trans('library.creditors.error.cui_after_summons')
+            ));
+        }
         if ($form->isSubmitted() && $form->isValid() && !$this->isDuplicateCui($form, $user, $dto, $creditor)) {
-            $this->applyDtoToCreditor($creditor, $dto);
+            $this->library->update($creditor, $dto);
             $this->em->flush();
 
             $this->addFlash('success', $this->translator->trans('library.creditors.flash.updated'));
@@ -96,26 +104,23 @@ class CreditorLibraryController extends AbstractController
         return $this->render('creditors/edit.html.twig', [
             'form' => $form,
             'creditor' => $creditor,
+            'cases' => $this->creditors->casesUsing($creditor),
         ]);
     }
 
     /**
-     * Guard the DB-level UNIQUE(user, cui): surface a friendly form error
+     * Guard the DB-level UNIQUE(user, cui_key): surface a friendly form error
      * instead of letting the constraint throw on flush. Returns true (and adds
-     * a violation) when another creditor of this user already uses the CUI.
+     * a violation) when another creditor of this user has the same CUI, however
+     * it is spelled.
      */
     private function isDuplicateCui(FormInterface $form, User $user, Step1CreditorData $dto, ?Creditor $current): bool
     {
-        if ($dto->cui === null || $dto->cui === '') {
+        if ($this->library->findDuplicate($user, $dto->cui, $current) === null) {
             return false;
         }
 
-        $existing = $this->creditors->findOneBy(['user' => $user, 'cui' => $dto->cui]);
-        if ($existing === null || $existing === $current) {
-            return false;
-        }
-
-        $form->get('cui')->addError(new \Symfony\Component\Form\FormError(
+        $form->get('cui')->addError(new FormError(
             $this->translator->trans('library.creditors.error.cui_duplicate')
         ));
 

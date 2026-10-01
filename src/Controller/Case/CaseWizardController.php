@@ -66,6 +66,7 @@ use App\Service\Extraction\ConflictChoiceApplier;
 use App\Service\Extraction\ConflictResolutionService;
 use App\Service\Party\CuiNormalizer;
 use App\Enum\ConflictSeverity;
+use App\Service\Creditor\CreditorLibraryService;
 use App\Service\Debtor\DebtorLibraryService;
 use App\DTO\Library\DebtorLibraryData;
 use App\Service\Extraction\PrefillFromExtractionService;
@@ -124,6 +125,7 @@ final class CaseWizardController extends AbstractController
         private readonly ValidatorInterface $validator,
         private readonly DocumentRepository $documents,
         private readonly CreditorRepository $creditors,
+        private readonly CreditorLibraryService $creditorLibrary,
         private readonly DebtorRepository $debtorLibrary,
         private readonly DebtorLibraryService $debtorLibraryService,
         private readonly CourtRepository $courts,
@@ -472,7 +474,7 @@ final class CaseWizardController extends AbstractController
     }
 
     #[Route('/creditor', name: 'creditor', methods: ['GET', 'POST'])]
-    public function creditor(Request $request): Response
+    public function creditor(Request $request, #[CurrentUser] User $user): Response
     {
         $session = $request->getSession();
         $bag = $this->loadBag($session);
@@ -486,12 +488,12 @@ final class CaseWizardController extends AbstractController
         $form = $this->createForm(Step1CreditorType::class, $dto);
         // The picker is unmapped, so a creditor chosen earlier has to be put
         // back by hand; an empty picker on the next submit reads as "enter a
-        // new creditor manually" and would drop the choice.
-        if ($dto->creditorId !== null) {
-            $picked = $this->creditors->find($dto->creditorId);
-            if ($picked !== null && $picked->getUser()->getId() === $this->getUser()?->getId()) {
-                $form->get('creditorEntity')->setData($picked);
-            }
+        // new creditor manually" and would drop the choice. A creditor the
+        // lawyer chose to update stays in the manual fields with this step's
+        // data, so the choice is asked again rather than lost to the picker.
+        $picked = $dto->creditorId !== null && !$dto->updateLibrary ? $this->creditors->findOwned($user, $dto->creditorId) : null;
+        if ($picked !== null) {
+            $form->get('creditorEntity')->setData($picked);
         }
         $form->handleRequest($request);
 
@@ -512,7 +514,16 @@ final class CaseWizardController extends AbstractController
             $stands = $this->applyChosenValues($bag, ConflictScope::CREDITOR, $rendered, $form->getData(), $rejected);
             $acknowledged = $acknowledged && $stands;
         }
+        $libraryRecheck = $bag['creditorLibraryRecheck'];
+        if ($form->isSubmitted()) {
+            $bag['creditorLibraryRecheck'] = false;
+        }
+        $libraryDiffers = null;
         if ($submitted && $acknowledged) {
+            $choice = $request->request->get('library_creditor_choice');
+            $libraryDiffers = $this->matchLibraryCreditor($form->getData(), $user, is_string($choice) ? $choice : '');
+        }
+        if ($submitted && $acknowledged && $libraryDiffers === null) {
             $bag['creditor'] = $form->getData();
             $this->saveBag($session, $bag);
 
@@ -524,8 +535,126 @@ final class CaseWizardController extends AbstractController
             'current_step' => 1,
             'form' => $form,
             'dto' => $dto,
+            'creditor_library_differs' => $libraryDiffers,
+            'creditor_library_recheck' => $libraryRecheck && $libraryDiffers === null,
             ...$this->conflictViewVars($bag, $conflicts, 'creditor', $rejected),
-        ], $this->stepRejected($acknowledged));
+        ], $this->stepRejected($acknowledged && $libraryDiffers === null));
+    }
+
+    /** The identity and contact fields a library creditor and the step share. */
+    private const CREDITOR_LIBRARY_FIELDS = ['name', 'onrcNumber', 'address', 'addressCounty', 'addressLocality', 'legalRepresentative', 'iban', 'bankName'];
+
+    /**
+     * A creditor typed or extracted at step 1 may be a company the library
+     * already holds (same canonical CUI). When nothing differs the case takes
+     * that company; otherwise the lawyer chooses which data stands, and the
+     * library is only updated on an explicit choice and never for a company a
+     * somatie already went out under. Returns what to ask, or null when settled.
+     *
+     * @return ?array{name: string, differs: array<string, array{?string, ?string}>, canUpdate: bool}
+     */
+    private function matchLibraryCreditor(Step1CreditorData $dto, User $user, string $choice): ?array
+    {
+        $dto->updateLibrary = false;
+        if ($dto->creditorId !== null || $dto->personType !== PersonType::PJ) {
+            return null;
+        }
+        $key = CuiNormalizer::canonical($dto->cui);
+        $company = $key !== null ? $this->creditors->findOneByUserAndCuiKey($user, $key) : null;
+        if ($company === null) {
+            return null;
+        }
+
+        $differs = $this->creditorDifferences($dto, $company);
+        $canUpdate = !$this->creditorLibrary->hasSummonedCase($company);
+        $decided = $choice === 'library' || ($choice === 'update' && $canUpdate);
+        if ($differs !== [] && !$decided) {
+            return ['name' => $company->getName(), 'differs' => $differs, 'canUpdate' => $canUpdate];
+        }
+        $dto->creditorId = $company->getId();
+        $dto->updateLibrary = $differs !== [] && $choice === 'update';
+        if (!$dto->updateLibrary) {
+            $this->takeLibraryCreditor($dto, $company, strict: !$canUpdate);
+        }
+
+        return null;
+    }
+
+    /**
+     * The fields both sides fill differently, field to [library, step].
+     *
+     * @return array<string, array{?string, ?string}>
+     */
+    private function creditorDifferences(Step1CreditorData $dto, Creditor $company): array
+    {
+        $library = Step1CreditorData::fromCreditor($company);
+        $differs = [];
+        foreach (self::CREDITOR_LIBRARY_FIELDS as $field) {
+            $mine = trim((string) $dto->{$field});
+            $theirs = trim((string) $library->{$field});
+            if ($mine !== '' && $theirs !== '' && $mine !== $theirs) {
+                $differs[$field] = [$library->{$field}, $dto->{$field}];
+            }
+        }
+
+        return $differs;
+    }
+
+    /**
+     * The library's data stands; a field the library leaves empty keeps what
+     * this step holds (county and locality only with the same address), since
+     * the submission completes the library with it. A creditor a somatie went
+     * out under is not completed, so it is taken strictly as the library has it.
+     */
+    private function takeLibraryCreditor(Step1CreditorData $dto, Creditor $company, bool $strict = false): void
+    {
+        $library = Step1CreditorData::fromCreditor($company);
+        $sameAddress = trim((string) $dto->address) === trim((string) $library->address);
+        foreach (['personType', 'name', 'cui', 'personalId', ...self::CREDITOR_LIBRARY_FIELDS] as $field) {
+            $theirs = $library->{$field};
+            $keepsMine = !$strict && ($theirs === null || $theirs === '')
+                && ($sameAddress || !in_array($field, ['addressCounty', 'addressLocality'], true));
+            if (!$keepsMine) {
+                $dto->{$field} = $theirs;
+            }
+        }
+    }
+
+    /**
+     * At step 4: a creditor taken from the library shows the library's data
+     * (it may have been edited since), unless the lawyer chose to update the
+     * library with this step's data; a creditor typed at step 1 whose company
+     * reached the library afterwards is linked when nothing differs. Returns
+     * true when the lawyer has to go back and choose.
+     */
+    private function settleCreditorWithLibrary(Step1CreditorData $dto, User $user): bool
+    {
+        if ($dto->creditorId !== null) {
+            $company = $this->creditors->findOwned($user, $dto->creditorId);
+            if ($company === null) {
+                $dto->creditorId = null;
+                $dto->updateLibrary = false;
+            } elseif (!$dto->updateLibrary) {
+                $this->takeLibraryCreditor($dto, $company, strict: $this->creditorLibrary->hasSummonedCase($company));
+            }
+
+            return false;
+        }
+        if ($dto->personType !== PersonType::PJ) {
+            return false;
+        }
+        $key = CuiNormalizer::canonical($dto->cui);
+        $company = $key !== null ? $this->creditors->findOneByUserAndCuiKey($user, $key) : null;
+        if ($company === null) {
+            return false;
+        }
+        if ($this->creditorDifferences($dto, $company) !== []) {
+            return true;
+        }
+        $dto->creditorId = $company->getId();
+        $this->takeLibraryCreditor($dto, $company, strict: $this->creditorLibrary->hasSummonedCase($company));
+
+        return false;
     }
 
     #[Route('/debtor', name: 'debtor', methods: ['GET', 'POST'])]
@@ -1174,6 +1303,12 @@ final class CaseWizardController extends AbstractController
         }
         // A library company may have been edited since it was picked: the
         // court and the summary are worked out from what the case will carry.
+        if ($this->settleCreditorWithLibrary($creditorDto, $user)) {
+            $bag['creditorLibraryRecheck'] = true;
+            $this->saveBag($session, $bag);
+
+            return $this->redirectToRoute('case_wizard_creditor');
+        }
         $this->refreshPickedDebtors($debtorsDto, $user);
         if ($this->debtorReachedLibrary($debtorsDto, $user)) {
             $bag['debtorLibraryRecheck'] = true;
@@ -1301,7 +1436,7 @@ final class CaseWizardController extends AbstractController
                 default => 'manual',
             };
 
-            $creditorOutcome = ['wasReused' => false];
+            $creditorOutcome = ['wasReused' => false, 'source' => 'new'];
             $persisted = $this->persistWizard(
                 $user,
                 $creditorDto,
@@ -1518,6 +1653,9 @@ final class CaseWizardController extends AbstractController
                     'admissibility_warnings' => array_map(static fn (AdmissibilityIssue $i) => $i->code, $warnings),
                     'court_resolution' => $courtResolution,
                     'court_id' => $court?->getId(),
+                    // Which creditor the case names, and whether it came from
+                    // the library (updated with this step's data or not).
+                    'creditor' => ['creditorId' => $creditor->getId(), 'source' => $creditorOutcome['source']],
                     // Which company the case pursues, and whether it was reused
                     // from the library (updated with this step's data or not)
                     // or created with this case.
@@ -1574,33 +1712,35 @@ final class CaseWizardController extends AbstractController
     }
 
     /**
-     * @param array{wasReused: bool} $outcome — out-param flag signaling reuse so the
+     * @param array{wasReused: bool, source: string} $outcome — out-param flag signaling reuse so the
      *        caller can emit a flash AFTER the transaction commits (emitting it
      *        inside `wrapInTransaction` would leak the message even when the
      *        outer commit fails and rolls back).
      */
     private function reuseOrCreateCreditor(User $user, Step1CreditorData $dto, array &$outcome): Creditor
     {
-        $outcome = ['wasReused' => false];
+        $outcome = ['wasReused' => false, 'source' => 'new'];
 
-        if ($dto->creditorId !== null) {
-            $existing = $this->creditors->find($dto->creditorId);
-            if ($existing !== null && $existing->getUser()->getId() === $user->getId()) {
-                $outcome['wasReused'] = true;
-                $this->backfillCreditorLocation($existing, $dto);
-
-                return $existing;
+        // A creditor from the library (picked, or matched by CUI at step 1) is
+        // written only as the lawyer chose: updated with this step's data, or
+        // completed where it is empty. A company a somatie already went out
+        // under is left as it is.
+        $existing = $dto->creditorId !== null ? $this->creditors->findOwned($user, $dto->creditorId) : null;
+        if ($existing !== null) {
+            $outcome = ['wasReused' => true, 'source' => $dto->updateLibrary ? 'library_updated' : 'library'];
+            if (!$this->creditorLibrary->hasSummonedCase($existing)) {
+                if ($dto->updateLibrary) {
+                    $this->creditorLibrary->update($existing, $dto);
+                } else {
+                    $this->creditorLibrary->completeEmpty($existing, $dto);
+                }
+                $checkedAt = $this->parseAnafCheckedAt($dto->anafCheckedAt);
+                if ($checkedAt !== null && $existing->getAddressLocality() !== null) {
+                    $existing->setAnafCheckedAt($checkedAt);
+                }
             }
-        }
 
-        if ($dto->cui !== null && $dto->cui !== '') {
-            $byCui = $this->creditors->findOneBy(['user' => $user, 'cui' => $dto->cui]);
-            if ($byCui !== null) {
-                $outcome['wasReused'] = true;
-                $this->refreshCreditorFromDto($byCui, $dto);
-
-                return $byCui;
-            }
+            return $existing;
         }
 
         $creditor = new Creditor();
@@ -1623,87 +1763,6 @@ final class CaseWizardController extends AbstractController
         $this->em->persist($creditor);
 
         return $creditor;
-    }
-
-    /**
-     * Creditors saved before the stamp-duty work have no structured location, so a
-     * case on a reused creditor could never resolve its payment UAT. Fill the gap
-     * when the ANAF lookup supplies it, without overwriting a value the lawyer
-     * already curated.
-     *
-     * Deliberately weaker than {@see refreshCreditorFromDto}: this path runs when
-     * the lawyer picked a creditor from the library, which hides the manual
-     * fields, so the DTO carries no fresh input to write. Treating an unsubmitted
-     * field as an intentional value would blank the library record.
-     */
-    private function backfillCreditorLocation(Creditor $creditor, Step1CreditorData $dto): void
-    {
-        if ($creditor->getAddressCounty() === null && $dto->addressCounty !== null && $dto->addressCounty !== '') {
-            $creditor->setAddressCounty($dto->addressCounty);
-        }
-
-        if ($creditor->getAddressLocality() === null && $dto->addressLocality !== null && $dto->addressLocality !== '') {
-            $creditor->setAddressLocality($dto->addressLocality);
-            $creditor->setAnafCheckedAt($this->parseAnafCheckedAt($dto->anafCheckedAt));
-        }
-    }
-
-    /**
-     * The lawyer filled the form by hand or synced it from ANAF, and only then
-     * did the CUI turn out to match a creditor already in the library. Before,
-     * everything but a missing county/locality was silently dropped: the wizard
-     * showed the fresh data, the saved case kept the stale address, and the
-     * somaţie went out to the old registered office.
-     *
-     * Only non-empty values that actually differ are written, and the change is
-     * audited: this creditor is shared with the lawyer's other cases, so their
-     * display changes too.
-     */
-    private function refreshCreditorFromDto(Creditor $creditor, Step1CreditorData $dto): void
-    {
-        $updatable = [
-            'Name' => $dto->name,
-            'Address' => $dto->address,
-            'AddressCounty' => $dto->addressCounty,
-            'AddressLocality' => $dto->addressLocality,
-            'OnrcNumber' => $dto->onrcNumber,
-            'LegalRepresentative' => $dto->legalRepresentative,
-            'Iban' => $dto->iban,
-            'BankName' => $dto->bankName,
-        ];
-
-        $changes = [];
-
-        foreach ($updatable as $property => $value) {
-            if ($value === null || trim($value) === '') {
-                continue;
-            }
-
-            $current = $creditor->{'get' . $property}();
-            if ($current === $value) {
-                continue;
-            }
-
-            $creditor->{'set' . $property}($value);
-            $changes[lcfirst($property)] = ['from' => $current, 'to' => $value];
-        }
-
-        $checkedAt = $this->parseAnafCheckedAt($dto->anafCheckedAt);
-        if ($checkedAt !== null) {
-            $creditor->setAnafCheckedAt($checkedAt);
-        }
-
-        if ($changes === []) {
-            return;
-        }
-
-        $this->auditLog->log(
-            action: 'creditor_refreshed',
-            entityType: Creditor::class,
-            entityId: (string) $creditor->getId(),
-            newData: $changes,
-            category: AuditLogService::CATEGORY_WIZARD_SUBMIT,
-        );
     }
 
     private function parseAnafCheckedAt(?string $raw): ?\DateTimeImmutable
@@ -1915,8 +1974,8 @@ final class CaseWizardController extends AbstractController
         // skeleton is for OpAdmissibilityValidator which only looks at debtors,
         // so an unloaded creditor doesn't break anything.
         if ($creditorDto->creditorId !== null) {
-            $existing = $this->creditors->find($creditorDto->creditorId);
-            if ($existing !== null && $existing->getUser()->getId() === $user->getId()) {
+            $existing = $this->creditors->findOwned($user, $creditorDto->creditorId);
+            if ($existing !== null) {
                 $case->setCreditor($existing);
             }
         }
@@ -2220,6 +2279,7 @@ final class CaseWizardController extends AbstractController
             'debtors' => null,
             'debtorBeforePick' => null,
             'debtorLibraryRecheck' => false,
+            'creditorLibraryRecheck' => false,
             'claim' => null,
             'claimItems' => null,
             'claimItemsTableConfirmed' => false,
@@ -2768,6 +2828,7 @@ final class CaseWizardController extends AbstractController
             'debtors' => $debtors,
             'debtorBeforePick' => $debtorBeforePick,
             'debtorLibraryRecheck' => (bool) ($raw['debtorLibraryRecheck'] ?? false),
+            'creditorLibraryRecheck' => (bool) ($raw['creditorLibraryRecheck'] ?? false),
             'claim' => $claim,
             'claimItems' => $claimItems,
             'claimItemsTableConfirmed' => (bool) ($raw['claimItemsTableConfirmed'] ?? false),

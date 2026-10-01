@@ -190,7 +190,8 @@
                    opened: say what differs before the petition is generated. #}
                 {% set seat_court = debtor_seat_court(case) %}
                 {% set debtor_changes = debtor_changes_since_summons(case) %}
-                {% if seat_court or debtor_changes is not empty %}
+                {% set creditor_changes = creditor_changes_since_summons(case) %}
+                {% if seat_court or debtor_changes is not empty or creditor_changes is not empty %}
                     <div class="rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 p-3 space-y-2" data-testid="debtor-changed">
                         {% if seat_court %}
                             <p class="text-sm text-amber-900 dark:text-amber-200" data-testid="court-mismatch">{{ 'case_overview.modal.court_mismatch_text'|trans({'%case_court%': case.court.name, '%seat_court%': seat_court.name}) }}</p>
@@ -203,9 +204,20 @@
                                 {% endfor %}
                             </ul>
                         {% endif %}
+                        {% if creditor_changes is not empty %}
+                            <p class="text-sm text-amber-900 dark:text-amber-200" data-testid="creditor-changed">{{ 'case_overview.modal.creditor_changed_text'|trans }}</p>
+                            <ul class="text-xs text-amber-900 dark:text-amber-200 list-disc ml-5">
+                                {% for field, pair in creditor_changes %}
+                                    <li>{{ ('case_overview.modal.creditor_field.' ~ field)|trans }}: {{ pair[0]|default('—') }} → {{ pair[1]|default('—') }}</li>
+                                {% endfor %}
+                            </ul>
+                            {% if creditor_changes.iban is defined %}
+                                <p class="text-sm font-semibold text-red-700 dark:text-red-300" data-testid="creditor-iban-changed">{{ 'case_overview.modal.creditor_iban_changed_text'|trans }}</p>
+                            {% endif %}
+                        {% endif %}
                         <label class="flex items-start gap-2 text-sm text-amber-900 dark:text-amber-200">
                             <input type="checkbox" name="debtorChangesAcknowledged" value="1" required class="mt-0.5 rounded text-amber-600 focus:ring-amber-500">
-                            <span>{{ 'case_overview.modal.debtor_changed_ack'|trans }}</span>
+                            <span>{{ (creditor_changes is not empty ? 'case_overview.modal.parties_changed_ack' : 'case_overview.modal.debtor_changed_ack')|trans }}</span>
                         </label>
                     </div>
                 {% endif %}

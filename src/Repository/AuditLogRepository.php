@@ -57,12 +57,12 @@ class AuditLogRepository extends ServiceEntityRepository
     }
 
     /**
-     * Changes to the case's debtor company recorded after the given moment,
-     * oldest first.
+     * Changes to the case's debtor company (or, with the creditor action, its
+     * creditor) recorded after the given moment, oldest first.
      *
      * @return list<AuditLog>
      */
-    public function findDebtorChangesSince(LegalCase $case, \DateTimeInterface $since): array
+    public function findDebtorChangesSince(LegalCase $case, \DateTimeInterface $since, string $action = 'debtor_identity_changed'): array
     {
         return $this->createQueryBuilder('a')
             ->andWhere('a.entityType = :type')
@@ -71,7 +71,7 @@ class AuditLogRepository extends ServiceEntityRepository
             ->andWhere('a.createdAt > :since')
             ->setParameter('type', LegalCase::class)
             ->setParameter('id', (string) $case->getId())
-            ->setParameter('action', 'debtor_identity_changed')
+            ->setParameter('action', $action)
             ->setParameter('since', \DateTimeImmutable::createFromInterface($since))
             ->orderBy('a.createdAt', 'ASC')
             ->getQuery()

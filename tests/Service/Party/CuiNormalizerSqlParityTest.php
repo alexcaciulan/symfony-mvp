@@ -29,4 +29,14 @@ final class CuiNormalizerSqlParityTest extends KernelTestCase
             );
         }
     }
+
+    public function testTheCreditorMigrationUsesTheSameExpressionAsTheDebtorOne(): void
+    {
+        require_once dirname(__DIR__, 3) . '/migrations/Version20260930150000.php';
+        require_once dirname(__DIR__, 3) . '/migrations/Version20261001120000.php';
+        $debtor = (new \ReflectionClassConstant(\DoctrineMigrations\Version20260930150000::class, 'CUI_KEY_SQL'))->getValue();
+        $creditor = (new \ReflectionClassConstant(\DoctrineMigrations\Version20261001120000::class, 'CUI_KEY_SQL'))->getValue();
+
+        self::assertSame(str_replace('d.cui', 'c.cui', $debtor), $creditor);
+    }
 }

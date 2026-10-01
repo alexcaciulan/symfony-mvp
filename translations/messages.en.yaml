@@ -261,6 +261,12 @@ wizard:
             existing: 'Pick existing creditor'
             new: 'New creditor'
             existing_disabled_title: 'Available from Pas 3.3 (UX Autocomplete).'
+        library:
+            recheck: 'Meanwhile, the creditor was added to your library with other data than this step holds. Continue and choose which data the case keeps.'
+            differs_title: 'Your library already holds the creditor %name%, with the same tax ID and other data. The case will use the library creditor: choose which data stands.'
+            differs_use_library: 'Use the library data. The creditor''s empty fields are filled from this step (county and locality only when the address is the same), and the fill is recorded in the history of the cases naming it.'
+            differs_update: 'Update the library creditor with this step''s data. The change is recorded in the history of the cases naming it, and payment order petitions generated from now on in them will use the new data.'
+            differs_update_refused: 'The creditor already appears in a case whose summons was sent, so its library data is not updated from here. If it changed, correct it from the creditor library.'
         autocomplete:
             title: 'Pick a creditor from your library'
             hint: 'Search by name or fiscal code. Fill manually if not in your library.'
@@ -1202,7 +1208,7 @@ case_overview:
         flash_error_wrong_status: 'The petition can only be generated from the "Payment notice sent" status.'
         flash_error_no_court: 'The competent court is missing. Fill in the "Court" field before generating the petition.'
         flash_error_already_generated: 'The petition has already been generated. Download the existing package.'
-        flash_error_debtor_changed: 'The debtor''s data changed after the case was opened or after the summons. Confirm in the generation window that you have seen the changes.'
+        flash_error_debtor_changed: 'The parties'' data changed after the case was opened or after the summons. Confirm in the generation window that you have seen the changes.'
         flash_error_csrf: 'Your session expired. Reload the page and try again.'
         flash_error_term_not_expired: 'The 15-day summons payment term has not expired yet. The OP petition cannot be filed before it lapses.'
         flash_error_debit_status_required: 'Select the debt status (unpaid or partially paid).'
@@ -1345,6 +1351,18 @@ case_overview:
         court_mismatch_text: 'The case is at %case_court%, and the debtor''s current registered office points to %seat_court%. The petition will carry the debtor''s current office.'
         debtor_changed_text: 'The debtor''s data changed after the summons was issued. The petition will carry the current data:'
         debtor_changed_ack: 'I have seen the changes and take responsibility for the court seised and the debtor''s data in the petition (for example a court chosen or agreed by the parties).'
+        creditor_changed_text: 'The creditor''s data changed after the summons was issued. The petition will carry the current data:'
+        creditor_iban_changed_text: 'The creditor''s IBAN changed after the summons: the debtor was told to pay into another account. A payment made into the account in the summons has to be taken into account, and the debtor has to be told of the new account.'
+        parties_changed_ack: 'I have seen the changes and take responsibility for the court seised and the parties'' data in the petition (for example a court chosen or agreed by the parties).'
+        creditor_field:
+            name: 'Name'
+            cui: 'Tax ID'
+            onrcNumber: 'Trade register no.'
+            address: 'Address'
+            addressCounty: 'County'
+            addressLocality: 'Locality'
+            legalRepresentative: 'Legal representative'
+            iban: 'IBAN'
         debtor_field:
             name: 'Name'
             cui: 'Tax ID'
@@ -2790,6 +2808,7 @@ library:
             title: 'Edit creditor'
             heading: 'Edit creditor'
             subtitle: 'Changes are used by the documents generated from now on, including regenerated documents of this creditor''s existing cases. Documents already generated do not change.'
+            shared_warning: 'This creditor appears in %count% cases. Documents already generated stay as they are, but a regeneration will use the new data. The change is recorded in each case''s history, and in cases whose summons was sent you will confirm it when generating the payment order petition.'
         form:
             create_submit: 'Save creditor'
             update_submit: 'Save changes'
@@ -2799,6 +2818,7 @@ library:
             updated: 'The creditor was updated.'
         error:
             cui_duplicate: 'You already have a creditor with this tax ID in your library.'
+            cui_after_summons: 'This creditor already appears in a case whose summons was sent, so its tax ID can no longer change. A new tax ID is another company: add it as a new creditor.'
     debtors:
         title: 'Debtors'
         heading: 'Debtors'

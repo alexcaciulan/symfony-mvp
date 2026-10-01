@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
+use App\Entity\AuditLog;
 use App\Entity\Creditor;
+use App\Entity\LegalCase;
 use App\Entity\User;
+use App\Enum\CaseStatus;
 use App\Enum\PersonType;
 use App\Repository\CreditorRepository;
 use Doctrine\ORM\EntityManagerInterface;
@@ -36,6 +39,8 @@ final class CreditorLibraryControllerTest extends WebTestCase
     {
         $conn = $this->em->getConnection();
         foreach ($this->userIds as $userId) {
+            $conn->executeStatement('DELETE FROM audit_log WHERE user_id = :id', ['id' => $userId]);
+            $conn->executeStatement('DELETE FROM legal_case WHERE user_id = :id', ['id' => $userId]);
             $conn->executeStatement('DELETE FROM creditor WHERE user_id = :id', ['id' => $userId]);
             $conn->executeStatement('DELETE FROM `user` WHERE id = :id', ['id' => $userId]);
         }
@@ -243,5 +248,77 @@ final class CreditorLibraryControllerTest extends WebTestCase
         $all = $this->creditors->findOneBy(['user' => $user, 'cui' => 'RO15193236']);
         self::assertSame('Existing SRL', $all->getName());
         self::assertCount(1, $this->creditors->findByUser($user));
+    }
+
+    public function testAnotherSpellingOfAStoredCuiIsADuplicate(): void
+    {
+        $user = $this->createUser();
+        $this->createCreditor($user, 'Existing SRL', 'RO15193236');
+        $this->client->loginUser($user);
+
+        $crawler = $this->client->request('GET', '/creditors/new');
+        $form = $crawler->filter('form:not([action="/logout"])')->form();
+        $form['creditor[personType]'] = PersonType::PJ->value;
+        $form['creditor[name]'] = 'Duplicate SRL';
+        $form['creditor[cui]'] = '15193236';
+        $form['creditor[onrcNumber]'] = 'J40/1234/2020';
+        $form['creditor[address]'] = 'Str. Dubla 7, Iași';
+        $this->client->submit($form);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+        self::assertCount(1, $this->creditors->findByUser($user));
+    }
+
+    public function testEditingASharedCreditorWarnsAndRecordsTheChangeOnEachCase(): void
+    {
+        $user = $this->createUser();
+        $creditor = $this->createCreditor($user, 'Shared SRL', 'RO15193236');
+        $case = $this->createCaseFor($user, $creditor, CaseStatus::AMIABIL);
+        $this->client->loginUser($user);
+
+        $crawler = $this->client->request('GET', '/creditors/' . $creditor->getId() . '/edit');
+        self::assertSelectorExists('[data-testid="creditor-shared-warning"]');
+        $form = $crawler->filter('form:not([action="/logout"])')->form();
+        $form['creditor[onrcNumber]'] = 'J40/1/2020';
+        $form['creditor[address]'] = 'Str. Mutată 9, Cluj';
+        $this->client->submit($form);
+
+        self::assertResponseRedirects('/creditors');
+        $entry = $this->em->getRepository(AuditLog::class)->findOneBy([
+            'action' => 'creditor_identity_changed',
+            'entityType' => LegalCase::class,
+            'entityId' => (string) $case->getId(),
+        ]);
+        self::assertNotNull($entry);
+        self::assertSame('Str. Mutată 9, Cluj', $entry->getNewData()['address']);
+    }
+
+    public function testTheCuiOfASummonedCreditorCannotMove(): void
+    {
+        $user = $this->createUser();
+        $creditor = $this->createCreditor($user, 'Somat SRL', 'RO15193236');
+        $this->createCaseFor($user, $creditor, CaseStatus::SOMATIE_TRIMISA);
+        $this->client->loginUser($user);
+
+        $crawler = $this->client->request('GET', '/creditors/' . $creditor->getId() . '/edit');
+        $form = $crawler->filter('form:not([action="/logout"])')->form();
+        $form['creditor[cui]'] = 'RO14186770';
+        $this->client->submit($form);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+        $this->em->clear();
+        self::assertSame('15193236', $this->creditors->find($creditor->getId())->getCuiKey());
+    }
+
+    private function createCaseFor(User $user, Creditor $creditor, CaseStatus $status): LegalCase
+    {
+        $case = new LegalCase();
+        $case->setUser($user);
+        $case->setCreditor($creditor);
+        $case->setStatus($status);
+        $this->em->persist($case);
+        $this->em->flush();
+
+        return $case;
     }
 }
