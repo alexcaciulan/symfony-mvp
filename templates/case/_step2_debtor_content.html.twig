@@ -53,6 +53,11 @@
     {# The debtor typed here has a CUI the library already holds, with other
        data: the case links to that company, so the lawyer says which data
        stands. Posted with the step form. #}
+    {% if library_recheck|default(false) %}
+        <div class="rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 p-4 mb-6 text-sm text-amber-900 dark:text-amber-200" role="alert" data-testid="library-recheck">
+            {{ 'wizard.step2.library.recheck'|trans }}
+        </div>
+    {% endif %}
     {% for index, pending in library_differs|default([]) %}
         <div class="rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 p-5 mb-6 space-y-3" role="alert" data-testid="library-differs">
             <p class="text-sm font-semibold text-amber-900 dark:text-amber-200">{{ 'wizard.step2.library.differs_title'|trans({'%name%': pending.name}) }}</p>

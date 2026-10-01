@@ -12,11 +12,12 @@ use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Component\Validator\Context\ExecutionContextInterface;
 
 /**
- * Wizard step 2 — one debtor in the (potentially multi-debtor) collection.
+ * Wizard step 2: one debtor in the (potentially multi-debtor) collection.
  *
  * Public mutable properties so the form can bind. `personType`, `name`, and
- * `address` are always required (a debtor can never be referenced by id —
- * the lawyer must spell them out). For PJ, `cui` and `onrcNumber` are also
+ * `address` are always required, also for a company taken from the library
+ * (`debtorId`), whose identity is shown read-only and checked the same way.
+ * For PJ, `cui` and `onrcNumber` are also
  * required; for PF, `personalId` (CNP) is required — enforced by the
  * `validateConditionalRequiredFields` callback.
  *

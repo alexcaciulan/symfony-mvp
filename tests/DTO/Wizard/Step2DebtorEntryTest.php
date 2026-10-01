@@ -254,4 +254,23 @@ final class Step2DebtorEntryTest extends KernelTestCase
         return $out;
     }
 
+
+    public function testAnEntryStoredBeforeTheLibraryFieldsReadsAsNotLinked(): void
+    {
+        $serialized = serialize(new Step2DebtorEntry(personType: PersonType::PJ, name: 'Vechi SRL', cui: 'RO14186770', address: 'Str. Veche 1'));
+        $withoutNewFields = str_replace(['s:8:"debtorId";N;', 's:13:"updateLibrary";b:0;'], '', $serialized, $removed);
+        self::assertSame(2, $removed, 'the session format names both fields');
+        $withoutNewFields = (string) preg_replace_callback(
+            '/^(O:\d+:"[^"]+":)(\d+)/',
+            static fn (array $m): string => $m[1] . ((int) $m[2] - 2),
+            $withoutNewFields,
+        );
+
+        $entry = unserialize($withoutNewFields, ['allowed_classes' => true]);
+
+        self::assertInstanceOf(Step2DebtorEntry::class, $entry);
+        self::assertSame('Vechi SRL', $entry->name);
+        self::assertNull($entry->debtorId);
+        self::assertFalse($entry->updateLibrary);
+    }
 }

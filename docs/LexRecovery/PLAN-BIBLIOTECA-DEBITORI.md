@@ -677,3 +677,22 @@ Rămase:
 ### 11.1 Comasarea copiilor vechi (decizia utilizatorului, 2026-09-30)
 
 Decizia §10.2 (fără comasare) a fost schimbată: rândurile aceluiași avocat cu același CUI și același nume se comasează în rândul modificat cel mai recent; dosarele se mută pe el, iar fiecare dosar mutat primește în istoric `debtor_identity_changed` (valori vechi și noi) și `debtor_merged`. Același CUI cu alt nume nu se comasează (NEXT GEN MEDICAL SOLUTIONS SRL poartă CUI-ul LH CONSULTANCY, probabil greșit). Făcută o singură dată, fără cod permanent în aplicație (producția nu are date vechi): în dev 5 grupuri, 14 rânduri (backup `var/backup-pre-merge-debtors-20260930.sql`); pe demo o singură pereche, cu SQL-ul din `DEMO-COMASARE-DEBITORI.sql`, de rulat după migrare, la merge.
+
+## 12. Review final pe tot branch-ul (2026-10-01)
+
+Tehnic COMMIT-READY, juridic LEGAL-NEEDS-FIX (blocant doar SQL-ul de demo). Rezolvate după review:
+- SQL-ul de comasare pentru demo: toate câmpurile de identitate în istoric, fiecare pas condiționat de aceeași firmă și același avocat, sigur la o a doua rulare (testat pe o bază temporară).
+- Backup obligatoriu înainte de migrare, notat în `DEMO-STACK.md`.
+- Comentarii învechite (debitor prin id, bifa de insolvență în admin).
+- La Pasul 4, o firmă introdusă manual care a ajuns între timp în bibliotecă: legată dacă datele coincid, altfel avocatul e trimis la Pasul 2 să aleagă (fără rând dublu la salvare).
+- Etichetele „BPI” rămase în textele pentru avocat, aliniate la Legea 85/2014.
+- 404 pentru rândurile vechi de persoană fizică în `/debtors/{id}/edit`; permisiunea VIEW nefolosită scoasă.
+- Teste: ștergere cu token invalid, sesiune veche de wizard, firmă ajunsă în bibliotecă după Pasul 2.
+
+De discutat cu avocatul:
+- C1 avertisment și confirmare și la regenerarea somației după o editare în bibliotecă (concordanța somație/cerere).
+- C2 buton „Reconfirm” pentru atestarea Legea 85/2014 în locul indicației „debifează, salvează, bifează din nou”.
+- C3 forma juridică pentru PFA, II, IF (D1).
+- C4 coloana `in_insolvency` (nescrisă de nimeni, citită de validator): scoasă complet sau legată de o acțiune pe dosar.
+
+După lansare: numărarea dosarelor în lista bibliotecii fără N+1; avertismentele din fereastra cererii OP calculate doar când acțiunea e disponibilă; test pentru mutarea datelor din migrare; logica bibliotecii mutată din controller într-un serviciu.

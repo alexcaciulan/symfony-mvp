@@ -312,6 +312,7 @@ wizard:
             differs_use_library: 'Use the library data. The company''s empty fields are filled from this step (county and locality only when the address is the same), and the fill is recorded in the history of the cases naming the company.'
             differs_update: 'Update the library company with this step''s data. The change is recorded in the history of the cases the company appears in, and their regenerations will use the new data.'
             reverify_notice: 'Debtor from the library: the identification data is changed only in the library. For this case check again the ANAF status, the proceedings provided for by Law 85/2014 and the registered office, which decides the competent court.'
+            recheck: 'Meanwhile, the debtor company was added to your library with other data than this step holds. Continue and choose which data the case keeps.'
             invalid: 'The library company''s data fails the checks (see the marked fields). It can only be corrected in the library.'
             invalid_fix: 'Correct the debtor in the library'
         button:
@@ -332,7 +333,7 @@ wizard:
             lookup_loading: 'Verifying with ANAF...'
             checked_at: 'ANAF checked at %date%'
         bpi:
-            title: 'BPI verification required (Law 85/2014)'
+            title: 'Verification required (Law 85/2014)'
             body: 'Before filing the payment order you must check that the debtor is not subject to any of the proceedings provided for by Law 85/2014.'
         type: 'Claimant type'
         type_pf: 'Individual'
@@ -531,7 +532,7 @@ wizard:
             penalty_clause_text: 'Copy the clause from the contract word for word.'
             contract_object: 'E.g. the provision of transport services'
     step4:
-        bpi_label: 'BPI check'
+        bpi_label: 'Law 85/2014 check'
         claim_items:
             title: 'Claim positions carried by the case'
             positions_note: 'Total over %count% claim positions, each with its own due date.'
@@ -553,8 +554,8 @@ wizard:
             debtor: 'Debtor'
             claim: 'Claim'
             edit: 'Edit'
-            bpi_verified: 'BPI verified'
-            bpi_unverified: 'BPI unverified'
+            bpi_verified: 'Verified'
+            bpi_unverified: 'Not verified'
         gdpr:
             title: 'Data privacy'
             body_ai: 'AI extraction is active: uploaded documents are sent in full to the AI provider (Anthropic, USA), without masking national IDs or bank accounts. You can opt out at any time from your profile.'

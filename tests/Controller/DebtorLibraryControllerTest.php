@@ -284,6 +284,31 @@ final class DebtorLibraryControllerTest extends WebTestCase
         self::assertSame('Maria Ionescu', $debtor->getAdministrator());
     }
 
+    public function testADeleteWithoutAValidTokenIsRefused(): void
+    {
+        $user = $this->createUser();
+        $debtor = $this->createDebtor($user, 'Nefolosit SRL', 'RO15193236');
+        $this->client->loginUser($user);
+
+        $this->client->request('POST', '/debtors/' . $debtor->getId() . '/delete', ['_token' => 'forged']);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_FORBIDDEN);
+        self::assertNotNull($this->debtors->find($debtor->getId()));
+    }
+
+    public function testANaturalPersonFromBeforeTheLibraryIsNotOpenedForEditing(): void
+    {
+        $user = $this->createUser();
+        $legacy = $this->createDebtor($user, 'Ion Popescu', null);
+        $legacy->setPersonType(PersonType::PF);
+        $this->em->flush();
+        $this->client->loginUser($user);
+
+        $this->client->request('GET', '/debtors/' . $legacy->getId() . '/edit');
+
+        self::assertResponseStatusCodeSame(Response::HTTP_NOT_FOUND);
+    }
+
     private function createUser(): User
     {
         $user = new User();

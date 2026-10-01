@@ -15,13 +15,12 @@ use Symfony\Component\Security\Core\Authorization\Voter\Voter;
  */
 class DebtorVoter extends Voter
 {
-    public const VIEW = 'DEBTOR_VIEW';
     public const EDIT = 'DEBTOR_EDIT';
     public const DELETE = 'DEBTOR_DELETE';
 
     protected function supports(string $attribute, mixed $subject): bool
     {
-        return in_array($attribute, [self::VIEW, self::EDIT, self::DELETE], true)
+        return in_array($attribute, [self::EDIT, self::DELETE], true)
             && $subject instanceof Debtor;
     }
 

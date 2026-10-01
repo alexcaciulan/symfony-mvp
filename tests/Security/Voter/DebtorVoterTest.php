@@ -19,7 +19,7 @@ final class DebtorVoterTest extends TestCase
         $debtor = (new Debtor())->setUser($owner);
         $voter = new DebtorVoter();
 
-        foreach ([DebtorVoter::VIEW, DebtorVoter::EDIT, DebtorVoter::DELETE] as $attribute) {
+        foreach ([DebtorVoter::EDIT, DebtorVoter::DELETE] as $attribute) {
             self::assertSame(VoterInterface::ACCESS_GRANTED, $voter->vote($this->token($owner), $debtor, [$attribute]));
             self::assertSame(VoterInterface::ACCESS_DENIED, $voter->vote($this->token($this->user(2)), $debtor, [$attribute]));
         }

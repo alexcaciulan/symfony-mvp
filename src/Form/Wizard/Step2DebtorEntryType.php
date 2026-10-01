@@ -33,9 +33,9 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
  * listener; it is mandatory for PJ debtors only, since BPI (Legea 85/2014) is
  * searched by CUI and the wizard collects a CUI only for PJ (see the caveat on
  * professional-individual debtors in {@see Step2DebtorEntry}).
- * The `Debtor::$inInsolvency` flag is no longer written from the wizard (a
- * lawyer who finds the debtor in BPI must not file); it stays on the admin
- * surface. The ANAF metadata fields (`anafStatus`, `anafCheckedAt`) are hidden
+ * The case's `inInsolvency` flag is not written from the wizard (a lawyer who
+ * finds the debtor in the Law 85/2014 proceedings must not file). The ANAF
+ * metadata fields (`anafStatus`, `anafCheckedAt`) are hidden
  * inputs the party-anaf-lookup Stimulus controller fills on an explicit sync.
  */
 final class Step2DebtorEntryType extends AbstractType

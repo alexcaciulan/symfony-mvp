@@ -470,6 +470,33 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         self::assertNull($entry->insolvencyCheckedAt, 'the check made for the old CUI is withdrawn');
     }
 
+    public function testACompanyAddedToTheLibraryAfterStep2WithTheSameDataIsLinked(): void
+    {
+        $this->primeSessionForStep4(insolvencyCheckedAt: new \DateTimeImmutable('-1 hour'));
+        $company = $this->libraryDebtor($this->user, 'Acme Debtor SRL', '14186770');
+
+        $this->client->request('GET', '/case/new/confirmation');
+
+        self::assertResponseIsSuccessful();
+        self::assertSame($company->getId(), $this->client->getRequest()->getSession()->get(self::SESSION_KEY)['debtors']->debtors[0]->debtorId);
+    }
+
+    public function testACompanyAddedToTheLibraryAfterStep2WithOtherDataSendsTheLawyerBackToChoose(): void
+    {
+        $this->primeSessionForStep4(insolvencyCheckedAt: new \DateTimeImmutable('-1 hour'));
+        $this->libraryDebtor($this->user, 'Acme Alt Nume SRL', 'RO14186770');
+
+        $this->client->request('GET', '/case/new/confirmation');
+        self::assertResponseRedirects('/case/new/debtor');
+
+        $crawler = $this->client->request('GET', '/case/new/debtor');
+        self::assertSelectorExists('[data-testid="library-recheck"]');
+        $token = $crawler->filter('input[name="step2_debtors[_token]"]')->first()->attr('value');
+        $this->client->request('POST', '/case/new/debtor', $this->debtorPost($token, 'RO14186770'));
+        self::assertSelectorExists('[data-testid="library-differs"]');
+        self::assertSelectorNotExists('[data-testid="library-recheck"]');
+    }
+
     private function libraryDebtor(User $owner, string $name, string $cui): Debtor
     {
         $debtor = new Debtor();

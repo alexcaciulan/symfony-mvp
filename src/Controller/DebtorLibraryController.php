@@ -7,6 +7,7 @@ namespace App\Controller;
 use App\DTO\Library\DebtorLibraryData;
 use App\Entity\Debtor;
 use App\Entity\User;
+use App\Enum\PersonType;
 use App\Form\DebtorLibraryType;
 use App\Repository\DebtorRepository;
 use App\Security\Voter\DebtorVoter;
@@ -68,6 +69,11 @@ class DebtorLibraryController extends AbstractController
         $user = $this->getUser();
         $debtor = $this->findOr404($id);
         $this->denyAccessUnlessGranted(DebtorVoter::EDIT, $debtor);
+        // A natural person from before the library is kept for its cases, but
+        // the library holds companies only: its form could never be saved.
+        if ($debtor->getPersonType() !== PersonType::PJ) {
+            throw $this->createNotFoundException();
+        }
 
         $data = DebtorLibraryData::fromDebtor($debtor);
         $form = $this->createForm(DebtorLibraryType::class, $data);

@@ -568,6 +568,10 @@ final class CaseWizardController extends AbstractController
             $stands = $this->applyChosenValues($bag, ConflictScope::DEBTOR, $rendered, $form->getData(), $rejected);
             $acknowledged = $acknowledged && $stands;
         }
+        $libraryRecheck = $bag['debtorLibraryRecheck'];
+        if ($form->isSubmitted()) {
+            $bag['debtorLibraryRecheck'] = false;
+        }
         $libraryDiffers = [];
         if ($submitted && $acknowledged) {
             $libraryDiffers = $this->matchLibraryDebtors($form->getData(), $user, $request->request->all('library_debtor_choice'));
@@ -588,6 +592,7 @@ final class CaseWizardController extends AbstractController
                 'action' => $this->generateUrl('case_wizard_debtor_pick'),
             ]),
             'library_differs' => $libraryDiffers,
+            'library_recheck' => $libraryRecheck && $libraryDiffers === [],
             'dto' => $form->getData() ?? $dto,
             ...$this->conflictViewVars($bag, $conflicts, 'debtors', $rejected),
         ], $this->stepRejected($acknowledged && $libraryDiffers === []));
@@ -631,15 +636,7 @@ final class CaseWizardController extends AbstractController
                 }
             }
 
-            $differs = [];
-            $library = $this->entryFromLibrary($company);
-            foreach (self::LIBRARY_FIELDS as $field) {
-                $mine = trim((string) $entry->{$field});
-                $theirs = trim((string) $library->{$field});
-                if ($mine !== '' && $theirs !== '' && $mine !== $theirs) {
-                    $differs[$field] = [$library->{$field}, $entry->{$field}];
-                }
-            }
+            $differs = $this->libraryDifferences($entry, $company);
 
             $canUpdate = !$this->debtorLibraryService->hasSummonedCase($company);
             $choice = is_string($choices[$index] ?? null) ? $choices[$index] : '';
@@ -654,6 +651,52 @@ final class CaseWizardController extends AbstractController
         }
 
         return $pending;
+    }
+
+    /**
+     * The fields both sides fill differently, field to [library, step].
+     *
+     * @return array<string, array{?string, ?string}>
+     */
+    private function libraryDifferences(Step2DebtorEntry $entry, Debtor $company): array
+    {
+        $differs = [];
+        $library = $this->entryFromLibrary($company);
+        foreach (self::LIBRARY_FIELDS as $field) {
+            $mine = trim((string) $entry->{$field});
+            $theirs = trim((string) $library->{$field});
+            if ($mine !== '' && $theirs !== '' && $mine !== $theirs) {
+                $differs[$field] = [$library->{$field}, $entry->{$field}];
+            }
+        }
+
+        return $differs;
+    }
+
+    /**
+     * A debtor typed at step 2 whose company reached the library afterwards (a
+     * second tab, the library page): linked when nothing differs, as step 2
+     * would have done; otherwise the lawyer goes back to choose which data
+     * stands, instead of a second row being created at submission.
+     */
+    private function debtorReachedLibrary(Step2DebtorsData $debtors, User $user): bool
+    {
+        foreach ($debtors->debtors as $entry) {
+            if ($entry->debtorId !== null || $entry->personType !== PersonType::PJ) {
+                continue;
+            }
+            $key = CuiNormalizer::canonical($entry->cui);
+            $company = $key !== null ? $this->debtorLibrary->findOneByUserAndCuiKey($user, $key) : null;
+            if ($company === null) {
+                continue;
+            }
+            if ($this->libraryDifferences($entry, $company) !== []) {
+                return true;
+            }
+            $entry->debtorId = $company->getId();
+        }
+
+        return false;
     }
 
     /**
@@ -1132,6 +1175,12 @@ final class CaseWizardController extends AbstractController
         // A library company may have been edited since it was picked: the
         // court and the summary are worked out from what the case will carry.
         $this->refreshPickedDebtors($debtorsDto, $user);
+        if ($this->debtorReachedLibrary($debtorsDto, $user)) {
+            $bag['debtorLibraryRecheck'] = true;
+            $this->saveBag($session, $bag);
+
+            return $this->redirectToRoute('case_wizard_debtor');
+        }
         $this->bindLibraryDebtors($debtorsDto, $user);
 
         // Everything the documents disagree about, checked once more here. A
@@ -2170,6 +2219,7 @@ final class CaseWizardController extends AbstractController
             'creditor' => null,
             'debtors' => null,
             'debtorBeforePick' => null,
+            'debtorLibraryRecheck' => false,
             'claim' => null,
             'claimItems' => null,
             'claimItemsTableConfirmed' => false,
@@ -2717,6 +2767,7 @@ final class CaseWizardController extends AbstractController
             'creditor' => $creditor,
             'debtors' => $debtors,
             'debtorBeforePick' => $debtorBeforePick,
+            'debtorLibraryRecheck' => (bool) ($raw['debtorLibraryRecheck'] ?? false),
             'claim' => $claim,
             'claimItems' => $claimItems,
             'claimItemsTableConfirmed' => (bool) ($raw['claimItemsTableConfirmed'] ?? false),
