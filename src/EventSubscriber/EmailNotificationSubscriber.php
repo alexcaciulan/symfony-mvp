@@ -124,6 +124,14 @@ final class EmailNotificationSubscriber
     #[AsEventListener(event: 'workflow.legal_case.entered.INCHIS_SUCCES')]
     public function onInchisSucces(EnteredEvent $event): void
     {
+        // Closed in the summons stage because the debtor paid the whole claim,
+        // before any court step: a different message from the end of enforcement.
+        if ($event->getTransition()?->getName() === 'inchide_plata_integrala') {
+            $this->notifyStatusChange($event, 'inchis_plata_integrala', 'success');
+
+            return;
+        }
+
         $this->notifyStatusChange($event, 'inchis_succes', 'success');
     }
 

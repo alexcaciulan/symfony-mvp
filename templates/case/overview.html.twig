@@ -63,10 +63,15 @@
      hero dropdown, ZIP package card, Cerere OP „Generează acum", Recommended Actions, and
      the Pas 7.2 status-driven transition CTAs. #}
   {{ include('case/overview/_modal_close_case.html.twig') }}
+  {% if can_close_full_payment|default(false) %}
+    {{ include('case/overview/_modal_full_payment.html.twig') }}
+  {% endif %}
   {{ include('case/overview/_modal_executare.html.twig') }}
   {{ include('case/overview/_modal_generate_op.html.twig') }}
   {{ include('case/overview/_modal_c4_summons_communication.html.twig') }}
-  {{ include('case/overview/_modal_add_deadline.html.twig') }}
+  {% if not case.fullPaymentDate %}
+    {{ include('case/overview/_modal_add_deadline.html.twig') }}
+  {% endif %}
   {{ include('case/overview/_modal_edit_deadline.html.twig') }}
   {{ include('case/overview/_modal_upload_document.html.twig') }}
   {{ include('case/overview/_modal_stamp_duty_proof.html.twig') }}

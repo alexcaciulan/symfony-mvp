@@ -60,11 +60,16 @@ final class DebtorLibraryService
         return $this->hasSummonedCase($debtor);
     }
 
-    /** Whether a case has already summoned this company (any case past AMIABIL). */
+    /**
+     * Whether a case has already summoned this company: any case past AMIABIL,
+     * except one closed on full payment straight from AMIABIL, which sent none.
+     */
     public function hasSummonedCase(Debtor $debtor): bool
     {
         foreach ($debtor->getLegalCaseLinks() as $link) {
-            if ($link->getLegalCase()->getStatus() !== CaseStatus::AMIABIL) {
+            $case = $link->getLegalCase();
+            $closedBeforeSummons = $case->getFullPaymentDate() !== null && $case->getPaymentNoticeDate() === null;
+            if ($case->getStatus() !== CaseStatus::AMIABIL && !$closedBeforeSummons) {
                 return true;
             }
         }

@@ -73,6 +73,35 @@ final class DeadlineServiceTest extends KernelTestCase
         parent::tearDown();
     }
 
+    public function testCloseAllOpenOnFullPaymentClosesEveryOpenDeadlineOnce(): void
+    {
+        foreach ([DeadlineType::PRESCRIPTIE, DeadlineType::RASPUNS_SOMATIE, DeadlineType::OTHER, DeadlineType::OTHER] as $type) {
+            $deadline = new LegalDeadline();
+            $deadline->setLegalCase($this->case);
+            $deadline->setType($type);
+            $deadline->setDeadlineDate(new \DateTimeImmutable('+20 days'));
+            $deadline->setPriority(DeadlinePriority::MEDIUM);
+            $this->em->persist($deadline);
+        }
+        $this->em->flush();
+        // The case may already carry automatic deadlines; all of them close too.
+        $open = count($this->em->getRepository(LegalDeadline::class)->findBy(['legalCase' => $this->case, 'completed' => false]));
+        self::assertGreaterThanOrEqual(4, $open);
+
+        self::assertSame($open, $this->service->closeAllOpenOnFullPayment($this->case, $this->user));
+        self::assertSame(0, $this->service->closeAllOpenOnFullPayment($this->case, $this->user), 'Idempotent: nothing left open.');
+
+        foreach ($this->em->getRepository(LegalDeadline::class)->findBy(['legalCase' => $this->case]) as $deadline) {
+            self::assertTrue($deadline->isCompleted());
+            self::assertSame($this->user, $deadline->getCompletedBy());
+        }
+
+        $audits = $this->em->getRepository(AuditLog::class)->findBy(['action' => 'deadline_completed', 'category' => AuditLogService::CATEGORY_DEADLINE_COMPLETED]);
+        $reasons = array_filter($audits, fn (AuditLog $a) => ($a->getNewData()['caseNumber'] ?? null) === $this->case->getCaseNumber()
+            && ($a->getNewData()['reason'] ?? null) === 'case_closed_full_payment');
+        self::assertCount($open, $reasons);
+    }
+
     public function testCreatePaymentNoticeDeadlineCountsFifteenFreeDays(): void
     {
         // CPC art. 181 alin. 1 pct. 2 (zile libere): nu se socotesc nici ziua de la

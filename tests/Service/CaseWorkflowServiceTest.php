@@ -63,6 +63,8 @@ class CaseWorkflowServiceTest extends KernelTestCase
             'inchide_fara_recuperare_definitiva' => [CaseStatus::DEFINITIVA, 'inchide_fara_recuperare', CaseStatus::INCHIS_FARA_RECUPERARE],
             'inchide_succes_executare'           => [CaseStatus::EXECUTARE,  'inchide_succes',          CaseStatus::INCHIS_SUCCES],
             'inchide_fara_recuperare_executare'  => [CaseStatus::EXECUTARE,  'inchide_fara_recuperare', CaseStatus::INCHIS_FARA_RECUPERARE],
+            'inchide_plata_integrala_amiabil'    => [CaseStatus::AMIABIL,         'inchide_plata_integrala', CaseStatus::INCHIS_SUCCES],
+            'inchide_plata_integrala_somatie'    => [CaseStatus::SOMATIE_TRIMISA, 'inchide_plata_integrala', CaseStatus::INCHIS_SUCCES],
         ];
     }
 
@@ -70,7 +72,49 @@ class CaseWorkflowServiceTest extends KernelTestCase
     {
         $case = new LegalCase();
         $this->assertSame(CaseStatus::AMIABIL, $case->getStatus());
-        $this->assertSame(['trimite_somatie'], $this->service->getAvailableTransitions($case));
+        $transitions = $this->service->getAvailableTransitions($case);
+        sort($transitions);
+        $this->assertSame(['inchide_plata_integrala', 'trimite_somatie'], $transitions);
+    }
+
+    public function testGetAvailableTransitionsFromSomatieTrimisa(): void
+    {
+        $case = new LegalCase();
+        $case->setStatus(CaseStatus::SOMATIE_TRIMISA);
+
+        $transitions = $this->service->getAvailableTransitions($case);
+        sort($transitions);
+        $this->assertSame(['genereaza_cerere', 'inchide_plata_integrala'], $transitions);
+    }
+
+    /** Past the summons stage the claim is before a court: full payment closes through the regular closing. */
+    #[DataProvider('statusesWithoutFullPaymentClosureProvider')]
+    public function testFullPaymentClosureIsNotEnabledFromLaterStatuses(CaseStatus $status): void
+    {
+        $case = new LegalCase();
+        $case->setStatus($status);
+
+        $this->assertFalse($this->service->can($case, 'inchide_plata_integrala'));
+    }
+
+    public static function statusesWithoutFullPaymentClosureProvider(): iterable
+    {
+        foreach (CaseStatus::cases() as $status) {
+            if (!in_array($status, [CaseStatus::AMIABIL, CaseStatus::SOMATIE_TRIMISA], true)) {
+                yield $status->value => [$status];
+            }
+        }
+    }
+
+    /** `inchide_succes` also takes a partial recovery, so it must stay out of the summons stage. */
+    public function testRegularSuccessfulClosingStaysDisabledBeforeCourt(): void
+    {
+        foreach ([CaseStatus::AMIABIL, CaseStatus::SOMATIE_TRIMISA] as $status) {
+            $case = new LegalCase();
+            $case->setStatus($status);
+
+            $this->assertFalse($this->service->can($case, 'inchide_succes'), $status->value);
+        }
     }
 
     public function testGetAvailableTransitionsFromInAnulare(): void

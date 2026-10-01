@@ -96,3 +96,10 @@ validation:
         invalid: 'Adresa de email nu are un format valid.'
     iban:
         invalid_format: 'IBAN-ul trebuie să respecte formatul românesc (ROXX BBBB XXXXXXXXXXXXXXXX).'
+
+full_payment:
+    date_required: 'Completează data plății.'
+    date_future: 'Data plății nu poate fi în viitor.'
+    confirm_required: 'Confirmă că întreaga creanță a fost achitată.'
+    details_max: 'Mențiunile pot avea cel mult {{ limit }} caractere.'
+    amount_positive: 'Suma încasată nu poate fi negativă.'

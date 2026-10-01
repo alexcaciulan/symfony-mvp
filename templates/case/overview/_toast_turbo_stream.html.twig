@@ -1,0 +1,7 @@
+{# A single toast, nothing else: the page and any open modal stay as they are, so
+   the lawyer can correct the form instead of losing it to a reload. #}
+<turbo-stream action="append" target="toasts">
+    <template>
+        {% include 'components/Toast.html.twig' with { message: message, variant: variant|default('error'), details: [] } only %}
+    </template>
+</turbo-stream>

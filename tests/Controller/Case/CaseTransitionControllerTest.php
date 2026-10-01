@@ -10,8 +10,11 @@ use App\Entity\Debtor;
 use App\Entity\LegalCaseDebtor;
 use App\Entity\Document;
 use App\Entity\LegalCase;
+use App\Entity\LegalDeadline;
 use App\Entity\User;
 use App\Enum\CaseStatus;
+use App\Enum\DeadlinePriority;
+use App\Enum\DeadlineType;
 use App\Enum\DocumentType;
 use App\Enum\FilingChannel;
 use App\Enum\PersonType;
@@ -875,6 +878,230 @@ final class CaseTransitionControllerTest extends WebTestCase
         self::assertNull($refreshed->getCourtCaseNumber());
     }
 
+    private function addDeadline(LegalCase $case, DeadlineType $type, string $date): LegalDeadline
+    {
+        $deadline = new LegalDeadline();
+        $deadline->setLegalCase($case);
+        $deadline->setType($type);
+        $deadline->setDeadlineDate(new \DateTimeImmutable($date));
+        $deadline->setPriority(DeadlinePriority::HIGH);
+        $this->em->persist($deadline);
+        $this->em->flush();
+
+        return $deadline;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     */
+    private function postFullPayment(LegalCase $case, array $fields, bool $turbo = false, ?LegalCase $tokenSource = null): void
+    {
+        $token = $this->csrfForForm($tokenSource ?? $case, 'full_payment_closure');
+        $this->client->request(
+            'POST',
+            '/case/' . $case->getId() . '/transition/full-payment',
+            ['full_payment_closure' => array_merge(['_token' => $token], $fields)],
+            server: $turbo ? ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html, text/html'] : [],
+        );
+    }
+
+    public function testFullPaymentFromAmiabilClosesCaseAndAllOpenDeadlines(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::AMIABIL);
+        $this->addDeadline($case, DeadlineType::PRESCRIPTIE, '+3 years');
+        $this->addDeadline($case, DeadlineType::OTHER, '+10 days');
+
+        $this->postFullPayment($case, [
+            'paymentDate' => '2026-01-15',
+            'amountReceived' => '3000.00',
+            'confirmFullPayment' => '1',
+            'details' => 'Plată prin OP.',
+        ]);
+
+        self::assertResponseRedirects('/case/' . $case->getId());
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame(CaseStatus::INCHIS_SUCCES, $refreshed->getStatus());
+        self::assertSame('2026-01-15', $refreshed->getFullPaymentDate()?->format('Y-m-d'));
+
+        $open = $this->em->getRepository(LegalDeadline::class)->findBy(['legalCase' => $refreshed, 'completed' => false]);
+        self::assertSame([], $open, 'The limitation term and the custom reminder close with the case.');
+
+        $closed = $this->em->getRepository(AuditLog::class)->findBy([
+            'category' => AuditLogService::CATEGORY_CASE_CLOSED,
+            'entityId' => (string) $refreshed->getId(),
+        ]);
+        self::assertCount(1, $closed);
+        $data = $closed[0]->getNewData();
+        self::assertSame('inchide_plata_integrala', $data['transition']);
+        self::assertSame('PAID', $data['reason']);
+        self::assertSame('AMIABIL', $data['fromStatus']);
+        self::assertSame('2026-01-15', $data['paymentDate']);
+        self::assertSame(2, $data['closedDeadlines']);
+
+        $history = $refreshed->getStatusHistory()->filter(fn ($e) => $e->getNewStatus() === 'INCHIS_SUCCES');
+        self::assertCount(1, $history);
+        self::assertSame('AMIABIL', $history->first()->getOldStatus());
+    }
+
+    public function testFullPaymentFromSomatieTrimisaClosesCase(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::SOMATIE_TRIMISA);
+        $this->addDeadline($case, DeadlineType::RASPUNS_SOMATIE, '+5 days');
+
+        $this->postFullPayment($case, ['paymentDate' => '2026-02-01', 'confirmFullPayment' => '1']);
+
+        self::assertResponseRedirects('/case/' . $case->getId());
+        $flashes = $this->client->getRequest()->getSession()->getFlashBag()->peekAll();
+        self::assertSame(['case_overview.transition.flash_success_full_payment'], $flashes['success'] ?? []);
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame(CaseStatus::INCHIS_SUCCES, $refreshed->getStatus());
+        self::assertSame([], $this->em->getRepository(LegalDeadline::class)->findBy(['legalCase' => $refreshed, 'completed' => false]));
+    }
+
+    /** Once the request is generated the claim heads to court; the regular closing applies later. */
+    #[DataProvider('statusesRefusingFullPayment')]
+    public function testFullPaymentRejectedFromOtherStatuses(CaseStatus $status): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase($status);
+
+        // No modal on this status, so the valid token comes from a case that offers it.
+        $this->postFullPayment(
+            $case,
+            ['paymentDate' => '2026-02-01', 'confirmFullPayment' => '1'],
+            tokenSource: $this->createCase(CaseStatus::AMIABIL),
+        );
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame($status, $refreshed->getStatus());
+        self::assertNull($refreshed->getFullPaymentDate());
+        self::assertSame([], $this->em->getRepository(AuditLog::class)->findBy([
+            'category' => AuditLogService::CATEGORY_CASE_CLOSED,
+            'entityId' => (string) $refreshed->getId(),
+        ]));
+    }
+
+    public static function statusesRefusingFullPayment(): iterable
+    {
+        yield 'cerere generata' => [CaseStatus::CERERE_GENERATA];
+        yield 'definitiva' => [CaseStatus::DEFINITIVA];
+    }
+
+    public function testFullPaymentWithoutConfirmationKeepsStatus(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::AMIABIL);
+
+        $this->postFullPayment($case, ['paymentDate' => '2026-02-01']);
+
+        $this->em->clear();
+        self::assertSame(CaseStatus::AMIABIL, $this->em->getRepository(LegalCase::class)->find($case->getId())->getStatus());
+    }
+
+    public function testFullPaymentRejectsFutureDate(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::AMIABIL);
+
+        $this->postFullPayment($case, ['paymentDate' => (new \DateTimeImmutable('+2 days'))->format('Y-m-d'), 'confirmFullPayment' => '1']);
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame(CaseStatus::AMIABIL, $refreshed->getStatus());
+        self::assertNull($refreshed->getFullPaymentDate());
+    }
+
+    /** A rejected submission must not reload the page: the open modal keeps what was typed. */
+    public function testFullPaymentErrorAnswersWithToastStreamNotRedirect(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::AMIABIL);
+
+        $this->postFullPayment($case, ['paymentDate' => '2026-02-01'], turbo: true);
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('text/vnd.turbo-stream.html', (string) $this->client->getResponse()->headers->get('Content-Type'));
+        self::assertFalse($this->client->getResponse()->headers->has('Location'));
+        $body = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('target="toasts"', $body);
+        $translator = static::getContainer()->get('translator');
+        self::assertStringContainsString($translator->trans('full_payment.confirm_required', domain: 'validators', locale: 'ro'), $body);
+    }
+
+    /** Closed straight from AMIABIL: the in-place answer must not show the summons as sent. */
+    public function testFullPaymentFromAmiabilUnderTurboDoesNotMarkSummonsDone(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::AMIABIL);
+
+        $this->postFullPayment($case, ['paymentDate' => '2026-02-01', 'confirmFullPayment' => '1'], turbo: true);
+
+        $body = (string) $this->client->getResponse()->getContent();
+        $translator = static::getContainer()->get('translator');
+        self::assertStringNotContainsString(
+            $translator->trans('case_overview.recommended_actions.generate_summons'),
+            $body,
+            'Neither done nor offered: the case never sent a summons and is now closed.',
+        );
+        self::assertStringContainsString(
+            $translator->trans('case_overview.pipeline.closed_at_stage', ['%current%' => 1, '%total%' => 5, '%label%' => $translator->trans('case_overview.pipeline.stage_1_amiabil')]),
+            $body,
+        );
+    }
+
+    /** Success answers in place too: a redirect would be followed by a full reload that eats the flash. */
+    public function testFullPaymentSuccessUnderTurboSwapsRegionsAndClosesModal(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::SOMATIE_TRIMISA);
+
+        $this->postFullPayment($case, ['paymentDate' => '2026-02-01', 'confirmFullPayment' => '1'], turbo: true);
+
+        self::assertResponseIsSuccessful();
+        self::assertFalse($this->client->getResponse()->headers->has('Location'));
+        $body = (string) $this->client->getResponse()->getContent();
+        foreach (['case-hero', 'case-pipeline', 'case-kpi-grid', 'case-detalii-sidebar', 'panel-documente', 'panel-termene', 'toasts'] as $target) {
+            self::assertStringContainsString('target="' . $target . '"', $body, $target);
+        }
+        self::assertStringContainsString('data-close-modal-target-id-value="hs-modal-full-payment"', $body);
+        self::assertStringContainsString('data-testid="action-full-payment-done"', $body);
+
+        $this->em->clear();
+        self::assertSame(CaseStatus::INCHIS_SUCCES, $this->em->getRepository(LegalCase::class)->find($case->getId())->getStatus());
+    }
+
+    public function testFullPaymentErrorWithoutTurboRedirectsWithFlash(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::AMIABIL);
+
+        $this->postFullPayment($case, ['paymentDate' => '2026-02-01']);
+
+        self::assertResponseRedirects('/case/' . $case->getId());
+        $flashes = $this->client->getRequest()->getSession()->getFlashBag()->peekAll();
+        self::assertNotEmpty($flashes['error'] ?? []);
+    }
+
+    public function testFullPaymentCsrfMissingRejected(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::AMIABIL);
+
+        $this->client->request('POST', '/case/' . $case->getId() . '/transition/full-payment', [
+            'full_payment_closure' => ['paymentDate' => '2026-02-01', 'confirmFullPayment' => '1', '_token' => 'fake-token'],
+        ]);
+
+        $this->em->clear();
+        self::assertSame(CaseStatus::AMIABIL, $this->em->getRepository(LegalCase::class)->find($case->getId())->getStatus());
+    }
+
     /**
      * @return iterable<string, array{string, CaseStatus, string, array<string, string>}>
      */
@@ -903,6 +1130,12 @@ final class CaseTransitionControllerTest extends WebTestCase
             CaseStatus::DEFINITIVA,
             'close_case',
             ['reason' => 'PAID', 'details' => ''],
+        ];
+        yield 'full-payment' => [
+            'full-payment',
+            CaseStatus::SOMATIE_TRIMISA,
+            'full_payment_closure',
+            ['paymentDate' => '2026-01-10', 'confirmFullPayment' => '1'],
         ];
     }
 

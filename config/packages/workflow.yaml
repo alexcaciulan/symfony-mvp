@@ -78,3 +78,8 @@ framework:
                 inchide_fara_recuperare:
                     from: [DEFINITIVA, EXECUTARE]
                     to: INCHIS_FARA_RECUPERARE
+                # Debtor paid the whole claim before the payment order request was
+                # generated. Kept apart from inchide_succes, which also takes PARTIAL.
+                inchide_plata_integrala:
+                    from: [AMIABIL, SOMATIE_TRIMISA]
+                    to: INCHIS_SUCCES

@@ -13,13 +13,16 @@ use App\Enum\DocumentType;
 use App\Enum\RejectReason;
 use App\Form\Case\CloseCaseType;
 use App\Form\Case\ConfirmFilingType;
+use App\Form\Case\FullPaymentClosureType;
 use App\Form\Case\IssueRulingType;
 use App\Form\Case\RegisterCaseNumberType;
 use App\Form\Case\RejectCaseType;
 use App\Repository\LegalCaseRepository;
 use App\Security\Voter\CaseVoter;
 use App\Service\AuditLogService;
+use App\Service\Case\CaseFullPaymentClosureService;
 use App\Service\Case\CaseWorkflowService;
+use App\Service\Case\OverviewContextBuilder;
 use App\Service\Document\DocumentUploadService;
 use App\Util\PiiMasker;
 use Doctrine\ORM\EntityManagerInterface;
@@ -28,6 +31,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Manual workflow transitions invoked from the case overview hero,
@@ -43,6 +47,9 @@ final class CaseTransitionController extends AbstractController
         private readonly AuditLogService $auditLogService,
         private readonly DocumentUploadService $documentUploadService,
         private readonly EntityManagerInterface $em,
+        private readonly CaseFullPaymentClosureService $fullPaymentClosure,
+        private readonly OverviewContextBuilder $overviewContext,
+        private readonly TranslatorInterface $translator,
     ) {}
 
     /**
@@ -369,6 +376,61 @@ final class CaseTransitionController extends AbstractController
         return $this->respondAfterTransition($case, 'case_overview.transition.flash_success_close');
     }
 
+    /**
+     * The debtor paid the whole claim before the payment order request: the case
+     * closes where it stands (AMIABIL or SOMATIE_TRIMISA). Under Turbo both outcomes
+     * answer in place: a rejection with a toast only, so the modal stays open with
+     * what was typed; a success by swapping the regions the closing changed.
+     */
+    #[Route('/case/{id}/transition/full-payment', name: 'case_transition_full_payment', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function closeOnFullPayment(Request $request, int $id): Response
+    {
+        $case = $this->findOrThrow($id);
+        $this->denyAccessUnlessGranted(CaseVoter::TRANSITION, $case);
+
+        $form = $this->createForm(FullPaymentClosureType::class);
+        $form->handleRequest($request);
+
+        if (!$form->isSubmitted() || !$form->isValid()) {
+            $firstError = $form->isSubmitted() ? $form->getErrors(true)->current() : false;
+            $message = $firstError !== false && $firstError !== null
+                ? $firstError->getMessage()
+                : $this->translator->trans('case_overview.transition.flash_error_validation');
+
+            return $this->respondFullPaymentError($request, $case, $message);
+        }
+
+        if (!$this->fullPaymentClosure->canClose($case)) {
+            return $this->respondFullPaymentError($request, $case, $this->translator->trans('case_overview.transition.flash_error_wrong_status'));
+        }
+
+        /** @var \App\Entity\User $user */
+        $user = $this->getUser();
+        $amount = $form->get('amountReceived')->getData();
+
+        try {
+            $this->fullPaymentClosure->close(
+                $case,
+                $user,
+                $form->get('paymentDate')->getData(),
+                is_string($amount) && $amount !== '' ? $amount : null,
+                $form->get('details')->getData(),
+            );
+        } catch (\DomainException) {
+            return $this->respondFullPaymentError($request, $case, $this->translator->trans('case_overview.transition.flash_error_wrong_status'));
+        }
+
+        if ($this->wantsTurboStream($request)) {
+            return $this->render(
+                'case/overview/_full_payment_turbo_stream.html.twig',
+                $this->overviewContext->build($case),
+                new Response(headers: ['Content-Type' => 'text/vnd.turbo-stream.html; charset=utf-8']),
+            );
+        }
+
+        return $this->respondAfterTransition($case, 'case_overview.transition.flash_success_full_payment');
+    }
+
     #[Route('/case/{id}/transition/executare', name: 'case_transition_executare', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function transitionToExecution(Request $request, int $id): Response
     {
@@ -545,9 +607,7 @@ final class CaseTransitionController extends AbstractController
     }
 
     /**
-     * Decides between Turbo Stream multi-fragment response and a classic
-     * redirect based on the Accept header. Mirrors the detection logic
-     * from {@see \App\Controller\Case\CaseDeadlineController::complete}.
+     * Ends a successful transition with a redirect and a success flash.
      */
     private function respondAfterTransition(LegalCase $case, string $successKey): Response
     {
@@ -557,6 +617,26 @@ final class CaseTransitionController extends AbstractController
         // fragments in place) would leave the modal open and the unconsumed flash
         // would leak onto the next full page load.
         $this->addFlash('success', $successKey);
+
+        return $this->redirectToRoute('case_overview', ['id' => $case->getId()]);
+    }
+
+    private function wantsTurboStream(Request $request): bool
+    {
+        return str_contains((string) $request->headers->get('Accept', ''), 'text/vnd.turbo-stream.html');
+    }
+
+    private function respondFullPaymentError(Request $request, LegalCase $case, string $message): Response
+    {
+        if ($this->wantsTurboStream($request)) {
+            return $this->render(
+                'case/overview/_toast_turbo_stream.html.twig',
+                ['message' => $message],
+                new Response(headers: ['Content-Type' => 'text/vnd.turbo-stream.html; charset=utf-8']),
+            );
+        }
+
+        $this->addFlash('error', $message);
 
         return $this->redirectToRoute('case_overview', ['id' => $case->getId()]);
     }

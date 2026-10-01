@@ -157,6 +157,27 @@ class AdminAccessTest extends WebTestCase
         $this->assertNotEmpty($auditLogs);
     }
 
+    /** Closing on full payment needs a payment date and closes the deadlines: overview only. */
+    public function testChangeStatusDoesNotOfferFullPaymentClosure(): void
+    {
+        $this->client->loginUser($this->admin);
+        $case = $this->createTestCase(CaseStatus::AMIABIL);
+        $caseId = $case->getId();
+
+        $crawler = $this->client->request('GET', '/admin/case/' . $caseId . '/change-status');
+        $this->assertStringNotContainsString('inchide_plata_integrala', (string) $this->client->getResponse()->getContent());
+        $csrfToken = $crawler->filter('input[name="_token"]')->attr('value');
+
+        $this->client->request('POST', '/admin/case/' . $caseId . '/change-status', [
+            'transition' => 'inchide_plata_integrala',
+            'reason' => '',
+            '_token' => $csrfToken,
+        ]);
+
+        $freshEm = static::getContainer()->get(EntityManagerInterface::class);
+        $this->assertSame(CaseStatus::AMIABIL, $freshEm->getRepository(LegalCase::class)->find($caseId)->getStatus());
+    }
+
     public function testChangeStatusRejectsInvalidTransition(): void
     {
         $this->client->loginUser($this->admin);

@@ -261,6 +261,21 @@ class CaseVoterTest extends TestCase
         }
     }
 
+    /** A case closed on full payment had all its deadlines closed with it; none can be added back. */
+    public function testOwnerCannotManageDeadlinesOnCaseClosedOnFullPayment(): void
+    {
+        $owner = new User();
+        $case = new LegalCase();
+        $case->setUser($owner);
+        $case->setStatus(CaseStatus::INCHIS_SUCCES);
+        $case->setFullPaymentDate(new \DateTimeImmutable('2026-01-15'));
+
+        $this->assertSame(
+            VoterInterface::ACCESS_DENIED,
+            $this->voter->vote($this->createToken($owner), $case, [CaseVoter::DEADLINE_MANAGE]),
+        );
+    }
+
     public function testOtherUserCannotManageDeadlines(): void
     {
         $owner = new User();
