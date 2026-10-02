@@ -18,6 +18,7 @@ use App\Service\Deadline\WorkingDayResolver;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Pas 4.1 — Tests for DeadlineService.
@@ -220,6 +221,22 @@ final class DeadlineServiceTest extends KernelTestCase
         $this->assertSame('2026-08-20', $deadline->getDeadlineDate()->format('Y-m-d'));
         $this->assertSame(DeadlineType::DEPUNERE_CERERE, $deadline->getType());
         $this->assertNotNull($deadline->getDescription());
+    }
+
+    /**
+     * The rendered text is stored in the deadline description, so it must fit the
+     * column in every locale: the English one did not, and saving the communication
+     * date then failed halfway, with the 15-day term created and the six-month one not.
+     */
+    public function testFilingDeadlineDescriptionFitsTheColumnInEveryLocale(): void
+    {
+        $translator = static::getContainer()->get(TranslatorInterface::class);
+        $maxLength = $this->em->getClassMetadata(LegalDeadline::class)->getFieldMapping('description')->length;
+
+        foreach (['ro', 'en'] as $locale) {
+            $text = $translator->trans('case_overview.deadlines.filing_interruption_covers', ['%date%' => '30.09.2026'], 'messages', $locale);
+            self::assertLessThanOrEqual($maxLength, mb_strlen($text), sprintf('Locale "%s" overflows the description column.', $locale));
+        }
     }
 
     /**
@@ -480,6 +497,45 @@ final class DeadlineServiceTest extends KernelTestCase
         $this->assertSame(DeadlineType::RASPUNS_SOMATIE, $recomputed->getType());
         // 2026-02-02 (Mon) + 16 calendar days (15 free days) = 2026-02-18 (Wed).
         $this->assertSame('2026-02-18', $recomputed->getDeadlineDate()->format('Y-m-d'));
+    }
+
+    public function testRecalculatePaymentNoticeDeadlineResetsAlertsWhenTheDateMoves(): void
+    {
+        $deadline = $this->service->createPaymentNoticeDeadline($this->case, new \DateTimeImmutable('2026-02-10'));
+        $deadline->setAlertSent7(true);
+        $deadline->setAlertSent3(true);
+        $this->em->flush();
+
+        // A corrected receipt date moves the term: reminders sent for the old date
+        // must not suppress the ones for the new date.
+        $moved = $this->service->recalculatePaymentNoticeDeadline($this->case, new \DateTimeImmutable('2026-02-12'));
+
+        self::assertFalse($moved->isAlertSent7());
+        self::assertFalse($moved->isAlertSent3());
+    }
+
+    public function testRecalculatePaymentNoticeDeadlineKeepsAlertsWhenTheDateIsUnchanged(): void
+    {
+        $deadline = $this->service->createPaymentNoticeDeadline($this->case, new \DateTimeImmutable('2026-02-10'));
+        $deadline->setAlertSent7(true);
+        $this->em->flush();
+
+        $same = $this->service->recalculatePaymentNoticeDeadline($this->case, new \DateTimeImmutable('2026-02-10'));
+
+        self::assertTrue($same->isAlertSent7());
+    }
+
+    public function testPaymentTermEndIsNullWithoutCommunicationDate(): void
+    {
+        self::assertNull($this->service->paymentTermEnd($this->case));
+    }
+
+    public function testPaymentTermEndCountsFifteenFreeDaysAndProrogates(): void
+    {
+        // 2026-02-12 (Thu) + 16 = 2026-02-28 (Sat), prorogated to Monday 2026-03-02.
+        $this->case->setPaymentNoticeCommunicationDate(new \DateTimeImmutable('2026-02-12'));
+
+        self::assertSame('2026-03-02', $this->service->paymentTermEnd($this->case)?->format('Y-m-d'));
     }
 
     public function testIsPaymentTermExpiredFalseWhenNoCommunicationDate(): void

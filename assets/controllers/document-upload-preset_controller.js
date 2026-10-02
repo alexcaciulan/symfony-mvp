@@ -2,7 +2,7 @@ import { Controller } from '@hotwired/stimulus';
 
 // Presets the document-type <select> in the shared upload modal from whichever
 // trigger was clicked. Document-level delegation so it works across DOM subtrees
-// (the trigger lives in the documents panel / communication warning, the modal
+// (the trigger lives in the documents panel / summons communication card, the modal
 // lives at body level so a Turbo Stream panel re-render never destroys it).
 export default class extends Controller {
     static targets = ['type'];

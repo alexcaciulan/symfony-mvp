@@ -23,9 +23,11 @@ use App\Enum\DeadlineType;
 use App\Enum\DocumentType;
 use App\Enum\ExtractionFailureReason;
 use App\Enum\ExtractionStatus;
+use App\Enum\PaymentNoticeCommunicationMethod;
 use App\Enum\PersonType;
 use App\Enum\PortalEventType;
 use App\Enum\RelationshipType;
+use App\Enum\StampDutyStatus;
 use App\Tests\Support\CountyFixtureTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
@@ -761,18 +763,79 @@ final class CaseOverviewControllerTest extends WebTestCase
         self::assertSelectorTextNotContains('#panel-detalii', 'Obiectul creanței');
     }
 
-    public function testDocumenteCommunicationWarningShownWhenNoProof(): void
+    public function testSummonsCommunicationCardHiddenBeforeTheSummonsExists(): void
     {
-        // No DOVADA_COMUNICARE attached — warning must surface in the documents aside.
         $this->client->loginUser($this->user);
-        $this->client->request('GET', '/case/' . $this->case->getId());
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
-        self::assertSelectorTextContains('#panel-documente', 'Lipsește dovada comunicării');
+        self::assertCount(0, $crawler->filter('#panel-documente #summons-communication-card'));
     }
 
-    public function testDocumenteCommunicationWarningHiddenWhenProofExists(): void
+    public function testSummonsCommunicationCardAsksForTheDateFirst(): void
     {
+        $this->case->setStatus(CaseStatus::SOMATIE_TRIMISA);
+        $this->attachDocument(DocumentType::SOMATIE);
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $card = $crawler->filter('#panel-documente #summons-communication-card');
+        self::assertCount(1, $card);
+        self::assertStringContainsString('Lipsește data', $card->text());
+        // The date field sits in the card itself and posts back to the documents tab.
+        self::assertCount(1, $card->filter('input[name="payment_notice_communication_date[paymentNoticeCommunicationDate]"]'));
+        self::assertCount(1, $card->filter('input[name="return_tab"][value="documente"]'));
+        self::assertCount(1, $card->filter('button[data-upload-preset-type="dovada_comunicare"]'));
+    }
+
+    public function testSummonsCommunicationCardShowsTheTermEndOnceTheDateIsSaved(): void
+    {
+        $this->case->setStatus(CaseStatus::SOMATIE_TRIMISA);
+        $this->case->setPaymentNoticeCommunicationDate(new \DateTimeImmutable('2026-03-02'));
+        $this->case->setPaymentNoticeCommunicationMethod(PaymentNoticeCommunicationMethod::EXECUTOR);
+        $this->attachDocument(DocumentType::SOMATIE);
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $card = $crawler->filter('#panel-documente #summons-communication-card');
+        self::assertStringContainsString('02.03.2026', $card->text());
+        self::assertStringContainsString('Lipsește dovada', $card->text());
+        // Free-days counting: 2 + 16 = 18 March 2026, a Wednesday.
+        self::assertStringContainsString('s-a împlinit la 18.03.2026', $card->text());
+        self::assertStringContainsString('Corectează data', $card->text());
+    }
+
+    public function testSummonsCommunicationCardIsCompleteWithDateAndProof(): void
+    {
+        $this->case->setStatus(CaseStatus::SOMATIE_TRIMISA);
+        $this->case->setPaymentNoticeCommunicationDate(new \DateTimeImmutable('2026-03-02'));
+        $this->case->setPaymentNoticeCommunicationMethod(PaymentNoticeCommunicationMethod::POSTA_RCD);
+        $this->attachDocument(DocumentType::SOMATIE);
+        $this->attachDocument(DocumentType::DOVADA_COMUNICARE, filename: 'confirmare-primire.pdf');
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $card = $crawler->filter('#panel-documente #summons-communication-card');
+        self::assertStringContainsString('Complet', $card->text());
+        self::assertStringContainsString('confirmare-primire.pdf', $card->text());
+        self::assertCount(0, $card->filter('button[data-upload-preset-type="dovada_comunicare"]'));
+    }
+
+    public function testSummonsCommunicationCardOffersNoCorrectionOnceThePetitionIsGenerated(): void
+    {
+        $this->case->setStatus(CaseStatus::CERERE_GENERATA);
+        $this->case->setPaymentNoticeCommunicationDate(new \DateTimeImmutable('2026-03-02'));
+        $this->case->setPaymentNoticeCommunicationMethod(PaymentNoticeCommunicationMethod::EXECUTOR);
+        $this->attachDocument(DocumentType::SOMATIE);
         $this->attachDocument(DocumentType::DOVADA_COMUNICARE);
         $this->em->clear();
 
@@ -780,9 +843,30 @@ final class CaseOverviewControllerTest extends WebTestCase
         $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
-        // Target the warning section DOM element directly — robust against unrelated copy
-        // changes that might accidentally contain the literal "Lipsește dovada comunicării".
-        self::assertCount(0, $crawler->filter('#panel-documente section.bg-amber-50'));
+        $card = $crawler->filter('#panel-documente #summons-communication-card');
+        self::assertCount(1, $card);
+        self::assertStringNotContainsString('Corectează data', $card->text());
+    }
+
+    public function testGenerateOpDialogDisablesTheButtonWhileThePaymentTermRuns(): void
+    {
+        // Proof attached and stamp duty paid: only the running term holds the petition.
+        $this->case->setStatus(CaseStatus::SOMATIE_TRIMISA);
+        $this->case->setStampDutyStatus(StampDutyStatus::ACHITATA);
+        $this->case->setPaymentNoticeCommunicationDate(new \DateTimeImmutable('today'));
+        $this->case->setPaymentNoticeCommunicationMethod(PaymentNoticeCommunicationMethod::EXECUTOR);
+        $this->attachDocument(DocumentType::SOMATIE);
+        $this->attachDocument(DocumentType::DOVADA_COMUNICARE);
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $dialog = $crawler->filter('#hs-modal-cerere-op');
+        self::assertStringContainsString('Cererea de ordonanță se poate genera din', $dialog->text());
+        self::assertStringNotContainsString('nu e completată', $dialog->text());
+        self::assertNotNull($dialog->filter('button[type="submit"]')->attr('disabled'));
     }
 
     public function testDocumenteZipCtaTriggersGenerateOpModal(): void
