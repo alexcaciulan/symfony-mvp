@@ -31,18 +31,6 @@
 } %}
 {% set default_badge_classes = 'bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-300' %}
 
-{# ExtractionStatus → badge color map. Distinguishes a processed document from one
-   whose extraction failed, was skipped by policy, or is still queued/retrying. #}
-{% set extraction_status_map = {
-    'COMPLETED':         'bg-green-50  text-green-700  dark:bg-green-950/40  dark:text-green-300',
-    'FAILED':            'bg-red-50    text-red-700    dark:bg-red-950/40    dark:text-red-300',
-    'SKIPPED_BY_POLICY': 'bg-slate-100 text-slate-600  dark:bg-slate-800     dark:text-slate-300',
-    'PENDING':           'bg-amber-50  text-amber-700  dark:bg-amber-950/40  dark:text-amber-300',
-    'PROCESSING':        'bg-blue-50   text-blue-700   dark:bg-blue-950/40   dark:text-blue-300',
-    'PENDING_RETRY':     'bg-amber-50  text-amber-700  dark:bg-amber-950/40  dark:text-amber-300',
-} %}
-{% set default_status_badge = 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' %}
-
 <section class="bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 overflow-hidden">
     <header class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
         <div class="flex items-center gap-2.5">
@@ -70,30 +58,24 @@
             {% for doc in source_documents %}
                 {% set badge_classes = doc_type_map[doc.documentType.value].badge|default(default_badge_classes) %}
                 {% set is_pdf = doc.mimeType == 'application/pdf' %}
-                {# File size formatting (inline thresholds): >= 1 MB → MB cu 1 zecimală, altfel KB. #}
+                {% set is_image = doc.mimeType starts with 'image/' %}
+                {# Sizes of 1 MB and above show in MB with one decimal, smaller ones in KB. #}
                 {% if doc.fileSize >= 1048576 %}
                     {% set size_label = (doc.fileSize / 1048576)|number_format(1, ',', '.') ~ ' MB' %}
                 {% else %}
                     {% set size_label = (doc.fileSize / 1024)|number_format(0, ',', '.') ~ ' KB' %}
                 {% endif %}
                 {% set type_label = doc.documentType.label()|trans %}
-                {% set date_label = doc.createdAt|date('d.m.Y') %}
 
                 <div class="px-6 py-3 flex items-center gap-4 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition">
                     <div class="size-9 rounded-lg {% if is_pdf %}bg-red-50 dark:bg-red-950/30 text-red-600{% else %}bg-slate-100 dark:bg-slate-800 text-slate-500{% endif %} flex items-center justify-center shrink-0 font-bold text-[10px]">
-                        {{ is_pdf ? 'PDF' : 'DOC' }}
+                        {{ is_pdf ? 'PDF' : (is_image ? 'IMG' : 'DOC') }}
                     </div>
                     <div class="flex-1 min-w-0">
                         <div class="font-medium text-sm truncate">{{ doc.originalFilename }}</div>
+                        {# No extraction status: documents added after case creation are never extracted. #}
                         <div class="text-xs text-slate-500">
-                            {{ 'case_overview.documents.extraction_hint'|trans({'%type%': type_label, '%size%': size_label, '%date%': date_label}) }}
-                        </div>
-                        {% set status_badge = extraction_status_map[doc.extractionStatus.value]|default(default_status_badge) %}
-                        <div class="mt-1 flex items-center gap-1.5 flex-wrap">
-                            <span class="text-[10px] uppercase tracking-wider font-semibold {{ status_badge }} px-1.5 py-0.5 rounded">{{ doc.extractionStatus.label()|trans }}</span>
-                            {% if doc.extractionFailureReason is not null %}
-                                <span class="text-[11px] text-red-600 dark:text-red-400">{{ doc.extractionFailureReason.label()|trans }}</span>
-                            {% endif %}
+                            {{ 'case_overview.documents.file_meta'|trans({'%size%': size_label, '%date%': doc.createdAt|date('d.m.Y')}) }}
                         </div>
                     </div>
                     <span class="text-[10px] uppercase tracking-wider font-bold {{ badge_classes }} px-1.5 py-0.5 rounded">{{ type_label }}</span>

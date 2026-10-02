@@ -691,20 +691,12 @@ final class CaseOverviewControllerTest extends WebTestCase
         self::assertSelectorTextNotContains('#panel-documente', '95%');
     }
 
-    public function testDocumenteSourceListShowsExtractionStatusBadge(): void
+    public function testDocumenteSourceListHidesExtractionStatus(): void
     {
+        // Documents added after the case exists never reach the extraction queue,
+        // so a status badge would read "queued" forever on a communication proof.
+        $this->attachDocument(DocumentType::DOVADA_COMUNICARE, null, 'dovada.pdf', status: ExtractionStatus::PENDING);
         $this->attachDocument(DocumentType::CONTRACT, 0.95, 'contract-ok.pdf', status: ExtractionStatus::COMPLETED);
-        $this->em->clear();
-
-        $this->client->loginUser($this->user);
-        $this->client->request('GET', '/case/' . $this->case->getId());
-
-        self::assertResponseIsSuccessful();
-        self::assertSelectorTextContains('#panel-documente', 'Date extrase');
-    }
-
-    public function testDocumenteSourceListShowsFailureReasonWhenExtractionFailed(): void
-    {
         $this->attachDocument(
             DocumentType::FACTURA,
             null,
@@ -718,8 +710,69 @@ final class CaseOverviewControllerTest extends WebTestCase
         $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
-        self::assertSelectorTextContains('#panel-documente', 'Eșec extracție');
-        self::assertSelectorTextContains('#panel-documente', 'Fișier prea mare');
+        self::assertSelectorTextContains('#panel-documente', 'dovada.pdf');
+        self::assertSelectorTextNotContains('#panel-documente', 'În coadă');
+        self::assertSelectorTextNotContains('#panel-documente', 'Date extrase');
+        self::assertSelectorTextNotContains('#panel-documente', 'Eșec extracție');
+        self::assertSelectorTextNotContains('#panel-documente', 'Fișier prea mare');
+    }
+
+    public function testDocumenteSourceListShowsDocumentTypeOnce(): void
+    {
+        $this->attachDocument(DocumentType::FACTURA, null, 'factura-unica.pdf');
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $row = $crawler->filter('#panel-documente div.divide-y > div')->reduce(
+            static fn ($node): bool => str_contains($node->text(), 'factura-unica.pdf'),
+        );
+        self::assertCount(1, $row);
+        self::assertSame(1, substr_count($row->text(), 'Factură'));
+    }
+
+    public function testDocumenteSourceListLabelsImageAsImg(): void
+    {
+        $doc = $this->attachDocument(DocumentType::DOVADA_COMUNICARE, null, 'IMG_1219.JPG');
+        $doc->setMimeType('image/jpeg');
+        $this->em->flush();
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $row = $crawler->filter('#panel-documente div.divide-y > div')->reduce(
+            static fn ($node): bool => str_contains($node->text(), 'IMG_1219.JPG'),
+        );
+        self::assertCount(1, $row);
+        self::assertSame('IMG', trim($row->filter('div.size-9')->text()));
+    }
+
+    public function testDocumenteSourceListLabelsPdfAsPdfAndOtherFilesAsDoc(): void
+    {
+        $this->attachDocument(DocumentType::CONTRACT, null, 'contract.pdf');
+        $docx = $this->attachDocument(DocumentType::ALT_DOCUMENT, null, 'anexa.docx');
+        $docx->setMimeType('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+        $this->em->flush();
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $iconFor = static function (string $filename) use ($crawler): string {
+            $row = $crawler->filter('#panel-documente div.divide-y > div')->reduce(
+                static fn ($node): bool => str_contains($node->text(), $filename),
+            );
+            self::assertCount(1, $row);
+
+            return trim($row->filter('div.size-9')->text());
+        };
+        self::assertSame('PDF', $iconFor('contract.pdf'));
+        self::assertSame('DOC', $iconFor('anexa.docx'));
     }
 
     public function testDocumenteSourceListRendersColoredBadgeForNewDocumentType(): void

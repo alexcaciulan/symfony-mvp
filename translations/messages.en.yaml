@@ -1087,7 +1087,7 @@ case_overview:
         source_title: 'Source documents (attachments)'
         source_add: '+ Add document'
         source_empty: 'No documents uploaded yet'
-        extraction_hint: '%type% · %size% · %date%'
+        file_meta: '%size% · %date%'
         action_preview: 'Preview'
         action_download: 'Download'
         action_delete: 'Delete'
