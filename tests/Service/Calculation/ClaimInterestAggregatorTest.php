@@ -77,6 +77,27 @@ class ClaimInterestAggregatorTest extends TestCase
         $this->assertLessThan($naive, $result->total);
     }
 
+    public function testTheContractCeilingAppliesToEachPositionOnItsOwnSum(): void
+    {
+        $aggregator = new ClaimInterestAggregator($this->interestCalculator(), new ContractualPenaltyCalculator());
+
+        $result = $aggregator->aggregate(
+            items: [
+                // 0,1%/day for 365 days is 36,5%: well over a 10% ceiling.
+                $this->item(1, '1000.00', '2025-01-01'),
+                // 31 days is 3,1%: under the ceiling, untouched.
+                $this->item(2, '2000.00', '2025-12-01'),
+            ],
+            referenceDate: new \DateTimeImmutable(self::REFERENCE),
+            relationshipType: RelationshipType::COMERCIAL,
+            penaltyType: PenaltyType::CONTRACTUAL,
+            contractualDailyRate: 0.1,
+            contractualPenaltyCapPercent: 10.0,
+        );
+
+        $this->assertSame(100.0 + 62.0, $result->total);
+    }
+
     public function testRoundingHappensOnceOnTheSum(): void
     {
         $calculator = $this->interestCalculator();

@@ -22,6 +22,7 @@ enum NotificationType: string
     case PORTAL_EVENT = 'portal_event';
     case PORTAL_RULING_CONFIRMATION = 'portal_ruling_confirmation';
     case PORTAL_QUERY_FAILED = 'portal_query_failed';
+    case PORTAL_CASE_FOUND = 'portal_case_found';
     case PAYMENT_FAILED = 'payment_failed';
     case TOKEN_EXPIRED = 'token_expired';
     case PAYMENT_SUCCEEDED = 'payment_succeeded';
@@ -44,6 +45,7 @@ enum NotificationType: string
             self::PORTAL_EVENT => 'globe',
             self::PORTAL_RULING_CONFIRMATION => 'globe',
             self::PORTAL_QUERY_FAILED => 'globe',
+            self::PORTAL_CASE_FOUND => 'globe',
             self::PAYMENT_FAILED => 'card',
             self::TOKEN_EXPIRED => 'card',
             self::PAYMENT_SUCCEEDED => 'card',

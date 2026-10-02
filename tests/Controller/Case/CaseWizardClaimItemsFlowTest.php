@@ -200,11 +200,14 @@ final class CaseWizardClaimItemsFlowTest extends WebTestCase
         self::assertResponseIsSuccessful();
         $html = (string) $this->client->getResponse()->getContent();
         // The breakdown is present with more than one BNR period.
-        self::assertStringContainsString('Perioade BNR', $html);
+        self::assertStringContainsString('Cum s-a calculat dobânda (3 perioade BNR)', $html);
         // The two distinct applicable rates over the window (6.75 + 8 and
-        // 6.50 + 8) both appear.
-        self::assertStringContainsString('14.75%', $html);
-        self::assertStringContainsString('14.50%', $html);
+        // 6.50 + 8) both appear, next to the reference rate they rest on, so
+        // the lawyer can redo the figure before the case is saved.
+        self::assertStringContainsString('14,75%', $html);
+        self::assertStringContainsString('14,50%', $html);
+        self::assertStringContainsString('6,75%', $html);
+        self::assertStringContainsString('OG 13/2011, art. 3 alin. 2¹', $html);
     }
 
     public function testStepThreeRefusesToAdvanceWithoutTheTableConfirmation(): void

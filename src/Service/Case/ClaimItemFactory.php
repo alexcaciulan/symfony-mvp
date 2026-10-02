@@ -106,7 +106,10 @@ final class ClaimItemFactory
             $rows[] = $row;
         }
 
-        return $this->flagStatementPayments($this->deduplicator->deduplicate($rows, $typesByDocument), $statements);
+        return $this->flagStatementPayments(
+            $this->settleAdvances($this->deduplicator->deduplicate($rows, $typesByDocument)),
+            $statements,
+        );
     }
 
     /**
@@ -271,7 +274,12 @@ final class ClaimItemFactory
         // total is how the rest of them arrive. Either way it takes value out of
         // the claim: adding it would ask the court for twice what is owed, and
         // dropping the negative one silently would leave the claim unreduced.
-        $isCreditNote = $amount < 0.0 || ClaimTextSignals::mentionsCreditNote($documentNumber, $description);
+        // A final invoice reverses the advance on one of its lines and still
+        // bills a positive balance: the word "storno" there names that line,
+        // not the invoice.
+        $settlesAdvance = $amount > 0.0 && ClaimTextSignals::mentionsAdvanceSettlement($description);
+        $isCreditNote = $amount < 0.0
+            || (!$settlesAdvance && ClaimTextSignals::mentionsCreditNote($documentNumber, $description));
         $causeReference = $this->stringOrNull($claim['contractNumber'] ?? null)
             ?? $this->stringOrNull($claim['contractReference'] ?? null);
 
@@ -308,7 +316,9 @@ final class ClaimItemFactory
         // arithmetic: the sum claimed is still the invoiced total until the
         // lawyer imputes the payment (Civil Code art. 1507-1509). Flagging the
         // row is what makes that decision theirs instead of nobody's.
-        if (ClaimTextSignals::mentionsDeduction($description)) {
+        if ($settlesAdvance) {
+            $row->warningKeys[] = 'wizard.step3.claim_items.warning.final_invoice_settles_advance';
+        } elseif (ClaimTextSignals::mentionsDeduction($description)) {
             $row->warningKeys[] = 'wizard.step3.claim_items.warning.deduction_mentioned';
             $row->hasStatedDeduction = true;
         }
@@ -316,6 +326,46 @@ final class ClaimItemFactory
         $this->applyConversion($row);
 
         return $row;
+    }
+
+    /**
+     * Takes out of the claim an advance invoice that a final invoice in the file
+     * already reverses.
+     *
+     * The final invoice bills the whole price and takes the advance back out on
+     * one line, so its total is what was left to pay once the advance was paid.
+     * Claiming both asks for the advance twice when it was paid, which is how an
+     * advance normally is. The advance stays on screen, excluded and saying why,
+     * because an advance that was never paid is still owed and only the lawyer
+     * can tell which it is.
+     */
+    private function settleAdvances(DeduplicationResult $result): DeduplicationResult
+    {
+        foreach ($result->rows as $final) {
+            if ($final->isCreditNote() || !ClaimTextSignals::mentionsAdvanceSettlement($final->description)) {
+                continue;
+            }
+            $haystack = (string) DocumentReferenceNormalizer::normalize($final->description);
+            foreach ($result->rows as $advance) {
+                if ($advance === $final || $advance->isCreditNote()) {
+                    continue;
+                }
+                $reference = DocumentReferenceNormalizer::normalize($advance->documentNumber);
+                // A short reference ("12") is found inside any text; only a
+                // number long enough to name one invoice links the two.
+                if ($reference === null || strlen($reference) < 4 || !str_contains($haystack, $reference)) {
+                    continue;
+                }
+                $advance->excluded = true;
+                $advance->warningKeys = array_values(array_filter(
+                    $advance->warningKeys,
+                    static fn (string $key): bool => $key !== 'wizard.step3.claim_items.warning.deduction_mentioned',
+                ));
+                $advance->warningKeys[] = 'wizard.step3.claim_items.warning.advance_settled_by_final';
+            }
+        }
+
+        return $result;
     }
 
     /**

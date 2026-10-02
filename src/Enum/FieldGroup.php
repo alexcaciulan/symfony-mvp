@@ -102,6 +102,7 @@ enum FieldGroup: string
             'contractReference' => self::CLAIM_BASIS,
             'penaltyType' => self::CLAIM_PENALTY,
             'contractualPenaltyRate' => self::CLAIM_PENALTY,
+            'contractualPenaltyCapPercent' => self::CLAIM_PENALTY,
         ];
     }
 }

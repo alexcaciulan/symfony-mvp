@@ -20,6 +20,12 @@
 
 {% set first_period_rate = (interest_breakdown is not null and interest_breakdown|length > 0) ? (interest_breakdown|first).applicableRate : null %}
 
+{# A contractual penalty carries the contract's own name, never "interest". #}
+{% set is_contractual = case.penaltyType and case.penaltyType.value == 'CONTRACTUAL' and case.contractualPenaltyRate %}
+{% set accessory_label = is_contractual
+    ? (case.contractualAccessoryLabel ? case.contractualAccessoryLabel.label : 'enum.contractual_accessory_label.PENALITATI_INTARZIERE')|trans
+    : null %}
+
 <section class="bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 overflow-hidden">
     <header class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
         <div class="flex items-center gap-2.5">
@@ -61,7 +67,7 @@
                 </div>
                 <div class="flex items-center gap-4 mt-2 text-[11px]">
                     <div class="flex items-center gap-1.5"><span class="size-2 rounded-sm bg-blue-500" aria-hidden="true"></span><span class="text-slate-600 dark:text-slate-400">{{ 'case_overview.claim.principal'|trans }} <span class="font-semibold text-slate-900 dark:text-white">{{ principal_pct|number_format(1, ',', '.') }}%</span></span></div>
-                    <div class="flex items-center gap-1.5"><span class="size-2 rounded-sm bg-amber-500" aria-hidden="true"></span><span class="text-slate-600 dark:text-slate-400">{{ 'case_overview.claim.interest_label'|trans }} <span class="font-semibold text-slate-900 dark:text-white">{{ interest_pct|number_format(1, ',', '.') }}%</span></span></div>
+                    <div class="flex items-center gap-1.5"><span class="size-2 rounded-sm bg-amber-500" aria-hidden="true"></span><span class="text-slate-600 dark:text-slate-400">{{ accessory_label ?? 'case_overview.claim.interest_label'|trans }} <span class="font-semibold text-slate-900 dark:text-white">{{ interest_pct|number_format(1, ',', '.') }}%</span></span></div>
                 </div>
             </div>
         {% endif %}
@@ -76,9 +82,11 @@
                 {% endif %}
             </div>
             <div class="bg-slate-50 dark:bg-slate-950/50 p-3">
-                <dt class="text-[10px] font-medium uppercase tracking-wide text-slate-500">{{ 'case_overview.claim.stat_interest'|trans }}</dt>
+                <dt class="text-[10px] font-medium uppercase tracking-wide text-slate-500">{{ accessory_label ?? 'case_overview.claim.stat_interest'|trans }}</dt>
                 <dd class="mt-1 text-base font-bold tnum text-amber-600 dark:text-amber-400">+ {{ interest|number_format(2, ',', '.') }}</dd>
-                {% if first_period_rate is not null %}
+                {% if is_contractual %}
+                    <dd class="text-[10px] text-slate-500">{{ (case.contractualPenaltyCapPercent ? 'case_overview.kpi.penalty_hint_capped' : 'case_overview.kpi.penalty_hint')|trans({'%rate%': case.contractualPenaltyRate|number_format(2, ',', '.'), '%cap%': case.contractualPenaltyCapPercent|default(0)|number_format(0, ',', '.')}) }}</dd>
+                {% elseif first_period_rate is not null %}
                     <dd class="text-[10px] text-slate-500">{{ 'case_overview.claim.stat_interest_hint'|trans({'%days%': interest_days, '%rate%': first_period_rate|number_format(2, ',', '.')}) }}</dd>
                 {% endif %}
             </div>
@@ -111,7 +119,7 @@
                             <th class="text-left py-2 px-3 font-medium">{{ 'case_overview.claim.positions_number'|trans }}</th>
                             <th class="text-left py-2 px-3 font-medium">{{ 'case_overview.claim.positions_due_date'|trans }}</th>
                             <th class="text-right py-2 px-3 font-medium">{{ 'case_overview.claim.positions_amount'|trans }}</th>
-                            <th class="text-right py-2 px-3 font-medium">{{ 'case_overview.claim.positions_interest'|trans }}</th>
+                            <th class="text-right py-2 px-3 font-medium">{{ accessory_label ?? 'case_overview.claim.positions_interest'|trans }}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
@@ -205,6 +213,10 @@
                     </div>
                 </div>
             {% endif %}
+        {% elseif is_contractual %}
+            <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-950/30 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
+                {{ 'case_overview.claim.contractual_formula'|trans({'%rate%': case.contractualPenaltyRate|number_format(2, ',', '.')}) }}
+            </div>
         {% elseif interest_breakdown is null or interest_breakdown|length == 0 %}
             <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-950/30 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
                 {{ 'case_overview.claim.breakdown_zero'|trans }}

@@ -115,7 +115,7 @@
                             }}) }}
                             <div class="flex flex-col">
                                 <span class="text-sm font-bold text-blue-900 dark:text-blue-200">{{ 'enum.relationship_type.COMERCIAL'|trans }}</span>
-                                <span class="text-xs text-slate-600 dark:text-slate-400 mt-0.5">{{ 'wizard.step3.relationship.comercial_hint'|trans }}</span>
+                                <span class="text-xs text-slate-600 dark:text-slate-400 mt-0.5">{{ (this.isContractual ? 'wizard.step3.relationship.comercial_hint_contractual' : 'wizard.step3.relationship.comercial_hint')|trans }}</span>
                             </div>
                             <svg class="ml-auto size-5 text-blue-600 dark:text-blue-400 self-start" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
                         </div>
@@ -168,6 +168,17 @@
                         }}) }}
                         <p class="mt-1 text-[11px] text-slate-500">{{ 'wizard.step3.help.contractual_penalty_rate'|trans }}</p>
                         {{ f.field_errors(form.contractualPenaltyRate) }}
+                    </div>
+
+                    <div>
+                        {{ f.field_label(form.contractualPenaltyCapPercent, 'wizard.step3.field.contractual_penalty_cap', true) }}
+                        {{ form_widget(form.contractualPenaltyCapPercent, { attr: {
+                            class: f.input_classes(form.contractualPenaltyCapPercent)|trim,
+                            inputmode: 'decimal',
+                            placeholder: '10',
+                        }}) }}
+                        <p class="mt-1 text-[11px] text-slate-500">{{ 'wizard.step3.help.contractual_penalty_cap'|trans }}</p>
+                        {{ f.field_errors(form.contractualPenaltyCapPercent) }}
                     </div>
 
                     <div>
@@ -384,32 +395,59 @@
                                     <span class="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 mb-1">{{ contractual_label_key ? contractual_label_key|trans : 'wizard.step3.claim_items.column.interest'|trans }}</span>
                                     {% if rowAccessory is not null %}
                                         <div class="text-lg font-semibold tnum text-amber-700 dark:text-amber-400" data-testid="claim-item-interest">{{ rowAccessory|number_format(2, ',', '.') }} <span class="text-xs font-normal text-slate-400">RON</span></div>
-                                        {% if periods|length > 0 %}
-                                            <details class="mt-1.5 group sm:ml-auto sm:max-w-xs">
-                                                <summary class="inline-flex items-center gap-1 cursor-pointer text-[11px] font-medium text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 select-none">
-                                                    <svg class="size-3 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
-                                                    {{ 'wizard.step3.claim_items.bnr_breakdown'|trans({'%count%': periods|length}) }}
-                                                </summary>
-                                                <ul class="mt-1.5 space-y-1 rounded-lg bg-slate-50 dark:bg-slate-800/60 px-2.5 py-2 text-left">
-                                                    {% for p in periods %}
-                                                        <li class="flex items-baseline justify-between gap-3 text-[11px]">
-                                                            <span class="tnum text-slate-600 dark:text-slate-300">{{ p.startDate|date('d.m.y') }} → {{ p.endDate|date('d.m.y') }}</span>
-                                                            <span class="tnum text-slate-500 dark:text-slate-400">{{ p.applicableRate|number_format(2) }}%</span>
-                                                            <span class="tnum font-medium text-slate-700 dark:text-slate-200">{{ p.periodInterest|number_format(2) }}</span>
-                                                        </li>
-                                                    {% endfor %}
-                                                </ul>
-                                            </details>
+                                        {% if index in summary.cappedRows|default([]) %}
+                                            <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400" data-testid="claim-item-penalty-capped">{{ 'wizard.step3.claim_items.penalty_capped'|trans }}</p>
                                         {% endif %}
                                     {% elseif contractual_rate_missing and not isCreditNote %}
                                         <div class="text-xs text-slate-500 dark:text-slate-400">{{ 'wizard.step3.claim_items.penalty_rate_missing'|trans }}</div>
                                     {% elseif index in summary.unavailableRows %}
                                         <div class="text-xs text-amber-600 dark:text-amber-400" title="{{ (contractual_label_key ? 'wizard.step3.claim_items.no_penalty_hint' : 'wizard.step3.claim_items.no_interest_hint')|trans }}">{{ 'wizard.step3.claim_items.interest_unavailable'|trans }}</div>
+                                        {% set unavailable_reason = summary.unavailableReasonByRow[index]|default(null) %}
+                                        {% if unavailable_reason %}
+                                            <p class="mt-1 text-[11px] text-slate-600 dark:text-slate-400 sm:max-w-xs sm:ml-auto" data-testid="claim-item-interest-reason">{{ unavailable_reason|trans }}</p>
+                                        {% endif %}
                                     {% else %}
                                         <div class="text-sm text-slate-400">{{ 'wizard.step3.claim_items.interest_none'|trans }}</div>
                                     {% endif %}
                                 </div>
                             </div>
+
+                            {# The figure is only trustworthy if the lawyer can redo it: each
+                               segment shows the NBR reference rate in force, the rate applied on
+                               top of it, and the days counted, before the case is saved. #}
+                            {% if rowAccessory is not null and periods|length > 0 %}
+                                <details class="group px-4 pb-3" data-testid="claim-item-breakdown">
+                                    <summary class="inline-flex items-center gap-1 cursor-pointer text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 select-none">
+                                        <svg class="size-3 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+                                        {{ 'wizard.step3.claim_items.bnr_breakdown'|trans({'%count%': periods|length}) }}
+                                    </summary>
+                                    <div class="mt-2 overflow-x-auto rounded-lg bg-slate-50 dark:bg-slate-800/60 px-3 py-2">
+                                        <table class="w-full text-[11px] tnum">
+                                            <thead>
+                                                <tr class="text-left text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                                                    <th class="py-1 pr-3 font-semibold">{{ 'wizard.step3.claim_items.breakdown.period'|trans }}</th>
+                                                    <th class="py-1 pr-3 font-semibold text-right">{{ 'wizard.step3.claim_items.breakdown.nbr_rate'|trans }}</th>
+                                                    <th class="py-1 pr-3 font-semibold text-right">{{ 'wizard.step3.claim_items.breakdown.applicable_rate'|trans }}</th>
+                                                    <th class="py-1 pr-3 font-semibold text-right">{{ 'wizard.step3.claim_items.breakdown.days'|trans }}</th>
+                                                    <th class="py-1 font-semibold text-right">{{ 'wizard.step3.claim_items.breakdown.interest'|trans }}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {% for p in periods %}
+                                                    <tr class="border-t border-slate-200/70 dark:border-slate-700/70 text-slate-600 dark:text-slate-300">
+                                                        <td class="py-1 pr-3 whitespace-nowrap">{{ p.startDate|date('d.m.Y') }} → {{ p.endDate|date('d.m.Y') }}</td>
+                                                        <td class="py-1 pr-3 text-right">{{ p.nbrRate|number_format(2, ',', '.') }}%</td>
+                                                        <td class="py-1 pr-3 text-right">{{ p.applicableRate|number_format(2, ',', '.') }}%</td>
+                                                        <td class="py-1 pr-3 text-right">{{ p.days }}</td>
+                                                        <td class="py-1 text-right font-medium text-slate-800 dark:text-slate-100">{{ p.periodInterest|number_format(2, ',', '.') }}</td>
+                                                    </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                        <p class="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">{{ 'wizard.step3.claim_items.breakdown.formula'|trans }}</p>
+                                    </div>
+                                </details>
+                            {% endif %}
 
                             <div class="px-4 pb-3.5 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)] gap-x-5 gap-y-3 border-t border-slate-100 dark:border-slate-800 pt-3">
                                 <div>
@@ -574,7 +612,7 @@
 
             <div class="px-5 py-3 bg-black/20 text-[11px] text-white/60 flex items-start gap-2">
                 <svg class="size-3.5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                <span>{{ 'wizard.step3.sidebar.footer_note'|trans }}</span>
+                <span>{{ (this.isContractual ? 'wizard.step3.sidebar.footer_note_contractual' : 'wizard.step3.sidebar.footer_note')|trans }}</span>
             </div>
         </div>
     </aside>

@@ -154,7 +154,13 @@ final class Step3ClaimLiveComponent extends AbstractController
             ?? PenaltyType::LEGAL_PENALIZATOARE;
         $rate = $this->floatFromFormValues('contractualPenaltyRate');
 
-        return $this->positionSummaryCache = $this->positionsSummarizer->summarize($rows, $relationship, $penalty, $rate);
+        return $this->positionSummaryCache = $this->positionsSummarizer->summarize(
+            $rows,
+            $relationship,
+            $penalty,
+            $rate,
+            contractualPenaltyCapPercent: $this->floatFromFormValues('contractualPenaltyCapPercent'),
+        );
     }
 
     public function isContractual(): bool
@@ -324,7 +330,13 @@ final class Step3ClaimLiveComponent extends AbstractController
             return null;
         }
 
-        return $this->penaltyCalculator->calculate($base['amount'], $rate, $base['dueDate'], new \DateTimeImmutable('today'));
+        return $this->penaltyCalculator->calculate(
+            $base['amount'],
+            $rate,
+            $base['dueDate'],
+            new \DateTimeImmutable('today'),
+            $this->floatFromFormValues('contractualPenaltyCapPercent'),
+        );
     }
 
     /**

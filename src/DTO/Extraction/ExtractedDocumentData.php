@@ -143,6 +143,7 @@ final readonly class ExtractedDocumentData
                 'contractReference' => $this->claim->contractReference,
                 'penaltyType' => $this->claim->penaltyType?->value,
                 'contractualPenaltyRate' => $this->claim->contractualPenaltyRate,
+                'contractualPenaltyCapPercent' => $this->claim->contractualPenaltyCapPercent,
                 'confidencePerField' => $this->claim->confidencePerField,
             ] : null,
             'rawOcrText' => $this->rawOcrText,

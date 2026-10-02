@@ -27,9 +27,11 @@ use App\Enum\ExtractionStatus;
 use App\Enum\CaseStatus;
 use App\Enum\PersonType;
 use App\Enum\RelationshipType;
+use App\Service\Company\AnafLookupService;
 use App\Service\AuditLogService;
 use App\Service\Court\LocalityNormalizer;
 use App\Tests\Support\CountyFixtureTrait;
+use App\Tests\Support\OfflineAnafLookupService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -652,6 +654,45 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         self::assertSame('RO14186770', $dto->cui);
     }
 
+    public function testTheBankFollowsTheAccountNumber(): void
+    {
+        // Case 6 of the lawyer review: the invoice lists accounts at three banks
+        // and the IBAN and the bank were offered as two separate choices, so an
+        // ING account could be filed under Banca Transilvania.
+        $this->postCreditorStep([
+            'creditorEntity' => '',
+            'personType' => PersonType::PJ->value,
+            'name' => 'Bluebox Medical SRL',
+            'cui' => 'RO36155448',
+            'onrcNumber' => 'J23/3353/2021',
+            'address' => 'Bd. Pipera nr. 1/VII',
+            'iban' => 'RO81 INGB 0000 9999 1285 1953',
+            'bankName' => 'BANCA TRANSILVANIA',
+        ]);
+        self::assertResponseRedirects('/case/new/debtor');
+
+        $dto = $this->storedCreditorDto();
+        self::assertSame('RO81INGB0000999912851953', $dto->iban);
+        self::assertSame('ING Bank', $dto->bankName);
+    }
+
+    public function testABankNameThatFitsTheAccountIsKeptAsWritten(): void
+    {
+        $this->postCreditorStep([
+            'creditorEntity' => '',
+            'personType' => PersonType::PJ->value,
+            'name' => 'Panamarom SRL',
+            'cui' => 'RO2004840',
+            'onrcNumber' => 'J27/217/1992',
+            'address' => 'Str. Cuza Vodă nr. 100A',
+            'iban' => 'RO24CECENT0430RON1019827',
+            'bankName' => 'CEC BANK TG NEAMT',
+        ]);
+        self::assertResponseRedirects('/case/new/debtor');
+
+        self::assertSame('CEC BANK TG NEAMT', $this->storedCreditorDto()->bankName);
+    }
+
     public function testAPickedCreditorWithInvalidDataSaysWhatToCorrect(): void
     {
         $existing = $this->persistLibraryCreditor('Seed Vechi SRL', 'RO12345678');
@@ -886,6 +927,38 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
                 'bpiVerifiedToday' => '1',
             ]],
         ]];
+    }
+
+    public function testTheConfirmationStepLooksUpTheStatusOfAnUnsyncedCompanyDebtor(): void
+    {
+        // The lawyer was told to "call ANAF" on a screen with no way to do it;
+        // the status is the register's fact, so the step reads it itself.
+        $this->primeSessionForStep4(anafStatus: null, insolvencyCheckedAt: new \DateTimeImmutable('-1 hour'));
+        // The answer is set on the container that serves the next request.
+        $this->client->disableReboot();
+        $anaf = static::getContainer()->get(AnafLookupService::class);
+        self::assertInstanceOf(OfflineAnafLookupService::class, $anaf);
+        $anaf->respondWith('14186770', ['stare' => 'INACTIV', 'companyName' => 'REGISTER NAME SRL']);
+
+        $this->client->request('GET', '/case/new/confirmation');
+
+        self::assertResponseIsSuccessful();
+        $html = (string) $this->client->getResponse()->getContent();
+        self::assertStringNotContainsString('Apelează ANAF pe baza CUI', $html);
+        self::assertStringContainsString('inactiv fiscal', $html);
+        $entry = $this->client->getRequest()->getSession()->get('case_wizard_data')['debtors']->debtors[0];
+        self::assertSame(AnafStatus::INACTIV, $entry->anafStatus);
+        self::assertSame('Acme Debtor SRL', $entry->name, 'only the status is taken from the register');
+    }
+
+    public function testAnUnansweringRegisterLeavesTheStatusToBeChecked(): void
+    {
+        $this->primeSessionForStep4(anafStatus: null, insolvencyCheckedAt: new \DateTimeImmutable('-1 hour'));
+
+        $this->client->request('GET', '/case/new/confirmation');
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('nu a fost verificat', (string) $this->client->getResponse()->getContent());
     }
 
     public function testConfirmationGetShowsErrorAlertWhenDebtorIsAnafRadiat(): void

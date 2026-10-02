@@ -1,0 +1,10 @@
+# Loaded after config/services.yaml in the test environment, so these replace
+# definitions the App\ prototype registers there (an override placed under
+# config/packages/test/ would be overwritten by that prototype).
+services:
+    # The wizard looks a debtor's fiscal status up on its own at the
+    # confirmation step; without this the suite would query ANAF over the
+    # network for every unsynced company debtor it walks to step 4.
+    App\Service\Company\AnafLookupService:
+        class: App\Tests\Support\OfflineAnafLookupService
+        public: true

@@ -173,7 +173,10 @@ final class OpAdmissibilityValidator
             if ($item->hasUnimputedPayment()) {
                 $hasPayment = true;
             }
-            if (ClaimTextSignals::mentionsDeduction($item->getDescription())) {
+            // A final invoice that reverses the advance states a balance, not a
+            // sum still to be reduced: its total already nets the advance out.
+            $description = $item->getDescription();
+            if (ClaimTextSignals::mentionsDeduction($description) && !ClaimTextSignals::mentionsAdvanceSettlement($description)) {
                 $hasStatedDeduction = true;
             }
         }

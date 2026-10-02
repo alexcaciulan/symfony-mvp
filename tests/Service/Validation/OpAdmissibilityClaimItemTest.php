@@ -114,6 +114,14 @@ class OpAdmissibilityClaimItemTest extends TestCase
     }
 
     /** @param list<?string> $dueDates */
+    public function testAFinalInvoiceThatReversesTheAdvanceIsNotADeduction(): void
+    {
+        $case = $this->caseWithItems(['2026-01-31']);
+        $case->getClaimItems()->first()->setDescription('Echipamente medicale și o linie de storno avans cf BMI2022730/05/12/2023.');
+
+        $this->assertSame([], $this->codes((new OpAdmissibilityValidator())->validate($case, $this->now())));
+    }
+
     private function caseWithItems(array $dueDates): LegalCase
     {
         $case = new LegalCase();

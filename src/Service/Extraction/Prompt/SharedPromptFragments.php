@@ -227,6 +227,12 @@ final class SharedPromptFragments
             `penaltyType` și `contractualPenaltyRate`. NU presupune
             `LEGAL_PENALIZATOARE` și NU deduce o rată din context, nici din dobânda legală.
             Câmpul gol = aplicarea valorii implicite din formular (aleasă de avocat).
+          • `contractualPenaltyCapPercent`: doar împreună cu o clauză de penalitate
+            CONTRACTUAL, și doar dacă contractul plafonează penalitățile ca procent din
+            valoarea pe care se calculează (ex: „valoarea penalităților nu poate depăși
+            10% din valoarea prestației” → 10). Clauza de plafonare stă adesea în
+            articolul imediat următor celui cu rata zilnică; citește-l. Omite câmpul
+            dacă plafonul e o sumă fixă sau dacă nu există plafon.
         FRAGMENT;
     }
 
@@ -386,6 +392,7 @@ final class SharedPromptFragments
             'contractReference' => self::stringField('Obiectul contractului, așa cum e denumit în preambul'),
             'penaltyType' => self::enumField(self::penaltyTypeValues(), 'Doar CONTRACTUAL, și doar pentru o clauză explicită cu rată pe zi'),
             'contractualPenaltyRate' => self::numberField('Rata zilnică în procente, ex: 0.1 pentru 0,1% pe zi'),
+            'contractualPenaltyCapPercent' => self::numberField('Plafonul penalităților ca procent din valoarea pe care se calculează, ex: 10 pentru 10%'),
         ];
         $fields['confidencePerField'] = self::confidenceSchema(array_keys($fields));
 

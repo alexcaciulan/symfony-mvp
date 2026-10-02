@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller\Case;
 
+use App\DTO\Wizard\Step2DebtorEntry;
+use App\DTO\Wizard\Step2DebtorsData;
 use App\Entity\Document;
 use App\Entity\User;
 use App\Enum\DocumentType;
 use App\Enum\ExtractionStatus;
+use App\Enum\PersonType;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -271,10 +274,142 @@ final class CaseWizardConflictsTest extends WebTestCase
         self::assertSame(0, $crawler->filter('[data-testid="prefill-conflicts"]')->count());
     }
 
+    public function testAnAnafSyncedDebtorIsNoLongerAskedAboutItsSeat(): void
+    {
+        // The register speaks for the seat once the lawyer synced the party:
+        // a document's county put back over it would move the case to the
+        // court the register does not support.
+        $ids = $this->primeDocuments([
+            $this->payload('Alfa Construct SRL', '11111111', 'Cluj', null),
+            $this->payload('Alfa Construct SRL', '11111111', 'București', null),
+        ]);
+        $synced = new Step2DebtorEntry(personType: PersonType::PJ, name: 'ALFA CONSTRUCT SRL', cui: '11111111', addressCounty: 'Cluj');
+        $synced->anafCheckedAt = new \DateTimeImmutable();
+        $session = $this->client->getRequest()->getSession();
+        $session->set(self::SESSION_KEY, ['documentIds' => $ids, 'debtors' => new Step2DebtorsData([$synced])]);
+        $session->save();
+
+        $crawler = $this->client->request('GET', '/case/new/debtor');
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(0, $crawler->filter('[data-testid="prefill-conflicts"]')->count());
+    }
+
+    public function testAConsumerDebtorStopsTheFileAtStepZero(): void
+    {
+        $this->primeDocuments([[
+            'schemaVersion' => 2,
+            'strategy' => 'ai_vision',
+            'globalConfidence' => 0.9,
+            'debtors' => [[
+                'personType' => 'PF',
+                'name' => 'ALINA BIANCA BALAN',
+                'personalId' => '2820619440019',
+                'confidencePerField' => ['personType' => 0.95, 'name' => 0.97, 'personalId' => 0.9],
+            ]],
+        ]]);
+
+        $crawler = $this->client->request('GET', '/case/new/documents');
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('ALINA BIANCA BALAN', $crawler->filter('[data-testid="step0-consumer-debtor"]')->text());
+        $continue = $crawler->filter('form[action="/case/new/creditor"] button');
+        self::assertNotNull($continue->attr('disabled'));
+    }
+
+    public function testASoleTraderWithATaxCodeIsNotTurnedAway(): void
+    {
+        $this->primeDocuments([[
+            'schemaVersion' => 2,
+            'strategy' => 'ai_vision',
+            'globalConfidence' => 0.9,
+            'debtors' => [[
+                'personType' => 'PF',
+                'name' => 'POPESCU ION PFA',
+                'cui' => '30131111',
+                'confidencePerField' => ['personType' => 0.95, 'name' => 0.97, 'cui' => 0.95],
+            ]],
+        ]]);
+
+        $crawler = $this->client->request('GET', '/case/new/documents');
+
+        self::assertSame(0, $crawler->filter('[data-testid="step0-consumer-debtor"]')->count());
+        self::assertNull($crawler->filter('form[action="/case/new/creditor"] button')->attr('disabled'));
+    }
+
+    public function testADocumentUploadedByMistakeCanBeRemovedFromTheWizard(): void
+    {
+        // General remark of the lawyer review: a file that belonged to another
+        // case could not be taken out once uploaded, and kept feeding the
+        // prefill and the conflicts panel.
+        $ids = $this->primeDocuments([
+            $this->creditorPayload('Cedent SRL', '15193236'),
+            $this->creditorPayload('Cesionar SRL', '14186770'),
+        ]);
+        $crawler = $this->client->request('GET', '/case/new/documents');
+        $form = $crawler->filter('form[action="/case/new/documents/' . $ids[1] . '/remove"]');
+        self::assertSame(1, $form->count());
+
+        $this->client->request('POST', '/case/new/documents/' . $ids[1] . '/remove', [
+            '_token' => $form->filter('input[name="_token"]')->attr('value'),
+        ]);
+
+        self::assertResponseRedirects('/case/new/documents');
+        self::assertSame([$ids[0]], $this->client->getRequest()->getSession()->get(self::SESSION_KEY)['documentIds']);
+        $this->em->clear();
+        self::assertNull($this->em->find(Document::class, $ids[1]));
+        $crawler = $this->client->request('GET', '/case/new/creditor');
+        self::assertSame(0, $crawler->filter('[data-testid="prefill-conflicts"]')->count(), 'the two creditors no longer disagree');
+    }
+
+    public function testRemovalWithoutAValidTokenIsRefused(): void
+    {
+        $ids = $this->primeDocuments([$this->creditorPayload('Cedent SRL', '15193236')]);
+
+        $this->client->request('POST', '/case/new/documents/' . $ids[0] . '/remove', ['_token' => 'forged']);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_FORBIDDEN);
+        $this->em->clear();
+        self::assertNotNull($this->em->find(Document::class, $ids[0]));
+    }
+
+    public function testADocumentStillBeingReadIsNotRemoved(): void
+    {
+        $ids = $this->primeDocuments([$this->creditorPayload('Cedent SRL', '15193236')]);
+        $crawler = $this->client->request('GET', '/case/new/documents');
+        $token = $crawler->filter('form[action="/case/new/documents/' . $ids[0] . '/remove"] input[name="_token"]')->attr('value');
+        $this->em->getConnection()->executeStatement('UPDATE document SET extraction_status = ? WHERE id = ?', [ExtractionStatus::PROCESSING->value, $ids[0]]);
+
+        $this->client->request('POST', '/case/new/documents/' . $ids[0] . '/remove', ['_token' => $token]);
+
+        self::assertResponseRedirects('/case/new/documents');
+        $this->em->clear();
+        self::assertNotNull($this->em->find(Document::class, $ids[0]), 'the worker is still writing to it');
+    }
+
+    public function testADocumentOutsideTheWizardCannotBeRemovedThroughIt(): void
+    {
+        $ids = $this->primeDocuments([$this->creditorPayload('Cedent SRL', '15193236')]);
+        $crawler = $this->client->request('GET', '/case/new/documents');
+        $token = $crawler->filter('form[action="/case/new/documents/' . $ids[0] . '/remove"] input[name="_token"]')->attr('value');
+        $session = $this->client->getRequest()->getSession();
+        $session->set(self::SESSION_KEY, ['documentIds' => []]);
+        $session->save();
+
+        $this->client->request('POST', '/case/new/documents/' . $ids[0] . '/remove', ['_token' => $token]);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_NOT_FOUND);
+        $this->em->clear();
+        self::assertNotNull($this->em->find(Document::class, $ids[0]));
+    }
+
     /**
      * @param list<array<string, mixed>> $payloads
      */
-    private function primeDocuments(array $payloads): void
+    /**
+     * @return list<int>
+     */
+    private function primeDocuments(array $payloads): array
     {
         $ids = [];
         foreach ($payloads as $index => $payload) {
@@ -296,6 +431,8 @@ final class CaseWizardConflictsTest extends WebTestCase
         $session = $this->client->getRequest()->getSession();
         $session->set(self::SESSION_KEY, ['documentIds' => $ids]);
         $session->save();
+
+        return $ids;
     }
 
     /**

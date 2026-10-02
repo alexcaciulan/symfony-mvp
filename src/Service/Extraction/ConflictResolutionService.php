@@ -47,7 +47,7 @@ final class ConflictResolutionService
     public const MANUAL_CHOICE = 'manual';
 
     /** Fields whose typed value is a sum rather than text. */
-    private const NUMERIC_FIELDS = ['amount', 'contractualPenaltyRate', 'paidAmount'];
+    private const NUMERIC_FIELDS = ['amount', 'contractualPenaltyRate', 'contractualPenaltyCapPercent', 'paidAmount'];
 
     /** Fields whose typed value is a date rather than text. */
     private const DATE_FIELDS = ['dueDate', 'invoiceDate', 'contractDate', 'documentDate'];
@@ -583,7 +583,7 @@ final class ConflictResolutionService
         }
 
         $value = (float) $normalized;
-        $ceiling = $field === 'contractualPenaltyRate' ? self::MAX_RATE : self::MAX_SUM;
+        $ceiling = in_array($field, ['contractualPenaltyRate', 'contractualPenaltyCapPercent'], true) ? self::MAX_RATE : self::MAX_SUM;
 
         // Zero is arithmetically valid and legally meaningless, and a negative
         // sum would be subtracted from what is claimed rather than added.

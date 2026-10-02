@@ -407,12 +407,20 @@ wizard:
             earliest_due_date_label: 'Earliest due date'
             earliest_due_date: 'Earliest due date: %date%'
             penalty_rate_missing: 'Enter the daily rate'
+            penalty_capped: 'Capped as the contract provides'
             interest_unavailable: 'Undetermined'
             interest_none: '—'
             no_interest_hint: 'Interest could not be computed for this position. Check the due date and the applicable NBR rate.'
             no_penalty_hint: 'The amount could not be computed for this position. Check the due date and the daily rate.'
             counted_summary: '%count% positions counted'
-            bnr_breakdown: 'NBR periods (%count%)'
+            bnr_breakdown: 'How the interest was computed (%count% NBR periods)'
+            breakdown:
+                period: 'Period'
+                nbr_rate: 'NBR reference rate'
+                applicable_rate: 'Applied rate'
+                days: 'Days'
+                interest: 'Interest'
+                formula: 'Interest per period = position amount × applied rate × days / 365. The applied rate is the NBR reference rate plus 8 percentage points (GO 13/2011, art. 3 para. 2¹), counted from the day after the due date.'
             issued: 'Issued %date%'
             cause_placeholder: 'e.g. Contract 12/2024'
             error:
@@ -428,6 +436,8 @@ wizard:
                 amount_mismatch: 'Two documents give different amounts for this invoice. Choose the correct one before confirming.'
                 due_date_mismatch: 'Two documents give different due dates for this invoice. Choose the correct one before confirming.'
                 credit_note: 'Credit note: it subtracts from the claim instead of adding to it, and accrues no interest.'
+                advance_settled_by_final: 'This advance is reversed on the final invoice in the file, whose total already deducts it, so the position is excluded. If the advance was never paid, untick "Exclude": it is then owed on its own.'
+                final_invoice_settles_advance: 'The final invoice reverses the advance on one of its lines, so its total is already the balance left to pay.'
                 deduction_mentioned: 'The document mentions a deduction (advance, retention, partial payment). The sum claimed stays the invoiced total: imputation is yours to make (Civil Code art. 1507-1509).'
                 payment_in_statement: 'The bank statement shows a payment referring to this invoice. The amount claimed stays the invoiced total: imputation of the payment is yours to make (Civil Code art. 1507-1509).'
         title: 'Claim details'
@@ -447,6 +457,7 @@ wizard:
         help:
             due_date: 'Due date must be in the past or today (claim must be exigible, CPC art. 1014).'
             contractual_penalty_rate: 'E.g. 0.10 for 0.10%/day of delay, per the contractual clause.'
+            contractual_penalty_cap: 'If the contract caps the penalties at a share of the value (e.g. 10%), enter the percentage. It applies to each invoice.'
             contractual_accessory_label: 'The notice uses the contract''s own term in every sentence about the accessory.'
             penalty_clause_text: 'Quoted in the notice. Left empty, the notice only says the parties agreed a late-payment penalty mechanism.'
             contract_object: 'Reads after "concerning". E.g. the provision of transport services.'
@@ -457,6 +468,7 @@ wizard:
             continue: 'Continue to confirmation'
         relationship:
             comercial_hint: 'Between professionals · BNR + 8 pp'
+            comercial_hint_contractual: 'Between professionals · contractual penalties'
             civil_disabled_hint: 'Available post-MVP (B2C/P2P).'
             civil_disabled_title: 'Restricted to B2B in MVP (Pas 2.1 Option a).'
         sidebar:
@@ -483,6 +495,7 @@ wizard:
             court_label: 'Competent court'
             court_placeholder: 'Court could not be determined. Verify manually.'
             footer_note: 'Calculations at the current BNR rate. Re-check before submission.'
+            footer_note_contractual: 'Computed with the contract daily rate, up to today. Check before filing.'
         live:
             error:
                 due_date_future: 'Due date is in the future; claim is not yet exigible.'
@@ -522,6 +535,7 @@ wizard:
             description: 'Description'
             penalty_type: 'Accessory computation mode'
             contractual_penalty_rate: 'Penalty rate (%/day)'
+            contractual_penalty_cap: 'Penalty ceiling (% of the sum)'
             contract_reference: 'Contract clause reference'
             penalty_clause_article: 'Contractual clause article'
             penalty_clause_text: 'Contractual clause text'
@@ -756,6 +770,15 @@ wizard:
         skip: 'Skip and fill in manually'
         continue: 'Continue with extracted data'
         continue_blocked: 'Wait for all documents to finish processing'
+        remove:
+            button: 'Remove'
+            confirm: 'Remove %file% from the case? The file is deleted and the data read from it is no longer used.'
+            done: 'The document was removed. Check the steps already filled in: their data may have come from it.'
+            processing: 'The document is still being read. You can remove it once the reading ends.'
+        consumer_debtor:
+            title: 'The debtor is a natural person (consumer)'
+            body: 'The documents name %name% as the debtor, a natural person with no tax code. LexRecovery covers claims between professionals only for now, so the case cannot go on with this debtor. If the debtor is a professional (sole trader, individual enterprise), add a document that shows their tax code or fill in the case manually.'
+            unnamed: 'a natural person'
         error:
             no_files: 'Select at least one file.'
             too_many_files: 'You can upload at most {{ limit }} files.'
@@ -900,6 +923,8 @@ case_overview:
         interest: 'Interest'
         interest_hint_commercial: '%days% days · BNR + 8 pp'
         interest_hint_civil: '%days% days · accrued interest'
+        penalty_hint: '%rate%% per day, per the contract'
+        penalty_hint_capped: '%rate%% per day, capped at %cap%% of the sum'
         total: 'Total claim'
         total_hint: '+ stamp duty %stampDuty% %currency%'
         active_deadline: 'Active deadline'
@@ -965,6 +990,7 @@ case_overview:
         positions_interest: 'Interest'
         positions_hint: 'Interest is computed separately for each position, from its own due date (Civil Code art. 1535), as of the case creation date.'
         breakdown_zero: 'No interest has accrued yet (due date is in the future).'
+        contractual_formula: 'Penalties run from the day after each invoice falls due: amount × %rate%% × days late, per the contract clause, not the BNR rate.'
     court:
         title: 'COMPETENT COURT'
         case_number: 'Court case no.'
@@ -1704,6 +1730,7 @@ pdf:
             document_number_date: '%number% of %date%'
             document_date_only: 'of %date%'
             rounding_note: 'The total is calculated on the unrounded value of each interval.'
+            cap_note: 'Per the contract, the penalties are capped at %cap%% of each invoice.'
             legal:
                 document: 'Invoice/document'
                 balance: 'Balance on which interest is calculated (LEI)'
@@ -2415,6 +2442,7 @@ enum:
         portal_event: 'Portal activity'
         portal_ruling_confirmation: 'Ruling, confirmation required'
         portal_query_failed: 'Portal monitoring stopped'
+        portal_case_found: 'Case found on the portal'
         payment_failed: 'Payment failed'
         token_expired: 'Card expired'
         payment_succeeded: 'Payment received'
@@ -2559,7 +2587,8 @@ exception:
         not_found: 'Tax ID not found in the ANAF database.'
         rate_limited: 'Too many ANAF lookups. Wait 1 hour or fill data manually.'
     calculation:
-        interest_rate_missing: 'No BNR rate is configured for the due date. Check InterestRateConfigFixtures.'
+        interest_rate_missing: 'There is no BNR reference rate for the due date (the history starts on 01.09.2011). Compute the interest manually.'
+        before_professional_margin: 'The due date is before 05.04.2013. The 8 percentage point margin between professionals applies only to contracts concluded after Law 72/2013 came into force; compute the interest manually.'
         currency_unsupported: 'Interest calculation is only available for RON-denominated claims. Foreign-currency support will be added later.'
         exchange_rate_missing: 'No BNR exchange rate for the invoice currency and date. Import the rates (app:import-exchange-rates) or check the issue date.'
 
@@ -2801,6 +2830,9 @@ notification:
     portal_query_failed:
         title: 'Portal monitoring stopped'
         message: 'Automatic monitoring of case %case% was stopped after 5 consecutive failed queries on portal.just.ro. Check the case number or re-activate monitoring from the case.'
+    portal_case_found:
+        title: 'Case found on the portal: %case%'
+        message: 'portal.just.ro lists case %number%, which looks like the request filed for %case%. Check it on the Portal tab and turn monitoring on if it is the right one.'
     missing_communication_date:
         title: 'Enter service date: %case%'
         message: 'Enter the payment order service date on case %case% to start the annulment request term.'

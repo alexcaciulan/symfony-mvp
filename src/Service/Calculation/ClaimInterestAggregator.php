@@ -45,6 +45,7 @@ final class ClaimInterestAggregator
         PenaltyType $penaltyType = PenaltyType::LEGAL_PENALIZATOARE,
         ?float $contractualDailyRate = null,
         InterestKind $kind = InterestKind::PENALIZATOARE,
+        ?float $contractualPenaltyCapPercent = null,
     ): AggregatedAccessoryResult {
         $isContractual = $penaltyType === PenaltyType::CONTRACTUAL
             && $contractualDailyRate !== null
@@ -54,6 +55,7 @@ final class ClaimInterestAggregator
         $interestByItem = [];
         $penaltyByItem = [];
         $skipped = [];
+        $skipReasons = [];
 
         foreach ($items as $index => $item) {
             $key = $item->getId() ?? -((int) $index + 1);
@@ -82,6 +84,9 @@ final class ClaimInterestAggregator
                     dailyRatePercent: $contractualDailyRate,
                     startDate: $dueDate,
                     referenceDate: $referenceDate,
+                    // The ceiling is a share of what each position accrues on,
+                    // so it is applied per position like the rate itself.
+                    capPercent: $contractualPenaltyCapPercent,
                 );
                 $penaltyByItem[$key] = $result;
                 $total += $result->total;
@@ -109,6 +114,7 @@ final class ClaimInterestAggregator
                     'itemId' => $item->getId(),
                 ]);
                 $skipped[] = $key;
+                $skipReasons[$key] = $e->getMessage();
 
                 continue;
             }
@@ -122,6 +128,7 @@ final class ClaimInterestAggregator
             interestByItemId: $interestByItem,
             penaltyByItemId: $penaltyByItem,
             skippedItemIds: $skipped,
+            skipReasonByItemId: $skipReasons,
         );
     }
 }

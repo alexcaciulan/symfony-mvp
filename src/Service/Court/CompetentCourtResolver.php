@@ -139,6 +139,7 @@ final class CompetentCourtResolver
         InterestKind $interestKind = InterestKind::PENALIZATOARE,
         PenaltyType $penaltyType = PenaltyType::LEGAL_PENALIZATOARE,
         ?float $contractualDailyRate = null,
+        ?float $contractualPenaltyCapPercent = null,
     ): CourtResolveResult {
         $counting = [];
         foreach ($items as $item) {
@@ -158,6 +159,7 @@ final class CompetentCourtResolver
             penaltyType: $penaltyType,
             contractualDailyRate: $contractualDailyRate,
             kind: $interestKind,
+            contractualPenaltyCapPercent: $contractualPenaltyCapPercent,
         );
         $accruedInterest = $isContractual ? 0.0 : $accessory->total;
         $scadentPenalties = $isContractual ? $accessory->total : 0.0;

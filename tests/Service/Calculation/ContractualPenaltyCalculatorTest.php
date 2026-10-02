@@ -68,4 +68,36 @@ class ContractualPenaltyCalculatorTest extends TestCase
         $before = $service->calculate(10_000.0, 0.10, new \DateTimeImmutable('2024-06-01'), new \DateTimeImmutable('2024-05-01'));
         $this->assertSame(0.0, $before->total);
     }
+
+    public function testTheContractCeilingStopsThePenalty(): void
+    {
+        // Contract 129/18.12.2024 (case 5 of the lawyer review): 0,1%/day,
+        // "nu poate depăși 10% din valoarea prestației" (art. 10.3), invoice
+        // of 21.318,90 RON due 21.02.2025. Uncapped it would reach 12.535,51.
+        $result = (new ContractualPenaltyCalculator())->calculate(
+            amount: 21_318.90,
+            dailyRatePercent: 0.1,
+            startDate: new \DateTimeImmutable('2025-02-21'),
+            referenceDate: new \DateTimeImmutable('2026-10-02'),
+            capPercent: 10.0,
+        );
+
+        $this->assertTrue($result->isCapped());
+        $this->assertEqualsWithDelta(2_131.89, $result->total, 0.01);
+        $this->assertEqualsWithDelta(12_535.51, $result->breakdown[0]->periodPenalty, 0.01, 'the uncapped figure stays visible');
+    }
+
+    public function testACeilingNotYetReachedChangesNothing(): void
+    {
+        $result = (new ContractualPenaltyCalculator())->calculate(
+            amount: 10_000.0,
+            dailyRatePercent: 0.1,
+            startDate: new \DateTimeImmutable('2025-01-01'),
+            referenceDate: new \DateTimeImmutable('2025-01-31'),
+            capPercent: 10.0,
+        );
+
+        $this->assertFalse($result->isCapped());
+        $this->assertEqualsWithDelta(300.0, $result->total, 0.01);
+    }
 }

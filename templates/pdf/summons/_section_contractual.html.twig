@@ -50,6 +50,7 @@
     </tbody>
 </table>
 {% if summonsTables.roundingNoteNeeded %}<p class="note">{{ 'pdf.summons.table.rounding_note'|trans }}</p>{% endif %}
+{% if summonsTables.contractualPenaltyRows|filter(r => r.capped)|length > 0 %}<p class="note">{{ 'pdf.summons.table.cap_note'|trans({'%cap%': case.contractualPenaltyCapPercent|number_format(0, ',', '.')}) }}</p>{% endif %}
 {% endif %}
 
 <p class="total">{{ 'pdf.summons.contractual.total'|trans({'%label%': label|upper, '%date%': noticeDateText, '%amount%': accessoryTotal|number_format(2, ',', '.')}) }}</p>

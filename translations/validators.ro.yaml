@@ -69,6 +69,8 @@ wizard:
             penalty_rate_required: 'Introdu rata zilnică a penalității contractuale.'
             penalty_rate_positive: 'Rata penalității trebuie să fie strict mai mare decât 0.'
             penalty_rate_too_high: 'Rata zilnică pare prea mare (maxim 5%/zi). Verifică valoarea din contract.'
+            penalty_cap_positive: 'Plafonul trebuie să fie un procent pozitiv.'
+            penalty_cap_too_high: 'Plafonul nu poate depăși 100%.'
             legal_costs_fixed_positive: 'Onorariul fix nu poate fi negativ.'
             legal_costs_percent_range: 'Procentul onorariului de succes trebuie să fie între 0 și 100.'
             contract_reference_too_long: 'Referința contractului este prea lungă (maxim 255 de caractere). Scurteaz-o.'

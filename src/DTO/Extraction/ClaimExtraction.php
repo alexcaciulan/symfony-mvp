@@ -13,6 +13,8 @@ final readonly class ClaimExtraction
      * @param ?float               $contractualPenaltyRate daily penalty rate as a percentage (e.g. 0.1 for "0,1%/zi"),
      *                                                     paired with PenaltyType::CONTRACTUAL
      * @param array<string, float> $confidencePerField     field name → confidence score 0..1
+     * @param ?float               $contractualPenaltyCapPercent ceiling on the penalties as a percentage
+     *                                                     of the sum they accrue on (e.g. 10 for 10%)
      */
     public function __construct(
         public ?float $amount = null,
@@ -28,5 +30,6 @@ final readonly class ClaimExtraction
         public ?PenaltyType $penaltyType = null,
         public ?float $contractualPenaltyRate = null,
         public array $confidencePerField = [],
+        public ?float $contractualPenaltyCapPercent = null,
     ) {}
 }

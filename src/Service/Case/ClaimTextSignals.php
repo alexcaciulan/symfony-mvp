@@ -23,6 +23,15 @@ final class ClaimTextSignals
         . 'garantie retinuta|garanție reținută|plata partiala|plată parțială|achitat partial|achitat parțial)\b/u';
 
     /**
+     * A final invoice that takes an advance back out ("Storno avans cf BMI...").
+     * The storno is one line of a larger invoice, not what the invoice is: its
+     * total is the balance still due after the advance.
+     */
+    private const ADVANCE_SETTLEMENT_PATTERN =
+        '/\b(storno|stornare|stornarea|stornat|stornată|regularizare|regularizarea|deducere|deducerea)\s+(a\s+|la\s+)?(avans|avansului|aconto|acont)\b'
+        . '|\b(avans|avansul|aconto)\s+(stornat|regularizat|dedus)\b/u';
+
+    /**
      * A money movement into the account of the party that is owed. Read off a
      * bank statement, where a payment that settles part of the claim is visible
      * nowhere else: the invoice still states its full total, so without this the
@@ -35,6 +44,11 @@ final class ClaimTextSignals
     public static function mentionsCreditNote(?string ...$fragments): bool
     {
         return self::matches(self::CREDIT_NOTE_PATTERN, ...$fragments);
+    }
+
+    public static function mentionsAdvanceSettlement(?string ...$fragments): bool
+    {
+        return self::matches(self::ADVANCE_SETTLEMENT_PATTERN, ...$fragments);
     }
 
     public static function mentionsDeduction(?string ...$fragments): bool

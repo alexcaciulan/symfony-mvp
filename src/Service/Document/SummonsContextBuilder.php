@@ -149,6 +149,7 @@ final class SummonsContextBuilder
                 penaltyType: $penaltyType,
                 contractualDailyRate: $rate !== null ? (float) $rate : null,
                 kind: InterestKind::PENALIZATOARE,
+                contractualPenaltyCapPercent: $case->contractualPenaltyCap(),
             );
         } catch (\DomainException $e) {
             // This builder's contract is that the document still generates. An
@@ -220,6 +221,7 @@ final class SummonsContextBuilder
             dailyRatePercent: (float) $rate,
             startDate: $dueDate,
             referenceDate: $refDate,
+            capPercent: $case->contractualPenaltyCap(),
         );
     }
 

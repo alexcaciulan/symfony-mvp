@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service\Case;
 
 use App\DTO\Calculation\InterestResult;
+use App\DTO\Calculation\PenaltyResult;
 use App\DTO\Wizard\ClaimItemRow;
 use App\Entity\LegalCase;
 use App\Enum\PenaltyType;
@@ -26,6 +27,8 @@ use Psr\Log\LoggerInterface;
  *     accessory: float,
  *     earliestDueDate: ?\DateTimeImmutable,
  *     countedRows: int,
+ *     cappedRows: list<int>,
+ *     unavailableReasonByRow: array<int, string>,
  * }
  */
 final class ClaimPositionsSummarizer
@@ -46,6 +49,7 @@ final class ClaimPositionsSummarizer
         PenaltyType $penaltyType,
         ?float $contractualDailyRate,
         ?\DateTimeImmutable $referenceDate = null,
+        ?float $contractualPenaltyCapPercent = null,
     ): array {
         $referenceDate ??= new \DateTimeImmutable();
         $summary = [
@@ -56,6 +60,8 @@ final class ClaimPositionsSummarizer
             'accessory' => 0.0,
             'earliestDueDate' => null,
             'countedRows' => 0,
+            'cappedRows' => [],
+            'unavailableReasonByRow' => [],
         ];
 
         if ($rows === []) {
@@ -95,6 +101,7 @@ final class ClaimPositionsSummarizer
                 relationshipType: $relationshipType,
                 penaltyType: $penaltyType,
                 contractualDailyRate: $contractualDailyRate,
+                contractualPenaltyCapPercent: $contractualPenaltyCapPercent,
             );
         } catch (\DomainException | \RuntimeException $e) {
             $this->logger->info('wizard.calc.items_accessory_failed', ['reason' => $e->getMessage()]);
@@ -112,10 +119,17 @@ final class ClaimPositionsSummarizer
             if ($result instanceof InterestResult) {
                 $summary['breakdownByRow'][$index] = $result->breakdown;
             }
+            if ($result instanceof PenaltyResult && $result->isCapped()) {
+                $summary['cappedRows'][] = $index;
+            }
             // A position with a due date that produced nothing is a computation
             // that failed, not a position that owes nothing. Say which.
             if ($result === null && $row->dueDate !== null && !$row->isCreditNote()) {
                 $summary['unavailableRows'][] = $index;
+                $reason = $accessory->skipReasonByItemId[-($index + 1)] ?? null;
+                if ($reason !== null && str_starts_with($reason, 'exception.calculation.')) {
+                    $summary['unavailableReasonByRow'][$index] = $reason;
+                }
             }
         }
 

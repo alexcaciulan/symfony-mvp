@@ -69,6 +69,8 @@ wizard:
             penalty_rate_required: 'Enter the daily rate of the contractual penalty.'
             penalty_rate_positive: 'The penalty rate must be strictly greater than 0.'
             penalty_rate_too_high: 'The daily rate seems too high (max 5%/day). Check the value in the contract.'
+            penalty_cap_positive: 'The ceiling must be a positive percentage.'
+            penalty_cap_too_high: 'The ceiling cannot exceed 100%.'
             legal_costs_fixed_positive: 'The fixed fee cannot be negative.'
             legal_costs_percent_range: 'The success fee percentage must be between 0 and 100.'
             contract_reference_too_long: 'The contract reference is too long (max 255 characters). Shorten it.'

@@ -21,11 +21,20 @@ final class PortalCaseMatcher
 
     /**
      * Object/category markers for the payment-order procedure (matched on the
-     * normalized + lowercased text). Full phrase "ordonanta de plata" only, to
-     * avoid scoring "ordonanță prezidențială" (CPC art. 996) or the abrogated
-     * "somație de plată" (OUG 5/2001) as OP.
+     * normalized + lowercased text). Full phrases only, so "ordonanță
+     * prezidențială" (CPC art. 996) does not score as OP. The courts' case
+     * system still files today's payment-order requests under the object
+     * "somaţie de plată", the name of the procedure OUG 5/2001 had until 2013
+     * (e.g. 24697/211/2023 at Judecătoria Cluj-Napoca); the search window never
+     * reaches back to cases of that old procedure.
      */
-    private const OP_MARKERS = ['ordonanta de plata'];
+    private const OP_MARKERS = ['ordonanta de plata', 'somatie de plata'];
+
+    /**
+     * Objects that name a payment order but are another case about it: the
+     * debtor's annulment request is filed separately from the request itself.
+     */
+    private const OP_EXCLUDED_MARKERS = ['anulare'];
 
     // Lower bound of the portal date window, relative to case creation. The portal
     // filters on the REGISTRATION date (not last-modified), and a case may be added
@@ -49,9 +58,11 @@ final class PortalCaseMatcher
         }
 
         $ourParties = [];
+        $creditorName = null;
         $creditor = $case->getCreditor();
         if ($creditor !== null && $creditor->getName() !== '') {
-            $ourParties[] = $creditor->getName();
+            $creditorName = $creditor->getName();
+            $ourParties[] = $creditorName;
         }
 
         $debtorNames = [];
@@ -74,6 +85,21 @@ final class PortalCaseMatcher
         $scored = [];
         foreach ($dosare as $dosar) {
             $scored[] = $this->scoreDosar($dosar, $ourParties);
+        }
+
+        // The search runs on the debtor, so it brings every case the debtor has
+        // at that court, most of them with other creditors. Where some name our
+        // creditor too, those are the only ones worth the lawyer's attention;
+        // where none does (a creditor spelled differently on the portal), all
+        // stay, ranked, rather than nothing.
+        if ($creditorName !== null) {
+            $withCreditor = array_values(array_filter(
+                $scored,
+                static fn (array $entry): bool => in_array($creditorName, $entry['matched'], true),
+            ));
+            if ($withCreditor !== []) {
+                $scored = $withCreditor;
+            }
         }
 
         usort($scored, static function (array $a, array $b): int {
@@ -102,8 +128,12 @@ final class PortalCaseMatcher
         // the portal_search rate limiter (10/h) bounds abuse.
         $byNumar = [];
         foreach ($debtorNames as $name) {
+            $term = PartyNameNormalizer::searchTerm($name);
+            if ($term === '') {
+                continue;
+            }
             try {
-                $results = $this->portalClient->searchByParty($name, $portalCode, $from, $to);
+                $results = $this->portalClient->searchByParty($term, $portalCode, $from, $to);
             } catch (PortalJustException $e) {
                 // Do not log the party name: it may be a natural-person debtor
                 // (GDPR art. 5(1)(f)). The case id + error suffice for triage.
@@ -206,6 +236,12 @@ final class PortalCaseMatcher
     {
         $text = PartyNameNormalizer::normalize($text);
         $text = mb_strtolower($text);
+
+        foreach (self::OP_EXCLUDED_MARKERS as $excluded) {
+            if (str_contains($text, $excluded)) {
+                return false;
+            }
+        }
 
         foreach (self::OP_MARKERS as $marker) {
             if (str_contains($text, $marker)) {

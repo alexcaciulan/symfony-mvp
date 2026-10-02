@@ -79,7 +79,7 @@ final class PrefillFromExtractionService
     private const CLAIM_FIELDS = [
         'amount', 'currency', 'dueDate', 'legalGround', 'description', 'invoiceNumber',
         'invoiceDate', 'contractNumber', 'contractDate', 'contractReference',
-        'penaltyType', 'contractualPenaltyRate',
+        'penaltyType', 'contractualPenaltyRate', 'contractualPenaltyCapPercent',
     ];
 
     public function __construct(
@@ -633,12 +633,16 @@ final class PrefillFromExtractionService
         $penaltyRate = isset($v['contractualPenaltyRate']) && is_numeric($v['contractualPenaltyRate'])
             ? (float) $v['contractualPenaltyRate']
             : null;
+        $penaltyCap = isset($v['contractualPenaltyCapPercent']) && is_numeric($v['contractualPenaltyCapPercent'])
+            ? (float) $v['contractualPenaltyCapPercent']
+            : null;
         if ($penaltyType !== PenaltyType::CONTRACTUAL || $penaltyRate === null || $penaltyRate <= 0.0) {
             $penaltyType = null;
             $penaltyRate = null;
+            $penaltyCap = null;
             $autoFilled = array_values(array_filter(
                 $autoFilled,
-                static fn (string $f) => $f !== 'penaltyType' && $f !== 'contractualPenaltyRate',
+                static fn (string $f) => !in_array($f, ['penaltyType', 'contractualPenaltyRate', 'contractualPenaltyCapPercent'], true),
             ));
         }
 
@@ -650,6 +654,7 @@ final class PrefillFromExtractionService
             description: $this->toStringOrNull($v['description'] ?? null),
             penaltyType: $penaltyType ?? PenaltyType::LEGAL_PENALIZATOARE,
             contractualPenaltyRate: $penaltyRate,
+            contractualPenaltyCapPercent: $penaltyCap,
             contractReference: $this->toStringOrNull($v['contractReference'] ?? null),
             invoiceNumber: $this->toStringOrNull($v['invoiceNumber'] ?? null),
             invoiceDate: $invoiceDate,

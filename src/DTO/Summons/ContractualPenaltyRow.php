@@ -20,5 +20,7 @@ final readonly class ContractualPenaltyRow
         public int $days,
         public float $dailyRate,
         public float $penalty,
+        // Set when the contract's ceiling, not the days, decided the figure.
+        public bool $capped = false,
     ) {}
 }

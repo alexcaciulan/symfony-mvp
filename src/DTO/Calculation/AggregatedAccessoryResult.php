@@ -20,12 +20,15 @@ final readonly class AggregatedAccessoryResult
      * @param array<int, InterestResult> $interestByItemId
      * @param array<int, PenaltyResult>  $penaltyByItemId
      * @param list<int>                  $skippedItemIds
+     * @param array<int, string>         $skipReasonByItemId translation key of why a
+     *        position with a due date could not be computed
      */
     public function __construct(
         public float $total,
         public array $interestByItemId = [],
         public array $penaltyByItemId = [],
         public array $skippedItemIds = [],
+        public array $skipReasonByItemId = [],
     ) {}
 
     public function isEmpty(): bool

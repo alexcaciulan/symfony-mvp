@@ -843,6 +843,8 @@ final class AiVisionExtractionStrategy implements ExtractionStrategyInterface
         }
         $penaltyRateRaw = $raw['contractualPenaltyRate'] ?? null;
         $penaltyRate = is_numeric($penaltyRateRaw) ? (float) $penaltyRateRaw : null;
+        $penaltyCapRaw = $raw['contractualPenaltyCapPercent'] ?? null;
+        $penaltyCap = is_numeric($penaltyCapRaw) && (float) $penaltyCapRaw > 0.0 && (float) $penaltyCapRaw <= 100.0 ? (float) $penaltyCapRaw : null;
 
         $values = [
             'amount' => $amount,
@@ -857,6 +859,7 @@ final class AiVisionExtractionStrategy implements ExtractionStrategyInterface
             'contractReference' => $this->coerceString($raw['contractReference'] ?? null),
             'penaltyType' => $penaltyType,
             'contractualPenaltyRate' => $penaltyRate,
+            'contractualPenaltyCapPercent' => $penaltyCap,
         ];
 
         return new ClaimExtraction(
@@ -872,6 +875,7 @@ final class AiVisionExtractionStrategy implements ExtractionStrategyInterface
             contractReference: $values['contractReference'],
             penaltyType: $values['penaltyType'],
             contractualPenaltyRate: $values['contractualPenaltyRate'],
+            contractualPenaltyCapPercent: $values['contractualPenaltyCapPercent'],
             confidencePerField: $this->coerceConfidenceMap($raw['confidencePerField'] ?? null, $values),
         );
     }

@@ -398,6 +398,7 @@ wizard:
         help:
             due_date: 'Scadența trebuie să fie în trecut sau astăzi (creanță exigibilă, CPC art. 1014).'
             contractual_penalty_rate: 'Ex: 0,10 pentru 0,10%/zi de întârziere, conform clauzei contractuale.'
+            contractual_penalty_cap: 'Dacă din contract reiese că penalitățile nu pot depăși un procent din valoare (ex: 10%), completează procentul. Se aplică pe fiecare factură.'
             contractual_accessory_label: 'Somația folosește denumirea din contract în toate frazele despre accesorii.'
             penalty_clause_text: 'Se citează în somație. Dacă îl lași gol, somația spune doar că părțile au convenit un mecanism de penalizare pentru întârziere.'
             contract_object: 'Se citește după „având ca obiect”. Ex: prestarea de servicii de transport.'
@@ -431,12 +432,20 @@ wizard:
             earliest_due_date_label: 'Cea mai veche scadență'
             earliest_due_date: 'Cea mai veche scadență: %date%'
             penalty_rate_missing: 'Completează rata zilnică'
+            penalty_capped: 'Plafonat conform contractului'
             interest_unavailable: 'Nedeterminată'
             interest_none: '—'
             no_interest_hint: 'Dobânda nu a putut fi calculată pentru această poziție. Verifică scadența și rata BNR aplicabilă.'
             no_penalty_hint: 'Suma nu a putut fi calculată pentru această poziție. Verifică scadența și rata zilnică.'
             counted_summary: '%count% poziții luate în calcul'
-            bnr_breakdown: 'Perioade BNR (%count%)'
+            bnr_breakdown: 'Cum s-a calculat dobânda (%count% perioade BNR)'
+            breakdown:
+                period: 'Perioadă'
+                nbr_rate: 'Rată referință BNR'
+                applicable_rate: 'Rată aplicată'
+                days: 'Zile'
+                interest: 'Dobândă'
+                formula: 'Dobânda pe fiecare perioadă = suma poziției × rata aplicată × zile / 365. Rata aplicată este rata de referință BNR plus 8 puncte procentuale (OG 13/2011, art. 3 alin. 2¹), calculată din ziua următoare scadenței.'
             issued: 'Emisă %date%'
             cause_placeholder: 'ex. Contract 12/2024'
             error:
@@ -452,10 +461,13 @@ wizard:
                 amount_mismatch: 'Două documente indică sume diferite pentru această factură. Alege suma corectă înainte de a confirma.'
                 due_date_mismatch: 'Două documente indică scadențe diferite pentru această factură. Alege scadența corectă înainte de a confirma.'
                 credit_note: 'Document de stornare: scade din creanță, nu se adaugă la ea, și nu produce dobândă.'
+                advance_settled_by_final: 'Avansul este stornat în factura finală din dosar, al cărei total îl scade deja. De aceea poziția e exclusă. Dacă avansul nu a fost plătit, debifează „Exclude”: atunci este datorat separat.'
+                final_invoice_settles_advance: 'Factura finală stornează avansul pe unul dintre rânduri, iar totalul ei este deja diferența rămasă de plată.'
                 deduction_mentioned: 'Documentul menționează un scăzământ (avans, garanție reținută, plată parțială). Suma cerută rămâne totalul facturat: imputația plății o faci tu (C. civ. art. 1507-1509).'
                 payment_in_statement: 'Extrasul de cont indică o plată care se referă la această factură. Suma cerută rămâne totalul facturat: imputația plății o faci tu (C. civ. art. 1507-1509).'
         relationship:
             comercial_hint: 'Între profesioniști · BNR + 8 pp'
+            comercial_hint_contractual: 'Între profesioniști · penalități din contract'
             civil_disabled_hint: 'Disponibil post-MVP (B2C/P2P).'
             civil_disabled_title: 'Restrâns la B2B în MVP (Pas 2.1 Opțiunea a).'
         sidebar:
@@ -482,6 +494,7 @@ wizard:
             court_label: 'Instanță competentă'
             court_placeholder: 'Instanță needeterminată. Verifică manual.'
             footer_note: 'Calcule la rata BNR curentă. Verifică actualizarea înainte de depunere.'
+            footer_note_contractual: 'Calcule cu rata zilnică din contract, până azi. Verifică înainte de depunere.'
         live:
             error:
                 due_date_future: 'Scadența e în viitor; creanța nu e încă exigibilă.'
@@ -521,6 +534,7 @@ wizard:
             description: 'Descriere'
             penalty_type: 'Mod calcul accesorii'
             contractual_penalty_rate: 'Rată penalitate (%/zi)'
+            contractual_penalty_cap: 'Plafon penalități (% din sumă)'
             contract_reference: 'Referință clauză contract'
             penalty_clause_article: 'Articolul clauzei contractuale'
             penalty_clause_text: 'Textul clauzei contractuale'
@@ -755,6 +769,15 @@ wizard:
         skip: 'Sări peste și completez manual'
         continue: 'Continuă cu datele extrase'
         continue_blocked: 'Așteaptă finalizarea extracției pentru toate documentele'
+        remove:
+            button: 'Elimină'
+            confirm: 'Elimini %file% din dosar? Fișierul se șterge, iar datele extrase din el nu mai sunt folosite.'
+            done: 'Documentul a fost eliminat. Verifică pașii deja completați: datele lor pot proveni din el.'
+            processing: 'Documentul este în curs de citire. Îl poți elimina după ce citirea se încheie.'
+        consumer_debtor:
+            title: 'Debitorul este persoană fizică (consumator)'
+            body: 'Documentele îl arată ca debitor pe %name%, persoană fizică fără cod fiscal. LexRecovery acoperă deocamdată doar creanțele între profesioniști, așa că dosarul nu poate continua cu acest debitor. Dacă debitorul este profesionist (PFA, întreprindere individuală), adaugă un document din care reiese codul lui fiscal sau completează manual.'
+            unnamed: 'o persoană fizică'
         error:
             no_files: 'Selectează cel puțin un fișier.'
             too_many_files: 'Poți încărca maxim {{ limit }} fișiere.'
@@ -900,6 +923,8 @@ case_overview:
         interest: 'Dobândă'
         interest_hint_commercial: '%days% zile · BNR + 8 pp'
         interest_hint_civil: '%days% zile · dobândă acumulată'
+        penalty_hint: '%rate%% pe zi, din contract'
+        penalty_hint_capped: '%rate%% pe zi, plafonat la %cap%% din sumă'
         total: 'Total creanță'
         total_hint: '+ taxă timbru %stampDuty% %currency%'
         active_deadline: 'Termen activ'
@@ -965,6 +990,7 @@ case_overview:
         positions_interest: 'Dobândă'
         positions_hint: 'Dobânda se calculează separat pentru fiecare poziție, de la scadența ei (C. civ. art. 1535), la data creării dosarului.'
         breakdown_zero: 'Nu există încă dobândă acumulată (data scadenței este în viitor).'
+        contractual_formula: 'Penalitățile se calculează din ziua următoare scadenței fiecărei facturi: suma × %rate%% × zile de întârziere, conform clauzei din contract, nu după rata BNR.'
     court:
         title: 'INSTANȚĂ COMPETENTĂ'
         case_number: 'Nr. dosar'
@@ -1701,6 +1727,7 @@ pdf:
             document_number_date: '%number% din %date%'
             document_date_only: 'din %date%'
             rounding_note: 'Totalul este calculat pe valorile nerotunjite ale fiecărui interval.'
+            cap_note: 'Penalitățile sunt plafonate, conform contractului, la %cap%% din valoarea fiecărei facturi.'
             legal:
                 document: 'Factură/document'
                 balance: 'Sold asupra căruia se calculează dobânda (LEI)'
@@ -2412,6 +2439,7 @@ enum:
         portal_event: 'Activitate portal'
         portal_ruling_confirmation: 'Hotărâre, confirmare necesară'
         portal_query_failed: 'Monitorizare portal oprită'
+        portal_case_found: 'Dosar găsit pe portal'
         payment_failed: 'Plată eșuată'
         token_expired: 'Card expirat'
         payment_succeeded: 'Plată înregistrată'
@@ -2556,7 +2584,8 @@ exception:
         not_found: 'CUI-ul nu a fost găsit în baza de date ANAF.'
         rate_limited: 'Prea multe căutări ANAF. Așteaptă 1h sau introdu manual datele.'
     calculation:
-        interest_rate_missing: 'Nu există o rată BNR validă pentru data de scadență. Verifică InterestRateConfigFixtures.'
+        interest_rate_missing: 'Nu există o rată de referință BNR pentru data scadenței (istoricul începe la 01.09.2011). Calculează dobânda manual.'
+        before_professional_margin: 'Scadența este anterioară datei de 05.04.2013. Marja de 8 puncte procentuale între profesioniști se aplică doar contractelor încheiate după intrarea în vigoare a Legii 72/2013; calculează dobânda manual.'
         currency_unsupported: 'Calculul dobânzii este disponibil doar pentru creanțe în RON. Suportul pentru valută va fi adăugat ulterior.'
         exchange_rate_missing: 'Nu există un curs valutar BNR pentru moneda și data facturii. Importă cursurile (app:import-exchange-rates) sau verifică data emiterii.'
 
@@ -2799,6 +2828,9 @@ notification:
     portal_query_failed:
         title: 'Monitorizare portal oprită'
         message: 'Am oprit monitorizarea automată a dosarului %case% după 5 verificări eșuate consecutive pe portal.just.ro. Verifică numărul de dosar sau reactivează monitorizarea din dosar.'
+    portal_case_found:
+        title: 'Dosar găsit pe portal: %case%'
+        message: 'Pe portal.just.ro apare dosarul %number%, care pare să fie cererea depusă pentru %case%. Verifică-l în tab-ul Portal și activează monitorizarea dacă este cel corect.'
     missing_communication_date:
         title: 'Completează data comunicării: %case%'
         message: 'Introdu data comunicării ordonanței pe dosarul %case% pentru a porni termenul cererii în anulare.'

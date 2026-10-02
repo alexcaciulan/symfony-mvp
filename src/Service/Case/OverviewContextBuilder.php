@@ -147,6 +147,7 @@ final class OverviewContextBuilder
                 relationshipType: $case->getRelationshipType() ?? RelationshipType::COMERCIAL,
                 penaltyType: $case->getPenaltyType() ?? PenaltyType::LEGAL_PENALIZATOARE,
                 contractualDailyRate: $rate !== null ? (float) $rate : null,
+                contractualPenaltyCapPercent: $case->contractualPenaltyCap(),
             );
         } catch (\DomainException | \RuntimeException | \InvalidArgumentException) {
             return null;
@@ -193,6 +194,12 @@ final class OverviewContextBuilder
         }
 
         if ($case->getAmount() === null || $case->getDueDate() === null || $case->getRelationshipType() === null) {
+            return [null, false];
+        }
+
+        // A contractual penalty runs on the contract's daily rate, not on BNR
+        // periods: a period table here would explain a figure the case does not hold.
+        if ($case->getPenaltyType() === PenaltyType::CONTRACTUAL && $case->getContractualPenaltyRate() !== null) {
             return [null, false];
         }
 

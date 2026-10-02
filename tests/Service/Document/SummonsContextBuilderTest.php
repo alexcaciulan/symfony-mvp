@@ -61,6 +61,23 @@ final class SummonsContextBuilderTest extends TestCase
         self::assertEqualsWithDelta(175525.0 + 8951.78, $ctx['grandTotal'], 0.01);
     }
 
+    public function testTheSummonsClaimsNoMoreThanTheContractCeiling(): void
+    {
+        $builder = $this->makeBuilder(['2024-01-01' => '6.50']);
+
+        $case = $this->makeCase(PenaltyType::CONTRACTUAL);
+        $case->setAmount('21318.90');
+        $case->setContractualPenaltyRate('0.100');
+        $case->setContractualPenaltyCapPercent('10.00');
+        $case->setDueDate(new \DateTime('2025-02-21'));
+        $case->setPaymentNoticeDate(new \DateTime('2026-10-02'));
+
+        $ctx = $builder->build($case);
+
+        self::assertEqualsWithDelta(2131.89, $ctx['accessoryTotal'], 0.01);
+        self::assertTrue($ctx['penaltyResult']->isCapped());
+    }
+
     public function testNullDueDateFallsBackToStoredCalculatedInterest(): void
     {
         $builder = $this->makeBuilder(['2024-01-01' => '6.50']);

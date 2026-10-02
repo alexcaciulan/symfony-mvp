@@ -153,6 +153,14 @@ class LegalCase
     private ?string $contractualPenaltyRate = null;
 
     /**
+     * Ceiling the contract puts on the penalties, as a percentage of the sum they
+     * accrue on (e.g. 10.00 when penalties may not exceed 10% of the invoiced work).
+     * Applied per position; null when the contract sets no ceiling.
+     */
+    #[ORM\Column(type: Types::DECIMAL, precision: 6, scale: 2, nullable: true)]
+    private ?string $contractualPenaltyCapPercent = null;
+
+    /**
      * Referința clauzei penale din contract (ex. „art. 3 din Contract"). AI
      * extraction sometimes returns a longer descriptive phrase, so the column
      * has headroom and the persist path caps it as a final guard.
@@ -762,6 +770,24 @@ class LegalCase
         $this->contractualPenaltyRate = $contractualPenaltyRate;
 
         return $this;
+    }
+
+    public function getContractualPenaltyCapPercent(): ?string
+    {
+        return $this->contractualPenaltyCapPercent;
+    }
+
+    public function setContractualPenaltyCapPercent(?string $contractualPenaltyCapPercent): static
+    {
+        $this->contractualPenaltyCapPercent = $contractualPenaltyCapPercent;
+
+        return $this;
+    }
+
+    /** The ceiling as a number, for the calculators; null when there is none. */
+    public function contractualPenaltyCap(): ?float
+    {
+        return $this->contractualPenaltyCapPercent !== null ? (float) $this->contractualPenaltyCapPercent : null;
     }
 
     public function getContractReference(): ?string

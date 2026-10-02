@@ -99,7 +99,7 @@ final class PortalCaseMatcherTest extends TestCase
     {
         $case = $this->caseWith('SC Creditor SRL');
 
-        $matcher = $this->matcherReturning(['SC Creditor SRL' => [$this->dosar('1/2/2026', [])]]);
+        $matcher = $this->matcherReturning(['CREDITOR' => [$this->dosar('1/2/2026', [])]]);
         $this->assertSame([], $matcher->findCandidates($case));
     }
 
@@ -108,7 +108,7 @@ final class PortalCaseMatcherTest extends TestCase
         $case = $this->caseWith('SC Creditor SRL', 'SC Debitor SRL');
 
         $matcher = $this->matcherReturning([
-            'SC Debitor SRL' => [
+            'DEBITOR' => [
                 // Full match (both parties) + OP object → should rank first, high confidence.
                 $this->dosar('4521/302/2026', [
                     ['nume' => 'CREDITOR SRL', 'calitateParte' => 'Creditor'],
@@ -124,11 +124,11 @@ final class PortalCaseMatcherTest extends TestCase
 
         $suggestions = $matcher->findCandidates($case);
 
-        $this->assertCount(2, $suggestions);
+        // The debtor's case with another claimant is not offered once one of
+        // its cases names our creditor too.
+        $this->assertCount(1, $suggestions);
         $this->assertSame('4521/302/2026', $suggestions[0]->numar);
         $this->assertTrue($suggestions[0]->isHighConfidence);
-        $this->assertGreaterThan($suggestions[1]->score, $suggestions[0]->score);
-        $this->assertFalse($suggestions[1]->isHighConfidence);
         $this->assertContains('SC Creditor SRL', $suggestions[0]->matchedPartyNames);
         $this->assertContains('SC Debitor SRL', $suggestions[0]->matchedPartyNames);
     }
@@ -143,8 +143,8 @@ final class PortalCaseMatcherTest extends TestCase
         ], 'ordonanță de plată');
 
         $matcher = $this->matcherReturning([
-            'SC Debitor Unu SRL' => [$shared],
-            'SC Debitor Doi SRL' => [$shared],
+            'DEBITOR UNU' => [$shared],
+            'DEBITOR DOI' => [$shared],
         ]);
 
         $suggestions = $matcher->findCandidates($case);
@@ -163,7 +163,7 @@ final class PortalCaseMatcherTest extends TestCase
         ];
 
         $matcher = $this->matcherReturning([
-            'SC Debitor SRL' => [
+            'DEBITOR' => [
                 $this->dosar('1/302/2026', $parti, 'ordonanță de plată'),
                 $this->dosar('2/302/2026', $parti, 'ordonanță de plată'),
             ],
@@ -174,5 +174,64 @@ final class PortalCaseMatcherTest extends TestCase
         $this->assertCount(2, $suggestions);
         $this->assertFalse($suggestions[0]->isHighConfidence);
         $this->assertFalse($suggestions[1]->isHighConfidence);
+    }
+
+    public function testTheDebtorIsSearchedWithoutLegalFormPunctuationOrDiacritics(): void
+    {
+        // "HEALTHU WORLDWIDE S.R.L." finds nothing on the portal, which stores
+        // "SRL"; "Ș" with a comma finds nothing either. Case 2 of the lawyer
+        // review: https://portal.just.ro/211/SitePages/Dosar.aspx?id_dosar=21100000000527015
+        $case = $this->caseWith('EXPERT SERVICE SUPPLY S.R.L.', 'HEALTHU WORLDWIDE S.R.L.', 'ȘTEFĂNESCU & FIII S.R.L.');
+        $matcher = $this->matcherReturning([
+            'HEALTHU WORLDWIDE' => [$this->dosar('19883/211/2025', [
+                ['nume' => 'EXPERT SERVICE SUPPLY SRL', 'calitateParte' => 'Creditor'],
+                ['nume' => 'HEALTHU WORLDWIDE SRL', 'calitateParte' => 'Debitor'],
+            ], 'somaţie de plată')],
+            'STEFANESCU FIII' => [],
+        ]);
+
+        $suggestions = $matcher->findCandidates($case);
+
+        $this->assertCount(1, $suggestions);
+        $this->assertSame('19883/211/2025', $suggestions[0]->numar);
+    }
+
+    public function testWithoutACaseNamingTheCreditorTheDebtorsCasesAreAllOffered(): void
+    {
+        $case = $this->caseWith('SC Creditor SRL', 'SC Debitor SRL');
+        $matcher = $this->matcherReturning([
+            'DEBITOR' => [
+                $this->dosar('1/302/2026', [['nume' => 'DEBITOR SRL', 'calitateParte' => 'Pârât'], ['nume' => 'ALT SRL', 'calitateParte' => 'Reclamant']]),
+                $this->dosar('2/302/2026', [['nume' => 'DEBITOR SRL', 'calitateParte' => 'Pârât'], ['nume' => 'TERT SA', 'calitateParte' => 'Reclamant']]),
+            ],
+        ]);
+
+        $this->assertCount(2, $matcher->findCandidates($case));
+    }
+
+    public function testThePortalsSomatieDePlataObjectMarksAPaymentOrder(): void
+    {
+        // Real listing for case 2 of the lawyer review: the request filed in
+        // 2023 is labelled "somaţie de plată" on portal.just.ro, next to the
+        // debtor's annulment request in another case.
+        $case = $this->caseWith('EXPERT SERVICE SUPPLY S.R.L.', 'HEALTHU WORLDWIDE S.R.L.');
+        $matcher = $this->matcherReturning([
+            'HEALTHU WORLDWIDE' => [
+                $this->dosar('24697/211/2023', [
+                    ['nume' => 'EXPERT SERVICE SUPPLY SRL', 'calitateParte' => 'Creditor'],
+                    ['nume' => 'HEALTHU WORLDWIDE SRL', 'calitateParte' => 'Debitor'],
+                ], 'somaţie de plată'),
+                $this->dosar('8187/211/2025', [
+                    ['nume' => 'EXPERT SERVICE SUPPLY SRL', 'calitateParte' => 'Creditor'],
+                    ['nume' => 'HEALTHU WORLDWIDE SRL', 'calitateParte' => 'Debitor'],
+                ], 'anulare somaţie de plată'),
+            ],
+        ]);
+
+        $suggestions = $matcher->findCandidates($case);
+
+        $this->assertSame('24697/211/2023', $suggestions[0]->numar);
+        $this->assertTrue($suggestions[0]->isHighConfidence);
+        $this->assertGreaterThan($suggestions[1]->score, $suggestions[0]->score, 'the annulment request is another case');
     }
 }
