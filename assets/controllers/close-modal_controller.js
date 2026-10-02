@@ -10,9 +10,17 @@ export default class extends Controller {
         const id = this.targetIdValue;
         const el = document.getElementById(id);
 
-        if (el && window.HSOverlay && typeof window.HSOverlay.close === 'function') {
+        // The fallback below clicks a toggle, so on a modal that is not open it would
+        // open it. An action fired from outside the modal (e.g. the inline form of the
+        // summons communication card) gets the same response, so check first.
+        if (!el || el.classList.contains('hidden')) {
+            this.element.remove();
+            return;
+        }
+
+        if (window.HSOverlay && typeof window.HSOverlay.close === 'function') {
             window.HSOverlay.close(el);
-        } else if (el) {
+        } else {
             // Preline v4 does not expose window.HSOverlay; click a close trigger
             // inside the modal (data-hs-overlay) to dismiss it, same fallback as
             // auto-modal_controller.

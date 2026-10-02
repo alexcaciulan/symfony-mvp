@@ -58,12 +58,20 @@
                     </div>
                 </div>
 
-                {# Payment-term status: confirmed expired when the real communication date is set,
-                   otherwise the lawyer asserts it via the consent checkbox below (D-R4). #}
+                {# Payment-term status: confirmed expired, still running (the server refuses
+                   the petition, so the button is disabled too), or unknown without the date,
+                   in which case the lawyer asserts it via the consent checkbox below. #}
+                {% set term_end = payment_term_end|default(null) %}
+                {% set term_running = term_end is not null and not payment_term_expired|default(false) %}
                 {% if payment_term_expired|default(false) %}
                     <div class="flex items-start gap-2 p-3 rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900/50 text-xs text-green-800 dark:text-green-200">
                         {{ icon_check('size-4 text-green-600 shrink-0 mt-0.5') }}
                         <div>{{ 'case_overview.modal.generate_op_term_expired'|trans }}</div>
+                    </div>
+                {% elseif term_running %}
+                    <div class="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-xs text-amber-900 dark:text-amber-200">
+                        {{ icon_warning('size-4 text-amber-600 shrink-0 mt-0.5') }}
+                        <div>{{ 'case_overview.modal.generate_op_term_running'|trans({'%date%': term_end|date('d.m.Y'), '%from%': term_end|date_modify('+1 day')|date('d.m.Y')}) }}</div>
                     </div>
                 {% else %}
                     <div class="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-xs text-amber-900 dark:text-amber-200">
@@ -230,7 +238,7 @@
                     {{ 'case_overview.modal.generate_op_cancel'|trans }}
                 </button>
                 <button type="submit"
-                        {% if not stamp_duty_ok or not communication_proof_ok %}disabled{% endif %}
+                        {% if not stamp_duty_ok or not communication_proof_ok or term_running %}disabled{% endif %}
                         class="py-2 px-3 inline-flex items-center gap-x-2 text-sm font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-600">
                     {{ icon_download('size-4') }}
                     {{ 'case_overview.modal.generate_op_confirm'|trans }}

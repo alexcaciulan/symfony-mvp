@@ -413,6 +413,11 @@ final class CaseDeadlineController extends AbstractController
         $method = $data['paymentNoticeCommunicationMethod'];
         $previousDate = $case->getPaymentNoticeCommunicationDate();
 
+        // First entry is allowed in any status; only a correction is restricted.
+        if ($previousDate !== null && !$case->canCorrectPaymentNoticeCommunicationDate()) {
+            return $this->respondDeadline($request, $case, false, 'error', 'case_overview.summons.modal_communication_date.flash_error_locked', null);
+        }
+
         $case->setPaymentNoticeCommunicationDate($communicationDate);
         $case->setPaymentNoticeCommunicationMethod($method);
 
@@ -623,9 +628,12 @@ final class CaseDeadlineController extends AbstractController
             return $this->agendaResponses->stream($request, $user, $toastVariant, $toastKey, $closeModalId);
         }
 
+        $returnTab = $this->returnTab($request);
+
         if (str_contains((string) $request->headers->get('Accept', ''), 'text/vnd.turbo-stream.html')) {
             $context = $updateRegions ? $this->contextBuilder->build($case) : ['case' => $case];
             $context['update_regions'] = $updateRegions;
+            $context['return_tab'] = $returnTab;
             $context['toast_variant'] = $toastVariant;
             $context['toast_key'] = $toastKey;
             $context['close_modal_id'] = $closeModalId;
@@ -639,7 +647,16 @@ final class CaseDeadlineController extends AbstractController
 
         $this->addFlash($toastVariant, $toastKey);
 
-        return $this->afterActionRedirect($request, (int) $case->getId());
+        return $this->afterActionRedirect($request, (int) $case->getId(), $returnTab);
+    }
+
+    /**
+     * The tab the action was fired from, so a date saved from the Documente card does
+     * not send the lawyer away from the proof he is about to attach.
+     */
+    private function returnTab(Request $request): string
+    {
+        return $request->getPayload()->getString('return_tab') === 'documente' ? 'documente' : 'termene';
     }
 
     /**
@@ -647,13 +664,13 @@ final class CaseDeadlineController extends AbstractController
      * from. Without the agenda context this is the deadlines tab of the case, byte
      * for byte the redirect these routes have always issued.
      */
-    private function afterActionRedirect(Request $request, int $caseId): Response
+    private function afterActionRedirect(Request $request, int $caseId, string $tab = 'termene'): Response
     {
         if ($this->agendaResponses->isAgendaRequest($request)) {
             return $this->agendaResponses->redirect($request);
         }
 
-        return $this->redirectToRoute('case_overview', ['id' => $caseId, 'tab' => 'termene']);
+        return $this->redirectToRoute('case_overview', ['id' => $caseId, 'tab' => $tab]);
     }
 
     private function findOrThrow(int $caseId): LegalCase

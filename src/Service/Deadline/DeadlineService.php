@@ -258,18 +258,30 @@ final class DeadlineService
      */
     public function isPaymentTermExpired(LegalCase $legalCase, \DateTimeImmutable $today): bool
     {
-        $communicationDate = $legalCase->getPaymentNoticeCommunicationDate();
-        if ($communicationDate === null) {
+        $termEnd = $this->paymentTermEnd($legalCase);
+        if ($termEnd === null) {
             return false;
         }
-
-        $termEnd = $this->proceduralTermEnd($communicationDate, self::PAYMENT_NOTICE_DAYS)->end;
 
         // Strictly after: on free-days counting the term still runs throughout its
         // maturity day (service date + 16 calendar days, prorogated), so the debtor
         // may still pay that day and the OP is admissible only from the day after
         // it. Filing on the maturity day itself is premature (CPC art. 1015-1016).
         return $today > $termEnd;
+    }
+
+    /**
+     * The last day of the 15-day summons payment term, computed from the real
+     * communication date. Null while that date is unknown.
+     */
+    public function paymentTermEnd(LegalCase $legalCase): ?\DateTimeImmutable
+    {
+        $communicationDate = $legalCase->getPaymentNoticeCommunicationDate();
+        if ($communicationDate === null) {
+            return null;
+        }
+
+        return $this->proceduralTermEnd($communicationDate, self::PAYMENT_NOTICE_DAYS)->end;
     }
 
     /**
@@ -289,6 +301,11 @@ final class DeadlineService
         $rawDeadline = $term->rawEnd;
         $deadlineDate = $term->end;
 
+        // A corrected communication date moves the term, so reminders already sent for
+        // the old date must not suppress the ones for the new date.
+        if ($deadline->getDeadlineDate()->format('Y-m-d') !== $deadlineDate->format('Y-m-d')) {
+            $deadline->resetAlertFlags();
+        }
         $deadline->setDeadlineDate($deadlineDate);
         $deadline->setDescription(null); // estimate confirmed against the real communication date
         $this->em->flush();

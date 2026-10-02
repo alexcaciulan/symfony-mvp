@@ -852,6 +852,156 @@ final class CaseDeadlineControllerTest extends WebTestCase
         );
     }
 
+    public function testCorrectingSummonsCommunicationDateFromDocumentsTabMovesTheTermAndStaysThere(): void
+    {
+        $this->case->setStatus(CaseStatus::SOMATIE_TRIMISA);
+        $this->case->setPaymentNoticeCommunicationDate(new \DateTimeImmutable('2026-02-10'));
+        $this->case->setPaymentNoticeCommunicationMethod(PaymentNoticeCommunicationMethod::EXECUTOR);
+        $this->em->flush();
+        $this->createDeadline(DeadlineType::RASPUNS_SOMATIE, new \DateTimeImmutable('2026-02-26'));
+
+        $this->client->loginUser($this->user);
+        $tokens = $this->tokensFromOverview();
+
+        $this->client->request('POST', sprintf('/case/%d/summons-communication-date', $this->case->getId()), [
+            'payment_notice_communication_date' => [
+                '_token' => $tokens['set_summons'],
+                'paymentNoticeCommunicationDate' => '2026-02-12',
+                'paymentNoticeCommunicationMethod' => 'POSTA_RCD',
+            ],
+            'return_tab' => 'documente',
+        ]);
+
+        self::assertResponseRedirects('/case/' . $this->case->getId() . '?tab=documente');
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame('2026-02-12', $refreshed->getPaymentNoticeCommunicationDate()->format('Y-m-d'));
+        self::assertSame(PaymentNoticeCommunicationMethod::POSTA_RCD, $refreshed->getPaymentNoticeCommunicationMethod());
+
+        $deadlines = $this->em->getRepository(LegalDeadline::class)->findBy([
+            'legalCase' => $refreshed->getId(),
+            'type' => DeadlineType::RASPUNS_SOMATIE,
+        ]);
+        self::assertCount(1, $deadlines);
+        // 2026-02-12 (Thu) + 16 = 2026-02-28 (Sat), prorogated to Monday 2026-03-02.
+        self::assertSame('2026-03-02', $deadlines[0]->getDeadlineDate()->format('Y-m-d'));
+    }
+
+    public function testSummonsCommunicationDateTurboStreamKeepsTheDocumentsTabActive(): void
+    {
+        $this->case->setStatus(CaseStatus::SOMATIE_TRIMISA);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $tokens = $this->tokensFromOverview();
+
+        $this->client->request(
+            'POST',
+            sprintf('/case/%d/summons-communication-date', $this->case->getId()),
+            [
+                'payment_notice_communication_date' => [
+                    '_token' => $tokens['set_summons'],
+                    'paymentNoticeCommunicationDate' => '2026-02-10',
+                    'paymentNoticeCommunicationMethod' => 'EXECUTOR',
+                ],
+                'return_tab' => 'documente',
+            ],
+            [],
+            ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html, text/html'],
+        );
+
+        self::assertResponseIsSuccessful();
+        $body = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('data-activate-tab-tab-value="documente"', $body);
+        self::assertStringNotContainsString('data-activate-tab-tab-value="termene"', $body);
+    }
+
+    public function testSummonsCommunicationDateCannotBeCorrectedOnceThePetitionIsGenerated(): void
+    {
+        $this->case->setStatus(CaseStatus::CERERE_GENERATA);
+        $this->case->setPaymentNoticeCommunicationDate(new \DateTimeImmutable('2026-02-10'));
+        $this->case->setPaymentNoticeCommunicationMethod(PaymentNoticeCommunicationMethod::EXECUTOR);
+        $this->em->flush();
+        $this->createDeadline(DeadlineType::RASPUNS_SOMATIE, new \DateTimeImmutable('2026-02-26'));
+
+        $this->client->loginUser($this->user);
+        $tokens = $this->tokensFromOverview();
+
+        $this->client->request(
+            'POST',
+            sprintf('/case/%d/summons-communication-date', $this->case->getId()),
+            [
+                'payment_notice_communication_date' => [
+                    '_token' => $tokens['set_summons'],
+                    'paymentNoticeCommunicationDate' => '2026-02-12',
+                    'paymentNoticeCommunicationMethod' => 'EXECUTOR',
+                ],
+                'return_tab' => 'documente',
+            ],
+            [],
+            ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html, text/html'],
+        );
+
+        self::assertResponseIsSuccessful();
+        $body = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('nu se mai poate corecta', $body);
+        // An error answer carries only the toast, no region swaps.
+        self::assertStringNotContainsString('target="panel-documente"', $body);
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame('2026-02-10', $refreshed->getPaymentNoticeCommunicationDate()->format('Y-m-d'));
+        $deadline = $this->em->getRepository(LegalDeadline::class)->findOneBy([
+            'legalCase' => $refreshed->getId(),
+            'type' => DeadlineType::RASPUNS_SOMATIE,
+        ]);
+        self::assertSame('2026-02-26', $deadline->getDeadlineDate()->format('Y-m-d'));
+    }
+
+    public function testSummonsCommunicationDateCanStillBeEnteredForTheFirstTimeAfterFiling(): void
+    {
+        // Older cases may reach filing without the date; entering it is never blocked.
+        $this->case->setStatus(CaseStatus::CERERE_DEPUSA);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $tokens = $this->tokensFromOverview();
+
+        $this->client->request('POST', sprintf('/case/%d/summons-communication-date', $this->case->getId()), [
+            'payment_notice_communication_date' => [
+                '_token' => $tokens['set_summons'],
+                'paymentNoticeCommunicationDate' => '2026-02-10',
+                'paymentNoticeCommunicationMethod' => 'EXECUTOR',
+            ],
+        ]);
+
+        self::assertResponseRedirects('/case/' . $this->case->getId() . '?tab=termene');
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame('2026-02-10', $refreshed->getPaymentNoticeCommunicationDate()?->format('Y-m-d'));
+    }
+
+    public function testSummonsCommunicationDateFallsBackToTermeneOnUnknownReturnTab(): void
+    {
+        $this->case->setStatus(CaseStatus::SOMATIE_TRIMISA);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $tokens = $this->tokensFromOverview();
+
+        $this->client->request('POST', sprintf('/case/%d/summons-communication-date', $this->case->getId()), [
+            'payment_notice_communication_date' => [
+                '_token' => $tokens['set_summons'],
+                'paymentNoticeCommunicationDate' => '2026-02-10',
+                'paymentNoticeCommunicationMethod' => 'EXECUTOR',
+            ],
+            'return_tab' => 'https://evil.example',
+        ]);
+
+        self::assertResponseRedirects('/case/' . $this->case->getId() . '?tab=termene');
+    }
+
     /**
      * The shape a browser actually sends when the dialog is submitted with nothing
      * chosen in the file input: the multipart part exists and carries UPLOAD_ERR_NO_FILE.

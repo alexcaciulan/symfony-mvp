@@ -1227,6 +1227,15 @@ class LegalCase
         return $this;
     }
 
+    /**
+     * A saved communication date stays correctable only at the summons stage: once the
+     * petition is generated, its premature-filing check already relied on that date.
+     */
+    public function canCorrectPaymentNoticeCommunicationDate(): bool
+    {
+        return $this->status === CaseStatus::SOMATIE_TRIMISA;
+    }
+
     public function getPaymentNoticeCommunicationMethod(): ?PaymentNoticeCommunicationMethod
     {
         return $this->paymentNoticeCommunicationMethod;

@@ -78,12 +78,14 @@ final class OverviewContextBuilder
             'claim_items' => $countingItems,
             'claim_item_accessories' => $this->computeItemAccessories($case, $countingItems),
             'has_communication_proof' => $this->hasCommunicationProof($case),
+            'communication_proof' => $this->findLatestDocument($case, DocumentType::DOVADA_COMUNICARE),
+            'payment_term_end' => $this->deadlineService->paymentTermEnd($case),
             'payment_term_expired' => $this->deadlineService->isPaymentTermExpired($case, new \DateTimeImmutable('today')),
             'execution_recommended_date' => $this->deadlineService->recommendedExecutionDate($case),
             'document_upload_types' => DocumentType::uploadableTypes(),
             'filing_channels' => FilingChannel::cases(),
             'stamp_duty_target' => $this->stampDutyUatResolver->resolve($case),
-            'stamp_duty_proof' => $this->findStampDutyProof($case),
+            'stamp_duty_proof' => $this->findLatestDocument($case, DocumentType::DOVADA_TAXA_TIMBRU),
             // The duty is owed whether or not it was ever written onto the case (older
             // cases predate the field), so fall back to the statutory amount rather
             // than telling the lawyer the duty is 0 lei.
@@ -221,15 +223,15 @@ final class OverviewContextBuilder
     }
 
     /**
-     * The most recent proof, not the first one found: the collection carries no
-     * ordering guarantee, and showing a superseded proof under "view proof" would
-     * misrepresent what was actually filed.
+     * The most recent document of the given type, not the first one found: the
+     * collection carries no ordering guarantee, and showing a superseded proof under
+     * "view proof" would misrepresent what was actually filed.
      */
-    private function findStampDutyProof(LegalCase $case): ?Document
+    private function findLatestDocument(LegalCase $case, DocumentType $type): ?Document
     {
         $proofs = [];
         foreach ($case->getDocuments() as $document) {
-            if ($document->getDocumentType() === DocumentType::DOVADA_TAXA_TIMBRU) {
+            if ($document->getDocumentType() === $type) {
                 $proofs[] = $document;
             }
         }
