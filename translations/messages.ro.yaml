@@ -1087,7 +1087,7 @@ case_overview:
         source_title: 'Documente sursă (atașamente)'
         source_add: '+ Adaugă document'
         source_empty: 'Niciun document încărcat încă'
-        extraction_hint: '%type% · %size% · %date%'
+        file_meta: '%size% · %date%'
         action_preview: 'Previzualizare'
         action_download: 'Descarcă'
         action_delete: 'Șterge'
