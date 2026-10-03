@@ -88,6 +88,8 @@ final class PaymentOrderRequestGeneratorService extends AbstractPdfGenerator
                 penaltyType: $case->getPenaltyType() ?? PenaltyType::LEGAL_PENALIZATOARE,
                 contractualDailyRate: $rate !== null ? (float) $rate : null,
                 kind: InterestKind::PENALIZATOARE,
+                contractualPenaltyCapPercent: $case->contractualPenaltyCap(),
+                contractDate: $case->contractDateImmutable(),
             );
         } catch (\DomainException) {
             // The petition still has to generate; without a per-position
@@ -104,9 +106,9 @@ final class PaymentOrderRequestGeneratorService extends AbstractPdfGenerator
     {
         $notice = $case->getPaymentNoticeDate();
 
-        return $notice !== null
+        return $case->accessoryReferenceDate($notice !== null
             ? \DateTimeImmutable::createFromInterface($notice)
-            : new \DateTimeImmutable();
+            : new \DateTimeImmutable());
     }
 
     protected function templatePath(): string

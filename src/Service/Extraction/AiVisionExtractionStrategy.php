@@ -19,6 +19,7 @@ use App\Service\Extraction\Prompt\ExtractionPromptInterface;
 use App\Service\Extraction\Prompt\ExtractionPromptRegistry;
 use App\Service\Llm\LlmClientInterface;
 use App\Service\Llm\LlmException;
+use App\Service\Party\RomanianBankCode;
 use App\Util\PiiMasker;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -754,7 +755,35 @@ final class AiVisionExtractionStrategy implements ExtractionStrategyInterface
             legalRepresentative: $values['legalRepresentative'],
             bankName: $values['bankName'],
             confidencePerField: $this->coerceConfidenceMap($raw['confidencePerField'] ?? null, $values),
+            bankAccounts: $this->coerceBankAccounts($raw['bankAccounts'] ?? null),
         );
+    }
+
+    /**
+     * The accounts listed on the document, each a well-formed Romanian IBAN with
+     * its bank. A malformed entry is dropped: an account the lawyer may pick in
+     * one click has to be one the form accepts.
+     *
+     * @return list<array{iban: string, bankName: ?string}>
+     */
+    private function coerceBankAccounts(mixed $raw): array
+    {
+        if (!is_array($raw)) {
+            return [];
+        }
+        $accounts = [];
+        foreach ($raw as $entry) {
+            if (!is_array($entry) || !is_string($entry['iban'] ?? null)) {
+                continue;
+            }
+            $iban = RomanianBankCode::wellFormed($entry['iban']);
+            if ($iban === null || isset($accounts[$iban])) {
+                continue;
+            }
+            $accounts[$iban] = ['iban' => $iban, 'bankName' => $this->coerceString($entry['bankName'] ?? null)];
+        }
+
+        return array_values($accounts);
     }
 
     /**
@@ -843,6 +872,8 @@ final class AiVisionExtractionStrategy implements ExtractionStrategyInterface
         }
         $penaltyRateRaw = $raw['contractualPenaltyRate'] ?? null;
         $penaltyRate = is_numeric($penaltyRateRaw) ? (float) $penaltyRateRaw : null;
+        $penaltyCapRaw = $raw['contractualPenaltyCapPercent'] ?? null;
+        $penaltyCap = is_numeric($penaltyCapRaw) && (float) $penaltyCapRaw > 0.0 && (float) $penaltyCapRaw <= 100.0 ? (float) $penaltyCapRaw : null;
 
         $values = [
             'amount' => $amount,
@@ -857,6 +888,7 @@ final class AiVisionExtractionStrategy implements ExtractionStrategyInterface
             'contractReference' => $this->coerceString($raw['contractReference'] ?? null),
             'penaltyType' => $penaltyType,
             'contractualPenaltyRate' => $penaltyRate,
+            'contractualPenaltyCapPercent' => $penaltyCap,
         ];
 
         return new ClaimExtraction(
@@ -872,6 +904,7 @@ final class AiVisionExtractionStrategy implements ExtractionStrategyInterface
             contractReference: $values['contractReference'],
             penaltyType: $values['penaltyType'],
             contractualPenaltyRate: $values['contractualPenaltyRate'],
+            contractualPenaltyCapPercent: $values['contractualPenaltyCapPercent'],
             confidencePerField: $this->coerceConfidenceMap($raw['confidencePerField'] ?? null, $values),
         );
     }

@@ -18,6 +18,11 @@ use App\DTO\Calculation\PenaltyResult;
  * The rate does not vary with the NBR reference rate, so the result is a single
  * continuous period. Rounding happens once, at display/persistence time, never
  * per day.
+ *
+ * A contract often caps the penalties at a share of the sum they accrue on
+ * (for example, at most 10% of the invoiced work). The cap is part of the clause
+ * the creditor relies on, so a figure above it is not one the creditor can ask
+ * for: the total stops at the cap, and the result says it did.
  */
 final class ContractualPenaltyCalculator
 {
@@ -26,6 +31,7 @@ final class ContractualPenaltyCalculator
         float $dailyRatePercent,
         \DateTimeImmutable $startDate,
         \DateTimeImmutable $referenceDate,
+        ?float $capPercent = null,
     ): PenaltyResult {
         $start = $startDate->setTime(0, 0, 0);
         $reference = $referenceDate->setTime(0, 0, 0);
@@ -44,6 +50,13 @@ final class ContractualPenaltyCalculator
             days: $days,
             periodPenalty: $penalty,
         );
+
+        if ($capPercent !== null && $capPercent > 0.0) {
+            $cap = $amount * $capPercent / 100.0;
+            if ($penalty > $cap) {
+                return new PenaltyResult($cap, [$period], $cap);
+            }
+        }
 
         return new PenaltyResult($penalty, [$period]);
     }

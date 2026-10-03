@@ -139,6 +139,8 @@
                    to the JS template token at render time. #}
                 {% set anaf_lookup_url = path('api_anaf_lookup', { cui: '0000000001' })|replace({ '0000000001': '__CUI__' }) %}
                 <div data-controller="party-anaf-lookup"
+                     data-party-anaf-lookup-conflict-scope-value="debtor"
+                     data-party-anaf-lookup-conflict-entity-value="debtor-{{ entry_index }}"
                      data-party-anaf-lookup-url-value="{{ anaf_lookup_url }}"
                      data-party-anaf-lookup-invalid-msg-value="{{ 'exception.anaf.cui_invalid'|trans }}"
                      data-party-anaf-lookup-unavailable-msg-value="{{ 'exception.anaf.unavailable'|trans }}"

@@ -137,6 +137,34 @@ final class AiVisionTypedExtractionAdversarialTest extends TestCase
         self::assertSame('2026-02-01', $result->claim?->dueDate?->format('Y-m-d'));
     }
 
+    public function testEveryWellFormedAccountOfTheCreditorIsKept(): void
+    {
+        $response = json_encode([
+            'classification' => null,
+            'creditor' => [
+                'name' => 'BLUEBOX MEDICAL SRL',
+                'iban' => 'RO38TREZ4215069XXX016973',
+                'bankAccounts' => [
+                    ['iban' => 'RO38TREZ4215069XXX016973', 'bankName' => 'Trezoreria Ilfov'],
+                    ['iban' => 'ro81 ingb 0000 9999 1285 1953', 'bankName' => 'ING BANK ROMANIA'],
+                    ['iban' => 'RO38TREZ4215069XXX016973', 'bankName' => 'Trezoreria Ilfov'],
+                    ['iban' => 'RO12', 'bankName' => 'Banca X'],
+                    'not an object',
+                ],
+                'confidencePerField' => ['name' => 0.95, 'iban' => 0.95, 'bankAccounts' => 0.9],
+            ],
+            'debtor' => null,
+            'claim' => null,
+        ], JSON_THROW_ON_ERROR);
+
+        $result = $this->makeStrategy($this->fakeLlmClient($response))->extract($this->makeDocument());
+
+        self::assertSame([
+            ['iban' => 'RO38TREZ4215069XXX016973', 'bankName' => 'Trezoreria Ilfov'],
+            ['iban' => 'RO81INGB0000999912851953', 'bankName' => 'ING BANK ROMANIA'],
+        ], $result->creditor?->bankAccounts);
+    }
+
     // ---------- classification feeding the coverage score ----------
 
     public function testAClassificationTheModelIsUnsureOfDoesNotNarrowTheCoverageDenominator(): void

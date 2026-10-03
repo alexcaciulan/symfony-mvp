@@ -4,6 +4,7 @@
 {% set debtor = recipientDebtor %}
 {% set noticeDate = refDate|default(today) %}
 {% set noticeDateText = noticeDate|date('d.m.Y') %}
+{% set accessoryDateText = accessoryDate|default(noticeDate)|date('d.m.Y') %}
 {% set label = accessoryLabel ? accessoryLabel.phrase()|trans : null %}
 {# Sets the contract and document phrases the sections quote. The contract is
    named only when the claim rests on one identified contract. #}

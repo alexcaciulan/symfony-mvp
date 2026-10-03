@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Service\Case;
 
 use App\DTO\Calculation\InterestResult;
+use App\DTO\Calculation\PenaltyBreakdownRow;
+use App\DTO\Calculation\PenaltyResult;
 use App\DTO\Wizard\ClaimItemRow;
 use App\Entity\LegalCase;
 use App\Enum\PenaltyType;
@@ -21,11 +23,14 @@ use Psr\Log\LoggerInterface;
  * @phpstan-type PositionSummary array{
  *     accessoryByRow: array<int, ?float>,
  *     breakdownByRow: array<int, list<\App\DTO\Calculation\InterestPeriod>>,
+ *     penaltyBreakdownByRow: array<int, PenaltyBreakdownRow>,
  *     unavailableRows: list<int>,
  *     principal: float,
  *     accessory: float,
  *     earliestDueDate: ?\DateTimeImmutable,
  *     countedRows: int,
+ *     cappedRows: list<int>,
+ *     unavailableReasonByRow: array<int, string>,
  * }
  */
 final class ClaimPositionsSummarizer
@@ -46,16 +51,21 @@ final class ClaimPositionsSummarizer
         PenaltyType $penaltyType,
         ?float $contractualDailyRate,
         ?\DateTimeImmutable $referenceDate = null,
+        ?float $contractualPenaltyCapPercent = null,
+        ?\DateTimeImmutable $contractDate = null,
     ): array {
         $referenceDate ??= new \DateTimeImmutable();
         $summary = [
             'accessoryByRow' => [],
             'breakdownByRow' => [],
+            'penaltyBreakdownByRow' => [],
             'unavailableRows' => [],
             'principal' => 0.0,
             'accessory' => 0.0,
             'earliestDueDate' => null,
             'countedRows' => 0,
+            'cappedRows' => [],
+            'unavailableReasonByRow' => [],
         ];
 
         if ($rows === []) {
@@ -95,6 +105,8 @@ final class ClaimPositionsSummarizer
                 relationshipType: $relationshipType,
                 penaltyType: $penaltyType,
                 contractualDailyRate: $contractualDailyRate,
+                contractualPenaltyCapPercent: $contractualPenaltyCapPercent,
+                contractDate: $contractDate,
             );
         } catch (\DomainException | \RuntimeException $e) {
             $this->logger->info('wizard.calc.items_accessory_failed', ['reason' => $e->getMessage()]);
@@ -112,10 +124,23 @@ final class ClaimPositionsSummarizer
             if ($result instanceof InterestResult) {
                 $summary['breakdownByRow'][$index] = $result->breakdown;
             }
+            if ($result instanceof PenaltyResult && $result->isCapped()) {
+                $summary['cappedRows'][] = $index;
+            }
+            if ($result instanceof PenaltyResult) {
+                $penaltyRow = PenaltyBreakdownRow::fromResult($result, $row->signedAmountRon() ?? 0.0, $contractualPenaltyCapPercent, $row->documentNumber);
+                if ($penaltyRow !== null) {
+                    $summary['penaltyBreakdownByRow'][$index] = $penaltyRow;
+                }
+            }
             // A position with a due date that produced nothing is a computation
             // that failed, not a position that owes nothing. Say which.
             if ($result === null && $row->dueDate !== null && !$row->isCreditNote()) {
                 $summary['unavailableRows'][] = $index;
+                $reason = $accessory->skipReasonByItemId[-($index + 1)] ?? null;
+                if ($reason !== null && str_starts_with($reason, 'exception.calculation.')) {
+                    $summary['unavailableReasonByRow'][$index] = $reason;
+                }
             }
         }
 

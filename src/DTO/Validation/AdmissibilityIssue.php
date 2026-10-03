@@ -10,5 +10,7 @@ final readonly class AdmissibilityIssue
         public IssueSeverity $severity,
         public string $code,
         public string $messageKey,
+        /** @var array<string, string> translation parameters of the message */
+        public array $params = [],
     ) {}
 }

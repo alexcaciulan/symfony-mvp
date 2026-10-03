@@ -54,6 +54,9 @@ export default class extends Controller {
         // For a party picked from the library the identity is the library's:
         // the sync then only records the ANAF status for this case.
         statusOnly: { type: Boolean, default: false },
+        // Which conflicts of the documents panel this party's sync settles.
+        conflictScope: { type: String, default: '' },
+        conflictEntity: { type: String, default: '' },
     };
 
     /** Payload key -> target name. The controller writes nothing else. */
@@ -170,6 +173,7 @@ export default class extends Controller {
         }
 
         this.dispatchToast('success', this.successMsgValue);
+        this.announceSync('synced');
 
         // Two facts the lawyer has to act on now rather than discover once the
         // somaţie comes back undelivered.
@@ -205,6 +209,21 @@ export default class extends Controller {
         }
 
         this.dispatchToast('info', this.undoneMsgValue);
+        this.announceSync('unsynced');
+    }
+
+    /*
+     * Tells the documents panel the register now speaks for this party's name
+     * and seat. A status-only sync leaves the fields alone, so it settles nothing.
+     */
+    announceSync(name) {
+        if (this.statusOnlyValue || this.conflictScopeValue === '') {
+            return;
+        }
+        this.dispatch(name, {
+            target: window,
+            detail: { scope: this.conflictScopeValue, entity: this.conflictEntityValue },
+        });
     }
 
     fieldFor(targetName) {

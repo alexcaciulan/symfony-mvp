@@ -11,8 +11,10 @@ use App\DTO\Calculation\PenaltyResult;
 use App\DTO\Calculation\StampDutyResult;
 use App\DTO\Court\CourtResolveResult;
 use App\DTO\Extraction\ConflictResolution;
+use App\DTO\Extraction\DeduplicationResult;
 use App\DTO\Extraction\PrefillConflict;
 use App\DTO\Extraction\WizardPrefillResult;
+use App\DTO\Library\DebtorLibraryData;
 use App\DTO\Validation\AdmissibilityIssue;
 use App\DTO\Wizard\ClaimItemRow;
 use App\DTO\Wizard\Step1CreditorData;
@@ -24,11 +26,13 @@ use App\Entity\ClaimItem;
 use App\Entity\Court;
 use App\Entity\Creditor;
 use App\Entity\Debtor;
-use App\Entity\LegalCaseDebtor;
 use App\Entity\Document;
 use App\Entity\LegalCase;
+use App\Entity\LegalCaseDebtor;
 use App\Entity\User;
+use App\Enum\AnafStatus;
 use App\Enum\ConflictScope;
+use App\Enum\ConflictSeverity;
 use App\Enum\DocumentType;
 use App\Enum\ExtractionStatus;
 use App\Enum\IssueSeverity;
@@ -55,24 +59,27 @@ use App\Service\Calculation\InterestCalculatorService;
 use App\Service\Calculation\StampDutyCalculator;
 use App\Service\Case\ClaimItemFactory;
 use App\Service\Case\ClaimTotalsService;
-use App\Util\ClaimRowLiveMapper;
-use App\Util\RomanianAmountParser;
-use App\Util\StringCapper;
+use App\Service\Case\DocumentReferenceNormalizer;
+use App\Service\Company\AnafLookupException;
+use App\Service\Company\AnafLookupService;
 use App\Service\Court\CompetentCourtResolver;
+use App\Service\Creditor\CreditorLibraryService;
+use App\Service\Debtor\DebtorLibraryService;
 use App\Service\Document\DocumentUploadService;
 use App\Service\Document\UploadDeduplicator;
 use App\Service\Document\UploadRateLimiter;
 use App\Service\Extraction\ConflictChoiceApplier;
 use App\Service\Extraction\ConflictResolutionService;
-use App\Service\Party\CuiNormalizer;
-use App\Service\Party\OnrcNumber;
-use App\Enum\ConflictSeverity;
-use App\Service\Creditor\CreditorLibraryService;
-use App\Service\Debtor\DebtorLibraryService;
-use App\DTO\Library\DebtorLibraryData;
+use App\Service\Extraction\ConflictValueEquivalence;
 use App\Service\Extraction\DetectedDataPreviewBuilder;
 use App\Service\Extraction\PrefillFromExtractionService;
+use App\Service\Party\CuiNormalizer;
+use App\Service\Party\OnrcNumber;
+use App\Service\Party\RomanianBankCode;
 use App\Service\Validation\OpAdmissibilityValidator;
+use App\Util\ClaimRowLiveMapper;
+use App\Util\RomanianAmountParser;
+use App\Util\StringCapper;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -146,6 +153,8 @@ final class CaseWizardController extends AbstractController
         private readonly MessageBusInterface $bus,
         private readonly float $confidenceThreshold = self::DEFAULT_REVIEW_THRESHOLD,
         private readonly LoggerInterface $logger = new NullLogger(),
+        private readonly ?AnafLookupService $anafLookup = null,
+        private readonly ConflictValueEquivalence $valueEquivalence = new ConflictValueEquivalence(),
     ) {}
 
     #[Route('', name: 'start', methods: ['GET'])]
@@ -263,7 +272,9 @@ final class CaseWizardController extends AbstractController
                 // have to agree with each other, and three passes over the same
                 // documents is three chances for them not to.
                 $preview = $this->prefill->aggregate($bag['documentIds'], $bag['conflictResolutions']);
-                $positions = $this->positionsPreview($bag['documentIds']);
+                $collected = $this->claimItemFactory->collectRows($bag['documentIds']);
+                $positions = $this->positionsPreview($collected);
+                $step0Conflicts = [...$preview->conflicts, ...$collected->conflicts];
 
                 return $this->render('case/_step0_upload_stream.html.twig', [
                     'documents' => $documents,
@@ -271,11 +282,12 @@ final class CaseWizardController extends AbstractController
                     'debtor_preview' => $preview->debtors->debtors[0],
                     'claim_preview' => $preview->claim,
                     'claim_positions_preview' => $positions,
-                    'detected_sections' => $this->detectedDataPreview->build($preview->creditor, $preview->debtors->debtors[0], $preview->claim, $preview->conflicts, $positions, $bag['conflictResolutions']),
-                    'prefill_conflicts' => $preview->conflicts,
+                    'detected_sections' => $this->detectedDataPreview->build($preview->creditor, $preview->debtors->debtors[0], $preview->claim, $step0Conflicts, $positions, $bag['conflictResolutions']),
+                    'prefill_conflicts' => $step0Conflicts,
                     'prefill_conflict_resolutions' => $bag['conflictResolutions'],
                     'prefill_conflict_documents' => $this->conflictDocumentNames($bag['documentIds']),
                     'all_terminal' => $this->allTerminal($documents),
+                    'consumer_debtor' => $this->consumerDebtorName($preview),
                     'document_types' => DocumentType::uploadableTypes(),
                     'toasts' => $toasts,
                 ]);
@@ -305,7 +317,11 @@ final class CaseWizardController extends AbstractController
         $this->saveBag($session, $bag);
 
         $preview = $this->prefill->aggregate($bag['documentIds'], $bag['conflictResolutions']);
-        $positions = $this->positionsPreview($bag['documentIds']);
+        $collected = $this->claimItemFactory->collectRows($bag['documentIds']);
+        $positions = $this->positionsPreview($collected);
+        // Two documents giving one invoice different sums or due dates is said
+        // here too, so the card does not show one of them as settled.
+        $step0Conflicts = [...$preview->conflicts, ...$collected->conflicts];
         $viewVars = [
             'current_step' => 0,
             'form' => $form,
@@ -314,16 +330,17 @@ final class CaseWizardController extends AbstractController
             'debtor_preview' => $preview->debtors->debtors[0],
             'claim_preview' => $preview->claim,
             'claim_positions_preview' => $positions,
-            'detected_sections' => $this->detectedDataPreview->build($preview->creditor, $preview->debtors->debtors[0], $preview->claim, $preview->conflicts, $positions, $bag['conflictResolutions']),
+            'detected_sections' => $this->detectedDataPreview->build($preview->creditor, $preview->debtors->debtors[0], $preview->claim, $step0Conflicts, $positions, $bag['conflictResolutions']),
             // Shown here as soon as the documents disagree, read only: the
             // extraction of the other files may still be running, so the set is
             // not final and the decision belongs on the step that owns the
             // field. Seeing it now is what stops the lawyer filling three steps
             // on a party two documents describe differently.
-            'prefill_conflicts' => $preview->conflicts,
+            'prefill_conflicts' => $step0Conflicts,
             'prefill_conflict_resolutions' => $bag['conflictResolutions'],
             'prefill_conflict_documents' => $this->conflictDocumentNames($bag['documentIds']),
             'all_terminal' => $this->allTerminal($documents),
+            'consumer_debtor' => $this->consumerDebtorName($preview),
             // Choices for the per-document type correction shown on each card.
             'document_types' => DocumentType::uploadableTypes(),
             'document_topics' => array_map(
@@ -343,6 +360,164 @@ final class CaseWizardController extends AbstractController
         }
 
         return $this->render('case/_step0_documents_content.html.twig', $viewVars);
+    }
+
+    /**
+     * Fetches the fiscal status of each company debtor the lawyer did not sync.
+     *
+     * Whether the debtor is active, inactive or struck off is a fact the
+     * register holds, not a judgment the lawyer makes, so the confirmation step
+     * looks it up itself rather than asking the lawyer to go back two steps and
+     * press a button. Only the status is taken: the debtor's name and seat stay
+     * what the lawyer confirmed. A register that does not answer leaves the
+     * status unknown, which the admissibility check still reports.
+     */
+    private function checkAnafStatus(Step2DebtorsData $debtors): bool
+    {
+        if ($this->anafLookup === null) {
+            return false;
+        }
+
+        $changed = false;
+        foreach ($debtors->debtors as $entry) {
+            if ($entry->personType !== PersonType::PJ || $entry->anafStatus !== null
+                || $entry->cui === null || trim($entry->cui) === '') {
+                continue;
+            }
+            try {
+                $status = AnafStatus::tryFrom($this->anafLookup->lookupByCui($entry->cui)['stare']);
+            } catch (AnafLookupException $e) {
+                $this->logger->info('wizard.anaf.status_check_failed', ['reason' => $e->getMessage()]);
+
+                continue;
+            }
+            if ($status === null) {
+                continue;
+            }
+            $entry->anafStatus = $status;
+            $entry->anafCheckedAt = new \DateTimeImmutable();
+            $changed = true;
+        }
+
+        return $changed;
+    }
+
+    /**
+     * An accessory the calculator refused would leave the acts without it unseen,
+     * so its reason is shown to the lawyer.
+     *
+     * @param array<string, mixed> $calculations
+     * @return list<AdmissibilityIssue>
+     */
+    private function undeterminedAccessoryIssues(array $calculations): array
+    {
+        $reasons = [];
+        $perItem = $calculations['accessoryPerItem'] ?? null;
+        if ($perItem instanceof AggregatedAccessoryResult) {
+            $reasons = array_values($perItem->skipReasonByItemId);
+        }
+        if (is_string($calculations['interestFailure'] ?? null)) {
+            $reasons[] = $calculations['interestFailure'];
+        }
+
+        $issues = [];
+        foreach (array_unique($reasons) as $reason) {
+            if (str_starts_with($reason, 'exception.calculation.')) {
+                $issues[] = new AdmissibilityIssue(IssueSeverity::WARNING, 'OP_ACCESSORY_UNDETERMINED', $reason);
+            }
+        }
+
+        return $issues;
+    }
+
+    /**
+     * A contractual penalty above the principal is flagged before filing: a
+     * court may cut down a manifestly excessive one (Civil Code art. 1541).
+     *
+     * @param array<string, mixed> $calculations
+     * @return list<AdmissibilityIssue>
+     */
+    private function excessivePenaltyIssues(Step3ClaimData $claim, array $calculations): array
+    {
+        if ($claim->penaltyType !== PenaltyType::CONTRACTUAL) {
+            return [];
+        }
+        $principal = (float) ($calculations['principal'] ?? 0.0);
+        $accessory = (float) ($calculations['accessoryTotal'] ?? 0.0);
+        if ($principal <= 0.0 || $accessory <= $principal) {
+            return [];
+        }
+
+        return [new AdmissibilityIssue(
+            IssueSeverity::WARNING,
+            'OP_PENALTY_EXCEEDS_PRINCIPAL',
+            'validation.op_admissibility.OP_PENALTY_EXCEEDS_PRINCIPAL',
+            [
+                '%penalty%' => number_format($accessory, 2, ',', '.'),
+                '%principal%' => number_format($principal, 2, ',', '.'),
+            ],
+        )];
+    }
+
+    /**
+     * Now, or the earlier date the lawyer chose to compute the accessories up
+     * to: the rule the saved case applies through
+     * {@see LegalCase::accessoryReferenceDate()}.
+     */
+    private function accessoryReferenceDate(Step3ClaimData $claim): \DateTimeImmutable
+    {
+        return LegalCase::accessoryDateWithin($claim->accessoryCutoffDate, new \DateTimeImmutable());
+    }
+
+    /**
+     * Every creditor account the documents print, once each with its bank, so
+     * the lawyer picks the account and the bank together.
+     *
+     * @param list<int> $documentIds
+     * @return list<array{iban: string, bankName: ?string}>
+     */
+    private function creditorBankAccounts(array $documentIds, User $user): array
+    {
+        $accounts = [];
+        foreach ($this->loadOwnedDocuments($documentIds, $user) as $document) {
+            $creditor = $document->getExtractedData()['creditor'] ?? null;
+            if (!is_array($creditor)) {
+                continue;
+            }
+            $listed = is_array($creditor['bankAccounts'] ?? null) ? $creditor['bankAccounts'] : [];
+            $listed[] = ['iban' => $creditor['iban'] ?? null, 'bankName' => $creditor['bankName'] ?? null];
+            foreach ($listed as $entry) {
+                $iban = is_array($entry) && is_string($entry['iban'] ?? null) ? RomanianBankCode::wellFormed($entry['iban']) : null;
+                if ($iban === null || isset($accounts[$iban])) {
+                    continue;
+                }
+                // The document's own wording ("Trezoreria Ilfov") is kept when it
+                // names the account's bank; otherwise the code decides.
+                $stated = is_string($entry['bankName'] ?? null) && $entry['bankName'] !== '' ? $entry['bankName'] : null;
+                $bank = $stated !== null && RomanianBankCode::nameMatches($stated, $iban) ? $stated : (RomanianBankCode::bankName($iban) ?? $stated);
+                $accounts[$iban] = ['iban' => $iban, 'bankName' => $bank];
+            }
+        }
+
+        return array_values($accounts);
+    }
+
+    /**
+     * The name of a debtor the documents describe as a consumer: a natural
+     * person with no tax registration. The product covers claims between
+     * professionals only, so such a file is turned away at step 0 rather than
+     * walked through three steps and stopped at the debtor. A sole trader (PFA,
+     * II) carries a CUI and is not caught here.
+     */
+    private function consumerDebtorName(WizardPrefillResult $preview): ?string
+    {
+        foreach ($preview->debtors->debtors as $debtor) {
+            if ($debtor->personType === PersonType::PF && ($debtor->cui === null || trim($debtor->cui) === '')) {
+                return $debtor->name ?? '';
+            }
+        }
+
+        return null;
     }
 
     #[Route('/documents/status', name: 'documents_status', methods: ['GET'])]
@@ -408,6 +583,51 @@ final class CaseWizardController extends AbstractController
         $this->bus->dispatch(new ExtractDataMessage($document->getId()));
 
         $this->addFlash('success', 'wizard.step0.retry.queued');
+
+        return $this->redirectToRoute('case_wizard_documents');
+    }
+
+    /**
+     * Takes a document out of the wizard: one uploaded by mistake would
+     * otherwise keep feeding the prefill and the conflicts panel of a case it
+     * has nothing to do with.
+     *
+     * The file and its row go, as on the case's own documents tab; it was never
+     * part of a case, so nothing else points at it. The claim table is rebuilt
+     * from the remaining documents, and choices made against the removed file
+     * drop out the next time a step reconciles its conflicts. A document still
+     * being read is left alone until the reading ends.
+     */
+    #[Route('/documents/{id}/remove', name: 'documents_remove', methods: ['POST'], requirements: ['id' => '\d+'])]
+    public function removeDocument(Request $request, int $id, #[CurrentUser] User $user): Response
+    {
+        if (!$this->isCsrfTokenValid('wizard_step0_remove_' . $id, (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException('Invalid CSRF token');
+        }
+
+        $session = $request->getSession();
+        $bag = $this->loadBag($session);
+        if (!in_array($id, $bag['documentIds'], true)) {
+            throw $this->createNotFoundException('Document is not part of the current wizard session');
+        }
+
+        $document = $this->loadOwnedDocuments([$id], $user)[0] ?? null;
+        if ($document === null || $document->getLegalCase() !== null) {
+            throw $this->createNotFoundException('Document not found');
+        }
+        if ($document->getExtractionStatus() === ExtractionStatus::PROCESSING) {
+            $this->addFlash('warning', 'wizard.step0.remove.processing');
+
+            return $this->redirectToRoute('case_wizard_documents');
+        }
+
+        $bag['documentIds'] = array_values(array_filter($bag['documentIds'], static fn (int $d): bool => $d !== $id));
+        $bag['claimItems'] = null;
+        $bag['claimItemsTableConfirmed'] = false;
+        $this->saveBag($session, $bag);
+        $this->uploadService->delete($document);
+
+        $this->addFlash('success', 'wizard.step0.remove.done');
 
         return $this->redirectToRoute('case_wizard_documents');
     }
@@ -505,6 +725,7 @@ final class CaseWizardController extends AbstractController
             $form->get('creditorEntity')->setData($picked);
         }
         $form->handleRequest($request);
+        $conflicts = $this->withoutAnafSettled($bag, $conflicts, $form->getData(), null);
 
         $submitted = $form->isSubmitted() && $form->isValid();
         $acknowledged = true;
@@ -546,6 +767,7 @@ final class CaseWizardController extends AbstractController
             'dto' => $dto,
             'creditor_library_differs' => $libraryDiffers,
             'creditor_library_recheck' => $libraryRecheck && $libraryDiffers === null,
+            'creditor_bank_accounts' => $this->creditorBankAccounts($bag['documentIds'], $user),
             ...$this->conflictViewVars($bag, $conflicts, 'creditor', $rejected),
         ], $this->stepRejected($acknowledged && $libraryDiffers === null));
     }
@@ -610,12 +832,22 @@ final class CaseWizardController extends AbstractController
     }
 
     /**
-     * A registration number in its classic and its compact registry form is
-     * one value, not a difference to ask the lawyer about.
+     * One value written two ways is not a difference to ask the lawyer about:
+     * a registration number in its classic and compact form, or a name, an
+     * address or a bank spelled with other diacritics and punctuation. The
+     * same rule decides what the documents panel asks.
      */
     private function sameLibraryValue(string $field, string $mine, string $theirs): bool
     {
-        return $field === 'onrcNumber' ? OnrcNumber::sameRegistration($mine, $theirs) : $mine === $theirs;
+        if ($mine === $theirs) {
+            return true;
+        }
+        if ($field === 'onrcNumber') {
+            return OnrcNumber::sameRegistration($mine, $theirs);
+        }
+        $equivalenceField = ['addressCounty' => 'county', 'addressLocality' => 'locality'][$field] ?? $field;
+
+        return $this->valueEquivalence->same($equivalenceField, $mine, $theirs);
     }
 
     /**
@@ -697,6 +929,7 @@ final class CaseWizardController extends AbstractController
         $rendered = $this->snapshotDto($dto);
         $form = $this->createForm(Step2DebtorsType::class, $dto);
         $form->handleRequest($request);
+        $conflicts = $this->withoutAnafSettled($bag, $conflicts, null, $form->getData());
 
         $submitted = $form->isSubmitted() && $form->isValid();
         $acknowledged = true;
@@ -1108,6 +1341,12 @@ final class CaseWizardController extends AbstractController
      */
     private function claimWithPositionAwareDescription(Step3ClaimData $claim, array $rows): Step3ClaimData
     {
+        // Only the invoices the claim asks for: an excluded position (a paid
+        // advance, a duplicate) or a storno is not an unpaid invoice.
+        $rows = array_values(array_filter(
+            $rows,
+            static fn (ClaimItemRow $row): bool => $row->willCount() && !$row->isCreditNote(),
+        ));
         if (count($rows) < 2) {
             return $claim;
         }
@@ -1133,18 +1372,19 @@ final class CaseWizardController extends AbstractController
      * claim carries one invoice worth of figures by construction, so showing it
      * alone next to several invoices reads as if the rest were missed.
      *
-     * @param list<int> $documentIds
      * @return array{count: int, principal: float, currency: string, earliestDueDate: ?\DateTimeImmutable}|null
      */
-    private function positionsPreview(array $documentIds): ?array
+    private function positionsPreview(DeduplicationResult $collected): ?array
     {
-        if ($documentIds === []) {
-            return null;
-        }
-
-        $rows = $this->claimItemFactory->rowsFromDocuments($documentIds);
-        if (count($rows) < 2) {
-            // One position says nothing the claim card does not already show.
+        // The card adds up what the claim table counts, not every document's sum.
+        $rows = $collected->primaryRows();
+        $positions = array_unique(array_map(
+            static fn (ClaimItemRow $r): string => DocumentReferenceNormalizer::normalize($r->documentNumber) ?? $r->dedupKey,
+            $collected->rows,
+        ));
+        if ($rows === [] || (count($rows) === 1 && count($positions) === 1)) {
+            // One invoice adds nothing to the claim card, unless another was
+            // excluded: the aggregated claim may then be the excluded one.
             return null;
         }
 
@@ -1336,6 +1576,9 @@ final class CaseWizardController extends AbstractController
             return $this->redirectToRoute('case_wizard_debtor');
         }
         $this->bindLibraryDebtors($debtorsDto, $user);
+        if ($this->checkAnafStatus($debtorsDto)) {
+            $this->saveBag($session, $bag);
+        }
 
         // Everything the documents disagree about, checked once more here. A
         // blocking conflict still open at this point was walked past rather than
@@ -1345,6 +1588,7 @@ final class CaseWizardController extends AbstractController
             ...$prefill->conflicts,
             ...$this->claimItemFactory->collectRows($bag['documentIds'])->conflicts,
         ]));
+        $conflicts = $this->withoutAnafSettled($bag, $conflicts, $creditorDto, $debtorsDto);
         // Every disagreement of the file is on this screen, so a decision with
         // no conflict left to match is about documents that are no longer here
         // and has to go rather than wait for its key to mean something else.
@@ -1370,12 +1614,16 @@ final class CaseWizardController extends AbstractController
         $claimRows = $this->resolveClaimRows($bag, $claimDto);
         $this->claimItemFactory->applyResolutions($claimRows, $bag['conflictResolutions']);
         $skeleton = $this->buildLegalCaseSkeleton($user, $creditorDto, $debtorsDto, $claimDto, $conversion, $claimRows);
-        $issues = $this->admissibility->validate($skeleton, $now);
+        $calculations = $this->safeComputeForSidebar($claimDto, $debtorsDto->debtors[0] ?? null, $conversion, $skeleton);
+        $issues = [
+            ...$this->admissibility->validate($skeleton, $now),
+            ...$this->admissibility->validateClaimRows($claimRows),
+            ...$this->excessivePenaltyIssues($claimDto, $calculations),
+            ...$this->undeterminedAccessoryIssues($calculations),
+        ];
         ['errors' => $errors, 'warnings' => $warnings] = $this->splitIssues($issues);
         $hasErrors = $errors !== [];
         $hasWarnings = $warnings !== [];
-
-        $calculations = $this->safeComputeForSidebar($claimDto, $debtorsDto->debtors[0] ?? null, $conversion, $skeleton);
         $sessionDocuments = $this->loadOwnedDocuments($bag['documentIds'], $user);
 
         $confirmation = new Step4ConfirmationData();
@@ -1880,6 +2128,12 @@ final class CaseWizardController extends AbstractController
         $case->setContractualPenaltyRate(
             $claimDto->contractualPenaltyRate !== null ? sprintf('%.3f', $claimDto->contractualPenaltyRate) : null
         );
+        $case->setAccessoryCutoffDate($claimDto->accessoryCutoffDate);
+        $case->setContractualPenaltyCapPercent(
+            $claimDto->penaltyType === PenaltyType::CONTRACTUAL && $claimDto->contractualPenaltyCapPercent !== null
+                ? sprintf('%.2f', $claimDto->contractualPenaltyCapPercent)
+                : null,
+        );
         // AI extraction can return a longer string than a column holds (a
         // contract's object phrase lands in contractReference, say), so cap
         // each to its column length rather than let the save 500.
@@ -2066,7 +2320,7 @@ final class CaseWizardController extends AbstractController
             return ['interest' => null, 'penalty' => null, 'accessoryTotal' => 0.0, 'stampDuty' => $this->safeStampDuty(), 'court' => null, 'conversion' => $conversion, 'accessoryPerItem' => null, 'claimItems' => [], 'principal' => null];
         }
 
-        $now = new \DateTimeImmutable();
+        $now = $this->accessoryReferenceDate($claim);
 
         // Accessory routing: contractual penalty (daily rate) vs. legal penalty
         // interest (OG 13/2011, BNR + 8). Both feed the same `calculatedInterest`
@@ -2074,6 +2328,7 @@ final class CaseWizardController extends AbstractController
         $interest = null;
         $penalty = null;
         $accessoryTotal = 0.0;
+        $interestFailure = null;
 
         if ($claim->penaltyType === PenaltyType::CONTRACTUAL && $claim->contractualPenaltyRate !== null) {
             $penalty = $this->penaltyCalculator->calculate(
@@ -2081,6 +2336,7 @@ final class CaseWizardController extends AbstractController
                 $claim->contractualPenaltyRate,
                 $claim->dueDate,
                 $now,
+                $claim->contractualPenaltyCapPercent,
             );
             $accessoryTotal = $penalty->total;
         } else {
@@ -2090,11 +2346,13 @@ final class CaseWizardController extends AbstractController
                     $claim->dueDate,
                     $now,
                     $claim->relationshipType,
+                    contractDate: $claim->contractDate,
                 );
                 $accessoryTotal = $interest->total;
             } catch (\DomainException|\RuntimeException $e) {
                 $this->logger->info('wizard.calc.interest_failed', ['reason' => $e->getMessage()]);
                 $interest = null;
+                $interestFailure = $e->getMessage();
             }
         }
 
@@ -2116,13 +2374,14 @@ final class CaseWizardController extends AbstractController
                 debtorLocality: $primaryDebtor?->addressLocality,
                 scadentPenalties: $isContractual ? $accessoryTotal : 0.0,
                 computeLegalInterest: !$isContractual,
+                contractDate: $claim->contractDate,
             );
         } catch (\DomainException|\RuntimeException $e) {
             $this->logger->info('wizard.calc.court_failed', ['reason' => $e->getMessage()]);
             $court = null;
         }
 
-        return ['interest' => $interest, 'penalty' => $penalty, 'accessoryTotal' => $accessoryTotal, 'stampDuty' => $this->safeStampDuty(), 'court' => $court, 'conversion' => $conversion, 'accessoryPerItem' => null, 'claimItems' => [], 'principal' => $principal];
+        return ['interest' => $interest, 'penalty' => $penalty, 'accessoryTotal' => $accessoryTotal, 'stampDuty' => $this->safeStampDuty(), 'court' => $court, 'conversion' => $conversion, 'accessoryPerItem' => null, 'claimItems' => [], 'principal' => $principal, 'interestFailure' => $interestFailure];
     }
 
     /**
@@ -2139,7 +2398,7 @@ final class CaseWizardController extends AbstractController
         ?Step2DebtorEntry $primaryDebtor,
         ?CurrencyConversionResult $conversion,
     ): array {
-        $now = new \DateTimeImmutable();
+        $now = $this->accessoryReferenceDate($claim);
         $relationshipType = $claim->relationshipType ?? RelationshipType::COMERCIAL;
         $penaltyType = $claim->penaltyType ?? PenaltyType::LEGAL_PENALIZATOARE;
 
@@ -2150,6 +2409,8 @@ final class CaseWizardController extends AbstractController
                 relationshipType: $relationshipType,
                 penaltyType: $penaltyType,
                 contractualDailyRate: $claim->contractualPenaltyRate,
+                contractualPenaltyCapPercent: $claim->contractualPenaltyCapPercent,
+                contractDate: $claim->contractDate,
             );
         } catch (\DomainException | \RuntimeException $e) {
             // An unsupported claim type reaches here now instead of turning into
@@ -2177,6 +2438,8 @@ final class CaseWizardController extends AbstractController
                 debtorLocality: $primaryDebtor?->addressLocality,
                 penaltyType: $penaltyType,
                 contractualDailyRate: $claim->contractualPenaltyRate,
+                contractualPenaltyCapPercent: $claim->contractualPenaltyCapPercent,
+                contractDate: $claim->contractDate,
             );
         } catch (\DomainException | \RuntimeException $e) {
             $this->logger->info('wizard.calc.court_failed', ['reason' => $e->getMessage()]);
@@ -2308,8 +2571,57 @@ final class CaseWizardController extends AbstractController
     }
 
     /**
-     * @return array{documentIds: list<int>, creditor: ?Step1CreditorData, debtors: ?Step2DebtorsData, claim: ?Step3ClaimData, claimItems: ?list<ClaimItemRow>, claimItemsTableConfirmed: bool, conflictResolutions: array<string, ConflictResolution>}
+     * Fields the ANAF sync writes for a party. Once the lawyer has synced the
+     * party, the register settles them: what the documents say about the seat
+     * or the name no longer decides anything, and asking would only invite the
+     * lawyer to put a document's value back over the register's.
      */
+    public const ANAF_SETTLED_FIELDS = ['name', 'address', 'county', 'locality'];
+
+    /**
+     * The conflicts left once the parties synced with ANAF are taken out, and
+     * the choices made on the ones taken out are dropped, so they cannot be
+     * applied over the register's values on the way to the filing.
+     *
+     * @param array<string, mixed> $bag
+     * @param list<PrefillConflict> $conflicts
+     * @return list<PrefillConflict>
+     */
+    private function withoutAnafSettled(array &$bag, array $conflicts, ?Step1CreditorData $creditor, ?Step2DebtorsData $debtors): array
+    {
+        $kept = [];
+        foreach ($conflicts as $conflict) {
+            if ($this->isSettledByAnaf($conflict, $creditor, $debtors)) {
+                unset($bag['conflictResolutions'][$conflict->key()]);
+
+                continue;
+            }
+            $kept[] = $conflict;
+        }
+
+        return $kept;
+    }
+
+    private function isSettledByAnaf(PrefillConflict $conflict, ?Step1CreditorData $creditor, ?Step2DebtorsData $debtors): bool
+    {
+        if (!in_array($conflict->field, self::ANAF_SETTLED_FIELDS, true)) {
+            return false;
+        }
+
+        if ($conflict->scope === ConflictScope::CREDITOR) {
+            return $creditor !== null && $creditor->anafCheckedAt !== null && $creditor->anafCheckedAt !== '';
+        }
+
+        if ($conflict->scope === ConflictScope::DEBTOR && $debtors !== null
+            && preg_match('/^debtor-(\d+)$/', (string) $conflict->entityKey, $m) === 1) {
+            $entry = $debtors->debtors[(int) $m[1]] ?? null;
+
+            return $entry instanceof Step2DebtorEntry && $entry->anafCheckedAt !== null;
+        }
+
+        return false;
+    }
+
     /**
      * The disagreements between documents that this step is responsible for
      * showing.
@@ -2784,6 +3096,9 @@ final class CaseWizardController extends AbstractController
         return null;
     }
 
+    /**
+     * @return array{documentIds: list<int>, creditor: ?Step1CreditorData, debtors: ?Step2DebtorsData, claim: ?Step3ClaimData, claimItems: ?list<ClaimItemRow>, claimItemsTableConfirmed: bool, conflictResolutions: array<string, ConflictResolution>}
+     */
     private function loadBag(SessionInterface $session): array
     {
         $raw = $session->get(self::SESSION_KEY, []);

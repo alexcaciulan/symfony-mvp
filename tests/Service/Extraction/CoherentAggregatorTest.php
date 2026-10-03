@@ -224,6 +224,70 @@ final class CoherentAggregatorTest extends TestCase
         self::assertNotNull($result->values['description']);
     }
 
+    public function testABankNameSpelledTwoWaysIsNotPutToTheLawyer(): void
+    {
+        $invoice = $this->party(1, DocumentType::FACTURA, ['iban' => 'RO08BACX0000000000000001', 'bankName' => 'UNICREDIT BANK SA']);
+        $contract = $this->party(2, DocumentType::CONTRACT, ['iban' => 'RO08BACX0000000000000001', 'bankName' => 'UniCredit Bank']);
+
+        $result = $this->aggregator->aggregate([$invoice, $contract], $this->fieldGroups(['iban', 'bankName'], FieldGroup::partyFieldMap()), ConflictScope::CREDITOR);
+
+        self::assertSame([], $result->conflicts);
+        self::assertSame('UNICREDIT BANK SA', $result->values['bankName']);
+    }
+
+    public function testDifferentAccountsAreAskedOnceWithoutASeparateBankQuestion(): void
+    {
+        $first = $this->party(1, DocumentType::FACTURA, ['iban' => 'RO24CECENT0430RON1019827', 'bankName' => 'CEC BANK TG NEAMT']);
+        $second = $this->party(2, DocumentType::FACTURA, ['iban' => 'RO31RNCB0199005307310001', 'bankName' => 'BCR TG NEAMT']);
+
+        $result = $this->aggregator->aggregate([$first, $second], $this->fieldGroups(['iban', 'bankName'], FieldGroup::partyFieldMap()), ConflictScope::CREDITOR);
+
+        self::assertSame(['iban'], array_map(static fn ($c) => $c->field, $result->conflicts));
+    }
+
+    public function testAnInvoiceDoesNotContradictTheContractOnTheLegalGround(): void
+    {
+        $contract = new FieldSource(documentId: 1, documentType: DocumentType::CONTRACT, values: ['legalGround' => 'CONTRACT_PRESTARI_SERVICII'], confidence: ['legalGround' => 0.97]);
+        $invoice = new FieldSource(documentId: 2, documentType: DocumentType::FACTURA, values: ['legalGround' => 'FACTURA_ACCEPTATA'], confidence: ['legalGround' => 0.95]);
+
+        $result = $this->aggregator->aggregate([$invoice, $contract], $this->fieldGroups(['legalGround'], FieldGroup::claimFieldMap()), ConflictScope::CLAIM);
+
+        self::assertSame('CONTRACT_PRESTARI_SERVICII', $result->values['legalGround']);
+        self::assertSame([], $result->conflicts);
+    }
+
+    public function testTwoContractsNamingDifferentGroundsStillDisagree(): void
+    {
+        $transaction = new FieldSource(documentId: 1, documentType: DocumentType::CONTRACT, values: ['legalGround' => 'ALTE_INSCRISURI'], confidence: ['legalGround' => 0.95]);
+        $sale = new FieldSource(documentId: 2, documentType: DocumentType::CONTRACT, values: ['legalGround' => 'CONTRACT_VANZARE_CUMPARARE'], confidence: ['legalGround' => 0.9]);
+
+        $result = $this->aggregator->aggregate([$transaction, $sale], $this->fieldGroups(['legalGround'], FieldGroup::claimFieldMap()), ConflictScope::CLAIM);
+
+        self::assertSame(['legalGround'], array_map(static fn ($c) => $c->field, $result->conflicts));
+    }
+
+    public function testWhoeverDrewUpTheInvoiceIsNotARivalRepresentative(): void
+    {
+        $contract = $this->party(1, DocumentType::CONTRACT, ['name' => 'Panamarom SRL', 'cui' => '2004840', 'legalRepresentative' => 'Amariei Petru']);
+        $invoice = $this->party(2, DocumentType::FACTURA, ['name' => 'Panamarom SRL', 'cui' => '2004840', 'legalRepresentative' => 'Bumbea Sebi'], 0.99);
+
+        $result = $this->aggregator->aggregate([$invoice, $contract], $this->fieldGroups(['name', 'cui', 'legalRepresentative'], FieldGroup::partyFieldMap()), ConflictScope::CREDITOR);
+
+        self::assertSame('Amariei Petru', $result->values['legalRepresentative']);
+        self::assertSame([], $result->conflicts);
+    }
+
+    public function testOneAddressWrittenTwoWaysRaisesNoConflict(): void
+    {
+        $contract = $this->party(1, DocumentType::CONTRACT, ['name' => 'Healthu Worldwide SRL', 'cui' => '37645855', 'address' => 'str. Bihorului, nr.10']);
+        $invoice = $this->party(2, DocumentType::FACTURA, ['name' => 'HEALTHU WORLDWIDE S.R.L.', 'cui' => '37645855', 'address' => 'Str. Bihorului, Nr. 10, C.P. 400295']);
+
+        $result = $this->aggregateParty([$contract, $invoice], ConflictScope::DEBTOR);
+
+        self::assertSame([], $result->conflicts);
+        self::assertSame('str. Bihorului, nr.10', $result->values['address']);
+    }
+
     private function aggregateParty(array $sources, ConflictScope $scope = ConflictScope::CREDITOR): \App\DTO\Extraction\AggregatedFields
     {
         return $this->aggregator->aggregate(

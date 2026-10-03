@@ -281,6 +281,27 @@ class LegalCaseRepository extends ServiceEntityRepository
     }
 
     /**
+     * Cases filed with the court whose portal case number is not known yet:
+     * the ones the daily discovery looks for on portal.just.ro.
+     *
+     * @return LegalCase[]
+     */
+    public function findAwaitingPortalDiscovery(): array
+    {
+        return $this->createQueryBuilder('lc')
+            ->join('lc.court', 'c')
+            ->where('lc.status = :filed')
+            ->andWhere('lc.courtCaseNumber IS NULL')
+            ->andWhere('lc.portalMonitoringActive = false')
+            ->andWhere('lc.deletedAt IS NULL')
+            ->andWhere('c.portalCode IS NOT NULL')
+            ->setParameter('filed', CaseStatus::CERERE_DEPUSA)
+            ->orderBy('lc.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * Non-soft-deleted cases with a given status. Used by the auto-finalization
      * cron (CaseAutoFinalizer) to iterate cases in ORDONANTA_EMISA.
      *

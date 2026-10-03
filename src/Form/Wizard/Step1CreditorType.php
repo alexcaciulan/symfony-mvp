@@ -7,6 +7,7 @@ namespace App\Form\Wizard;
 use App\DTO\Wizard\Step1CreditorData;
 use App\Entity\Creditor;
 use App\Enum\PersonType;
+use App\Service\Party\RomanianBankCode;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\EnumType;
 use Symfony\Component\Form\Extension\Core\Type\HiddenType;
@@ -139,6 +140,15 @@ final class Step1CreditorType extends AbstractType
             }
             if (isset($data['iban']) && is_string($data['iban'])) {
                 $data['iban'] = strtoupper(preg_replace('/\s+/', '', $data['iban']) ?? '');
+                // The account number names its bank. A bank name left over from
+                // another account (picked in the documents panel, or typed before
+                // the IBAN was corrected) would pair one bank with another bank's
+                // account in the payment instructions of the summons.
+                $bank = RomanianBankCode::bankName($data['iban']);
+                $typed = is_string($data['bankName'] ?? null) ? $data['bankName'] : null;
+                if ($bank !== null && !RomanianBankCode::nameMatches($typed, $data['iban'])) {
+                    $data['bankName'] = $bank;
+                }
             }
             if (isset($data['cui']) && is_string($data['cui'])) {
                 $data['cui'] = strtoupper(preg_replace('/\s+/', '', $data['cui']) ?? '');

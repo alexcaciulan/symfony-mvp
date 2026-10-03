@@ -24,6 +24,7 @@ use App\Enum\DocumentType;
 use App\Enum\ExtractionFailureReason;
 use App\Enum\ExtractionStatus;
 use App\Enum\PaymentNoticeCommunicationMethod;
+use App\Enum\PenaltyType;
 use App\Enum\PersonType;
 use App\Enum\PortalEventType;
 use App\Enum\RelationshipType;
@@ -596,6 +597,82 @@ final class CaseOverviewControllerTest extends WebTestCase
         self::assertStringContainsString('Factură INV-A', $html);
         self::assertStringContainsString('Factură INV-B', $html);
         self::assertSelectorTextContains('#panel-detalii', 'Rata BNR');
+    }
+
+    public function testDetaliiShowsHowEachContractualPenaltyWasComputed(): void
+    {
+        $this->enrichCase();
+        $this->case->setPenaltyType(PenaltyType::CONTRACTUAL);
+        $this->case->setContractualPenaltyRate('0.1000');
+        $this->case->setContractualPenaltyCapPercent('10.00');
+        $this->case->setAccessoryCutoffDate(new \DateTimeImmutable('2026-10-03'));
+        $item = new ClaimItem();
+        $item->setLegalCase($this->case);
+        $item->setDedupKey('ov-pen-' . uniqid('', true));
+        $item->setDocumentNumber('KSS 1534');
+        $item->setAmount('21318.90');
+        $item->setCurrency('RON');
+        $item->setAmountRon('21318.90');
+        $item->setDueDate(new \DateTimeImmutable('2025-02-21'));
+        $item->setConfirmedByLawyer(true);
+        $this->case->addClaimItem($item);
+        $this->em->persist($item);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $breakdown = $crawler->filter('[data-testid="overview-penalty-breakdown"]');
+        self::assertCount(1, $breakdown);
+        $text = $breakdown->text();
+        self::assertStringContainsString('22.02.2025 → 03.10.2026', $text);
+        self::assertStringContainsString('589', $text);
+        self::assertStringContainsString('12.556,83', $text);
+        self::assertStringContainsString('Plafon din contract: 10% din 21.318,90 = 2.131,89 lei.', $text);
+    }
+
+    public function testDetaliiShowsOnePenaltyRowPerInvoice(): void
+    {
+        $this->enrichCase();
+        $this->case->setPenaltyType(PenaltyType::CONTRACTUAL);
+        $this->case->setContractualPenaltyRate('0.1000');
+        $this->case->setAccessoryCutoffDate(new \DateTimeImmutable('2025-03-23'));
+        foreach ([['INV-A', '2025-02-21', '1000.00'], ['INV-B', '2025-03-01', '2000.00']] as [$doc, $due, $amt]) {
+            $item = new ClaimItem();
+            $item->setLegalCase($this->case);
+            $item->setDedupKey('ov-pen-' . uniqid('', true));
+            $item->setDocumentNumber($doc);
+            $item->setAmount($amt);
+            $item->setCurrency('RON');
+            $item->setAmountRon($amt);
+            $item->setDueDate(new \DateTimeImmutable($due));
+            $item->setConfirmedByLawyer(true);
+            $this->case->addClaimItem($item);
+            $this->em->persist($item);
+        }
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $breakdown = $crawler->filter('[data-testid="overview-penalty-breakdown"]');
+        self::assertStringContainsString('2 facturi', $breakdown->text());
+        self::assertSame(2, $breakdown->filter('tbody tr')->count());
+        self::assertStringContainsString('INV-A', $breakdown->text());
+        self::assertStringContainsString('02.03.2025 → 23.03.2025', $breakdown->text());
+    }
+
+    public function testDetaliiShowsNoPenaltyTableForLegalInterest(): void
+    {
+        $this->enrichCase();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertCount(0, $crawler->filter('[data-testid="overview-penalty-breakdown"]'));
     }
 
     public function testDetaliiCourtSummaryFallbackWhenNull(): void

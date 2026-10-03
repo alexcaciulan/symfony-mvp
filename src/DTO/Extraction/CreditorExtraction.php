@@ -31,5 +31,7 @@ final readonly class CreditorExtraction
         public ?string $legalRepresentative = null,
         public ?string $bankName = null,
         public array $confidencePerField = [],
+        /** @var list<array{iban: string, bankName: ?string}> every account the document prints */
+        public array $bankAccounts = [],
     ) {}
 }

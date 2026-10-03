@@ -116,6 +116,28 @@ final class SummonsTableBuilderTest extends TestCase
         self::assertSame([], $tables->legalInterestRows);
     }
 
+    public function testACappedPenaltyRowStatesTheCappedFigure(): void
+    {
+        // Case 5 of the lawyer review: the row printed 12.535,51 under a total
+        // of 2.131,89, so the notice contradicted itself.
+        $items = [$this->item(1, '21318.90', '2025-02-21', 'KSS 1534')];
+        $aggregate = $this->aggregator()->aggregate(
+            items: $items,
+            referenceDate: new \DateTimeImmutable('2026-10-02'),
+            relationshipType: RelationshipType::COMERCIAL,
+            penaltyType: PenaltyType::CONTRACTUAL,
+            contractualDailyRate: 0.1,
+            contractualPenaltyCapPercent: 10.0,
+        );
+
+        $tables = (new SummonsTableBuilder())->build(new LegalCase(), $items, $aggregate, null, null, $aggregate->total);
+
+        $row = $tables->contractualPenaltyRows[0];
+        self::assertTrue($row->capped);
+        self::assertEqualsWithDelta(2131.89, $row->penalty, 1e-6);
+        self::assertFalse($tables->roundingNoteNeeded, 'the row now adds up to the total');
+    }
+
     public function testRoundingNoteAppearsOnlyWhenRowsDoNotAddUpToTheTotal(): void
     {
         $items = [$this->item(1, '1000.00', '2025-04-30', 'F-1')];

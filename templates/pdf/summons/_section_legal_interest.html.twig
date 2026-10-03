@@ -38,6 +38,6 @@
 {% if summonsTables.roundingNoteNeeded %}<p class="note">{{ 'pdf.summons.table.rounding_note'|trans }}</p>{% endif %}
 {% endif %}
 
-<p class="total">{{ 'pdf.summons.legal.total'|trans({'%date%': noticeDateText, '%amount%': accessoryTotal|number_format(2, ',', '.')}) }}</p>
+<p class="total">{{ 'pdf.summons.legal.total'|trans({'%date%': accessoryDateText, '%amount%': accessoryTotal|number_format(2, ',', '.')}) }}</p>
 <p>{{ 'pdf.summons.legal.conclusion'|trans({'%amount%': accessoryTotal|number_format(2, ',', '.')}) }}</p>
 <p>{{ 'pdf.summons.legal.continues'|trans }}</p>

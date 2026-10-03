@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service\Case;
 
 use App\DTO\Calculation\AggregatedAccessoryResult;
+use App\DTO\Calculation\PenaltyBreakdownRow;
 use App\Entity\ClaimItem;
 use App\Entity\Document;
 use App\Entity\LegalCase;
@@ -13,11 +14,9 @@ use App\Enum\CaseStatus;
 use App\Enum\DocumentType;
 use App\Enum\FilingChannel;
 use App\Enum\PenaltyType;
-use App\Enum\RelationshipType;
 use App\Repository\AuditLogRepository;
 use App\Repository\CourtPortalEventRepository;
 use App\Repository\LegalDeadlineRepository;
-use App\Service\Calculation\ClaimInterestAggregator;
 use App\Service\Calculation\InterestCalculatorService;
 use App\Service\Calculation\StampDutyCalculator;
 use App\Service\Deadline\DeadlineService;
@@ -41,7 +40,7 @@ final class OverviewContextBuilder
         private readonly RulingProposalResolver $rulingProposalResolver,
         private readonly StampDutyUatResolver $stampDutyUatResolver,
         private readonly StampDutyCalculator $stampDutyCalculator,
-        private readonly ClaimInterestAggregator $accessoryAggregator,
+        private readonly CaseAccessoryService $caseAccessories,
         private readonly CaseFullPaymentClosureService $fullPaymentClosure,
     ) {}
 
@@ -58,6 +57,7 @@ final class OverviewContextBuilder
         $portalEvents = $this->portalEvents->findByLegalCase($case);
         [$interestBreakdown, $breakdownError] = $this->computeBreakdown($case);
         $countingItems = $case->getCountingClaimItems();
+        $accessories = $this->caseAccessories->aggregate($case);
 
         return array_merge([
             'case' => $case,
@@ -76,7 +76,9 @@ final class OverviewContextBuilder
             // case: one aggregate breakdown from the earliest due date would show
             // the very figure the positions exist to stop claiming.
             'claim_items' => $countingItems,
-            'claim_item_accessories' => $this->computeItemAccessories($case, $countingItems),
+            'claim_item_accessories' => count($countingItems) > 1 ? $accessories : null,
+            'penalty_breakdown' => $this->penaltyBreakdown($case, $countingItems, $accessories),
+            'accessory_reference_date' => $this->caseAccessories->referenceDate($case),
             'has_communication_proof' => $this->hasCommunicationProof($case),
             'communication_proof' => $this->findLatestDocument($case, DocumentType::DOVADA_COMUNICARE),
             'payment_term_end' => $this->deadlineService->paymentTermEnd($case),
@@ -126,31 +128,29 @@ final class OverviewContextBuilder
     }
 
     /**
-     * Accessory per position, at the same reference date as the stored
-     * `calculatedInterest` (the case creation date), so the per-position figures
-     * add up to the total shown in the stats instead of drifting past it.
+     * Contractual penalty per position, at the date the case states it.
      *
      * @param list<ClaimItem> $items
+     * @return list<PenaltyBreakdownRow>|null
      */
-    private function computeItemAccessories(LegalCase $case, array $items): ?AggregatedAccessoryResult
+    private function penaltyBreakdown(LegalCase $case, array $items, ?AggregatedAccessoryResult $accessories): ?array
     {
-        if (count($items) < 2) {
+        if ($accessories === null || $case->getPenaltyType() !== PenaltyType::CONTRACTUAL) {
             return null;
         }
 
-        $rate = $case->getContractualPenaltyRate();
-
-        try {
-            return $this->accessoryAggregator->aggregate(
-                items: $items,
-                referenceDate: $case->getCreatedAt(),
-                relationshipType: $case->getRelationshipType() ?? RelationshipType::COMERCIAL,
-                penaltyType: $case->getPenaltyType() ?? PenaltyType::LEGAL_PENALIZATOARE,
-                contractualDailyRate: $rate !== null ? (float) $rate : null,
-            );
-        } catch (\DomainException | \RuntimeException | \InvalidArgumentException) {
-            return null;
+        $rows = [];
+        foreach ($items as $item) {
+            $penalty = $accessories->penaltyByItemId[$item->getId()] ?? null;
+            $row = $penalty !== null
+                ? PenaltyBreakdownRow::fromResult($penalty, $item->signedAmountRon() ?? 0.0, $case->contractualPenaltyCap(), $item->getDocumentNumber())
+                : null;
+            if ($row !== null) {
+                $rows[] = $row;
+            }
         }
+
+        return $rows;
     }
 
     /**
@@ -176,10 +176,8 @@ final class OverviewContextBuilder
      * Returns `[breakdown[], errorFlag]`. The breakdown is not persisted — only used
      * to drive the per-period table render.
      *
-     * The reference date is the case creation date (not "now"): the stored
-     * `calculatedInterest` was computed up to that date in the wizard, so using
-     * it keeps the per-period rows, the table total and the stat in agreement
-     * instead of drifting as interest accrues day by day.
+     * The reference date is the one the stored `calculatedInterest` holds (see
+     * CaseAccessoryService::referenceDate()), so rows, total and stat agree.
      *
      * @return array{0: ?array, 1: bool}
      */
@@ -196,12 +194,19 @@ final class OverviewContextBuilder
             return [null, false];
         }
 
+        // A contractual penalty runs on the contract's daily rate, not on BNR
+        // periods: a period table here would explain a figure the case does not hold.
+        if ($case->getPenaltyType() === PenaltyType::CONTRACTUAL && $case->getContractualPenaltyRate() !== null) {
+            return [null, false];
+        }
+
         try {
             $result = $this->interestService->calculate(
                 (float) $case->getAmount(),
                 \DateTimeImmutable::createFromInterface($case->getDueDate()),
-                $case->getCreatedAt(),
+                $this->caseAccessories->referenceDate($case),
                 $case->getRelationshipType(),
+                contractDate: $case->contractDateImmutable(),
             );
 
             return [$result->breakdown, false];

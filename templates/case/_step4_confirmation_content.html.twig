@@ -57,7 +57,7 @@
                     <div class="font-semibold text-red-900 dark:text-red-200">{{ 'wizard.step4.alert.errors_title'|trans }}</div>
                     <ul class="mt-2 space-y-1 text-sm text-red-800 dark:text-red-200/80">
                         {% for issue in errors %}
-                            <li class="flex items-start gap-2"><span class="text-red-500">•</span><span>{{ issue.messageKey|trans }}</span></li>
+                            <li class="flex items-start gap-2"><span class="text-red-500">•</span><span>{{ issue.messageKey|trans(issue.params) }}</span></li>
                         {% endfor %}
                     </ul>
                 </div>
@@ -71,7 +71,7 @@
                     <div class="font-semibold text-amber-900 dark:text-amber-200">{{ 'wizard.step4.alert.warnings_title'|trans }}</div>
                     <ul class="mt-2 space-y-1 text-sm text-amber-800 dark:text-amber-200/80">
                         {% for issue in warnings %}
-                            <li class="flex items-start gap-2"><span class="text-amber-500">•</span><span>{{ issue.messageKey|trans }}</span></li>
+                            <li class="flex items-start gap-2"><span class="text-amber-500">•</span><span>{{ issue.messageKey|trans(issue.params) }}</span></li>
                         {% endfor %}
                     </ul>
                 </div>
@@ -402,10 +402,9 @@
 
     {# Acceptance checkboxes. Submit button lives OUTSIDE the form (Steps 1/2/3 pattern)
        and submits via the HTML5 form="step4-confirmation-form" attribute. #}
-    {# data-turbo-frame="_top" — on POST success, controller redirects to
-       /dashboard/cases. That route doesn't have <turbo-frame id="wizard-frame">,
-       so we tell Turbo to break out of the frame and replace the whole page. #}
-    {{ form_start(form, { attr: { 'id': 'step4-confirmation-form', 'class': 'space-y-4', 'novalidate': 'novalidate', 'data-turbo-frame': '_top' }}) }}
+    {# Plain POST: through Turbo a 422 page with a new CSP nonce is reloaded and its errors lost. #}
+    <div data-controller="require-checks">
+    {{ form_start(form, { attr: { 'id': 'step4-confirmation-form', 'class': 'space-y-4', 'novalidate': 'novalidate', 'data-turbo': 'false' }}) }}
         {# Competent court picker — preselected with the auto-resolved court, editable.
            When resolution is ambiguous / county-unknown the user picks manually. #}
         <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft p-5">
@@ -429,7 +428,7 @@
         <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft p-5 space-y-3">
             <div>
                 <label class="flex items-start gap-2 cursor-pointer">
-                    {{ form_widget(form.acceptTerms, { attr: { 'class': 'mt-0.5 rounded border-slate-300 text-lex-navy focus:ring-lex-navy' ~ (form.acceptTerms.vars.valid is defined and not form.acceptTerms.vars.valid ? ' border-red-400 dark:border-red-600' : '') }}) }}
+                    {{ form_widget(form.acceptTerms, { attr: { 'data-require-checks-target': 'check', 'data-action': 'require-checks#refresh', 'class': 'mt-0.5 rounded border-slate-300 text-lex-navy focus:ring-lex-navy' ~ (form.acceptTerms.vars.valid is defined and not form.acceptTerms.vars.valid ? ' border-red-400 dark:border-red-600' : '') }}) }}
                     <span class="text-sm {{ form.acceptTerms.vars.valid is defined and not form.acceptTerms.vars.valid ? 'text-red-700 dark:text-red-400 font-medium' : 'text-slate-700 dark:text-slate-300' }}">{{ 'wizard.step4.field.accept_terms'|trans }}</span>
                 </label>
                 {{ f.field_errors(form.acceptTerms) }}
@@ -437,7 +436,7 @@
 
             <div>
                 <label class="flex items-start gap-2 cursor-pointer">
-                    {{ form_widget(form.acceptDataAccuracy, { attr: { 'class': 'mt-0.5 rounded border-slate-300 text-lex-navy focus:ring-lex-navy' ~ (form.acceptDataAccuracy.vars.valid is defined and not form.acceptDataAccuracy.vars.valid ? ' border-red-400 dark:border-red-600' : '') }}) }}
+                    {{ form_widget(form.acceptDataAccuracy, { attr: { 'data-require-checks-target': 'check', 'data-action': 'require-checks#refresh', 'class': 'mt-0.5 rounded border-slate-300 text-lex-navy focus:ring-lex-navy' ~ (form.acceptDataAccuracy.vars.valid is defined and not form.acceptDataAccuracy.vars.valid ? ' border-red-400 dark:border-red-600' : '') }}) }}
                     <span class="text-sm {{ form.acceptDataAccuracy.vars.valid is defined and not form.acceptDataAccuracy.vars.valid ? 'text-red-700 dark:text-red-400 font-medium' : 'text-slate-700 dark:text-slate-300' }}">{{ 'wizard.step4.field.accept_data_accuracy'|trans }}</span>
                 </label>
                 {{ f.field_errors(form.acceptDataAccuracy) }}
@@ -446,7 +445,7 @@
             {% if has_warnings %}
                 <div class="pt-3 border-t border-slate-200 dark:border-slate-800">
                     <label class="flex items-start gap-2 cursor-pointer">
-                        {{ form_widget(form.acknowledgedWarnings, { attr: { 'class': 'mt-0.5 rounded border-amber-400 text-amber-600 focus:ring-amber-500' ~ (form.acknowledgedWarnings.vars.valid is defined and not form.acknowledgedWarnings.vars.valid ? ' border-red-400 dark:border-red-600' : '') }}) }}
+                        {{ form_widget(form.acknowledgedWarnings, { attr: { 'data-require-checks-target': 'check', 'data-action': 'require-checks#refresh', 'class': 'mt-0.5 rounded border-amber-400 text-amber-600 focus:ring-amber-500' ~ (form.acknowledgedWarnings.vars.valid is defined and not form.acknowledgedWarnings.vars.valid ? ' border-red-400 dark:border-red-600' : '') }}) }}
                         <span class="text-sm font-medium {{ form.acknowledgedWarnings.vars.valid is defined and not form.acknowledgedWarnings.vars.valid ? 'text-red-700 dark:text-red-400' : 'text-amber-800 dark:text-amber-200' }}">{{ 'wizard.step4.field.acknowledged_warnings'|trans }}</span>
                     </label>
                     {{ f.field_errors(form.acknowledgedWarnings) }}
@@ -468,12 +467,16 @@
             <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
             <span>{{ 'wizard.step4.button.back'|trans }}</span>
         </a>
+        {% if not has_errors %}
+            <p class="text-xs text-slate-500 dark:text-slate-400 sm:ml-auto sm:mr-1" data-require-checks-target="hint" data-testid="step4-confirm-hint">{{ 'wizard.step4.confirm_hint'|trans }}</p>
+        {% endif %}
         <button type="submit" form="step4-confirmation-form"
-                {% if has_errors %}disabled aria-disabled="true"{% endif %}
+                {% if has_errors %}disabled aria-disabled="true"{% else %}data-require-checks-target="submit"{% endif %}
                 class="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg text-white text-sm font-bold transition shadow-sm
                     {% if has_errors %}bg-slate-400 cursor-not-allowed{% else %}bg-gradient-to-br from-green-500 to-emerald-600 hover:shadow-lg hover:shadow-green-500/30{% endif %}">
             <svg class="size-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
             <span>{{ 'wizard.step4.button.submit'|trans }}</span>
         </button>
+    </div>
     </div>
 {% endblock %}

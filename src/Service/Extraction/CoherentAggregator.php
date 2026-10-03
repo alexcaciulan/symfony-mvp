@@ -101,8 +101,28 @@ final class CoherentAggregator
      */
     private const GENERIC_LEGAL_FORMS = ['SC'];
 
+    /**
+     * The bank is a label of the account, not a fact of its own. Two documents
+     * naming "UNICREDIT BANK SA" and "UniCredit Bank" for one IBAN agree, and two
+     * documents with different IBANs already raise that conflict, whose choice
+     * carries the bank of the chosen document with it.
+     */
+    private const DERIVED_FIELDS = ['bankName'];
+
+    /**
+     * Fields on which a document that ranks lower for the group does not
+     * contradict one that ranks higher, it describes a step of it. An invoice
+     * issued under a contract is "an accepted invoice" only for want of the
+     * contract; with the contract in the file, the claim rests on the contract.
+     * Likewise the person who signed or issued an invoice need not be the one
+     * who represents the company: the contract names its representative, the
+     * invoice only whoever drew it up.
+     */
+    private const AUTHORITY_DECIDED_FIELDS = ['legalGround', 'legalRepresentative', 'administrator'];
+
     public function __construct(
         private readonly FieldAuthorityMatrix $authority = new FieldAuthorityMatrix(),
+        private readonly ConflictValueEquivalence $equivalence = new ConflictValueEquivalence(),
     ) {}
 
     /**
@@ -158,7 +178,7 @@ final class CoherentAggregator
             // Numbered off the ranking as the algorithm produced it, before any
             // pin moves the winner: the option index of a choice made on the
             // previous request has to still mean the same value on this one.
-            $groupConflicts = $this->collectConflicts($ranked, $fields, $scope, $entityKey);
+            $groupConflicts = $this->collectConflicts($ranked, $group, $fields, $scope, $entityKey);
 
             // A chosen document wins its whole group. Taking only the chosen
             // field from it and the rest from the ranking is how a party gets a
@@ -509,23 +529,34 @@ final class CoherentAggregator
      * @param list<string> $fields
      * @return list<PrefillConflict>
      */
-    private function collectConflicts(array $ranked, array $fields, ConflictScope $scope, ?string $entityKey): array
+    private function collectConflicts(array $ranked, FieldGroup $group, array $fields, ConflictScope $scope, ?string $entityKey): array
     {
         $conflicts = [];
         foreach ($fields as $field) {
-            if (in_array($field, self::FREE_TEXT_FIELDS, true)) {
+            if (in_array($field, self::FREE_TEXT_FIELDS, true) || in_array($field, self::DERIVED_FIELDS, true)) {
                 continue;
             }
             $options = [];
             $seen = [];
+            $topWeight = null;
             foreach ($ranked as $source) {
                 $value = $source->trustedValue($field, self::MIN_CONFIDENCE);
                 if ($value === null) {
                     continue;
                 }
+                $weight = $this->authority->weight($source->documentType, $group);
+                $topWeight ??= $weight;
+                if (in_array($field, self::AUTHORITY_DECIDED_FIELDS, true) && $weight < $topWeight) {
+                    continue;
+                }
                 $fingerprint = $this->comparable($field, $value);
                 if (isset($seen[$fingerprint])) {
                     continue;
+                }
+                foreach ($options as $kept) {
+                    if ($this->equivalence->same($field, $kept->value, $value)) {
+                        continue 2;
+                    }
                 }
                 $seen[$fingerprint] = true;
                 $options[] = new ConflictOption(
@@ -559,7 +590,7 @@ final class CoherentAggregator
     {
         return match ($field) {
             'cui', 'personalId', 'amount', 'dueDate' => ConflictSeverity::ERROR,
-            'name', 'address', 'county', 'locality', 'penaltyType', 'contractualPenaltyRate' => ConflictSeverity::WARNING,
+            'name', 'address', 'county', 'locality', 'penaltyType', 'contractualPenaltyRate', 'contractualPenaltyCapPercent' => ConflictSeverity::WARNING,
             default => ConflictSeverity::INFO,
         };
     }

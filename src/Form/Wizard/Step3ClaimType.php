@@ -89,6 +89,18 @@ final class Step3ClaimType extends AbstractType
                 'scale' => 3,
                 'required' => false,
             ])
+            ->add('contractualPenaltyCapPercent', NumberType::class, [
+                'label' => 'wizard.step3.field.contractual_penalty_cap',
+                'help' => 'wizard.step3.help.contractual_penalty_cap',
+                'scale' => 2,
+                'required' => false,
+            ])
+            ->add('accessoryCutoffDate', DateType::class, [
+                'label' => 'wizard.step3.field.accessory_cutoff_date',
+                'widget' => 'single_text',
+                'input' => 'datetime_immutable',
+                'required' => false,
+            ])
             ->add('penaltyClauseArticle', TextType::class, [
                 'label' => 'wizard.step3.field.penalty_clause_article',
                 'required' => false,

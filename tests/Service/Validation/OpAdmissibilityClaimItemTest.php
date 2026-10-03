@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Service\Validation;
 
 use App\DTO\Validation\AdmissibilityIssue;
+use App\DTO\Wizard\ClaimItemRow;
 use App\Entity\ClaimItem;
 use App\Entity\LegalCase;
 use App\Enum\IssueSeverity;
@@ -18,6 +19,30 @@ use PHPUnit\Framework\TestCase;
 class OpAdmissibilityClaimItemTest extends TestCase
 {
     private const NOW = '2026-05-09 12:00:00';
+
+    public function testAnExcludedBalanceBelowTheInvoicesWarnsAtConfirmation(): void
+    {
+        $issues = (new OpAdmissibilityValidator())->validateClaimRows([
+            new ClaimItemRow(dedupKey: 'inv', amount: 1000.0),
+            new ClaimItemRow(dedupKey: 'bal', amount: 400.0, excluded: true, warningKeys: [
+                'wizard.step3.claim_items.warning.balance_summarizes_invoices',
+                'wizard.step3.claim_items.warning.balance_below_invoices',
+            ]),
+        ]);
+
+        self::assertSame(['OP_BALANCE_BELOW_INVOICES'], array_map(static fn (AdmissibilityIssue $i): string => $i->code, $issues));
+        self::assertSame(IssueSeverity::WARNING, $issues[0]->severity);
+    }
+
+    public function testAReincludedBalanceNoLongerWarns(): void
+    {
+        // Claimed in place of the invoices, the balance is the sum asked for.
+        $issues = (new OpAdmissibilityValidator())->validateClaimRows([
+            new ClaimItemRow(dedupKey: 'bal', amount: 400.0, warningKeys: ['wizard.step3.claim_items.warning.balance_below_invoices']),
+        ]);
+
+        self::assertSame([], $issues);
+    }
 
     public function testAFuturePositionBlocksEvenWhenAnotherIsOverdue(): void
     {
@@ -114,6 +139,14 @@ class OpAdmissibilityClaimItemTest extends TestCase
     }
 
     /** @param list<?string> $dueDates */
+    public function testAFinalInvoiceThatReversesTheAdvanceIsNotADeduction(): void
+    {
+        $case = $this->caseWithItems(['2026-01-31']);
+        $case->getClaimItems()->first()->setDescription('Echipamente medicale și o linie de storno avans cf BMI2022730/05/12/2023.');
+
+        $this->assertSame([], $this->codes((new OpAdmissibilityValidator())->validate($case, $this->now())));
+    }
+
     private function caseWithItems(array $dueDates): LegalCase
     {
         $case = new LegalCase();

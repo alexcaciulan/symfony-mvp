@@ -12,6 +12,7 @@ use App\Repository\LegalCaseRepository;
 use App\Security\Voter\CaseVoter;
 use App\Service\AuditLogService;
 use App\Service\Billing\SubscriptionService;
+use App\Service\Case\CaseAccessoryService;
 use App\Service\Case\CaseWorkflowService;
 use App\Service\Case\OverviewContextBuilder;
 use App\Service\Deadline\AgendaResponseFactory;
@@ -42,6 +43,7 @@ final class CaseSummonsController extends AbstractController
         private readonly OverviewContextBuilder $contextBuilder,
         private readonly AgendaResponseFactory $agendaResponses,
         private readonly EntityManagerInterface $em,
+        private readonly CaseAccessoryService $caseAccessories,
     ) {}
 
     #[Route('/case/{id}/summons/generate', name: 'case_summons_generate', requirements: ['id' => '\d+'], methods: ['POST'])]
@@ -89,6 +91,7 @@ final class CaseSummonsController extends AbstractController
             // Stored first, so the date printed on the notice is the one the
             // payment order application later computes accessories to.
             $case->setPaymentNoticeDate(new \DateTime());
+            $accessoryChange = $this->caseAccessories->refreshStoredTotal($case);
             $document = $this->paymentNoticeGenerator->generate($case);
 
             $this->workflowService->apply($case, 'trimite_somatie');
@@ -103,6 +106,7 @@ final class CaseSummonsController extends AbstractController
                     'documentId' => $document->getId(),
                     'caseNumber' => $case->getCaseNumber(),
                     'paymentNoticeDate' => $case->getPaymentNoticeDate()?->format('Y-m-d'),
+                    'calculatedInterest' => $accessoryChange,
                 ],
                 category: AuditLogService::CATEGORY_SUMMONS_GENERATED,
             );

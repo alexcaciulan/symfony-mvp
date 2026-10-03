@@ -195,7 +195,10 @@ final class SummonsTableBuilder
                 periodEnd: $period->endDate,
                 days: $period->days,
                 dailyRate: $period->dailyRate,
-                penalty: $period->periodPenalty,
+                // A capped penalty is one period whose daily figure the
+                // contract cuts down: the row states what is claimed.
+                penalty: $result->isCapped() ? (float) $result->total : $period->periodPenalty,
+                capped: $result->isCapped(),
             );
         }
 

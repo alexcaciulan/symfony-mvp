@@ -31,7 +31,10 @@
 {% set rejected = prefill_conflict_rejected|default([]) %}
 {% if conflicts|length > 0 %}
     {% set blocking = conflicts|filter(c => c.blocks)|length > 0 %}
-    <section class="rounded-2xl border {{ blocking ? 'border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30' : 'border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30' }} p-5 mb-6" role="alert" data-testid="prefill-conflicts">
+    <section data-controller="prefill-conflicts"
+             data-prefill-conflicts-settled-fields-value="{{ constant('App\\Controller\\Case\\CaseWizardController::ANAF_SETTLED_FIELDS')|json_encode }}"
+             data-action="party-anaf-lookup:synced@window->prefill-conflicts#anafSynced party-anaf-lookup:unsynced@window->prefill-conflicts#anafUnsynced"
+             class="rounded-2xl border {{ blocking ? 'border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30' : 'border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30' }} p-5 mb-6" role="alert" data-testid="prefill-conflicts">
         <div class="flex items-start gap-3">
             <svg class="size-5 shrink-0 mt-0.5 {{ blocking ? 'text-red-600' : 'text-amber-600' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
             <div class="flex-1 min-w-0">
@@ -44,7 +47,9 @@
                 <ul class="mt-3 space-y-4">
                     {% for conflict in conflicts %}
                         {% set resolution = resolutions[conflict.key]|default(null) %}
-                        <li class="text-sm text-slate-800 dark:text-slate-100" data-testid="prefill-conflict">
+                        <li class="text-sm text-slate-800 dark:text-slate-100" data-testid="prefill-conflict"
+                            data-prefill-conflicts-target="item"
+                            data-scope="{{ conflict.scope.value }}" data-field="{{ conflict.field }}" data-entity="{{ conflict.entityKey }}">
                             <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold mr-2 {{ conflict.severity.value == 'ERROR' ? 'bg-red-100 text-red-800 dark:bg-red-950/50 dark:text-red-300' : (conflict.severity.value == 'WARNING' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300') }}">
                                 {{ ('wizard.conflict.severity.' ~ conflict.severity.value)|trans }}
                             </span>
@@ -56,6 +61,7 @@
                                         {% for option in conflict.options %}
                                             <li class="text-xs text-slate-600 dark:text-slate-300">
                                                 <span class="font-medium text-slate-900 dark:text-slate-100">{{ _self.value_label(conflict.field, option.value, option.displayValue) }}</span>
+                                                {% if conflict.field == 'iban' and option.value|iban_bank %}<span>({{ option.value|iban_bank }})</span>{% endif %}
                                                 <span class="text-slate-400">·</span>
                                                 {{ include('case/_prefill_conflict_source.html.twig', { option: option, document_names: document_names }) }}
                                             </li>
@@ -87,6 +93,9 @@
                                                        {% if is_chosen %}checked{% endif %}>
                                                 <span class="min-w-0">
                                                     <span class="font-medium text-slate-900 dark:text-slate-100 break-words">{{ _self.value_label(conflict.field, option.value, option.displayValue) }}</span>
+                                                    {% if conflict.field == 'iban' and option.value|iban_bank %}
+                                                        <span class="text-slate-600 dark:text-slate-300">· {{ option.value|iban_bank }}</span>
+                                                    {% endif %}
                                                     {% if is_suggested %}
                                                         <span class="ml-1 inline-flex items-center rounded-full bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:text-slate-300">{{ 'wizard.conflict.suggested'|trans }}</span>
                                                     {% endif %}

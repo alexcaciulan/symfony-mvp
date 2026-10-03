@@ -9,6 +9,17 @@
              data-controller="poll-frame"
              data-poll-frame-pending-value="{{ documents is not empty and not all_terminal ? 'true' : 'false' }}"
              data-poll-frame-interval-ms-value="3000">
+    {# The document actions (remove, correct type, retry) answer inside this
+       frame, so their outcome is said here: a flash rendered by the layout,
+       outside the frame, would never reach the lawyer. #}
+    {% for type, messages in app.flashes(['success', 'warning', 'error']) %}
+        {% for message in messages %}
+            <div role="{{ type == 'error' ? 'alert' : 'status' }}" data-testid="step0-flash"
+                 class="mb-3 rounded-lg border px-4 py-2.5 text-sm {{ type == 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200' : (type == 'warning' ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200' : 'border-red-200 bg-red-50 text-red-800 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200') }}">
+                {{ message|trans }}
+            </div>
+        {% endfor %}
+    {% endfor %}
     {% if documents is not empty %}
         <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft overflow-hidden">
             <header class="px-5 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
@@ -137,6 +148,18 @@
                                    side card shows how complete each section is instead. #}
                             </div>
                         </div>
+                        {% if status != 'PROCESSING' %}
+                            <form method="post" action="{{ path('case_wizard_documents_remove', {'id': document.id}) }}"
+                                  class="shrink-0" data-turbo-confirm="{{ 'wizard.step0.remove.confirm'|trans({'%file%': document.originalFilename}) }}">
+                                <input type="hidden" name="_token" value="{{ csrf_token('wizard_step0_remove_' ~ document.id) }}">
+                                <button type="submit" data-testid="step0-remove-document"
+                                        class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:text-red-700 hover:bg-red-50 dark:text-slate-400 dark:hover:text-red-300 dark:hover:bg-red-950/30"
+                                        title="{{ 'wizard.step0.remove.button'|trans }}">
+                                    <svg class="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    <span>{{ 'wizard.step0.remove.button'|trans }}</span>
+                                </button>
+                            </form>
+                        {% endif %}
                     </li>
                 {% endfor %}
             </ul>
@@ -169,6 +192,17 @@
        Skip is a CSRF-protected POST; both forms target the outer wizard-frame
        so Step 1 swaps in-place without reloading sidebar/topbar.
        Continue is a GET form that also breaks out; disabled while extraction is still running. #}
+    {# A consumer debtor is outside what the product files (claims between
+       professionals only), so the file stops here, before three steps of work.
+       Starting over without the documents stays open for a debtor the
+       extraction misread. #}
+    {% set blocked_consumer = all_terminal and consumer_debtor|default(null) is not null %}
+    {% if blocked_consumer %}
+        <div role="alert" data-testid="step0-consumer-debtor" class="mt-4 rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 p-4 text-sm text-red-800 dark:text-red-200">
+            <p class="font-semibold">{{ 'wizard.step0.consumer_debtor.title'|trans }}</p>
+            <p class="mt-1">{{ 'wizard.step0.consumer_debtor.body'|trans({'%name%': consumer_debtor ?: 'wizard.step0.consumer_debtor.unnamed'|trans}) }}</p>
+        </div>
+    {% endif %}
     <div class="flex items-center justify-between gap-3 mt-4">
         {# Pas 3.4 — target the outer `wizard-frame` (parent of `step0-dynamic`)
            so navigation to Step 1 swaps the WHOLE wizard area in-place without
@@ -182,8 +216,8 @@
         </form>
         <form method="get" action="{{ path('case_wizard_creditor') }}" class="inline-flex" data-turbo-frame="wizard-frame">
             <button type="submit"
-                    {% if not all_terminal %}disabled aria-disabled="true"{% endif %}
-                    title="{% if not all_terminal %}{{ 'wizard.step0.continue_blocked'|trans }}{% endif %}"
+                    {% if not all_terminal or blocked_consumer %}disabled aria-disabled="true"{% endif %}
+                    title="{% if not all_terminal %}{{ 'wizard.step0.continue_blocked'|trans }}{% elseif blocked_consumer %}{{ 'wizard.step0.consumer_debtor.title'|trans }}{% endif %}"
                     class="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-lex-navy/20 transition shadow-sm">
                 <span>{{ 'wizard.step0.continue'|trans }}</span>
                 <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>

@@ -27,9 +27,11 @@ use App\Enum\ExtractionStatus;
 use App\Enum\CaseStatus;
 use App\Enum\PersonType;
 use App\Enum\RelationshipType;
+use App\Service\Company\AnafLookupService;
 use App\Service\AuditLogService;
 use App\Service\Court\LocalityNormalizer;
 use App\Tests\Support\CountyFixtureTrait;
+use App\Tests\Support\OfflineAnafLookupService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -652,6 +654,45 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         self::assertSame('RO14186770', $dto->cui);
     }
 
+    public function testTheBankFollowsTheAccountNumber(): void
+    {
+        // Case 6 of the lawyer review: the invoice lists accounts at three banks
+        // and the IBAN and the bank were offered as two separate choices, so an
+        // ING account could be filed under Banca Transilvania.
+        $this->postCreditorStep([
+            'creditorEntity' => '',
+            'personType' => PersonType::PJ->value,
+            'name' => 'Bluebox Medical SRL',
+            'cui' => 'RO36155448',
+            'onrcNumber' => 'J23/3353/2021',
+            'address' => 'Bd. Pipera nr. 1/VII',
+            'iban' => 'RO81 INGB 0000 9999 1285 1953',
+            'bankName' => 'BANCA TRANSILVANIA',
+        ]);
+        self::assertResponseRedirects('/case/new/debtor');
+
+        $dto = $this->storedCreditorDto();
+        self::assertSame('RO81INGB0000999912851953', $dto->iban);
+        self::assertSame('ING Bank', $dto->bankName);
+    }
+
+    public function testABankNameThatFitsTheAccountIsKeptAsWritten(): void
+    {
+        $this->postCreditorStep([
+            'creditorEntity' => '',
+            'personType' => PersonType::PJ->value,
+            'name' => 'Panamarom SRL',
+            'cui' => 'RO2004840',
+            'onrcNumber' => 'J27/217/1992',
+            'address' => 'Str. Cuza Vodă nr. 100A',
+            'iban' => 'RO24CECENT0430RON1019827',
+            'bankName' => 'CEC BANK TG NEAMT',
+        ]);
+        self::assertResponseRedirects('/case/new/debtor');
+
+        self::assertSame('CEC BANK TG NEAMT', $this->storedCreditorDto()->bankName);
+    }
+
     public function testAPickedCreditorWithInvalidDataSaysWhatToCorrect(): void
     {
         $existing = $this->persistLibraryCreditor('Seed Vechi SRL', 'RO12345678');
@@ -888,6 +929,137 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         ]];
     }
 
+    public function testTheConfirmationStepLooksUpTheStatusOfAnUnsyncedCompanyDebtor(): void
+    {
+        // The lawyer was told to "call ANAF" on a screen with no way to do it;
+        // the status is the register's fact, so the step reads it itself.
+        $this->primeSessionForStep4(anafStatus: null, insolvencyCheckedAt: new \DateTimeImmutable('-1 hour'));
+        // The answer is set on the container that serves the next request.
+        $this->client->disableReboot();
+        $anaf = static::getContainer()->get(AnafLookupService::class);
+        self::assertInstanceOf(OfflineAnafLookupService::class, $anaf);
+        $anaf->respondWith('14186770', ['stare' => 'INACTIV', 'companyName' => 'REGISTER NAME SRL']);
+
+        $this->client->request('GET', '/case/new/confirmation');
+
+        self::assertResponseIsSuccessful();
+        $html = (string) $this->client->getResponse()->getContent();
+        self::assertStringNotContainsString('Apelează ANAF pe baza CUI', $html);
+        self::assertStringContainsString('inactiv fiscal', $html);
+        $entry = $this->client->getRequest()->getSession()->get('case_wizard_data')['debtors']->debtors[0];
+        self::assertSame(AnafStatus::INACTIV, $entry->anafStatus);
+        self::assertSame('Acme Debtor SRL', $entry->name, 'only the status is taken from the register');
+    }
+
+    public function testAnUnansweringRegisterLeavesTheStatusToBeChecked(): void
+    {
+        $this->primeSessionForStep4(anafStatus: null, insolvencyCheckedAt: new \DateTimeImmutable('-1 hour'));
+
+        $this->client->request('GET', '/case/new/confirmation');
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('nu a fost verificat', (string) $this->client->getResponse()->getContent());
+    }
+
+    public function testAPenaltyLargerThanThePrincipalIsFlaggedBeforeFiling(): void
+    {
+        // Case 6 of the lawyer review: 1% a day on 416.855,99 lei ran to
+        // 3,85 million. The figure stays what the clause gives; the lawyer is
+        // told a court may cut it down.
+        $this->primeSessionForStep4(insolvencyCheckedAt: new \DateTimeImmutable('-1 hour'), claim: new Step3ClaimData(
+            amount: 1000.0,
+            currency: 'RON',
+            dueDate: new \DateTimeImmutable('-200 days'),
+            relationshipType: RelationshipType::COMERCIAL,
+            penaltyType: PenaltyType::CONTRACTUAL,
+            contractualPenaltyRate: 1.0,
+        ));
+
+        $this->client->request('GET', '/case/new/confirmation');
+
+        self::assertResponseIsSuccessful();
+        $html = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('depășesc debitul principal (1.000,00 lei)', $html);
+        self::assertStringContainsString('art. 1541', $html);
+    }
+
+    public function testTheAccessoriesStopAtTheDateTheLawyerChose(): void
+    {
+        // 200 days at 1% would be twice the principal; the lawyer asks for the
+        // penalties only up to 190 days ago, i.e. for ten days.
+        $this->primeSessionForStep4(insolvencyCheckedAt: new \DateTimeImmutable('-1 hour'), claim: new Step3ClaimData(
+            amount: 1000.0,
+            currency: 'RON',
+            dueDate: new \DateTimeImmutable('-200 days midnight'),
+            relationshipType: RelationshipType::COMERCIAL,
+            penaltyType: PenaltyType::CONTRACTUAL,
+            contractualPenaltyRate: 1.0,
+            accessoryCutoffDate: new \DateTimeImmutable('-190 days midnight'),
+        ));
+
+        $this->client->request('GET', '/case/new/confirmation');
+
+        $html = (string) $this->client->getResponse()->getContent();
+        self::assertStringNotContainsString('depășesc debitul principal', $html);
+        self::assertStringContainsString('100.00', $html);
+    }
+
+    public function testAnInterestTheCalculatorRefusesIsSaidAtStepFour(): void
+    {
+        // A contract from 2012: the +8 pp margin does not apply to it, so the
+        // interest is left to the lawyer, and the step says why rather than
+        // letting the acts go out without it.
+        $this->primeSessionForStep4(insolvencyCheckedAt: new \DateTimeImmutable('-1 hour'), claim: new Step3ClaimData(
+            amount: 1000.0,
+            currency: 'RON',
+            dueDate: new \DateTimeImmutable('-30 days'),
+            relationshipType: RelationshipType::COMERCIAL,
+            contractDate: new \DateTimeImmutable('2012-05-10'),
+        ));
+
+        $this->client->request('GET', '/case/new/confirmation');
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('Contractul este încheiat înainte de 05.04.2013', (string) $this->client->getResponse()->getContent());
+    }
+
+    public function testAPenaltyWithinThePrincipalRaisesNoSuchFlag(): void
+    {
+        $this->primeSessionForStep4(insolvencyCheckedAt: new \DateTimeImmutable('-1 hour'), claim: new Step3ClaimData(
+            amount: 1000.0,
+            currency: 'RON',
+            dueDate: new \DateTimeImmutable('-30 days'),
+            relationshipType: RelationshipType::COMERCIAL,
+            penaltyType: PenaltyType::CONTRACTUAL,
+            contractualPenaltyRate: 0.1,
+        ));
+
+        $this->client->request('GET', '/case/new/confirmation');
+
+        self::assertStringNotContainsString('depășesc debitul principal', (string) $this->client->getResponse()->getContent());
+    }
+
+    public function testTheSaveButtonWaitsForTheConfirmationsAndARefusalKeepsItsErrors(): void
+    {
+        // A refusal posted through Turbo came back as a 422 page that Turbo
+        // reloaded (new CSP nonce), so the lawyer saw the page refresh and no
+        // error. The button is now held until the boxes are ticked, and the form
+        // posts outside Turbo so a refusal still shows its errors.
+        $this->primeSessionForStep4(insolvencyCheckedAt: new \DateTimeImmutable('-1 hour'));
+
+        $crawler = $this->client->request('GET', '/case/new/confirmation');
+
+        self::assertSame('false', $crawler->filter('#step4-confirmation-form')->attr('data-turbo'));
+        self::assertSame(1, $crawler->filter('button[form="step4-confirmation-form"][data-require-checks-target="submit"]')->count());
+        self::assertSame(2, $crawler->filter('#step4-confirmation-form input[data-require-checks-target="check"]')->count());
+
+        $token = $crawler->filter('form input[name="step4_confirmation[_token]"]')->first()->attr('value');
+        $this->client->request('POST', '/case/new/confirmation', ['step4_confirmation' => ['_token' => $token]]);
+
+        self::assertResponseStatusCodeSame(422);
+        self::assertStringContainsString('Trebuie să accepți termenii de utilizare', (string) $this->client->getResponse()->getContent());
+    }
+
     public function testConfirmationGetShowsErrorAlertWhenDebtorIsAnafRadiat(): void
     {
         $this->primeSessionForStep4(anafStatus: AnafStatus::RADIAT);
@@ -989,6 +1161,27 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         self::assertSame(ContractualAccessoryLabel::MAJORARI_INTARZIERE, $case->getContractualAccessoryLabel());
         self::assertSame('prestarea de servicii de transport', $case->getContractObject());
         self::assertSame('868', $case->getPaymentNoticeNumber());
+    }
+
+    public function testConfirmationPersistsThePenaltyCeilingAndTheCutoffDate(): void
+    {
+        $this->primeSessionForStep4(insolvencyCheckedAt: new \DateTimeImmutable('-1 day'), claim: new Step3ClaimData(
+            amount: 1000.0,
+            currency: 'RON',
+            dueDate: new \DateTimeImmutable('-30 days'),
+            relationshipType: RelationshipType::COMERCIAL,
+            penaltyType: PenaltyType::CONTRACTUAL,
+            contractualPenaltyRate: 0.1,
+            contractualPenaltyCapPercent: 10.0,
+            accessoryCutoffDate: new \DateTimeImmutable('-10 days midnight'),
+        ));
+
+        $case = $this->submitConfirmation();
+
+        self::assertSame('10.00', $case->getContractualPenaltyCapPercent());
+        self::assertSame((new \DateTimeImmutable('-10 days'))->format('Y-m-d'), $case->getAccessoryCutoffDate()?->format('Y-m-d'));
+        // 20 days at 0,1% on 1000 lei, computed up to the cutoff.
+        self::assertSame('20.00', $case->getCalculatedInterest());
     }
 
     public function testStatutoryCaseKeepsNoPenaltyClause(): void
@@ -1311,6 +1504,32 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         $this->postCreditorStep($fields);
         self::assertResponseStatusCodeSame(422);
         self::assertSelectorExists('[data-testid="creditor-library-differs"]');
+    }
+
+    public function testALibraryCreditorWrittenAnotherWayIsTakenWithoutAQuestion(): void
+    {
+        // Case 2 of the lawyer review: the library had "Paval Marco Gabriel" and
+        // "UniCredit Bank", the documents "Pavăl Marco – Gabriel" and
+        // "UNICREDIT BANK SA", and the lawyer was asked to choose between them.
+        $library = $this->libraryCreditor('EXPERT SERVICE SUPPLY SRL', '29098064', 'Strada Preciziei, Nr. 24A, Cladire A1, Parter');
+        $library->setLegalRepresentative('Paval Marco Gabriel');
+        $library->setBankName('UniCredit Bank');
+        $this->em->flush();
+
+        $this->postCreditorStep([
+            'creditorEntity' => '',
+            'personType' => PersonType::PJ->value,
+            'name' => 'SC EXPERT SERVICE SUPPLY S.R.L.',
+            'cui' => '29098064',
+            'onrcNumber' => 'J40/11007/2011',
+            'address' => 'strada Preciziei, numărul 24A, clădire A1, parter',
+            'legalRepresentative' => 'Pavăl Marco – Gabriel',
+            'iban' => 'RO08BACX0000000971852000',
+            'bankName' => 'UNICREDIT BANK SA',
+        ]);
+
+        self::assertResponseRedirects('/case/new/debtor');
+        self::assertSame($library->getId(), $this->storedCreditorDto()->creditorId);
     }
 
     private function libraryCreditor(string $name, string $cui, string $address): Creditor

@@ -39,6 +39,20 @@ final class PartyNameNormalizer
     }
 
     /**
+     * The form of a name to send as `numeParte` to the portal search.
+     *
+     * The portal matches whole words, ignoring case and the old cedilla
+     * diacritics, but finds nothing for "S.R.L." (it stores "SRL") and nothing
+     * for the comma-below "Ș"/"Ț" a modern keyboard types. Dropping the legal
+     * form, the punctuation and every diacritic is what makes the debtor's own
+     * name find its cases (probed against portalquery.just.ro, October 2026).
+     */
+    public static function searchTerm(string $name): string
+    {
+        return self::normalize($name);
+    }
+
+    /**
      * True when the two names refer to the same party. Compares normalized forms
      * and accepts a containment match in either direction ("ACME" ⊂ "ACME GRUP").
      *

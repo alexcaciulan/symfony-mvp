@@ -6,10 +6,12 @@ namespace App\Twig\Components;
 
 use App\DTO\Calculation\CurrencyConversionResult;
 use App\DTO\Calculation\InterestResult;
+use App\DTO\Calculation\PenaltyBreakdownRow;
 use App\DTO\Calculation\PenaltyResult;
 use App\DTO\Calculation\StampDutyResult;
 use App\DTO\Wizard\ClaimItemRow;
 use App\DTO\Wizard\Step3ClaimData;
+use App\Entity\LegalCase;
 use App\Enum\ClaimItemKind;
 use App\Enum\ContractualAccessoryLabel;
 use App\Enum\PenaltyType;
@@ -154,7 +156,24 @@ final class Step3ClaimLiveComponent extends AbstractController
             ?? PenaltyType::LEGAL_PENALIZATOARE;
         $rate = $this->floatFromFormValues('contractualPenaltyRate');
 
-        return $this->positionSummaryCache = $this->positionsSummarizer->summarize($rows, $relationship, $penalty, $rate);
+        return $this->positionSummaryCache = $this->positionsSummarizer->summarize(
+            $rows,
+            $relationship,
+            $penalty,
+            $rate,
+            contractualPenaltyCapPercent: $this->floatFromFormValues('contractualPenaltyCapPercent'),
+            contractDate: $this->dateFromFormValues('contractDate'),
+            referenceDate: $this->referenceDate(),
+        );
+    }
+
+    /**
+     * Today, or the earlier date the lawyer chose to compute the accessories up
+     * to; the same rule the saved case applies.
+     */
+    public function referenceDate(): \DateTimeImmutable
+    {
+        return LegalCase::accessoryDateWithin($this->dateFromFormValues('accessoryCutoffDate'), new \DateTimeImmutable('today'));
     }
 
     public function isContractual(): bool
@@ -301,10 +320,11 @@ final class Step3ClaimLiveComponent extends AbstractController
             return $this->interestService->calculate(
                 amount: $base['amount'],
                 dueDate: $base['dueDate'],
-                referenceDate: new \DateTimeImmutable('today'),
+                referenceDate: $this->referenceDate(),
                 relationshipType: $relationship,
                 currency: 'RON',
                 invoiceDate: $this->getInvoiceDate(),
+                contractDate: $this->dateFromFormValues('contractDate'),
             );
         } catch (\DomainException | \InvalidArgumentException | \RuntimeException) {
             return null;
@@ -324,7 +344,25 @@ final class Step3ClaimLiveComponent extends AbstractController
             return null;
         }
 
-        return $this->penaltyCalculator->calculate($base['amount'], $rate, $base['dueDate'], new \DateTimeImmutable('today'));
+        return $this->penaltyCalculator->calculate(
+            $base['amount'],
+            $rate,
+            $base['dueDate'],
+            $this->referenceDate(),
+            $this->floatFromFormValues('contractualPenaltyCapPercent'),
+        );
+    }
+
+    /** The scalar penalty laid out for the sidebar, with the ceiling the lawyer entered. */
+    public function getPenaltyBreakdown(): ?PenaltyBreakdownRow
+    {
+        $penalty = $this->getPenalty();
+        $base = $this->scalarAccrualBase();
+        if ($penalty === null || $base === null) {
+            return null;
+        }
+
+        return PenaltyBreakdownRow::fromResult($penalty, $base['amount'], $this->floatFromFormValues('contractualPenaltyCapPercent'));
     }
 
     /**
@@ -404,6 +442,14 @@ final class Step3ClaimLiveComponent extends AbstractController
         } catch (\RuntimeException) {
             return null;
         }
+    }
+
+    private function dateFromFormValues(string $key): ?\DateTimeImmutable
+    {
+        $raw = $this->stringFromFormValues($key);
+        $date = $raw !== null ? \DateTimeImmutable::createFromFormat('!Y-m-d', $raw) : false;
+
+        return $date !== false ? $date : null;
     }
 
     public function getInvoiceDate(): ?\DateTimeImmutable

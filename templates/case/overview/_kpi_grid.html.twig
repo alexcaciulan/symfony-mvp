@@ -7,11 +7,10 @@
 {% set stamp_duty = case.stampDuty|default(0)|number_format(2, ',', '.') %}
 {% set due_date_label = case.dueDate ? case.dueDate|date('d.m.Y') : ('case_overview.kpi.no_due_date'|trans) %}
 
-{# Interest days span: from dueDate to the case creation date, matching the reference
-   date of the stored `calculatedInterest` shown in this card (OG 13/2011). #}
+{# Interest days span: from dueDate to the reference date of the stored `calculatedInterest` (OG 13/2011). #}
 {% set interest_days = 0 %}
 {% if case.dueDate %}
-    {% set diff_seconds = (case.createdAt|date('U') - case.dueDate|date('U')) %}
+    {% set diff_seconds = (accessory_reference_date|default(case.createdAt)|date('U') - case.dueDate|date('U')) %}
     {% set interest_days = (diff_seconds / 86400)|round(0, 'floor') %}
     {% if interest_days < 0 %}{% set interest_days = 0 %}{% endif %}
 {% endif %}
@@ -45,10 +44,17 @@
         <div class="mt-1 text-xs text-slate-500">{{ 'case_overview.kpi.principal_due'|trans({'%date%': due_date_label}) }}</div>
     </div>
 
+    {# A contractual penalty is not interest and owes nothing to the BNR rate:
+       it carries the contract's own name and daily rate here, as in the wizard. #}
+    {% set is_contractual = case.penaltyType and case.penaltyType.value == 'CONTRACTUAL' and case.contractualPenaltyRate %}
     <div class="bg-white dark:bg-slate-900 px-6 py-4 lg:px-8">
-        <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ 'case_overview.kpi.interest'|trans }}</div>
+        <div class="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            {{ is_contractual ? (case.contractualAccessoryLabel ? case.contractualAccessoryLabel.label : 'enum.contractual_accessory_label.PENALITATI_INTARZIERE')|trans : 'case_overview.kpi.interest'|trans }}
+        </div>
         <div class="mt-1.5 text-2xl font-bold tnum text-amber-600 dark:text-amber-400">+ {{ interest }}</div>
-        {% if first_period_rate is not null %}
+        {% if is_contractual %}
+            <div class="mt-1 text-xs text-slate-500">{{ (case.contractualPenaltyCapPercent ? 'case_overview.kpi.penalty_hint_capped' : 'case_overview.kpi.penalty_hint')|trans({'%rate%': case.contractualPenaltyRate|number_format(2, ',', '.'), '%cap%': case.contractualPenaltyCapPercent|default(0)|percent_number}) }}</div>
+        {% elseif first_period_rate is not null %}
             <div class="mt-1 text-xs text-slate-500">{{ interest_hint_key|trans({'%days%': interest_days}) }}</div>
         {% endif %}
     </div>

@@ -180,10 +180,30 @@ final class CaseWizardControllerStep0Test extends WebTestCase
         self::assertStringNotContainsString('493.30', $html);
     }
 
-    private function openStep0WithTwoInvoices(): void
+    public function testStep0CardShowsTheFinalInvoiceWhenTheAdvanceIsExcluded(): void
+    {
+        // The final invoice reverses the advance, so only it is claimed. The
+        // card used to show the advance, the one invoice the aggregation kept.
+        $this->openStep0WithTwoInvoices([
+            ['BMI2022730', '2023-12-05', 73555.85, 'Factura avans 15% conform contract 11317/14.11.2023.'],
+            ['BMI2022943', '2024-03-23', 416855.99, 'Echipamente medicale si o linie de storno avans cf BMI2022730/05/12/2023 de -61811.64 fara TVA.'],
+        ]);
+        $card = $this->client->getCrawler()->filter('[data-testid="detected-section-claim"]')->text();
+
+        self::assertStringContainsString('De cerut: 1 factură', $card);
+        self::assertStringContainsString('416.855,99', $card);
+        self::assertStringNotContainsString('73.555,85', $card);
+    }
+
+    /**
+     * @param list<array{0: string, 1: string, 2: float, 3?: string}> $invoices number, due date, amount, description
+     */
+    private function openStep0WithTwoInvoices(array $invoices = [['FF 0036', '2026-02-06', 493.30], ['FF 0038', '2026-03-11', 493.23]]): void
     {
         $ids = [];
-        foreach ([['FF 0036', '2026-02-06', 493.30], ['FF 0038', '2026-03-11', 493.23]] as $i => [$number, $due, $amount]) {
+        foreach ($invoices as $i => $invoice) {
+            [$number, $due, $amount] = $invoice;
+            $description = $invoice[3] ?? 'Servicii software';
             $doc = new Document();
             $doc->setOriginalFilename('invoice-' . $i . '.pdf');
             $doc->setStoredFilename('seed/' . $i . '.pdf');
@@ -192,7 +212,7 @@ final class CaseWizardControllerStep0Test extends WebTestCase
             $doc->setDocumentType(DocumentType::FACTURA);
             $doc->setDetectedType(DocumentType::FACTURA);
             $doc->setUploadedBy($this->em->getReference(User::class, $this->user->getId()));
-            $doc->setContentHash(hash('sha256', 'invoice-' . $i));
+            $doc->setContentHash(hash('sha256', 'invoice-' . $number));
             $doc->setExtractionStatus(ExtractionStatus::COMPLETED);
             $doc->setExtractionConfidence('0.95');
             $doc->setExtractedData([
@@ -201,7 +221,7 @@ final class CaseWizardControllerStep0Test extends WebTestCase
                 'debtors' => [['name' => 'LH Consultancy SRL', 'cui' => 'RO44844397', 'confidencePerField' => ['name' => 0.98, 'cui' => 0.97]]],
                 'claim' => [
                     'amount' => $amount, 'currency' => 'RON', 'dueDate' => $due . 'T00:00:00+00:00',
-                    'legalGround' => 'FACTURA_ACCEPTATA', 'description' => 'Servicii software',
+                    'legalGround' => 'FACTURA_ACCEPTATA', 'description' => $description,
                     'invoiceNumber' => $number, 'invoiceDate' => '2026-01-22T00:00:00+00:00',
                     'confidencePerField' => ['amount' => 0.98, 'currency' => 0.98, 'dueDate' => 0.9, 'legalGround' => 0.85, 'description' => 0.9, 'invoiceNumber' => 0.97, 'invoiceDate' => 0.97],
                 ],

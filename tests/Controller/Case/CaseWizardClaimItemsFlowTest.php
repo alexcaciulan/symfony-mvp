@@ -15,6 +15,7 @@ use App\Entity\InterestRateConfig;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\AnafStatus;
+use App\Enum\PenaltyType;
 use App\Enum\PersonType;
 use App\Enum\RelationshipType;
 use App\Service\AuditLogService;
@@ -200,11 +201,99 @@ final class CaseWizardClaimItemsFlowTest extends WebTestCase
         self::assertResponseIsSuccessful();
         $html = (string) $this->client->getResponse()->getContent();
         // The breakdown is present with more than one BNR period.
-        self::assertStringContainsString('Perioade BNR', $html);
+        self::assertStringContainsString('Cum s-a calculat dobânda (3 perioade BNR)', $html);
         // The two distinct applicable rates over the window (6.75 + 8 and
-        // 6.50 + 8) both appear.
-        self::assertStringContainsString('14.75%', $html);
-        self::assertStringContainsString('14.50%', $html);
+        // 6.50 + 8) both appear, next to the reference rate they rest on, so
+        // the lawyer can redo the figure before the case is saved.
+        self::assertStringContainsString('14,75%', $html);
+        self::assertStringContainsString('14,50%', $html);
+        self::assertStringContainsString('6,75%', $html);
+        self::assertStringContainsString('OG 13/2011, art. 3 alin. 2¹', $html);
+    }
+
+    public function testEachPositionShowsHowItsContractualPenaltyWasComputed(): void
+    {
+        $this->primeSession([$this->penaltyRow()], $this->contractualClaim(cap: null, cutoff: new \DateTimeImmutable('2025-03-23')));
+
+        $this->client->request('GET', '/case/new/claim');
+
+        self::assertResponseIsSuccessful();
+        $breakdown = $this->client->getCrawler()->filter('[data-testid="claim-item-penalty-breakdown"]');
+        self::assertCount(1, $breakdown);
+        $text = $breakdown->text();
+        self::assertStringContainsString('22.02.2025 → 23.03.2025', $text, 'delay starts the day after the due date');
+        self::assertStringContainsString('21.318,90', $text);
+        self::assertStringContainsString('0,10%', $text);
+        self::assertSame('30', trim($breakdown->filter('[data-testid="claim-item-penalty-days"]')->text()));
+        self::assertStringContainsString('639,57', $text);
+        self::assertCount(0, $breakdown->filter('[data-testid="claim-item-penalty-cap-line"]'));
+    }
+
+    public function testACappedPenaltyShowsTheCeilingThatReplacedTheComputedFigure(): void
+    {
+        $this->primeSession([$this->penaltyRow()], $this->contractualClaim(cap: 10.0, cutoff: null));
+
+        $this->client->request('GET', '/case/new/claim');
+
+        self::assertResponseIsSuccessful();
+        $capLine = $this->client->getCrawler()->filter('[data-testid="claim-item-penalty-cap-line"]');
+        self::assertCount(1, $capLine);
+        self::assertSame('Plafon din contract: 10% din 21.318,90 = 2.131,89 lei. Se cere plafonul, nu suma calculată.', trim($capLine->text()));
+    }
+
+    public function testAClaimWithoutPositionsShowsItsPenaltyInTheSidebar(): void
+    {
+        $this->primeSession([], $this->contractualClaim(cap: null, cutoff: new \DateTimeImmutable('2025-03-23')));
+
+        $this->client->request('GET', '/case/new/claim');
+
+        self::assertResponseIsSuccessful();
+        $sidebar = $this->client->getCrawler()->filter('[data-testid="sidebar-penalty-breakdown"]');
+        self::assertCount(1, $sidebar);
+        self::assertStringContainsString('22.02.2025 → 23.03.2025', $sidebar->text());
+        self::assertSame('30', trim($sidebar->filter('[data-testid="sidebar-penalty-days"]')->text()));
+        self::assertStringContainsString('639,57', $sidebar->text());
+        self::assertCount(0, $sidebar->filter('[data-testid="sidebar-penalty-cap-line"]'));
+    }
+
+    public function testTheSidebarStatesTheCeilingTheLawyerEntered(): void
+    {
+        $this->primeSession([], $this->contractualClaim(cap: 7.5, cutoff: null));
+
+        $this->client->request('GET', '/case/new/claim');
+
+        self::assertResponseIsSuccessful();
+        $capLine = $this->client->getCrawler()->filter('[data-testid="sidebar-penalty-cap-line"]');
+        self::assertCount(1, $capLine);
+        self::assertSame('Plafon din contract: 7,5% din 21.318,90 = 1.598,92 lei. Se cere plafonul, nu suma calculată.', trim($capLine->text()));
+    }
+
+    private function penaltyRow(): ClaimItemRow
+    {
+        return new ClaimItemRow(
+            dedupKey: 'inv:KSS-1534',
+            amount: 21318.90,
+            currency: 'RON',
+            documentNumber: 'KSS 1534',
+            documentDate: new \DateTimeImmutable('2025-01-22'),
+            dueDate: new \DateTimeImmutable('2025-02-21'),
+            amountRon: 21318.90,
+            confirmed: true,
+        );
+    }
+
+    private function contractualClaim(?float $cap, ?\DateTimeImmutable $cutoff): Step3ClaimData
+    {
+        return new Step3ClaimData(
+            amount: 21318.90,
+            currency: 'RON',
+            dueDate: new \DateTimeImmutable('2025-02-21'),
+            relationshipType: RelationshipType::COMERCIAL,
+            penaltyType: PenaltyType::CONTRACTUAL,
+            contractualPenaltyRate: 0.1,
+            contractualPenaltyCapPercent: $cap,
+            accessoryCutoffDate: $cutoff,
+        );
     }
 
     public function testStepThreeRefusesToAdvanceWithoutTheTableConfirmation(): void
@@ -284,7 +373,7 @@ final class CaseWizardClaimItemsFlowTest extends WebTestCase
     }
 
     /** @param list<ClaimItemRow> $rows */
-    private function primeSession(array $rows): void
+    private function primeSession(array $rows, ?Step3ClaimData $claim = null): void
     {
         $creditor = new Step1CreditorData(
             personType: PersonType::PJ,
@@ -303,7 +392,7 @@ final class CaseWizardClaimItemsFlowTest extends WebTestCase
             insolvencyCheckedAt: new \DateTimeImmutable('-1 day'),
         );
 
-        $claim = new Step3ClaimData(
+        $claim ??= new Step3ClaimData(
             amount: 6000.0,
             currency: 'RON',
             dueDate: new \DateTimeImmutable('2025-01-31'),
