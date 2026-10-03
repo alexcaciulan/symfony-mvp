@@ -247,6 +247,9 @@ wizard:
         evidence: 'Probe'
         confirmation: 'Confirmare'
     step1:
+        bank_accounts:
+            title: 'Documentele arată %count% conturi ale creditorului:'
+            use: 'Folosește'
         title: 'Date creditor'
         subtitle: 'Pas 1 din 4 · Date creditor. Câmpurile cu badge ⚡ auto au fost detectate automat din documente.'
         library_autosave_hint: 'Creditorul se salvează automat în biblioteca ta la trimiterea dosarului. La dosarele următoare îl alegi din căutarea de mai sus.'
@@ -399,6 +402,7 @@ wizard:
             due_date: 'Scadența trebuie să fie în trecut sau astăzi (creanță exigibilă, CPC art. 1014).'
             contractual_penalty_rate: 'Ex: 0,10 pentru 0,10%/zi de întârziere, conform clauzei contractuale.'
             contractual_penalty_cap: 'Dacă din contract reiese că penalitățile nu pot depăși un procent din valoare (ex: 10%), completează procentul. Se aplică pe fiecare factură.'
+            accessory_cutoff_date: 'Lasă gol pentru calcul până la data actului (azi, data somației). Completează doar dacă vrei să ceri accesoriile până la o dată anterioară.'
             contractual_accessory_label: 'Somația folosește denumirea din contract în toate frazele despre accesorii.'
             penalty_clause_text: 'Se citează în somație. Dacă îl lași gol, somația spune doar că părțile au convenit un mecanism de penalizare pentru întârziere.'
             contract_object: 'Se citește după „având ca obiect”. Ex: prestarea de servicii de transport.'
@@ -462,6 +466,8 @@ wizard:
                 due_date_mismatch: 'Două documente indică scadențe diferite pentru această factură. Alege scadența corectă înainte de a confirma.'
                 credit_note: 'Document de stornare: scade din creanță, nu se adaugă la ea, și nu produce dobândă.'
                 advance_settled_by_final: 'Avansul este stornat în factura finală din dosar, al cărei total îl scade deja. De aceea poziția e exclusă. Dacă avansul nu a fost plătit, debifează „Exclude”: atunci este datorat separat.'
+                balance_summarizes_invoices: 'Documentul rezumă facturile aflate deja în dosar, așa că nu se cere separat și poziția e exclusă. Dacă nu ai încărcat toate facturile, include-l și verifică suma.'
+                balance_below_invoices: 'Soldul din acest document este mai mic decât totalul facturilor pe care le rezumă: diferența poate reprezenta plăți deja încasate, dar și compensări sau stornări. Verifică și corectează suma facturilor achitate parțial sau integral (imputația plății o faci tu, C. civ. art. 1507-1509).'
                 final_invoice_settles_advance: 'Factura finală stornează avansul pe unul dintre rânduri, iar totalul ei este deja diferența rămasă de plată.'
                 deduction_mentioned: 'Documentul menționează un scăzământ (avans, garanție reținută, plată parțială). Suma cerută rămâne totalul facturat: imputația plății o faci tu (C. civ. art. 1507-1509).'
                 payment_in_statement: 'Extrasul de cont indică o plată care se referă la această factură. Suma cerută rămâne totalul facturat: imputația plății o faci tu (C. civ. art. 1507-1509).'
@@ -535,6 +541,7 @@ wizard:
             penalty_type: 'Mod calcul accesorii'
             contractual_penalty_rate: 'Rată penalitate (%/zi)'
             contractual_penalty_cap: 'Plafon penalități (% din sumă)'
+            accessory_cutoff_date: 'Accesorii calculate până la'
             contract_reference: 'Referință clauză contract'
             penalty_clause_article: 'Articolul clauzei contractuale'
             penalty_clause_text: 'Textul clauzei contractuale'
@@ -555,6 +562,7 @@ wizard:
             penalty_clause_text: 'Copiază clauza din contract, cuvânt cu cuvânt.'
             contract_object: 'Ex: prestarea de servicii de transport'
     step4:
+        confirm_hint: 'Bifează confirmările de mai sus ca să poți salva dosarul.'
         bpi_label: 'Verificare Legea 85/2014'
         claim_items:
             title: 'Poziții de creanță incluse în dosar'
@@ -700,7 +708,7 @@ wizard:
             failed: 'Eșec extracție'
         detected_data:
             title: 'Date detectate'
-            positions_total: 'Total %count% facturi'
+            positions_total: '{1} De cerut: 1 factură|]1,Inf[ Total %count% facturi'
             earliest_due_date: 'Cea mai veche scadență'
             empty: 'Încarcă documente pentru a vedea valorile extrase.'
             creditor: 'Creditor'
@@ -989,6 +997,7 @@ case_overview:
         positions_amount: 'Sumă'
         positions_interest: 'Dobândă'
         positions_hint: 'Dobânda se calculează separat pentru fiecare poziție, de la scadența ei (C. civ. art. 1535), la data creării dosarului.'
+        positions_hint_contractual: 'Penalitățile se calculează separat pentru fiecare poziție, din ziua următoare scadenței ei, cu rata zilnică din contract, la data creării dosarului.'
         breakdown_zero: 'Nu există încă dobândă acumulată (data scadenței este în viitor).'
         contractual_formula: 'Penalitățile se calculează din ziua următoare scadenței fiecărei facturi: suma × %rate%% × zile de întârziere, conform clauzei din contract, nu după rata BNR.'
     court:
@@ -2586,6 +2595,7 @@ exception:
     calculation:
         interest_rate_missing: 'Nu există o rată de referință BNR pentru data scadenței (istoricul începe la 01.09.2011). Calculează dobânda manual.'
         before_professional_margin: 'Scadența este anterioară datei de 05.04.2013. Marja de 8 puncte procentuale între profesioniști se aplică doar contractelor încheiate după intrarea în vigoare a Legii 72/2013; calculează dobânda manual.'
+        contract_before_professional_margin: 'Contractul este încheiat înainte de 05.04.2013. Marja de 8 puncte procentuale între profesioniști se aplică doar contractelor încheiate după intrarea în vigoare a Legii 72/2013; calculează dobânda manual.'
         currency_unsupported: 'Calculul dobânzii este disponibil doar pentru creanțe în RON. Suportul pentru valută va fi adăugat ulterior.'
         exchange_rate_missing: 'Nu există un curs valutar BNR pentru moneda și data facturii. Importă cursurile (app:import-exchange-rates) sau verifică data emiterii.'
 
@@ -2627,6 +2637,8 @@ validation:
         OP_ITEM_PRESCRIBED: 'O poziție de creanță are scadența mai veche de 3 ani, deci termenul de prescripție pare împlinit (C. civ. art. 2517, care curge de la scadența fiecărei facturi). Instanța NU aplică prescripția din oficiu (art. 2512), dar debitorul o poate invoca, iar în procedura ordonanței de plată o apărare care cere probe suplimentare poate atrage respingerea cererii, creditorul fiind îndrumat spre dreptul comun (CPC art. 1021 alin. 2). Decide expres dacă păstrezi acest capăt.'
         OP_ITEM_UNIMPUTED_PAYMENT: 'O poziție de creanță are o plată înregistrată care nu a fost imputată. Suma cerută rămâne cea facturată, pentru că imputația se face după C. civ. art. 1507-1509 și este decizia ta. Verifică dacă suma solicitată mai este certă (CPC art. 1014 alin. 1).'
         OP_ITEM_STATED_DEDUCTION: 'O poziție de creanță menționează în descriere un scăzământ (avans, reținere de garanție, plată parțială). Suma cerută este totalul facturat, nu diferența. Verifică documentul și, dacă este cazul, corectează poziția înainte de depunere: o creanță parțial încasată nu este certă (CPC art. 1014 alin. 1).'
+        OP_BALANCE_BELOW_INVOICES: 'Soldul din fișa de cont sau din confirmarea de sold este mai mic decât totalul facturilor din dosar. Diferența poate reprezenta plăți deja încasate, dar și compensări sau stornări. Suma cerută rămâne cea facturată: verifică dacă mai este certă (CPC art. 1014 alin. 1) și corectează pozițiile achitate (imputația plății o faci tu, C. civ. art. 1507-1509).'
+        OP_PENALTY_EXCEEDS_PRINCIPAL: 'Penalitățile contractuale (%penalty% lei) depășesc debitul principal (%principal% lei). Depășirea principalului nu e un prag legal, dar e un semn de verificat: instanța poate reduce penalitatea dacă o găsește vădit excesivă față de prejudiciul ce putea fi prevăzut la încheierea contractului (C. civ. art. 1541 alin. 1 lit. b), iar o apărare a debitorului pe acest temei poate duce la respingerea cererii, cu îndrumarea creditorului spre dreptul comun (CPC art. 1021 alin. 2). Decide dacă ceri integral suma.'
         OP_DEBT_NOT_YET_DUE: 'Scadența creanței este în viitor. Creanța nu este exigibilă (CPC art. 1014), iar cererea de ordonanță de plată este inadmisibilă: nu se poate solicita plata înainte de scadență. Corectează data scadenței sau așteaptă împlinirea termenului.'
 
 # =============================================================================

@@ -62,7 +62,7 @@ final class DetectedDataPreviewBuilder
         return [
             $this->party('creditor', 1, $creditor, $creditor->autoFilled, self::CREDITOR_OPTIONAL, $this->conflictFields($conflicts, ConflictScope::CREDITOR), false),
             $this->party('debtor', 2, $debtor, $debtor->autoFilled, self::DEBTOR_OPTIONAL, $this->conflictFields($conflicts, ConflictScope::DEBTOR), $this->hasScope($conflicts, ConflictScope::DEBTOR_SET)),
-            $this->claim($claim, $this->conflictFields($conflicts, ConflictScope::CLAIM), $positions),
+            $this->claim($claim, [...$this->conflictFields($conflicts, ConflictScope::CLAIM), ...$this->conflictFields($conflicts, ConflictScope::CLAIM_ITEM)], $positions),
         ];
     }
 

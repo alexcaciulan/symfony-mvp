@@ -313,6 +313,8 @@ final class CaseWizardConflictsTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertStringContainsString('ALINA BIANCA BALAN', $crawler->filter('[data-testid="step0-consumer-debtor"]')->text());
+        // Nothing invites filling in a CUI for a debtor the file cannot take.
+        self::assertStringNotContainsString('De completat la pasul 2', $crawler->filter('body')->text());
         $continue = $crawler->filter('form[action="/case/new/creditor"] button');
         self::assertNotNull($continue->attr('disabled'));
     }
@@ -360,6 +362,92 @@ final class CaseWizardConflictsTest extends WebTestCase
         self::assertNull($this->em->find(Document::class, $ids[1]));
         $crawler = $this->client->request('GET', '/case/new/creditor');
         self::assertSame(0, $crawler->filter('[data-testid="prefill-conflicts"]')->count(), 'the two creditors no longer disagree');
+    }
+
+    public function testEveryAccountTheInvoicesPrintIsOfferedWithItsBank(): void
+    {
+        // Case 6 of the lawyer review: the invoice lists Treasury, Banca
+        // Transilvania and ING accounts; only one reached the form.
+        $invoice = $this->creditorPayload('Bluebox Medical SRL', '36155448');
+        $invoice['creditor']['iban'] = 'RO38TREZ4215069XXX016973';
+        $invoice['creditor']['bankAccounts'] = [
+            ['iban' => 'RO38TREZ4215069XXX016973', 'bankName' => 'Trezoreria Ilfov'],
+            ['iban' => 'RO96 BTRL RONC RT03 5026 2601', 'bankName' => 'BANCA TRANSILVANIA'],
+            ['iban' => 'RO81INGB0000999912851953', 'bankName' => 'ING BANK ROMANIA'],
+            ['iban' => 'not an iban', 'bankName' => 'Banca X'],
+        ];
+        $this->primeDocuments([$invoice]);
+
+        $crawler = $this->client->request('GET', '/case/new/creditor');
+
+        $list = $crawler->filter('[data-testid="creditor-bank-accounts"]');
+        self::assertSame(1, $list->count());
+        self::assertSame(3, $list->filter('li')->count(), 'the malformed entry is not offered');
+        self::assertStringContainsString('RO96BTRLRONCRT0350262601', $list->text());
+        self::assertStringContainsString('ING BANK ROMANIA', $list->text(), 'the document wording is kept when it fits the account');
+        self::assertStringContainsString('Trezoreria Ilfov', $list->text());
+    }
+
+    public function testASingleAccountNeedsNoChoice(): void
+    {
+        $invoice = $this->creditorPayload('Bluebox Medical SRL', '36155448');
+        $invoice['creditor']['iban'] = 'RO96BTRLRONCRT0350262601';
+        $this->primeDocuments([$invoice]);
+
+        $crawler = $this->client->request('GET', '/case/new/creditor');
+
+        self::assertSame(0, $crawler->filter('[data-testid="creditor-bank-accounts"]')->count());
+    }
+
+    public function testTheStepZeroTotalCountsTheSameInvoiceOnce(): void
+    {
+        // Case 2 of the lawyer review: the transaction restates invoice
+        // ESSPN 0993 with the interest added, and the card showed both sums
+        // added up (58.608,72) although the claim table keeps one.
+        $this->primeDocuments([
+            $this->invoicePayload('ESSPN 0993', 27340.0, '2022-04-07'),
+            $this->invoicePayload('ESSPN 0993', 31268.72, '2023-05-31'),
+        ]);
+
+        $crawler = $this->client->request('GET', '/case/new/documents');
+
+        $body = $crawler->filter('body')->text();
+        self::assertStringNotContainsString('58.608,72', $body);
+        // Neither sum is presented as settled: the choice is the lawyer's.
+        self::assertStringContainsString('Aceeași factură apare cu sume diferite', $body);
+        self::assertStringContainsString('de ales la pasul 3', $body);
+    }
+
+    public function testTheStepZeroTotalAddsDistinctInvoices(): void
+    {
+        $this->primeDocuments([
+            $this->invoicePayload('FF-1', 1000.0, '2026-01-10'),
+            $this->invoicePayload('FF-2', 2500.5, '2026-02-10'),
+        ]);
+
+        $crawler = $this->client->request('GET', '/case/new/documents');
+
+        self::assertStringContainsString('3.500,50', $crawler->filter('body')->text());
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function invoicePayload(string $number, float $amount, string $dueDate): array
+    {
+        return [
+            'schemaVersion' => 2,
+            'strategy' => 'ai_vision',
+            'globalConfidence' => 0.9,
+            'claim' => [
+                'amount' => $amount,
+                'currency' => 'RON',
+                'invoiceNumber' => $number,
+                'invoiceDate' => '2022-03-31',
+                'dueDate' => $dueDate,
+                'confidencePerField' => ['amount' => 0.95, 'currency' => 0.95, 'invoiceNumber' => 0.95, 'dueDate' => 0.95],
+            ],
+        ];
     }
 
     public function testRemovalWithoutAValidTokenIsRefused(): void

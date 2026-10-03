@@ -71,6 +71,8 @@ wizard:
             penalty_rate_too_high: 'The daily rate seems too high (max 5%/day). Check the value in the contract.'
             penalty_cap_positive: 'The ceiling must be a positive percentage.'
             penalty_cap_too_high: 'The ceiling cannot exceed 100%.'
+            accessory_cutoff_future: 'The date the accessories are computed up to cannot be in the future.'
+            accessory_cutoff_before_due: 'The date the accessories are computed up to must be after the due date; otherwise nothing is claimed for the delay.'
             legal_costs_fixed_positive: 'The fixed fee cannot be negative.'
             legal_costs_percent_range: 'The success fee percentage must be between 0 and 100.'
             contract_reference_too_long: 'The contract reference is too long (max 255 characters). Shorten it.'

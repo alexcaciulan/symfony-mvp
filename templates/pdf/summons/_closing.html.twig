@@ -8,9 +8,9 @@
 {% if creditor and creditor.iban %}
     <p>
         {%- if creditor.bankName -%}
-            {{ 'pdf.summons.closing.account_with_bank'|trans({'%iban%': creditor.iban, '%bank%': creditor.bankName, '%creditor%': creditor.name}) }}
+            {{ 'pdf.summons.closing.account_with_bank'|trans({'%iban%': creditor.iban, '%bank%': creditor.bankName, '%creditor%': creditor.name|trim('.', 'right')}) }}
         {%- else -%}
-            {{ 'pdf.summons.closing.account'|trans({'%iban%': creditor.iban, '%creditor%': creditor.name}) }}
+            {{ 'pdf.summons.closing.account'|trans({'%iban%': creditor.iban, '%creditor%': creditor.name|trim('.', 'right')}) }}
         {%- endif -%}
     </p>
 {% endif %}

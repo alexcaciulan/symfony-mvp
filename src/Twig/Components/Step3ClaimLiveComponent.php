@@ -10,6 +10,7 @@ use App\DTO\Calculation\PenaltyResult;
 use App\DTO\Calculation\StampDutyResult;
 use App\DTO\Wizard\ClaimItemRow;
 use App\DTO\Wizard\Step3ClaimData;
+use App\Entity\LegalCase;
 use App\Enum\ClaimItemKind;
 use App\Enum\ContractualAccessoryLabel;
 use App\Enum\PenaltyType;
@@ -160,7 +161,18 @@ final class Step3ClaimLiveComponent extends AbstractController
             $penalty,
             $rate,
             contractualPenaltyCapPercent: $this->floatFromFormValues('contractualPenaltyCapPercent'),
+            contractDate: $this->dateFromFormValues('contractDate'),
+            referenceDate: $this->referenceDate(),
         );
+    }
+
+    /**
+     * Today, or the earlier date the lawyer chose to compute the accessories up
+     * to; the same rule the saved case applies.
+     */
+    public function referenceDate(): \DateTimeImmutable
+    {
+        return LegalCase::accessoryDateWithin($this->dateFromFormValues('accessoryCutoffDate'), new \DateTimeImmutable('today'));
     }
 
     public function isContractual(): bool
@@ -307,10 +319,11 @@ final class Step3ClaimLiveComponent extends AbstractController
             return $this->interestService->calculate(
                 amount: $base['amount'],
                 dueDate: $base['dueDate'],
-                referenceDate: new \DateTimeImmutable('today'),
+                referenceDate: $this->referenceDate(),
                 relationshipType: $relationship,
                 currency: 'RON',
                 invoiceDate: $this->getInvoiceDate(),
+                contractDate: $this->dateFromFormValues('contractDate'),
             );
         } catch (\DomainException | \InvalidArgumentException | \RuntimeException) {
             return null;
@@ -334,7 +347,7 @@ final class Step3ClaimLiveComponent extends AbstractController
             $base['amount'],
             $rate,
             $base['dueDate'],
-            new \DateTimeImmutable('today'),
+            $this->referenceDate(),
             $this->floatFromFormValues('contractualPenaltyCapPercent'),
         );
     }
@@ -416,6 +429,14 @@ final class Step3ClaimLiveComponent extends AbstractController
         } catch (\RuntimeException) {
             return null;
         }
+    }
+
+    private function dateFromFormValues(string $key): ?\DateTimeImmutable
+    {
+        $raw = $this->stringFromFormValues($key);
+        $date = $raw !== null ? \DateTimeImmutable::createFromFormat('!Y-m-d', $raw) : false;
+
+        return $date !== false ? $date : null;
     }
 
     public function getInvoiceDate(): ?\DateTimeImmutable

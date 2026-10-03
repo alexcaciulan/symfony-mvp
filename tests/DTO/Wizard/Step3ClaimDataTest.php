@@ -51,6 +51,19 @@ final class Step3ClaimDataTest extends KernelTestCase
         );
     }
 
+    public function testACutoffDateMustFallBetweenTheDueDateAndToday(): void
+    {
+        $base = ['amount' => 1500.0, 'currency' => 'RON', 'dueDate' => new \DateTimeImmutable('-30 days'), 'relationshipType' => RelationshipType::COMERCIAL];
+
+        $before = $this->messageTemplates($this->validator->validate(new Step3ClaimData(...$base, accessoryCutoffDate: new \DateTimeImmutable('-40 days'))));
+        $future = $this->messageTemplates($this->validator->validate(new Step3ClaimData(...$base, accessoryCutoffDate: new \DateTimeImmutable('+5 days'))));
+        $within = $this->validator->validate(new Step3ClaimData(...$base, accessoryCutoffDate: new \DateTimeImmutable('-10 days')));
+
+        self::assertContains('wizard.step3.error.accessory_cutoff_before_due', $before);
+        self::assertContains('wizard.step3.error.accessory_cutoff_future', $future);
+        self::assertCount(0, $within, (string) $within);
+    }
+
     public function testNegativeAmountIsRejected(): void
     {
         $dto = new Step3ClaimData(

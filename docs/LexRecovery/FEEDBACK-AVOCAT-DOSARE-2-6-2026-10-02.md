@@ -84,11 +84,54 @@ Verificate live, fără probleme: banca derivată din IBAN (ING), statusul ANAF 
 
 Nu am generat live cererea de ordonanță de plată (cere data comunicării somației și curgerea termenului); calculul ei folosește același agregator cu plafon, acoperit de teste.
 
+### 2.7 A doua tură (02.10.2026): puncte din §3 cu soluție clară, implementate
+- **§3.7, penalități vădit excesive:** avertisment la Pasul 4 când penalitățile contractuale depășesc principalul, cu sumele și cu trimitere la C. civ. art. 1541 alin. 1 lit. b și CPC art. 1021 alin. 2. Suma rămâne cea din clauză; decizia e a avocatului. Verificat live la Dosarul 6 (3.847.580,79 lei față de 416.855,99 lei).
+- **§3.11, contracte dinainte de 05.04.2013:** când data contractului e cunoscută și e anterioară, dobânda cu marja de +8 pp nu se mai calculează (mesaj: „calculează dobânda manual”). Totodată, instanța competentă se stabilește acum și când dobânda nu poate fi calculată (competența depinde doar de principal).
+- **§3.5, mai multe conturi:** extracția întoarce toate conturile creditorului de pe fiecare document. La Pasul 1, sub IBAN, apar toate conturile găsite, fiecare cu banca lui, și un buton „Folosește” care completează contul și banca împreună. Verificat live: la Dosarul 6 apar 4 conturi (Trezoreria sectorului 1, Trezoreria Ilfov, Banca Transilvania, ING).
+- **§3.4 A, data până la care se calculează:** câmp opțional „Accesorii calculate până la” la Pasul 3, salvat pe dosar și aplicat în wizard, în pagina dosarului, în somație și în cerere. Somația păstrează data ei, iar textul „calculate până la data de …” folosește data aleasă. Verificat live: până la 02.04.2024, penalitatea Dosarului 6 e 41.685,60 lei.
+- **Din review-ul tehnic:** lista de câmpuri închise de ANAF nu mai e duplicată în JS; vine din constanta PHP.
+- **Din review-ul juridic al turei a doua:**
+  - Avertismentul pentru penalitate excesivă spune acum explicit că depășirea principalului nu e un prag legal, iar criteriul din art. 1541 e prejudiciul previzibil la încheierea contractului.
+  - O dobândă pe care calculul o refuză (contract dinainte de 2013, rată BNR lipsă) apare acum ca avertisment la Pasul 4, cu motivul. Somația și cererea nu mai pot pleca fără ea fără ca avocatul să știe.
+  - Data-limită trebuie să fie după scadență și nu în viitor.
+- Review final: juridic `LEGAL-CLEAN`, tehnic `COMMIT-READY`. Rămâne o sugestie de structură: mutarea a două funcții din controller în servicii.
+
+### 2.8 Reverificare live Dosarul 2 (03.10.2026)
+Am creat dosare noi cu documentele Dosarului 2 (#86 de către utilizator, #87 cap-coadă până la somație). Feedback-ul e adresat. Am găsit și reparat trei bug-uri:
+- **Totalul de la Pasul 0 aduna dublura:** când tranzacția era clasificată „confirmare de sold”, cardul arăta „Total 2 facturi 58.608,72” (factura + tranzacția). Acum numără doar pozițiile care rămân în creanță și marchează suma „de ales la pasul 3” când documentele dau sume diferite pentru aceeași factură.
+- **Biblioteca de creditori întreba de diacritice:** „Paval Marco Gabriel” față de „Pavăl Marco – Gabriel”. Comparația cu biblioteca (creditori și debitori) folosește acum aceeași regulă de echivalență ca panoul de divergențe, extinsă la denumirea firmei („SC … S.R.L.” = „… SRL”) și la bancă („UNICREDIT BANK SA” = „UniCredit Bank”).
+- **„Cauză / contract: 453”:** AI-ul punea numărul somației anterioare drept număr de contract. Promptul interzice acum explicit numărul unei somații, notificări sau facturi în acest câmp. Verificat la re-extracție.
+
+### 2.9 Reverificare live Dosarul 3 (03.10.2026, dosarul #91)
+- **Reprodusă și reparată eroarea raportată de avocat (371.712,60 în loc de 169.251,60):** când fișa de cont e clasificată „confirmare de sold”, soldul ei devenea a 7-a poziție, adunată peste cele 6 facturi pe care le rezumă. Acum o confirmare de sold fără număr propriu, care pomenește facturi aflate deja în dosar, e exclusă implicit, cu explicație. Dacă soldul ei e mai mic decât totalul facturilor, poziția semnalează că diferența sunt plăți încasate, de imputat de avocat. Ieri bug-ul nu apăruse, pentru că fișa fusese clasificată „alt document”.
+- Flux complet verificat: ANAF închide divergențele ambelor părți (sediul real al creditorului: Târgu Neamț, Str. Cuza Vodă 100A), cele 3 conturi apar cu banca lor, penalitatea 0,02%/zi e preluată din contract, iar după corectarea facturii 23381 la 456,60 principalul e exact 169.251,60. Instanța e Judecătoria Buftea. Somația e coerentă.
+- Text corectat pe pagina dosarului: nota de sub tabelul de poziții spunea „Dobânda se calculează…” și la penalitățile contractuale.
+- Rămân deschise, conform documentului de decizii: plățile din fișă aplicate automat (punctul 9), penalitățile pentru facturile plătite cu întârziere (punctul 2), scadența din contract (punctul 3).
+
+### 2.10 Reverificare live Dosarul 4 (03.10.2026)
+- Factura avocatului (debitor ALINA BIANCA BALAN, persoană fizică) oprește dosarul la Pasul 0: apare mesajul despre debitorul consumator, iar „Continuă cu datele extrase” e dezactivat.
+- Blocarea nu poate fi ocolită prin adresă: la Pasul 2 debitorul e forțat ca PJ, cu mesajul că persoanele fizice neautorizate nu sunt acceptate, iar pasul cere CUI și număr de înregistrare.
+- Corectat: cardul de la Pasul 0 spunea totuși „De completat la pasul 2: CUI, Reg. Comerțului” pentru acest debitor. Nu mai apare.
+
+### 2.11 Reverificare live Dosarul 5 (03.10.2026, dosarul #92)
+Contractul și factura sunt clasificate corect; AI-ul citește plafonul de 10% și penalitatea de 0,1% pe zi. Nicio divergență la creditor; la debitor, sincronizarea ANAF închide divergența de adresă. Pasul 3 arată „Între profesioniști · penalități din contract” și 2.131,89 lei „Plafonat conform contractului”; data „Accesorii calculate până la” 23.03.2025 dă 639,57 lei. Pasul 4 fără avertismente false: 21.318,90 + 2.131,89 = 23.450,79 lei, Judecătoria Sectorului 3 București. Somația are rândul plafonat, nota de plafon și totaluri concordante. Constatat nou: contractul spune că penalitatea curge „din prima zi lucrătoare după scadență”, platforma pornește din ziua următoare scadenței (punctul 7b din documentul de decizii).
+
+### 2.12 Reverificare live Dosarul 6 (03.10.2026, dosarul #93)
+Contractul, cele două facturi și fișa sunt clasificate corect (fișa ca extras de cont, fără poziție proprie). Avansul BMI2022730 e exclus automat, cu explicație; fișa confirmă că a fost încasat pe 04.12.2023. Pasul 1 oferă toate cele 4 conturi ale creditorului (două la Trezorerie, Transilvania, ING); am ales ING și contul a rămas până în somație. Sincronizarea ANAF închide divergențele de adresă la creditor (biroul E8-05) și la debitor (sediul actual: Str. Răscoalei 46, Pantelimon, Ilfov, diferit de ambele documente). Pasul 4 afișează avertismentul de penalități excesive (3.851.749,35 lei față de 416.855,99 lei); instanța e Tribunalul Ilfov (principal peste 200.000 lei). Somația: 924 de zile × 1% × 416.855,99 = 3.851.749,35 lei, plata în contul ING.
+
+Corectate la reverificare:
+- Cardul de la Pasul 0 arăta suma avansului exclus (73.555,85) în loc de factura finală. Acum arată „De cerut: 1 factură 416.855,99 RON” când o altă factură a fost exclusă. Aceeași factură citită din două documente rămâne ca înainte, cu divergența ei.
+- Ecranul de comparare cu biblioteca întreba de bancă pentru „ING Bank” față de „ING BANK ROMANIA”. Numele țării nu mai contează la comparare.
+- Somația scria „titular BLUEBOX MEDICAL S.R.L..” (punct dublu). Punctul final al denumirii nu se mai dublează.
+
+Observație: avertismentul „Extrasul de cont conține încasări care nu au putut fi legate” apare și aici, deși fișa leagă fiecare încasare de factura ei (niciuna de factura finală). AI-ul rezumă fișa fără lista plăților, deci aplicația nu poate verifica. Ține de punctul 9 (plățile din fișă).
+
 ## 3. De decis cu tine
 
 Pentru fiecare punct: întrebarea, opțiunile și recomandarea mea.
 
 ### 3.1 Dosarul 2: cum se cere o creanță recunoscută prin tranzacție
+*Constatat la reverificare:* clasificarea tranzacției variază de la o rulare la alta („contract” sau „confirmare de sold”). În primul caz tranzacția nu devine poziție și nu se pune nicio întrebare; în al doilea, avocatul alege între factură și tranzacție. În ambele cazuri, somația numește „Contractul încheiat la 16.05.2023” (data tranzacției), iar cauza poziției devine tranzacția, deși factura vine din contractul de vânzare-cumpărare. O regulă clară pentru tranzacții le-ar elimina pe toate.
 Tranzacția din 16.05.2023 recunoaște 31.268,72 lei (27.340 principal + 3.928,72 dobândă legală până la 27.04.2023), plătibili în 5 rate, cu decădere din beneficiul termenului.
 - **A.** Factura: 27.340 lei cu dobândă legală de la 08.04.2022 până azi. Simplu și fără dobândă la dobândă, dar ignoră tranzacția.
 - **B.** Tranzacția: 31.268,72 lei, cu dobândă legală pe fiecare rată de la scadența ei (sau pe tot de la prima rată neplătită, prin decădere). Include dobânda capitalizată de 3.928,72, iar dobânda la dobândă (anatocismul) cere acordul părților (OG 13/2011, art. 10). Trebuie confirmat dacă tranzacția îl conține.
@@ -107,20 +150,20 @@ AI-ul citește corect fișa („23381 rest 456,60; achitate integral: 20951, 209
 - **Recomandare:** de făcut, cu plan dedicat (aproximativ 3 zile): depinde de 3.2 (data plății) și de formularea juridică a capătului de cerere pentru accesorii la sume deja plătite. De confirmat cu avocatul.
 - Legat: contractul spune „plata în 4 zile de la facturare”, iar fișa are scadența egală cu data facturii. Care scadență se folosește? Recomandare: termenul din contract, când facturile nu au alt termen explicit.
 
-### 3.4 Dosarul 5: data până la care se calculează și modificarea manuală
+### 3.4 Dosarul 5: modificarea manuală a penalităților (data-limită e făcută, §2.7)
 - **A.** Câmp „Calculează accesoriile până la data de” (implicit: azi sau data somației/cererii).
 - **B.** Suprascriere manuală a sumei accesoriilor pe poziție, cu mențiune în audit.
 - **Recomandare:** A da (simplu, verificabil). B doar cu motiv obligatoriu, pentru că o sumă tastată nu mai poate fi verificată de instanță din formulă.
 - Tot aici: plafonul de 10% se aplică acum pe fiecare factură („valoarea prestației” = factura). Dacă avocatul înțelege valoarea întregului contract, trebuie schimbat.
 
-### 3.5 Dosarul 6: facturi cu mai multe conturi
+### 3.5 Dosarul 6: facturi cu mai multe conturi (făcut, §2.7)
 Factura are 3 IBAN-uri (Trezorerie, Transilvania, ING); extracția îl reține doar pe unul.
 - **Recomandare:** extracția să întoarcă toate conturile de pe document, iar Pasul 1 să le ofere ca listă (cu banca alături). Cere schimbarea schemei AI. Efort: aproximativ 1 zi.
 
 ### 3.6 „Formatul codului IBAN” (Dosarele 3 și 6)
 Nu e clar ce înseamnă. Posibilități: afișarea în grupe de câte 4 („RO24 CECE NT04 …”) în acte și în ecran; acceptarea spațiilor (deja funcționează); un format greșit citit de AI. **De întrebat avocatul**, cu un exemplu.
 
-### 3.7 Dosarul 6: penalități vădit excesive
+### 3.7 Dosarul 6: penalități vădit excesive (avertismentul e făcut, §2.7; rămâne de confirmat textul cu avocatul)
 1% pe zi duce la 3,85 mil. lei pe un principal de 416.855,99 lei. Instanța poate reduce penalitatea vădit excesivă (C. civ. art. 1541 alin. 1 lit. b), iar în ordonanța de plată o apărare serioasă a debitorului poate trimite creditorul la dreptul comun.
 - **Recomandare:** avertisment la Pasul 4 când accesoriile depășesc principalul, cu trimitere la art. 1541. Fără plafonare automată. De confirmat cu avocatul.
 
@@ -139,7 +182,7 @@ Avocatul propune oprirea căutării după ce se cunoaște primul termen și relu
 3. **Avansul stornat în factura finală e exclus implicit**, cu explicație și posibilitate de reincludere. Alternativa e să rămână inclus, cu avertisment.
 4. **Debitorul persoană fizică e oprit la Pasul 0.** Un PFA cu CUI trece; o persoană fizică profesionistă fără CUI pe documente ar fi oprită (poate continua manual).
 
-### 3.11 Contracte încheiate înainte de 05.04.2013
+### 3.11 Contracte încheiate înainte de 05.04.2013 (făcut, §2.7; rămâne de confirmat regula de aplicare în timp)
 Garda folosește scadența, nu data contractului, pe care calculul nu o primește. O factură scadentă după 05.04.2013, emisă pe un contract mai vechi, primește încă marja de +8. Cazul e rar, din cauza prescripției.
 - **Recomandare:** dacă data contractului e cunoscută și e anterioară datei de 05.04.2013, aplicăm aceeași gardă. Aștept confirmarea că regula de aplicare în timp este data încheierii contractului (art. 16 din Legea 72/2013).
 

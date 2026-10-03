@@ -46,6 +46,7 @@ final class ClaimInterestAggregator
         ?float $contractualDailyRate = null,
         InterestKind $kind = InterestKind::PENALIZATOARE,
         ?float $contractualPenaltyCapPercent = null,
+        ?\DateTimeImmutable $contractDate = null,
     ): AggregatedAccessoryResult {
         $isContractual = $penaltyType === PenaltyType::CONTRACTUAL
             && $contractualDailyRate !== null
@@ -103,6 +104,7 @@ final class ClaimInterestAggregator
                     kind: $kind,
                     currency: 'RON',
                     invoiceDate: $item->getDocumentDate(),
+                    contractDate: $contractDate,
                 );
             } catch (\RuntimeException | \InvalidArgumentException $e) {
                 // A DomainException is not a position that cannot accrue, it is

@@ -135,7 +135,7 @@
                     </tbody>
                 </table>
             </div>
-            <p class="mt-2 text-[11px] text-slate-500">{{ 'case_overview.claim.positions_hint'|trans }}</p>
+            <p class="mt-2 text-[11px] text-slate-500">{{ (is_contractual ? 'case_overview.claim.positions_hint_contractual' : 'case_overview.claim.positions_hint')|trans }}</p>
 
             {# Per-invoice BNR period breakdown, restored for multi-invoice claims. Each
                interest-bearing invoice accrues from its own due date, so the periods are

@@ -3,6 +3,7 @@
 namespace App\Service\Validation;
 
 use App\DTO\Validation\AdmissibilityIssue;
+use App\DTO\Wizard\ClaimItemRow;
 use App\Entity\LegalCaseDebtor;
 use App\Entity\LegalCase;
 use App\Enum\AnafStatus;
@@ -24,6 +25,7 @@ use App\Service\Case\ClaimTextSignals;
  *   0c. due date older than 3 years       → WARNING OP_ITEM_PRESCRIBED
  *   0d. payment recorded, not imputed     → WARNING OP_ITEM_UNIMPUTED_PAYMENT
  *   0e. deduction stated on the document   → WARNING OP_ITEM_STATED_DEDUCTION
+ *   0f. balance below the invoices it sums → WARNING OP_BALANCE_BELOW_INVOICES (wizard rows only)
  *
  * Per-debtor rules (the check on the Law 85/2014 proceedings is mandatory):
  *   1. PJ + anafStatus = RADIAT          → ERROR  OP_BLOCKED_DEREGISTERED
@@ -153,6 +155,30 @@ final class OpAdmissibilityValidator
         }
 
         return $issues;
+    }
+
+    /**
+     * Checks that only the wizard's claim rows can make: a balance confirmation
+     * set aside as a summary of the invoices, but lower than their total, says
+     * some of them may already be paid, and the invoices are claimed in full.
+     *
+     * @param list<ClaimItemRow> $rows
+     *
+     * @return list<AdmissibilityIssue>
+     */
+    public function validateClaimRows(array $rows): array
+    {
+        foreach ($rows as $row) {
+            if ($row->excluded && in_array('wizard.step3.claim_items.warning.balance_below_invoices', $row->warningKeys, true)) {
+                return [new AdmissibilityIssue(
+                    IssueSeverity::WARNING,
+                    'OP_BALANCE_BELOW_INVOICES',
+                    'validation.op_admissibility.OP_BALANCE_BELOW_INVOICES',
+                )];
+            }
+        }
+
+        return [];
     }
 
     /**

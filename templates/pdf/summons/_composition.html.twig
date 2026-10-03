@@ -7,9 +7,9 @@
     {% if hasAccessory %}
         <li>
             {%- if isContractual -%}
-                {{ 'pdf.summons.line_accessory_contractual'|trans({'%amount%': accessoryTotal|number_format(2, ',', '.'), '%label%': label, '%date%': noticeDateText}) }}
+                {{ 'pdf.summons.line_accessory_contractual'|trans({'%amount%': accessoryTotal|number_format(2, ',', '.'), '%label%': label, '%date%': accessoryDateText}) }}
             {%- else -%}
-                {{ 'pdf.summons.line_interest_legal'|trans({'%amount%': accessoryTotal|number_format(2, ',', '.'), '%date%': noticeDateText}) }}
+                {{ 'pdf.summons.line_interest_legal'|trans({'%amount%': accessoryTotal|number_format(2, ',', '.'), '%date%': accessoryDateText}) }}
             {%- endif -%}
             {{ terminator }}
         </li>

@@ -48,6 +48,28 @@ class CompetentCourtResolverTest extends TestCase
         $this->assertSame(10_000.0, $result->claimValue->total);
     }
 
+    public function testAnInterestTheCalculatorRefusesStillLeavesTheCourt(): void
+    {
+        // Competence rests on the principal: a claim under a contract older than
+        // Law 72/2013, or one with no BNR rate for its period, still has a court.
+        $resolver = $this->makeResolver(
+            courts: $this->clujCourts(),
+            rates: [$this->makeRateConfig('2011-09-01', '6.25')],
+        );
+
+        $result = $resolver->resolve(
+            principal: 10_000.0,
+            dueDate: new \DateTimeImmutable('2012-06-01'),
+            referenceDate: new \DateTimeImmutable('2014-06-01'),
+            relationshipType: RelationshipType::COMERCIAL,
+            debtorCounty: 'Cluj',
+            debtorLocality: 'Cluj-Napoca',
+        );
+
+        $this->assertSame('Judecătoria Cluj-Napoca', $result->court?->getName());
+        $this->assertSame(0.0, $result->claimValue->accruedInterest);
+    }
+
     public function testJudecatorieMultipleLocalityMatchesReturnsAlternatives(): void
     {
         $courtA = $this->makeJudecatorie('Judecătoria Test-A', 'TestCounty', ['Shared-Locality']);

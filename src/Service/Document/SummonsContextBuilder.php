@@ -51,6 +51,9 @@ final class SummonsContextBuilder
         $penaltyType = $case->getPenaltyType() ?? PenaltyType::LEGAL_PENALIZATOARE;
         $principal = (float) ($case->getAmount() ?? '0');
         $refDate = $this->referenceDate($case);
+        // The summons is dated $refDate; its accessories stop at the earlier
+        // date the lawyer chose, when there is one.
+        $accessoryDate = $case->accessoryReferenceDate($refDate);
         $dueDate = $this->dueDate($case);
 
         $interestResult = null;
@@ -59,7 +62,7 @@ final class SummonsContextBuilder
         // The positions carry the accessory: each accrues from its own due date
         // (Civil Code art. 1535), which is the whole point of having them.
         $items = $case->getCountingClaimItems();
-        $itemAccessories = $this->computePerItem($case, $items, $penaltyType, $refDate);
+        $itemAccessories = $this->computePerItem($case, $items, $penaltyType, $accessoryDate);
 
         if ($itemAccessories !== null && count($items) === 1) {
             // A single position is the case as it always was; keep handing the
@@ -72,9 +75,9 @@ final class SummonsContextBuilder
 
         if ($itemAccessories === null || $itemAccessories->isEmpty()) {
             if ($penaltyType === PenaltyType::CONTRACTUAL) {
-                $penaltyResult = $this->computeContractual($case, $principal, $dueDate, $refDate);
+                $penaltyResult = $this->computeContractual($case, $principal, $dueDate, $accessoryDate);
             } else {
-                $interestResult = $this->computeLegalInterest($case, $principal, $dueDate, $refDate);
+                $interestResult = $this->computeLegalInterest($case, $principal, $dueDate, $accessoryDate);
             }
         }
 
@@ -113,6 +116,7 @@ final class SummonsContextBuilder
             'accessoryTotal' => $accessoryTotal,
             'grandTotal' => $principal + $accessoryTotal,
             'refDate' => $refDate,
+            'accessoryDate' => $accessoryDate,
             'invoiceDate' => $this->invoiceDate($case),
             // FX conversion metadata (null for native-RON claims). Lets the
             // document state "X EUR × curs BNR Y (data Z) = W RON".
@@ -150,6 +154,7 @@ final class SummonsContextBuilder
                 contractualDailyRate: $rate !== null ? (float) $rate : null,
                 kind: InterestKind::PENALIZATOARE,
                 contractualPenaltyCapPercent: $case->contractualPenaltyCap(),
+                contractDate: $case->contractDateImmutable(),
             );
         } catch (\DomainException $e) {
             // This builder's contract is that the document still generates. An
@@ -194,6 +199,7 @@ final class SummonsContextBuilder
                 kind: InterestKind::PENALIZATOARE,
                 currency: $case->getCurrency(),
                 invoiceDate: $this->invoiceDate($case),
+                contractDate: $case->contractDateImmutable(),
             );
         } catch (\DomainException | \RuntimeException | \InvalidArgumentException $e) {
             $this->logger->warning('Summons legal interest computation skipped: {reason}', [

@@ -161,6 +161,14 @@ class LegalCase
     private ?string $contractualPenaltyCapPercent = null;
 
     /**
+     * Date the lawyer chose to compute the accessories up to, when earlier
+     * than the one each document would use (today, the summons date). Null
+     * leaves every document on its own date.
+     */
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $accessoryCutoffDate = null;
+
+    /**
      * Referința clauzei penale din contract (ex. „art. 3 din Contract"). AI
      * extraction sometimes returns a longer descriptive phrase, so the column
      * has headroom and the persist path caps it as a final guard.
@@ -784,6 +792,33 @@ class LegalCase
         return $this;
     }
 
+    public function getAccessoryCutoffDate(): ?\DateTimeImmutable
+    {
+        return $this->accessoryCutoffDate;
+    }
+
+    public function setAccessoryCutoffDate(?\DateTimeImmutable $accessoryCutoffDate): static
+    {
+        $this->accessoryCutoffDate = $accessoryCutoffDate;
+
+        return $this;
+    }
+
+    /**
+     * The date the accessories are computed up to: the one a document would
+     * use, unless the lawyer set an earlier one.
+     */
+    public function accessoryReferenceDate(\DateTimeImmutable $default): \DateTimeImmutable
+    {
+        return self::accessoryDateWithin($this->accessoryCutoffDate, $default);
+    }
+
+    /** The rule above, for a case not saved yet. */
+    public static function accessoryDateWithin(?\DateTimeImmutable $cutoff, \DateTimeImmutable $default): \DateTimeImmutable
+    {
+        return $cutoff !== null && $cutoff < $default ? $cutoff : $default;
+    }
+
     /** The ceiling as a number, for the calculators; null when there is none. */
     public function contractualPenaltyCap(): ?float
     {
@@ -913,6 +948,11 @@ class LegalCase
     public function getContractDate(): ?\DateTimeInterface
     {
         return $this->contractDate;
+    }
+
+    public function contractDateImmutable(): ?\DateTimeImmutable
+    {
+        return $this->contractDate !== null ? \DateTimeImmutable::createFromInterface($this->contractDate) : null;
     }
 
     public function setContractDate(?\DateTimeInterface $contractDate): static

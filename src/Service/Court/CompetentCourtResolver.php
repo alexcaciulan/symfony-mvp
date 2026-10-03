@@ -15,6 +15,8 @@ use App\Service\Calculation\ClaimInterestAggregator;
 use App\Service\Calculation\ContractualPenaltyCalculator;
 use App\Service\Calculation\InterestCalculatorService;
 use App\Service\Claim\ClaimCauseGrouper;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
 final class CompetentCourtResolver
 {
@@ -30,6 +32,7 @@ final class CompetentCourtResolver
         private InterestCalculatorService $interestCalculator,
         private ?ClaimInterestAggregator $accessoryAggregator = null,
         private ?ClaimCauseGrouper $causeGrouper = null,
+        private LoggerInterface $logger = new NullLogger(),
     ) {}
 
     /**
@@ -56,6 +59,7 @@ final class CompetentCourtResolver
         float $scadentPenalties = 0.0,
         InterestKind $interestKind = InterestKind::PENALIZATOARE,
         bool $computeLegalInterest = true,
+        ?\DateTimeImmutable $contractDate = null,
     ): CourtResolveResult {
         if ($principal < 0.0) {
             return $this->emptyResult($principal, 0.0, 0.0, 'court.resolver.invalid_amount_negative');
@@ -65,18 +69,14 @@ final class CompetentCourtResolver
         }
         if ($debtorCounty === null || trim($debtorCounty) === '') {
             $accruedInterest = $computeLegalInterest
-                ? $this->interestCalculator
-                    ->calculate($principal, $dueDate, $referenceDate, $relationshipType, $interestKind)
-                    ->total
+                ? $this->accruedInterest($principal, $dueDate, $referenceDate, $relationshipType, $interestKind, $contractDate)
                 : 0.0;
 
             return $this->emptyResult($principal, $accruedInterest, $scadentPenalties, 'court.resolver.county_unknown');
         }
 
         $accruedInterest = $computeLegalInterest
-            ? $this->interestCalculator
-                ->calculate($principal, $dueDate, $referenceDate, $relationshipType, $interestKind)
-                ->total
+            ? $this->accruedInterest($principal, $dueDate, $referenceDate, $relationshipType, $interestKind, $contractDate)
             : 0.0;
 
         $total = $principal + $accruedInterest + $scadentPenalties;
@@ -140,6 +140,7 @@ final class CompetentCourtResolver
         PenaltyType $penaltyType = PenaltyType::LEGAL_PENALIZATOARE,
         ?float $contractualDailyRate = null,
         ?float $contractualPenaltyCapPercent = null,
+        ?\DateTimeImmutable $contractDate = null,
     ): CourtResolveResult {
         $counting = [];
         foreach ($items as $item) {
@@ -160,6 +161,7 @@ final class CompetentCourtResolver
             contractualDailyRate: $contractualDailyRate,
             kind: $interestKind,
             contractualPenaltyCapPercent: $contractualPenaltyCapPercent,
+            contractDate: $contractDate,
         );
         $accruedInterest = $isContractual ? 0.0 : $accessory->total;
         $scadentPenalties = $isContractual ? $accessory->total : 0.0;
@@ -354,5 +356,30 @@ final class CompetentCourtResolver
                 $principal + $accruedInterest + $scadentPenalties,
             ),
         );
+    }
+
+    /**
+     * The interest shown next to the court. Competence rests on the principal
+     * alone, so an interest the calculator refuses (no BNR rate for the period,
+     * a contract older than the professional margin) leaves the figure at zero
+     * rather than leaving the case without a court.
+     */
+    private function accruedInterest(
+        float $principal,
+        \DateTimeImmutable $dueDate,
+        \DateTimeImmutable $referenceDate,
+        RelationshipType $relationshipType,
+        InterestKind $interestKind,
+        ?\DateTimeImmutable $contractDate,
+    ): float {
+        try {
+            return $this->interestCalculator
+                ->calculate($principal, $dueDate, $referenceDate, $relationshipType, $interestKind, contractDate: $contractDate)
+                ->total;
+        } catch (\RuntimeException | \InvalidArgumentException $e) {
+            $this->logger->info('court.resolver.interest_skipped', ['reason' => $e->getMessage()]);
+
+            return 0.0;
+        }
     }
 }

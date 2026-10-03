@@ -53,6 +53,6 @@
 {% if summonsTables.contractualPenaltyRows|filter(r => r.capped)|length > 0 %}<p class="note">{{ 'pdf.summons.table.cap_note'|trans({'%cap%': case.contractualPenaltyCapPercent|number_format(0, ',', '.')}) }}</p>{% endif %}
 {% endif %}
 
-<p class="total">{{ 'pdf.summons.contractual.total'|trans({'%label%': label|upper, '%date%': noticeDateText, '%amount%': accessoryTotal|number_format(2, ',', '.')}) }}</p>
+<p class="total">{{ 'pdf.summons.contractual.total'|trans({'%label%': label|upper, '%date%': accessoryDateText, '%amount%': accessoryTotal|number_format(2, ',', '.')}) }}</p>
 <p>{{ 'pdf.summons.contractual.conclusion'|trans({'%label%': label, '%amount%': accessoryTotal|number_format(2, ',', '.')}) }}</p>
 <p>{{ 'pdf.summons.contractual.continues'|trans }}</p>

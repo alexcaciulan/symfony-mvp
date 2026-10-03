@@ -13,8 +13,8 @@ import { Controller } from '@hotwired/stimulus';
 export default class extends Controller {
     static targets = ['item'];
 
-    /** Mirrors CaseWizardController::ANAF_SETTLED_FIELDS. */
-    static SETTLED_FIELDS = ['name', 'address', 'county', 'locality'];
+    // The fields an ANAF sync settles, from CaseWizardController::ANAF_SETTLED_FIELDS.
+    static values = { settledFields: Array };
 
     anafSynced(event) {
         this.toggle(event.detail, true);
@@ -26,7 +26,7 @@ export default class extends Controller {
 
     toggle({ scope, entity } = {}, settled) {
         for (const item of this.itemTargets) {
-            if (item.dataset.scope !== scope || !this.constructor.SETTLED_FIELDS.includes(item.dataset.field)) {
+            if (item.dataset.scope !== scope || !this.settledFieldsValue.includes(item.dataset.field)) {
                 continue;
             }
             if ((entity || '') !== (item.dataset.entity || '')) {

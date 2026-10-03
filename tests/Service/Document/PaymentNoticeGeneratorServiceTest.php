@@ -361,6 +361,16 @@ final class PaymentNoticeGeneratorServiceTest extends KernelTestCase
         self::assertSame(1, substr_count($html, 'RO49AAAA1B31007593840000'));
     }
 
+    public function testPaymentSentenceDoesNotDoubleTheFullStopAfterAnAbbreviatedName(): void
+    {
+        $this->creditor->setName('BLUEBOX MEDICAL S.R.L.');
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString('titular BLUEBOX MEDICAL S.R.L.</p>', preg_replace('/\s+</', '<', $html));
+        self::assertStringNotContainsString('S.R.L..', $html);
+    }
+
     public function testPaymentSentenceIsOmittedWithoutIban(): void
     {
         $this->creditor->setIban(null);

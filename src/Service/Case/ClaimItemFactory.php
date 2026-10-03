@@ -46,6 +46,12 @@ final class ClaimItemFactory
         DocumentType::TITLU_VALOARE,
     ];
 
+    /** Shorter invoice numbers ("12") turn up in any balance text by chance. */
+    private const MIN_SUMMARIZED_REFERENCE_LENGTH = 4;
+
+    /** Half a ban: below it two RON totals are the same sum. */
+    private const AMOUNT_TOLERANCE = 0.005;
+
     public function __construct(
         private readonly DocumentRepository $documents,
         private readonly CurrencyConverter $currencyConverter,
@@ -107,7 +113,10 @@ final class ClaimItemFactory
         }
 
         return $this->flagStatementPayments(
-            $this->settleAdvances($this->deduplicator->deduplicate($rows, $typesByDocument)),
+            $this->settleBalanceSummaries(
+                $this->settleAdvances($this->deduplicator->deduplicate($rows, $typesByDocument)),
+                $typesByDocument,
+            ),
             $statements,
         );
     }
@@ -366,6 +375,85 @@ final class ClaimItemFactory
         }
 
         return $result;
+    }
+
+    /**
+     * Takes out of the claim an account statement or balance confirmation that
+     * sums up invoices already in the file.
+     *
+     * The creditor's ledger states one outstanding balance over several
+     * invoices. Counted next to those invoices it asks for the debt twice: the
+     * reviewing lawyer saw 371.712,60 lei where 169.251,60 were owed. It stays
+     * on screen, excluded and saying why. When its balance is below the
+     * invoices' total, the difference is payments the ledger already took into
+     * account, and the row says so: imputing them stays the lawyer's call.
+     *
+     * @param array<int, DocumentType> $typesByDocument
+     */
+    private function settleBalanceSummaries(DeduplicationResult $result, array $typesByDocument): DeduplicationResult
+    {
+        $invoices = array_filter(
+            $result->rows,
+            static fn (ClaimItemRow $row): bool => !$row->excluded
+                && ($typesByDocument[$row->sourceDocumentId ?? 0] ?? null) === DocumentType::FACTURA,
+        );
+        if ($invoices === []) {
+            return $result;
+        }
+
+        foreach ($result->rows as $summary) {
+            if ($summary->excluded || $summary->documentNumber !== null
+                || ($typesByDocument[$summary->sourceDocumentId ?? 0] ?? null) !== DocumentType::CONFIRMARE_SOLD) {
+                continue;
+            }
+            $mentioned = $this->mentionedReferences($summary->description);
+            $covered = array_filter($invoices, static function (ClaimItemRow $invoice) use ($mentioned): bool {
+                $reference = DocumentReferenceNormalizer::normalize($invoice->documentNumber);
+                if ($reference === null || strlen($reference) < self::MIN_SUMMARIZED_REFERENCE_LENGTH) {
+                    return false;
+                }
+                foreach ($mentioned as $candidate) {
+                    // "23381/27.11.2025" names invoice 23381 with its date.
+                    if ($candidate === $reference || str_starts_with($candidate, $reference . '/')) {
+                        return true;
+                    }
+                }
+
+                return false;
+            });
+            if ($covered === []) {
+                continue;
+            }
+
+            $summary->excluded = true;
+            $summary->warningKeys[] = 'wizard.step3.claim_items.warning.balance_summarizes_invoices';
+            $invoicedTotal = array_sum(array_map(static fn (ClaimItemRow $r): float => $r->amountRon ?? 0.0, $covered));
+            if ($summary->amountRon !== null && $summary->amountRon < $invoicedTotal - self::AMOUNT_TOLERANCE) {
+                $summary->warningKeys[] = 'wizard.step3.claim_items.warning.balance_below_invoices';
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * The references a text names, one word or two ("FF 0012/2025") at a time,
+     * so invoice 1234 is not found inside 12345.
+     *
+     * @return list<string>
+     */
+    private function mentionedReferences(?string $text): array
+    {
+        $words = preg_split('/[\s,;:()]+/u', (string) $text, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        $references = [];
+        foreach ($words as $i => $word) {
+            $references[] = DocumentReferenceNormalizer::normalize($word);
+            if (isset($words[$i + 1])) {
+                $references[] = DocumentReferenceNormalizer::normalize($word . $words[$i + 1]);
+            }
+        }
+
+        return array_values(array_filter($references, static fn (?string $r): bool => $r !== null));
     }
 
     /**

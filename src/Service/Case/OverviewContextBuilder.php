@@ -143,11 +143,12 @@ final class OverviewContextBuilder
         try {
             return $this->accessoryAggregator->aggregate(
                 items: $items,
-                referenceDate: $case->getCreatedAt(),
+                referenceDate: $case->accessoryReferenceDate($case->getCreatedAt()),
                 relationshipType: $case->getRelationshipType() ?? RelationshipType::COMERCIAL,
                 penaltyType: $case->getPenaltyType() ?? PenaltyType::LEGAL_PENALIZATOARE,
                 contractualDailyRate: $rate !== null ? (float) $rate : null,
                 contractualPenaltyCapPercent: $case->contractualPenaltyCap(),
+                contractDate: $case->contractDateImmutable(),
             );
         } catch (\DomainException | \RuntimeException | \InvalidArgumentException) {
             return null;
@@ -207,8 +208,9 @@ final class OverviewContextBuilder
             $result = $this->interestService->calculate(
                 (float) $case->getAmount(),
                 \DateTimeImmutable::createFromInterface($case->getDueDate()),
-                $case->getCreatedAt(),
+                $case->accessoryReferenceDate($case->getCreatedAt()),
                 $case->getRelationshipType(),
+                contractDate: $case->contractDateImmutable(),
             );
 
             return [$result->breakdown, false];

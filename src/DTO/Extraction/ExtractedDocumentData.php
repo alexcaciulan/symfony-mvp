@@ -121,6 +121,7 @@ final readonly class ExtractedDocumentData
                 'iban' => $this->creditor->iban,
                 'legalRepresentative' => $this->creditor->legalRepresentative,
                 'bankName' => $this->creditor->bankName,
+                'bankAccounts' => $this->creditor->bankAccounts,
                 'confidencePerField' => $this->creditor->confidencePerField,
             ] : null,
             'debtors' => array_map(self::debtorToArray(...), array_values($this->debtors)),

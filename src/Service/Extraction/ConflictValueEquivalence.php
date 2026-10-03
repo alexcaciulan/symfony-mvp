@@ -66,6 +66,8 @@ final class ConflictValueEquivalence
             in_array($field, self::UNIT_FIELDS, true) => $this->unitKey($a) !== '' && $this->unitKey($a) === $this->unitKey($b),
             $field === 'address' => $this->sameAddress($a, $b),
             $field === 'iban' => $this->ibanKey($a) !== '' && $this->ibanKey($a) === $this->ibanKey($b),
+            $field === 'name' => $this->companyKey($a) !== '' && $this->companyKey($a) === $this->companyKey($b),
+            $field === 'bankName' => $this->bankKey($a) !== '' && $this->bankKey($a) === $this->bankKey($b),
             default => false,
         };
     }
@@ -145,6 +147,31 @@ final class ConflictValueEquivalence
             static fn (string $w): bool => !in_array($w, self::UNIT_PREFIXES, true),
         ));
         $words = array_map(static fn (string $w): string => $w === 'SECTORUL' || $w === 'SECT' ? 'SECTOR' : $w, $words);
+
+        return implode(' ', $words);
+    }
+
+    /**
+     * A company name without its dots and the generic "SC" prefix. The legal
+     * form itself stays: "ALFA SRL" and "ALFA SA" are two taxpayers.
+     */
+    private function companyKey(string $raw): string
+    {
+        $value = mb_strtoupper(trim($raw));
+        $value = strtr($value, ['Ș' => 'S', 'Ş' => 'S', 'Ț' => 'T', 'Ţ' => 'T', 'Ă' => 'A', 'Â' => 'A', 'Î' => 'I', '.' => '']);
+        $value = preg_replace('/[^A-Z0-9&]+/u', ' ', $value) ?? $value;
+        $value = preg_replace('/^SC\s+/', '', trim($value)) ?? $value;
+
+        return trim($value);
+    }
+
+    /**
+     * A bank name without punctuation, diacritics, its "SA" form or the
+     * country: "ING Bank" and "ING BANK ROMANIA" are one bank.
+     */
+    private function bankKey(string $raw): string
+    {
+        $words = array_filter($this->words($raw), static fn (string $w): bool => !in_array($w, ['SA', 'S', 'A', 'ROMANIA'], true));
 
         return implode(' ', $words);
     }

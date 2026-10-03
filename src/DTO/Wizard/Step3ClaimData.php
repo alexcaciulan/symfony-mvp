@@ -83,6 +83,14 @@ class Step3ClaimData
             ],
         )]
         public ?float $contractualPenaltyCapPercent = null,
+        // Accessories computed up to this date instead of today. A future date
+        // would claim interest not yet owed.
+        #[Assert\LessThanOrEqual(value: 'today', message: 'wizard.step3.error.accessory_cutoff_future')]
+        #[Assert\Expression(
+            expression: 'value === null or this.dueDate === null or value > this.dueDate',
+            message: 'wizard.step3.error.accessory_cutoff_before_due',
+        )]
+        public ?\DateTimeImmutable $accessoryCutoffDate = null,
         // Bounded to their column widths so an over-long value gets a validation
         // message rather than being silently cut at persist.
         #[Assert\Length(max: 255, maxMessage: 'wizard.step3.error.contract_reference_too_long')]

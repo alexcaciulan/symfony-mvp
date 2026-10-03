@@ -15,7 +15,8 @@ final class InterestCalculatorService
      * The +8 pp margin between professionals (OG 13/2011 art. 3 para. 2^1) came
      * with Law 72/2013, in force from this date and only for contracts concluded
      * after it; before, the margin was 4 pp. A claim due earlier rests on an
-     * older contract, and the rate this service applies would overstate it.
+     * older contract, and so does one whose contract date is known to be
+     * earlier: the rate this service applies would overstate either.
      */
     private const PROFESSIONAL_MARGIN_IN_FORCE = '2013-04-05';
 
@@ -31,6 +32,7 @@ final class InterestCalculatorService
         InterestKind $kind = InterestKind::PENALIZATOARE,
         string $currency = 'RON',
         ?\DateTimeImmutable $invoiceDate = null,
+        ?\DateTimeImmutable $contractDate = null,
     ): InterestResult {
         if ($currency !== 'RON') {
             throw new \InvalidArgumentException('exception.calculation.currency_unsupported');
@@ -44,9 +46,16 @@ final class InterestCalculatorService
             return new InterestResult(0.0, [], $dueDate, $referenceDate, $invoiceDate);
         }
 
-        if ($relationshipType === RelationshipType::COMERCIAL && $kind === InterestKind::PENALIZATOARE
-            && $dueDate < new \DateTimeImmutable(self::PROFESSIONAL_MARGIN_IN_FORCE)) {
-            throw new \RuntimeException('exception.calculation.before_professional_margin');
+        $marginInForce = new \DateTimeImmutable(self::PROFESSIONAL_MARGIN_IN_FORCE);
+        if ($relationshipType === RelationshipType::COMERCIAL && $kind === InterestKind::PENALIZATOARE) {
+            if ($dueDate < $marginInForce) {
+                throw new \RuntimeException('exception.calculation.before_professional_margin');
+            }
+            // The law applies by the date the contract was concluded, so a
+            // later invoice under an older contract is caught here.
+            if ($contractDate !== null && $this->normalize($contractDate) < $marginInForce) {
+                throw new \RuntimeException('exception.calculation.contract_before_professional_margin');
+            }
         }
 
         $configs = $this->rateRepository->findAllValidUpTo($referenceDate);

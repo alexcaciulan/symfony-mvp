@@ -178,6 +178,14 @@ final class SharedPromptFragments
           • `invoiceNumber`: seria și numărul așa cum apar (ex: „MJ 2024-00123”),
             fără cuvintele „nr.” sau „factura”.
           • `bankName`: denumirea băncii la care e deschis contul.
+          • `contractNumber`: DOAR numărul unui contract sau al unei convenții
+            dintre părți. NU numărul unei somații, notificări, facturi, comenzi
+            sau al unui proces-verbal menționate în document (ex: „somația de
+            plată nr. 453” nu dă `contractNumber` = 453). Dacă documentul
+            contractual nu are număr, omite câmpul.
+          • `bankAccounts` (doar la creditor): TOATE conturile creditorului de pe
+            document, fiecare cu banca lui, nu doar primul. `iban` și `bankName`
+            rămân contul tipărit primul.
           • `legalRepresentative` / `administrator`: numele reprezentantului
             legal sau al administratorului, așa cum apare în document.
           • `amount` și `contractualPenaltyRate` sunt numere, cu punct zecimal,
@@ -369,6 +377,20 @@ final class SharedPromptFragments
             ]
             : ['administrator' => self::stringField('Administratorul sau reprezentantul legal al debitorului')];
 
+        // An invoice often prints several collection accounts. `iban` keeps the
+        // one the document puts first; the list keeps them all, so the lawyer
+        // can pick the account and its bank together instead of losing the rest.
+        if ($isCreditor) {
+            $fields['bankAccounts'] = [
+                'type' => 'array',
+                'description' => 'Toate conturile creditorului tipărite pe document, fiecare cu banca lui',
+                'items' => self::object([
+                    'iban' => self::stringField('IBAN fără spații: RO plus 22 de caractere'),
+                    'bankName' => self::stringField('Banca la care e deschis acest cont'),
+                ], ['iban']),
+            ];
+        }
+
         $fields['confidencePerField'] = self::confidenceSchema(array_keys($fields));
 
         return $fields;
@@ -387,7 +409,7 @@ final class SharedPromptFragments
             'description' => self::stringField('Detalii pe care celelalte câmpuri nu le acoperă'),
             'invoiceNumber' => self::stringField('Seria și numărul facturii, ex: MJ 2024-00123'),
             'invoiceDate' => self::dateField('Data emiterii facturii, format YYYY-MM-DD'),
-            'contractNumber' => self::stringField('Numărul contractului invocat'),
+            'contractNumber' => self::stringField('Numărul contractului invocat; niciodată numărul unei somații, notificări sau facturi'),
             'contractDate' => self::dateField('Data încheierii contractului, format YYYY-MM-DD'),
             'contractReference' => self::stringField('Obiectul contractului, așa cum e denumit în preambul'),
             'penaltyType' => self::enumField(self::penaltyTypeValues(), 'Doar CONTRACTUAL, și doar pentru o clauză explicită cu rată pe zi'),

@@ -95,6 +95,12 @@ final class Step3ClaimType extends AbstractType
                 'scale' => 2,
                 'required' => false,
             ])
+            ->add('accessoryCutoffDate', DateType::class, [
+                'label' => 'wizard.step3.field.accessory_cutoff_date',
+                'widget' => 'single_text',
+                'input' => 'datetime_immutable',
+                'required' => false,
+            ])
             ->add('penaltyClauseArticle', TextType::class, [
                 'label' => 'wizard.step3.field.penalty_clause_article',
                 'required' => false,

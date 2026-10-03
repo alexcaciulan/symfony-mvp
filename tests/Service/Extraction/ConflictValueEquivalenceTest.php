@@ -29,6 +29,9 @@ final class ConflictValueEquivalenceTest extends TestCase
         yield 'representative with diacritics and dash' => ['legalRepresentative', 'Pavăl Marco – Gabriel', 'Paval Marco Gabriel'];
         yield 'administrator without middle name, reversed' => ['administrator', 'Marchis Bogdan', 'Bogdan Marius Marchiș'];
         yield 'iban printed in groups' => ['iban', 'RO24 CECE NT04 30RO N101 9827', 'RO24CECENT0430RON1019827'];
+        yield 'company with dots and SC prefix' => ['name', 'SC EXPERT SERVICE SUPPLY S.R.L.', 'EXPERT SERVICE SUPPLY SRL'];
+        yield 'bank with and without SA' => ['bankName', 'UNICREDIT BANK SA', 'UniCredit Bank'];
+        yield 'bank with and without the country' => ['bankName', 'ING BANK ROMANIA', 'ING Bank'];
     }
 
     /** @return iterable<string, array{string, string, string}> */
@@ -42,7 +45,9 @@ final class ConflictValueEquivalenceTest extends TestCase
         yield 'another person' => ['legalRepresentative', 'Amariei Petru', 'Bumbea Sebi'];
         yield 'one shared surname only' => ['administrator', 'Popescu Ion', 'Popescu Maria'];
         yield 'another account' => ['iban', 'RO24CECENT0430RON1019827', 'RO31RNCB0199005307310001'];
-        yield 'a field without a rule' => ['name', 'Alfa SRL', 'ALFA SRL'];
+        yield 'a field without a rule' => ['email', 'office@alfa.ro', 'OFFICE@ALFA.RO'];
+        yield 'another legal form' => ['name', 'ALFA TRANS SRL', 'ALFA TRANS SA'];
+        yield 'another bank' => ['bankName', 'BCR TG NEAMT', 'CEC BANK TG NEAMT'];
     }
 
     #[DataProvider('sameThing')]

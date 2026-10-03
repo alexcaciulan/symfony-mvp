@@ -50,6 +50,7 @@ final class ClaimPositionsSummarizer
         ?float $contractualDailyRate,
         ?\DateTimeImmutable $referenceDate = null,
         ?float $contractualPenaltyCapPercent = null,
+        ?\DateTimeImmutable $contractDate = null,
     ): array {
         $referenceDate ??= new \DateTimeImmutable();
         $summary = [
@@ -102,6 +103,7 @@ final class ClaimPositionsSummarizer
                 penaltyType: $penaltyType,
                 contractualDailyRate: $contractualDailyRate,
                 contractualPenaltyCapPercent: $contractualPenaltyCapPercent,
+                contractDate: $contractDate,
             );
         } catch (\DomainException | \RuntimeException $e) {
             $this->logger->info('wizard.calc.items_accessory_failed', ['reason' => $e->getMessage()]);

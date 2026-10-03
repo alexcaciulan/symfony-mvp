@@ -31,7 +31,9 @@
 {% set rejected = prefill_conflict_rejected|default([]) %}
 {% if conflicts|length > 0 %}
     {% set blocking = conflicts|filter(c => c.blocks)|length > 0 %}
-    <section data-controller="prefill-conflicts" data-action="party-anaf-lookup:synced@window->prefill-conflicts#anafSynced party-anaf-lookup:unsynced@window->prefill-conflicts#anafUnsynced"
+    <section data-controller="prefill-conflicts"
+             data-prefill-conflicts-settled-fields-value="{{ constant('App\\Controller\\Case\\CaseWizardController::ANAF_SETTLED_FIELDS')|json_encode }}"
+             data-action="party-anaf-lookup:synced@window->prefill-conflicts#anafSynced party-anaf-lookup:unsynced@window->prefill-conflicts#anafUnsynced"
              class="rounded-2xl border {{ blocking ? 'border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30' : 'border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30' }} p-5 mb-6" role="alert" data-testid="prefill-conflicts">
         <div class="flex items-start gap-3">
             <svg class="size-5 shrink-0 mt-0.5 {{ blocking ? 'text-red-600' : 'text-amber-600' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>

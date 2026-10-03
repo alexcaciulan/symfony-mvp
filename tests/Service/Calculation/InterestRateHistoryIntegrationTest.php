@@ -83,4 +83,36 @@ final class InterestRateHistoryIntegrationTest extends KernelTestCase
             relationshipType: RelationshipType::COMERCIAL,
         );
     }
+
+    public function testAnInvoiceUnderAContractOlderThanLaw72Of2013IsNotComputedWithItsMargin(): void
+    {
+        self::bootKernel();
+        $calculator = self::getContainer()->get(InterestCalculatorService::class);
+
+        $this->expectExceptionMessage('exception.calculation.contract_before_professional_margin');
+
+        $calculator->calculate(
+            amount: 1_000.0,
+            dueDate: new \DateTimeImmutable('2015-03-01'),
+            referenceDate: new \DateTimeImmutable('2016-01-01'),
+            relationshipType: RelationshipType::COMERCIAL,
+            contractDate: new \DateTimeImmutable('2012-11-20'),
+        );
+    }
+
+    public function testAContractConcludedAfterLaw72Of2013KeepsTheMargin(): void
+    {
+        self::bootKernel();
+        $calculator = self::getContainer()->get(InterestCalculatorService::class);
+
+        $result = $calculator->calculate(
+            amount: 1_000.0,
+            dueDate: new \DateTimeImmutable('2015-03-01'),
+            referenceDate: new \DateTimeImmutable('2015-03-31'),
+            relationshipType: RelationshipType::COMERCIAL,
+            contractDate: new \DateTimeImmutable('2013-04-05'),
+        );
+
+        self::assertSame(10.25, $result->breakdown[0]->applicableRate);
+    }
 }

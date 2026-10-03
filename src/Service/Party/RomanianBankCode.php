@@ -112,6 +112,14 @@ final class RomanianBankCode
         return false;
     }
 
+    /** The compact upper-case IBAN when it has the Romanian shape, else null. */
+    public static function wellFormed(?string $iban): ?string
+    {
+        $compact = strtoupper(preg_replace('/\s+/', '', (string) $iban) ?? '');
+
+        return preg_match('/^RO\d{2}[A-Z]{4}[A-Z0-9]{16}$/', $compact) === 1 ? $compact : null;
+    }
+
     public static function bankName(?string $iban): ?string
     {
         if ($iban === null) {

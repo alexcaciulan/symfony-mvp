@@ -153,6 +153,13 @@
                         {{ f.field_errors(form.penaltyType) }}
                     </div>
 
+                    <div>
+                        {{ f.field_label(form.accessoryCutoffDate, 'wizard.step3.field.accessory_cutoff_date', true) }}
+                        {{ form_widget(form.accessoryCutoffDate, { attr: { class: f.input_classes(form.accessoryCutoffDate)|trim }}) }}
+                        <p class="mt-1 text-[11px] text-slate-500">{{ 'wizard.step3.help.accessory_cutoff_date'|trans }}</p>
+                        {{ f.field_errors(form.accessoryCutoffDate) }}
+                    </div>
+
                 </div>
 
                 {# The clause is what the contractual payment notice quotes. The
@@ -491,7 +498,7 @@
             <div class="px-5 py-4 border-b border-white/10 flex items-center gap-2">
                 <span class="size-2 rounded-full bg-green-400 animate-pulse" aria-hidden="true"></span>
                 <h3 class="text-sm font-semibold">{{ 'wizard.step3.sidebar.title'|trans }}</h3>
-                <span class="ml-auto text-[10px] uppercase tracking-wider text-white/50">{{ 'wizard.step3.sidebar.computed_at'|trans({ '%date%': 'now'|date('d.m.Y') }) }}</span>
+                <span class="ml-auto text-[10px] uppercase tracking-wider text-white/50">{{ 'wizard.step3.sidebar.computed_at'|trans({ '%date%': this.referenceDate|date('d.m.Y') }) }}</span>
             </div>
 
             <div class="px-5 py-4 space-y-4">
