@@ -442,6 +442,13 @@ wizard:
             no_interest_hint: 'Dobânda nu a putut fi calculată pentru această poziție. Verifică scadența și rata BNR aplicabilă.'
             no_penalty_hint: 'Suma nu a putut fi calculată pentru această poziție. Verifică scadența și rata zilnică.'
             counted_summary: '%count% poziții luate în calcul'
+            penalty_breakdown:
+                title: 'Cum s-au calculat penalitățile'
+                base: 'Sumă'
+                daily_rate: 'Rată pe zi'
+                computed: 'Penalități calculate'
+                cap: 'Plafon din contract: %percent%% din %base% = %cap% lei. Se cere plafonul, nu suma calculată.'
+                formula: 'Penalitățile = suma poziției × rata pe zi din contract × zilele de întârziere, din ziua următoare scadenței până la data calculului (inclusiv).'
             bnr_breakdown: 'Cum s-a calculat dobânda (%count% perioade BNR)'
             breakdown:
                 period: 'Perioadă'
@@ -984,6 +991,7 @@ case_overview:
         breakdown_toggle: 'Vezi breakdown calcul dobândă pe perioade BNR'
         breakdown_summary: '%periods% perioade · OG 13/2011'
         breakdown_summary_multi: '%count% facturi · OG 13/2011'
+        penalty_breakdown_summary: '{1} 1 factură|]1,Inf[ %count% facturi'
         breakdown_item_heading: 'Factură %doc% · scadență %date%'
         breakdown_period: 'Perioadă'
         breakdown_bnr: 'Rata BNR'
@@ -996,8 +1004,8 @@ case_overview:
         positions_due_date: 'Scadență'
         positions_amount: 'Sumă'
         positions_interest: 'Dobândă'
-        positions_hint: 'Dobânda se calculează separat pentru fiecare poziție, de la scadența ei (C. civ. art. 1535), la data creării dosarului.'
-        positions_hint_contractual: 'Penalitățile se calculează separat pentru fiecare poziție, din ziua următoare scadenței ei, cu rata zilnică din contract, la data creării dosarului.'
+        positions_hint: 'Dobânda se calculează separat pentru fiecare poziție, de la scadența ei (C. civ. art. 1535), la data somației (înainte de somație, la data creării dosarului).'
+        positions_hint_contractual: 'Penalitățile se calculează separat pentru fiecare poziție, din ziua următoare scadenței ei, cu rata zilnică din contract, la data somației (înainte de somație, la data creării dosarului).'
         breakdown_zero: 'Nu există încă dobândă acumulată (data scadenței este în viitor).'
         contractual_formula: 'Penalitățile se calculează din ziua următoare scadenței fiecărei facturi: suma × %rate%% × zile de întârziere, conform clauzei din contract, nu după rata BNR.'
     court:

@@ -126,6 +126,9 @@ Corectate la reverificare:
 
 Observație: avertismentul „Extrasul de cont conține încasări care nu au putut fi legate” apare și aici, deși fișa leagă fiecare încasare de factura ei (niciuna de factura finală). AI-ul rezumă fișa fără lista plăților, deci aplicația nu poate verifica. Ține de punctul 9 (plățile din fișă).
 
+### 2.13 Detalierea penalităților contractuale (03.10.2026)
+Detalierea pe poziție adăugată la Dosarul 2 exista doar pentru dobânda legală. Acum și penalitățile din contract au tabelul „Cum s-au calculat penalitățile” (perioadă, sumă, rată pe zi, zile, penalități calculate și, când se aplică, linia de plafon) la Pasul 3 (pe fiecare factură și în panoul live la completarea manuală) și pe pagina dosarului. Procentul plafonului se scrie ca în contract (10%, 7,5%), inclusiv în somație, care înainte rotunjea 7,5% la 8%. La generarea somației, totalul accesoriilor din dosar se recalculează la data somației (cu mențiune în audit), iar pagina dosarului calculează la aceeași dată, ca antetul, detalierea și somația să arate aceeași sumă.
+
 ## 3. De decis cu tine
 
 Pentru fiecare punct: întrebarea, opțiunile și recomandarea mea.

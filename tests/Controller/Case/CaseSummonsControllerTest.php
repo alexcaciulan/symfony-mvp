@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Controller\Case;
 
 use App\Entity\AuditLog;
+use App\Entity\ClaimItem;
 use App\Entity\Creditor;
 use App\Entity\Debtor;
 use App\Entity\LegalCaseDebtor;
@@ -15,6 +16,7 @@ use App\Entity\Subscription;
 use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\DocumentType;
+use App\Enum\PenaltyType;
 use App\Enum\PersonType;
 use App\Enum\SubscriptionStatus;
 use App\Service\AuditLogService;
@@ -113,6 +115,7 @@ final class CaseSummonsControllerTest extends WebTestCase
         $conn->executeStatement('DELETE FROM legal_deadline WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM case_status_history WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM legal_case_debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
+        $conn->executeStatement('DELETE FROM claim_item WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM notification WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM legal_case WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM creditor WHERE user_id = :id', ['id' => $userId]);
@@ -171,6 +174,43 @@ final class CaseSummonsControllerTest extends WebTestCase
 
         $this->client->followRedirect();
         self::assertResponseStatusCodeSame(Response::HTTP_OK);
+    }
+
+    public function testGenerateSummonsBringsTheStoredAccessoryToTheSummonsDate(): void
+    {
+        // The case page states the figure the summons does, not the one frozen
+        // when the case was created.
+        $this->case->setPenaltyType(PenaltyType::CONTRACTUAL);
+        $this->case->setContractualPenaltyRate('0.1000');
+        $this->case->setContractualPenaltyCapPercent('10.00');
+        $this->case->setCalculatedInterest('100.00');
+        $item = new ClaimItem();
+        $item->setLegalCase($this->case);
+        $item->setDedupKey('summons-acc-' . uniqid('', true));
+        $item->setDocumentNumber('KSS 1534');
+        $item->setAmount('21318.90');
+        $item->setCurrency('RON');
+        $item->setAmountRon('21318.90');
+        $item->setDueDate(new \DateTimeImmutable('2025-02-21'));
+        $item->setConfirmedByLawyer(true);
+        $this->case->addClaimItem($item);
+        $this->em->persist($item);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/summons/generate', ['_token' => $token]);
+        self::assertResponseRedirects('/case/' . $this->case->getId());
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame('2131.89', $refreshed->getCalculatedInterest(), 'capped at 10% of the invoice');
+
+        $audit = $this->em->getRepository(AuditLog::class)->findOneBy([
+            'category' => AuditLogService::CATEGORY_SUMMONS_GENERATED,
+            'entityId' => (string) $refreshed->getId(),
+        ]);
+        self::assertEquals(['from' => '100.00', 'to' => '2131.89'], $audit->getNewData()['calculatedInterest'] ?? null);
     }
 
     public function testGenerateSummonsRespondsWithTurboStream(): void

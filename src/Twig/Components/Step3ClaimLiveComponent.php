@@ -6,6 +6,7 @@ namespace App\Twig\Components;
 
 use App\DTO\Calculation\CurrencyConversionResult;
 use App\DTO\Calculation\InterestResult;
+use App\DTO\Calculation\PenaltyBreakdownRow;
 use App\DTO\Calculation\PenaltyResult;
 use App\DTO\Calculation\StampDutyResult;
 use App\DTO\Wizard\ClaimItemRow;
@@ -350,6 +351,18 @@ final class Step3ClaimLiveComponent extends AbstractController
             $this->referenceDate(),
             $this->floatFromFormValues('contractualPenaltyCapPercent'),
         );
+    }
+
+    /** The scalar penalty laid out for the sidebar, with the ceiling the lawyer entered. */
+    public function getPenaltyBreakdown(): ?PenaltyBreakdownRow
+    {
+        $penalty = $this->getPenalty();
+        $base = $this->scalarAccrualBase();
+        if ($penalty === null || $base === null) {
+            return null;
+        }
+
+        return PenaltyBreakdownRow::fromResult($penalty, $base['amount'], $this->floatFromFormValues('contractualPenaltyCapPercent'));
     }
 
     /**

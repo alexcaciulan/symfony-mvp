@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service\Case;
 
 use App\DTO\Calculation\InterestResult;
+use App\DTO\Calculation\PenaltyBreakdownRow;
 use App\DTO\Calculation\PenaltyResult;
 use App\DTO\Wizard\ClaimItemRow;
 use App\Entity\LegalCase;
@@ -22,6 +23,7 @@ use Psr\Log\LoggerInterface;
  * @phpstan-type PositionSummary array{
  *     accessoryByRow: array<int, ?float>,
  *     breakdownByRow: array<int, list<\App\DTO\Calculation\InterestPeriod>>,
+ *     penaltyBreakdownByRow: array<int, PenaltyBreakdownRow>,
  *     unavailableRows: list<int>,
  *     principal: float,
  *     accessory: float,
@@ -56,6 +58,7 @@ final class ClaimPositionsSummarizer
         $summary = [
             'accessoryByRow' => [],
             'breakdownByRow' => [],
+            'penaltyBreakdownByRow' => [],
             'unavailableRows' => [],
             'principal' => 0.0,
             'accessory' => 0.0,
@@ -123,6 +126,12 @@ final class ClaimPositionsSummarizer
             }
             if ($result instanceof PenaltyResult && $result->isCapped()) {
                 $summary['cappedRows'][] = $index;
+            }
+            if ($result instanceof PenaltyResult) {
+                $penaltyRow = PenaltyBreakdownRow::fromResult($result, $row->signedAmountRon() ?? 0.0, $contractualPenaltyCapPercent, $row->documentNumber);
+                if ($penaltyRow !== null) {
+                    $summary['penaltyBreakdownByRow'][$index] = $penaltyRow;
+                }
             }
             // A position with a due date that produced nothing is a computation
             // that failed, not a position that owes nothing. Say which.

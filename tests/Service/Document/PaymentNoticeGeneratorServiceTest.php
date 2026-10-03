@@ -300,6 +300,24 @@ final class PaymentNoticeGeneratorServiceTest extends KernelTestCase
         self::assertStringContainsString('ulterior asupra dobânzilor și penalităților datorate', $html);
     }
 
+    public function testCapNoteKeepsAFractionalCeilingAsTheContractWritesIt(): void
+    {
+        $this->case->setPenaltyType(PenaltyType::CONTRACTUAL);
+        $this->case->setAmount('175525.00');
+        $this->case->setContractualPenaltyRate('0.100');
+        $this->case->setContractualPenaltyCapPercent('7.50');
+        $due = new \DateTime('2025-02-18');
+        $this->case->setDueDate($due);
+        $this->case->setPaymentNoticeDate((clone $due)->modify('+120 days'));
+        $this->em->flush();
+
+        $html = $this->service->renderHtml($this->case);
+
+        // 120 days at 0,1% is 12%, above the 7,5% ceiling.
+        self::assertStringContainsString('la 7,5% din valoarea fiecărei facturi', $html);
+        self::assertStringNotContainsString('la 8% din', $html);
+    }
+
     public function testContractualFallbackSentenceWhenClauseTextMissing(): void
     {
         $this->case->setPenaltyType(PenaltyType::CONTRACTUAL);

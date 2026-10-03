@@ -1,0 +1,57 @@
+{% from 'case/overview/_icons.html.twig' import icon_chevron_right %}
+{# Contractual penalty per position: days, daily rate, the computed figure and,
+   when it binds, the contractual ceiling claimed instead. #}
+{% if penalty_breakdown is defined and penalty_breakdown %}
+    <div class="hs-accordion-group mt-3 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden" data-testid="overview-penalty-breakdown">
+        <div class="hs-accordion" id="acc-penalty-breakdown">
+            <button type="button"
+                    class="hs-accordion-toggle hs-accordion-active:bg-slate-50 dark:hs-accordion-active:bg-slate-950/50 inline-flex items-center justify-between gap-x-3 w-full text-sm font-medium text-slate-700 dark:text-slate-300 py-3 px-4 hover:bg-slate-50 dark:hover:bg-slate-950/30 transition"
+                    aria-expanded="false"
+                    aria-controls="acc-penalty-breakdown-content">
+                <span class="inline-flex items-center gap-2">
+                    <span class="hs-accordion-active:rotate-90 transition-transform">{{ icon_chevron_right('size-4 text-slate-400') }}</span>
+                    {{ 'wizard.step3.claim_items.penalty_breakdown.title'|trans }}
+                </span>
+                <span class="text-xs text-slate-500 font-normal">{{ 'case_overview.claim.penalty_breakdown_summary'|trans({'%count%': penalty_breakdown|length}) }}</span>
+            </button>
+            <div id="acc-penalty-breakdown-content"
+                 class="hs-accordion-content hidden w-full overflow-hidden transition-[height] duration-300"
+                 role="region"
+                 aria-labelledby="acc-penalty-breakdown">
+                <div class="px-4 pb-4 overflow-x-auto">
+                    <table class="w-full text-xs">
+                        <thead class="text-[10px] uppercase tracking-wide text-slate-500 border-b border-slate-200 dark:border-slate-800">
+                            <tr>
+                                <th class="text-left py-2 pr-4 font-medium">{{ 'case_overview.claim.positions_number'|trans }}</th>
+                                <th class="text-left py-2 pr-4 font-medium">{{ 'case_overview.claim.breakdown_period'|trans }}</th>
+                                <th class="text-right py-2 pl-3 font-medium">{{ 'wizard.step3.claim_items.penalty_breakdown.base'|trans }}</th>
+                                <th class="text-right py-2 pl-3 font-medium">{{ 'wizard.step3.claim_items.penalty_breakdown.daily_rate'|trans }}</th>
+                                <th class="text-right py-2 pl-3 font-medium">{{ 'case_overview.claim.breakdown_days'|trans }}</th>
+                                <th class="text-right py-2 pl-3 font-medium">{{ 'wizard.step3.claim_items.penalty_breakdown.computed'|trans }}</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
+                            {% for row in penalty_breakdown %}
+                                <tr>
+                                    <td class="py-2 pr-4 text-slate-700 dark:text-slate-300">{{ row.number|default('—') }}</td>
+                                    <td class="py-2 pr-4 text-slate-700 dark:text-slate-300 whitespace-nowrap">{{ row.firstDay|date('d.m.Y') }} → {{ row.endDate|date('d.m.Y') }}</td>
+                                    <td class="py-2 pl-3 text-right tnum">{{ row.base|number_format(2, ',', '.') }}</td>
+                                    <td class="py-2 pl-3 text-right tnum">{{ row.dailyRate|number_format(2, ',', '.') }}%</td>
+                                    <td class="py-2 pl-3 text-right tnum text-slate-500">{{ row.days }}</td>
+                                    <td class="py-2 pl-3 text-right tnum font-semibold{% if row.capAmount is not null %} line-through decoration-slate-400 text-slate-400{% endif %}">{{ row.computed|number_format(2, ',', '.') }}</td>
+                                </tr>
+                                {% if row.capAmount is not null %}
+                                    <tr>
+                                        <td></td>
+                                        <td colspan="5" class="pb-2 text-[11px] font-medium text-slate-700 dark:text-slate-200" data-testid="overview-penalty-cap-line">{{ 'wizard.step3.claim_items.penalty_breakdown.cap'|trans({'%percent%': row.capPercent|percent_number, '%base%': row.base|number_format(2, ',', '.'), '%cap%': row.capAmount|number_format(2, ',', '.')}) }}</td>
+                                    </tr>
+                                {% endif %}
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    <p class="mt-2 text-[11px] text-slate-500">{{ 'wizard.step3.claim_items.penalty_breakdown.formula'|trans }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endif %}

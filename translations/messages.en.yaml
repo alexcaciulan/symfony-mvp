@@ -416,6 +416,13 @@ wizard:
             no_interest_hint: 'Interest could not be computed for this position. Check the due date and the applicable NBR rate.'
             no_penalty_hint: 'The amount could not be computed for this position. Check the due date and the daily rate.'
             counted_summary: '%count% positions counted'
+            penalty_breakdown:
+                title: 'How the penalties were computed'
+                base: 'Amount'
+                daily_rate: 'Daily rate'
+                computed: 'Computed penalties'
+                cap: 'Contractual ceiling: %percent%% of %base% = %cap% lei. The ceiling is claimed, not the computed figure.'
+                formula: 'Penalties = the position amount × the contract daily rate × the days of delay, from the day after the due date up to the calculation date (inclusive).'
             bnr_breakdown: 'How the interest was computed (%count% NBR periods)'
             breakdown:
                 period: 'Period'
@@ -984,6 +991,7 @@ case_overview:
         breakdown_toggle: 'View interest breakdown by BNR periods'
         breakdown_summary: '%periods% periods · OG 13/2011'
         breakdown_summary_multi: '%count% invoices · OG 13/2011'
+        penalty_breakdown_summary: '{1} 1 invoice|]1,Inf[ %count% invoices'
         breakdown_item_heading: 'Invoice %doc% · due %date%'
         breakdown_period: 'Period'
         breakdown_bnr: 'BNR rate'
@@ -996,8 +1004,8 @@ case_overview:
         positions_due_date: 'Due date'
         positions_amount: 'Amount'
         positions_interest: 'Interest'
-        positions_hint: 'Interest is computed separately for each position, from its own due date (Civil Code art. 1535), as of the case creation date.'
-        positions_hint_contractual: 'Penalties are computed separately for each position, from the day after its due date, at the contract daily rate, as of the case creation date.'
+        positions_hint: 'Interest is computed separately for each position, from its own due date (Civil Code art. 1535), as of the summons date (before the summons, as of the case creation date).'
+        positions_hint_contractual: 'Penalties are computed separately for each position, from the day after its due date, at the contract daily rate, as of the summons date (before the summons, as of the case creation date).'
         breakdown_zero: 'No interest has accrued yet (due date is in the future).'
         contractual_formula: 'Penalties run from the day after each invoice falls due: amount × %rate%% × days late, per the contract clause, not the BNR rate.'
     court:

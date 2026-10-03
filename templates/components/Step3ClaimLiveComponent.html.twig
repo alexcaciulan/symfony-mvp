@@ -456,6 +456,42 @@
                                 </details>
                             {% endif %}
 
+                            {% set rowPenalty = summary.penaltyBreakdownByRow[index]|default(null) %}
+                            {% if rowAccessory is not null and rowPenalty is not null %}
+                                <details class="group px-4 pb-3" data-testid="claim-item-penalty-breakdown">
+                                    <summary class="inline-flex items-center gap-1 cursor-pointer text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 select-none">
+                                        <svg class="size-3 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+                                        {{ 'wizard.step3.claim_items.penalty_breakdown.title'|trans }}
+                                    </summary>
+                                    <div class="mt-2 overflow-x-auto rounded-lg bg-slate-50 dark:bg-slate-800/60 px-3 py-2">
+                                        <table class="w-full text-[11px] tnum">
+                                            <thead>
+                                                <tr class="text-left text-[10px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                                                    <th class="py-1 pr-3 font-semibold">{{ 'wizard.step3.claim_items.breakdown.period'|trans }}</th>
+                                                    <th class="py-1 pr-3 font-semibold text-right">{{ 'wizard.step3.claim_items.penalty_breakdown.base'|trans }}</th>
+                                                    <th class="py-1 pr-3 font-semibold text-right">{{ 'wizard.step3.claim_items.penalty_breakdown.daily_rate'|trans }}</th>
+                                                    <th class="py-1 pr-3 font-semibold text-right">{{ 'wizard.step3.claim_items.breakdown.days'|trans }}</th>
+                                                    <th class="py-1 font-semibold text-right">{{ 'wizard.step3.claim_items.penalty_breakdown.computed'|trans }}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr class="border-t border-slate-200/70 dark:border-slate-700/70 text-slate-600 dark:text-slate-300">
+                                                    <td class="py-1 pr-3 whitespace-nowrap">{{ rowPenalty.firstDay|date('d.m.Y') }} → {{ rowPenalty.endDate|date('d.m.Y') }}</td>
+                                                    <td class="py-1 pr-3 text-right">{{ rowPenalty.base|number_format(2, ',', '.') }}</td>
+                                                    <td class="py-1 pr-3 text-right">{{ rowPenalty.dailyRate|number_format(2, ',', '.') }}%</td>
+                                                    <td class="py-1 pr-3 text-right" data-testid="claim-item-penalty-days">{{ rowPenalty.days }}</td>
+                                                    <td class="py-1 text-right font-medium text-slate-800 dark:text-slate-100{% if rowPenalty.capAmount is not null %} line-through decoration-slate-400{% endif %}">{{ rowPenalty.computed|number_format(2, ',', '.') }}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                        {% if rowPenalty.capAmount is not null %}
+                                            <p class="mt-1.5 text-[11px] font-medium text-slate-700 dark:text-slate-200" data-testid="claim-item-penalty-cap-line">{{ 'wizard.step3.claim_items.penalty_breakdown.cap'|trans({'%percent%': rowPenalty.capPercent|percent_number, '%base%': rowPenalty.base|number_format(2, ',', '.'), '%cap%': rowPenalty.capAmount|number_format(2, ',', '.')}) }}</p>
+                                        {% endif %}
+                                        <p class="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">{{ 'wizard.step3.claim_items.penalty_breakdown.formula'|trans }}</p>
+                                    </div>
+                                </details>
+                            {% endif %}
+
                             <div class="px-4 pb-3.5 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)] gap-x-5 gap-y-3 border-t border-slate-100 dark:border-slate-800 pt-3">
                                 <div>
                                     <label class="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 mb-1" for="ci-cause-{{ index }}">{{ 'wizard.step3.claim_items.column.cause'|trans }}</label>
@@ -587,6 +623,32 @@
                                         {% endfor %}
                                     </tbody>
                                 </table>
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+
+                {% set sidebarPenalty = (not positions_mode and contractual_label_key) ? this.penaltyBreakdown : null %}
+                {% if sidebarPenalty is not null %}
+                    <div class="hs-accordion-group bg-black/20 rounded-lg overflow-hidden" data-testid="sidebar-penalty-breakdown">
+                        <div class="hs-accordion" id="acc-penalty-live">
+                            <button type="button" id="acc-penalty-live-toggle" class="hs-accordion-toggle inline-flex items-center justify-between gap-x-3 w-full text-xs font-medium text-white py-2.5 px-3 hover:bg-white/5 transition" aria-expanded="false" aria-controls="acc-penalty-live-content">
+                                <span class="inline-flex items-center gap-2">
+                                    <svg class="hs-accordion-active:rotate-90 size-3.5 text-white/60 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                                    <span>{{ 'wizard.step3.claim_items.penalty_breakdown.title'|trans }}</span>
+                                </span>
+                            </button>
+                            <div id="acc-penalty-live-content" class="hs-accordion-content hidden w-full overflow-hidden transition-[height] duration-300" role="region" aria-labelledby="acc-penalty-live-toggle">
+                                <dl class="px-3 py-2 space-y-1 text-[11px] tnum border-t border-white/10">
+                                    <div class="flex justify-between gap-3"><dt class="text-white/50">{{ 'wizard.step3.claim_items.breakdown.period'|trans }}</dt><dd class="text-white/80">{{ sidebarPenalty.firstDay|date('d.m.Y') }} → {{ sidebarPenalty.endDate|date('d.m.Y') }}</dd></div>
+                                    <div class="flex justify-between gap-3"><dt class="text-white/50">{{ 'wizard.step3.claim_items.breakdown.days'|trans }}</dt><dd class="text-white/80" data-testid="sidebar-penalty-days">{{ sidebarPenalty.days }}</dd></div>
+                                    <div class="flex justify-between gap-3"><dt class="text-white/50">{{ 'wizard.step3.claim_items.penalty_breakdown.daily_rate'|trans }}</dt><dd class="text-white/80">{{ sidebarPenalty.dailyRate|number_format(2, ',', '.') }}%</dd></div>
+                                    <div class="flex justify-between gap-3"><dt class="text-white/50">{{ 'wizard.step3.claim_items.penalty_breakdown.computed'|trans }}</dt><dd class="text-white/80{% if sidebarPenalty.capAmount is not null %} line-through{% endif %}">{{ sidebarPenalty.computed|number_format(2, ',', '.') }}</dd></div>
+                                </dl>
+                                {% if sidebarPenalty.capAmount is not null %}
+                                    <p class="px-3 pb-2 text-[11px] text-white/80" data-testid="sidebar-penalty-cap-line">{{ 'wizard.step3.claim_items.penalty_breakdown.cap'|trans({'%percent%': sidebarPenalty.capPercent|percent_number, '%base%': sidebarPenalty.base|number_format(2, ',', '.'), '%cap%': sidebarPenalty.capAmount|number_format(2, ',', '.')}) }}</p>
+                                {% endif %}
+                                <p class="px-3 pb-2 text-[10px] text-white/50">{{ 'wizard.step3.claim_items.penalty_breakdown.formula'|trans }}</p>
                             </div>
                         </div>
                     </div>
