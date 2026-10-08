@@ -3,6 +3,9 @@
    `update_regions` is false for pure error/warning toasts (nothing changed).
    Preline re-inits via preline-init_controller MutationObserver after the swap. #}
 {% if update_regions %}
+    <turbo-stream action="update" target="portal-case-alert">
+        <template>{{ include('case/overview/_portal_case_alert.html.twig') }}</template>
+    </turbo-stream>
     <turbo-stream action="replace" target="case-hero">
         <template>{{ include('case/overview/_hero.html.twig') }}</template>
     </turbo-stream>
