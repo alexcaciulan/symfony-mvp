@@ -149,16 +149,13 @@
                             </div>
                         </div>
                         {% if status != 'PROCESSING' %}
-                            <form method="post" action="{{ path('case_wizard_documents_remove', {'id': document.id}) }}"
-                                  class="shrink-0" data-turbo-confirm="{{ 'wizard.step0.remove.confirm'|trans({'%file%': document.originalFilename}) }}">
-                                <input type="hidden" name="_token" value="{{ csrf_token('wizard_step0_remove_' ~ document.id) }}">
-                                <button type="submit" data-testid="step0-remove-document"
-                                        class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:text-red-700 hover:bg-red-50 dark:text-slate-400 dark:hover:text-red-300 dark:hover:bg-red-950/30"
-                                        title="{{ 'wizard.step0.remove.button'|trans }}">
-                                    <svg class="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                                    <span>{{ 'wizard.step0.remove.button'|trans }}</span>
-                                </button>
-                            </form>
+                            <a href="{{ path('case_wizard_documents_remove_preview', {'id': document.id}) }}" data-turbo-frame="step0-remove-dialog"
+                               data-testid="step0-remove-document"
+                               class="shrink-0 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-slate-500 hover:text-red-700 hover:bg-red-50 dark:text-slate-400 dark:hover:text-red-300 dark:hover:bg-red-950/30"
+                               title="{{ 'wizard.step0.remove.button'|trans }}">
+                                <svg class="size-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                <span>{{ 'wizard.step0.remove.button'|trans }}</span>
+                            </a>
                         {% endif %}
                     </li>
                 {% endfor %}

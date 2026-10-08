@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller\Case;
 
+use App\DTO\Wizard\Step1CreditorData;
 use App\DTO\Wizard\Step2DebtorEntry;
 use App\DTO\Wizard\Step2DebtorsData;
+use App\DTO\Wizard\Step3ClaimData;
 use App\Entity\Document;
 use App\Entity\User;
 use App\Enum\DocumentType;
@@ -348,12 +350,8 @@ final class CaseWizardConflictsTest extends WebTestCase
             $this->creditorPayload('Cedent SRL', '15193236'),
             $this->creditorPayload('Cesionar SRL', '14186770'),
         ]);
-        $crawler = $this->client->request('GET', '/case/new/documents');
-        $form = $crawler->filter('form[action="/case/new/documents/' . $ids[1] . '/remove"]');
-        self::assertSame(1, $form->count());
-
         $this->client->request('POST', '/case/new/documents/' . $ids[1] . '/remove', [
-            '_token' => $form->filter('input[name="_token"]')->attr('value'),
+            '_token' => $this->removeToken($ids[1]),
         ]);
 
         self::assertResponseRedirects('/case/new/documents');
@@ -450,6 +448,184 @@ final class CaseWizardConflictsTest extends WebTestCase
         ];
     }
 
+    public function testRemovingAnotherCasesDocumentRefillsTheParty(): void
+    {
+        // The lawyer reached step 2 with another case's invoice, came back and
+        // removed it: the saved creditor was that case's.
+        $ids = $this->primeDocuments([
+            $this->creditorPayload('Cedent SRL', '15193236'),
+            $this->creditorPayload('Gresit SRL', '14186770'),
+        ]);
+        $this->saveSteps(['creditor' => new Step1CreditorData(personType: PersonType::PJ, name: 'Gresit SRL', cui: '14186770', autoFilled: ['name', 'cui'])]);
+
+        $dialog = $this->client->request('GET', '/case/new/documents/' . $ids[1] . '/remove/preview');
+        self::assertStringContainsString('Creditor: se schimbă în Cedent SRL (în loc de Gresit SRL)', $dialog->filter('[data-testid="step0-remove-creditor-refilled"]')->text());
+        self::assertSame('Elimină și reia pașii', trim($dialog->filter('[data-testid="step0-remove-confirm"]')->text()));
+
+        $this->client->request('POST', '/case/new/documents/' . $ids[1] . '/remove', ['_token' => $this->removeToken($ids[1])]);
+        $this->client->followRedirect();
+        self::assertStringContainsString('Creditorul s-a reluat din documentele rămase.', (string) $this->client->getResponse()->getContent());
+
+        $crawler = $this->client->request('GET', '/case/new/creditor');
+        self::assertSame('Cedent SRL', $crawler->filter('input[name="step1_creditor[name]"]')->attr('value'));
+    }
+
+    public function testRemovingADuplicateOfTheSamePartyKeepsTheLawyersCorrections(): void
+    {
+        $ids = $this->primeDocuments([
+            $this->creditorPayload('Cedent SRL', '15193236'),
+            $this->creditorPayload('Cedent SRL', '15193236'),
+        ]);
+        $this->saveSteps(['creditor' => new Step1CreditorData(
+            personType: PersonType::PJ,
+            name: 'Cedent SRL',
+            cui: '15193236',
+            address: 'Str. Corectata de avocat 1',
+            anafCheckedAt: '2026-10-08T10:00:00+03:00',
+            autoFilled: ['name', 'cui'],
+        )]);
+
+        $dialog = $this->client->request('GET', '/case/new/documents/' . $ids[1] . '/remove/preview');
+        self::assertSame(1, $dialog->filter('[data-testid="step0-remove-creditor-kept"]')->count());
+        self::assertSame('Elimină', trim($dialog->filter('[data-testid="step0-remove-confirm"]')->text()));
+
+        $this->client->request('POST', '/case/new/documents/' . $ids[1] . '/remove', ['_token' => $this->removeToken($ids[1])]);
+
+        $creditor = $this->client->getRequest()->getSession()->get(self::SESSION_KEY)['creditor'];
+        self::assertSame('Str. Corectata de avocat 1', $creditor->address);
+        self::assertSame('2026-10-08T10:00:00+03:00', $creditor->anafCheckedAt);
+    }
+
+    public function testRemovingADocumentRereadsTheClaimButKeepsWhatOnlyTheLawyerWrites(): void
+    {
+        $ids = $this->primeDocuments([
+            $this->payload('Debitor SRL', '14186770', 'Cluj', 1000.0),
+            $this->payload('Debitor SRL', '14186770', 'Cluj', 2000.0),
+        ]);
+        $this->saveSteps(['claim' => new Step3ClaimData(
+            amount: 2000.0,
+            currency: 'RON',
+            dueDate: new \DateTimeImmutable('2025-01-31'),
+            accessoryCutoffDate: new \DateTimeImmutable('2025-06-30'),
+            paymentNoticeNumber: '123',
+            legalCostsFixed: 500.0,
+            autoFilled: ['amount', 'currency'],
+        )]);
+
+        $dialog = $this->client->request('GET', '/case/new/documents/' . $ids[1] . '/remove/preview');
+        self::assertSame(1, $dialog->filter('[data-testid="step0-remove-claim-refreshed"]')->count());
+        self::assertSame('Suma de cerut se schimbă: 2.000,00 lei → 1.000,00 lei.', trim($dialog->filter('[data-testid="step0-remove-principal"]')->text()));
+        $this->client->request('POST', '/case/new/documents/' . $ids[1] . '/remove', ['_token' => $this->removeToken($ids[1])]);
+
+        $claim = $this->client->getRequest()->getSession()->get(self::SESSION_KEY)['claim'];
+        self::assertSame(1000.0, $claim->amount, 'read again from the invoice left');
+        self::assertSame(500.0, $claim->legalCostsFixed);
+        self::assertSame('123', $claim->paymentNoticeNumber);
+        self::assertSame('2025-06-30', $claim->accessoryCutoffDate->format('Y-m-d'));
+        self::assertSame('2025-01-31', $claim->dueDate->format('Y-m-d'), 'typed by the lawyer, no document gives one');
+    }
+
+    public function testRemovingBeforeAnyStepIsSavedOnlyAsksToConfirm(): void
+    {
+        $ids = $this->primeDocuments([$this->creditorPayload('Cedent SRL', '15193236')]);
+
+        $dialog = $this->client->request('GET', '/case/new/documents/' . $ids[0] . '/remove/preview');
+
+        self::assertStringContainsString('Pașii nu au fost încă salvați', $dialog->filter('[data-testid="step0-remove-consequences"]')->text());
+    }
+
+    public function testRemovingAnotherCasesDocumentRefillsTheDebtor(): void
+    {
+        $ids = $this->primeDocuments([
+            $this->payload('Debitor SRL', '14186770', 'Cluj', null),
+            $this->payload('Gresit Debitor SRL', '18547290', 'Iasi', null),
+        ]);
+        $this->saveSteps(['debtors' => new Step2DebtorsData([new Step2DebtorEntry(
+            personType: PersonType::PJ,
+            name: 'Gresit Debitor SRL',
+            cui: '18547290',
+            insolvencyCheckedAt: new \DateTimeImmutable('-1 day'),
+            autoFilled: ['name', 'cui'],
+        )])]);
+
+        $dialog = $this->client->request('GET', '/case/new/documents/' . $ids[1] . '/remove/preview');
+        self::assertStringContainsString('Debitor: se schimbă în Debitor SRL (în loc de Gresit Debitor SRL)', $dialog->filter('[data-testid="step0-remove-debtor-refilled"]')->text());
+
+        $this->client->request('POST', '/case/new/documents/' . $ids[1] . '/remove', ['_token' => $this->removeToken($ids[1])]);
+        self::assertNull($this->client->getRequest()->getSession()->get(self::SESSION_KEY)['debtors'], 'the insolvency check of the other company goes with it');
+        $this->client->followRedirect();
+        self::assertStringContainsString('Debitorul s-a reluat din documentele rămase.', (string) $this->client->getResponse()->getContent());
+    }
+
+    public function testAPartyNoDocumentLeftNamesIsCleared(): void
+    {
+        $ids = $this->primeDocuments([
+            $this->payload('Debitor SRL', '14186770', 'Cluj', null),
+            $this->creditorPayload('Cedent SRL', '15193236'),
+        ]);
+        $this->saveSteps(['creditor' => new Step1CreditorData(personType: PersonType::PJ, name: 'Cedent SRL', cui: '15193236', autoFilled: ['name', 'cui'])]);
+
+        $dialog = $this->client->request('GET', '/case/new/documents/' . $ids[1] . '/remove/preview');
+
+        self::assertStringContainsString('documentele rămase nu mai numesc Cedent SRL', $dialog->filter('[data-testid="step0-remove-creditor-refilled"]')->text());
+    }
+
+    public function testADebtorLeftAsAConsumerIsStillRefusedAfterARemoval(): void
+    {
+        // The company removed, the document left names a natural person: the
+        // business-only gate of step 0 has to see it the same as on upload.
+        $consumer = $this->payload('Popescu Ion', '', 'Cluj', null);
+        $consumer['debtors'][0]['personType'] = 'PF';
+        unset($consumer['debtors'][0]['cui']);
+        $ids = $this->primeDocuments([$consumer, $this->payload('Debitor SRL', '14186770', 'Cluj', null)]);
+        $this->saveSteps(['debtors' => new Step2DebtorsData([new Step2DebtorEntry(personType: PersonType::PJ, name: 'Debitor SRL', cui: '14186770', autoFilled: ['name', 'cui'])])]);
+
+        $this->client->request('POST', '/case/new/documents/' . $ids[1] . '/remove', ['_token' => $this->removeToken($ids[1])]);
+        $crawler = $this->client->followRedirect();
+
+        self::assertStringContainsString('Debitorul este persoană fizică (consumator)', $crawler->text());
+    }
+
+    public function testThePreviewChangesNothing(): void
+    {
+        $ids = $this->primeDocuments([
+            $this->creditorPayload('Cedent SRL', '15193236'),
+            $this->creditorPayload('Gresit SRL', '14186770'),
+        ]);
+        $this->saveSteps(['creditor' => new Step1CreditorData(personType: PersonType::PJ, name: 'Gresit SRL', cui: '14186770', autoFilled: ['name', 'cui'])]);
+        $before = serialize($this->client->getRequest()->getSession()->get(self::SESSION_KEY));
+
+        $this->client->request('GET', '/case/new/documents/' . $ids[1] . '/remove/preview');
+
+        self::assertResponseIsSuccessful();
+        self::assertSame($before, serialize($this->client->getRequest()->getSession()->get(self::SESSION_KEY)));
+        $this->em->clear();
+        self::assertNotNull($this->em->find(Document::class, $ids[1]));
+    }
+
+    public function testThePreviewOfADocumentOutsideTheWizardIsNotFound(): void
+    {
+        $ids = $this->primeDocuments([$this->creditorPayload('Cedent SRL', '15193236')]);
+        $session = $this->client->getRequest()->getSession();
+        $session->set(self::SESSION_KEY, ['documentIds' => []]);
+        $session->save();
+
+        $this->client->request('GET', '/case/new/documents/' . $ids[0] . '/remove/preview');
+
+        self::assertResponseStatusCodeSame(Response::HTTP_NOT_FOUND);
+    }
+
+    public function testThePreviewNeedsALoggedInLawyer(): void
+    {
+        $ids = $this->primeDocuments([$this->creditorPayload('Cedent SRL', '15193236')]);
+        $this->client->getCookieJar()->clear();
+
+        $this->client->request('GET', '/case/new/documents/' . $ids[0] . '/remove/preview');
+
+        self::assertResponseRedirects();
+        self::assertStringContainsString('/login', (string) $this->client->getResponse()->headers->get('Location'));
+    }
+
     public function testRemovalWithoutAValidTokenIsRefused(): void
     {
         $ids = $this->primeDocuments([$this->creditorPayload('Cedent SRL', '15193236')]);
@@ -464,8 +640,7 @@ final class CaseWizardConflictsTest extends WebTestCase
     public function testADocumentStillBeingReadIsNotRemoved(): void
     {
         $ids = $this->primeDocuments([$this->creditorPayload('Cedent SRL', '15193236')]);
-        $crawler = $this->client->request('GET', '/case/new/documents');
-        $token = $crawler->filter('form[action="/case/new/documents/' . $ids[0] . '/remove"] input[name="_token"]')->attr('value');
+        $token = $this->removeToken($ids[0]);
         $this->em->getConnection()->executeStatement('UPDATE document SET extraction_status = ? WHERE id = ?', [ExtractionStatus::PROCESSING->value, $ids[0]]);
 
         $this->client->request('POST', '/case/new/documents/' . $ids[0] . '/remove', ['_token' => $token]);
@@ -478,8 +653,7 @@ final class CaseWizardConflictsTest extends WebTestCase
     public function testADocumentOutsideTheWizardCannotBeRemovedThroughIt(): void
     {
         $ids = $this->primeDocuments([$this->creditorPayload('Cedent SRL', '15193236')]);
-        $crawler = $this->client->request('GET', '/case/new/documents');
-        $token = $crawler->filter('form[action="/case/new/documents/' . $ids[0] . '/remove"] input[name="_token"]')->attr('value');
+        $token = $this->removeToken($ids[0]);
         $session = $this->client->getRequest()->getSession();
         $session->set(self::SESSION_KEY, ['documentIds' => []]);
         $session->save();
@@ -489,6 +663,25 @@ final class CaseWizardConflictsTest extends WebTestCase
         self::assertResponseStatusCodeSame(Response::HTTP_NOT_FOUND);
         $this->em->clear();
         self::assertNotNull($this->em->find(Document::class, $ids[0]));
+    }
+
+    /** The token the confirmation dialog carries, read the way the lawyer reaches it. */
+    private function removeToken(int $id): string
+    {
+        $crawler = $this->client->request('GET', '/case/new/documents/' . $id . '/remove/preview');
+        self::assertResponseIsSuccessful();
+
+        return (string) $crawler->filter('[data-testid="step0-remove-dialog"] form input[name="_token"]')->attr('value');
+    }
+
+    /**
+     * @param array<string, mixed> $changes
+     */
+    private function saveSteps(array $changes): void
+    {
+        $session = $this->client->getRequest()->getSession();
+        $session->set(self::SESSION_KEY, [...$session->get(self::SESSION_KEY), ...$changes]);
+        $session->save();
     }
 
     /**

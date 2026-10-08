@@ -59,6 +59,8 @@
            frame between the documents list and the navigation buttons so
            the visual order matches the v2 mockup (docs → notice → buttons). #}
         {{ include('case/_step0_dynamic_partial.html.twig') }}
+        {# Outside the dynamic frame, so its polling refresh does not close an open dialog. #}
+        <turbo-frame id="step0-remove-dialog"></turbo-frame>
     </div>
 
     {# Sidecard sits in its own grid column. Wrapped in turbo-frame#step0-sidecard
