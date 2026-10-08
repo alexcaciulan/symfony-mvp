@@ -1,0 +1,57 @@
+{# Says, before the file goes, what removing it does to the steps already saved. #}
+<turbo-frame id="step0-remove-dialog">
+    <div data-controller="dismiss" data-action="click->dismiss#backdrop"
+         class="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/50 px-4"
+         role="dialog" aria-modal="true" aria-labelledby="step0-remove-title" aria-describedby="step0-remove-consequences" data-testid="step0-remove-dialog">
+        <div data-dismiss-target="panel" class="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800">
+            <div class="px-5 pt-5">
+                <h2 id="step0-remove-title" class="text-base font-semibold text-slate-900 dark:text-white">{{ 'wizard.step0.remove.dialog.title'|trans }}</h2>
+                <p class="mt-1 text-sm text-slate-600 dark:text-slate-300 break-words">{{ document.originalFilename }}</p>
+            </div>
+            <ul id="step0-remove-consequences" class="px-5 pt-4 space-y-2.5 text-sm text-slate-700 dark:text-slate-200" data-testid="step0-remove-consequences">
+                {% if not plan.touchesSavedSteps %}
+                    <li>{{ 'wizard.step0.remove.dialog.nothing_saved'|trans }}</li>
+                {% else %}
+                    {% for party, outcome in {'creditor': plan.creditor, 'debtor': plan.debtor} %}
+                        {% set before = party == 'creditor' ? plan.creditorBefore : plan.debtorBefore %}
+                        {% set after = party == 'creditor' ? plan.creditorAfter : plan.debtorAfter %}
+                        {% if outcome.value == 'refilled' %}
+                            <li class="rounded-lg bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-amber-900 dark:text-amber-200" data-testid="step0-remove-{{ party }}-refilled">
+                                <span class="font-semibold">{{ ('wizard.step0.remove.dialog.label.' ~ party)|trans }}:</span>
+                                {{ ('wizard.step0.remove.dialog.' ~ party ~ (after ? '_other' : '_none'))|trans({'%before%': before ?? '—', '%after%': after ?? ''}) }}
+                            </li>
+                        {% elseif outcome.value == 'kept' %}
+                            <li class="px-3" data-testid="step0-remove-{{ party }}-kept">
+                                <span class="font-semibold">{{ ('wizard.step0.remove.dialog.label.' ~ party)|trans }}:</span>
+                                {{ ('wizard.step0.remove.dialog.' ~ party ~ '_kept')|trans({'%before%': before ?? '—'}) }}
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                    {% if plan.claimRefreshed %}
+                        <li class="px-3" data-testid="step0-remove-claim-refreshed">
+                            <span class="font-semibold">{{ 'wizard.step0.remove.dialog.label.claim'|trans }}:</span>
+                            {{ 'wizard.step0.remove.dialog.claim_refreshed'|trans }}
+                            {% if plan.principalChanges %}
+                                <span class="block mt-1 font-medium" data-testid="step0-remove-principal">{{ 'wizard.step0.remove.dialog.principal'|trans({'%before%': plan.principalBefore|number_format(2, ',', '.'), '%after%': plan.principalAfter|number_format(2, ',', '.')}) }}</span>
+                            {% endif %}
+                        </li>
+                    {% endif %}
+                    <li class="px-3">
+                        <span class="font-semibold">{{ 'wizard.step0.remove.dialog.label.items'|trans }}:</span>
+                        {{ 'wizard.step0.remove.dialog.items'|trans }}
+                    </li>
+                {% endif %}
+            </ul>
+            <div class="mt-5 flex justify-end gap-2 border-t border-slate-100 dark:border-slate-800 px-5 py-3">
+                <button type="button" data-action="dismiss#dismiss" data-dismiss-target="initialFocus"
+                        class="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800">{{ 'wizard.step0.remove.dialog.cancel'|trans }}</button>
+                {# Plain POST: Turbo reloads a response whose CSP nonce differs, and the flash is spent on the first one. #}
+                <form method="post" action="{{ path('case_wizard_documents_remove', {'id': document.id}) }}" data-turbo="false">
+                    <input type="hidden" name="_token" value="{{ csrf_token('wizard_step0_remove_' ~ document.id) }}">
+                    <button type="submit" data-testid="step0-remove-confirm"
+                            class="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-red-700">{{ (plan.resetsAParty ? 'wizard.step0.remove.dialog.confirm_refill' : 'wizard.step0.remove.dialog.confirm')|trans }}</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</turbo-frame>

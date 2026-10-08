@@ -129,6 +129,16 @@ Observație: avertismentul „Extrasul de cont conține încasări care nu au pu
 ### 2.13 Detalierea penalităților contractuale (03.10.2026)
 Detalierea pe poziție adăugată la Dosarul 2 exista doar pentru dobânda legală. Acum și penalitățile din contract au tabelul „Cum s-au calculat penalitățile” (perioadă, sumă, rată pe zi, zile, penalități calculate și, când se aplică, linia de plafon) la Pasul 3 (pe fiecare factură și în panoul live la completarea manuală) și pe pagina dosarului. Procentul plafonului se scrie ca în contract (10%, 7,5%), inclusiv în somație, care înainte rotunjea 7,5% la 8%. La generarea somației, totalul accesoriilor din dosar se recalculează la data somației (cu mențiune în audit), iar pagina dosarului calculează la aceeași dată, ca antetul, detalierea și somația să arate aceeași sumă.
 
+### 2.14 Mențiuni generale: documentul încărcat din greșeală (08.10.2026)
+Butonul „Elimină” de la Pasul 0 scotea fișierul, dar pașii deja salvați păstrau datele citite din el (reprodus live: după eliminarea facturii dosarului 5, Pașii 1-2 rămâneau cu Knowledge & Smart Solutions și Electric Network). Acum:
+- La eliminare, datele se recombină din documentele rămase, fără o nouă extracție AI.
+- Creditorul sau debitorul: dacă documentele rămase numesc altă firmă (alt CUI) sau niciuna, pasul se completează din nou; dacă e aceeași firmă, rămân corecturile, verificarea ANAF și cea BPI.
+- Creanța: câmpurile citite din documente se recitesc; onorariul, numărul somației, data-limită și clauza rămân.
+- Tabelul cu facturi se reface.
+- Înainte de ștergere apare o fereastră care spune exact ce se va întâmpla (cu numele firmelor), iar după ștergere un mesaj cu ce s-a reluat.
+
+Verificat live pe ambele scenarii (factură de avans a aceluiași dosar: totul păstrat; factura dosarului 5 rămasă singură: creditorul și debitorul reluate) și prin teste.
+
 ## 3. De decis cu tine
 
 Pentru fiecare punct: întrebarea, opțiunile și recomandarea mea.

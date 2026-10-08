@@ -17,6 +17,7 @@ use App\DTO\Extraction\WizardPrefillResult;
 use App\DTO\Library\DebtorLibraryData;
 use App\DTO\Validation\AdmissibilityIssue;
 use App\DTO\Wizard\ClaimItemRow;
+use App\DTO\Wizard\DocumentRemovalPlan;
 use App\DTO\Wizard\Step1CreditorData;
 use App\DTO\Wizard\Step2DebtorEntry;
 use App\DTO\Wizard\Step2DebtorsData;
@@ -39,6 +40,7 @@ use App\Enum\IssueSeverity;
 use App\Enum\PenaltyType;
 use App\Enum\PersonType;
 use App\Enum\RelationshipType;
+use App\Enum\RemovalStepOutcome;
 use App\Form\Wizard\DebtorPickType;
 use App\Form\Wizard\Step0DocumentsType;
 use App\Form\Wizard\Step1CreditorType;
@@ -72,6 +74,7 @@ use App\Service\Extraction\ConflictChoiceApplier;
 use App\Service\Extraction\ConflictResolutionService;
 use App\Service\Extraction\ConflictValueEquivalence;
 use App\Service\Extraction\DetectedDataPreviewBuilder;
+use App\Service\Extraction\DocumentRemovalPlanner;
 use App\Service\Extraction\PrefillFromExtractionService;
 use App\Service\Party\CuiNormalizer;
 use App\Service\Party\OnrcNumber;
@@ -588,18 +591,27 @@ final class CaseWizardController extends AbstractController
     }
 
     /**
-     * Takes a document out of the wizard: one uploaded by mistake would
-     * otherwise keep feeding the prefill and the conflicts panel of a case it
-     * has nothing to do with.
-     *
-     * The file and its row go, as on the case's own documents tab; it was never
-     * part of a case, so nothing else points at it. The claim table is rebuilt
-     * from the remaining documents, and choices made against the removed file
-     * drop out the next time a step reconciles its conflicts. A document still
-     * being read is left alone until the reading ends.
+     * The confirmation dialog: what removing this document does to the steps
+     * already saved, worked out before anything is deleted.
+     */
+    #[Route('/documents/{id}/remove/preview', name: 'documents_remove_preview', methods: ['GET'], requirements: ['id' => '\d+'])]
+    public function removeDocumentPreview(Request $request, int $id, #[CurrentUser] User $user, DocumentRemovalPlanner $planner): Response
+    {
+        $bag = $this->loadBag($request->getSession());
+        $document = $this->removableDocument($bag, $id, $user);
+
+        return $this->render('case/_step0_remove_dialog.html.twig', [
+            'document' => $document,
+            'plan' => $planner->plan($bag, $id),
+        ]);
+    }
+
+    /**
+     * Removes a document uploaded by mistake and refills the saved steps the
+     * plan says it fed. A document still being read is left alone.
      */
     #[Route('/documents/{id}/remove', name: 'documents_remove', methods: ['POST'], requirements: ['id' => '\d+'])]
-    public function removeDocument(Request $request, int $id, #[CurrentUser] User $user): Response
+    public function removeDocument(Request $request, int $id, #[CurrentUser] User $user, DocumentRemovalPlanner $planner): Response
     {
         if (!$this->isCsrfTokenValid('wizard_step0_remove_' . $id, (string) $request->request->get('_token'))) {
             throw $this->createAccessDeniedException('Invalid CSRF token');
@@ -607,29 +619,54 @@ final class CaseWizardController extends AbstractController
 
         $session = $request->getSession();
         $bag = $this->loadBag($session);
-        if (!in_array($id, $bag['documentIds'], true)) {
-            throw $this->createNotFoundException('Document is not part of the current wizard session');
-        }
-
-        $document = $this->loadOwnedDocuments([$id], $user)[0] ?? null;
-        if ($document === null || $document->getLegalCase() !== null) {
-            throw $this->createNotFoundException('Document not found');
-        }
+        $document = $this->removableDocument($bag, $id, $user);
         if ($document->getExtractionStatus() === ExtractionStatus::PROCESSING) {
             $this->addFlash('warning', 'wizard.step0.remove.processing');
 
             return $this->redirectToRoute('case_wizard_documents');
         }
 
-        $bag['documentIds'] = array_values(array_filter($bag['documentIds'], static fn (int $d): bool => $d !== $id));
-        $bag['claimItems'] = null;
-        $bag['claimItemsTableConfirmed'] = false;
+        $plan = $planner->plan($bag, $id);
+        $planner->apply($bag, $id, $plan);
         $this->saveBag($session, $bag);
         $this->uploadService->delete($document);
 
-        $this->addFlash('success', 'wizard.step0.remove.done');
+        $this->addFlash('success', $this->removalMessage($plan));
 
         return $this->redirectToRoute('case_wizard_documents');
+    }
+
+    /**
+     * @param array<string, mixed> $bag
+     */
+    private function removableDocument(array $bag, int $id, User $user): Document
+    {
+        if (!in_array($id, $bag['documentIds'], true)) {
+            throw $this->createNotFoundException('Document is not part of the current wizard session');
+        }
+        $document = $this->loadOwnedDocuments([$id], $user)[0] ?? null;
+        if ($document === null || $document->getLegalCase() !== null) {
+            throw $this->createNotFoundException('Document not found');
+        }
+
+        return $document;
+    }
+
+    /** What the removal changed, said after the fact as the dialog said it before. */
+    private function removalMessage(DocumentRemovalPlan $plan): string
+    {
+        $parts = [$this->trans('wizard.step0.remove.done')];
+        if ($plan->creditor === RemovalStepOutcome::REFILLED) {
+            $parts[] = $this->trans('wizard.step0.remove.done_creditor_refilled');
+        }
+        if ($plan->debtor === RemovalStepOutcome::REFILLED) {
+            $parts[] = $this->trans('wizard.step0.remove.done_debtor_refilled');
+        }
+        if ($plan->claimRefreshed) {
+            $parts[] = $this->trans('wizard.step0.remove.done_claim_refreshed');
+        }
+
+        return implode(' ', $parts);
     }
 
     /**
