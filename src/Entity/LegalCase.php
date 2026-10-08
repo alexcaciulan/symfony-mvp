@@ -263,6 +263,14 @@ class LegalCase
     private ?string $courtCaseNumber = null;
 
     /**
+     * A court case number found on portal.just.ro but not yet confirmed by the
+     * lawyer. Kept apart from courtCaseNumber, which everything else treats as
+     * confirmed (stamp duty payment, deadlines, monitoring).
+     */
+    #[ORM\Column(length: 50, nullable: true)]
+    private ?string $portalProposedNumber = null;
+
+    /**
      * Declared by the lawyer when confirming the filing. Not a finding of the
      * platform: the proof of the filing date sits with the court (CPC art. 183
      * alin. 3), so this records what they told us, nothing more.
@@ -1039,9 +1047,25 @@ class LegalCase
         return $this->courtCaseNumber;
     }
 
+    public function getPortalProposedNumber(): ?string
+    {
+        return $this->portalProposedNumber;
+    }
+
+    public function setPortalProposedNumber(?string $portalProposedNumber): static
+    {
+        $this->portalProposedNumber = $portalProposedNumber;
+
+        return $this;
+    }
+
     public function setCourtCaseNumber(?string $courtCaseNumber): static
     {
         $this->courtCaseNumber = $courtCaseNumber;
+        if ($courtCaseNumber !== null) {
+            // A confirmed number answers any proposal.
+            $this->portalProposedNumber = null;
+        }
 
         return $this;
     }

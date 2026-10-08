@@ -6,6 +6,7 @@ namespace App\Controller\Case;
 
 use App\Entity\LegalCase;
 use App\Enum\CaseTransition;
+use App\Enum\StampDutyStatus;
 use App\Form\Case\PortalActivateType;
 use App\Repository\LegalCaseRepository;
 use App\Security\Voter\CaseVoter;
@@ -85,7 +86,12 @@ final class CasePortalController extends AbstractController
 
         $this->applyActivation($case, $courtCaseNumber, $previousNumber);
 
-        return $this->respondPortal($request, $case, true, 'success', 'case_overview.portal.flash_activated');
+        // With the number known, the stamp duty can be paid in this dosar: say so now.
+        $flash = $case->getStampDutyStatus() === StampDutyStatus::NEACHITATA
+            ? 'case_overview.portal.flash_activated_pay_stamp_duty'
+            : 'case_overview.portal.flash_activated';
+
+        return $this->respondPortal($request, $case, true, 'success', $flash);
     }
 
     /**
@@ -146,6 +152,38 @@ final class CasePortalController extends AbstractController
      * platform to find and copy the ECRIS number. Renders ranked suggestions into
      * a Turbo Frame; each suggestion posts the chosen number to `activate`.
      */
+    /**
+     * The lawyer sets aside a dosar the search proposed. Clears the proposal; the
+     * daily search does not offer the same number again (its announcement exists).
+     */
+    #[Route('/case/{id}/portal/proposal/dismiss', name: 'case_portal_proposal_dismiss', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function dismissProposal(int $id, Request $request): Response
+    {
+        $case = $this->findOrThrow($id);
+        $this->denyAccessUnlessGranted(CaseVoter::TRANSITION, $case);
+        if (!$this->isCsrfTokenValid('portal_proposal_dismiss_' . $id, $request->getPayload()->getString('_token'))) {
+            throw $this->createAccessDeniedException('Invalid CSRF token');
+        }
+
+        $proposed = $case->getPortalProposedNumber();
+        if ($proposed !== null) {
+            $case->setPortalProposedNumber(null);
+            $this->auditLogService->log(
+                action: 'portal_proposal_dismissed',
+                entityType: LegalCase::class,
+                entityId: (string) $case->getId(),
+                oldData: ['portalProposedNumber' => $proposed],
+                newData: ['caseNumber' => $case->getCaseNumber()],
+                category: AuditLogService::CATEGORY_PORTAL_MONITORING,
+            );
+            $this->em->flush();
+        }
+
+        $this->addFlash('success', 'case_overview.portal.flash_proposal_dismissed');
+
+        return $this->redirectToRoute('case_overview', ['id' => $case->getId()]);
+    }
+
     #[Route('/case/{id}/portal/discover', name: 'case_portal_discover', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function discover(int $id, Request $request, RateLimiterFactory $portalSearchLimiter): Response
     {
@@ -185,6 +223,14 @@ final class CasePortalController extends AbstractController
         }
 
         $this->logDiscovery($case, count($suggestions));
+
+        // A clear match is kept as the case's proposal, so the case page keeps
+        // pointing to it after this list is gone.
+        $best = $suggestions[0] ?? null;
+        if ($best !== null && $best->isHighConfidence && $case->getCourtCaseNumber() === null) {
+            $case->setPortalProposedNumber($best->numar);
+            $this->em->flush();
+        }
 
         return $this->renderDiscover($case, $suggestions, $suggestions === [] ? 'empty' : 'ok');
     }

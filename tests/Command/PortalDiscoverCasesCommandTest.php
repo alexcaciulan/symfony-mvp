@@ -63,6 +63,30 @@ final class PortalDiscoverCasesCommandTest extends KernelTestCase
         self::assertFalse($case->isPortalMonitoringActive());
     }
 
+    public function testTheNumberFoundIsKeptOnTheCaseAsAProposal(): void
+    {
+        $case = $this->filedCase(CaseStatus::CERERE_DEPUSA);
+
+        $this->discover();
+
+        $this->em->refresh($case);
+        self::assertSame('19883/211/2025', $case->getPortalProposedNumber());
+        self::assertNull($case->getCourtCaseNumber(), 'a proposal, not the confirmed number');
+    }
+
+    public function testAProposalSetAsideIsNotProposedAgain(): void
+    {
+        $case = $this->filedCase(CaseStatus::CERERE_DEPUSA);
+        $this->discover();
+        $this->em->refresh($case);
+        $case->setPortalProposedNumber(null);
+        $this->em->flush();
+
+        $this->discover();
+
+        $this->em->refresh($case);
+        self::assertNull($case->getPortalProposedNumber());
+    }
     public function testACaseNotYetFiledIsNotSearched(): void
     {
         $case = $this->filedCase(CaseStatus::CERERE_GENERATA);

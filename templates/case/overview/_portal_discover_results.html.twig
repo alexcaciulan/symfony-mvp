@@ -48,12 +48,13 @@
                                     {% endif %}
                                     {% if s.matchedPartyNames|length > 0 %}
                                         <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                                            {{ icon_check('size-3') }}{{ s.matchedPartyNames|length }} {{ 'case_overview.portal.discover_matched_badge'|trans }}
+                                            {{ icon_check('size-3') }}{{ 'case_overview.portal.discover_matched_badge'|trans({'%count%': s.matchedPartyNames|length}) }}
                                         </span>
                                     {% endif %}
                                 </div>
-                                {% if s.institutie %}
-                                    <div class="text-xs text-slate-500 mt-1">{{ s.institutie }}</div>
+                                {# The search runs in the case's own court; the portal's code for it ("JudecatoriaCLUJNAPOCA") is no name to show. #}
+                                {% if case.court or s.institutie %}
+                                    <div class="text-xs text-slate-500 mt-1">{{ case.court ? case.court.name : s.institutie }}</div>
                                 {% endif %}
                             </div>
 

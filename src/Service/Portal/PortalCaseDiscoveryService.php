@@ -6,8 +6,10 @@ namespace App\Service\Portal;
 
 use App\Entity\LegalCase;
 use App\Enum\NotificationType;
+use App\Repository\NotificationRepository;
 use App\Service\Notification\NotificationDispatch;
 use App\Service\Notification\NotificationDispatcherInterface;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
@@ -20,7 +22,9 @@ use Symfony\Contracts\Translation\TranslatorInterface;
  * with the button that already exists on the case's portal tab, and only then
  * does monitoring start. That human check is the point, so only a match the
  * matcher rates as certain enough to propose is announced, and each case number
- * is announced once.
+ * is announced once. The number is also kept on the case as a proposal, which the
+ * case page shows until the lawyer confirms or sets it aside; a number set aside
+ * is not proposed again, because its announcement already exists.
  */
 final class PortalCaseDiscoveryService
 {
@@ -29,6 +33,8 @@ final class PortalCaseDiscoveryService
         private readonly NotificationDispatcherInterface $notificationDispatcher,
         private readonly TranslatorInterface $translator,
         private readonly UrlGeneratorInterface $urlGenerator,
+        private readonly NotificationRepository $notifications,
+        private readonly EntityManagerInterface $em,
     ) {}
 
     /**
@@ -42,6 +48,14 @@ final class PortalCaseDiscoveryService
             return null;
         }
 
+        $dedupKey = sprintf('portal_case_found:%d:%s', (int) $case->getId(), $best->numar);
+        if ($this->notifications->findOneByDedupKey($dedupKey) !== null) {
+            return $best->numar;
+        }
+
+        $case->setPortalProposedNumber($best->numar);
+        $this->em->flush();
+
         $params = ['%case%' => $case->getCaseNumber(), '%number%' => $best->numar];
         $this->notificationDispatcher->dispatch(new NotificationDispatch(
             user: $case->getUser(),
@@ -53,7 +67,7 @@ final class PortalCaseDiscoveryService
             variant: 'info',
             emailSubject: null,
             emailTemplate: null,
-            dedupKey: sprintf('portal_case_found:%d:%s', (int) $case->getId(), $best->numar),
+            dedupKey: $dedupKey,
         ));
 
         return $best->numar;

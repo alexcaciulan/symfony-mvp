@@ -1,0 +1,48 @@
+{# The court case number from the portal, from the moment it is found until its
+   stamp duty is settled. Found but not confirmed: confirm it (the portal names
+   parties only, so the lawyer is the check) and then pay. Confirmed: pay. #}
+{% from 'case/overview/_icons.html.twig' import icon_warning %}
+
+{% set open_case = not case.status.isTerminal() %}
+{% set proposed = case.portalProposedNumber %}
+{% set confirmed = case.courtCaseNumber %}
+{% set court_name = case.court ? case.court.name : '' %}
+
+{% if open_case and confirmed is null and proposed %}
+    <div class="rounded-xl border border-blue-200 dark:border-blue-900/40 bg-blue-50 dark:bg-blue-950/20 px-4 py-3 mb-4 flex items-start gap-3" data-testid="portal-case-alert-proposed">
+        <span class="inline-flex items-center justify-center size-8 rounded-lg bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 shrink-0">
+            {{ icon_warning('size-4') }}
+        </span>
+        <div class="flex-1 min-w-0">
+            <div class="text-sm font-semibold text-blue-900 dark:text-blue-200">{{ 'case_overview.portal.alert_proposed_title'|trans({'%number%': proposed}) }}</div>
+            <div class="text-xs text-blue-800 dark:text-blue-300/80 mt-0.5">{{ 'case_overview.portal.alert_proposed_hint'|trans({'%court%': court_name}) }}</div>
+        </div>
+        <div class="flex flex-col items-end gap-1 shrink-0">
+            <a href="{{ path('case_overview', { id: case.id, tab: 'portal' }) }}" data-turbo="false"
+               class="py-1.5 px-3 inline-flex items-center text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition">
+                {{ 'case_overview.portal.alert_proposed_cta'|trans }}
+            </a>
+            <form method="post" action="{{ path('case_portal_proposal_dismiss', { id: case.id }) }}" data-turbo="false">
+                <input type="hidden" name="_token" value="{{ csrf_token('portal_proposal_dismiss_' ~ case.id) }}">
+                <button type="submit" data-testid="portal-proposal-dismiss"
+                        class="text-xs font-medium text-blue-800/80 dark:text-blue-300/70 underline-offset-2 hover:underline">
+                    {{ 'case_overview.portal.alert_proposed_dismiss'|trans }}
+                </button>
+            </form>
+        </div>
+    </div>
+{% elseif open_case and confirmed and case.stampDutyStatus.value == 'NEACHITATA' %}
+    <div class="rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 mb-4 flex items-start gap-3" data-testid="portal-case-alert-stamp-duty">
+        <span class="inline-flex items-center justify-center size-8 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 shrink-0">
+            {{ icon_warning('size-4') }}
+        </span>
+        <div class="flex-1 min-w-0">
+            <div class="text-sm font-semibold text-amber-900 dark:text-amber-200">{{ 'case_overview.portal.alert_stamp_duty_title'|trans }}</div>
+            <div class="text-xs text-amber-800 dark:text-amber-300/80 mt-0.5">{{ 'case_overview.portal.alert_stamp_duty_hint'|trans({'%number%': confirmed, '%court%': court_name}) }}</div>
+        </div>
+        <a href="{{ path('case_overview', { id: case.id, tab: 'documente' }) }}" data-turbo="false"
+           class="shrink-0 py-1.5 px-3 inline-flex items-center text-xs font-semibold rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition">
+            {{ 'case_overview.portal.alert_stamp_duty_cta'|trans }}
+        </a>
+    </div>
+{% endif %}
