@@ -102,12 +102,29 @@ final class PortalCaseMatcher
             }
         }
 
-        usort($scored, static function (array $a, array $b): int {
+        // Two kinds of cases stay visible, last, but take no part in the ranking:
+        // a number the lawyer set aside, and a case registered before our request
+        // was generated (with the same parties, an earlier payment order). Left in,
+        // the old case would be proposed while ours is not on the portal yet, and
+        // would tie with ours once it is.
+        $requestGeneratedAt = $case->requestGeneratedAt();
+        $dismissedNumbers = $case->getDismissedPortalNumbers();
+        $scored = array_map(static fn (array $entry): array => $entry + [
+            'dismissed' => in_array((string) $entry['dosar']['numar'], $dismissedNumbers, true),
+            'registeredBefore' => self::registeredBefore($entry['dosar'], $requestGeneratedAt),
+        ], $scored);
+        $isSetApart = static fn (array $entry): bool => $entry['dismissed'] || $entry['registeredBefore'];
+        $setApart = array_values(array_filter($scored, $isSetApart));
+        $scored = array_values(array_filter($scored, static fn (array $entry): bool => !$isSetApart($entry)));
+
+        $byRank = static function (array $a, array $b): int {
             return $b['score'] <=> $a['score']
                 ?: strcmp((string) ($b['dosar']['dataModificare'] ?? ''), (string) ($a['dosar']['dataModificare'] ?? ''));
-        });
+        };
+        usort($scored, $byRank);
+        usort($setApart, $byRank);
 
-        return $this->buildSuggestions($scored);
+        return $this->buildSuggestions($scored, $setApart, $requestGeneratedAt !== null);
     }
 
     /**
@@ -197,21 +214,25 @@ final class PortalCaseMatcher
     }
 
     /**
-     * @param array<int, array{dosar: array<string, mixed>, score: int, matched: string[], allMatched: bool, opMarker: bool}> $scored
+     * @param array<int, array{dosar: array<string, mixed>, score: int, matched: string[], allMatched: bool, opMarker: bool, dismissed: bool, registeredBefore: bool}> $scored
+     * @param array<int, array{dosar: array<string, mixed>, score: int, matched: string[], allMatched: bool, opMarker: bool, dismissed: bool, registeredBefore: bool}> $setApart
+     * @param bool $requestGenerated without a generated request no case can be ours yet
      *
      * @return PortalCaseSuggestion[]
      */
-    private function buildSuggestions(array $scored): array
+    private function buildSuggestions(array $scored, array $setApart, bool $requestGenerated): array
     {
-        $scored = array_slice($scored, 0, self::MAX_SUGGESTIONS);
+        $listed = array_slice([...$scored, ...$setApart], 0, self::MAX_SUGGESTIONS);
 
         $suggestions = [];
-        foreach ($scored as $i => $entry) {
+        foreach ($listed as $i => $entry) {
             $dosar = $entry['dosar'];
 
             // High confidence: all our parties matched + OP marker present, and the
             // top candidate is clearly dominant (alone or strictly ahead of #2).
-            $highConfidence = $i === 0
+            $highConfidence = $requestGenerated
+                && $i < count($scored)
+                && $i === 0
                 && $entry['allMatched']
                 && $entry['opMarker']
                 && (count($scored) === 1 || $entry['score'] > $scored[1]['score']);
@@ -220,16 +241,35 @@ final class PortalCaseMatcher
                 numar: (string) $dosar['numar'],
                 institutie: $this->str($dosar['institutie'] ?? null),
                 obiect: $this->str($dosar['obiect'] ?? null),
+                dataInregistrare: $this->str($dosar['data'] ?? null),
                 stadiuProcesual: $this->str($dosar['stadiuProcesual'] ?? null),
                 dataModificare: $this->str($dosar['dataModificare'] ?? null),
                 parti: $dosar['parti'] ?? [],
                 score: $entry['score'],
                 matchedPartyNames: array_values(array_unique($entry['matched'])),
                 isHighConfidence: $highConfidence,
+                wasDismissed: $entry['dismissed'],
+                registeredBeforeRequest: $entry['registeredBefore'],
             );
         }
 
         return $suggestions;
+    }
+
+    /**
+     * Compared by calendar day: a request generated in the morning can be
+     * registered the same day. A case without a readable date is not set apart.
+     *
+     * @param array<string, mixed> $dosar
+     */
+    private static function registeredBefore(array $dosar, ?\DateTimeImmutable $requestGeneratedAt): bool
+    {
+        $registered = is_string($dosar['data'] ?? null) ? \DateTimeImmutable::createFromFormat('!Y-m-d', substr($dosar['data'], 0, 10)) : false;
+        if ($requestGeneratedAt === null || $registered === false) {
+            return false;
+        }
+
+        return $registered < $requestGeneratedAt->setTime(0, 0);
     }
 
     private function hasOpMarker(string $text): bool

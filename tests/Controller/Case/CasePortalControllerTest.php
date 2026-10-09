@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller\Case;
 
+use App\Entity\CaseStatusHistory;
 use App\Entity\Court;
 use App\Entity\CourtPortalEvent;
 use App\Entity\Creditor;
 use App\Entity\Debtor;
 use App\Entity\LegalCaseDebtor;
 use App\Entity\LegalCase;
+use App\Entity\PortalCaseMatch;
 use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\CourtType;
 use App\Enum\PersonType;
+use App\Enum\PortalCaseMatchSource;
+use App\Enum\PortalCaseMatchStatus;
 use App\Enum\StampDutyStatus;
 use App\Enum\PortalEventType;
 use App\Service\Portal\PortalJustClient;
@@ -112,22 +116,103 @@ final class CasePortalControllerTest extends WebTestCase
     {
         $this->client->loginUser($this->user);
         $case = $this->createCase(CaseStatus::CERERE_DEPUSA);
-        $case->setPortalProposedNumber('4521/302/2026');
+        $case->proposePortalMatch('4521/302/2026', PortalCaseMatchSource::AUTO);
         $this->em->flush();
 
         $crawler = $this->client->request('GET', '/case/' . $case->getId());
 
         self::assertResponseIsSuccessful();
         self::assertStringContainsString('Dosarul 4521/302/2026 a fost găsit pe portal.just.ro', $crawler->filter('[data-testid="portal-case-alert-proposed"]')->text());
-        self::assertSame('4521/302/2026', $crawler->filter('input[name="portal_activate[courtCaseNumber]"]')->attr('value'), 'one click confirms it');
+        self::assertStringContainsString('Dosar găsit automat pe portal: 4521/302/2026', $crawler->filter('[data-testid="portal-proposal-steps"]')->text());
+        self::assertSame('4521/302/2026', $crawler->filter('[data-testid="portal-proposal-steps"] input[name="portal_activate[courtCaseNumber]"]')->attr('value'), 'one click confirms it');
+        self::assertSame('', (string) $crawler->filter('input[type="text"][name="portal_activate[courtCaseNumber]"]')->attr('value'), 'the manual field stays for a number typed by hand');
+        self::assertSame(1, $crawler->filter('[data-testid="portal-proposal-show"]')->count());
         self::assertSame(0, $crawler->filter('[data-testid="portal-case-alert-stamp-duty"]')->count(), 'no payment into an unconfirmed number');
+    }
+
+    public function testTheBannerOpensTheCheckWithTheCaseAlreadyLoading(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::CERERE_DEPUSA);
+        $case->proposePortalMatch('4521/302/2026', PortalCaseMatchSource::AUTO);
+        $this->em->flush();
+
+        $crawler = $this->client->request('GET', '/case/' . $case->getId() . '?tab=portal&verifica=1');
+
+        self::assertSame('/case/' . $case->getId() . '/portal/proposal', $crawler->filter('turbo-frame#portal-proposed-card')->attr('src'));
+    }
+
+    public function testTheProposedCaseShowsItsPartiesWithOursMarked(): void
+    {
+        $this->client->loginUser($this->user);
+        $this->client->disableReboot();
+        $case = $this->createDiscoverableCase('SC Debitor Discover SRL');
+        $case->proposePortalMatch('4521/302/2026', PortalCaseMatchSource::AUTO);
+        $this->em->flush();
+        static::getContainer()->set(PortalJustClient::class, $this->portalWithCase('4521/302/2026'));
+
+        $crawler = $this->client->request('GET', '/case/' . $case->getId() . '/portal/proposal');
+
+        self::assertResponseIsSuccessful();
+        $card = $crawler->filter('[data-testid="portal-proposed-card"]');
+        self::assertStringContainsString('4521/302/2026', $card->text());
+        self::assertStringContainsString('ordonanță de plată', $card->text());
+        self::assertStringContainsString($case->getCourt()->getName(), $card->text());
+        self::assertCount(2, $card->filter('[data-testid="portal-proposed-party-ours"]'), 'creditor and debtor are ours, the third party is not');
+        self::assertStringContainsString('ALT INTERVENIENT SRL', $card->text());
+    }
+
+    public function testAProposedNumberThePortalDoesNotShowIsSaidSo(): void
+    {
+        $this->client->loginUser($this->user);
+        $this->client->disableReboot();
+        $case = $this->createDiscoverableCase('SC Debitor Discover SRL');
+        $case->proposePortalMatch('4521/302/2026', PortalCaseMatchSource::AUTO);
+        $this->em->flush();
+        static::getContainer()->set(PortalJustClient::class, $this->portalWithCase('9999/302/2026'));
+
+        $crawler = $this->client->request('GET', '/case/' . $case->getId() . '/portal/proposal');
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(0, $crawler->filter('[data-testid="portal-proposed-card"]')->count());
+        self::assertStringContainsString('Portalul nu afișează în acest moment un dosar cu acest număr', $crawler->text());
+    }
+
+    private function portalWithCase(string $number): PortalJustClient
+    {
+        return new class($number) extends PortalJustClient {
+            public function __construct(private readonly string $number)
+            {
+                parent::__construct(new NullLogger());
+            }
+
+            public function searchByCaseNumber(string $caseNumber, string $institutionCode): array
+            {
+                return [[
+                    'numar' => $this->number,
+                    'institutie' => $institutionCode,
+                    'departament' => 'Civil',
+                    'categorieCaz' => null,
+                    'stadiuProcesual' => 'Fond',
+                    'obiect' => 'ordonanță de plată',
+                    'dataModificare' => '2026-03-01',
+                    'parti' => [
+                        ['nume' => 'CREDITOR DISCOVER SRL', 'calitateParte' => 'Creditor'],
+                        ['nume' => 'DEBITOR DISCOVER SRL', 'calitateParte' => 'Debitor'],
+                        ['nume' => 'ALT INTERVENIENT SRL', 'calitateParte' => 'Intervenient'],
+                    ],
+                    'sedinte' => [],
+                    'caiAtac' => [],
+                ]];
+            }
+        };
     }
 
     public function testConfirmingTheProposalAsksForTheStampDuty(): void
     {
         $this->client->loginUser($this->user);
         $case = $this->createCase(CaseStatus::CERERE_DEPUSA);
-        $case->setPortalProposedNumber('4521/302/2026');
+        $case->proposePortalMatch('4521/302/2026', PortalCaseMatchSource::AUTO);
         $this->em->flush();
 
         $token = $this->activateToken($case);
@@ -141,13 +226,16 @@ final class CasePortalControllerTest extends WebTestCase
         self::assertSame(0, $crawler->filter('[data-testid="portal-case-alert-proposed"]')->count());
         $this->em->clear();
         self::assertNull($this->em->find(LegalCase::class, $case->getId())?->getPortalProposedNumber(), 'the confirmed number answers the proposal');
+        $match = $this->em->getRepository(PortalCaseMatch::class)->findOneBy(['legalCase' => $case->getId()]);
+        self::assertSame(PortalCaseMatchStatus::ACCEPTED, $match?->getStatus());
+        self::assertSame($this->user->getId(), $match?->getDecidedBy()?->getId(), 'who confirmed it is kept');
     }
 
     public function testAProposalCanBeSetAside(): void
     {
         $this->client->loginUser($this->user);
         $case = $this->createCase(CaseStatus::CERERE_DEPUSA);
-        $case->setPortalProposedNumber('4521/302/2026');
+        $case->proposePortalMatch('4521/302/2026', PortalCaseMatchSource::AUTO);
         $this->em->flush();
         $crawler = $this->client->request('GET', '/case/' . $case->getId());
         $token = $crawler->filter('form[action$="/portal/proposal/dismiss"] input[name="_token"]')->attr('value');
@@ -158,14 +246,60 @@ final class CasePortalControllerTest extends WebTestCase
         self::assertStringContainsString('Dosarul propus a fost înlăturat', $crawler->text());
         self::assertSame(0, $crawler->filter('[data-testid="portal-case-alert-proposed"]')->count());
         $this->em->clear();
-        self::assertNull($this->em->find(LegalCase::class, $case->getId())?->getPortalProposedNumber());
+        $refreshed = $this->em->find(LegalCase::class, $case->getId());
+        self::assertNull($refreshed?->getPortalProposedNumber());
+        self::assertSame(['4521/302/2026'], $refreshed?->getDismissedPortalNumbers(), 'kept as set aside, so it is not proposed again');
+        self::assertNull($refreshed?->getCourtCaseNumber());
+    }
+
+    public function testAManualSearchStillListsANumberSetAsideButDoesNotProposeIt(): void
+    {
+        $this->client->loginUser($this->user);
+        $this->client->disableReboot();
+        $case = $this->createDiscoverableCase('SC Debitor Discover SRL');
+        $case->proposePortalMatch('4521/302/2026', PortalCaseMatchSource::AUTO);
+        $case->dismissPortalProposal($this->user);
+        $this->em->flush();
+        static::getContainer()->set(PortalJustClient::class, new class extends PortalJustClient {
+            public function __construct()
+            {
+                parent::__construct(new NullLogger());
+            }
+
+            public function searchByParty(string $partyName, string $institutionCode, ?\DateTimeInterface $from = null, ?\DateTimeInterface $to = null): array
+            {
+                return [[
+                    'numar' => '4521/302/2026',
+                    'institutie' => $institutionCode,
+                    'departament' => 'Civil',
+                    'categorieCaz' => null,
+                    'stadiuProcesual' => 'Fond',
+                    'obiect' => 'ordonanță de plată',
+                    'dataModificare' => '2026-03-01',
+                    'parti' => [
+                        ['nume' => 'CREDITOR DISCOVER SRL', 'calitateParte' => 'Creditor'],
+                        ['nume' => 'DEBITOR DISCOVER SRL', 'calitateParte' => 'Debitor'],
+                    ],
+                    'sedinte' => [],
+                    'caiAtac' => [],
+                ]];
+            }
+        });
+
+        $crawler = $this->client->request('POST', '/case/' . $case->getId() . '/portal/discover', ['_token' => $this->discoverToken($case)]);
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('Înlăturat anterior', $crawler->filter('[data-testid="portal-discover-dismissed"]')->text(), 'still listed, marked');
+        self::assertStringNotContainsString('Potrivire foarte probabilă', $crawler->text());
+        $this->em->clear();
+        self::assertNull($this->em->find(LegalCase::class, $case->getId())?->getPortalProposedNumber(), 'not proposed again');
     }
 
     public function testSettingAProposalAsideNeedsAValidToken(): void
     {
         $this->client->loginUser($this->user);
         $case = $this->createCase(CaseStatus::CERERE_DEPUSA);
-        $case->setPortalProposedNumber('4521/302/2026');
+        $case->proposePortalMatch('4521/302/2026', PortalCaseMatchSource::AUTO);
         $this->em->flush();
 
         $this->client->request('POST', '/case/' . $case->getId() . '/portal/proposal/dismiss', ['_token' => 'forged']);
@@ -186,6 +320,27 @@ final class CasePortalControllerTest extends WebTestCase
 
         self::assertSame(0, $crawler->filter('[data-testid="portal-case-alert-stamp-duty"]')->count());
     }
+
+    public function testAnActivationThatDoesNotRegisterTheCaseDoesNotAskForTheStampDuty(): void
+    {
+        // The petition is not with the court yet: the case stays where it is, and
+        // "pay the stamp duty in this dosar now" would be wrong.
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::SOMATIE_TRIMISA);
+
+        $token = $this->activateToken($case);
+        $this->client->request('POST', '/case/' . $case->getId() . '/portal/activate', [
+            'portal_activate' => ['courtCaseNumber' => '4521/302/2026', '_token' => $token],
+        ]);
+        $crawler = $this->client->followRedirect();
+
+        self::assertStringContainsString('Monitorizarea portal a fost activată', $crawler->text());
+        self::assertStringNotContainsString('taxa de timbru se poate plăti acum', $crawler->text());
+        self::assertSame(0, $crawler->filter('[data-testid="portal-case-alert-stamp-duty"]')->count(), 'nor does the banner say the case is registered');
+        $this->em->clear();
+        self::assertSame(CaseStatus::SOMATIE_TRIMISA, $this->em->find(LegalCase::class, $case->getId())?->getStatus());
+    }
+
     public function testActivateReturnsTurboStreamWhenRequested(): void
     {
         $this->client->loginUser($this->user);
@@ -440,6 +595,14 @@ final class CasePortalControllerTest extends WebTestCase
         $case->addDebtor(new LegalCaseDebtor($debtor));
 
         $this->em->persist($case);
+        // The request was generated, as the workflow records it: what a case found
+        // on the portal is compared with.
+        $generated = new CaseStatusHistory();
+        $generated->setLegalCase($case);
+        $generated->setOldStatus(CaseStatus::SOMATIE_TRIMISA->value);
+        $generated->setNewStatus(CaseStatus::CERERE_GENERATA->value);
+        $case->getStatusHistory()->add($generated);
+        $this->em->persist($generated);
         $this->em->flush();
 
         $this->createdCourtIds[] = $court->getId();

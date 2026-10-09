@@ -43,6 +43,9 @@
         {% else %}
             {# Auto-descoperire pe portal: caută dosarul după părți + instanță, fără ca
                avocatul să iasă din platformă. Inputul manual de mai jos rămâne fallback. #}
+            {% if case.courtCaseNumber is null and case.portalProposedNumber %}
+                {{ include('case/overview/_portal_proposal_steps.html.twig', { autoload: app.request.query.get('verifica') == '1' }) }}
+            {% endif %}
             <div class="mt-4 pb-4 border-b border-slate-100 dark:border-slate-800">
                 {{ include('case/overview/_portal_discover_results.html.twig', { suggestions: [], state: 'initial' }) }}
             </div>
@@ -52,7 +55,7 @@
                 <div class="flex-1 relative">
                     <input type="text"
                            name="portal_activate[courtCaseNumber]"
-                           value="{{ case.courtCaseNumber|default(case.portalProposedNumber|default('')) }}"
+                           value="{{ case.courtCaseNumber|default('') }}"
                            placeholder="{{ 'case_overview.portal.config_placeholder'|trans }}"
                            class="w-full px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800/60 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-lex-navy/40">
                     <span class="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">{{ 'case_overview.portal.config_format'|trans }}</span>
@@ -63,9 +66,6 @@
                     {{ monitoring_active ? 'case_overview.portal.config_update'|trans : 'case_overview.portal.config_activate'|trans }}
                 </button>
             </form>
-            {% if case.courtCaseNumber is null and case.portalProposedNumber %}
-                <p class="mt-2 text-xs text-blue-700 dark:text-blue-300" data-testid="portal-proposed-hint">{{ 'case_overview.portal.config_proposed_hint'|trans({'%number%': case.portalProposedNumber}) }}</p>
-            {% endif %}
             <p class="mt-2 text-[11px] text-slate-500">{{ 'case_overview.portal.config_disclaimer'|trans }}</p>
         {% endif %}
     </div>

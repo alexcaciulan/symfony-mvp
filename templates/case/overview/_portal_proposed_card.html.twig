@@ -1,0 +1,56 @@
+{# The proposed court case as the portal shows it, answered into the frame of the
+   proposal steps. Parties that are ours are marked, so the check is at a glance. #}
+{% from 'case/overview/_icons.html.twig' import icon_check, icon_warning %}
+<turbo-frame id="portal-proposed-card">
+    {% if state == 'ok' and dosar %}
+        <div class="mt-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-3" data-testid="portal-proposed-card">
+            <div class="flex items-center gap-2 flex-wrap">
+                <span class="font-mono text-sm font-semibold">{{ dosar.numar }}</span>
+                <span class="text-xs text-slate-500">{{ case.court ? case.court.name : dosar.institutie }}</span>
+            </div>
+            <dl class="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                {% if dosar.data ?? null %}
+                    <div>
+                        <dt class="text-slate-400 uppercase tracking-wide text-[10px] font-bold">{{ 'case_overview.portal.discover_registered'|trans }}</dt>
+                        <dd class="text-slate-700 dark:text-slate-300" data-testid="portal-proposed-registered">{{ dosar.data|date('d.m.Y') }}</dd>
+                    </div>
+                {% endif %}
+                {% if dosar.obiect %}
+                    <div>
+                        <dt class="text-slate-400 uppercase tracking-wide text-[10px] font-bold">{{ 'case_overview.portal.discover_object'|trans }}</dt>
+                        <dd class="text-slate-700 dark:text-slate-300">{{ dosar.obiect }}</dd>
+                    </div>
+                {% endif %}
+                {% if dosar.stadiuProcesual %}
+                    <div>
+                        <dt class="text-slate-400 uppercase tracking-wide text-[10px] font-bold">{{ 'case_overview.portal.discover_stage'|trans }}</dt>
+                        <dd class="text-slate-700 dark:text-slate-300">{{ dosar.stadiuProcesual }}</dd>
+                    </div>
+                {% endif %}
+                <div class="sm:col-span-3">
+                    <dt class="text-slate-400 uppercase tracking-wide text-[10px] font-bold">{{ 'case_overview.portal.discover_parties'|trans }}</dt>
+                    <dd class="mt-0.5 space-y-0.5">
+                        {% for p in parties %}
+                            <div class="flex items-center gap-1.5 {{ p.ours ? 'text-green-800 dark:text-green-300 font-medium' : 'text-slate-700 dark:text-slate-300' }}" {% if p.ours %}data-testid="portal-proposed-party-ours"{% endif %}>
+                                {% if p.ours %}{{ icon_check('size-3.5') }}{% endif %}
+                                <span>{{ p.nume }}{% if p.calitate %} <span class="text-slate-400 font-normal">({{ p.calitate }})</span>{% endif %}</span>
+                            </div>
+                        {% endfor %}
+                    </dd>
+                </div>
+            </dl>
+            <p class="mt-2 text-[11px] text-slate-500">{{ 'case_overview.portal.proposal_parties_legend'|trans }}</p>
+        </div>
+    {% elseif state == 'not_found' %}
+        <p class="mt-2 text-xs text-amber-800 dark:text-amber-300">{{ 'case_overview.portal.proposal_not_found'|trans }}</p>
+    {% elseif state == 'rate_limited' %}
+        <p class="mt-2 text-xs text-amber-800 dark:text-amber-300">{{ 'case_overview.portal.discover_rate_limited'|trans }}</p>
+    {% elseif state == 'error' %}
+        <p class="mt-2 text-xs text-red-700 dark:text-red-300">{{ 'case_overview.portal.proposal_error'|trans }}</p>
+    {% else %}
+        <a href="{{ path('case_portal_proposal_details', { id: case.id }) }}" data-turbo-frame="portal-proposed-card" data-testid="portal-proposal-show"
+           class="mt-2 py-1.5 px-3 inline-flex items-center text-xs font-semibold rounded-lg border border-blue-300 dark:border-blue-800 text-blue-800 dark:text-blue-200 bg-white dark:bg-slate-900 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition">
+            {{ 'case_overview.portal.proposal_show'|trans }}
+        </a>
+    {% endif %}
+</turbo-frame>

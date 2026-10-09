@@ -10,6 +10,7 @@ use App\Enum\ExtractionMode;
 use App\Enum\FilingChannel;
 use App\Enum\PaymentNoticeCommunicationMethod;
 use App\Enum\PenaltyType;
+use App\Enum\PortalCaseMatchSource;
 use App\Enum\RejustStampDutyForm;
 use App\Enum\RelationshipType;
 use App\Enum\StampDutyStatus;
@@ -263,14 +264,6 @@ class LegalCase
     private ?string $courtCaseNumber = null;
 
     /**
-     * A court case number found on portal.just.ro but not yet confirmed by the
-     * lawyer. Kept apart from courtCaseNumber, which everything else treats as
-     * confirmed (stamp duty payment, deadlines, monitoring).
-     */
-    #[ORM\Column(length: 50, nullable: true)]
-    private ?string $portalProposedNumber = null;
-
-    /**
      * Declared by the lawyer when confirming the filing. Not a finding of the
      * platform: the proof of the filing date sits with the court (CPC art. 183
      * alin. 3), so this records what they told us, nothing more.
@@ -417,6 +410,17 @@ class LegalCase
     private Collection $portalEvents;
 
     /**
+     * Court cases the portal search matched to this case, with the lawyer's
+     * decision on each. Kept apart from courtCaseNumber, which everything else
+     * treats as confirmed (stamp duty payment, deadlines, monitoring).
+     *
+     * @var Collection<int, PortalCaseMatch>
+     */
+    #[ORM\OneToMany(targetEntity: PortalCaseMatch::class, mappedBy: 'legalCase', cascade: ['persist'])]
+    #[ORM\OrderBy(['id' => 'ASC'])]
+    private Collection $portalCaseMatches;
+
+    /**
      * The claim positions, source of truth for the claimed sum.
      *
      * @var Collection<int, ClaimItem>
@@ -438,6 +442,7 @@ class LegalCase
         $this->documents = new ArrayCollection();
         $this->statusHistory = new ArrayCollection();
         $this->portalEvents = new ArrayCollection();
+        $this->portalCaseMatches = new ArrayCollection();
         $this->debtors = new ArrayCollection();
         $this->deadlines = new ArrayCollection();
         $this->claimItems = new ArrayCollection();
@@ -1047,27 +1052,122 @@ class LegalCase
         return $this->courtCaseNumber;
     }
 
-    public function getPortalProposedNumber(): ?string
-    {
-        return $this->portalProposedNumber;
-    }
-
-    public function setPortalProposedNumber(?string $portalProposedNumber): static
-    {
-        $this->portalProposedNumber = $portalProposedNumber;
-
-        return $this;
-    }
-
-    public function setCourtCaseNumber(?string $courtCaseNumber): static
+    /**
+     * @param User|null $decidedBy who confirmed the number, recorded on the portal
+     *                             proposal it answers
+     */
+    public function setCourtCaseNumber(?string $courtCaseNumber, ?User $decidedBy = null): static
     {
         $this->courtCaseNumber = $courtCaseNumber;
         if ($courtCaseNumber !== null) {
-            // A confirmed number answers any proposal.
-            $this->portalProposedNumber = null;
+            // A confirmed number answers the proposal: taken when it is the same
+            // number (even one set aside before, the lawyer changed their mind),
+            // set aside when the lawyer confirmed another one.
+            foreach ($this->portalCaseMatches as $match) {
+                if ($match->getCourtCaseNumber() === $courtCaseNumber) {
+                    $match->accept($decidedBy);
+                } elseif ($match->isProposed()) {
+                    $match->dismiss($decidedBy);
+                }
+            }
         }
 
         return $this;
+    }
+
+    /** @return Collection<int, PortalCaseMatch> */
+    public function getPortalCaseMatches(): Collection
+    {
+        return $this->portalCaseMatches;
+    }
+
+    /** The court case number found on the portal and still waiting for the lawyer, if any. */
+    public function getPortalProposedNumber(): ?string
+    {
+        foreach ($this->portalCaseMatches as $match) {
+            if ($match->isProposed()) {
+                return $match->getCourtCaseNumber();
+            }
+        }
+
+        return null;
+    }
+
+    /** @return list<string> court case numbers the lawyer said are not this case */
+    public function getDismissedPortalNumbers(): array
+    {
+        $numbers = [];
+        foreach ($this->portalCaseMatches as $match) {
+            if ($match->isDismissed()) {
+                $numbers[] = $match->getCourtCaseNumber();
+            }
+        }
+
+        return $numbers;
+    }
+
+    /**
+     * Keeps a court case found on the portal as this case's proposal. Never once
+     * the number is confirmed, nor for a number seen before (a number set aside
+     * stays set aside), nor while another proposal waits: the case page shows
+     * that one, and its button must confirm what the lawyer sees.
+     *
+     * @return bool whether the number was newly proposed
+     */
+    public function proposePortalMatch(string $courtCaseNumber, PortalCaseMatchSource $source): bool
+    {
+        if ($this->courtCaseNumber !== null) {
+            return false;
+        }
+
+        foreach ($this->portalCaseMatches as $match) {
+            if ($match->getCourtCaseNumber() === $courtCaseNumber || $match->isProposed()) {
+                return false;
+            }
+        }
+        $this->portalCaseMatches->add(new PortalCaseMatch($this, $courtCaseNumber, $source));
+
+        return true;
+    }
+
+    /**
+     * The day the payment order request was first generated. A court case
+     * registered before it cannot hold this request: with the same parties it is
+     * an earlier one. The filing date declared by the lawyer stands in for a case
+     * without that history.
+     */
+    public function requestGeneratedAt(): ?\DateTimeImmutable
+    {
+        $earliest = null;
+        foreach ($this->statusHistory as $entry) {
+            if ($entry->getNewStatus() !== CaseStatus::CERERE_GENERATA->value) {
+                continue;
+            }
+            $createdAt = \DateTimeImmutable::createFromInterface($entry->getCreatedAt());
+            if ($earliest === null || $createdAt < $earliest) {
+                $earliest = $createdAt;
+            }
+        }
+
+        return $earliest ?? $this->filedAt;
+    }
+
+    /**
+     * The lawyer says the proposed court case is not this one.
+     *
+     * @return string|null the number set aside, null when nothing was proposed
+     */
+    public function dismissPortalProposal(?User $by): ?string
+    {
+        foreach ($this->portalCaseMatches as $match) {
+            if ($match->isProposed()) {
+                $match->dismiss($by);
+
+                return $match->getCourtCaseNumber();
+            }
+        }
+
+        return null;
     }
 
     /**
