@@ -16,6 +16,7 @@ import { Controller } from '@hotwired/stimulus';
  *
  * On success the controller writes:
  *   - companyName  → the [name] target
+ *   - the Trade Registry number, as ANAF spells it → the [onrcNumber] target
  *   - the street-level address (street, number, block, staircase, floor,
  *     apartment, postal code) → the [address] target. It carries neither the
  *     locality nor the county, which have their own fields.
@@ -36,7 +37,7 @@ import { Controller } from '@hotwired/stimulus';
  * never prose, so each key is mapped to a template-provided translation here.
  */
 export default class extends Controller {
-    static targets = ['cui', 'name', 'address', 'addressCounty', 'addressLocality', 'anafStatus', 'anafCheckedAt', 'badge', 'spinner', 'syncButton', 'undoButton'];
+    static targets = ['cui', 'name', 'onrcNumber', 'address', 'addressCounty', 'addressLocality', 'anafStatus', 'anafCheckedAt', 'badge', 'spinner', 'syncButton', 'undoButton'];
     static values = {
         url: String,
         // English fallbacks. User-facing text comes from the template:
@@ -62,6 +63,7 @@ export default class extends Controller {
     /** Payload key -> target name. The controller writes nothing else. */
     static FIELD_MAP = {
         companyName: 'name',
+        onrcNumber: 'onrcNumber',
         address: 'address',
         county: 'addressCounty',
         locality: 'addressLocality',
@@ -213,8 +215,8 @@ export default class extends Controller {
     }
 
     /*
-     * Tells the documents panel the register now speaks for this party's name
-     * and seat. A status-only sync leaves the fields alone, so it settles nothing.
+     * Tells the documents panel the register now speaks for this party's name,
+     * Trade Registry number and seat. A status-only sync leaves the fields alone, so it settles nothing.
      */
     announceSync(name) {
         if (this.statusOnlyValue || this.conflictScopeValue === '') {

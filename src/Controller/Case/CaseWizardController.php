@@ -2609,11 +2609,11 @@ final class CaseWizardController extends AbstractController
 
     /**
      * Fields the ANAF sync writes for a party. Once the lawyer has synced the
-     * party, the register settles them: what the documents say about the seat
-     * or the name no longer decides anything, and asking would only invite the
+     * party, the register settles them: what the documents say about the seat,
+     * the name or the Trade Registry number no longer decides anything, and asking would only invite the
      * lawyer to put a document's value back over the register's.
      */
-    public const ANAF_SETTLED_FIELDS = ['name', 'address', 'county', 'locality'];
+    public const ANAF_SETTLED_FIELDS = ['name', 'onrcNumber', 'address', 'county', 'locality'];
 
     /**
      * The conflicts left once the parties synced with ANAF are taken out, and

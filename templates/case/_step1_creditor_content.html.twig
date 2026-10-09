@@ -200,7 +200,7 @@
 
             <div data-person-type-toggle-target="pjOnly">
                 {{ f.field_label(form.onrcNumber, 'wizard.step1.field.onrc_number', false, true) }}
-                {{ form_widget(form.onrcNumber, { attr: { class: f.input_classes(form.onrcNumber)|trim, placeholder: 'J40/1234/2018' }}) }}
+                {{ form_widget(form.onrcNumber, { attr: { class: f.input_classes(form.onrcNumber)|trim, placeholder: 'J40/1234/2018', 'data-party-anaf-lookup-target': 'onrcNumber' }}) }}
                 {{ f.field_errors(form.onrcNumber) }}
             </div>
 

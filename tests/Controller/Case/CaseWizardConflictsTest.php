@@ -297,6 +297,31 @@ final class CaseWizardConflictsTest extends WebTestCase
         self::assertSame(0, $crawler->filter('[data-testid="prefill-conflicts"]')->count());
     }
 
+    public function testAnAnafSyncedDebtorIsNoLongerAskedAboutItsRegistryNumber(): void
+    {
+        // Two documents printing two registry numbers for the same CUI: once the
+        // sync wrote ANAF's number, a choice made in the panel would put a
+        // document's number back over the register's on the way to the filing.
+        $ids = $this->primeDocuments([
+            $this->withOnrc($this->payload('Alfa Construct SRL', '11111111', 'Cluj', null), 'J12/345/2010'),
+            $this->withOnrc($this->payload('Alfa Construct SRL', '11111111', 'Cluj', null), 'J12/999/2015'),
+        ]);
+
+        $crawler = $this->client->request('GET', '/case/new/debtor');
+        self::assertSame(1, $crawler->filter('[data-testid="prefill-conflict"][data-field="onrcNumber"]')->count());
+
+        $synced = new Step2DebtorEntry(personType: PersonType::PJ, name: 'ALFA CONSTRUCT SRL', cui: '11111111', onrcNumber: 'J2010000345122', addressCounty: 'Cluj');
+        $synced->anafCheckedAt = new \DateTimeImmutable();
+        $session = $this->client->getRequest()->getSession();
+        $session->set(self::SESSION_KEY, ['documentIds' => $ids, 'debtors' => new Step2DebtorsData([$synced])]);
+        $session->save();
+
+        $crawler = $this->client->request('GET', '/case/new/debtor');
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(0, $crawler->filter('[data-testid="prefill-conflict"][data-field="onrcNumber"]')->count());
+    }
+
     public function testAConsumerDebtorStopsTheFileAtStepZero(): void
     {
         $this->primeDocuments([[
@@ -732,6 +757,18 @@ final class CaseWizardConflictsTest extends WebTestCase
                 'confidencePerField' => ['personType' => 0.95, 'name' => 0.95, 'cui' => 0.95],
             ],
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     */
+    private function withOnrc(array $payload, string $onrcNumber): array
+    {
+        $payload['debtors'][0]['onrcNumber'] = $onrcNumber;
+        $payload['debtors'][0]['confidencePerField']['onrcNumber'] = 0.95;
+
+        return $payload;
     }
 
     /**
