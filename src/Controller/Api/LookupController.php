@@ -25,8 +25,8 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 /**
  * Internal JSON endpoint used by the `party-anaf-lookup` Stimulus controller. Hit
  * when the user presses the explicit "sync from ANAF" button on the debtor in
- * Step 2 or the creditor in Step 1, to populate name/address plus the structured
- * county/locality. Those two feed different decisions: the competent court for the
+ * Step 2 or the creditor in Step 1, to populate name, Trade Registry number and
+ * address plus the structured county/locality. Those two feed different decisions: the competent court for the
  * debtor, the stamp-duty payment UAT for the creditor (OUG 80/2013 art. 40 alin. 1).
  *
  * Session-authenticated (firewall `main` covers `/api`); rate-limited via the
@@ -97,6 +97,9 @@ final class LookupController extends AbstractController
         return new JsonResponse([
             'companyName' => $data['companyName'],
             'cui' => $data['cui'],
+            // Passed on as ANAF spells it: the classic J40/11043/2003 for recent
+            // registrations, the single-string J2003011043402 for older ones.
+            'onrcNumber' => $data['nrRegCom'],
             // Street level only. The locality and the county are returned
             // separately and must not be repeated here.
             'address' => $addressFormatter->format($mapping->parts),

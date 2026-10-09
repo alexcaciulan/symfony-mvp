@@ -105,6 +105,7 @@ final class LookupControllerTest extends WebTestCase
         $data = json_decode($this->client->getResponse()->getContent(), true);
         self::assertSame('ACME DEBTOR SRL', $data['companyName']);
         self::assertSame('14186770', $data['cui']);
+        self::assertSame('J40/1234/2018', $data['onrcNumber']);
         self::assertSame('ACTIV', $data['anafStatus']);
         self::assertArrayHasKey('anafCheckedAt', $data);
 
@@ -178,7 +179,8 @@ final class LookupControllerTest extends WebTestCase
             ->willReturn([
                 'companyName' => 'JURESSA NET SRL',
                 'cui' => '14186770',
-                'nrRegCom' => null,
+                // The single-string form ANAF holds for this 2003 registration.
+                'nrRegCom' => 'J2003011043402',
                 'street' => 'Str. Turturelelor',
                 'streetNumber' => '50',
                 'city' => 'Sector 3 Mun. Bucureşti',
@@ -206,6 +208,8 @@ final class LookupControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
         $data = json_decode($this->client->getResponse()->getContent(), true);
         self::assertTrue($data['postalCodeMissing']);
+        // Passed on as ANAF spells it, not rewritten into J40/11043/2003.
+        self::assertSame('J2003011043402', $data['onrcNumber']);
         self::assertSame('Strada Turturelelor, Nr. 50, Etaj 4, Ap. 1', $data['address']);
         self::assertSame('Sector 3', $data['locality']);
     }
@@ -236,6 +240,8 @@ final class LookupControllerTest extends WebTestCase
         $this->client->request('GET', '/api/anaf-lookup/RO14186770');
 
         self::assertResponseIsSuccessful();
+        // No number on file: nothing for the sync to write over the field.
+        self::assertNull(json_decode($this->client->getResponse()->getContent(), true)['onrcNumber']);
     }
 
     public function testRejectsTooShortCuiViaRouteRequirement(): void
