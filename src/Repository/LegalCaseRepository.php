@@ -8,10 +8,12 @@ use App\Entity\CaseStatusHistory;
 use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
+use App\Entity\PortalCaseMatch;
 use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\DeadlineType;
 use App\Enum\DocumentType;
+use App\Enum\PortalCaseMatchStatus;
 use App\Enum\StampDutyStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\ORM\QueryBuilder;
@@ -281,8 +283,9 @@ class LegalCaseRepository extends ServiceEntityRepository
     }
 
     /**
-     * Cases filed with the court whose portal case number is not known yet:
-     * the ones the daily discovery looks for on portal.just.ro.
+     * Cases filed with the court whose portal case number is not known yet and
+     * that have no proposal waiting for the lawyer: the ones the daily discovery
+     * looks for on portal.just.ro.
      *
      * @return LegalCase[]
      */
@@ -295,7 +298,9 @@ class LegalCaseRepository extends ServiceEntityRepository
             ->andWhere('lc.portalMonitoringActive = false')
             ->andWhere('lc.deletedAt IS NULL')
             ->andWhere('c.portalCode IS NOT NULL')
+            ->andWhere(sprintf('NOT EXISTS (SELECT m.id FROM %s m WHERE m.legalCase = lc AND m.status = :proposed)', PortalCaseMatch::class))
             ->setParameter('filed', CaseStatus::CERERE_DEPUSA)
+            ->setParameter('proposed', PortalCaseMatchStatus::PROPOSED)
             ->orderBy('lc.id', 'ASC')
             ->getQuery()
             ->getResult();

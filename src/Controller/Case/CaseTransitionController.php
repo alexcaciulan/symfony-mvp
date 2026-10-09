@@ -6,6 +6,7 @@ namespace App\Controller\Case;
 
 use App\Entity\Document;
 use App\Entity\LegalCase;
+use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\CaseTransition;
 use App\Enum\CloseReason;
@@ -143,8 +144,9 @@ final class CaseTransitionController extends AbstractController
         $courtCaseNumber = (string) $form->get('courtCaseNumber')->getData();
         $fromStatus = $case->getStatus()->value;
 
-        $this->em->wrapInTransaction(function () use ($case, $courtCaseNumber, $fromStatus): void {
-            $case->setCourtCaseNumber($courtCaseNumber);
+        $user = $this->getUser();
+        $this->em->wrapInTransaction(function () use ($case, $courtCaseNumber, $fromStatus, $user): void {
+            $case->setCourtCaseNumber($courtCaseNumber, $user instanceof User ? $user : null);
             $this->workflowService->apply($case, 'inregistreaza_dosar');
 
             $this->em->flush();

@@ -172,6 +172,7 @@ class PortalJustClient
             'categorieCaz' => $this->prop($dosar, 'categorieCazNume'),
             'stadiuProcesual' => $this->prop($dosar, 'stadiuProcesualNume'),
             'obiect' => $this->prop($dosar, 'obiect'),
+            'data' => $this->prop($dosar, 'data'),
             'dataModificare' => $this->prop($dosar, 'dataModificare'),
             'parti' => $this->parseParti($dosar),
             'sedinte' => $this->parseSedinte($dosar),

@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Controller\Case;
 
 use App\Entity\LegalCase;
+use App\Entity\User;
+use App\Enum\CaseStatus;
 use App\Enum\CaseTransition;
+use App\Enum\PortalCaseMatchSource;
 use App\Enum\StampDutyStatus;
 use App\Form\Case\PortalActivateType;
 use App\Repository\LegalCaseRepository;
@@ -15,7 +18,9 @@ use App\Service\Case\CaseWorkflowService;
 use App\Service\Case\OverviewContextBuilder;
 use App\Service\Portal\CaseMonitoringService;
 use App\Service\Portal\Dto\PortalCaseSuggestion;
+use App\Service\Portal\PartyNameNormalizer;
 use App\Service\Portal\PortalCaseMatcher;
+use App\Service\Portal\PortalJustClient;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -86,8 +91,9 @@ final class CasePortalController extends AbstractController
 
         $this->applyActivation($case, $courtCaseNumber, $previousNumber);
 
-        // With the number known, the stamp duty can be paid in this dosar: say so now.
-        $flash = $case->getStampDutyStatus() === StampDutyStatus::NEACHITATA
+        // With the case registered, the stamp duty can be paid in this dosar: say
+        // so now. Not when the activation left the case where it was.
+        $flash = $case->getStatus() === CaseStatus::DOSAR_INREGISTRAT && $case->getStampDutyStatus() === StampDutyStatus::NEACHITATA
             ? 'case_overview.portal.flash_activated_pay_stamp_duty'
             : 'case_overview.portal.flash_activated';
 
@@ -102,7 +108,7 @@ final class CasePortalController extends AbstractController
     private function applyActivation(LegalCase $case, string $courtCaseNumber, ?string $previousNumber): void
     {
         $this->em->wrapInTransaction(function () use ($case, $courtCaseNumber, $previousNumber): void {
-            $case->setCourtCaseNumber($courtCaseNumber);
+            $case->setCourtCaseNumber($courtCaseNumber, $this->currentUser());
             $case->setPortalMonitoringActive(true);
             $this->em->flush();
 
@@ -147,14 +153,76 @@ final class CasePortalController extends AbstractController
     }
 
     /**
-     * Auto-discover the case on portal.just.ro from the data we already hold
-     * (parties + competent court), so the lawyer does not have to leave the
-     * platform to find and copy the ECRIS number. Renders ranked suggestions into
-     * a Turbo Frame; each suggestion posts the chosen number to `activate`.
+     * The proposed court case as the portal shows it (parties, object, stage), so
+     * the lawyer can tell it is theirs before confirming. Read on demand, never
+     * stored; only the proposed number is looked up.
      */
+    #[Route('/case/{id}/portal/proposal', name: 'case_portal_proposal_details', requirements: ['id' => '\d+'], methods: ['GET'])]
+    public function proposalDetails(int $id, PortalJustClient $portalClient, RateLimiterFactory $portalSearchLimiter): Response
+    {
+        $case = $this->findOrThrow($id);
+        $this->denyAccessUnlessGranted(CaseVoter::TRANSITION, $case);
+
+        $number = $case->getPortalProposedNumber();
+        $portalCode = $case->getCourt()?->getPortalCode();
+        if ($number === null || $portalCode === null || $portalCode === '') {
+            return $this->renderProposalCard($case, 'not_found');
+        }
+
+        $user = $this->getUser();
+        if ($user !== null && !$portalSearchLimiter->create($user->getUserIdentifier())->consume()->isAccepted()) {
+            return $this->renderProposalCard($case, 'rate_limited');
+        }
+
+        try {
+            $found = $portalClient->searchByCaseNumber($number, $portalCode);
+        } catch (\Throwable $e) {
+            $this->logger->error('Portal lookup of the proposed case failed', ['caseId' => $case->getId(), 'exception' => $e->getMessage()]);
+
+            return $this->renderProposalCard($case, 'error');
+        }
+
+        $dosar = null;
+        foreach ($found as $candidate) {
+            if (($candidate['numar'] ?? null) === $number) {
+                $dosar = $candidate;
+                break;
+            }
+        }
+        if ($dosar === null) {
+            return $this->renderProposalCard($case, 'not_found');
+        }
+
+        $ours = array_values(array_filter([
+            $case->getCreditor()?->getName(),
+            ...array_map(static fn ($d): ?string => $d->getName(), $case->getDebtors()->toArray()),
+        ], static fn (?string $name): bool => $name !== null && $name !== ''));
+        $parties = array_map(static fn (array $parte): array => [
+            'nume' => (string) ($parte['nume'] ?? ''),
+            'calitate' => $parte['calitateParte'] ?? null,
+            'ours' => array_filter($ours, static fn (string $name): bool => PartyNameNormalizer::matches($name, (string) ($parte['nume'] ?? ''))) !== [],
+        ], $dosar['parti'] ?? []);
+
+        return $this->renderProposalCard($case, 'ok', $dosar, $parties);
+    }
+
     /**
-     * The lawyer sets aside a dosar the search proposed. Clears the proposal; the
-     * daily search does not offer the same number again (its announcement exists).
+     * @param array<string, mixed>|null $dosar
+     * @param list<array{nume: string, calitate: ?string, ours: bool}> $parties
+     */
+    private function renderProposalCard(LegalCase $case, string $state, ?array $dosar = null, array $parties = []): Response
+    {
+        return $this->render('case/overview/_portal_proposed_card.html.twig', [
+            'case' => $case,
+            'state' => $state,
+            'dosar' => $dosar,
+            'parties' => $parties,
+        ]);
+    }
+
+    /**
+     * The lawyer sets aside a dosar the search proposed. The number is kept as set
+     * aside, so neither search proposes it again.
      */
     #[Route('/case/{id}/portal/proposal/dismiss', name: 'case_portal_proposal_dismiss', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function dismissProposal(int $id, Request $request): Response
@@ -165,9 +233,8 @@ final class CasePortalController extends AbstractController
             throw $this->createAccessDeniedException('Invalid CSRF token');
         }
 
-        $proposed = $case->getPortalProposedNumber();
+        $proposed = $case->dismissPortalProposal($this->currentUser());
         if ($proposed !== null) {
-            $case->setPortalProposedNumber(null);
             $this->auditLogService->log(
                 action: 'portal_proposal_dismissed',
                 entityType: LegalCase::class,
@@ -184,6 +251,12 @@ final class CasePortalController extends AbstractController
         return $this->redirectToRoute('case_overview', ['id' => $case->getId()]);
     }
 
+    /**
+     * Auto-discover the case on portal.just.ro from the data we already hold
+     * (parties + competent court), so the lawyer does not have to leave the
+     * platform to find and copy the ECRIS number. Renders ranked suggestions into
+     * a Turbo Frame; each suggestion posts the chosen number to `activate`.
+     */
     #[Route('/case/{id}/portal/discover', name: 'case_portal_discover', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function discover(int $id, Request $request, RateLimiterFactory $portalSearchLimiter): Response
     {
@@ -227,8 +300,7 @@ final class CasePortalController extends AbstractController
         // A clear match is kept as the case's proposal, so the case page keeps
         // pointing to it after this list is gone.
         $best = $suggestions[0] ?? null;
-        if ($best !== null && $best->isHighConfidence && $case->getCourtCaseNumber() === null) {
-            $case->setPortalProposedNumber($best->numar);
+        if ($best !== null && $best->isHighConfidence && $case->proposePortalMatch($best->numar, PortalCaseMatchSource::MANUAL)) {
             $this->em->flush();
         }
 
@@ -299,6 +371,13 @@ final class CasePortalController extends AbstractController
         }
 
         return $this->respondPortal($request, $case, true, 'success', 'case_overview.portal.flash_check_done');
+    }
+
+    private function currentUser(): ?User
+    {
+        $user = $this->getUser();
+
+        return $user instanceof User ? $user : null;
     }
 
     private function findOrThrow(int $id): LegalCase
