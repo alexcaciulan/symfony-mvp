@@ -16,6 +16,27 @@ use App\Enum\ClaimItemKind;
  */
 final class ClaimItemRow
 {
+    /**
+     * Why the due date is what it is when a contractual payment term decided
+     * it, or why it was left to the lawyer; dates as Y-m-d. A plain property
+     * with a default rather than a promoted one, so a row serialized into a
+     * session before it existed still reads back.
+     *
+     * @var ?array{key: string, days: int, anchor: string, printedDueDate: ?string, appliedDueDate: ?string}
+     */
+    public ?array $dueDateNote = null;
+
+    /**
+     * The payments an account or bank statement ties to this position, shown
+     * as recorded, never imputed; dates as Y-m-d. `shared` marks a payment the
+     * document ties to several invoices at once, which is listed on each of
+     * them without being split. Plain property for the same session reason as
+     * the note above.
+     *
+     * @var list<array{amount: ?float, currency: string, date: ?string, fullyPaid: bool, shared: bool}>
+     */
+    public array $statementPayments = [];
+
     /** @param list<string> $warningKeys */
     public function __construct(
         public string $dedupKey,

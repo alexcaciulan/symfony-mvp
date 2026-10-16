@@ -17,6 +17,7 @@ use App\Enum\ClaimItemKind;
 use App\Enum\ConflictScope;
 use App\Enum\ConflictSeverity;
 use App\Enum\DocumentType;
+use App\Enum\PaymentTermAnchor;
 use App\Repository\DocumentRepository;
 use App\Service\Calculation\CurrencyConverter;
 use App\Service\Extraction\ClaimItemDeduplicator;
@@ -49,8 +50,23 @@ final class ClaimItemFactory
     /** Shorter invoice numbers ("12") turn up in any balance text by chance. */
     private const MIN_SUMMARIZED_REFERENCE_LENGTH = 4;
 
+    /** Types that list payments made against the invoices. */
+    private const PAYMENT_LISTING_TYPES = [
+        DocumentType::EXTRAS_CONT,
+        DocumentType::CONFIRMARE_SOLD,
+    ];
+
     /** Half a ban: below it two RON totals are the same sum. */
     private const AMOUNT_TOLERANCE = 0.005;
+
+    /** Types whose payment clause binds the invoices issued under them. */
+    private const CONTRACTUAL_TYPES = [
+        DocumentType::CONTRACT,
+        DocumentType::ACT_ADITIONAL,
+    ];
+
+    /** Shorter contract numbers ("4") turn up inside any reference by chance. */
+    private const MIN_CONTAINED_CONTRACT_LENGTH = 4;
 
     public function __construct(
         private readonly DocumentRepository $documents,
@@ -91,10 +107,25 @@ final class ClaimItemFactory
         $rows = [];
         $typesByDocument = [];
         $statements = [];
+        $paymentsByDocument = [];
+        $paymentTerms = [];
         foreach ($this->loadOrdered($documentIds) as $document) {
             $type = $this->effectiveType($document);
-            if ($type === DocumentType::EXTRAS_CONT) {
-                $statements[] = $this->claimDescriptionOf($document);
+            if (in_array($type, self::PAYMENT_LISTING_TYPES, true)) {
+                $listed = $this->statedPaymentsOf($document);
+                if ($listed !== null) {
+                    $paymentsByDocument[] = $listed;
+                } elseif ($type === DocumentType::EXTRAS_CONT) {
+                    // No payment list was read: only the free-text listing is
+                    // there to go on.
+                    $statements[] = $this->claimDescriptionOf($document);
+                }
+            }
+            if (in_array($type, self::CONTRACTUAL_TYPES, true)) {
+                $term = $this->paymentTermOf($document);
+                if ($term !== null) {
+                    $paymentTerms[] = $term;
+                }
             }
             if (!in_array($type, self::CLAIM_BEARING_TYPES, true)) {
                 continue;
@@ -112,13 +143,192 @@ final class ClaimItemFactory
             $rows[] = $row;
         }
 
-        return $this->flagStatementPayments(
-            $this->settleBalanceSummaries(
-                $this->settleAdvances($this->deduplicator->deduplicate($rows, $typesByDocument)),
-                $typesByDocument,
-            ),
-            $statements,
+        $result = $this->settleBalanceSummaries(
+            $this->settleAdvances($this->deduplicator->deduplicate($rows, $typesByDocument)),
+            $typesByDocument,
         );
+        $unmatched = $this->settleStatementPayments($result->rows, $this->distinctPayments($paymentsByDocument));
+        $unmatched = $this->flagStatementPayments($result->rows, $statements) || $unmatched;
+        $this->applyContractualPaymentTerms($result->rows, $paymentTerms, $typesByDocument);
+
+        if (!$unmatched) {
+            return $result;
+        }
+
+        // Payments nobody could tie to a position are the more dangerous case,
+        // not the lesser one: the claim may be partly extinguished by a sum the
+        // table does not show at all.
+        return new DeduplicationResult(
+            rows: $result->rows,
+            conflicts: array_values([...$result->conflicts, new PrefillConflict(
+                scope: ConflictScope::CLAIM_ITEM,
+                severity: ConflictSeverity::WARNING,
+                messageKey: 'wizard.conflict.claim_item.payment_unmatched',
+                field: 'paidAmount',
+            )]),
+        );
+    }
+
+    /**
+     * Sets the due date of each invoice from the payment term of the contract
+     * it was issued under.
+     *
+     * Invoices are routinely issued with a due date that ignores the contract
+     * (due the day they are issued, where the contract grants four days), and
+     * the contract is what binds the debtor. So a term counted from the issue
+     * date replaces the printed due date. A term counted from any other event,
+     * or in working days, cannot be computed from the invoice: the printed date
+     * stays and the row says the lawyer has to set it. Either way the row says
+     * why, and the date stays editable.
+     *
+     * @param list<ClaimItemRow> $rows
+     * @param list<array{contract: ?string, days: int, anchor: PaymentTermAnchor, businessDays: bool}> $terms
+     * @param array<int, DocumentType> $typesByDocument
+     */
+    private function applyContractualPaymentTerms(array $rows, array $terms, array $typesByDocument): void
+    {
+        if ($terms === []) {
+            return;
+        }
+
+        foreach ($rows as $row) {
+            if ($row->isCreditNote()
+                || ($typesByDocument[$row->sourceDocumentId ?? 0] ?? null) !== DocumentType::FACTURA) {
+                continue;
+            }
+
+            $candidates = $this->termsGoverning($row, $terms);
+            $distinct = [];
+            foreach ($candidates as $term) {
+                unset($term['contract']);
+                $distinct[serialize($term)] = $term;
+            }
+            if ($distinct === []) {
+                continue;
+            }
+            if (count($distinct) > 1) {
+                // Two contractual documents disagree on the term (a contract and
+                // an amendment, typically): which one applies to this invoice
+                // depends on dates the wizard does not weigh.
+                $row->dueDateNote = $this->dueDateNote('wizard.step3.claim_items.note.contract_term_ambiguous', null, $row);
+
+                continue;
+            }
+
+            $term = array_values($distinct)[0];
+            if ($term['anchor'] !== PaymentTermAnchor::ISSUE_DATE || $term['businessDays'] || $row->documentDate === null) {
+                $row->dueDateNote = $this->dueDateNote(
+                    $term['businessDays']
+                        ? 'wizard.step3.claim_items.note.contract_term_manual_business_days'
+                        : 'wizard.step3.claim_items.note.contract_term_manual',
+                    $term,
+                    $row,
+                );
+
+                continue;
+            }
+
+            $derived = $row->documentDate->modify(sprintf('+%d days', $term['days']));
+            if ($row->dueDate !== null && $row->dueDate > $derived) {
+                // A later date on the invoice is a longer term the creditor
+                // granted, which the debtor may rely on.
+                $row->dueDateNote = $this->dueDateNote('wizard.step3.claim_items.note.contract_term_longer_on_invoice', $term, $row, $row->dueDate);
+
+                continue;
+            }
+            $overrides = $row->dueDate !== null && $row->dueDate->format('Y-m-d') !== $derived->format('Y-m-d');
+            $row->dueDateNote = $this->dueDateNote(
+                $overrides
+                    ? 'wizard.step3.claim_items.note.contract_term_overrides_invoice'
+                    : 'wizard.step3.claim_items.note.contract_term_applied',
+                $term,
+                $row,
+                $derived,
+            );
+            $row->dueDate = $derived;
+        }
+    }
+
+    /**
+     * The terms that bind one invoice: those of the contract it cites, or, when
+     * it cites none, those of the only contract in the file. An invoice citing a
+     * contract the file does not hold gets none.
+     *
+     * @param list<array{contract: ?string, days: int, anchor: PaymentTermAnchor, businessDays: bool}> $terms
+     * @return list<array{contract: ?string, days: int, anchor: PaymentTermAnchor, businessDays: bool}>
+     */
+    private function termsGoverning(ClaimItemRow $row, array $terms): array
+    {
+        $contracts = array_values(array_unique(array_filter(
+            array_column($terms, 'contract'),
+            static fn (?string $contract): bool => $contract !== null,
+        )));
+
+        $cited = DocumentReferenceNormalizer::normalize($row->causeReference);
+        if ($cited === null || $contracts === []) {
+            // Nothing to tell contracts apart by: the term applies only when
+            // the file holds a single contract.
+            return count($contracts) <= 1 ? $terms : [];
+        }
+
+        return array_values(array_filter(
+            $terms,
+            fn (array $term): bool => $term['contract'] !== null && $this->sameContract($term['contract'], $cited),
+        ));
+    }
+
+    /**
+     * "CONTRACT12/2024" on an invoice names contract "12/2024". Containment is
+     * only trusted for a number long enough not to occur by chance.
+     */
+    private function sameContract(string $contract, string $cited): bool
+    {
+        if ($contract === $cited) {
+            return true;
+        }
+        $shorter = strlen($contract) <= strlen($cited) ? $contract : $cited;
+        $longer = $shorter === $contract ? $cited : $contract;
+
+        return strlen($shorter) >= self::MIN_CONTAINED_CONTRACT_LENGTH && str_contains($longer, $shorter);
+    }
+
+    /**
+     * @param ?array{days: int, anchor: PaymentTermAnchor, businessDays: bool} $term
+     * @return array{key: string, days: int, anchor: string, printedDueDate: ?string, appliedDueDate: ?string}
+     */
+    private function dueDateNote(string $key, ?array $term, ClaimItemRow $row, ?\DateTimeImmutable $applied = null): array
+    {
+        return [
+            'key' => $key,
+            'days' => $term['days'] ?? 0,
+            'anchor' => ($term['anchor'] ?? PaymentTermAnchor::OTHER)->value,
+            'printedDueDate' => $row->dueDate?->format('Y-m-d'),
+            'appliedDueDate' => $applied?->format('Y-m-d'),
+        ];
+    }
+
+    /**
+     * The payment term a contract or an amendment states, as extracted. Null
+     * on payloads written before the term was extracted, and on documents that
+     * state none.
+     *
+     * @return ?array{contract: ?string, days: int, anchor: PaymentTermAnchor, businessDays: bool}
+     */
+    private function paymentTermOf(Document $document): ?array
+    {
+        $extracted = $document->getExtractedData();
+        $claim = is_array($extracted) ? ($extracted['claim'] ?? null) : null;
+        if (!is_array($claim) || !is_int($claim['paymentTermDays'] ?? null) || $claim['paymentTermDays'] < 0) {
+            return null;
+        }
+
+        return [
+            'contract' => DocumentReferenceNormalizer::normalize($this->stringOrNull($claim['contractNumber'] ?? null)),
+            'days' => $claim['paymentTermDays'],
+            'anchor' => PaymentTermAnchor::tryFrom(is_string($claim['paymentTermAnchor'] ?? null) ? $claim['paymentTermAnchor'] : '')
+                ?? PaymentTermAnchor::OTHER,
+            'businessDays' => ($claim['paymentTermBusinessDays'] ?? null) === true,
+        ];
     }
 
     /**
@@ -170,53 +380,263 @@ final class ClaimItemFactory
     }
 
     /**
-     * Marks the positions a bank statement says were paid, in whole or in part.
+     * Ties the payments the statements list to the positions they name.
      *
-     * The sum claimed stays the invoiced total: imputation of a payment is the
-     * lawyer's (Civil Code art. 1507-1509), and a statement line is not proof of
-     * which debt it settled. What must not happen is the payment staying
-     * invisible, because an invoice never mentions what was paid after it was
-     * issued and the statement never becomes a position of its own.
+     * An invoice the statement shows as paid in full (stated so, or paid at
+     * least its total) leaves the claim: it stays on screen, excluded and
+     * saying why, and the lawyer can bring it back. A partly paid one keeps
+     * its invoiced total and records what was paid, unimputed: imputation is
+     * the lawyer's (Civil Code art. 1507-1509), and the interest is computed
+     * as before. A payment naming several invoices is split only when all of
+     * them are positions and it pays exactly their total; otherwise it is
+     * listed on each position it names, unsplit and uncounted.
      *
-     * @param list<?string> $statements the payment listings read off the statements
+     * @param list<ClaimItemRow> $rows
+     * @param list<array{amount: ?float, currency: string, date: ?string, references: list<string>, fullyPaid: bool, sourceDocumentId: ?int}> $payments
+     *
+     * @return bool whether a payment matched no position
      */
-    private function flagStatementPayments(DeduplicationResult $result, array $statements): DeduplicationResult
+    private function settleStatementPayments(array $rows, array $payments): bool
+    {
+        $unmatched = false;
+        $settled = [];
+        foreach ($payments as $payment) {
+            $matched = $this->rowsNamedBy($rows, $payment);
+            if ($matched === []) {
+                $unmatched = true;
+
+                continue;
+            }
+
+            // A payment naming invoices outside the file is shared with them
+            // too, so no part of it can be put on the positions it does name.
+            $shared = count($payment['references']) > 1;
+            $splitsExactly = $shared && count($matched) === count($payment['references'])
+                && $payment['amount'] !== null && abs(array_sum(array_map(
+                static fn (ClaimItemRow $row): float => $row->currency === $payment['currency'] ? $row->amount : INF,
+                $matched,
+            )) - $payment['amount']) < self::AMOUNT_TOLERANCE;
+
+            foreach ($matched as $row) {
+                $share = !$shared ? $payment['amount'] : ($splitsExactly ? $row->amount : null);
+                if ($share !== null && $row->currency === $payment['currency']) {
+                    $row->paidAmount = round($row->paidAmount + $share, 2);
+                }
+                $row->statementPayments[] = [
+                    'amount' => $payment['amount'],
+                    'currency' => $payment['currency'],
+                    'date' => $payment['date'],
+                    'fullyPaid' => $payment['fullyPaid'],
+                    'shared' => $shared,
+                ];
+                $settled[spl_object_id($row)] = [$row, ($settled[spl_object_id($row)][1] ?? false) || $payment['fullyPaid']];
+            }
+        }
+
+        foreach ($settled as [$row, $statedFullyPaid]) {
+            // Same effect a deduction stated on the invoice has: the row can no
+            // longer be waved through by the table-wide checkbox.
+            $row->hasStatedDeduction = true;
+            if ($row->excluded) {
+                continue;
+            }
+            if ($statedFullyPaid || $row->paidAmount >= $row->amount - self::AMOUNT_TOLERANCE) {
+                $row->excluded = true;
+                $row->warningKeys[] = 'wizard.step3.claim_items.warning.paid_in_full_by_statement';
+            } else {
+                $row->warningKeys[] = 'wizard.step3.claim_items.warning.payment_in_statement';
+            }
+        }
+
+        return $unmatched;
+    }
+
+    /**
+     * The positions a payment names. A reference that names both a position
+     * and its excluded duplicate settles the position; a payment is never
+     * matched to the document that lists it.
+     *
+     * @param list<ClaimItemRow> $rows
+     * @param array{amount: ?float, currency: string, date: ?string, references: list<string>, fullyPaid: bool, sourceDocumentId: ?int} $payment
+     *
+     * @return list<ClaimItemRow>
+     */
+    private function rowsNamedBy(array $rows, array $payment): array
+    {
+        $matched = [];
+        foreach ($payment['references'] as $reference) {
+            $named = array_filter($rows, fn (ClaimItemRow $row): bool => !$row->isCreditNote()
+                && ($payment['sourceDocumentId'] === null || $row->sourceDocumentId !== $payment['sourceDocumentId'])
+                && $this->referenceNames($reference, DocumentReferenceNormalizer::normalize($row->documentNumber)));
+            $active = array_filter($named, static fn (ClaimItemRow $row): bool => !$row->excluded);
+            foreach ($active !== [] ? $active : $named as $row) {
+                $matched[spl_object_id($row)] = $row;
+            }
+        }
+
+        return array_values($matched);
+    }
+
+    /**
+     * Whether a reference read off a statement names an invoice number, both
+     * normalized. A statement routinely appends the date ("20951/12.03.2025")
+     * or drops the series ("20951" for "LDT 20951"); a bare number is only
+     * trusted when it is long enough not to occur by chance.
+     */
+    private function referenceNames(string $reference, ?string $number): bool
+    {
+        if ($number === null) {
+            return false;
+        }
+        if ($reference === $number || str_starts_with($reference, $number . '/')) {
+            return true;
+        }
+        if (!str_contains($number, '/') && str_contains($reference, '/')) {
+            $reference = strstr($reference, '/', true);
+        }
+        $shorter = strlen($reference) <= strlen($number) ? $reference : $number;
+        $longer = $shorter === $reference ? $number : $reference;
+        if ($shorter === $longer) {
+            return true;
+        }
+        if (!ctype_digit($shorter) || strlen($shorter) < self::MIN_SUMMARIZED_REFERENCE_LENGTH
+            || !str_ends_with($longer, $shorter)) {
+            return false;
+        }
+
+        return !ctype_digit($longer[strlen($longer) - strlen($shorter) - 1]);
+    }
+
+    /**
+     * The payments of every statement, each counted once. The account
+     * statement and the bank statement routinely list the same payment; read
+     * twice it would pay the invoice twice over. Repeats within one document
+     * are kept: two equal instalments on one day are two payments.
+     *
+     * @param list<list<array{amount: ?float, currency: string, date: ?string, references: list<string>, fullyPaid: bool, sourceDocumentId: ?int}>> $byDocument
+     *
+     * @return list<array{amount: ?float, currency: string, date: ?string, references: list<string>, fullyPaid: bool, sourceDocumentId: ?int}>
+     */
+    private function distinctPayments(array $byDocument): array
+    {
+        $kept = [];
+        $seen = [];
+        foreach ($byDocument as $payments) {
+            $counts = [];
+            foreach ($payments as $payment) {
+                $references = $payment['references'];
+                sort($references);
+                $key = implode('|', [
+                    implode(',', $references),
+                    $payment['amount'] !== null ? sprintf('%.2f', $payment['amount']) : '-',
+                    $payment['currency'],
+                    $payment['date'] ?? '-',
+                    $payment['fullyPaid'] ? 'full' : '',
+                ]);
+                $counts[$key] = ($counts[$key] ?? 0) + 1;
+                if ($counts[$key] > ($seen[$key] ?? 0)) {
+                    $kept[] = $payment;
+                }
+            }
+            foreach ($counts as $key => $count) {
+                $seen[$key] = max($seen[$key] ?? 0, $count);
+            }
+        }
+
+        return $kept;
+    }
+
+    /**
+     * The payments a statement lists, as extracted. Null when the payload
+     * carries no list (written before payments were read as one, or the
+     * answer left it out).
+     *
+     * @return ?list<array{amount: ?float, currency: string, date: ?string, references: list<string>, fullyPaid: bool, sourceDocumentId: ?int}>
+     */
+    private function statedPaymentsOf(Document $document): ?array
+    {
+        $extracted = $document->getExtractedData();
+        $claim = is_array($extracted) ? ($extracted['claim'] ?? null) : null;
+        if (!is_array($claim) || !is_array($claim['payments'] ?? null)) {
+            return null;
+        }
+
+        $documentCurrency = $this->currencyCode($claim['currency'] ?? null) ?? 'RON';
+        $payments = [];
+        foreach ($claim['payments'] as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $amount = is_numeric($entry['amount'] ?? null) && (float) $entry['amount'] > 0.0 ? (float) $entry['amount'] : null;
+            $references = [];
+            foreach (is_array($entry['invoiceReferences'] ?? null) ? $entry['invoiceReferences'] : [] as $reference) {
+                $normalized = DocumentReferenceNormalizer::normalize(is_string($reference) ? $reference : null);
+                if ($normalized !== null) {
+                    $references[] = $normalized;
+                }
+            }
+            $fullyPaid = ($entry['fullyPaid'] ?? null) === true && $references !== [];
+            if ($amount === null && !$fullyPaid) {
+                continue;
+            }
+            $payments[] = [
+                'amount' => $amount,
+                'currency' => $this->currencyCode($entry['currency'] ?? null) ?? $documentCurrency,
+                'date' => $this->dateOrNull($entry['date'] ?? null)?->format('Y-m-d'),
+                'references' => array_values(array_unique($references)),
+                'fullyPaid' => $fullyPaid,
+                'sourceDocumentId' => $document->getId(),
+            ];
+        }
+
+        return $payments;
+    }
+
+    /**
+     * Marks the positions a bank statement with no payment list says were
+     * paid, in whole or in part. Only the free text is there, so nothing is
+     * excluded or summed: the row is flagged and the lawyer reads the
+     * statement.
+     *
+     * @param list<ClaimItemRow> $rows
+     * @param list<?string> $statements the payment listings read off the statements
+     *
+     * @return bool whether the statements mention a payment no position matched
+     */
+    private function flagStatementPayments(array $rows, array $statements): bool
     {
         $text = implode(' ', array_filter($statements, static fn (?string $s): bool => $s !== null && $s !== ''));
         if ($text === '' || !ClaimTextSignals::mentionsIncomingPayment($text)) {
-            return $result;
+            return false;
         }
 
         $haystack = (string) DocumentReferenceNormalizer::normalize($text);
         $matched = false;
-        foreach ($result->rows as $row) {
+        foreach ($rows as $row) {
             $reference = DocumentReferenceNormalizer::normalize($row->documentNumber);
             if ($reference === null || !str_contains($haystack, $reference)) {
                 continue;
             }
             $matched = true;
-            $row->warningKeys[] = 'wizard.step3.claim_items.warning.payment_in_statement';
-            // Same effect a deduction stated on the invoice has: the row can no
-            // longer be waved through by the table-wide checkbox.
+            if (!in_array('wizard.step3.claim_items.warning.payment_in_statement', $row->warningKeys, true)) {
+                $row->warningKeys[] = 'wizard.step3.claim_items.warning.payment_in_statement';
+            }
             $row->hasStatedDeduction = true;
         }
 
-        if ($matched) {
-            return $result;
-        }
+        return !$matched;
+    }
 
-        // Payments nobody could tie to a position are the more dangerous case,
-        // not the lesser one: the claim may be partly extinguished by a sum the
-        // table does not show at all.
-        return new DeduplicationResult(
-            rows: $result->rows,
-            conflicts: array_values([...$result->conflicts, new PrefillConflict(
-                scope: ConflictScope::CLAIM_ITEM,
-                severity: ConflictSeverity::WARNING,
-                messageKey: 'wizard.conflict.claim_item.payment_unmatched',
-                field: 'paidAmount',
-            )]),
-        );
+    /** ISO code as positions carry it: the model may answer "ron" or "lei". */
+    private function currencyCode(mixed $value): ?string
+    {
+        $code = $this->stringOrNull($value);
+        if ($code === null) {
+            return null;
+        }
+        $code = strtoupper(trim($code));
+
+        return $code === 'LEI' ? 'RON' : $code;
     }
 
     private function claimDescriptionOf(Document $document): ?string
@@ -237,10 +657,11 @@ final class ClaimItemFactory
             return null;
         }
 
+        $currency = $this->currencyCode($claim->currency) ?? 'RON';
         $row = new ClaimItemRow(
-            dedupKey: $this->dedupKey($claim->invoiceNumber, $claim->invoiceDate, $claim->amount, $claim->currency),
+            dedupKey: $this->dedupKey($claim->invoiceNumber, $claim->invoiceDate, $claim->amount, $currency),
             amount: $claim->amount,
-            currency: $claim->currency,
+            currency: $currency,
             documentNumber: $claim->invoiceNumber,
             documentDate: $claim->invoiceDate,
             dueDate: $claim->dueDate,
@@ -271,9 +692,7 @@ final class ClaimItemFactory
             return null;
         }
 
-        $currency = is_string($claim['currency'] ?? null) && $claim['currency'] !== ''
-            ? $claim['currency']
-            : 'RON';
+        $currency = $this->currencyCode($claim['currency'] ?? null) ?? 'RON';
         $documentNumber = $this->stringOrNull($claim['invoiceNumber'] ?? null);
         $documentDate = $this->dateOrNull($claim['invoiceDate'] ?? null);
         $dueDate = $this->dateOrNull($claim['dueDate'] ?? null);

@@ -40,10 +40,25 @@ final class ContractPrompt extends AbstractExtractionPrompt
             adițional se menționează în `description`.
 
         TERMEN DE PLATĂ:
-          • Dacă contractul stabilește un termen („plata în 15 zile de la
-            emiterea facturii"), descrie-l în `description` cu formularea din
-            contract. `dueDate` se completează DOAR dacă în contract apare o
-            dată calendaristică fermă de plată.
+          • Dacă contractul stabilește un termen în zile („plata în 15 zile de
+            la emiterea facturii"), completează `paymentTermDays` cu numărul de
+            zile și `paymentTermAnchor` cu momentul de la care curge termenul:
+              - ISSUE_DATE: de la emiterea facturii, de la facturare, de la data
+                facturii;
+              - INVOICE_RECEIPT: de la primirea, comunicarea sau transmiterea
+                facturii;
+              - DELIVERY: de la livrare, predare sau prestarea serviciului;
+              - ACCEPTANCE: de la recepție, acceptare sau semnarea
+                procesului-verbal;
+              - OTHER: orice alt moment, sau când contractul nu spune de la ce
+                moment curge termenul („plata în 30 de zile").
+            `paymentTermBusinessDays` = true doar dacă textul spune „zile
+            lucrătoare". Descrie termenul și în `description` cu formularea din
+            contract.
+          • La act adițional, completează aceste câmpuri DOAR dacă actul
+            adițional modifică termenul de plată.
+          • `dueDate` se completează DOAR dacă în contract apare o dată
+            calendaristică fermă de plată.
 
         PENALITATE: aplică regulile de penalitate din instrucțiunile de sistem.
         Contractul este singura sursă legitimă pentru o rată contractuală, deci

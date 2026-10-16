@@ -52,6 +52,8 @@ final class ClaimRowLiveMapper
             'excluded' => $row->excluded,
             'warningKeys' => $row->warningKeys,
             'hasStatedDeduction' => $row->hasStatedDeduction,
+            'dueDateNote' => $row->dueDateNote,
+            'statementPayments' => $row->statementPayments,
         ];
     }
 }

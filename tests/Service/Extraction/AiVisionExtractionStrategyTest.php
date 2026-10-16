@@ -827,6 +827,110 @@ class AiVisionExtractionStrategyTest extends TestCase
         $this->assertStringStartsWith('2026-01-10', $array['claim']['invoiceDate']);
     }
 
+    public function testExtractMapsTheContractualPaymentTermAndPersistsIt(): void
+    {
+        $aiContent = json_encode([
+            'claim' => [
+                'contractNumber' => '12/2024',
+                'paymentTermDays' => 4,
+                'paymentTermAnchor' => 'ISSUE_DATE',
+                'paymentTermBusinessDays' => false,
+                'confidencePerField' => ['contractNumber' => 0.95, 'paymentTermDays' => 0.9],
+            ],
+            'globalConfidence' => 0.8,
+        ]);
+        $strategy = $this->makeStrategy(llmClient: $this->fakeLlmClient($aiContent));
+
+        $result = $strategy->extract($this->makeDocument(id: 73));
+
+        $this->assertSame(4, $result->claim?->paymentTermDays);
+        $this->assertSame(\App\Enum\PaymentTermAnchor::ISSUE_DATE, $result->claim?->paymentTermAnchor);
+        $this->assertFalse($result->claim?->paymentTermBusinessDays);
+
+        $array = $result->toArray();
+        $this->assertSame(4, $array['claim']['paymentTermDays']);
+        $this->assertSame('ISSUE_DATE', $array['claim']['paymentTermAnchor']);
+        $this->assertFalse($array['claim']['paymentTermBusinessDays']);
+    }
+
+    public function testAnImplausiblePaymentTermIsDroppedWithItsAnchor(): void
+    {
+        $aiContent = json_encode([
+            'claim' => [
+                'contractNumber' => '12/2024',
+                'paymentTermDays' => 4.5,
+                'paymentTermAnchor' => 'ISSUE_DATE',
+                'confidencePerField' => ['contractNumber' => 0.95],
+            ],
+            'globalConfidence' => 0.8,
+        ]);
+        $strategy = $this->makeStrategy(llmClient: $this->fakeLlmClient($aiContent));
+
+        $result = $strategy->extract($this->makeDocument(id: 74));
+
+        $this->assertNull($result->claim?->paymentTermDays);
+        $this->assertNull($result->claim?->paymentTermAnchor, 'an anchor without a term means nothing');
+    }
+
+    public function testExtractMapsTheStatementPaymentsAndDropsThoseTyingNothing(): void
+    {
+        $aiContent = json_encode([
+            'claim' => [
+                'description' => 'Fișă de cont client',
+                'payments' => [
+                    ['amount' => 4000, 'currency' => 'RON', 'date' => '2025-04-10', 'invoiceReferences' => [' MJ-9/2025 ', '']],
+                    ['invoiceReferences' => ['20951', '20954'], 'fullyPaid' => true],
+                    ['date' => '2025-04-11'],
+                    ['amount' => 500, 'date' => '2025-02-31', 'fullyPaid' => true],
+                ],
+                'confidencePerField' => ['description' => 0.9, 'payments' => 0.85],
+            ],
+            'globalConfidence' => 0.8,
+        ]);
+        $strategy = $this->makeStrategy(llmClient: $this->fakeLlmClient($aiContent));
+
+        $result = $strategy->extract($this->makeDocument(id: 75));
+
+        $this->assertSame([
+            ['amount' => 4000.0, 'currency' => 'RON', 'date' => '2025-04-10', 'invoiceReferences' => ['MJ-9/2025'], 'fullyPaid' => false],
+            ['amount' => null, 'currency' => null, 'date' => null, 'invoiceReferences' => ['20951', '20954'], 'fullyPaid' => true],
+            // No reference to be fully paid, and no such day: kept as a payment, unqualified.
+            ['amount' => 500.0, 'currency' => null, 'date' => null, 'invoiceReferences' => [], 'fullyPaid' => false],
+        ], $result->claim?->payments);
+        $this->assertSame(0.85, $result->claim?->confidencePerField['payments'] ?? null);
+        $this->assertSame($result->claim?->payments, $result->toArray()['claim']['payments']);
+    }
+
+    public function testAnAnswerWithoutPaymentsStoresNullSoTheTextIsStillChecked(): void
+    {
+        $aiContent = json_encode([
+            'claim' => ['amount' => 100, 'confidencePerField' => ['amount' => 0.9]],
+            'globalConfidence' => 0.8,
+        ]);
+        $strategy = $this->makeStrategy(llmClient: $this->fakeLlmClient($aiContent));
+
+        $result = $strategy->extract($this->makeDocument(id: 76));
+
+        $this->assertNull($result->claim?->payments);
+        $this->assertArrayHasKey('payments', $result->toArray()['claim']);
+        $this->assertNull($result->toArray()['claim']['payments']);
+        $this->assertArrayNotHasKey('payments', $result->claim?->confidencePerField ?? []);
+    }
+
+    public function testAnExplicitlyEmptyPaymentListIsKeptEmpty(): void
+    {
+        $aiContent = json_encode([
+            'claim' => ['amount' => 100, 'payments' => [], 'confidencePerField' => ['amount' => 0.9]],
+            'globalConfidence' => 0.8,
+        ]);
+        $strategy = $this->makeStrategy(llmClient: $this->fakeLlmClient($aiContent));
+
+        $result = $strategy->extract($this->makeDocument(id: 77));
+
+        $this->assertSame([], $result->claim?->payments);
+        $this->assertArrayNotHasKey('payments', $result->claim?->confidencePerField ?? []);
+    }
+
     public function testInvalidPenaltyTypeFromAiBecomesNull(): void
     {
         // Mirror of testInvalidLegalGroundCategoryFromAiBecomesNull: an enum

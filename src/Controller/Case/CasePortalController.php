@@ -93,7 +93,8 @@ final class CasePortalController extends AbstractController
 
         // With the case registered, the stamp duty can be paid in this dosar: say
         // so now. Not when the activation left the case where it was.
-        $flash = $case->getStatus() === CaseStatus::DOSAR_INREGISTRAT && $case->getStampDutyStatus() === StampDutyStatus::NEACHITATA
+        $flash = $case->getStatus() === CaseStatus::DOSAR_INREGISTRAT
+            && in_array($case->getStampDutyStatus(), [StampDutyStatus::NEACHITATA, StampDutyStatus::AMANATA_REGULARIZARE], true)
             ? 'case_overview.portal.flash_activated_pay_stamp_duty'
             : 'case_overview.portal.flash_activated';
 

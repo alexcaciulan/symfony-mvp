@@ -961,11 +961,11 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         self::assertStringContainsString('nu a fost verificat', (string) $this->client->getResponse()->getContent());
     }
 
-    public function testAPenaltyLargerThanThePrincipalIsFlaggedBeforeFiling(): void
+    public function testAPenaltyLargerThanThePrincipalAsksForNoAcknowledgement(): void
     {
-        // Case 6 of the lawyer review: 1% a day on 416.855,99 lei ran to
-        // 3,85 million. The figure stays what the clause gives; the lawyer is
-        // told a court may cut it down.
+        // The platform states the computed penalty; whether it is manifestly
+        // excessive is for the judge, so a penalty ten times the principal
+        // raises no warning to acknowledge.
         $this->primeSessionForStep4(insolvencyCheckedAt: new \DateTimeImmutable('-1 hour'), claim: new Step3ClaimData(
             amount: 1000.0,
             currency: 'RON',
@@ -978,9 +978,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         $this->client->request('GET', '/case/new/confirmation');
 
         self::assertResponseIsSuccessful();
-        $html = (string) $this->client->getResponse()->getContent();
-        self::assertStringContainsString('depășesc debitul principal (1.000,00 lei)', $html);
-        self::assertStringContainsString('art. 1541', $html);
+        self::assertStringNotContainsString('Am verificat avertismentele de admisibilitate', (string) $this->client->getResponse()->getContent());
     }
 
     public function testTheAccessoriesStopAtTheDateTheLawyerChose(): void
@@ -999,9 +997,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
 
         $this->client->request('GET', '/case/new/confirmation');
 
-        $html = (string) $this->client->getResponse()->getContent();
-        self::assertStringNotContainsString('depășesc debitul principal', $html);
-        self::assertStringContainsString('100.00', $html);
+        self::assertStringContainsString('100.00', (string) $this->client->getResponse()->getContent());
     }
 
     public function testAnInterestTheCalculatorRefusesIsSaidAtStepFour(): void

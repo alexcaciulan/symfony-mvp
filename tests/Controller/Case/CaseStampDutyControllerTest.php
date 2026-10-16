@@ -29,11 +29,13 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 /**
- * Stamp duty (OUG 80/2013): proof of payment, the deliberate deferral to the court's
- * regularization procedure, and the 10-day term that follows the court's notice.
+ * Stamp duty (OUG 80/2013): proof of payment, payment after registration in the
+ * existing case, and the 10-day term that follows the court's notice.
  */
 final class CaseStampDutyControllerTest extends WebTestCase
 {
+    private const FILED_UNPAID_WARNING = 'Cererea a fost depusă, dar taxa de timbru nu figurează achitată.';
+
     use CountyFixtureTrait;
 
     private KernelBrowser $client;
@@ -218,10 +220,7 @@ final class CaseStampDutyControllerTest extends WebTestCase
         self::assertStringContainsString($translator->trans('case_overview.stamp_duty.at_filing_provisional'), $crawler->html());
     }
 
-    /**
-     * The reason to pay early belongs on the surface where the deferral is chosen. The
-     * lawyer weighs it while the consent checkbox is in front of him, not after filing.
-     */
+    /** The reason to pay as soon as the number appears sits where the choice is made. */
     public function testTheDeferralModalCarriesTheReasonToPayEarly(): void
     {
         $this->client->loginUser($this->user);
@@ -232,6 +231,99 @@ final class CaseStampDutyControllerTest extends WebTestCase
         self::assertStringContainsString(
             static::getContainer()->get('translator')->trans('case_overview.stamp_duty.modal_defer.practice_note'),
             $this->client->getCrawler()->filter('#hs-modal-stamp-duty-defer')->text(),
+        );
+    }
+
+    /**
+     * Paying in the existing case after registration is the lawyer's usual route, so it
+     * is offered on the card and listed before the provisional pay-at-filing choice in
+     * the generation dialog.
+     */
+    public function testPaymentAfterRegistrationIsOfferedAheadOfPaymentAtFiling(): void
+    {
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $crawler = $this->client->getCrawler();
+        $label = static::getContainer()->get('translator')->trans('case_overview.stamp_duty.cta_defer');
+
+        $cardButton = $crawler->filter('#case-stamp-duty-card [data-hs-overlay="#hs-modal-stamp-duty-defer"]');
+        self::assertCount(1, $cardButton);
+        self::assertSame($label, trim($cardButton->text()));
+
+        $choices = $crawler->filter('#hs-modal-cerere-op [data-hs-overlay^="#hs-modal-stamp-duty-"]')
+            ->each(static fn ($node): string => (string) $node->attr('data-hs-overlay'));
+        self::assertSame(
+            ['#hs-modal-stamp-duty-proof', '#hs-modal-stamp-duty-defer', '#hs-modal-stamp-duty-at-filing'],
+            $choices,
+        );
+    }
+
+    /**
+     * Once the court allocates the number, a case filed for payment after registration
+     * pays in the existing case and confirms it here, without a file to upload.
+     */
+    public function testARegisteredCaseFiledForPaymentAfterRegistrationCanConfirmTheRegistryPayment(): void
+    {
+        $this->case->setStatus(CaseStatus::DOSAR_INREGISTRAT);
+        $this->case->setCourtCaseNumber('4521/211/2026');
+        $this->case->setStampDutyStatus(StampDutyStatus::AMANATA_REGULARIZARE);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $card = $this->client->getCrawler()->filter('#case-stamp-duty-card');
+        self::assertSame(
+            'https://registratura.rejust.ro/plata-taxei-judiciare-de-timbru-intr-un-dosar-existent',
+            $card->filter('a[href*="registratura.rejust.ro"]')->attr('href'),
+        );
+        self::assertCount(1, $card->filter('[data-hs-overlay="#hs-modal-stamp-duty-registry-paid"]'));
+        self::assertStringNotContainsString(self::FILED_UNPAID_WARNING, $card->text(), 'the deferral box already states the risk');
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/registry-paid', [
+            '_token' => $this->csrfToken('/stamp-duty/registry-paid', '_token'),
+            'paidAt' => '2026-07-15',
+        ]);
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame(StampDutyStatus::ACHITATA, $refreshed->getStampDutyStatus());
+        self::assertSame('2026-07-15', $refreshed->getStampDutyPaidAt()->format('Y-m-d'));
+    }
+
+    public function testAFiledCaseWithTheDutyUnpaidWarnsOfAnnulment(): void
+    {
+        $this->case->setStatus(CaseStatus::DOSAR_INREGISTRAT);
+        $this->case->setCourtCaseNumber('4521/211/2026');
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString(self::FILED_UNPAID_WARNING, $this->client->getCrawler()->filter('#case-stamp-duty-card')->text());
+    }
+
+    /** Without a file number there is no existing case to pay in, so nothing to confirm yet. */
+    public function testTheRegistryConfirmationWaitsForTheFileNumberAfterFilingForLaterPayment(): void
+    {
+        $this->case->setStatus(CaseStatus::CERERE_DEPUSA);
+        $this->case->setFiledAt(new \DateTimeImmutable('2026-03-01'));
+        $this->case->setStampDutyStatus(StampDutyStatus::AMANATA_REGULARIZARE);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $card = $this->client->getCrawler()->filter('#case-stamp-duty-card');
+        self::assertCount(0, $card->filter('[data-hs-overlay="#hs-modal-stamp-duty-registry-paid"]'));
+        self::assertStringContainsString(
+            static::getContainer()->get('translator')->trans('case_overview.stamp_duty.pay_awaiting_case_number'),
+            $card->html(),
         );
     }
 
@@ -621,13 +713,17 @@ final class CaseStampDutyControllerTest extends WebTestCase
         ]);
 
         self::assertResponseRedirects('/case/' . $this->case->getId());
+        self::assertSame(
+            ['case_overview.stamp_duty.flash_success_deferred'],
+            $this->client->getRequest()->getSession()->getFlashBag()->peek('success'),
+        );
 
         $this->em->clear();
         $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
         self::assertSame(StampDutyStatus::AMANATA_REGULARIZARE, $refreshed->getStampDutyStatus());
     }
 
-    /** The risk acknowledgement is the whole point of the escape hatch: no tick, no deferral. */
+    /** The choice is explicit and audited: no tick, no change. */
     public function testDeferIsRejectedWithoutTheRiskAcknowledgement(): void
     {
         $this->client->loginUser($this->user);

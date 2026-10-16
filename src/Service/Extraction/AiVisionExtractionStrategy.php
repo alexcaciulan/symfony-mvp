@@ -12,6 +12,7 @@ use App\Enum\DocumentType;
 use App\Enum\ExtractionFailureReason;
 use App\Enum\LegalGroundCategory;
 use App\Enum\LlmFinishReason;
+use App\Enum\PaymentTermAnchor;
 use App\Enum\PenaltyType;
 use App\Enum\PersonType;
 use App\Service\AuditLogService;
@@ -102,6 +103,9 @@ final class AiVisionExtractionStrategy implements ExtractionStrategyInterface
      * the opening, short enough that a runaway answer cannot flood the log.
      */
     private const MALFORMED_SAMPLE_CHARS = 400;
+
+    /** A payment term longer than a year is a misread figure, not a term. */
+    private const MAX_PAYMENT_TERM_DAYS = 365;
 
     public function __construct(
         private readonly LlmClientInterface $llmClient,
@@ -875,6 +879,24 @@ final class AiVisionExtractionStrategy implements ExtractionStrategyInterface
         $penaltyCapRaw = $raw['contractualPenaltyCapPercent'] ?? null;
         $penaltyCap = is_numeric($penaltyCapRaw) && (float) $penaltyCapRaw > 0.0 && (float) $penaltyCapRaw <= 100.0 ? (float) $penaltyCapRaw : null;
 
+        $termDaysRaw = $raw['paymentTermDays'] ?? null;
+        // A term is a whole number of days; a fraction or a figure no contract
+        // would set is a misreading, not a term.
+        $termDays = is_int($termDaysRaw) || (is_float($termDaysRaw) && floor($termDaysRaw) === $termDaysRaw)
+            ? (int) $termDaysRaw
+            : null;
+        if ($termDays !== null && ($termDays < 0 || $termDays > self::MAX_PAYMENT_TERM_DAYS)) {
+            $termDays = null;
+        }
+        $termAnchor = $termDays !== null && is_string($raw['paymentTermAnchor'] ?? null)
+            ? PaymentTermAnchor::tryFrom($raw['paymentTermAnchor'])
+            : null;
+        $termBusinessDays = $termDays !== null && is_bool($raw['paymentTermBusinessDays'] ?? null)
+            ? $raw['paymentTermBusinessDays']
+            : null;
+
+        $payments = $this->coercePayments($raw['payments'] ?? null);
+
         $values = [
             'amount' => $amount,
             'currency' => $this->coerceString($raw['currency'] ?? null),
@@ -889,6 +911,13 @@ final class AiVisionExtractionStrategy implements ExtractionStrategyInterface
             'penaltyType' => $penaltyType,
             'contractualPenaltyRate' => $penaltyRate,
             'contractualPenaltyCapPercent' => $penaltyCap,
+            'paymentTermDays' => $termDays,
+            'paymentTermAnchor' => $termAnchor,
+            'paymentTermBusinessDays' => $termBusinessDays,
+            // Read by the confidence map only, where an empty list has nothing
+            // to score. The DTO gets the value as is: null when the answer
+            // carries no list, so the statement's text is still checked.
+            'payments' => $payments !== [] ? $payments : null,
         ];
 
         return new ClaimExtraction(
@@ -905,8 +934,54 @@ final class AiVisionExtractionStrategy implements ExtractionStrategyInterface
             penaltyType: $values['penaltyType'],
             contractualPenaltyRate: $values['contractualPenaltyRate'],
             contractualPenaltyCapPercent: $values['contractualPenaltyCapPercent'],
+            paymentTermDays: $values['paymentTermDays'],
+            paymentTermAnchor: $values['paymentTermAnchor'],
+            paymentTermBusinessDays: $values['paymentTermBusinessDays'],
+            payments: $payments,
             confidencePerField: $this->coerceConfidenceMap($raw['confidencePerField'] ?? null, $values),
         );
+    }
+
+    /**
+     * The payments a statement lists. An entry needs a positive amount, or
+     * invoice references stated as fully paid: anything else ties nothing to
+     * the claim. Null when the answer carries no list: an omitted key cannot
+     * tell a statement with no payments from one whose payments were skipped.
+     *
+     * @return ?list<array{amount: ?float, currency: ?string, date: ?string, invoiceReferences: list<string>, fullyPaid: bool}>
+     */
+    private function coercePayments(mixed $raw): ?array
+    {
+        if (!is_array($raw)) {
+            return null;
+        }
+        $payments = [];
+        foreach ($raw as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $amount = is_numeric($entry['amount'] ?? null) && (float) $entry['amount'] > 0.0 ? (float) $entry['amount'] : null;
+            $references = [];
+            foreach (is_array($entry['invoiceReferences'] ?? null) ? $entry['invoiceReferences'] : [] as $reference) {
+                $reference = $this->coerceString($reference);
+                if ($reference !== null) {
+                    $references[] = $reference;
+                }
+            }
+            $fullyPaid = ($entry['fullyPaid'] ?? null) === true && $references !== [];
+            if ($amount === null && !$fullyPaid) {
+                continue;
+            }
+            $payments[] = [
+                'amount' => $amount,
+                'currency' => $this->coerceString($entry['currency'] ?? null),
+                'date' => $this->coerceDate($entry['date'] ?? null)?->format('Y-m-d'),
+                'invoiceReferences' => $references,
+                'fullyPaid' => $fullyPaid,
+            ];
+        }
+
+        return $payments;
     }
 
     /**

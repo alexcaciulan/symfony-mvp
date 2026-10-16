@@ -3,6 +3,7 @@
 namespace App\DTO\Extraction;
 
 use App\Enum\LegalGroundCategory;
+use App\Enum\PaymentTermAnchor;
 use App\Enum\PenaltyType;
 
 final readonly class ClaimExtraction
@@ -15,6 +16,12 @@ final readonly class ClaimExtraction
      * @param array<string, float> $confidencePerField     field name → confidence score 0..1
      * @param ?float               $contractualPenaltyCapPercent ceiling on the penalties as a percentage
      *                                                     of the sum they accrue on (e.g. 10 for 10%)
+     * @param ?int                 $paymentTermDays        contractual payment term in days ("plata în 4 zile
+     *                                                     de la facturare"), read from contracts only
+     * @param ?PaymentTermAnchor   $paymentTermAnchor      the event the term runs from
+     * @param ?bool                $paymentTermBusinessDays true when the term counts working days
+     * @param ?list<array<string, mixed>> $payments     the payments a statement lists; null when no list
+     *                                                     was read, so the statement's text is checked instead
      */
     public function __construct(
         public ?float $amount = null,
@@ -31,5 +38,9 @@ final readonly class ClaimExtraction
         public ?float $contractualPenaltyRate = null,
         public array $confidencePerField = [],
         public ?float $contractualPenaltyCapPercent = null,
+        public ?int $paymentTermDays = null,
+        public ?PaymentTermAnchor $paymentTermAnchor = null,
+        public ?bool $paymentTermBusinessDays = null,
+        public ?array $payments = null,
     ) {}
 }

@@ -96,9 +96,10 @@ final class StampDutyService
     }
 
     /**
-     * The lawyer knowingly files without proof and will stamp when the court asks
-     * (OUG 80/2013 art. 33 alin. 2 allows it). Legal, but it puts a 10-day
-     * annulment clock on the case, so the choice is recorded rather than blocked.
+     * The lawyer files without proof and pays on the registry in the existing case once
+     * the court allocates the number. If the court sends a stamping notice first, its
+     * term runs under penalty of annulment (OUG 80/2013 art. 33 alin. 2), so the
+     * choice is recorded and audited.
      */
     public function deferToRegularization(LegalCase $case, UserInterface $user): void
     {

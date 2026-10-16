@@ -385,6 +385,15 @@
                                     <input type="date" id="ci-due-{{ index }}" form="step3-claim-form" name="claim_items[{{ index }}][dueDate]" data-model="rows[{{ index }}][dueDate]"
                                            value="{{ row.dueDate ? row.dueDate|date('Y-m-d') : '' }}"
                                            class="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-sm tnum focus:border-lex-navy focus:ring-1 focus:ring-lex-navy">
+                                    {% set due_note = row.dueDateNote|default(null) %}
+                                    {# A derived date the lawyer has since changed no longer needs explaining. #}
+                                    {% if due_note and (due_note.appliedDueDate is null or (row.dueDate and due_note.appliedDueDate == row.dueDate|date('Y-m-d'))) %}
+                                        <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400" data-testid="claim-item-due-date-note">{{ due_note.key|trans({
+                                            '{days}': due_note.days,
+                                            '{anchor}': ('enum.payment_term_anchor.' ~ due_note.anchor)|trans,
+                                            '{printed}': due_note.printedDueDate ? due_note.printedDueDate|date('d.m.Y') : '',
+                                        }) }}</p>
+                                    {% endif %}
                                 </div>
                                 <div>
                                     <label class="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 mb-1" for="ci-amt-{{ index }}">{{ 'wizard.step3.claim_items.column.amount'|trans }}</label>
@@ -503,6 +512,29 @@
                                     <span class="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 mb-1">{{ 'wizard.step3.claim_items.column.description'|trans }}</span>
                                     <p class="text-xs leading-relaxed text-slate-600 dark:text-slate-300">{{ row.description|default('—') }}</p>
                                     {% for warning in row.warningKeys|default([]) %}<p class="mt-1 text-[11px] text-amber-600 dark:text-amber-400">{{ warning|trans }}</p>{% endfor %}
+                                    {% if row.statementPayments|default([]) is not empty %}
+                                        <div class="mt-1.5 text-[11px] text-slate-600 dark:text-slate-300" data-testid="claim-item-statement-payments">
+                                            <p class="font-medium">{{ 'wizard.step3.claim_items.statement_payments.heading'|trans }}</p>
+                                            <ul class="mt-0.5 space-y-0.5">
+                                                {% for payment in row.statementPayments %}
+                                                    {% set parts = [
+                                                        payment.amount is not null
+                                                            ? 'wizard.step3.claim_items.statement_payments.amount'|trans({'%amount%': payment.amount|number_format(2, ',', '.'), '%currency%': payment.currency})
+                                                            : 'wizard.step3.claim_items.statement_payments.no_amount'|trans,
+                                                        payment.date
+                                                            ? 'wizard.step3.claim_items.statement_payments.date'|trans({'%date%': payment.date|date('d.m.Y')})
+                                                            : 'wizard.step3.claim_items.statement_payments.no_date'|trans,
+                                                    ] %}
+                                                    {% if payment.fullyPaid %}{% set parts = parts|merge(['wizard.step3.claim_items.statement_payments.fully_paid'|trans]) %}{% endif %}
+                                                    {% if payment.shared %}{% set parts = parts|merge(['wizard.step3.claim_items.statement_payments.shared'|trans]) %}{% endif %}
+                                                    <li class="tnum">{{ parts|join(', ') }}</li>
+                                                {% endfor %}
+                                            </ul>
+                                            {% if row.paidAmount|default(0) > 0 %}
+                                                <p class="mt-0.5 tnum">{{ 'wizard.step3.claim_items.statement_payments.recorded_total'|trans({'%amount%': row.paidAmount|number_format(2, ',', '.'), '%currency%': row.currency}) }}</p>
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
                                 </div>
                             </div>
                         </article>

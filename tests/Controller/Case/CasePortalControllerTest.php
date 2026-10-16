@@ -231,6 +231,24 @@ final class CasePortalControllerTest extends WebTestCase
         self::assertSame($this->user->getId(), $match?->getDecidedBy()?->getId(), 'who confirmed it is kept');
     }
 
+    /** A case filed for payment after registration is the one that now pays in this case. */
+    public function testConfirmingTheNumberAsksForTheStampDutyOnACaseFiledForLaterPayment(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::CERERE_DEPUSA);
+        $case->setStampDutyStatus(StampDutyStatus::AMANATA_REGULARIZARE);
+        $this->em->flush();
+
+        $token = $this->activateToken($case);
+        $this->client->request('POST', '/case/' . $case->getId() . '/portal/activate', [
+            'portal_activate' => ['courtCaseNumber' => '4521/302/2026', '_token' => $token],
+        ]);
+        $crawler = $this->client->followRedirect();
+
+        self::assertStringContainsString('Pasul următor: taxa de timbru se poate plăti acum pe registratură', $crawler->text());
+        self::assertSame(1, $crawler->filter('[data-testid="portal-case-alert-stamp-duty"]')->count());
+    }
+
     public function testAProposalCanBeSetAside(): void
     {
         $this->client->loginUser($this->user);

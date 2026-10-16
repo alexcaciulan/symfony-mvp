@@ -18,8 +18,8 @@ use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
- * Judicial stamp duty (OUG 80/2013): proof of payment, deferral to the court's
- * regularization procedure, and the court's notice date that starts the 10-day term.
+ * Judicial stamp duty (OUG 80/2013): proof of payment, payment after registration in
+ * the existing case, and the court's notice date that starts the 10-day term.
  *
  * The proof has its own upload route rather than the generic document modal for two
  * reasons: it carries payment state no other document has, and it must remain
@@ -192,6 +192,10 @@ final class CaseStampDutyController extends AbstractController
         );
     }
 
+    /**
+     * The lawyer files without proof and pays on the registry in the existing case once
+     * the court allocates the number. The payment is then confirmed via registryPaid().
+     */
     #[Route('/case/{id}/stamp-duty/defer', name: 'case_stamp_duty_defer', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function defer(int $id, Request $request): Response
     {
@@ -216,7 +220,7 @@ final class CaseStampDutyController extends AbstractController
             $request,
             $case,
             true,
-            'warning',
+            'success',
             'case_overview.stamp_duty.flash_success_deferred',
             'hs-modal-stamp-duty-defer',
         );

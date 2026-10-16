@@ -434,35 +434,6 @@ final class CaseWizardController extends AbstractController
     }
 
     /**
-     * A contractual penalty above the principal is flagged before filing: a
-     * court may cut down a manifestly excessive one (Civil Code art. 1541).
-     *
-     * @param array<string, mixed> $calculations
-     * @return list<AdmissibilityIssue>
-     */
-    private function excessivePenaltyIssues(Step3ClaimData $claim, array $calculations): array
-    {
-        if ($claim->penaltyType !== PenaltyType::CONTRACTUAL) {
-            return [];
-        }
-        $principal = (float) ($calculations['principal'] ?? 0.0);
-        $accessory = (float) ($calculations['accessoryTotal'] ?? 0.0);
-        if ($principal <= 0.0 || $accessory <= $principal) {
-            return [];
-        }
-
-        return [new AdmissibilityIssue(
-            IssueSeverity::WARNING,
-            'OP_PENALTY_EXCEEDS_PRINCIPAL',
-            'validation.op_admissibility.OP_PENALTY_EXCEEDS_PRINCIPAL',
-            [
-                '%penalty%' => number_format($accessory, 2, ',', '.'),
-                '%principal%' => number_format($principal, 2, ',', '.'),
-            ],
-        )];
-    }
-
-    /**
      * Now, or the earlier date the lawyer chose to compute the accessories up
      * to: the rule the saved case applies through
      * {@see LegalCase::accessoryReferenceDate()}.
@@ -1655,7 +1626,6 @@ final class CaseWizardController extends AbstractController
         $issues = [
             ...$this->admissibility->validate($skeleton, $now),
             ...$this->admissibility->validateClaimRows($claimRows),
-            ...$this->excessivePenaltyIssues($claimDto, $calculations),
             ...$this->undeterminedAccessoryIssues($calculations),
         ];
         ['errors' => $errors, 'warnings' => $warnings] = $this->splitIssues($issues);

@@ -33,7 +33,7 @@
         </div>
     </div>
 {# Only once the petition is with the court: a number activated earlier registers nothing. #}
-{% elseif open_case and confirmed and case.hasReachedCourt() and case.stampDutyStatus.value == 'NEACHITATA' %}
+{% elseif open_case and confirmed and case.hasReachedCourt() and case.stampDutyStatus.value in ['NEACHITATA', 'AMANATA_REGULARIZARE'] %}
     <div class="rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 mb-4 flex flex-wrap sm:flex-nowrap items-start gap-3" data-testid="portal-case-alert-stamp-duty">
         <span class="inline-flex items-center justify-center size-8 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 shrink-0">
             {{ icon_warning('size-4') }}

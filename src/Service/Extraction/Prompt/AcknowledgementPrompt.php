@@ -7,10 +7,11 @@ namespace App\Service\Extraction\Prompt;
 use App\Enum\DocumentType;
 
 /**
- * Balance confirmations and other acknowledgements of debt. Evidentially these
- * are the strongest documents in the file, because the debtor signed the amount
- * itself, and they usually enumerate every open invoice, which is why they get
- * the ledger-sized output budget rather than the compact one.
+ * Balance confirmations, account statements and other acknowledgements of
+ * debt. Evidentially these are the strongest documents in the file, because
+ * the debtor signed the amount itself, and they usually enumerate every open
+ * invoice and the payments made against them, which is why they get the
+ * ledger-sized output budget rather than the compact one.
  */
 final class AcknowledgementPrompt extends AbstractExtractionPrompt
 {
@@ -47,6 +48,16 @@ final class AcknowledgementPrompt extends AbstractExtractionPrompt
           • În `description` enumeră pozițiile confirmate, câte una pe rând, în
             forma: `număr factură | dată | sumă | valută | sold rămas`.
           • Preia numerele de factură exact cum apar, fără normalizare.
+
+        PLĂȚI (fișă de cont sau punctaj care arată și încasările):
+          • Pune în `payments` fiecare plată a debitorului pe care documentul o
+            arată: `amount`, `currency`, `date` și, în `invoiceReferences`,
+            factura sau facturile pe care documentul o leagă de plată.
+          • Dacă documentul spune că anumite facturi sunt achitate integral
+            (ex: „achitate integral: 20951, 20954”), adaugă un element cu acele
+            facturi în `invoiceReferences` și `fullyPaid` = true, chiar dacă
+            suma plății nu apare.
+          • O confirmare care arată doar un sold, fără plăți, nu are `payments`.
 
         SEMNĂTURA: notează în `description` cine a semnat pentru debitor și data
         semnării. O recunoaștere nesemnată de debitor își pierde valoarea

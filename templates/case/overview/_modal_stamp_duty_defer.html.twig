@@ -1,7 +1,8 @@
-{# Supapa: depunere fără dovadă de plată, cu timbrare la regularizare. Legea o
-   permite (OUG 80/2013 art. 33 alin. 2), dar pune pe dosar un termen de 10 zile
-   sub sancțiunea anulării, deci alegerea se face explicit și se auditează. #}
-{% from 'case/overview/_icons.html.twig' import icon_warning %}
+{# Filing without proof and paying in the existing case once the court allocates the
+   number: the lawyer's usual route. Should the court send a stamping notice first,
+   its term runs under penalty of annulment (OUG 80/2013 art. 33 alin. 2), so the
+   choice stays explicit and audited. #}
+{% from 'case/overview/_icons.html.twig' import icon_money %}
 
 <div id="hs-modal-stamp-duty-defer"
      class="hs-overlay hidden size-full fixed top-0 start-0 z-[80] overflow-x-hidden overflow-y-auto pointer-events-none"
@@ -14,8 +15,8 @@
 
             <div class="flex justify-between items-center py-4 px-5 border-b border-slate-100 dark:border-slate-800">
                 <div class="flex items-center gap-3">
-                    <span class="inline-flex items-center justify-center size-9 rounded-lg bg-orange-100 dark:bg-orange-950/40 text-orange-600 dark:text-orange-400">
-                        {{ icon_warning('size-5') }}
+                    <span class="inline-flex items-center justify-center size-9 rounded-lg bg-blue-100 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">
+                        {{ icon_money('size-5') }}
                     </span>
                     <h3 id="hs-modal-stamp-duty-defer-title" class="font-bold text-slate-900 dark:text-white">{{ 'case_overview.stamp_duty.modal_defer.title'|trans }}</h3>
                 </div>
@@ -30,22 +31,20 @@
             <div class="p-5 space-y-4">
                 <p class="text-sm text-slate-600 dark:text-slate-400">{{ 'case_overview.stamp_duty.modal_defer.intro'|trans }}</p>
 
-                <div class="rounded-lg border border-orange-200 dark:border-orange-900/40 bg-orange-50 dark:bg-orange-950/20 p-3">
-                    <div class="text-xs text-orange-900 dark:text-orange-200 space-y-1">
+                <div class="rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 p-3">
+                    <div class="text-xs text-slate-700 dark:text-slate-300 space-y-1">
                         <p class="font-semibold">{{ 'case_overview.stamp_duty.modal_defer.risk_title'|trans }}</p>
                         <p>{{ 'case_overview.stamp_duty.modal_defer.risk_body'|trans }}</p>
                     </div>
                 </div>
 
-                {# Why paying early is preferable, in the words of practice: the notice
-                   can reach the client instead of the office. The note lives here, not on
-                   the card, because this is where the decision is made, right before the
-                   checkbox. #}
+                {# Why paying as soon as the number appears is preferable: the notice can
+                   reach the client instead of the office. #}
                 <p class="text-xs text-slate-500 dark:text-slate-400">{{ 'case_overview.stamp_duty.modal_defer.practice_note'|trans }}</p>
 
                 <label class="flex items-start gap-2.5 cursor-pointer">
                     <input type="checkbox" name="deferralConsent" value="1" required
-                           class="mt-0.5 shrink-0 size-4 rounded border-slate-300 text-orange-600 focus:ring-orange-500 dark:border-slate-700 dark:bg-slate-800">
+                           class="mt-0.5 shrink-0 size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-800">
                     <span class="text-sm text-slate-700 dark:text-slate-300">{{ 'case_overview.stamp_duty.modal_defer.consent'|trans }}</span>
                 </label>
             </div>
@@ -57,7 +56,7 @@
                     {{ 'case_overview.stamp_duty.modal_defer.cancel'|trans }}
                 </button>
                 <button type="submit"
-                        class="py-2 px-4 inline-flex items-center text-sm font-semibold rounded-lg bg-orange-600 text-white hover:bg-orange-700 transition">
+                        class="py-2 px-4 inline-flex items-center text-sm font-semibold rounded-lg bg-lex-navy text-white hover:bg-lex-navy-dark transition">
                     {{ 'case_overview.stamp_duty.modal_defer.submit'|trans }}
                 </button>
             </div>

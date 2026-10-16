@@ -76,10 +76,10 @@
                 </div>
             </div>
         {% elseif status.value == 'AMANATA_REGULARIZARE' %}
-            <div class="rounded-lg bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-900/60 p-3 mb-4">
+            <div class="rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/60 p-3 mb-4">
                 <div class="flex items-start gap-2">
-                    {{ icon_warning('size-4 text-orange-600 shrink-0 mt-0.5') }}
-                    <div class="text-xs text-orange-800 dark:text-orange-200">
+                    {{ icon_money('size-4 text-blue-600 shrink-0 mt-0.5') }}
+                    <div class="text-xs text-blue-800 dark:text-blue-200">
                         <p class="font-semibold">{{ 'case_overview.stamp_duty.deferred_title'|trans }}</p>
                         <p class="mt-0.5">{{ 'case_overview.stamp_duty.deferred_body'|trans }}</p>
                     </div>
@@ -155,6 +155,12 @@
                sent by email the registry's new-case form is never filled, so paying at
                filing may no longer be possible. Only offered before the petition leaves. #}
             {% if status.value == 'NEACHITATA' and rejust_form.value == 'NOT_FILED' %}
+                {# The usual route: file now, pay in the existing case once the court
+                   allocates the number. #}
+                <button type="button" data-hs-overlay="#hs-modal-stamp-duty-defer"
+                        class="w-full py-2 px-3 inline-flex items-center justify-center gap-2 text-xs font-medium rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+                    {{ 'case_overview.stamp_duty.cta_defer'|trans }}
+                </button>
                 <div>
                     <button type="button" data-hs-overlay="#hs-modal-stamp-duty-at-filing"
                             class="w-full py-2 px-3 inline-flex items-center justify-center gap-2 text-xs font-medium rounded-lg border border-blue-300 dark:border-blue-800 text-blue-800 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition">
@@ -164,7 +170,9 @@
                 </div>
             {% endif %}
 
-            {% if status.value == 'ACHITARE_LA_DEPUNERE' %}
+            {# Once the case has a number, any outstanding duty is paid in that case on
+               the registry, which leaves no file to upload, only a payment to confirm. #}
+            {% if status.value == 'ACHITARE_LA_DEPUNERE' or (status.isOutstanding and rejust_form.value == 'EXISTING_CASE') %}
                 <button type="button" data-hs-overlay="#hs-modal-stamp-duty-registry-paid"
                         class="w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-semibold rounded-lg bg-lex-navy text-white hover:bg-lex-navy-dark transition">
                     {{ 'case_overview.stamp_duty.cta_registry_paid'|trans }}
@@ -183,8 +191,9 @@
             {% endif %}
         </div>
 
-        {# The petition has left and the duty is still owed, so the annulment risk is real. #}
-        {% if case.hasReachedCourt and status.isOutstanding %}
+        {# The petition has left and the duty is still owed, so the annulment risk is real.
+           Payment after registration already states that risk in its own box. #}
+        {% if case.hasReachedCourt and status.isOutstanding and status.value != 'AMANATA_REGULARIZARE' %}
             <div class="mt-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 p-3">
                 <p class="text-xs text-amber-800 dark:text-amber-200">{{ 'case_overview.stamp_duty.filed_unpaid_banner'|trans }}</p>
             </div>

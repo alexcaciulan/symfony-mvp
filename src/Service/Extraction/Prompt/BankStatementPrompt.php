@@ -9,8 +9,8 @@ use App\Enum\DocumentType;
 /**
  * Bank statements. They legitimately carry almost no party identification and
  * no claim of their own; what they do carry is proof of which invoices were
- * paid and which were not, which is why the instructions ask for payment
- * references in the description rather than for a claim amount.
+ * paid and which were not, which is why the instructions ask for the payments
+ * and the invoices they name rather than for a claim amount.
  */
 final class BankStatementPrompt extends AbstractExtractionPrompt
 {
@@ -51,6 +51,12 @@ final class BankStatementPrompt extends AbstractExtractionPrompt
             („contravaloare fact. MJ-123/2025”). Aceste referințe permit
             corelarea plăților cu facturile, deci nu le prescurta și nu le
             normaliza.
+          • Pune fiecare plată făcută de debitor către creditor și în
+            `payments`: `amount`, `currency`, `date` și, în `invoiceReferences`,
+            factura sau facturile numite în explicația plății. O plată a cărei
+            explicație nu numește nicio factură se trece fără
+            `invoiceReferences`. Plățile în sens invers (de la creditor către
+            debitor) nu se trec în `payments`.
           • Nu completa `amount` cu totalul rulajelor sau cu soldul contului:
             niciunul nu este suma pretinsă. Completează `amount` doar dacă
             extrasul indică explicit un sold restant al debitorului.

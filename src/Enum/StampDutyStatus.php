@@ -27,9 +27,9 @@ enum StampDutyStatus: string
     case ACHITARE_LA_DEPUNERE = 'ACHITARE_LA_DEPUNERE';
 
     /**
-     * The lawyer knowingly filed without proof and will stamp during the court's
-     * regularization procedure (OUG 80/2013 art. 33 alin. 2: 10 days from the
-     * court's notice, under penalty of annulment).
+     * Filed without proof; the duty is paid on the registry in the existing case once
+     * the court allocates the number. A stamping notice sent by the court before that
+     * starts the term of OUG 80/2013 art. 33 alin. 2, under penalty of annulment.
      */
     case AMANATA_REGULARIZARE = 'AMANATA_REGULARIZARE';
 

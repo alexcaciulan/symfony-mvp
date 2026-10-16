@@ -7,6 +7,7 @@ namespace App\Service\Extraction\Prompt;
 use App\DTO\Wizard\Step3ClaimData;
 use App\Enum\DocumentType;
 use App\Enum\LegalGroundCategory;
+use App\Enum\PaymentTermAnchor;
 use App\Enum\PenaltyType;
 use App\Enum\PersonType;
 
@@ -118,7 +119,7 @@ final class SharedPromptFragments
             DocumentType::CONTRACT => 'contract, convenție sau înțelegere semnată de părți',
             DocumentType::ACT_ADITIONAL => 'act adițional care modifică un contract existent',
             DocumentType::EXTRAS_CONT => 'extras de cont bancar cu rulaje și solduri',
-            DocumentType::CONFIRMARE_SOLD => 'confirmare de sold, punctaj sau recunoaștere de datorie',
+            DocumentType::CONFIRMARE_SOLD => 'confirmare de sold, fișă de cont client sau furnizor, punctaj sau recunoaștere de datorie',
             DocumentType::PROCES_VERBAL => 'proces-verbal de recepție, predare-primire sau constatare, inclusiv notă de recepție',
             DocumentType::COMANDA => 'comandă fermă, ofertă acceptată sau notă de comandă',
             DocumentType::NOTIFICARE => 'notificare, adresă sau corespondență între părți, inclusiv notificare de reziliere sau denunțare',
@@ -192,6 +193,23 @@ final class SharedPromptFragments
             fără separator de mii și fără simbolul monedei.
           • `currency`: doar `RON` sau `EUR`. Pentru orice altă monedă omite
             câmpul și scrie moneda reală în `description`.
+          • `paymentTermDays` (număr întreg de zile), `paymentTermAnchor` și
+            `paymentTermBusinessDays` se completează DOAR din clauza de plată a
+            unui contract sau act adițional, niciodată de pe o factură.
+            `paymentTermAnchor`: ISSUE_DATE când termenul curge de la emiterea
+            facturii, de la facturare sau de la facturarea mărfii; INVOICE_RECEIPT
+            de la primirea sau comunicarea facturii; DELIVERY de la livrare,
+            predare sau prestare; ACCEPTANCE de la recepție sau acceptare; OTHER
+            pentru orice alt moment sau când clauza nu spune de când curge.
+          • `payments` se completează DOAR la extras de cont și la fișă de cont
+            sau confirmare de sold: câte un element pentru fiecare plată făcută
+            de debitor către creditor, cu `amount`, `currency`, `date` și, în
+            `invoiceReferences`, numărul fiecărei facturi pe care documentul o
+            leagă de plată, exact cum apare. `fullyPaid` = true doar când
+            documentul spune explicit că facturile sunt achitate integral (ex:
+            „achitate integral: 20951, 20954”); o astfel de mențiune fără sumă
+            se trece ca element fără `amount`. Nu împărți tu o plată între
+            facturi și nu deduce ce factură a stins o plată care nu o numește.
         FRAGMENT;
     }
 
@@ -278,6 +296,14 @@ final class SharedPromptFragments
     public static function penaltyTypeValues(): array
     {
         return array_map(static fn (PenaltyType $p): string => $p->value, PenaltyType::cases());
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function paymentTermAnchorValues(): array
+    {
+        return array_map(static fn (PaymentTermAnchor $a): string => $a->value, PaymentTermAnchor::cases());
     }
 
     /**
@@ -415,10 +441,40 @@ final class SharedPromptFragments
             'penaltyType' => self::enumField(self::penaltyTypeValues(), 'Doar CONTRACTUAL, și doar pentru o clauză explicită cu rată pe zi'),
             'contractualPenaltyRate' => self::numberField('Rata zilnică în procente, ex: 0.1 pentru 0,1% pe zi'),
             'contractualPenaltyCapPercent' => self::numberField('Plafonul penalităților ca procent din valoarea pe care se calculează, ex: 10 pentru 10%'),
+            'paymentTermDays' => self::field('integer', 'Doar la contract sau act adițional: numărul de zile al termenului de plată stabilit de contract, ex: 4 pentru „plata în 4 zile de la facturare”'),
+            'paymentTermAnchor' => self::enumField(self::paymentTermAnchorValues(), 'Momentul de la care curge `paymentTermDays`'),
+            'paymentTermBusinessDays' => self::field('boolean', 'true doar dacă termenul este exprimat în zile lucrătoare'),
+            'payments' => self::paymentsSchema(),
         ];
         $fields['confidencePerField'] = self::confidenceSchema(array_keys($fields));
 
         return $fields;
+    }
+
+    /**
+     * The payments a bank statement or an account statement lists, each tied
+     * to the invoices it settles when the document names them. They are what
+     * takes a paid invoice out of the claim.
+     *
+     * @return array<string, mixed>
+     */
+    private static function paymentsSchema(): array
+    {
+        return [
+            'type' => 'array',
+            'description' => 'Doar la extras de cont și la fișă de cont sau confirmare de sold: plățile făcute de debitor către creditor, câte una pe element',
+            'items' => self::object([
+                'amount' => self::numberField('Suma plătită, ca număr, fără simbolul monedei'),
+                'currency' => self::enumField(self::currencyValues(), 'Moneda plății'),
+                'date' => self::dateField('Data plății, format YYYY-MM-DD'),
+                'invoiceReferences' => [
+                    'type' => 'array',
+                    'description' => 'Numerele facturilor pe care documentul le leagă de această plată, exact cum apar',
+                    'items' => ['type' => 'string'],
+                ],
+                'fullyPaid' => self::field('boolean', 'true doar dacă documentul spune explicit că facturile referite sunt achitate integral'),
+            ]),
+        ];
     }
 
     /**

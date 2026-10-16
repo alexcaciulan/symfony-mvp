@@ -208,6 +208,88 @@ final class Step3ClaimPositionsLiveTest extends WebTestCase
         self::assertStringNotContainsString('#24', $html);
     }
 
+    public function testADueDateSetByTheContractSaysWhyUntilTheLawyerChangesIt(): void
+    {
+        $row = $this->row('MJ-9/2025', 1000.0, '2025-03-05');
+        $row->dueDateNote = [
+            'key' => 'wizard.step3.claim_items.note.contract_term_overrides_invoice',
+            'days' => 4,
+            'anchor' => 'ISSUE_DATE',
+            'printedDueDate' => '2025-03-01',
+            'appliedDueDate' => '2025-03-05',
+        ];
+        $rows = ClaimRowLiveMapper::toArrays([$row]);
+
+        $component = $this->createLiveComponent('Step3ClaimLiveComponent', [
+            'initialFormData' => new Step3ClaimData(currency: 'RON', relationshipType: RelationshipType::COMERCIAL),
+            'rows' => $rows,
+        ])->actingAs($this->user);
+
+        $note = static::getContainer()->get('translator')->trans(
+            'wizard.step3.claim_items.note.contract_term_overrides_invoice',
+            ['{days}' => 4, '{printed}' => '01.03.2025'],
+            locale: 'ro',
+        );
+        self::assertStringContainsString('01.03.2025', $note, 'the key is translated and names the printed date');
+        self::assertStringContainsString($note, (string) $component->render());
+
+        // Once the lawyer sets another date, the contract no longer explains it.
+        $rows[0]['dueDate'] = '2025-03-20';
+        self::assertStringNotContainsString('claim-item-due-date-note', (string) $component->set('rows', $rows)->render());
+    }
+
+    public function testATermFromAnotherEventNamesThatEvent(): void
+    {
+        $row = $this->row('MJ-9/2025', 1000.0, '2025-03-01');
+        $row->dueDateNote = [
+            'key' => 'wizard.step3.claim_items.note.contract_term_manual',
+            'days' => 30,
+            'anchor' => 'DELIVERY',
+            'printedDueDate' => '2025-03-01',
+            'appliedDueDate' => null,
+        ];
+
+        $html = (string) $this->createLiveComponent('Step3ClaimLiveComponent', [
+            'initialFormData' => new Step3ClaimData(currency: 'RON', relationshipType: RelationshipType::COMERCIAL),
+            'rows' => ClaimRowLiveMapper::toArrays([$row]),
+        ])->actingAs($this->user)->render();
+
+        $translator = static::getContainer()->get('translator');
+        $note = $translator->trans('wizard.step3.claim_items.note.contract_term_manual', [
+            '{days}' => 30,
+            '{anchor}' => $translator->trans('enum.payment_term_anchor.DELIVERY', locale: 'ro'),
+        ], locale: 'ro');
+        self::assertStringContainsString('30 zile de la livrare', $note);
+        self::assertStringContainsString($note, $html);
+    }
+
+    public function testAPositionPaidInFullByTheStatementShowsWhyAndEachPayment(): void
+    {
+        $row = $this->row('MJ-9/2025', 1000.0, '2025-03-01');
+        $row->excluded = true;
+        $row->paidAmount = 1000.0;
+        $row->warningKeys[] = 'wizard.step3.claim_items.warning.paid_in_full_by_statement';
+        $row->statementPayments = [
+            ['amount' => 400.0, 'currency' => 'RON', 'date' => '2025-04-10', 'fullyPaid' => false, 'shared' => false],
+            ['amount' => 600.0, 'currency' => 'RON', 'date' => '2025-05-02', 'fullyPaid' => false, 'shared' => false],
+        ];
+
+        $html = (string) $this->createLiveComponent('Step3ClaimLiveComponent', [
+            'initialFormData' => new Step3ClaimData(currency: 'RON', relationshipType: RelationshipType::COMERCIAL),
+            'rows' => ClaimRowLiveMapper::toArrays([$row]),
+        ])->actingAs($this->user)->render();
+
+        $translator = static::getContainer()->get('translator');
+        self::assertStringContainsString(
+            htmlspecialchars($translator->trans('wizard.step3.claim_items.warning.paid_in_full_by_statement', locale: 'ro'), ENT_QUOTES),
+            $html,
+        );
+        self::assertStringContainsString('claim-item-statement-payments', $html);
+        self::assertStringContainsString('400,00 RON, la 10.04.2025', $html);
+        self::assertStringContainsString('600,00 RON, la 02.05.2025', $html);
+        self::assertStringContainsString('1.000,00 RON', $html);
+    }
+
     private function row(string $number, float $amount, string $due): ClaimItemRow
     {
         return new ClaimItemRow(
