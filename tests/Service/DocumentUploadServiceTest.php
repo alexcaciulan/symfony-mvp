@@ -27,7 +27,7 @@ class DocumentUploadServiceTest extends KernelTestCase
         self::bootKernel();
         $this->em = static::getContainer()->get(EntityManagerInterface::class);
         $this->service = static::getContainer()->get(DocumentUploadService::class);
-        $this->uploadsDir = static::getContainer()->getParameter('kernel.project_dir') . '/var/uploads';
+        $this->uploadsDir = static::getContainer()->getParameter('app.uploads_dir');
         $this->testPrefix = 'docupload-test-' . uniqid();
 
         $hasher = static::getContainer()->get(UserPasswordHasherInterface::class);

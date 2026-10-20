@@ -308,7 +308,7 @@ final class DeadlineAgendaActionsTest extends WebTestCase
             self::assertCount(0, $after->filter('details'), 'Date and proof together leave nothing blocked.');
         } finally {
             @unlink($proofPath);
-            $uploadsDir = static::getContainer()->getParameter('kernel.project_dir') . '/var/uploads';
+            $uploadsDir = static::getContainer()->getParameter('app.uploads_dir');
             foreach (glob($uploadsDir . '/cases/' . $case->getId() . '/*') ?: [] as $file) {
                 @unlink($file);
             }
@@ -376,7 +376,7 @@ final class DeadlineAgendaActionsTest extends WebTestCase
             self::assertCount(1, $after->filter('#deadline-row-' . $term->getId()), 'The fifteen days keep running: the proof unblocks the filing, it does not end the term.');
         } finally {
             @unlink($proofPath);
-            $uploadsDir = static::getContainer()->getParameter('kernel.project_dir') . '/var/uploads';
+            $uploadsDir = static::getContainer()->getParameter('app.uploads_dir');
             foreach (glob($uploadsDir . '/cases/' . $case->getId() . '/*') ?: [] as $file) {
                 @unlink($file);
             }

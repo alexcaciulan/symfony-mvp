@@ -18,6 +18,10 @@ if (method_exists(Dotenv::class, 'bootEnv')) {
     (new Dotenv())->bootEnv(dirname(__DIR__).'/.env');
 }
 
+// Documents the suite stores land in var/uploads_test (app.uploads_dir, when@test).
+// Start every run from an empty directory so they never pile up between runs.
+(new Symfony\Component\Filesystem\Filesystem())->remove(dirname(__DIR__).'/var/uploads_test');
+
 if ($_SERVER['APP_DEBUG']) {
     umask(0000);
 }

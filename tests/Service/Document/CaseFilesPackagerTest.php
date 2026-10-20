@@ -34,7 +34,7 @@ final class CaseFilesPackagerTest extends KernelTestCase
         $container = static::getContainer();
         $this->em = $container->get(EntityManagerInterface::class);
         $this->packager = $container->get(CaseFilesPackager::class);
-        $this->uploadsDir = $container->getParameter('kernel.project_dir') . '/var/uploads';
+        $this->uploadsDir = $container->getParameter('app.uploads_dir');
 
         $hasher = $container->get(UserPasswordHasherInterface::class);
         $this->user = new User();

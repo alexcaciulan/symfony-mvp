@@ -44,6 +44,9 @@ parameters:
     app.invoice.series_subscription: 'TES'
     app.invoice.series_case_extra: 'TES'
     app.invoice.due_days: 15
+    # Stored documents. Tests get their own directory (see when@test below) so a
+    # run never writes into, or deletes from, the dev uploads.
+    app.uploads_dir: '%kernel.project_dir%/var/uploads'
 
 services:
     # default configuration for services in *this* file
@@ -51,7 +54,7 @@ services:
         autowire: true      # Automatically injects dependencies in your services.
         autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
         bind:
-            $uploadsDir: '%kernel.project_dir%/var/uploads'
+            $uploadsDir: '%app.uploads_dir%'
             $tesseractLanguages: '%env(OCR_LANGUAGES)%'
             $anthropicApiKey: '%env(ANTHROPIC_API_KEY)%'
             $anthropicModel: '%env(ANTHROPIC_MODEL)%'
@@ -164,3 +167,7 @@ services:
     App\Service\Deadline\WorkingDayResolver:
         arguments:
             $additionalHolidays: '%lexrecovery.working_days.additional_holidays%'
+
+when@test:
+    parameters:
+        app.uploads_dir: '%kernel.project_dir%/var/uploads_test'

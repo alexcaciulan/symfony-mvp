@@ -72,7 +72,7 @@ final class CaseTransitionControllerTest extends WebTestCase
 
         // Remove physical files uploaded during transition tests (e.g. the issued
         // ruling document) before dropping the legal_case rows.
-        $uploadsDir = static::getContainer()->getParameter('kernel.project_dir') . '/var/uploads';
+        $uploadsDir = static::getContainer()->getParameter('app.uploads_dir');
         $caseIds = $conn->fetchFirstColumn('SELECT id FROM legal_case WHERE user_id = :id', ['id' => $userId]);
         foreach ($caseIds as $caseId) {
             $caseDir = $uploadsDir . '/cases/' . $caseId;

@@ -41,7 +41,7 @@ final class DocumentContentHashAdversarialTest extends KernelTestCase
         $this->em = static::getContainer()->get(EntityManagerInterface::class);
         $this->service = static::getContainer()->get(DocumentUploadService::class);
         $this->hasher = new FileContentHasher();
-        $this->uploadsDir = static::getContainer()->getParameter('kernel.project_dir') . '/var/uploads';
+        $this->uploadsDir = static::getContainer()->getParameter('app.uploads_dir');
 
         $this->user = new User();
         $this->user->setEmail('contenthash-' . uniqid() . '@test.com');

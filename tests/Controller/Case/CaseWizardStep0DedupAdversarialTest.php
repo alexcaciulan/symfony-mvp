@@ -296,7 +296,7 @@ final class CaseWizardStep0DedupAdversarialTest extends WebTestCase
         $stored = $this->em->getRepository(Document::class)->findOneBy(['uploadedBy' => $this->user]);
         self::assertNotNull($stored);
 
-        $uploadsDir = static::getContainer()->getParameter('kernel.project_dir') . '/var/uploads';
+        $uploadsDir = static::getContainer()->getParameter('app.uploads_dir');
         @unlink($uploadsDir . '/' . $stored->getStoredFilename());
 
         $this->postFiles([$this->pdf('factura.pdf', 'disk-loss')]);

@@ -208,7 +208,7 @@ class DocumentUploadMimeValidationTest extends KernelTestCase
             self::fail('Upload of MIME-mismatched file should have thrown');
         } catch (\InvalidArgumentException $e) {
             // The on-disk path inside uploadsDir/cases/{caseId}/ must be gone.
-            $uploadsDir = static::getContainer()->getParameter('kernel.project_dir') . '/var/uploads';
+            $uploadsDir = static::getContainer()->getParameter('app.uploads_dir');
             $caseDir = $uploadsDir . '/cases/' . $case->getId();
             // Either the dir doesn't exist (unlikely, $file->move created it) or it's empty.
             $entries = is_dir($caseDir) ? array_diff(scandir($caseDir) ?: [], ['.', '..']) : [];

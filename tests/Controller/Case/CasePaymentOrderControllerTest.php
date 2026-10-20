@@ -51,7 +51,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
     {
         $this->client = static::createClient();
         $this->em = static::getContainer()->get(EntityManagerInterface::class);
-        $this->uploadsDir = static::getContainer()->getParameter('kernel.project_dir') . '/var/uploads';
+        $this->uploadsDir = static::getContainer()->getParameter('app.uploads_dir');
 
         $hasher = static::getContainer()->get(UserPasswordHasherInterface::class);
         $this->user = new User();

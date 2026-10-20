@@ -258,7 +258,7 @@ class ExtractDataMessageHandlerIntegrationTest extends KernelTestCase
             $this->markTestSkipped('Tesseract binary not available; run inside Docker container');
         }
 
-        $uploadsDir = static::getContainer()->getParameter('kernel.project_dir') . '/var/uploads';
+        $uploadsDir = static::getContainer()->getParameter('app.uploads_dir');
         $relativeStored = 'cases/e2e-' . uniqid() . '.png';
         $absolute = $uploadsDir . '/' . $relativeStored;
         @mkdir(dirname($absolute), 0o755, true);
