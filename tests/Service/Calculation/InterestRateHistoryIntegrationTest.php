@@ -68,35 +68,52 @@ final class InterestRateHistoryIntegrationTest extends KernelTestCase
         }
     }
 
-    public function testAClaimDueBeforeLaw72Of2013IsNotComputedWithItsMargin(): void
+    public function testAClaimDueBeforeLaw72Of2013IsComputedWithTheFourPointMargin(): void
     {
         self::bootKernel();
         $calculator = self::getContainer()->get(InterestCalculatorService::class);
 
-        $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('exception.calculation.before_professional_margin');
-
-        $calculator->calculate(
+        $result = $calculator->calculate(
             amount: 1_000.0,
             dueDate: new \DateTimeImmutable('2013-04-04'),
             referenceDate: new \DateTimeImmutable('2014-01-01'),
             relationshipType: RelationshipType::COMERCIAL,
         );
+
+        self::assertNotEmpty($result->breakdown);
+        foreach ($result->breakdown as $period) {
+            self::assertSame($period->nbrRate + 4.0, $period->applicableRate);
+        }
     }
 
-    public function testAnInvoiceUnderAContractOlderThanLaw72Of2013IsNotComputedWithItsMargin(): void
+    public function testAnInvoiceUnderAContractOlderThanLaw72Of2013KeepsTheFourPointMargin(): void
     {
         self::bootKernel();
         $calculator = self::getContainer()->get(InterestCalculatorService::class);
 
-        $this->expectExceptionMessage('exception.calculation.contract_before_professional_margin');
+        $result = $calculator->calculate(
+            amount: 1_000.0,
+            dueDate: new \DateTimeImmutable('2015-03-01'),
+            referenceDate: new \DateTimeImmutable('2015-03-31'),
+            relationshipType: RelationshipType::COMERCIAL,
+            contractDate: new \DateTimeImmutable('2012-11-20'),
+        );
+
+        self::assertSame(6.25, $result->breakdown[0]->applicableRate);
+    }
+
+    public function testAClaimDueBeforeOg13Of2011HasNoStoredRate(): void
+    {
+        self::bootKernel();
+        $calculator = self::getContainer()->get(InterestCalculatorService::class);
+
+        $this->expectExceptionMessage('exception.calculation.interest_rate_missing');
 
         $calculator->calculate(
             amount: 1_000.0,
-            dueDate: new \DateTimeImmutable('2015-03-01'),
-            referenceDate: new \DateTimeImmutable('2016-01-01'),
+            dueDate: new \DateTimeImmutable('2011-08-31'),
+            referenceDate: new \DateTimeImmutable('2012-01-01'),
             relationshipType: RelationshipType::COMERCIAL,
-            contractDate: new \DateTimeImmutable('2012-11-20'),
         );
     }
 

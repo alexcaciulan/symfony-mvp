@@ -68,6 +68,11 @@ final class AgendaResponseFactory
      * their own outcome, such as the invoice raised when a case is activated beyond
      * the plan. It is billing the lawyer is told about on the case page, so it must
      * not go missing because the same act was fired from here.
+     *
+     * `$toastDetails` are translated lines listed under the message, such as what
+     * keeps an act from being performed.
+     *
+     * @param list<string> $toastDetails
      */
     public function stream(
         Request $request,
@@ -76,6 +81,7 @@ final class AgendaResponseFactory
         string $toastKey,
         ?string $closeModalId = null,
         ?string $extraToastKey = null,
+        array $toastDetails = [],
     ): Response {
         $view = $this->pageViewBuilder->build($user, DeadlineAgendaFilter::fromRequest($request));
 
@@ -86,6 +92,7 @@ final class AgendaResponseFactory
                 'toast_key' => $toastKey,
                 'close_modal_id' => $closeModalId,
                 'extra_toast_key' => $extraToastKey,
+                'toast_details' => $toastDetails,
             ]),
             Response::HTTP_OK,
             ['Content-Type' => self::TURBO_STREAM_MIME . '; charset=utf-8'],

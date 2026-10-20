@@ -5,7 +5,13 @@
 <p>{{ 'pdf.summons.legal.og_art1'|trans }}</p>
 <p>{{ 'pdf.summons.legal.og_art2'|trans }}</p>
 <p>{{ 'pdf.summons.legal.og_art3_1'|trans }}</p>
+{# Each margin printed in the table is cited with its own provision: +4 pp under
+   art. 3 para. 2 for contracts older than Law 72/2013, +8 pp under para. 2^1. #}
+{% for margin in summonsTables.legalInterestMargins %}
+<p>{{ (margin.value == 4 ? 'pdf.summons.legal.og_art3_2' : 'pdf.summons.legal.og_art3_2_1')|trans(margin.legalBasisParameters()) }}</p>
+{% else %}
 <p>{{ 'pdf.summons.legal.og_art3_2_1'|trans }}</p>
+{% endfor %}
 <p>{{ 'pdf.summons.legal.table_intro'|trans }}</p>
 
 {% if summonsTables.legalInterestRows is not empty %}

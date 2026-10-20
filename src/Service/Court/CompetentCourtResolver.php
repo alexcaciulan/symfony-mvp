@@ -360,8 +360,8 @@ final class CompetentCourtResolver
 
     /**
      * The interest shown next to the court. Competence rests on the principal
-     * alone, so an interest the calculator refuses (no BNR rate for the period,
-     * a contract older than the professional margin) leaves the figure at zero
+     * alone, so an interest the calculator refuses (no NBR rate for a due date
+     * before OG 13/2011 came into force) leaves the figure at zero
      * rather than leaving the case without a court.
      */
     private function accruedInterest(

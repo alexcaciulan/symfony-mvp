@@ -8,10 +8,10 @@ namespace App\Service\Deadline;
  * Calculator zile lucrătoare conform CPC art. 181 alin. (2) + Codul Muncii art. 139.
  *
  * Sărbători legale RO acoperite:
- *  - Fixe: 1-2 ianuarie, 24 ianuarie, 1 mai, 1 iunie, 15 august, 30 noiembrie,
- *    1 decembrie, 25-26 decembrie
- *  - Calculate (calendar ortodox): Vinerea Mare (Paște - 2), Paștele (duminică +
- *    luni), Rusaliile (Paște + 49 + 50 zile)
+ *  - Fixe: 1-2 ianuarie, 6-7 ianuarie (din 2024, Legea 52/2023), 24 ianuarie,
+ *    1 mai, 1 iunie, 15 august, 30 noiembrie, 1 decembrie, 25-26 decembrie
+ *  - Calculate (calendar ortodox): Vinerea Mare (Paște - 2, din 2018, Legea 64/2018),
+ *    Paștele (duminică + luni), Rusaliile (Paște + 49 + 50 zile)
  *  - Suplimentare via config (`lexrecovery.working_days.additional_holidays`) —
  *    pentru OG-uri ad-hoc (ex: vacanță judecătorească)
  *
@@ -117,14 +117,19 @@ final class WorkingDayResolver
         $set = [];
 
         // Sărbători fixe (Codul Muncii art. 139)
-        foreach (self::FIXED_HOLIDAYS as [$month, $day]) {
+        foreach (self::FIXED_HOLIDAYS as [$month, $day, $sinceYear]) {
+            if ($year < $sinceYear) {
+                continue;
+            }
             $iso = sprintf('%04d-%02d-%02d', $year, $month, $day);
             $set[$iso] = true;
         }
 
         // Sărbători ortodoxe calculate
         $easterSunday = $this->computeOrthodoxEaster($year);
-        $set[$easterSunday->modify('-2 days')->format('Y-m-d')] = true; // Vinerea Mare
+        if ($year >= self::GOOD_FRIDAY_SINCE_YEAR) {
+            $set[$easterSunday->modify('-2 days')->format('Y-m-d')] = true; // Vinerea Mare
+        }
         $set[$easterSunday->format('Y-m-d')] = true;                    // Paște duminică
         $set[$easterSunday->modify('+1 day')->format('Y-m-d')] = true;  // Paște luni
         $set[$easterSunday->modify('+49 days')->format('Y-m-d')] = true; // Rusalii duminică
@@ -173,17 +178,22 @@ final class WorkingDayResolver
         return $julianEaster->modify('+13 days');
     }
 
-    /** Codul Muncii art. 139. Format: [month, day]. */
+    /** Law 64/2018 added Good Friday, in force from 16.03.2018 (before that year's Good Friday). */
+    private const GOOD_FRIDAY_SINCE_YEAR = 2018;
+
+    /** Codul Muncii art. 139. Format: [month, day, first year it applies]. */
     private const FIXED_HOLIDAYS = [
-        [1, 1],   // Anul Nou
-        [1, 2],   // Anul Nou
-        [1, 24],  // Unirea Principatelor Române
-        [5, 1],   // Ziua Muncii
-        [6, 1],   // Ziua Copilului
-        [8, 15],  // Adormirea Maicii Domnului
-        [11, 30], // Sf. Andrei
-        [12, 1],  // Ziua Națională
-        [12, 25], // Crăciunul
-        [12, 26], // Crăciunul
+        [1, 1, 0],     // Anul Nou
+        [1, 2, 0],     // Anul Nou
+        [1, 6, 2024],  // Boboteaza (Law 52/2023)
+        [1, 7, 2024],  // Sf. Ioan Botezătorul (Law 52/2023)
+        [1, 24, 0],    // Unirea Principatelor Române
+        [5, 1, 0],     // Ziua Muncii
+        [6, 1, 0],     // Ziua Copilului
+        [8, 15, 0],    // Adormirea Maicii Domnului
+        [11, 30, 0],   // Sf. Andrei
+        [12, 1, 0],    // Ziua Națională
+        [12, 25, 0],   // Crăciunul
+        [12, 26, 0],   // Crăciunul
     ];
 }

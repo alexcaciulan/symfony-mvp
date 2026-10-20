@@ -26,6 +26,8 @@
 {% set first_period_rate = (interest_breakdown is defined and interest_breakdown is not null and interest_breakdown|length > 0)
     ? (interest_breakdown|first).applicableRate
     : null %}
+{# The margin follows the contract (+4 pp before Law 72/2013, +8 pp after), so it is read off the computation. #}
+{% set first_period_margin = first_period_rate is not null ? (interest_breakdown|first).margin : null %}
 
 {# Active deadline countdown in whole days. #}
 {% set deadline_days_remaining = null %}
@@ -55,7 +57,7 @@
         {% if is_contractual %}
             <div class="mt-1 text-xs text-slate-500">{{ (case.contractualPenaltyCapPercent ? 'case_overview.kpi.penalty_hint_capped' : 'case_overview.kpi.penalty_hint')|trans({'%rate%': case.contractualPenaltyRate|number_format(2, ',', '.'), '%cap%': case.contractualPenaltyCapPercent|default(0)|percent_number}) }}</div>
         {% elseif first_period_rate is not null %}
-            <div class="mt-1 text-xs text-slate-500">{{ interest_hint_key|trans({'%days%': interest_days}) }}</div>
+            <div class="mt-1 text-xs text-slate-500">{{ interest_hint_key|trans({'%days%': interest_days, '%margin%': first_period_margin ? first_period_margin.value : ''}) }}</div>
         {% endif %}
     </div>
 

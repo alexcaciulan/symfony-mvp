@@ -4,6 +4,7 @@ namespace App\Tests\Service\Calculation;
 
 use App\Entity\InterestRateConfig;
 use App\Enum\InterestKind;
+use App\Enum\ProfessionalPenaltyMargin;
 use App\Enum\RelationshipType;
 use App\Repository\InterestRateConfigRepository;
 use App\Service\Calculation\InterestCalculatorService;
@@ -228,6 +229,104 @@ class InterestCalculatorServiceTest extends TestCase
             kind: InterestKind::PENALIZATOARE,
             currency: 'EUR',
         );
+    }
+
+    public function testContractConcludedBefore2013KeepsTheFourPointMarginAfterLaw72Of2013(): void
+    {
+        $service = new InterestCalculatorService($this->makeRepo([
+            $this->makeConfig('2011-09-01', '6.25'),
+            $this->makeConfig('2014-07-01', '3.50'),
+        ]));
+
+        $result = $service->calculate(
+            amount: 10_000.0,
+            dueDate: new \DateTimeImmutable('2014-03-01'),
+            referenceDate: new \DateTimeImmutable('2014-12-31'),
+            relationshipType: RelationshipType::COMERCIAL,
+            contractDate: new \DateTimeImmutable('2012-11-20'),
+        );
+
+        [$before, $after] = $result->breakdown;
+        $this->assertSame(10.25, $before->applicableRate);
+        $this->assertSame(7.5, $after->applicableRate);
+        $this->assertSame(ProfessionalPenaltyMargin::OG_ART_3_PARA_2, $before->margin);
+        $this->assertSame(ProfessionalPenaltyMargin::OG_ART_3_PARA_2, $after->margin);
+        $this->assertSame(ProfessionalPenaltyMargin::OG_ART_3_PARA_2, $result->margin());
+
+        $expected = 10_000.0 * (10.25 / 100.0 * $before->days + 7.5 / 100.0 * $after->days) / 365.0;
+        $this->assertEqualsWithDelta($expected, $result->total, 0.01);
+    }
+
+    public function testDueDateBefore2013KeepsTheFourPointMarginForTheWholePeriod(): void
+    {
+        $service = new InterestCalculatorService($this->makeRepo([
+            $this->makeConfig('2011-09-01', '6.25'),
+            $this->makeConfig('2013-07-03', '4.50'),
+        ]));
+
+        // No contract date: a claim due before 05.04.2013 rests on an older contract.
+        $result = $service->calculate(
+            amount: 1_000.0,
+            dueDate: new \DateTimeImmutable('2013-04-04'),
+            referenceDate: new \DateTimeImmutable('2013-12-31'),
+            relationshipType: RelationshipType::COMERCIAL,
+        );
+
+        $this->assertSame([10.25, 8.5], array_map(static fn ($p): float => $p->applicableRate, $result->breakdown));
+        $this->assertSame(ProfessionalPenaltyMargin::OG_ART_3_PARA_2, $result->margin());
+    }
+
+    public function testContractConcludedAfterLaw72Of2013GetsTheEightPointMargin(): void
+    {
+        $service = new InterestCalculatorService($this->makeRepo([
+            $this->makeConfig('2011-09-01', '6.25'),
+        ]));
+
+        $result = $service->calculate(
+            amount: 1_000.0,
+            dueDate: new \DateTimeImmutable('2013-06-01'),
+            referenceDate: new \DateTimeImmutable('2013-07-01'),
+            relationshipType: RelationshipType::COMERCIAL,
+            contractDate: new \DateTimeImmutable('2013-04-05'),
+        );
+
+        $this->assertSame(14.25, $result->breakdown[0]->applicableRate);
+        $this->assertSame(ProfessionalPenaltyMargin::OG_ART_3_PARA_2_1, $result->margin());
+    }
+
+    public function testDueDateBeforeOg13Of2011IsStillNotComputable(): void
+    {
+        $service = new InterestCalculatorService($this->makeRepo([
+            $this->makeConfig('2011-09-01', '6.25'),
+        ]));
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('exception.calculation.interest_rate_missing');
+
+        $service->calculate(
+            amount: 1_000.0,
+            dueDate: new \DateTimeImmutable('2011-08-31'),
+            referenceDate: new \DateTimeImmutable('2012-08-31'),
+            relationshipType: RelationshipType::COMERCIAL,
+            contractDate: new \DateTimeImmutable('2011-01-10'),
+        );
+    }
+
+    public function testRemunerativeInterestCarriesNoMargin(): void
+    {
+        $service = new InterestCalculatorService($this->makeRepo([
+            $this->makeConfig('2024-01-01', '6.00'),
+        ]));
+
+        $result = $service->calculate(
+            amount: 1_000.0,
+            dueDate: new \DateTimeImmutable('2024-06-01'),
+            referenceDate: new \DateTimeImmutable('2024-07-01'),
+            relationshipType: RelationshipType::COMERCIAL,
+            kind: InterestKind::REMUNERATORIE,
+        );
+
+        $this->assertNull($result->margin());
     }
 
     private function makeConfig(string $validFrom, string $rate): InterestRateConfig

@@ -71,6 +71,8 @@ final class CaseSummonsControllerTest extends WebTestCase
         $this->case->setStatus(CaseStatus::AMIABIL);
         $this->case->setAmount('3000.00');
         $this->case->setCurrency('RON');
+        // A due date lets the legal interest be computed, which the summons requires.
+        $this->case->setDueDate(new \DateTime('-60 days midnight'));
         $this->em->persist($this->case);
 
         $debtor = new Debtor();
@@ -174,6 +176,88 @@ final class CaseSummonsControllerTest extends WebTestCase
 
         $this->client->followRedirect();
         self::assertResponseStatusCodeSame(Response::HTTP_OK);
+    }
+
+    public function testGenerateSummonsIsBlockedWhileAPositionHasNoDueDate(): void
+    {
+        $this->addPosition('F-77', null);
+
+        $this->client->loginUser($this->user);
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/summons/generate', ['_token' => $token]);
+
+        self::assertResponseRedirects('/case/' . $this->case->getId());
+        $this->assertNothingWasGenerated();
+
+        $this->client->followRedirect();
+        $body = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('Somația nu se poate genera: accesoriile nu se pot calcula', $body);
+        self::assertStringContainsString('Poziția 1 (F-77) nu are dată de scadență', $body);
+    }
+
+    public function testGenerateSummonsBlockedListsTheMissingDataInTheTurboStreamToast(): void
+    {
+        $this->addPosition('F-78', new \DateTimeImmutable('2011-08-01'));
+
+        $this->client->loginUser($this->user);
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+
+        $this->client->request(
+            'POST',
+            '/case/' . $this->case->getId() . '/summons/generate',
+            ['_token' => $token],
+            [],
+            ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html'],
+        );
+
+        self::assertResponseIsSuccessful();
+        $body = (string) $this->client->getResponse()->getContent();
+        self::assertStringNotContainsString('target="case-hero"', $body, 'Nothing changed, so no region is refreshed.');
+        self::assertStringContainsString('Poziția 1 (F-78) are scadența anterioară datei de 01.09.2011', $body);
+        $this->assertNothingWasGenerated();
+    }
+
+    public function testAContractualPenaltyLeftWithoutRateDoesNotBlockTheSummons(): void
+    {
+        // No daily rate: the platform computes no accessory, so a position
+        // without a due date has nothing that fails to compute.
+        $this->case->setPenaltyType(PenaltyType::CONTRACTUAL);
+        $this->addPosition('F-79', null);
+
+        $this->client->loginUser($this->user);
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/summons/generate', ['_token' => $token]);
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame(CaseStatus::SOMATIE_TRIMISA, $refreshed->getStatus());
+    }
+
+    private function addPosition(string $documentNumber, ?\DateTimeImmutable $dueDate): void
+    {
+        $item = new ClaimItem();
+        $item->setLegalCase($this->case);
+        $item->setDedupKey('summons-block-' . uniqid('', true));
+        $item->setDocumentNumber($documentNumber);
+        $item->setAmount('3000.00');
+        $item->setCurrency('RON');
+        $item->setAmountRon('3000.00');
+        $item->setDueDate($dueDate);
+        $item->setConfirmedByLawyer(true);
+        $this->case->addClaimItem($item);
+        $this->em->persist($item);
+        $this->em->flush();
+    }
+
+    private function assertNothingWasGenerated(): void
+    {
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame(CaseStatus::AMIABIL, $refreshed->getStatus());
+        self::assertNull($refreshed->getPaymentNoticeDate());
+        self::assertSame([], $this->em->getRepository(Document::class)->findBy(['legalCase' => $refreshed->getId()]));
     }
 
     public function testGenerateSummonsBringsTheStoredAccessoryToTheSummonsDate(): void

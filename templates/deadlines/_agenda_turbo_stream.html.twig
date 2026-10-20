@@ -18,7 +18,8 @@
    @var close_modal_id string|null dialog the action was fired from, sent on success
                                    only, so a rejected submission keeps what was typed
    @var extra_toast_key string|null second message some acts carry next to their own
-                                    outcome, always a warning (billing, mostly) #}
+                                    outcome, always a warning (billing, mostly)
+   @var toast_details  list<string>|null translated lines listed under the message #}
 
 <turbo-stream action="replace" target="deadline-riskbar">
     <template><div id="deadline-riskbar">{{ include('deadlines/_riskbar_region.html.twig', { view: view }, with_context = false) }}</div></template>
@@ -39,7 +40,7 @@
 
 <turbo-stream action="append" target="toasts">
     <template>
-        {% include 'components/Toast.html.twig' with { message: toast_key|trans, variant: toast_variant, details: [] } only %}
+        {% include 'components/Toast.html.twig' with { message: toast_key|trans, variant: toast_variant, details: toast_details|default([]) } only %}
     </template>
 </turbo-stream>
 

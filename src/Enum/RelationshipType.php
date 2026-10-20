@@ -13,21 +13,19 @@ enum RelationshipType: string
     }
 
     /**
-     * Returns the rate (%) applicable to a given BNR reference rate, per OG 13/2011.
+     * The rate (%) applicable over a given NBR reference rate, per OG 13/2011.
      *
-     * MVP scope: B2B exclusiv (raporturi profesionist ↔ profesionist).
-     *   - COMERCIAL + PENALIZATOARE: BNR + 8  (art. 3 alin. 2¹ introdus prin L. 72/2013 art. 20)
-     *   - COMERCIAL + REMUNERATORIE: BNR       (art. 3 alin. 1)
+     * Scope is B2B only (professional to professional):
+     *   - COMERCIAL + PENALIZATOARE: NBR + the margin of the contract (art. 3
+     *     para. 2 or para. 2^1, see {@see ProfessionalPenaltyMargin})
+     *   - COMERCIAL + REMUNERATORIE: NBR (art. 3 para. 1), no margin
      *
-     * Out of scope MVP (B2C / P2P): backlog post-MVP — vezi Opțiunea (b)
-     * din PLAN-DEZVOLTARE-LEXRECOVERY.md, Pas 2.1 revizie 2026-05-09.
-     *
-     * @throws \DomainException pentru raporturi non-profesionale (CIVIL).
+     * @throws \DomainException for non-professional relations (CIVIL)
      */
-    public function applicableRate(float $nbrRate, InterestKind $kind): float
+    public function applicableRate(float $nbrRate, InterestKind $kind, ProfessionalPenaltyMargin $margin): float
     {
         return match (true) {
-            $this === self::COMERCIAL && $kind === InterestKind::PENALIZATOARE => $nbrRate + 8.0,
+            $this === self::COMERCIAL && $kind === InterestKind::PENALIZATOARE => $nbrRate + $margin->points(),
             $this === self::COMERCIAL && $kind === InterestKind::REMUNERATORIE => $nbrRate,
             $this === self::CIVIL => throw new \DomainException(
                 'Raporturile non-profesionale (CIVIL) nu sunt suportate în MVP.'

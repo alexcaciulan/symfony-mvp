@@ -236,6 +236,94 @@ final class SummonsContextBuilderTest extends TestCase
         self::assertSame(90, $ctx['summonsTables']->legalInterestRows[0]->days);
     }
 
+    public function testSingleSumAboveTheCeilingIsReportedAsCapped(): void
+    {
+        $ctx = $this->makeBuilder([])->build($this->cappedContractualCase());
+
+        self::assertTrue($ctx['contractualPenaltiesCapped']);
+    }
+
+    public function testSingleSumBelowTheCeilingIsNotReportedAsCapped(): void
+    {
+        $case = $this->cappedContractualCase();
+        // 30 days at 0,1% is 3%, under the 10% ceiling.
+        $case->setPaymentNoticeDate(new \DateTime('2025-03-23'));
+
+        $ctx = $this->makeBuilder([])->build($case);
+
+        self::assertFalse($ctx['contractualPenaltiesCapped']);
+    }
+
+    public function testEveryPositionAtTheCeilingIsReportedAsCapped(): void
+    {
+        $case = $this->cappedContractualCase();
+        $case->addClaimItem($this->position('inv:1', '2025-01-10'));
+        $case->addClaimItem($this->position('inv:2', '2025-02-21'));
+
+        $ctx = $this->makeBuilder([])->build($case);
+
+        self::assertTrue($ctx['contractualPenaltiesCapped']);
+    }
+
+    public function testOnePositionUnderTheCeilingKeepsTheGeneralWording(): void
+    {
+        $case = $this->cappedContractualCase();
+        $case->addClaimItem($this->position('inv:1', '2025-01-10'));
+        // Due 30 days before the notice: 3%, still accruing.
+        $case->addClaimItem($this->position('inv:2', '2026-09-02'));
+
+        $ctx = $this->makeBuilder([])->build($case);
+
+        self::assertFalse($ctx['contractualPenaltiesCapped']);
+    }
+
+    public function testAPositionWithoutDueDateKeepsTheGeneralWording(): void
+    {
+        $case = $this->cappedContractualCase();
+        $case->addClaimItem($this->position('inv:1', '2025-01-10'));
+        $case->addClaimItem($this->position('inv:2', null));
+
+        $ctx = $this->makeBuilder([])->build($case);
+
+        self::assertFalse($ctx['contractualPenaltiesCapped']);
+    }
+
+    public function testLegalInterestIsNeverReportedAsCapped(): void
+    {
+        $case = $this->cappedContractualCase();
+        $case->setPenaltyType(PenaltyType::LEGAL_PENALIZATOARE);
+
+        $ctx = $this->makeBuilder(['2024-01-01' => '6.50'])->build($case);
+
+        self::assertFalse($ctx['contractualPenaltiesCapped']);
+    }
+
+    /** 0,1% a day, 10% ceiling, due 2025-02-21, notice 2026-10-02: far past the ceiling. */
+    private function cappedContractualCase(): LegalCase
+    {
+        $case = $this->makeCase(PenaltyType::CONTRACTUAL);
+        $case->setAmount('21318.90');
+        $case->setContractualPenaltyRate('0.100');
+        $case->setContractualPenaltyCapPercent('10.00');
+        $case->setDueDate(new \DateTime('2025-02-21'));
+        $case->setPaymentNoticeDate(new \DateTime('2026-10-02'));
+
+        return $case;
+    }
+
+    private function position(string $dedupKey, ?string $dueDate): ClaimItem
+    {
+        $item = new ClaimItem();
+        $item->setAmount('10000.00');
+        $item->setAmountRon('10000.00');
+        $item->setCurrency('RON');
+        $item->setConfirmedByLawyer(true);
+        $item->setDedupKey($dedupKey);
+        $item->setDueDate($dueDate !== null ? new \DateTimeImmutable($dueDate) : null);
+
+        return $item;
+    }
+
     /** @param array<string,string> $rates validFrom => referenceRate */
     private function makeBuilder(array $rates): SummonsContextBuilder
     {

@@ -153,6 +153,8 @@ final class WorkingDayResolverTest extends TestCase
         // Sărbători fixe (Codul Muncii art. 139)
         $this->assertContains('2026-01-01', $iso);
         $this->assertContains('2026-01-02', $iso);
+        $this->assertContains('2026-01-06', $iso);
+        $this->assertContains('2026-01-07', $iso);
         $this->assertContains('2026-01-24', $iso);
         $this->assertContains('2026-05-01', $iso);
         $this->assertContains('2026-06-01', $iso);
@@ -168,6 +170,26 @@ final class WorkingDayResolverTest extends TestCase
         $this->assertContains('2026-04-13', $iso); // Paște luni
         $this->assertContains('2026-05-31', $iso); // Rusalii duminică
         // 2026-06-01 e ambele Rusalii luni + Ziua Copilului — deja verificat ca prezent.
+    }
+
+    public function testEpiphanyAndSaintJohnAreHolidaysFrom2024(): void
+    {
+        $resolver = new WorkingDayResolver();
+
+        // Tue 6 and Wed 7 Jan 2026 are holidays (Law 52/2023), so the next working day is Thu 8.
+        $this->assertSame('2026-01-08', $resolver->nextWorkingDay(new \DateTimeImmutable('2026-01-06'))->format('Y-m-d'));
+        // Before 2024 they were ordinary working days (Fri 6 Jan 2023).
+        $this->assertTrue($resolver->isWorkingDay(new \DateTimeImmutable('2023-01-06')));
+    }
+
+    public function testGoodFridayIsAHolidayOnlyFrom2018(): void
+    {
+        $resolver = new WorkingDayResolver();
+
+        // Good Friday 2018 = 6 April (Law 64/2018 in force from 16.03.2018).
+        $this->assertTrue($resolver->isHoliday(new \DateTimeImmutable('2018-04-06')));
+        // Good Friday 2017 = 14 April, still a working day.
+        $this->assertTrue($resolver->isWorkingDay(new \DateTimeImmutable('2017-04-14')));
     }
 
     public function testComputesOrthodoxEaster2025Correctly(): void

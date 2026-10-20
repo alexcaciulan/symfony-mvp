@@ -407,7 +407,7 @@ wizard:
             penalty_clause_text: 'Se citează în somație. Dacă îl lași gol, somația spune doar că părțile au convenit un mecanism de penalizare pentru întârziere.'
             contract_object: 'Se citește după „având ca obiect”. Ex: prestarea de servicii de transport.'
             payment_notice_number: 'Numărul din registrul de ieșire al cabinetului. Fără el, somația poartă doar data.'
-            accessories: 'Pentru penalitate contractuală, completează rata zilnică și referința clauzei. Pentru dobândă legală, calculul se face automat (BNR + 8%).'
+            accessories: 'Pentru penalitate contractuală, se completează rata zilnică și referința clauzei. Pentru dobânda legală, calculul se face automat: BNR + 8 pp, respectiv BNR + 4 pp pentru contractele încheiate înainte de %law_72_in_force%.'
             legal_costs: 'Opțional. Apar în cererea de ordonanță de plată doar dacă sunt completate (CC art. 1531).'
         button:
             continue: 'Continuă la confirmare'
@@ -456,7 +456,7 @@ wizard:
                 applicable_rate: 'Rată aplicată'
                 days: 'Zile'
                 interest: 'Dobândă'
-                formula: 'Dobânda pe fiecare perioadă = suma poziției × rata aplicată × zile / 365. Rata aplicată este rata de referință BNR plus 8 puncte procentuale (OG 13/2011, art. 3 alin. 2¹), calculată din ziua următoare scadenței.'
+                formula: 'Dobânda pe fiecare perioadă = suma poziției × rata aplicată × zile / 365. Rata aplicată este rata de referință BNR plus %margin% puncte procentuale (%basis%), calculată din ziua următoare scadenței.'
             issued: 'Emisă %date%'
             cause_placeholder: 'ex. Contract 12/2024'
             error:
@@ -489,14 +489,17 @@ wizard:
                 shared: 'plată comună pentru mai multe facturi, neîmpărțită'
                 recorded_total: 'Plătit, înregistrat fără imputație: %amount% %currency%'
             note:
-                contract_term_applied: 'Scadența din contract: {days} zile de la emiterea facturii.'
-                contract_term_overrides_invoice: 'Scadența din contract: {days} zile de la emiterea facturii. Scadența tipărită pe factură ({printed}) nu a fost reținută.'
-                contract_term_manual: 'Contractul stabilește un termen de plată de {days} zile de la {anchor}. Scadența se completează manual.'
-                contract_term_manual_business_days: 'Contractul stabilește un termen de plată de {days} zile lucrătoare de la {anchor}. Scadența se completează manual.'
-                contract_term_longer_on_invoice: 'Contractul stabilește {days} zile de la emiterea facturii, dar factura acordă un termen mai lung ({printed}). S-a păstrat scadența de pe factură.'
+                contract_term_applied: '{1}Scadența din contract: 1 zi de la emiterea facturii.|[0,19]Scadența din contract: %count% zile de la emiterea facturii.|[101,119]Scadența din contract: %count% zile de la emiterea facturii.|[201,219]Scadența din contract: %count% zile de la emiterea facturii.|[301,319]Scadența din contract: %count% zile de la emiterea facturii.|[20,Inf[Scadența din contract: %count% de zile de la emiterea facturii.'
+                contract_term_applied_business_days: '{1}Scadența din contract: 1 zi lucrătoare de la emiterea facturii.|[0,19]Scadența din contract: %count% zile lucrătoare de la emiterea facturii.|[101,119]Scadența din contract: %count% zile lucrătoare de la emiterea facturii.|[201,219]Scadența din contract: %count% zile lucrătoare de la emiterea facturii.|[301,319]Scadența din contract: %count% zile lucrătoare de la emiterea facturii.|[20,Inf[Scadența din contract: %count% de zile lucrătoare de la emiterea facturii.'
+                contract_term_overrides_invoice: '{1}Scadența din contract: 1 zi de la emiterea facturii. Scadența tipărită pe factură ({printed}) nu a fost reținută.|[0,19]Scadența din contract: %count% zile de la emiterea facturii. Scadența tipărită pe factură ({printed}) nu a fost reținută.|[101,119]Scadența din contract: %count% zile de la emiterea facturii. Scadența tipărită pe factură ({printed}) nu a fost reținută.|[201,219]Scadența din contract: %count% zile de la emiterea facturii. Scadența tipărită pe factură ({printed}) nu a fost reținută.|[301,319]Scadența din contract: %count% zile de la emiterea facturii. Scadența tipărită pe factură ({printed}) nu a fost reținută.|[20,Inf[Scadența din contract: %count% de zile de la emiterea facturii. Scadența tipărită pe factură ({printed}) nu a fost reținută.'
+                contract_term_overrides_invoice_business_days: '{1}Scadența din contract: 1 zi lucrătoare de la emiterea facturii. Scadența tipărită pe factură ({printed}) nu a fost reținută.|[0,19]Scadența din contract: %count% zile lucrătoare de la emiterea facturii. Scadența tipărită pe factură ({printed}) nu a fost reținută.|[101,119]Scadența din contract: %count% zile lucrătoare de la emiterea facturii. Scadența tipărită pe factură ({printed}) nu a fost reținută.|[201,219]Scadența din contract: %count% zile lucrătoare de la emiterea facturii. Scadența tipărită pe factură ({printed}) nu a fost reținută.|[301,319]Scadența din contract: %count% zile lucrătoare de la emiterea facturii. Scadența tipărită pe factură ({printed}) nu a fost reținută.|[20,Inf[Scadența din contract: %count% de zile lucrătoare de la emiterea facturii. Scadența tipărită pe factură ({printed}) nu a fost reținută.'
+                contract_term_manual: '{1}Contractul stabilește un termen de plată de 1 zi de la {anchor}. Scadența se completează manual.|[0,19]Contractul stabilește un termen de plată de %count% zile de la {anchor}. Scadența se completează manual.|[101,119]Contractul stabilește un termen de plată de %count% zile de la {anchor}. Scadența se completează manual.|[201,219]Contractul stabilește un termen de plată de %count% zile de la {anchor}. Scadența se completează manual.|[301,319]Contractul stabilește un termen de plată de %count% zile de la {anchor}. Scadența se completează manual.|[20,Inf[Contractul stabilește un termen de plată de %count% de zile de la {anchor}. Scadența se completează manual.'
+                contract_term_manual_business_days: '{1}Contractul stabilește un termen de plată de 1 zi lucrătoare de la {anchor}. Scadența se completează manual.|[0,19]Contractul stabilește un termen de plată de %count% zile lucrătoare de la {anchor}. Scadența se completează manual.|[101,119]Contractul stabilește un termen de plată de %count% zile lucrătoare de la {anchor}. Scadența se completează manual.|[201,219]Contractul stabilește un termen de plată de %count% zile lucrătoare de la {anchor}. Scadența se completează manual.|[301,319]Contractul stabilește un termen de plată de %count% zile lucrătoare de la {anchor}. Scadența se completează manual.|[20,Inf[Contractul stabilește un termen de plată de %count% de zile lucrătoare de la {anchor}. Scadența se completează manual.'
+                contract_term_longer_on_invoice: '{1}Contractul stabilește 1 zi de la emiterea facturii, dar factura acordă un termen mai lung ({printed}). S-a păstrat scadența de pe factură.|[0,19]Contractul stabilește %count% zile de la emiterea facturii, dar factura acordă un termen mai lung ({printed}). S-a păstrat scadența de pe factură.|[101,119]Contractul stabilește %count% zile de la emiterea facturii, dar factura acordă un termen mai lung ({printed}). S-a păstrat scadența de pe factură.|[201,219]Contractul stabilește %count% zile de la emiterea facturii, dar factura acordă un termen mai lung ({printed}). S-a păstrat scadența de pe factură.|[301,319]Contractul stabilește %count% zile de la emiterea facturii, dar factura acordă un termen mai lung ({printed}). S-a păstrat scadența de pe factură.|[20,Inf[Contractul stabilește %count% de zile de la emiterea facturii, dar factura acordă un termen mai lung ({printed}). S-a păstrat scadența de pe factură.'
+                contract_term_longer_on_invoice_business_days: '{1}Contractul stabilește 1 zi lucrătoare de la emiterea facturii, dar factura acordă un termen mai lung ({printed}). S-a păstrat scadența de pe factură.|[0,19]Contractul stabilește %count% zile lucrătoare de la emiterea facturii, dar factura acordă un termen mai lung ({printed}). S-a păstrat scadența de pe factură.|[101,119]Contractul stabilește %count% zile lucrătoare de la emiterea facturii, dar factura acordă un termen mai lung ({printed}). S-a păstrat scadența de pe factură.|[201,219]Contractul stabilește %count% zile lucrătoare de la emiterea facturii, dar factura acordă un termen mai lung ({printed}). S-a păstrat scadența de pe factură.|[301,319]Contractul stabilește %count% zile lucrătoare de la emiterea facturii, dar factura acordă un termen mai lung ({printed}). S-a păstrat scadența de pe factură.|[20,Inf[Contractul stabilește %count% de zile lucrătoare de la emiterea facturii, dar factura acordă un termen mai lung ({printed}). S-a păstrat scadența de pe factură.'
                 contract_term_ambiguous: 'Documentele contractuale stabilesc termene de plată diferite. Scadența se verifică manual.'
         relationship:
-            comercial_hint: 'Între profesioniști · BNR + 8 pp'
+            comercial_hint: 'Între profesioniști · BNR + 8 pp (BNR + 4 pp pentru contractele dinainte de %law_72_in_force%)'
             comercial_hint_contractual: 'Între profesioniști · penalități din contract'
             civil_disabled_hint: 'Disponibil post-MVP (B2C/P2P).'
             civil_disabled_title: 'Restrâns la B2B în MVP (Pas 2.1 Opțiunea a).'
@@ -975,7 +978,7 @@ case_overview:
         principal_due: 'scadență %date%'
         no_due_date: '—'
         interest: 'Dobândă'
-        interest_hint_commercial: '%days% zile · BNR + 8 pp'
+        interest_hint_commercial: '%days% zile · BNR + %margin% pp'
         interest_hint_civil: '%days% zile · dobândă acumulată'
         penalty_hint: '%rate%% pe zi, din contract'
         penalty_hint_capped: '%rate%% pe zi, plafonat la %cap%% din sumă'
@@ -1102,6 +1105,7 @@ case_overview:
         flash_error_wrong_status: 'Somația poate fi generată doar din starea Amiabil.'
         flash_error_csrf: 'Sesiunea a expirat. Încearcă din nou.'
         flash_error_no_debtor: 'Dosarul nu are debitor înregistrat. Adaugă debitorul înainte de a genera somația.'
+        flash_error_accessory_not_computable: 'Somația nu se poate genera: accesoriile nu se pot calcula pentru toate pozițiile creanței. Datele creanței nu se mai modifică după salvarea dosarului, deci corectarea lor presupune refacerea dosarului, unde poziția se completează sau se exclude din cerere.'
         alert_attach_proof: 'Atașează dovada comunicării somației'
         alert_attach_proof_hint: 'Recipisa de la executor judecătoresc sau confirmarea de primire de la Poșta Română (R+CD+AR).'
         alert_attach_proof_remind: 'Vezi modalitățile legale'
@@ -1766,6 +1770,7 @@ pdf:
         line_accessory_contractual: '%amount% LEI, reprezentând %label% calculate până la data de %date%'
         continues_legal: 'La aceste sume se adaugă dobânda legală penalizatoare care va curge în continuare asupra debitului principal restant până la data achitării integrale a acestuia.'
         continues_contractual: 'La aceste sume se adaugă %label% care vor curge în continuare asupra debitului principal rămas neachitat, conform prevederilor contractuale, până la data achitării integrale a acestuia.'
+        continues_contractual_capped: 'Sumele datorate cu titlu de %label% au atins plafonul stabilit prin contract (%cap%% din valoarea fiecărei facturi), astfel încât cuantumul acestora, indicat mai sus, nu va mai crește până la data plății.'
         accessory_label:
             PENALITATI_INTARZIERE: 'penalități de întârziere'
             DOBANZI_PENALIZATOARE: 'dobânzi penalizatoare contractuale'
@@ -1830,6 +1835,7 @@ pdf:
             og_art1: 'De asemenea, potrivit art. 1 alin. (3) din OG nr. 13/2011, dobânda datorată pentru neîndeplinirea la scadență a unei obligații bănești reprezintă dobândă penalizatoare.'
             og_art2: 'Conform art. 2 din OG nr. 13/2011, în cazul în care obligația este purtătoare de dobândă, iar părțile nu au stabilit în mod expres nivelul acesteia, este datorată dobânda legală corespunzătoare.'
             og_art3_1: 'Potrivit art. 3 alin. (1) din OG nr. 13/2011, rata dobânzii de referință a Băncii Naționale a României este rata dobânzii de politică monetară stabilită prin hotărâre a Consiliului de administrație al Băncii Naționale a României.'
+            og_art3_2: 'Pentru obligațiile născute din contracte încheiate anterior datei de %law_72_in_force%, cărora, potrivit art. 21 din Legea nr. 72/2013, nu le sunt aplicabile dispozițiile art. 3 alin. (2¹) din OG nr. 13/2011, dobânda legală penalizatoare se stabilește, conform art. 3 alin. (2) din același act normativ, la nivelul ratei dobânzii de referință a Băncii Naționale a României plus 4 puncte procentuale.'
             og_art3_2_1: 'Totodată, potrivit art. 3 alin. (2¹) din OG nr. 13/2011, în raporturile dintre profesioniști, dobânda legală penalizatoare se stabilește la nivelul ratei dobânzii de referință a Băncii Naționale a României plus 8 puncte procentuale.'
             table_intro: 'În consecință, dobânda legală penalizatoare a fost calculată distinct pentru fiecare obligație de plată restantă și, după caz, pentru fiecare interval în care rata dobânzii de referință a Băncii Naționale a României a avut un nivel diferit, după cum urmează:'
             total: 'TOTAL DOBÂNDĂ LEGALĂ PENALIZATOARE LA DATA DE %date%: %amount% LEI'
@@ -1853,6 +1859,7 @@ pdf:
             total: 'TOTAL %label% LA DATA DE %date%: %amount% LEI'
             conclusion: 'Pe cale de consecință, la data întocmirii prezentei somații, Debitoarea datorează Creditoarei, cu titlu de %label%, suma totală de %amount% LEI.'
             continues: 'Accesoriile contractuale vor fi calculate în continuare, în condițiile și la nivelul stabilite prin contract, asupra debitului principal rămas neachitat, până la data achitării efective și integrale a acestuia. În consecință, cuantumul indicat în prezenta somație va fi actualizat corespunzător la data efectuării plății.'
+            continues_capped: 'Accesoriile contractuale au atins plafonul stabilit prin contract (%cap%% din valoarea fiecărei facturi), astfel încât cuantumul acestora, indicat în prezenta somație, nu va mai crește până la data plății.'
         imputation:
             title: 'III. CU PRIVIRE LA IMPUTAȚIA PLĂȚII'
             rule: 'În eventualitatea efectuării unei plăți parțiale, aceasta va fi imputată cu respectarea regulilor prevăzute de art. 1.507 din Codul civil.'
@@ -1866,10 +1873,12 @@ pdf:
             demand: 'ca, în termen de 15 (cincisprezece) zile de la data primirii prezentei somații, să achitați integral suma de %total% LEI, compusă din:'
             plus_legal: 'la care se adaugă dobânda legală penalizatoare calculată în continuare asupra debitului principal restant, până la data achitării sale integrale.'
             plus_contractual: 'la care se adaugă %label% calculate în continuare, conform prevederilor contractuale, asupra debitului principal rămas neachitat până la data achitării sale integrale.'
+            plus_contractual_capped: 'sumă care nu se va mai majora cu titlu de %label% până la data plății, întrucât acestea au atins plafonul stabilit prin contract.'
             account_with_bank: 'Plata va fi efectuată în contul %iban%, deschis la %bank%, titular %creditor%.'
             account: 'Plata va fi efectuată în contul %iban%, titular %creditor%.'
             court_legal: 'În cazul în care nu veți proceda la achitarea integrală a sumelor datorate în termenul indicat, Creditoarea va sesiza instanța competentă în vederea emiterii unei ordonanțe de plată, în condițiile art. 1.014 și următoarele din Codul de procedură civilă, urmând a solicita obligarea Debitoarei la plata debitului principal restant, a dobânzii legale penalizatoare calculate până la data achitării integrale a creanței, precum și a cheltuielilor de judecată ocazionate de recuperarea acesteia.'
             court_contractual: 'În cazul în care nu veți proceda la achitarea integrală a sumelor datorate în termenul indicat, Creditoarea va sesiza instanța competentă în vederea emiterii unei ordonanțe de plată, în condițiile art. 1.014 și următoarele din Codul de procedură civilă, urmând a solicita obligarea Debitoarei la plata debitului principal restant, a accesoriilor contractuale calculate până la data achitării integrale a creanței, precum și a cheltuielilor de judecată ocazionate de recuperarea acesteia.'
+            court_contractual_capped: 'În cazul în care nu veți proceda la achitarea integrală a sumelor datorate în termenul indicat, Creditoarea va sesiza instanța competentă în vederea emiterii unei ordonanțe de plată, în condițiile art. 1.014 și următoarele din Codul de procedură civilă, urmând a solicita obligarea Debitoarei la plata debitului principal restant, a accesoriilor contractuale în cuantumul indicat în prezenta somație, plafonat potrivit contractului, precum și a cheltuielilor de judecată ocazionate de recuperarea acesteia.'
             enforcement: 'În măsura în care creanța nu va fi achitată integral, Creditoarea își rezervă dreptul de a uza de toate mijloacele legale pentru recuperarea acesteia și, ulterior obținerii unui titlu executoriu, de a proceda la executarea silită în condițiile legii.'
             prior_procedure: 'Prezenta somație este formulată și comunicată în îndeplinirea procedurii prealabile prevăzute de art. 1.015 din Codul de procedură civilă.'
             regards: 'Cu deosebită considerație,'
@@ -2564,8 +2573,11 @@ enum:
         ACCEPTANCE: 'recepție'
         OTHER: 'un alt moment decât emiterea facturii'
     penalty_type:
-        LEGAL_PENALIZATOARE: 'Dobândă legală penalizatoare (BNR + 8%)'
+        LEGAL_PENALIZATOARE: 'Dobândă legală penalizatoare (OG 13/2011)'
         CONTRACTUAL: 'Penalitate contractuală (rată zilnică)'
+    professional_penalty_margin:
+        OG_ART_3_PARA_2: 'OG 13/2011, art. 3 alin. 2, contract încheiat înainte de %law_72_in_force%'
+        OG_ART_3_PARA_2_1: 'OG 13/2011, art. 3 alin. 2¹'
     contractual_accessory_label:
         PENALITATI_INTARZIERE: 'Penalități de întârziere'
         DOBANZI_PENALIZATOARE: 'Dobânzi penalizatoare contractuale'
@@ -2667,9 +2679,7 @@ exception:
         not_found: 'CUI-ul nu a fost găsit în baza de date ANAF.'
         rate_limited: 'Prea multe căutări ANAF. Așteaptă 1h sau introdu manual datele.'
     calculation:
-        interest_rate_missing: 'Nu există o rată de referință BNR pentru data scadenței (istoricul începe la 01.09.2011). Calculează dobânda manual.'
-        before_professional_margin: 'Scadența este anterioară datei de 05.04.2013. Marja de 8 puncte procentuale între profesioniști se aplică doar contractelor încheiate după intrarea în vigoare a Legii 72/2013; calculează dobânda manual.'
-        contract_before_professional_margin: 'Contractul este încheiat înainte de 05.04.2013. Marja de 8 puncte procentuale între profesioniști se aplică doar contractelor încheiate după intrarea în vigoare a Legii 72/2013; calculează dobânda manual.'
+        interest_rate_missing: 'Scadența este anterioară datei de 01.09.2011, de la care se aplică OG 13/2011 și începe istoricul ratelor BNR, deci dobânda nu se poate calcula automat.'
         currency_unsupported: 'Calculul dobânzii este disponibil doar pentru creanțe în RON. Suportul pentru valută va fi adăugat ulterior.'
         exchange_rate_missing: 'Nu există un curs valutar BNR pentru moneda și data facturii. Importă cursurile (app:import-exchange-rates) sau verifică data emiterii.'
 
@@ -2697,6 +2707,18 @@ court:
 # Mesaje pentru OpAdmissibilityValidator — afișate în wizard / blocaj PDF.
 # =============================================================================
 validation:
+    accessory_not_computable:
+        position:
+            due_date_missing: 'Poziția %position% nu are dată de scadență, deci accesoriile ei nu se pot calcula.'
+            due_date_before_rate_history: 'Poziția %position% are scadența anterioară datei de 01.09.2011, de la care se aplică OG 13/2011 și există rate de referință BNR, deci dobânda ei nu se poate calcula.'
+            exchange_rate_missing: 'Poziția %position% nu are curs BNR pentru conversia în lei, deci dobânda ei nu se poate calcula.'
+            undetermined: 'Dobânda poziției %position% nu se poate calcula.'
+        claim:
+            due_date_missing: 'Creanța nu are dată de scadență, deci accesoriile nu se pot calcula.'
+            due_date_before_rate_history: 'Scadența creanței este anterioară datei de 01.09.2011, de la care se aplică OG 13/2011 și există rate de referință BNR, deci dobânda nu se poate calcula.'
+            exchange_rate_missing: 'Creanța este în valută și nu are curs BNR pentru conversia în lei, deci dobânda nu se poate calcula.'
+            undetermined: 'Dobânda creanței nu se poate calcula.'
+            unsupported_relationship: 'Accesoriile se calculează automat doar în raporturile dintre profesioniști.'
     op_admissibility:
         OP_BLOCKED_DEREGISTERED: 'Debitorul este radiat din ANAF și nu mai are personalitate juridică, cererea OP este inadmisibilă. Verifică actele în Registrul Comerțului.'
         OP_BLOCKED_INSOLVENCY: 'Debitorul este în procedura insolvenței (Legea 85/2014). Creanța se înscrie la masa credală, nu se recuperează prin ordonanță de plată.'
@@ -3232,9 +3254,9 @@ deadlines:
         hide: 'Ascunde'
     row:
         due_today: 'expiră azi'
-        due_in: '{1}în 1 zi|]1,19]în %count% zile|[20,Inf[în %count% de zile'
-        overdue_by: '{1}depășit de 1 zi|]1,19]depășit de %count% zile|[20,Inf[depășit de %count% de zile'
-        expired_by: '{1}expirat de 1 zi|]1,19]expirat de %count% zile|[20,Inf[expirat de %count% de zile'
+        due_in: '{1}în 1 zi|]1,19]în %count% zile|[101,119]în %count% zile|[201,219]în %count% zile|[301,319]în %count% zile|[20,Inf[în %count% de zile'
+        overdue_by: '{1}depășit de 1 zi|]1,19]depășit de %count% zile|[101,119]depășit de %count% zile|[201,219]depășit de %count% zile|[301,319]depășit de %count% zile|[20,Inf[depășit de %count% de zile'
+        expired_by: '{1}expirat de 1 zi|]1,19]expirat de %count% zile|[101,119]expirat de %count% zile|[201,219]expirat de %count% zile|[301,319]expirat de %count% zile|[20,Inf[expirat de %count% de zile'
         consequence_consumed: 'consecința s-a putut produce'
         completed: 'finalizat'
         estimate:

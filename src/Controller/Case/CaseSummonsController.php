@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Controller\Case;
 
+use App\DTO\Validation\AdmissibilityIssue;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\CaseStatus;
@@ -12,6 +13,7 @@ use App\Repository\LegalCaseRepository;
 use App\Security\Voter\CaseVoter;
 use App\Service\AuditLogService;
 use App\Service\Billing\SubscriptionService;
+use App\Service\Case\AccessoryComputabilityChecker;
 use App\Service\Case\CaseAccessoryService;
 use App\Service\Case\CaseWorkflowService;
 use App\Service\Case\OverviewContextBuilder;
@@ -23,6 +25,7 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Generating the summons. The route also serves the global agenda, where a limitation
@@ -44,6 +47,8 @@ final class CaseSummonsController extends AbstractController
         private readonly AgendaResponseFactory $agendaResponses,
         private readonly EntityManagerInterface $em,
         private readonly CaseAccessoryService $caseAccessories,
+        private readonly AccessoryComputabilityChecker $accessoryChecker,
+        private readonly TranslatorInterface $translator,
     ) {}
 
     #[Route('/case/{id}/summons/generate', name: 'case_summons_generate', requirements: ['id' => '\d+'], methods: ['POST'])]
@@ -67,6 +72,17 @@ final class CaseSummonsController extends AbstractController
 
         if ($case->getDebtors()->isEmpty()) {
             return $this->respond($request, $case, false, 'error', 'case_overview.summons.flash_error_no_debtor', null, null);
+        }
+
+        // A summons that names the interest without its sum is no notice of the
+        // amount owed, so it waits until every position the platform computes
+        // can be computed. Checked at the date the summons would carry. Claim
+        // data is frozen once the case is saved (stamp duty, court and
+        // admissibility were derived from it), so the way out is the wizard,
+        // which blocks the same defects and lets the position be excluded.
+        $notComputable = $this->accessoryChecker->issues($case, $case->accessoryReferenceDate(new \DateTimeImmutable()));
+        if ($notComputable !== []) {
+            return $this->respond($request, $case, false, 'error', 'case_overview.summons.flash_error_accessory_not_computable', null, null, $notComputable);
         }
 
         $user = $this->getUser();
@@ -131,6 +147,8 @@ final class CaseSummonsController extends AbstractController
      * is not carried over, having nothing to open there: the rebuilt agenda already
      * shows the debtor's term with recording that communication date as its own
      * primary act.
+     *
+     * @param list<AdmissibilityIssue> $toastIssues listed under the toast, one line each
      */
     private function respond(
         Request $request,
@@ -140,7 +158,13 @@ final class CaseSummonsController extends AbstractController
         string $toastKey,
         ?string $openModalId,
         ?string $extraToastKey,
+        array $toastIssues = [],
     ): Response {
+        $toastDetails = array_map(
+            fn (AdmissibilityIssue $issue): string => $this->translator->trans($issue->messageKey, $issue->params),
+            $toastIssues,
+        );
+
         if ($this->agendaResponses->isAgendaRequest($request)) {
             if ($this->agendaResponses->wantsTurboStream($request)) {
                 $user = $this->getUser();
@@ -148,10 +172,10 @@ final class CaseSummonsController extends AbstractController
                     throw $this->createAccessDeniedException();
                 }
 
-                return $this->agendaResponses->stream($request, $user, $toastVariant, $toastKey, null, $extraToastKey);
+                return $this->agendaResponses->stream($request, $user, $toastVariant, $toastKey, null, $extraToastKey, $toastDetails);
             }
 
-            $this->addFlash($toastVariant, $toastKey);
+            $this->flashToast($toastVariant, $toastKey, $toastIssues);
             if ($extraToastKey !== null) {
                 $this->addFlash('warning', $extraToastKey);
             }
@@ -167,6 +191,7 @@ final class CaseSummonsController extends AbstractController
             $context['open_modal_id'] = $openModalId;
             $context['close_modal_id'] = null;
             $context['extra_toast_key'] = $extraToastKey;
+            $context['toast_details'] = $toastDetails;
 
             return new Response(
                 $this->renderView('case/overview/_documents_generate_turbo_stream.html.twig', $context),
@@ -175,7 +200,7 @@ final class CaseSummonsController extends AbstractController
             );
         }
 
-        $this->addFlash($toastVariant, $toastKey);
+        $this->flashToast($toastVariant, $toastKey, $toastIssues);
         if ($openModalId === self::C4_MODAL_ID) {
             $this->addFlash('show_c4_modal', '1');
         }
@@ -184,5 +209,28 @@ final class CaseSummonsController extends AbstractController
         }
 
         return $this->redirectToRoute('case_overview', ['id' => $case->getId()]);
+    }
+
+    /**
+     * A message with lines under it goes through the toast flash, the one that
+     * renders details; a plain one keeps the flash it always used.
+     *
+     * @param list<AdmissibilityIssue> $issues
+     */
+    private function flashToast(string $variant, string $key, array $issues): void
+    {
+        if ($issues === []) {
+            $this->addFlash($variant, $key);
+
+            return;
+        }
+
+        $this->addFlash('toast.' . $variant, [
+            'key' => $key,
+            'details' => array_map(
+                static fn (AdmissibilityIssue $issue): array => ['key' => $issue->messageKey, 'params' => $issue->params],
+                $issues,
+            ),
+        ]);
     }
 }

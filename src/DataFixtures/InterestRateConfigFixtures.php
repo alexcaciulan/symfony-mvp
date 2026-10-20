@@ -13,7 +13,7 @@ class InterestRateConfigFixtures extends Fixture implements FixtureGroupInterfac
     /**
      * BNR monetary policy rate = statutory reference rate (OG 13/2011 art. 3 para. 3).
      * validFrom is the effective date of each CA decision, not the meeting date.
-     * The margin (+8 pp for B2B penalty interest) is applied at calculation time,
+     * The margin (+4 or +8 pp for B2B penalty interest, by contract date) is applied at calculation time,
      * not stored here. Source: bnr.ro/1970-rata-dobanzii-de-politica-monetara.
      * The last rate carries forward, so a held level needs no repeated rows.
      *

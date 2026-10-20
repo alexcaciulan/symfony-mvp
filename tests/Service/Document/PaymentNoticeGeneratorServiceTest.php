@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Service\Document;
 
+use App\Entity\ClaimItem;
 use App\Entity\Creditor;
 use App\Entity\Debtor;
 use App\Entity\LegalCaseDebtor;
@@ -267,6 +268,28 @@ final class PaymentNoticeGeneratorServiceTest extends KernelTestCase
         self::assertStringNotContainsString('2^1', $html);
     }
 
+    public function testAContractConcludedBeforeLaw72Of2013IsCitedAndRatedAtFourPoints(): void
+    {
+        // Law 72/2013 art. 21: the 2012 contract keeps OG 13/2011 art. 3 para. 2
+        // (NBR + 4 pp) even for interest running in 2025.
+        $this->case->setPenaltyType(PenaltyType::LEGAL_PENALIZATOARE);
+        $this->case->setAmount('100000.00');
+        $this->case->setContractDate(new \DateTime('2012-05-10'));
+        $this->case->setDueDate(new \DateTime('2025-01-01'));
+        $this->case->setPaymentNoticeDate(new \DateTime('2025-04-01'));
+        $this->em->flush();
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString('10,50%', $html);
+        self::assertStringNotContainsString('14,50%', $html);
+        self::assertStringContainsString('contracte încheiate anterior datei de 05.04.2013', $html);
+        self::assertStringContainsString('potrivit art. 21 din Legea nr. 72/2013', $html);
+        self::assertStringContainsString('conform art. 3 alin. (2) din același act normativ', $html);
+        self::assertStringContainsString('plus 4 puncte procentuale', $html);
+        self::assertStringNotContainsString('plus 8 puncte procentuale', $html);
+    }
+
     public function testContractualPenaltyRendersSevenColumnTableAndQuotesTheClause(): void
     {
         $this->case->setPenaltyType(PenaltyType::CONTRACTUAL);
@@ -316,6 +339,52 @@ final class PaymentNoticeGeneratorServiceTest extends KernelTestCase
         // 120 days at 0,1% is 12%, above the 7,5% ceiling.
         self::assertStringContainsString('la 7,5% din valoarea fiecărei facturi', $html);
         self::assertStringNotContainsString('la 8% din', $html);
+    }
+
+    public function testPenaltiesAtTheCeilingAreNotSaidToKeepAccruing(): void
+    {
+        $this->setUpCappedContractualCase();
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString('Sumele datorate cu titlu de penalități de întârziere au atins plafonul stabilit prin contract (10% din valoarea fiecărei facturi), astfel încât cuantumul acestora, indicat mai sus, nu va mai crește până la data plății.', $html);
+        self::assertStringContainsString('Accesoriile contractuale au atins plafonul stabilit prin contract (10% din valoarea fiecărei facturi), astfel încât cuantumul acestora, indicat în prezenta somație, nu va mai crește până la data plății.', $html);
+        self::assertStringContainsString('sumă care nu se va mai majora cu titlu de penalități de întârziere până la data plății, întrucât acestea au atins plafonul stabilit prin contract.', $html);
+        self::assertStringContainsString('a accesoriilor contractuale în cuantumul indicat în prezenta somație, plafonat potrivit contractului,', $html);
+        self::assertStringNotContainsString('în continuare', $this->withoutDefinedTerms($html));
+        self::assertStringNotContainsString('va fi actualizat', $html);
+        self::assertStringNotContainsString('calculate până la data achitării integrale a creanței', $html);
+    }
+
+    public function testPartlyCappedPositionsKeepTheAccruingWording(): void
+    {
+        $this->setUpCappedContractualCase();
+        $this->case->addClaimItem($this->position('cap-a', '2025-01-10'));
+        // 30 days before the notice: 3%, below the ceiling and still accruing.
+        $this->case->addClaimItem($this->position('cap-b', '2026-09-02'));
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString('La aceste sume se adaugă penalități de întârziere care vor curge în continuare', $html);
+        self::assertStringContainsString('Accesoriile contractuale vor fi calculate în continuare', $html);
+        self::assertStringContainsString('la care se adaugă penalități de întârziere calculate în continuare', $html);
+        self::assertStringContainsString('a accesoriilor contractuale calculate până la data achitării integrale a creanței', $html);
+        self::assertStringNotContainsString('au atins plafonul', $html);
+        self::assertStringNotContainsString('nu se va mai majora', $html);
+    }
+
+    public function testUncappedPenaltiesKeepTheAccruingWording(): void
+    {
+        $this->setUpCappedContractualCase();
+        // 30 days at 0,1% is 3%, under the 10% ceiling.
+        $this->case->setPaymentNoticeDate(new \DateTime('2025-03-23'));
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString('La aceste sume se adaugă penalități de întârziere care vor curge în continuare', $html);
+        self::assertStringContainsString('Accesoriile contractuale vor fi calculate în continuare', $html);
+        self::assertStringContainsString('la care se adaugă penalități de întârziere calculate în continuare', $html);
+        self::assertStringNotContainsString('au atins plafonul', $html);
     }
 
     public function testContractualFallbackSentenceWhenClauseTextMissing(): void
@@ -502,5 +571,37 @@ final class PaymentNoticeGeneratorServiceTest extends KernelTestCase
 
         self::assertStringContainsString('VĂ SOMĂM', $html);
         self::assertStringNotContainsString('WE HEREBY SUMMON YOU', $html);
+    }
+
+    /** 0,1% a day, 10% ceiling, due 2025-02-21, notice 2026-10-02: far past the ceiling. */
+    private function setUpCappedContractualCase(): void
+    {
+        $this->case->setPenaltyType(PenaltyType::CONTRACTUAL);
+        $this->case->setAmount('21318.90');
+        $this->case->setContractualPenaltyRate('0.100');
+        $this->case->setContractualPenaltyCapPercent('10.00');
+        $this->case->setDueDate(new \DateTime('2025-02-21'));
+        $this->case->setPaymentNoticeDate(new \DateTime('2026-10-02'));
+        $this->em->flush();
+    }
+
+    /** An unsaved position: the notice reads it from the case, nothing is flushed. */
+    private function position(string $dedupKey, string $dueDate): ClaimItem
+    {
+        $item = new ClaimItem();
+        $item->setAmount('10000.00');
+        $item->setAmountRon('10000.00');
+        $item->setCurrency('RON');
+        $item->setConfirmedByLawyer(true);
+        $item->setDedupKey($dedupKey . '-' . uniqid());
+        $item->setDueDate(new \DateTimeImmutable($dueDate));
+
+        return $item;
+    }
+
+    /** "denumită în continuare" defines a party; it says nothing about accrual. */
+    private function withoutDefinedTerms(string $html): string
+    {
+        return str_replace('denumită în continuare', '', $html);
     }
 }

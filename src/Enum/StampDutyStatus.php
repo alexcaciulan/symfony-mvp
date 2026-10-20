@@ -46,8 +46,10 @@ enum StampDutyStatus: string
         return match ($this) {
             self::NEACHITATA => 'amber',
             self::ACHITATA => 'green',
-            self::ACHITARE_LA_DEPUNERE => 'blue',
-            self::AMANATA_REGULARIZARE => 'orange',
+            // Both are a chosen payment plan, not a problem: filing without proof
+            // and paying in the existing case is the normal path once the
+            // platform files by email.
+            self::ACHITARE_LA_DEPUNERE, self::AMANATA_REGULARIZARE => 'blue',
             self::RESTITUITA => 'slate',
         };
     }

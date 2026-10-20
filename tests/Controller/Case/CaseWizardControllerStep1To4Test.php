@@ -1000,11 +1000,10 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         self::assertStringContainsString('100.00', (string) $this->client->getResponse()->getContent());
     }
 
-    public function testAnInterestTheCalculatorRefusesIsSaidAtStepFour(): void
+    public function testAContractFrom2012IsComputedWithTheFourPointMarginAtStepFour(): void
     {
-        // A contract from 2012: the +8 pp margin does not apply to it, so the
-        // interest is left to the lawyer, and the step says why rather than
-        // letting the acts go out without it.
+        // Law 72/2013 does not reach a 2012 contract: its interest runs at
+        // NBR + 4 pp (OG 13/2011 art. 3 para. 2) and nothing blocks the step.
         $this->primeSessionForStep4(insolvencyCheckedAt: new \DateTimeImmutable('-1 hour'), claim: new Step3ClaimData(
             amount: 1000.0,
             currency: 'RON',
@@ -1016,7 +1015,29 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         $this->client->request('GET', '/case/new/confirmation');
 
         self::assertResponseIsSuccessful();
-        self::assertStringContainsString('Contractul este încheiat înainte de 05.04.2013', (string) $this->client->getResponse()->getContent());
+        $body = (string) $this->client->getResponse()->getContent();
+        self::assertStringNotContainsString('nu se poate calcula', $body);
+        self::assertStringNotContainsString('Cererea NU poate fi depusă încă', $body);
+    }
+
+    public function testAnInterestTheCalculatorCannotComputeBlocksStepFour(): void
+    {
+        // No NBR reference rate exists before OG 13/2011 came into force; the
+        // summons could not state the interest, and a saved case's claim can
+        // no longer be corrected, so the step refuses to save it.
+        $this->primeSessionForStep4(insolvencyCheckedAt: new \DateTimeImmutable('-1 hour'), claim: new Step3ClaimData(
+            amount: 1000.0,
+            currency: 'RON',
+            dueDate: new \DateTimeImmutable('2011-08-01'),
+            relationshipType: RelationshipType::COMERCIAL,
+        ));
+
+        $this->client->request('GET', '/case/new/confirmation');
+
+        self::assertResponseIsSuccessful();
+        $body = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('Cererea NU poate fi depusă încă', $body);
+        self::assertStringContainsString('are scadența anterioară datei de 01.09.2011', $body);
     }
 
     public function testAPenaltyWithinThePrincipalRaisesNoSuchFlag(): void

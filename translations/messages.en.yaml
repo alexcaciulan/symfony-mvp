@@ -430,7 +430,7 @@ wizard:
                 applicable_rate: 'Applied rate'
                 days: 'Days'
                 interest: 'Interest'
-                formula: 'Interest per period = position amount × applied rate × days / 365. The applied rate is the NBR reference rate plus 8 percentage points (GO 13/2011, art. 3 para. 2¹), counted from the day after the due date.'
+                formula: 'Interest per period = position amount × applied rate × days / 365. The applied rate is the NBR reference rate plus %margin% percentage points (%basis%), counted from the day after the due date.'
             issued: 'Issued %date%'
             cause_placeholder: 'e.g. Contract 12/2024'
             error:
@@ -463,11 +463,14 @@ wizard:
                 shared: 'single payment for several invoices, not split'
                 recorded_total: 'Paid, recorded without imputation: %amount% %currency%'
             note:
-                contract_term_applied: 'Due date from the contract: {days} days from the invoice issue date.'
-                contract_term_overrides_invoice: 'Due date from the contract: {days} days from the invoice issue date. The due date printed on the invoice ({printed}) was not retained.'
-                contract_term_manual: 'The contract sets a payment term of {days} days from {anchor}. The due date has to be set manually.'
-                contract_term_manual_business_days: 'The contract sets a payment term of {days} working days from {anchor}. The due date has to be set manually.'
-                contract_term_longer_on_invoice: 'The contract sets {days} days from the invoice issue date, but the invoice grants a longer term ({printed}). The due date on the invoice was kept.'
+                contract_term_applied: '{1}Due date from the contract: 1 day from the invoice issue date.|[0,Inf[Due date from the contract: %count% days from the invoice issue date.'
+                contract_term_applied_business_days: '{1}Due date from the contract: 1 working day from the invoice issue date.|[0,Inf[Due date from the contract: %count% working days from the invoice issue date.'
+                contract_term_overrides_invoice: '{1}Due date from the contract: 1 day from the invoice issue date. The due date printed on the invoice ({printed}) was not retained.|[0,Inf[Due date from the contract: %count% days from the invoice issue date. The due date printed on the invoice ({printed}) was not retained.'
+                contract_term_overrides_invoice_business_days: '{1}Due date from the contract: 1 working day from the invoice issue date. The due date printed on the invoice ({printed}) was not retained.|[0,Inf[Due date from the contract: %count% working days from the invoice issue date. The due date printed on the invoice ({printed}) was not retained.'
+                contract_term_manual: '{1}The contract sets a payment term of 1 day from {anchor}. The due date has to be set manually.|[0,Inf[The contract sets a payment term of %count% days from {anchor}. The due date has to be set manually.'
+                contract_term_manual_business_days: '{1}The contract sets a payment term of 1 working day from {anchor}. The due date has to be set manually.|[0,Inf[The contract sets a payment term of %count% working days from {anchor}. The due date has to be set manually.'
+                contract_term_longer_on_invoice: '{1}The contract sets 1 day from the invoice issue date, but the invoice grants a longer term ({printed}). The due date on the invoice was kept.|[0,Inf[The contract sets %count% days from the invoice issue date, but the invoice grants a longer term ({printed}). The due date on the invoice was kept.'
+                contract_term_longer_on_invoice_business_days: '{1}The contract sets 1 working day from the invoice issue date, but the invoice grants a longer term ({printed}). The due date on the invoice was kept.|[0,Inf[The contract sets %count% working days from the invoice issue date, but the invoice grants a longer term ({printed}). The due date on the invoice was kept.'
                 contract_term_ambiguous: 'The contractual documents set different payment terms. The due date has to be checked manually.'
         title: 'Claim details'
         subtitle: 'Step 3 of 4 · Claim details. Fields tagged with ⚡ auto were extracted automatically from documents.'
@@ -492,12 +495,12 @@ wizard:
             penalty_clause_text: 'Quoted in the notice. Left empty, the notice only says the parties agreed a late-payment penalty mechanism.'
             contract_object: 'Reads after "concerning". E.g. the provision of transport services.'
             payment_notice_number: 'The number from your outgoing registry. Without it, the notice only carries the date.'
-            accessories: 'For a contractual penalty, fill in the daily rate and the clause reference. For statutory interest, it is computed automatically (NBR + 8%).'
+            accessories: 'For a contractual penalty, the daily rate and the clause reference are filled in. Statutory interest is computed automatically: NBR + 8 pp, or NBR + 4 pp for contracts concluded before %law_72_in_force%.'
             legal_costs: 'Optional. Shown in the payment order application only if filled in (Civil Code art. 1531).'
         button:
             continue: 'Continue to confirmation'
         relationship:
-            comercial_hint: 'Between professionals · BNR + 8 pp'
+            comercial_hint: 'Between professionals · BNR + 8 pp (BNR + 4 pp for contracts concluded before %law_72_in_force%)'
             comercial_hint_contractual: 'Between professionals · contractual penalties'
             civil_disabled_hint: 'Available post-MVP (B2C/P2P).'
             civil_disabled_title: 'Restricted to B2B in MVP (Pas 2.1 Option a).'
@@ -975,7 +978,7 @@ case_overview:
         principal_due: 'due %date%'
         no_due_date: '—'
         interest: 'Interest'
-        interest_hint_commercial: '%days% days · BNR + 8 pp'
+        interest_hint_commercial: '%days% days · BNR + %margin% pp'
         interest_hint_civil: '%days% days · accrued interest'
         penalty_hint: '%rate%% per day, per the contract'
         penalty_hint_capped: '%rate%% per day, capped at %cap%% of the sum'
@@ -1102,6 +1105,7 @@ case_overview:
         flash_error_wrong_status: 'The payment notice can only be generated from the Amicable status.'
         flash_error_csrf: 'Session expired. Please try again.'
         flash_error_no_debtor: 'The case has no registered debtor. Add the debtor before generating the payment notice.'
+        flash_error_accessory_not_computable: 'The payment notice cannot be generated: the accessories cannot be computed for every position of the claim. The claim data cannot be changed once the case is saved, so correcting it means creating the case again, where the position is completed or excluded from the claim.'
         alert_attach_proof: 'Attach proof of notice communication'
         alert_attach_proof_hint: 'Receipt from a court bailiff or registered-mail confirmation from the Romanian Post (R+CD+AR).'
         alert_attach_proof_remind: 'See legal options'
@@ -1769,6 +1773,7 @@ pdf:
         line_accessory_contractual: '%amount% LEI, %label% calculated up to %date%'
         continues_legal: 'Statutory penalty interest continues to accrue on the outstanding principal until it is paid in full.'
         continues_contractual: '%label% continue to accrue on the unpaid principal, as provided by the contract, until it is paid in full.'
+        continues_contractual_capped: 'The amounts owed as %label% have reached the ceiling set by the contract (%cap%% of each invoice), so the amount stated above will not increase further until payment.'
         accessory_label:
             PENALITATI_INTARZIERE: 'late-payment penalties'
             DOBANZI_PENALIZATOARE: 'contractual penalty interest'
@@ -1833,6 +1838,7 @@ pdf:
             og_art1: 'Under art. 1 para. (3) of Government Ordinance no. 13/2011, interest owed for failure to perform a monetary obligation when due is penalty interest.'
             og_art2: 'Under art. 2 of Government Ordinance no. 13/2011, where the obligation bears interest and the parties have not expressly set its level, the corresponding statutory interest is owed.'
             og_art3_1: 'Under art. 3 para. (1) of Government Ordinance no. 13/2011, the NBR reference rate is the monetary policy rate set by decision of the NBR Board.'
+            og_art3_2: 'For obligations arising from contracts concluded before %law_72_in_force%, to which, under art. 21 of Law no. 72/2013, art. 3 para. (2¹) of Government Ordinance no. 13/2011 does not apply, statutory penalty interest equals, under art. 3 para. (2) of the same ordinance, the NBR reference rate plus 4 percentage points.'
             og_art3_2_1: 'Under art. 3 para. (2¹) of Government Ordinance no. 13/2011, between professionals, statutory penalty interest equals the NBR reference rate plus 8 percentage points.'
             table_intro: 'Statutory penalty interest has therefore been calculated separately for each overdue payment obligation and, where applicable, for each interval in which the NBR reference rate differed, as follows:'
             total: 'TOTAL STATUTORY PENALTY INTEREST AS OF %date%: %amount% LEI'
@@ -1856,6 +1862,7 @@ pdf:
             total: 'TOTAL %label% AS OF %date%: %amount% LEI'
             conclusion: 'Accordingly, as of this notice, the Debtor owes the Creditor, as %label%, a total of %amount% LEI.'
             continues: 'Contractual accessories will continue to be calculated, on the terms and at the level set by the contract, on the unpaid principal until it is actually paid in full. The amount stated in this notice will therefore be updated as of the payment date.'
+            continues_capped: 'Contractual accessories have reached the ceiling set by the contract (%cap%% of each invoice), so the amount stated in this notice will not increase further until payment.'
         imputation:
             title: 'III. ALLOCATION OF PAYMENTS'
             rule: 'Any partial payment will be allocated in accordance with art. 1.507 of the Civil Code.'
@@ -1869,10 +1876,12 @@ pdf:
             demand: 'to pay in full, within 15 (fifteen) days of receiving this notice, the amount of %total% LEI, consisting of:'
             plus_legal: 'plus statutory penalty interest continuing to accrue on the outstanding principal until it is paid in full.'
             plus_contractual: 'plus %label% continuing to accrue, as provided by the contract, on the unpaid principal until it is paid in full.'
+            plus_contractual_capped: 'an amount that will not increase further on account of %label% until payment, as these have reached the ceiling set by the contract.'
             account_with_bank: 'Payment is to be made to account %iban%, held at %bank%, account holder %creditor%.'
             account: 'Payment is to be made to account %iban%, account holder %creditor%.'
             court_legal: 'If you do not pay the amounts owed in full within that term, the Creditor will apply to the competent court for a payment order under art. 1.014 et seq. of the Code of Civil Procedure, seeking an order against the Debtor for the outstanding principal, statutory penalty interest until full payment of the claim and the costs incurred in recovering it.'
             court_contractual: 'If you do not pay the amounts owed in full within that term, the Creditor will apply to the competent court for a payment order under art. 1.014 et seq. of the Code of Civil Procedure, seeking an order against the Debtor for the outstanding principal, contractual accessories until full payment of the claim and the costs incurred in recovering it.'
+            court_contractual_capped: 'If you do not pay the amounts owed in full within that term, the Creditor will apply to the competent court for a payment order under art. 1.014 et seq. of the Code of Civil Procedure, seeking an order against the Debtor for the outstanding principal, contractual accessories in the amount stated in this notice, as capped by the contract, and the costs incurred in recovering it.'
             enforcement: 'If the claim is not paid in full, the Creditor reserves the right to use all legal means to recover it and, once it obtains an enforceable title, to proceed with enforcement as provided by law.'
             prior_procedure: 'This notice is issued and communicated as the prior procedure required by art. 1.015 of the Code of Civil Procedure.'
             regards: 'Yours faithfully,'
@@ -2567,8 +2576,11 @@ enum:
         ACCEPTANCE: 'acceptance'
         OTHER: 'an event other than the invoice issue'
     penalty_type:
-        LEGAL_PENALIZATOARE: 'Statutory penalty interest (NBR + 8%)'
+        LEGAL_PENALIZATOARE: 'Statutory penalty interest (GO 13/2011)'
         CONTRACTUAL: 'Contractual penalty (daily rate)'
+    professional_penalty_margin:
+        OG_ART_3_PARA_2: 'GO 13/2011, art. 3 para. 2, contract concluded before %law_72_in_force%'
+        OG_ART_3_PARA_2_1: 'GO 13/2011, art. 3 para. 2¹'
     contractual_accessory_label:
         PENALITATI_INTARZIERE: 'Late-payment penalties'
         DOBANZI_PENALIZATOARE: 'Contractual penalty interest'
@@ -2670,9 +2682,7 @@ exception:
         not_found: 'Tax ID not found in the ANAF database.'
         rate_limited: 'Too many ANAF lookups. Wait 1 hour or fill data manually.'
     calculation:
-        interest_rate_missing: 'There is no BNR reference rate for the due date (the history starts on 01.09.2011). Compute the interest manually.'
-        before_professional_margin: 'The due date is before 05.04.2013. The 8 percentage point margin between professionals applies only to contracts concluded after Law 72/2013 came into force; compute the interest manually.'
-        contract_before_professional_margin: 'The contract was concluded before 05.04.2013. The 8 percentage point margin between professionals applies only to contracts concluded after Law 72/2013 came into force; compute the interest manually.'
+        interest_rate_missing: 'The due date is before 01.09.2011, when GO 13/2011 came into force and the NBR rate history starts, so the interest cannot be computed automatically.'
         currency_unsupported: 'Interest calculation is only available for RON-denominated claims. Foreign-currency support will be added later.'
         exchange_rate_missing: 'No BNR exchange rate for the invoice currency and date. Import the rates (app:import-exchange-rates) or check the issue date.'
 
@@ -2700,6 +2710,18 @@ court:
 # Messages for OpAdmissibilityValidator — shown in wizard / PDF block.
 # =============================================================================
 validation:
+    accessory_not_computable:
+        position:
+            due_date_missing: 'Position %position% has no due date, so its accessories cannot be computed.'
+            due_date_before_rate_history: 'Position %position% fell due before 01.09.2011, when GO 13/2011 came into force and the NBR reference rates start, so its interest cannot be computed.'
+            exchange_rate_missing: 'Position %position% has no NBR exchange rate for the conversion to lei, so its interest cannot be computed.'
+            undetermined: 'The interest of position %position% cannot be computed.'
+        claim:
+            due_date_missing: 'The claim has no due date, so its accessories cannot be computed.'
+            due_date_before_rate_history: 'The claim fell due before 01.09.2011, when GO 13/2011 came into force and the NBR reference rates start, so its interest cannot be computed.'
+            exchange_rate_missing: 'The claim is in a foreign currency with no NBR exchange rate for the conversion to lei, so its interest cannot be computed.'
+            undetermined: 'The interest of the claim cannot be computed.'
+            unsupported_relationship: 'Accessories are computed automatically only between professionals.'
     op_admissibility:
         OP_BLOCKED_DEREGISTERED: 'The debtor is deregistered with ANAF and no longer has legal personality. The payment order petition is inadmissible. Verify with the Trade Registry.'
         OP_BLOCKED_INSOLVENCY: 'The debtor is in insolvency proceedings (Law 85/2014). The claim must be filed with the bankruptcy estate, not via a payment order.'

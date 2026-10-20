@@ -50,8 +50,8 @@ class CompetentCourtResolverTest extends TestCase
 
     public function testAnInterestTheCalculatorRefusesStillLeavesTheCourt(): void
     {
-        // Competence rests on the principal: a claim under a contract older than
-        // Law 72/2013, or one with no BNR rate for its period, still has a court.
+        // Competence rests on the principal: a claim with no NBR rate for its
+        // period (due before OG 13/2011 came into force) still has a court.
         $resolver = $this->makeResolver(
             courts: $this->clujCourts(),
             rates: [$this->makeRateConfig('2011-09-01', '6.25')],
@@ -59,7 +59,7 @@ class CompetentCourtResolverTest extends TestCase
 
         $result = $resolver->resolve(
             principal: 10_000.0,
-            dueDate: new \DateTimeImmutable('2012-06-01'),
+            dueDate: new \DateTimeImmutable('2011-06-01'),
             referenceDate: new \DateTimeImmutable('2014-06-01'),
             relationshipType: RelationshipType::COMERCIAL,
             debtorCounty: 'Cluj',

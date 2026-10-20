@@ -15,6 +15,7 @@ use App\Entity\LegalCase;
 use App\Enum\ClaimItemKind;
 use App\Enum\ContractualAccessoryLabel;
 use App\Enum\PenaltyType;
+use App\Enum\ProfessionalPenaltyMargin;
 use App\Enum\RelationshipType;
 use App\Form\Wizard\Step3ClaimType;
 use App\Service\Calculation\ContractualPenaltyCalculator;
@@ -174,6 +175,12 @@ final class Step3ClaimLiveComponent extends AbstractController
     public function referenceDate(): \DateTimeImmutable
     {
         return LegalCase::accessoryDateWithin($this->dateFromFormValues('accessoryCutoffDate'), new \DateTimeImmutable('today'));
+    }
+
+    /** @return array{'%law_72_in_force%': string} */
+    public function getMarginTranslationParameters(): array
+    {
+        return ProfessionalPenaltyMargin::legalBasisParameters();
     }
 
     public function isContractual(): bool

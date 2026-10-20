@@ -55,4 +55,8 @@
 
 <p class="total">{{ 'pdf.summons.contractual.total'|trans({'%label%': label|upper, '%date%': accessoryDateText, '%amount%': accessoryTotal|number_format(2, ',', '.')}) }}</p>
 <p>{{ 'pdf.summons.contractual.conclusion'|trans({'%label%': label, '%amount%': accessoryTotal|number_format(2, ',', '.')}) }}</p>
-<p>{{ 'pdf.summons.contractual.continues'|trans }}</p>
+{% if contractualPenaltiesCapped %}
+    <p>{{ 'pdf.summons.contractual.continues_capped'|trans({'%cap%': case.contractualPenaltyCapPercent|percent_number}) }}</p>
+{% else %}
+    <p>{{ 'pdf.summons.contractual.continues'|trans }}</p>
+{% endif %}

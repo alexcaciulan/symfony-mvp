@@ -227,7 +227,7 @@ final class Step3ClaimPositionsLiveTest extends WebTestCase
 
         $note = static::getContainer()->get('translator')->trans(
             'wizard.step3.claim_items.note.contract_term_overrides_invoice',
-            ['{days}' => 4, '{printed}' => '01.03.2025'],
+            ['%count%' => 4, '{printed}' => '01.03.2025'],
             locale: 'ro',
         );
         self::assertStringContainsString('01.03.2025', $note, 'the key is translated and names the printed date');
@@ -256,11 +256,23 @@ final class Step3ClaimPositionsLiveTest extends WebTestCase
 
         $translator = static::getContainer()->get('translator');
         $note = $translator->trans('wizard.step3.claim_items.note.contract_term_manual', [
-            '{days}' => 30,
+            '%count%' => 30,
             '{anchor}' => $translator->trans('enum.payment_term_anchor.DELIVERY', locale: 'ro'),
         ], locale: 'ro');
-        self::assertStringContainsString('30 zile de la livrare', $note);
+        self::assertStringContainsString('30 de zile de la livrare', $note);
         self::assertStringContainsString($note, $html);
+    }
+
+    public function testTheContractTermNoteAgreesWithTheNumberOfDays(): void
+    {
+        $translator = static::getContainer()->get('translator');
+        $key = 'wizard.step3.claim_items.note.contract_term_applied_business_days';
+
+        self::assertStringContainsString(': 1 zi lucrătoare de la', $translator->trans($key, ['%count%' => 1], locale: 'ro'));
+        self::assertStringContainsString(': 5 zile lucrătoare de la', $translator->trans($key, ['%count%' => 5], locale: 'ro'));
+        self::assertStringContainsString(': 20 de zile lucrătoare de la', $translator->trans($key, ['%count%' => 20], locale: 'ro'));
+        self::assertStringContainsString(': 1 working day from', $translator->trans($key, ['%count%' => 1], locale: 'en'));
+        self::assertStringContainsString(': 5 working days from', $translator->trans($key, ['%count%' => 5], locale: 'en'));
     }
 
     public function testAPositionPaidInFullByTheStatementShowsWhyAndEachPayment(): void

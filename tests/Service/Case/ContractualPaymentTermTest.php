@@ -11,6 +11,8 @@ use App\Repository\BnrExchangeRateRepository;
 use App\Repository\DocumentRepository;
 use App\Service\Calculation\CurrencyConverter;
 use App\Service\Case\ClaimItemFactory;
+use App\Service\Case\ContractualPaymentTermApplier;
+use App\Service\Deadline\WorkingDayResolver;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -103,16 +105,62 @@ final class ContractualPaymentTermTest extends TestCase
         self::assertNull($row->dueDateNote['appliedDueDate'] ?? null);
     }
 
-    public function testATermInWorkingDaysIsLeftToTheLawyer(): void
+    public function testATermInWorkingDaysFromTheIssueDateSkipsTheWeekend(): void
     {
+        // Issued on a Saturday: five working days run Monday 3 to Friday 7 March.
         $result = $this->factory([
             $this->contract(1, '12/2024', 5, 'ISSUE_DATE', businessDays: true),
             $this->invoice(2, 'MJ-9/2025', '2025-03-01', '2025-03-01', '12/2024'),
         ])->collectRows([1, 2]);
 
         $row = $result->rows[0];
+        self::assertSame('2025-03-07', $row->dueDate?->format('Y-m-d'));
+        self::assertSame([
+            'key' => 'wizard.step3.claim_items.note.contract_term_overrides_invoice_business_days',
+            'days' => 5,
+            'anchor' => 'ISSUE_DATE',
+            'printedDueDate' => '2025-03-01',
+            'appliedDueDate' => '2025-03-07',
+        ], $row->dueDateNote);
+    }
+
+    public function testATermInWorkingDaysSkipsLegalHolidays(): void
+    {
+        // Thursday 17 April 2025: Good Friday, the Easter weekend and Easter
+        // Monday do not count, so three working days end on Thursday 24 April.
+        $result = $this->factory([
+            $this->contract(1, '12/2024', 3, 'ISSUE_DATE', businessDays: true),
+            $this->invoice(2, 'MJ-9/2025', '2025-04-17', null, '12/2024'),
+        ])->collectRows([1, 2]);
+
+        $row = $result->rows[0];
+        self::assertSame('2025-04-24', $row->dueDate?->format('Y-m-d'));
+        self::assertSame('wizard.step3.claim_items.note.contract_term_applied_business_days', $row->dueDateNote['key'] ?? null);
+    }
+
+    public function testALongerPrintedTermBeatsAWorkingDayTerm(): void
+    {
+        $result = $this->factory([
+            $this->contract(1, '12/2024', 5, 'ISSUE_DATE', businessDays: true),
+            $this->invoice(2, 'MJ-9/2025', '2025-03-01', '2025-03-31', '12/2024'),
+        ])->collectRows([1, 2]);
+
+        $row = $result->rows[0];
+        self::assertSame('2025-03-31', $row->dueDate?->format('Y-m-d'));
+        self::assertSame('wizard.step3.claim_items.note.contract_term_longer_on_invoice_business_days', $row->dueDateNote['key'] ?? null);
+    }
+
+    public function testATermInWorkingDaysFromAnotherEventIsLeftToTheLawyer(): void
+    {
+        $result = $this->factory([
+            $this->contract(1, '12/2024', 5, 'INVOICE_RECEIPT', businessDays: true),
+            $this->invoice(2, 'MJ-9/2025', '2025-03-01', '2025-03-01', '12/2024'),
+        ])->collectRows([1, 2]);
+
+        $row = $result->rows[0];
         self::assertSame('2025-03-01', $row->dueDate?->format('Y-m-d'));
         self::assertSame('wizard.step3.claim_items.note.contract_term_manual_business_days', $row->dueDateNote['key'] ?? null);
+        self::assertNull($row->dueDateNote['appliedDueDate'] ?? null);
     }
 
     public function testDivergingTermsForOneContractAreNotApplied(): void
@@ -160,7 +208,7 @@ final class ContractualPaymentTermTest extends TestCase
         $rates = $this->createStub(BnrExchangeRateRepository::class);
         $rates->method('findRateValidAt')->willReturn(new BnrExchangeRate());
 
-        return new ClaimItemFactory($repository, new CurrencyConverter($rates));
+        return new ClaimItemFactory($repository, new CurrencyConverter($rates), paymentTerms: new ContractualPaymentTermApplier(new WorkingDayResolver()));
     }
 
     private function contract(

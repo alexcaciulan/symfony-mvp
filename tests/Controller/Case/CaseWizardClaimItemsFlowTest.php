@@ -208,7 +208,33 @@ final class CaseWizardClaimItemsFlowTest extends WebTestCase
         self::assertStringContainsString('14,75%', $html);
         self::assertStringContainsString('14,50%', $html);
         self::assertStringContainsString('6,75%', $html);
-        self::assertStringContainsString('OG 13/2011, art. 3 alin. 2¹', $html);
+        self::assertStringContainsString('plus 8 puncte procentuale (OG 13/2011, art. 3 alin. 2¹)', $html);
+    }
+
+    public function testAPositionDueBeforeLaw72Of2013ShowsTheFourPointMarginAndItsBasis(): void
+    {
+        $rows = [new ClaimItemRow(
+            dedupKey: 'inv:FF-2013',
+            amount: 10000.0,
+            currency: 'RON',
+            documentNumber: 'FF-2013',
+            documentDate: new \DateTimeImmutable('2013-02-01'),
+            dueDate: new \DateTimeImmutable('2013-03-01'),
+            amountRon: 10000.0,
+            causeReference: 'Contract 1/2012',
+            confirmed: true,
+        )];
+        $this->primeSession($rows);
+
+        $this->client->request('GET', '/case/new/claim');
+
+        self::assertResponseIsSuccessful();
+        $html = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('plus 4 puncte procentuale (OG 13/2011, art. 3 alin. 2, contract încheiat înainte de 05.04.2013)', $html);
+        // The step's hints name the same date, taken from one place.
+        self::assertStringContainsString('BNR + 4 pp pentru contractele încheiate înainte de 05.04.2013', $html);
+        self::assertStringNotContainsString('%law_72_in_force%', $html);
+        self::assertStringNotContainsString('plus 8 puncte procentuale', $html);
     }
 
     public function testEachPositionShowsHowItsContractualPenaltyWasComputed(): void

@@ -59,6 +59,7 @@ use App\Service\Calculation\ContractualPenaltyCalculator;
 use App\Service\Calculation\CurrencyConverter;
 use App\Service\Calculation\InterestCalculatorService;
 use App\Service\Calculation\StampDutyCalculator;
+use App\Service\Case\AccessoryComputabilityChecker;
 use App\Service\Case\ClaimItemFactory;
 use App\Service\Case\ClaimTotalsService;
 use App\Service\Case\DocumentReferenceNormalizer;
@@ -154,6 +155,7 @@ final class CaseWizardController extends AbstractController
         private readonly ClaimInterestAggregator $accessoryAggregator,
         private readonly AuditLogService $auditLog,
         private readonly MessageBusInterface $bus,
+        private readonly AccessoryComputabilityChecker $accessoryChecker,
         private readonly float $confidenceThreshold = self::DEFAULT_REVIEW_THRESHOLD,
         private readonly LoggerInterface $logger = new NullLogger(),
         private readonly ?AnafLookupService $anafLookup = null,
@@ -403,34 +405,6 @@ final class CaseWizardController extends AbstractController
         }
 
         return $changed;
-    }
-
-    /**
-     * An accessory the calculator refused would leave the acts without it unseen,
-     * so its reason is shown to the lawyer.
-     *
-     * @param array<string, mixed> $calculations
-     * @return list<AdmissibilityIssue>
-     */
-    private function undeterminedAccessoryIssues(array $calculations): array
-    {
-        $reasons = [];
-        $perItem = $calculations['accessoryPerItem'] ?? null;
-        if ($perItem instanceof AggregatedAccessoryResult) {
-            $reasons = array_values($perItem->skipReasonByItemId);
-        }
-        if (is_string($calculations['interestFailure'] ?? null)) {
-            $reasons[] = $calculations['interestFailure'];
-        }
-
-        $issues = [];
-        foreach (array_unique($reasons) as $reason) {
-            if (str_starts_with($reason, 'exception.calculation.')) {
-                $issues[] = new AdmissibilityIssue(IssueSeverity::WARNING, 'OP_ACCESSORY_UNDETERMINED', $reason);
-            }
-        }
-
-        return $issues;
     }
 
     /**
@@ -1626,7 +1600,9 @@ final class CaseWizardController extends AbstractController
         $issues = [
             ...$this->admissibility->validate($skeleton, $now),
             ...$this->admissibility->validateClaimRows($claimRows),
-            ...$this->undeterminedAccessoryIssues($calculations),
+            // Blocking: the summons cannot be generated for such a claim, and a
+            // saved case's positions can no longer be corrected.
+            ...$this->accessoryChecker->issues($skeleton, $this->accessoryReferenceDate($claimDto)),
         ];
         ['errors' => $errors, 'warnings' => $warnings] = $this->splitIssues($issues);
         $hasErrors = $errors !== [];
@@ -2330,12 +2306,11 @@ final class CaseWizardController extends AbstractController
         $now = $this->accessoryReferenceDate($claim);
 
         // Accessory routing: contractual penalty (daily rate) vs. legal penalty
-        // interest (OG 13/2011, BNR + 8). Both feed the same `calculatedInterest`
+        // interest (OG 13/2011, NBR + 4 or + 8 by contract date). Both feed the same `calculatedInterest`
         // slot at persist; the document recomputes from penaltyType at render.
         $interest = null;
         $penalty = null;
         $accessoryTotal = 0.0;
-        $interestFailure = null;
 
         if ($claim->penaltyType === PenaltyType::CONTRACTUAL && $claim->contractualPenaltyRate !== null) {
             $penalty = $this->penaltyCalculator->calculate(
@@ -2359,7 +2334,6 @@ final class CaseWizardController extends AbstractController
             } catch (\DomainException|\RuntimeException $e) {
                 $this->logger->info('wizard.calc.interest_failed', ['reason' => $e->getMessage()]);
                 $interest = null;
-                $interestFailure = $e->getMessage();
             }
         }
 
@@ -2388,7 +2362,7 @@ final class CaseWizardController extends AbstractController
             $court = null;
         }
 
-        return ['interest' => $interest, 'penalty' => $penalty, 'accessoryTotal' => $accessoryTotal, 'stampDuty' => $this->safeStampDuty(), 'court' => $court, 'conversion' => $conversion, 'accessoryPerItem' => null, 'claimItems' => [], 'principal' => $principal, 'interestFailure' => $interestFailure];
+        return ['interest' => $interest, 'penalty' => $penalty, 'accessoryTotal' => $accessoryTotal, 'stampDuty' => $this->safeStampDuty(), 'court' => $court, 'conversion' => $conversion, 'accessoryPerItem' => null, 'claimItems' => [], 'principal' => $principal];
     }
 
     /**

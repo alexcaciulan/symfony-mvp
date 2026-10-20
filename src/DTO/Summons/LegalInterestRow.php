@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\DTO\Summons;
 
+use App\Enum\ProfessionalPenaltyMargin;
+
 /**
  * One NBR-rate interval of one document in the legal-interest table.
  *
@@ -23,5 +25,6 @@ final readonly class LegalInterestRow
         public float $nbrRate,
         public float $applicableRate,
         public float $interest,
+        public ?ProfessionalPenaltyMargin $margin,
     ) {}
 }

@@ -67,7 +67,7 @@
 
 <p>{{ 'pdf.summons.summary_intro'|trans({'%debtor%': debtor ? debtor.name : '', '%total%': grandTotal|number_format(2, ',', '.')}) }}</p>
 {% include 'pdf/summons/_composition.html.twig' with {terminator: '.'} %}
-<p>{% if isContractual %}{{ 'pdf.summons.continues_contractual'|trans({'%label%': label}) }}{% else %}{{ 'pdf.summons.continues_legal'|trans }}{% endif %}</p>
+<p>{% if contractualPenaltiesCapped %}{{ 'pdf.summons.continues_contractual_capped'|trans({'%label%': label, '%cap%': case.contractualPenaltyCapPercent|percent_number}) }}{% elseif isContractual %}{{ 'pdf.summons.continues_contractual'|trans({'%label%': label}) }}{% else %}{{ 'pdf.summons.continues_legal'|trans }}{% endif %}</p>
 
 {% include 'pdf/summons/_section_principal.html.twig' %}
 

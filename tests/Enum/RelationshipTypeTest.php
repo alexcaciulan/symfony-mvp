@@ -3,6 +3,7 @@
 namespace App\Tests\Enum;
 
 use App\Enum\InterestKind;
+use App\Enum\ProfessionalPenaltyMargin;
 use App\Enum\RelationshipType;
 use PHPUnit\Framework\TestCase;
 
@@ -24,7 +25,15 @@ class RelationshipTypeTest extends TestCase
     {
         $this->assertSame(
             14.0,
-            RelationshipType::COMERCIAL->applicableRate(6.0, InterestKind::PENALIZATOARE),
+            RelationshipType::COMERCIAL->applicableRate(6.0, InterestKind::PENALIZATOARE, ProfessionalPenaltyMargin::OG_ART_3_PARA_2_1),
+        );
+    }
+
+    public function testCommercialPenalizatoareRateUnderAContractBeforeLaw72Of2013IsBnrPlusFour(): void
+    {
+        $this->assertSame(
+            10.0,
+            RelationshipType::COMERCIAL->applicableRate(6.0, InterestKind::PENALIZATOARE, ProfessionalPenaltyMargin::OG_ART_3_PARA_2),
         );
     }
 
@@ -32,7 +41,7 @@ class RelationshipTypeTest extends TestCase
     {
         $this->assertSame(
             6.0,
-            RelationshipType::COMERCIAL->applicableRate(6.0, InterestKind::REMUNERATORIE),
+            RelationshipType::COMERCIAL->applicableRate(6.0, InterestKind::REMUNERATORIE, ProfessionalPenaltyMargin::OG_ART_3_PARA_2_1),
         );
     }
 
@@ -41,7 +50,7 @@ class RelationshipTypeTest extends TestCase
         $this->expectException(\DomainException::class);
         $this->expectExceptionMessageMatches('/B2B exclusiv/');
 
-        RelationshipType::CIVIL->applicableRate(6.0, InterestKind::PENALIZATOARE);
+        RelationshipType::CIVIL->applicableRate(6.0, InterestKind::PENALIZATOARE, ProfessionalPenaltyMargin::OG_ART_3_PARA_2_1);
     }
 
     public function testCivilRemuneratorieThrowsDomainException(): void
@@ -49,7 +58,7 @@ class RelationshipTypeTest extends TestCase
         $this->expectException(\DomainException::class);
         $this->expectExceptionMessageMatches('/B2B exclusiv/');
 
-        RelationshipType::CIVIL->applicableRate(6.0, InterestKind::REMUNERATORIE);
+        RelationshipType::CIVIL->applicableRate(6.0, InterestKind::REMUNERATORIE, ProfessionalPenaltyMargin::OG_ART_3_PARA_2_1);
     }
 
     public function testCanCreateFromValue(): void

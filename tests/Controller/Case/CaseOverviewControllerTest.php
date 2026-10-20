@@ -675,6 +675,22 @@ final class CaseOverviewControllerTest extends WebTestCase
         self::assertCount(0, $crawler->filter('[data-testid="overview-penalty-breakdown"]'));
     }
 
+    public function testKpiHintStatesTheMarginTheContractCarries(): void
+    {
+        $this->enrichCase();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+        self::assertSelectorTextContains('#case-kpi-grid', 'BNR + 8 pp');
+
+        // A contract concluded before Law 72/2013 keeps the 4 pp margin.
+        $this->case->setContractDate(new \DateTime('2012-05-10'));
+        $this->em->flush();
+
+        $this->client->request('GET', '/case/' . $this->case->getId());
+        self::assertSelectorTextContains('#case-kpi-grid', 'BNR + 4 pp');
+    }
+
     public function testDetaliiCourtSummaryFallbackWhenNull(): void
     {
         // No enrichCase — base setup case has no court.

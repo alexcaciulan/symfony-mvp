@@ -6,20 +6,12 @@ use App\DTO\Calculation\InterestPeriod;
 use App\DTO\Calculation\InterestResult;
 use App\Entity\InterestRateConfig;
 use App\Enum\InterestKind;
+use App\Enum\ProfessionalPenaltyMargin;
 use App\Enum\RelationshipType;
 use App\Repository\InterestRateConfigRepository;
 
 final class InterestCalculatorService
 {
-    /**
-     * The +8 pp margin between professionals (OG 13/2011 art. 3 para. 2^1) came
-     * with Law 72/2013, in force from this date and only for contracts concluded
-     * after it; before, the margin was 4 pp. A claim due earlier rests on an
-     * older contract, and so does one whose contract date is known to be
-     * earlier: the rate this service applies would overstate either.
-     */
-    private const PROFESSIONAL_MARGIN_IN_FORCE = '2013-04-05';
-
     public function __construct(
         private InterestRateConfigRepository $rateRepository,
     ) {}
@@ -46,17 +38,9 @@ final class InterestCalculatorService
             return new InterestResult(0.0, [], $dueDate, $referenceDate, $invoiceDate);
         }
 
-        $marginInForce = new \DateTimeImmutable(self::PROFESSIONAL_MARGIN_IN_FORCE);
-        if ($relationshipType === RelationshipType::COMERCIAL && $kind === InterestKind::PENALIZATOARE) {
-            if ($dueDate < $marginInForce) {
-                throw new \RuntimeException('exception.calculation.before_professional_margin');
-            }
-            // The law applies by the date the contract was concluded, so a
-            // later invoice under an older contract is caught here.
-            if ($contractDate !== null && $this->normalize($contractDate) < $marginInForce) {
-                throw new \RuntimeException('exception.calculation.contract_before_professional_margin');
-            }
-        }
+        // Between professionals the margin follows the contract (Law 72/2013
+        // art. 21): +4 pp for one concluded before 05.04.2013, +8 pp after.
+        $margin = ProfessionalPenaltyMargin::forClaim($dueDate, $contractDate);
 
         $configs = $this->rateRepository->findAllValidUpTo($referenceDate);
 
@@ -76,12 +60,12 @@ final class InterestCalculatorService
 
         foreach ($changes as $change) {
             $periodEnd = $this->normalize($change->getValidFrom());
-            $periods[] = $this->buildPeriod($amount, $currentStart, $periodEnd, $currentNbrRate, $relationshipType, $kind);
+            $periods[] = $this->buildPeriod($amount, $currentStart, $periodEnd, $currentNbrRate, $relationshipType, $kind, $margin);
             $currentStart = $periodEnd;
             $currentNbrRate = (float) $change->getReferenceRate();
         }
 
-        $periods[] = $this->buildPeriod($amount, $currentStart, $referenceDate, $currentNbrRate, $relationshipType, $kind);
+        $periods[] = $this->buildPeriod($amount, $currentStart, $referenceDate, $currentNbrRate, $relationshipType, $kind, $margin);
 
         $total = array_sum(array_map(fn(InterestPeriod $p) => $p->periodInterest, $periods));
 
@@ -95,12 +79,13 @@ final class InterestCalculatorService
         float $nbrRate,
         RelationshipType $relationshipType,
         InterestKind $kind,
+        ProfessionalPenaltyMargin $margin,
     ): InterestPeriod {
         // Z+1 is implicit in diff(): with start = dueDate the count covers the
         // half-open interval (dueDate, end], i.e. day after due date through end
         // inclusive (art. 1535 NCC); segments telescope to diff(dueDate, refDate).
         $days = (int) $start->diff($end)->days;
-        $applicableRate = $relationshipType->applicableRate($nbrRate, $kind);
+        $applicableRate = $relationshipType->applicableRate($nbrRate, $kind, $margin);
         $periodInterest = $amount * ($applicableRate / 100.0) * $days / 365.0;
 
         return new InterestPeriod(
@@ -110,6 +95,7 @@ final class InterestCalculatorService
             applicableRate: $applicableRate,
             days: $days,
             periodInterest: $periodInterest,
+            margin: $kind === InterestKind::PENALIZATOARE ? $margin : null,
         );
     }
 

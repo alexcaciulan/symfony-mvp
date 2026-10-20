@@ -2,7 +2,7 @@
 <p class="somam">{{ 'pdf.summons.closing.somam'|trans }}</p>
 <p>{{ 'pdf.summons.closing.demand'|trans({'%total%': grandTotal|number_format(2, ',', '.')}) }}</p>
 {% include 'pdf/summons/_composition.html.twig' with {terminator: ','} %}
-<p>{% if isContractual %}{{ 'pdf.summons.closing.plus_contractual'|trans({'%label%': label}) }}{% else %}{{ 'pdf.summons.closing.plus_legal'|trans }}{% endif %}</p>
+<p>{% if contractualPenaltiesCapped %}{{ 'pdf.summons.closing.plus_contractual_capped'|trans({'%label%': label}) }}{% elseif isContractual %}{{ 'pdf.summons.closing.plus_contractual'|trans({'%label%': label}) }}{% else %}{{ 'pdf.summons.closing.plus_legal'|trans }}{% endif %}</p>
 
 {# Only when the platform holds the creditor's account. #}
 {% if creditor and creditor.iban %}
@@ -15,7 +15,7 @@
     </p>
 {% endif %}
 
-<p>{{ (isContractual ? 'pdf.summons.closing.court_contractual' : 'pdf.summons.closing.court_legal')|trans }}</p>
+<p>{{ (contractualPenaltiesCapped ? 'pdf.summons.closing.court_contractual_capped' : (isContractual ? 'pdf.summons.closing.court_contractual' : 'pdf.summons.closing.court_legal'))|trans }}</p>
 <p>{{ 'pdf.summons.closing.enforcement'|trans }}</p>
 <p>{{ 'pdf.summons.closing.prior_procedure'|trans }}</p>
 

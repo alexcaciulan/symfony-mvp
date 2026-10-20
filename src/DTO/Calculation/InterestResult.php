@@ -2,6 +2,8 @@
 
 namespace App\DTO\Calculation;
 
+use App\Enum\ProfessionalPenaltyMargin;
+
 final readonly class InterestResult
 {
     /**
@@ -18,4 +20,13 @@ final readonly class InterestResult
         public \DateTimeImmutable $referenceDate,
         public ?\DateTimeImmutable $invoiceDate = null,
     ) {}
+
+    /**
+     * The margin applied over the NBR rate. One per result: it follows the
+     * contract, so every period of a claim carries the same one.
+     */
+    public function margin(): ?ProfessionalPenaltyMargin
+    {
+        return ($this->breakdown[0] ?? null)?->margin;
+    }
 }

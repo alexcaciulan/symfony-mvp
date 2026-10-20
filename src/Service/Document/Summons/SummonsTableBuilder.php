@@ -168,6 +168,7 @@ final class SummonsTableBuilder
                 nbrRate: $period->nbrRate,
                 applicableRate: $period->applicableRate,
                 interest: $period->periodInterest,
+                margin: $period->margin,
             );
         }
 

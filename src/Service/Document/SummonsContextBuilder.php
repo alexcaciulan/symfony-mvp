@@ -92,6 +92,10 @@ final class SummonsContextBuilder
             'penaltyType' => $penaltyType,
             'isContractual' => $isContractual,
             'summonsTables' => $tables,
+            // Once every position has hit the contract's ceiling nothing more
+            // accrues, so the notice must not say the accessories keep running.
+            'contractualPenaltiesCapped' => $isContractual
+                && $this->allPenaltiesCapped($itemAccessories, $penaltyResult),
             // The statutory branch has its own fixed wording; only the
             // contractual one names the accessory as the contract does.
             'accessoryLabel' => $isContractual
@@ -167,6 +171,30 @@ final class SummonsContextBuilder
 
             return null;
         }
+    }
+
+    /**
+     * True only when every position that can accrue a penalty has reached the
+     * ceiling. A position left out (no due date yet) or one still under the
+     * ceiling keeps accruing, and then the notice keeps its general wording.
+     */
+    private function allPenaltiesCapped(?AggregatedAccessoryResult $perItem, ?PenaltyResult $single): bool
+    {
+        if ($perItem === null || $perItem->isEmpty()) {
+            return $single !== null && $single->isCapped();
+        }
+
+        if ($perItem->penaltyByItemId === [] || $perItem->skippedItemIds !== []) {
+            return false;
+        }
+
+        foreach ($perItem->penaltyByItemId as $penalty) {
+            if (!$penalty->isCapped()) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function aggregator(): ClaimInterestAggregator

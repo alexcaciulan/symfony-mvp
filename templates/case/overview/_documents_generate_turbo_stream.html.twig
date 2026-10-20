@@ -49,7 +49,7 @@
 
 <turbo-stream action="append" target="toasts">
     <template>
-        {% include 'components/Toast.html.twig' with { message: toast_key|trans, variant: toast_variant, details: [] } only %}
+        {% include 'components/Toast.html.twig' with { message: toast_key|trans, variant: toast_variant, details: toast_details|default([]) } only %}
     </template>
 </turbo-stream>
 

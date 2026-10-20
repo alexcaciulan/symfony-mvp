@@ -143,8 +143,9 @@ class LegalCase
     private ?string $stampDutyLawVersion = null;
 
     /**
-     * Modul de calcul al accesoriilor pentru somație. Fallback la render:
-     * {@see PenaltyType::LEGAL_PENALIZATOARE} (dobândă legală BNR + 8).
+     * How the summons accessories are computed. Falls back at render to
+     * {@see PenaltyType::LEGAL_PENALIZATOARE} (legal interest, NBR + the
+     * contract's margin, see {@see \App\Enum\ProfessionalPenaltyMargin}).
      */
     #[ORM\Column(length: 30, nullable: true, enumType: PenaltyType::class)]
     private ?PenaltyType $penaltyType = null;
