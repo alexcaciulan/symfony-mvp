@@ -379,8 +379,10 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
 
         $this->client->request('POST', '/case/new/debtor', $post);
         self::assertResponseStatusCodeSame(422);
-        self::assertSelectorExists('input[name="library_debtor_choice[0]"][value="library"]');
-        self::assertSelectorNotExists('input[name="library_debtor_choice[0]"][value="update"]');
+        self::assertSelectorExists('input[type="hidden"][name="library_debtor_choice[0]"][value="library"]', 'one outcome left, nothing to choose');
+        self::assertSelectorNotExists('input[type="radio"][name="library_debtor_choice[0]"]');
+        self::assertSelectorTextContains('[data-testid="library-differs"]', 'așa cum sunt acolo');
+        self::assertSelectorTextNotContains('[data-testid="library-differs"]', 'alege ce date rămân');
 
         $this->client->request('POST', '/case/new/debtor', $post + ['library_debtor_choice' => [0 => 'update']]);
         self::assertResponseStatusCodeSame(422, 'a forged update choice is not accepted');
@@ -1399,7 +1401,9 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
 
         $this->postCreditorStep($fields);
         self::assertResponseStatusCodeSame(422);
-        self::assertSelectorExists('[data-testid="creditor-library-differs"] input[name="library_creditor_choice"][value="update"]');
+        self::assertSelectorExists('[data-testid="creditor-library-differs"] input[type="radio"][name="library_creditor_choice"][value="library"]');
+        self::assertSelectorExists('[data-testid="creditor-library-differs"] input[type="radio"][name="library_creditor_choice"][value="update"]');
+        self::assertSelectorTextContains('[data-testid="creditor-library-differs"]', 'alege ce date rămân');
 
         $this->postCreditorStepWithChoice($fields, 'update');
         self::assertResponseRedirects('/case/new/debtor');
@@ -1462,10 +1466,38 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
             'address' => 'Str. Nouă nr. 1, București',
         ];
 
-        $this->postCreditorStepWithChoice($fields, 'update');
+        $this->postCreditorStep($fields);
+        self::assertResponseStatusCodeSame(422);
+        self::assertSelectorExists('[data-testid="creditor-library-differs"] input[type="hidden"][name="library_creditor_choice"][value="library"]', 'one outcome left, nothing to choose');
+        self::assertSelectorNotExists('input[type="radio"][name="library_creditor_choice"]');
+        self::assertSelectorTextContains('[data-testid="creditor-library-differs"]', 'așa cum sunt acolo');
+        self::assertSelectorTextNotContains('[data-testid="creditor-library-differs"]', 'alege ce date rămân');
 
+        $this->postCreditorStepWithChoice($fields, 'update');
         self::assertResponseStatusCodeSame(422, 'a forged update choice is not accepted');
         self::assertSelectorNotExists('input[name="library_creditor_choice"][value="update"]');
+
+        $this->postCreditorStepWithChoice($fields, 'library');
+        self::assertResponseRedirects('/case/new/debtor');
+        $dto = $this->storedCreditorDto();
+        self::assertSame($existing->getId(), $dto->creditorId);
+        self::assertSame('Str. Veche nr. 9, Cluj-Napoca', $dto->address, 'the library data is taken as it stands');
+    }
+
+    public function testABucharestSeatWrittenWithoutCityAndSectorIsLinkedWithoutAsking(): void
+    {
+        $existing = $this->libraryCreditor('Raiffeisen Leasing IFN S.A.', 'RO14186770', 'Bucuresti, Calea Floreasca nr. 246C, Etaj 15, Sector 1');
+
+        $this->postCreditorStep([
+            'personType' => PersonType::PJ->value,
+            'name' => 'RAIFFEISEN LEASING IFN SA',
+            'cui' => '14186770',
+            'onrcNumber' => 'J40/1234/2018',
+            'address' => 'CALEA FLOREASCA NR. 246C, ET.15',
+        ]);
+
+        self::assertResponseRedirects('/case/new/debtor', null, 'the same seat in another spelling is not a conflict');
+        self::assertSame($existing->getId(), $this->storedCreditorDto()->creditorId);
     }
 
     public function testACreditorTypedWithTheLibraryDataIsLinkedWithoutAsking(): void

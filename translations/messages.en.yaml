@@ -267,6 +267,7 @@ wizard:
         library:
             recheck: 'Meanwhile, the creditor was added to your library with other data than this step holds. Continue and choose which data the case keeps.'
             differs_title: 'Your library already holds the creditor %name%, with the same tax ID and other data. The case will use the library creditor: choose which data stands.'
+            differs_title_locked: 'Your library already holds the creditor %name%, with the same tax ID and other data. The case will use the library data as it stands. Press Continue to go on.'
             differs_use_library: 'Use the library data. The creditor''s empty fields are filled from this step (county and locality only when the address is the same), and the fill is recorded in the history of the cases naming it.'
             differs_update: 'Update the library creditor with this step''s data. The change is recorded in the history of the cases naming it, and payment order petitions generated from now on in them will use the new data.'
             differs_update_refused: 'The creditor already appears in a case whose summons was sent, so its library data is not updated from here. If it changed, correct it from the creditor library.'
@@ -315,6 +316,7 @@ wizard:
             unpick: 'Cancel'
             badge: 'From the library'
             differs_title: 'Your library already holds %name%, with the same tax ID and other data. The case will use the library company: choose which data stands.'
+            differs_title_locked: 'Your library already holds %name%, with the same tax ID and other data. The case will use the library data as it stands. Press Continue to go on.'
             differs_update_refused: 'The company has already been summoned in a case, so its library data is not updated from here. If it changed, correct it from the debtor library: the change is recorded on each case, and you confirm you saw it when generating the payment order petition.'
             differs_library: 'In the library'
             differs_step: 'In this step'

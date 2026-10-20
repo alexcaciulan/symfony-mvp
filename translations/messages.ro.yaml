@@ -266,6 +266,7 @@ wizard:
         library:
             recheck: 'Între timp, creditorul a fost adăugat în biblioteca ta, cu alte date decât cele din acest pas. Continuă și alege ce date rămân în dosar.'
             differs_title: 'Ai deja în bibliotecă creditorul %name%, cu același CUI și cu alte date. Dosarul va folosi creditorul din bibliotecă: alege ce date rămân.'
+            differs_title_locked: 'Ai deja în bibliotecă creditorul %name%, cu același CUI și cu alte date. Dosarul va folosi datele din bibliotecă, așa cum sunt acolo. Apasă Continuă pentru a merge mai departe.'
             differs_use_library: 'Folosește datele din bibliotecă. Câmpurile goale ale creditorului se completează din acest pas (județul și localitatea doar dacă adresa e aceeași), iar completarea se notează în istoricul dosarelor în care apare.'
             differs_update: 'Actualizează creditorul din bibliotecă cu datele din acest pas. Schimbarea se notează în istoricul dosarelor în care apare, iar cererile de ordonanță generate de acum în ele vor folosi noile date.'
             differs_update_refused: 'Creditorul apare deja într-un dosar în care s-a trimis somația, deci datele lui din bibliotecă nu se actualizează de aici. Dacă s-au schimbat, corectează-le din biblioteca de creditori.'
@@ -314,6 +315,7 @@ wizard:
             unpick: 'Renunță'
             badge: 'Din bibliotecă'
             differs_title: 'Ai deja în bibliotecă firma %name%, cu același CUI și cu alte date. Dosarul va folosi firma din bibliotecă: alege ce date rămân.'
+            differs_title_locked: 'Ai deja în bibliotecă firma %name%, cu același CUI și cu alte date. Dosarul va folosi datele din bibliotecă, așa cum sunt acolo. Apasă Continuă pentru a merge mai departe.'
             differs_update_refused: 'Firma a fost deja somată într-un dosar, deci datele ei din bibliotecă nu se actualizează de aici. Dacă s-au schimbat, corectează-le din biblioteca de debitori: modificarea se notează în fiecare dosar, iar la generarea cererii de ordonanță vei confirma că ai văzut-o.'
             differs_library: 'În bibliotecă'
             differs_step: 'În acest pas'
