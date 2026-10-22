@@ -16,6 +16,7 @@ use App\Security\Voter\CaseVoter;
 use App\Service\Case\DebtorSeatCourtCheck;
 use App\Service\AuditLogService;
 use App\Service\Case\CaseWorkflowService;
+use App\Service\Case\FilingReadinessChecker;
 use App\Service\Case\OverviewContextBuilder;
 use App\Service\Deadline\DeadlineService;
 use App\Service\Document\CaseFilesPackager;
@@ -54,6 +55,7 @@ final class CasePaymentOrderController extends AbstractController
         private readonly EntityManagerInterface $em,
         private readonly OpAdmissibilityValidator $admissibility,
         private readonly DebtorSeatCourtCheck $seatCheck,
+        private readonly FilingReadinessChecker $filingReadiness,
     ) {}
 
     #[Route('/case/{id}/payment-order/generate', name: 'case_payment_order_generate', requirements: ['id' => '\d+'], methods: ['POST'])]
@@ -144,6 +146,15 @@ final class CasePaymentOrderController extends AbstractController
             }
         }
 
+        // Pieces the package must carry: the power of attorney with its date and a
+        // document the claim rests on. Product rules rather than admissibility
+        // conditions, repeated here because the dialog only mirrors them.
+        $readiness = $this->filingReadiness->check($case);
+        $blocker = $readiness->firstBlocker();
+        if ($blocker !== null) {
+            return $this->respond($request, $case, false, 'error', 'case_overview.payment_order.flash_error_' . $blocker->code->value);
+        }
+
         $user = $this->getUser();
         if ($user !== null) {
             $limiter = $paymentOrderGenerationLimiter->create($user->getUserIdentifier());
@@ -152,7 +163,7 @@ final class CasePaymentOrderController extends AbstractController
             }
         }
 
-        $this->em->wrapInTransaction(function () use ($case, $debitStatus, $courtNowPointedTo, $changesSinceSummons, $creditorChangesSinceSummons): void {
+        $this->em->wrapInTransaction(function () use ($case, $debitStatus, $courtNowPointedTo, $changesSinceSummons, $creditorChangesSinceSummons, $readiness): void {
             $case->setDebitAcknowledgedStatus($debitStatus);
             $case->setOpGenerationConsent(true);
 
@@ -172,6 +183,7 @@ final class CasePaymentOrderController extends AbstractController
                     'opisDocumentId' => $opis->getId(),
                     'debitAcknowledgedStatus' => $debitStatus->value,
                     'opGenerationConsent' => true,
+                    'filingWarnings' => $readiness->warningCodes(),
                     'debtorChangesAcknowledged' => $courtNowPointedTo === null && $changesSinceSummons === [] && $creditorChangesSinceSummons === [] ? null : [
                         'caseCourt' => $case->getCourt()?->getName(),
                         'courtPointedToBySeat' => $courtNowPointedTo?->getName(),
@@ -251,6 +263,18 @@ final class CasePaymentOrderController extends AbstractController
             $this->addFlash('error', 'case_overview.zip_package.flash_error_missing_communication_proof');
 
             return $this->redirectToRoute('case_overview', ['id' => $id]);
+        }
+
+        // Same pieces as at generation, while the package has not gone out yet. The
+        // admin status override reaches this point without passing generation. Once
+        // filed, the package is the record of what was sent and stays downloadable.
+        if ($case->getStatus() === CaseStatus::CERERE_GENERATA) {
+            $blocker = $this->filingReadiness->check($case)->firstBlocker();
+            if ($blocker !== null) {
+                $this->addFlash('error', 'case_overview.zip_package.flash_error_' . $blocker->code->value);
+
+                return $this->redirectToRoute('case_overview', ['id' => $id]);
+            }
         }
 
         // The index lists the annexes, and annexes can still be added while the case

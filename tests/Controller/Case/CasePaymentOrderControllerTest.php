@@ -204,6 +204,63 @@ final class CasePaymentOrderControllerTest extends WebTestCase
     }
 
     /**
+     * The pieces the filing check asks for besides the proof of service: a dated power
+     * of attorney and a document the claim rests on. Attached in every test that
+     * expects the package to be produced; the check has its own tests below.
+     */
+    private function attachFilingPieces(?\DateTimeImmutable $powerOfAttorneyDate = new \DateTimeImmutable('2026-01-15')): void
+    {
+        $this->attachPowerOfAttorney($powerOfAttorneyDate);
+        $this->attachInvoice();
+    }
+
+    private function attachPowerOfAttorney(?\DateTimeImmutable $date = new \DateTimeImmutable('2026-01-15')): Document
+    {
+        return $this->attachFile(DocumentType::IMPUTERNICIRE_AVOCATIALA, 'imputernicire.pdf', static function (Document $doc) use ($date): void {
+            $doc->setPowerOfAttorneySeries('B');
+            $doc->setPowerOfAttorneyNumber('1234');
+            $doc->setPowerOfAttorneyDate($date);
+        });
+    }
+
+    private function attachInvoice(): Document
+    {
+        return $this->attachFile(DocumentType::FACTURA, 'factura.pdf');
+    }
+
+    private function attachContract(): Document
+    {
+        return $this->attachFile(DocumentType::CONTRACT, 'contract.pdf');
+    }
+
+    private function attachFile(DocumentType $type, string $filename, ?callable $configure = null): Document
+    {
+        $caseDir = $this->uploadsDir . '/cases/' . $this->case->getId();
+        if (!is_dir($caseDir)) {
+            mkdir($caseDir, 0755, true);
+        }
+        $storedFile = 'cases/' . $this->case->getId() . '/' . $filename;
+        file_put_contents($this->uploadsDir . '/' . $storedFile, '%PDF-1.4 mock ' . $type->value);
+
+        $doc = new Document();
+        $doc->setLegalCase($this->case);
+        $doc->setDocumentType($type);
+        $doc->setOriginalFilename($filename);
+        $doc->setStoredFilename($storedFile);
+        $doc->setFileSize(20);
+        $doc->setMimeType('application/pdf');
+        $doc->setUploadedBy($this->user);
+        if ($configure !== null) {
+            $configure($doc);
+        }
+        $this->em->persist($doc);
+        $this->em->flush();
+        $this->case->getDocuments()->add($doc);
+
+        return $doc;
+    }
+
+    /**
      * CPC art. 197: proof of the stamp duty is attached to the petition, and failing
      * to stamp it annuls the claim. So an unpaid duty must stop the filing package
      * from being produced at all.
@@ -240,6 +297,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
      */
     public function testGenerateIsAllowedWhenStampDutyIsDeferredToRegularization(): void
     {
+        $this->attachFilingPieces();
         $this->attachCommunicationProof();
         $this->attachSomatieFile();
         $this->case->setStampDutyStatus(StampDutyStatus::AMANATA_REGULARIZARE);
@@ -421,6 +479,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
      */
     public function testTheFilingGoesThroughOnceTheProofIsUploaded(): void
     {
+        $this->attachFilingPieces();
         $this->attachSomatieFile();
         $this->client->loginUser($this->user);
 
@@ -495,6 +554,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
      */
     public function testAlreadyGeneratedCaseIsNotReportedAsMissingTheProof(): void
     {
+        $this->attachFilingPieces();
         $this->attachSomatieFile();
         $this->attachCommunicationProof();
         $this->client->loginUser($this->user);
@@ -547,6 +607,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
      */
     public function testGenerateWaitsForAConfirmationWhenTheDebtorNowSitsUnderAnotherCourt(): void
     {
+        $this->attachFilingPieces();
         $town = 'Orastest' . strtolower(substr(md5(uniqid()), 0, 6));
         $county = $this->createCounty($this->em, 'Cluj');
         $city = (new City())->setCounty($county)->setName($town)->setNormalizedName(LocalityNormalizer::normalize($town) ?? $town);
@@ -579,6 +640,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
 
     public function testGenerateShowsWhatChangedInTheDebtorSinceTheSummons(): void
     {
+        $this->attachFilingPieces();
         $this->attachCommunicationProof();
         $this->attachSomatieFile();
         static::getContainer()->get(AuditLogService::class)->log(
@@ -604,6 +666,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
 
     public function testAChangeMadeBeforeTheSummonsOnTheSameDayIsNotReported(): void
     {
+        $this->attachFilingPieces();
         $this->attachCommunicationProof();
         $this->attachSomatieFile();
         $audit = static::getContainer()->get(AuditLogService::class);
@@ -635,6 +698,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
 
     public function testGenerateAsksAboutTheCreditorChangedSinceTheSummons(): void
     {
+        $this->attachFilingPieces();
         $this->attachCommunicationProof();
         $this->attachSomatieFile();
         static::getContainer()->get(AuditLogService::class)->log(
@@ -668,6 +732,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
 
     public function testGenerateHappyPathTransitionsToCerereGenerata(): void
     {
+        $this->attachFilingPieces();
         $this->attachCommunicationProof();
         $this->attachSomatieFile();
         $this->client->loginUser($this->user);
@@ -707,6 +772,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
 
     public function testGenerateRespondsWithTurboStream(): void
     {
+        $this->attachFilingPieces();
         $this->attachCommunicationProof();
         $this->attachSomatieFile();
         $this->client->loginUser($this->user);
@@ -867,6 +933,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
 
     public function testGenerateIdempotentWhenAlreadyExists(): void
     {
+        $this->attachFilingPieces();
         $this->attachCommunicationProof();
         $this->attachSomatieFile();
         $this->client->loginUser($this->user);
@@ -934,6 +1001,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
 
     public function testDownloadZipHappyPath(): void
     {
+        $this->attachFilingPieces();
         $this->attachCommunicationProof();
         $this->attachSomatieFile();
         $this->client->loginUser($this->user);
@@ -974,6 +1042,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
      */
     public function testDownloadZipRefusesWithoutTheProofOfService(): void
     {
+        $this->attachFilingPieces();
         $this->attachCommunicationProof();
         $this->attachSomatieFile();
         $this->client->loginUser($this->user);
@@ -1001,6 +1070,127 @@ final class CasePaymentOrderControllerTest extends WebTestCase
         // same place, so asserting the status alone would pass for the wrong reason.
         self::assertSame(
             ['case_overview.zip_package.flash_error_missing_communication_proof'],
+            $this->client->getRequest()->getSession()->getFlashBag()->peek('error'),
+        );
+    }
+
+    /**
+     * Posts the generation as a Turbo client and returns the decoded body.
+     */
+    private function generateAsTurbo(): string
+    {
+        $this->client->loginUser($this->user);
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+        $this->client->request(
+            'POST',
+            '/case/' . $this->case->getId() . '/payment-order/generate',
+            ['_token' => $token, 'debitAcknowledgedStatus' => 'UNPAID', 'opGenerationConsent' => '1'],
+            [],
+            ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html'],
+        );
+        self::assertResponseIsSuccessful();
+
+        return html_entity_decode((string) $this->client->getResponse()->getContent());
+    }
+
+    private function assertRefusedWith(string $body, string $key): void
+    {
+        $translator = static::getContainer()->get(TranslatorInterface::class);
+        self::assertStringContainsString($translator->trans($key), $body);
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame(CaseStatus::SOMATIE_TRIMISA, $refreshed->getStatus());
+        self::assertNull($this->em->getRepository(Document::class)->findOneBy([
+            'legalCase' => $refreshed->getId(),
+            'documentType' => DocumentType::CERERE_OP,
+        ]));
+    }
+
+    public function testGenerateIsRefusedWithoutThePowerOfAttorney(): void
+    {
+        $this->attachCommunicationProof();
+        $this->attachSomatieFile();
+        $this->attachInvoice();
+
+        $this->assertRefusedWith($this->generateAsTurbo(), 'case_overview.payment_order.flash_error_power_of_attorney_missing');
+    }
+
+    public function testGenerateIsRefusedWhenThePowerOfAttorneyHasNoDate(): void
+    {
+        $this->attachCommunicationProof();
+        $this->attachSomatieFile();
+        $this->attachInvoice();
+        $this->attachPowerOfAttorney(null);
+
+        $this->assertRefusedWith($this->generateAsTurbo(), 'case_overview.payment_order.flash_error_power_of_attorney_date_missing');
+    }
+
+    public function testGenerateIsRefusedWithoutADocumentTheClaimRestsOn(): void
+    {
+        $this->attachCommunicationProof();
+        $this->attachSomatieFile();
+        $this->attachPowerOfAttorney();
+        // A generic attachment does not prove the claim.
+        $this->attachFile(DocumentType::ANEXA, 'anexa.pdf');
+
+        $this->assertRefusedWith($this->generateAsTurbo(), 'case_overview.payment_order.flash_error_claim_document_missing');
+    }
+
+    /**
+     * The contract only warns: the claim may rest on accepted invoices alone. The
+     * warning travels with the generation audit so it can be traced afterwards.
+     */
+    public function testGenerateGoesThroughWithoutTheContractAndRecordsTheWarning(): void
+    {
+        $this->attachCommunicationProof();
+        $this->attachSomatieFile();
+        $this->attachFilingPieces();
+
+        $this->generateAsTurbo();
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame(CaseStatus::CERERE_GENERATA, $refreshed->getStatus());
+
+        $audit = $this->em->getRepository(AuditLog::class)->findOneBy([
+            'action' => 'payment_order_generated',
+            'entityId' => (string) $this->case->getId(),
+        ]);
+        self::assertNotNull($audit);
+        self::assertSame(['contract_missing'], $audit->getNewData()['filingWarnings']);
+    }
+
+    /**
+     * The admin status override reaches a generated case without passing the
+     * generation check, so the download repeats it while the package has not gone out.
+     */
+    public function testDownloadZipRefusesAGeneratedCaseWithoutThePowerOfAttorney(): void
+    {
+        $this->attachCommunicationProof();
+        $this->attachSomatieFile();
+        $this->attachFilingPieces();
+        $this->client->loginUser($this->user);
+
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/payment-order/generate', [
+            '_token' => $token,
+            'debitAcknowledgedStatus' => 'UNPAID',
+            'opGenerationConsent' => '1',
+        ]);
+        $this->em->clear();
+        self::assertSame(CaseStatus::CERERE_GENERATA, $this->em->getRepository(LegalCase::class)->find($this->case->getId())->getStatus());
+
+        $this->em->getConnection()->executeStatement(
+            'DELETE FROM document WHERE legal_case_id = ? AND document_type = ?',
+            [$this->case->getId(), DocumentType::IMPUTERNICIRE_AVOCATIALA->value],
+        );
+
+        $this->client->request('GET', '/case/' . $this->case->getId() . '/zip-package/download');
+
+        self::assertResponseRedirects('/case/' . $this->case->getId());
+        self::assertSame(
+            ['case_overview.zip_package.flash_error_power_of_attorney_missing'],
             $this->client->getRequest()->getSession()->getFlashBag()->peek('error'),
         );
     }

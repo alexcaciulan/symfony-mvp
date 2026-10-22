@@ -192,6 +192,9 @@ class SeedDemoCasesCommand extends Command
             if ($idx === 0) {
                 $this->em->persist($this->buildDemoDocument($case, $lawyer, $row));
             }
+            // Every case carries a dated power of attorney, dated before the seeded
+            // summons, so the filing check does not stop the demo on it.
+            $this->em->persist($this->buildDemoPowerOfAttorney($case, $lawyer, $idx, $now));
 
             $created++;
         }
@@ -325,6 +328,23 @@ class SeedDemoCasesCommand extends Command
             ],
             'rawOcrText' => null,
         ]);
+
+        return $document;
+    }
+
+    private function buildDemoPowerOfAttorney(LegalCase $case, User $lawyer, int $idx, \DateTimeImmutable $now): Document
+    {
+        $document = new Document();
+        $document->setLegalCase($case);
+        $document->setDocumentType(DocumentType::IMPUTERNICIRE_AVOCATIALA);
+        $document->setOriginalFilename('demo-imputernicire.pdf');
+        $document->setStoredFilename('cases/demo/demo-imputernicire.pdf');
+        $document->setFileSize(48_000);
+        $document->setMimeType('application/pdf');
+        $document->setUploadedBy($lawyer);
+        $document->setPowerOfAttorneySeries('B');
+        $document->setPowerOfAttorneyNumber(sprintf('%04d', 1001 + $idx));
+        $document->setPowerOfAttorneyDate($now->modify('-40 days')->setTime(0, 0));
 
         return $document;
     }

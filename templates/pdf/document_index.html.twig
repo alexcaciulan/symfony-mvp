@@ -1,6 +1,25 @@
 {# Opis documente — anexă obligatorie a cererii OP (CPC art. 1.017).
    Sortare: SOMATIE → DOVADA_COMUNICARE → restul (vezi OpisGeneratorService::templateContext). #}
 {% set creditor = case.creditor %}
+
+{# The power of attorney is described by its own series, number and date as the
+   lawyer declared them; only the filled parts appear. #}
+{% macro power_of_attorney_label(doc) %}
+    {%- set date = doc.powerOfAttorneyDate ? doc.powerOfAttorneyDate|date('d.m.Y') : null -%}
+    {%- set series = doc.powerOfAttorneySeries -%}
+    {%- set number = doc.powerOfAttorneyNumber -%}
+    {%- if date is null -%}
+        {{- 'pdf.document_index.power_of_attorney.label_only'|trans -}}
+    {%- elseif series and number -%}
+        {{- 'pdf.document_index.power_of_attorney.with_series_number'|trans({'%series%': series, '%number%': number, '%date%': date}) -}}
+    {%- elseif series -%}
+        {{- 'pdf.document_index.power_of_attorney.series_only'|trans({'%series%': series, '%date%': date}) -}}
+    {%- elseif number -%}
+        {{- 'pdf.document_index.power_of_attorney.number_only'|trans({'%number%': number, '%date%': date}) -}}
+    {%- else -%}
+        {{- 'pdf.document_index.power_of_attorney.date_only'|trans({'%date%': date}) -}}
+    {%- endif -%}
+{% endmacro %}
 <!DOCTYPE html>
 <html lang="ro">
 <head>
@@ -59,7 +78,7 @@
             {% for doc in documents %}
                 <tr>
                     <td class="nr">{{ loop.index }}</td>
-                    <td>{{ doc.originalFilename }}
+                    <td>{% if doc.documentType.value == 'imputernicire_avocatiala' %}{{ _self.power_of_attorney_label(doc) }}<div class="meta">{{ doc.originalFilename }}</div>{% else %}{{ doc.originalFilename }}{% endif %}
                         {% set docItems = claim_items_by_document is defined ? (claim_items_by_document[doc.id]|default([])) : [] %}
                         {% if docItems|length > 0 %}
                             {% set labels = [] %}

@@ -6,7 +6,6 @@ namespace App\Service\Case;
 
 use App\DTO\Extraction\ConflictResolution;
 use App\DTO\Extraction\DeduplicationResult;
-use App\DTO\Extraction\DocumentClassification;
 use App\DTO\Extraction\PrefillConflict;
 use App\DTO\Wizard\ClaimItemRow;
 use App\DTO\Wizard\Step3ClaimData;
@@ -35,17 +34,6 @@ use Psr\Log\NullLogger;
  */
 final class ClaimItemFactory
 {
-    /**
-     * Types that state a debt of their own, so each such document contributes a
-     * position. A contract states a price that may never have been invoiced and
-     * a bank statement states payments, so neither produces one.
-     */
-    private const CLAIM_BEARING_TYPES = [
-        DocumentType::FACTURA,
-        DocumentType::CONFIRMARE_SOLD,
-        DocumentType::TITLU_VALOARE,
-    ];
-
     /** Shorter invoice numbers ("12") turn up in any balance text by chance. */
     private const MIN_SUMMARIZED_REFERENCE_LENGTH = 4;
 
@@ -96,7 +84,7 @@ final class ClaimItemFactory
             if ($type === DocumentType::EXTRAS_CONT) {
                 $statements[] = $this->claimDescriptionOf($document);
             }
-            if (!in_array($type, self::CLAIM_BEARING_TYPES, true)) {
+            if ($type === null || !$type->isClaimBearing()) {
                 continue;
             }
 
@@ -598,24 +586,9 @@ final class ClaimItemFactory
         };
     }
 
-    /**
-     * What the lawyer declared, or what the extraction detected when they
-     * declared nothing and the detection was confident enough to be adopted.
-     */
     private function effectiveType(Document $document): ?DocumentType
     {
-        $declared = $document->getDocumentType();
-        if ($declared !== DocumentType::ALT_DOCUMENT) {
-            return $declared;
-        }
-
-        $detected = $document->getDetectedType();
-        $confidence = $document->getDetectedTypeConfidence();
-        if ($detected === null || $confidence === null) {
-            return null;
-        }
-
-        return (float) $confidence > DocumentClassification::ADOPTION_THRESHOLD ? $detected : null;
+        return $document->getEffectiveType();
     }
 
     /**

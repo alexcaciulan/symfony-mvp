@@ -103,6 +103,22 @@ enum DocumentType: string
     }
 
     /**
+     * Types that state a debt of their own: each such document contributes a claim
+     * position at extraction, and the presence of one lets the petition be generated.
+     * A contract states a price that may never have been invoiced and a bank statement
+     * states payments, so neither is in the set; a contract counts toward filing only
+     * next to a counting claim position (FilingReadinessChecker). Generic attachments, proofs,
+     * the power of attorney and the summons documents never count.
+     */
+    public function isClaimBearing(): bool
+    {
+        return match ($this) {
+            self::FACTURA, self::CONFIRMARE_SOLD, self::TITLU_VALOARE => true,
+            default => false,
+        };
+    }
+
+    /**
      * Whether the lawyer may delete an uploaded document of this type. The contract,
      * its addenda and the invoices are the evidence the claim rests on: claim items
      * point at them, and the summons and petition already generated list them, so

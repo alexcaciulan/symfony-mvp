@@ -39,3 +39,13 @@
         {% include 'components/Toast.html.twig' with { message: toast_key|trans, variant: toast_variant, details: [] } only %}
     </template>
 </turbo-stream>
+
+{# Follow-up notices of a successful action, e.g. a power of attorney dated after
+   the summons was generated. #}
+{% for extra in extra_toasts|default([]) %}
+    <turbo-stream action="append" target="toasts">
+        <template>
+            {% include 'components/Toast.html.twig' with { message: extra.key|trans(extra.params), variant: extra.variant, details: [] } only %}
+        </template>
+    </turbo-stream>
+{% endfor %}
