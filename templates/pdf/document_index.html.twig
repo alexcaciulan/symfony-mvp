@@ -84,9 +84,6 @@
     {% if user and user.fullName %}
         <div><strong>{{ user.fullName }}</strong></div>
     {% endif %}
-    {% if user and user.barNumber %}
-        <div class="meta">{{ 'pdf.document_index.bar_number'|trans({'%number%': user.barNumber}) }}</div>
-    {% endif %}
     <div class="meta">{{ 'pdf.document_index.signature_label'|trans }}</div>
 </div>
 

@@ -281,7 +281,7 @@ final class OcrTextExtractionStrategy implements ExtractionStrategyInterface
 Analizează textul OCR al documentului și extrage datele structurate.
 
 CONTEXT JURIDIC: documentul stă la baza unei cereri de ordonanță de plată
-(CPC art. 1013-1024). Identifică ROLURILE PĂRȚILOR FOLOSIND ACEST GLOSAR
+(CPC art. 1014-1025). Identifică ROLURILE PĂRȚILOR FOLOSIND ACEST GLOSAR
 STRICT — niciodată nu inversa rolurile:
 
 CREDITOR (cel care PRETINDE plata, livrează bunul/serviciul, este partea

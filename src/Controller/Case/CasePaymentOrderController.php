@@ -132,7 +132,7 @@ final class CasePaymentOrderController extends AbstractController
 
         // Exigibility is re-checked here and not only at the wizard: this is the
         // boundary where a document leaves for the court. A claim position that is
-        // not yet due makes the petition inadmissible for that sum (CPC art. 1013),
+        // not yet due makes the petition inadmissible for that sum (CPC art. 1014),
         // and a wizard POST cannot be the only thing standing between it and the
         // registry. The debtor-standing rules are deliberately not re-run here:
         // they are a condition of opening the case, already enforced at creation,

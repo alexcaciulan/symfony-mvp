@@ -65,16 +65,6 @@
                     </div>
                 </div>
             </div>
-        {% elseif status.value == 'ACHITARE_LA_DEPUNERE' %}
-            <div class="rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/60 p-3 mb-4">
-                <div class="flex items-start gap-2">
-                    {{ icon_money('size-4 text-blue-600 shrink-0 mt-0.5') }}
-                    <div class="text-xs text-blue-800 dark:text-blue-200">
-                        <p class="font-semibold">{{ 'case_overview.stamp_duty.at_filing_title'|trans }}</p>
-                        <p class="mt-0.5">{{ 'case_overview.stamp_duty.at_filing_body'|trans }}</p>
-                    </div>
-                </div>
-            </div>
         {% elseif status.value == 'AMANATA_REGULARIZARE' %}
             <div class="rounded-lg bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-900/60 p-3 mb-4">
                 <div class="flex items-start gap-2">
@@ -123,17 +113,14 @@
         {% endif %}
 
         <div class="space-y-2">
-            {% if status.value != 'ACHITATA' %}
+            {% if status.outstanding %}
                 {% if rejust_url %}
                     <a href="{{ rejust_url }}" target="_blank" rel="noopener noreferrer"
                        class="w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-semibold rounded-lg bg-lex-navy text-white hover:bg-lex-navy-dark transition no-underline">
                         {{ icon_external_link('size-4') }}
                         {{ 'case_overview.stamp_duty.cta_pay'|trans }}
                     </a>
-                {# A legacy case that declared payment at filing may already have paid
-                   inside the filing form; telling it to wait for the file number would
-                   contradict the confirmation button below. #}
-                {% elseif status.value != 'ACHITARE_LA_DEPUNERE' %}
+                {% else %}
                     <div>
                         <button type="button" disabled aria-describedby="stamp-duty-registry-hint"
                                 class="w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed select-none">
@@ -151,20 +138,9 @@
                 </button>
             {% endif %}
 
-            {# Kept provisionally until the lawyer confirms it can go: with the petition
-               sent by email the registry's new-case form is never filled, so paying at
-               filing may no longer be possible. Only offered before the petition leaves. #}
-            {% if status.value == 'NEACHITATA' and rejust_form.value == 'NOT_FILED' %}
-                <div>
-                    <button type="button" data-hs-overlay="#hs-modal-stamp-duty-at-filing"
-                            class="w-full py-2 px-3 inline-flex items-center justify-center gap-2 text-xs font-medium rounded-lg border border-blue-300 dark:border-blue-800 text-blue-800 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition">
-                        {{ 'case_overview.stamp_duty.cta_at_filing'|trans }}
-                    </button>
-                    <p class="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">{{ 'case_overview.stamp_duty.at_filing_provisional'|trans }}</p>
-                </div>
-            {% endif %}
-
-            {% if status.value == 'ACHITARE_LA_DEPUNERE' %}
+            {# Paying in the existing case sends the confirmation to the court on the
+               registry's own channel, so there is no proof file to upload here. #}
+            {% if status.outstanding and rejust_form.value == 'EXISTING_CASE' %}
                 <button type="button" data-hs-overlay="#hs-modal-stamp-duty-registry-paid"
                         class="w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-semibold rounded-lg bg-lex-navy text-white hover:bg-lex-navy-dark transition">
                     {{ 'case_overview.stamp_duty.cta_registry_paid'|trans }}
@@ -175,7 +151,7 @@
                neachitată: de când taxa se plătește la apariția numărului de dosar,
                avocatul nu mai trece prin amânare, iar o înștiințare primită totuși
                trebuie să aibă unde să fie consemnată. #}
-            {% if status.value != 'ACHITATA' %}
+            {% if status.outstanding %}
                 <button type="button" data-hs-overlay="#hs-modal-stamp-duty-court-notice"
                         class="w-full py-2 px-3 inline-flex items-center justify-center gap-2 text-xs font-medium rounded-lg border border-orange-300 dark:border-orange-800 text-orange-800 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/40 transition">
                     {{ 'case_overview.stamp_duty.cta_court_notice'|trans }}

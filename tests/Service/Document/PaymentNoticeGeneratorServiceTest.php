@@ -49,7 +49,6 @@ final class PaymentNoticeGeneratorServiceTest extends KernelTestCase
         $this->user->setIsVerified(true);
         $this->user->setFirstName('Avocat');
         $this->user->setLastName('Test');
-        $this->user->setBarNumber('B-12345');
         $this->em->persist($this->user);
 
         $creditor = $this->creditor = new Creditor();
@@ -133,12 +132,11 @@ final class PaymentNoticeGeneratorServiceTest extends KernelTestCase
         );
     }
 
-    /** The lawyer's text signs as "Prin: / name / Avocat", without the bar roll number. */
-    public function testSummonsNoLongerPrintsBarRollNumber(): void
+    /** The lawyer signs as "Prin: / name / Avocat". */
+    public function testSummonsSignsOnBehalfOfTheCreditorAsLawyer(): void
     {
         $html = $this->service->renderHtml($this->case);
 
-        self::assertStringNotContainsString('B-12345', $html);
         self::assertStringContainsString('<p>Prin:</p>', $html);
         self::assertStringContainsString('<p>Avocat</p>', $html);
     }

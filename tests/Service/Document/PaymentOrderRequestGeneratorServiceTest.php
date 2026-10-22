@@ -54,7 +54,6 @@ final class PaymentOrderRequestGeneratorServiceTest extends KernelTestCase
         $this->user->setIsVerified(true);
         $this->user->setFirstName('Avocat');
         $this->user->setLastName('Test');
-        $this->user->setBarNumber('B-77777');
         $this->em->persist($this->user);
 
         $creditor = new Creditor();
@@ -177,22 +176,6 @@ final class PaymentOrderRequestGeneratorServiceTest extends KernelTestCase
         self::assertStringContainsString('registratura electronică', $html);
     }
 
-    /**
-     * The recommended channel takes the duty and the petition in one step, so payment
-     * lands after the package is built. Saying the duty will be paid during
-     * regularization there would misstate what the lawyer is actually doing.
-     */
-    public function testRenderHtmlStatesThatTheDutyIsPaidAtFilingWhenThatWasChosen(): void
-    {
-        $this->case->setStampDutyStatus(StampDutyStatus::ACHITARE_LA_DEPUNERE);
-
-        $html = $this->service->renderHtml($this->case);
-
-        self::assertStringNotContainsString('achitată conform dovezii anexate', $html);
-        self::assertStringNotContainsString('art. 33 alin. 2', $html);
-        self::assertStringContainsString('se achită odată cu înregistrarea', $html);
-    }
-
     public function testRenderHtmlGivesTheLawyerContactAsCounselsNotTheCreditors(): void
     {
         $this->giveTheLawyerAFullOfficeAddress();
@@ -273,12 +256,8 @@ final class PaymentOrderRequestGeneratorServiceTest extends KernelTestCase
         self::assertStringNotContainsString('domiciliul procedural ales', $html);
     }
 
-    /**
-     * On the petition counsel is identified by name alone: no bar roll number, in the
-     * representation clause or in the signature block. The summons and the documents
-     * index still carry it.
-     */
-    public function testRenderHtmlIdentifiesCounselWithoutTheBarRollNumber(): void
+    /** Counsel is identified by name alone, in the representation clause and in the signature block. */
+    public function testRenderHtmlIdentifiesCounselByNameAlone(): void
     {
         $this->user->setFirstName('Ion');
         $this->user->setLastName('Popescu');
@@ -292,7 +271,6 @@ final class PaymentOrderRequestGeneratorServiceTest extends KernelTestCase
 
         self::assertStringContainsString('Reprezentată convențional prin av. Ion Popescu.', $html);
         self::assertStringContainsString('Ion Popescu', $html);
-        self::assertStringNotContainsString('B-77777', $html);
         self::assertStringNotContainsString('Tabloul Baroului', $html);
         self::assertStringNotContainsString('Nr. Barou', $html);
     }

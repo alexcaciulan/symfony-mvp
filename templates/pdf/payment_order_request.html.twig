@@ -241,8 +241,6 @@
             {% else %}
                 {{ 'pdf.payment_order.costs_stamp_duty_paid_registry'|trans({'%amount%': stampDuty|number_format(2, ',', '.')}) }}
             {% endif %}
-        {% elseif case.stampDutyStatus.value == 'ACHITARE_LA_DEPUNERE' %}
-            {{ 'pdf.payment_order.costs_stamp_duty_at_filing'|trans({'%amount%': stampDuty|number_format(2, ',', '.')}) }}
         {% else %}
             {{ 'pdf.payment_order.costs_stamp_duty_deferred'|trans({'%amount%': stampDuty|number_format(2, ',', '.')}) }}
         {% endif %}

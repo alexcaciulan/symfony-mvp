@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controller\Case;
 
 use App\Entity\LegalCase;
+use App\Enum\RejustStampDutyForm;
 use App\Enum\StampDutyStatus;
 use App\Form\Case\StampDutyProofType;
 use App\Repository\LegalCaseRepository;
@@ -112,38 +113,9 @@ final class CaseStampDutyController extends AbstractController
     }
 
     /**
-     * The lawyer will pay in the electronic registry form, together with filing.
-     * Unblocks the package without pretending the money has moved.
-     */
-    #[Route('/case/{id}/stamp-duty/at-filing', name: 'case_stamp_duty_at_filing', requirements: ['id' => '\d+'], methods: ['POST'])]
-    public function atFiling(int $id, Request $request): Response
-    {
-        $case = $this->findOrThrow($id);
-        $this->denyAccessUnlessGranted(CaseVoter::STAMP_DUTY_MANAGE, $case);
-
-        if (!$this->isCsrfTokenValid('stamp_duty_at_filing_' . $id, $request->getPayload()->getString('_token'))) {
-            return $this->respond($request, $case, false, 'error', 'case_overview.stamp_duty.flash_error_csrf');
-        }
-
-        if ($case->getStampDutyStatus() === StampDutyStatus::ACHITATA) {
-            return $this->respond($request, $case, false, 'warning', 'case_overview.stamp_duty.flash_error_already_paid');
-        }
-
-        $this->stampDutyService->declarePaymentAtFiling($case, $this->getUser());
-
-        return $this->respond(
-            $request,
-            $case,
-            true,
-            'success',
-            'case_overview.stamp_duty.flash_success_at_filing',
-            'hs-modal-stamp-duty-at-filing',
-        );
-    }
-
-    /**
      * Payment went through the electronic registry, so the confirmation reached the
-     * court on its own channel and there is no file for us to hold.
+     * court on its own channel and there is no file for us to hold. The registry
+     * takes the duty only in an existing case, hence the file-number guard.
      */
     #[Route('/case/{id}/stamp-duty/registry-paid', name: 'case_stamp_duty_registry_paid', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function registryPaid(int $id, Request $request): Response
@@ -155,8 +127,12 @@ final class CaseStampDutyController extends AbstractController
             return $this->respond($request, $case, false, 'error', 'case_overview.stamp_duty.flash_error_csrf');
         }
 
-        if ($case->getStampDutyStatus() === StampDutyStatus::ACHITATA) {
+        if (!$case->getStampDutyStatus()->isOutstanding()) {
             return $this->respond($request, $case, false, 'warning', 'case_overview.stamp_duty.flash_error_already_paid');
+        }
+
+        if ($case->rejustStampDutyForm() !== RejustStampDutyForm::EXISTING_CASE) {
+            return $this->respond($request, $case, false, 'error', 'case_overview.stamp_duty.flash_error_registry_needs_case_number');
         }
 
         $paidAtRaw = trim($request->getPayload()->getString('paidAt'));
