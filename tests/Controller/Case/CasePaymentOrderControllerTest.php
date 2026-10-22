@@ -1022,6 +1022,14 @@ final class CasePaymentOrderControllerTest extends WebTestCase
         self::assertStringContainsString('application/zip', (string) $response->headers->get('Content-Type'));
         self::assertStringContainsString('attachment', (string) $response->headers->get('Content-Disposition'));
         self::assertStringContainsString('Pachet_', (string) $response->headers->get('Content-Disposition'));
+
+        // Personal data under professional secrecy left the platform: on record, with who and from where.
+        $audits = $this->em->getRepository(AuditLog::class)->findBy(['action' => 'zip_package_downloaded', 'entityId' => (string) $this->case->getId()]);
+        self::assertCount(1, $audits);
+        self::assertSame(AuditLogService::CATEGORY_FILING_PACKAGE, $audits[0]->getCategory());
+        self::assertSame($this->user->getId(), $audits[0]->getUser()?->getId());
+        self::assertNotNull($audits[0]->getIpAddress());
+        self::assertGreaterThan(0, $audits[0]->getNewData()['fileCount'] ?? 0);
     }
 
     public function testDownloadZipFailsWhenDocumentsIncomplete(): void

@@ -15,6 +15,8 @@
             {{ icon_document('size-5') }}
             <h3 class="text-sm font-semibold">{{ 'case_overview.zip_package.title'|trans }}</h3>
         </div>
+        {# The signable files for an email filing are in the filing package card; this archive is for the other channels. #}
+        <p class="text-[11px] text-blue-100/70 mb-2" data-testid="zip-other-channel-note">{{ 'case_overview.zip_package.other_channel_note'|trans }}</p>
         <p class="text-xs text-blue-100/80 mb-4">{{ intro_key|trans(intro_params) }}</p>
         <ul class="space-y-1.5 text-xs">
             <li class="flex items-center gap-2">

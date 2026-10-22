@@ -42,6 +42,11 @@ framework:
             policy: sliding_window
             limit: 20
             interval: '1 hour'
+        # Filing package build: runs qpdf/Ghostscript for up to 100 s per build.
+        filing_package_build:
+            policy: sliding_window
+            limit: 10
+            interval: '1 hour'
         # Manual portal.just.ro check (Pas 6.1 CasePortalController::checkNow) —
         # SOAP I/O extern la cerere; limitează abuzul de butonul „Verifică acum".
         portal_check:
@@ -134,6 +139,8 @@ when@test:
             summons_generation:
                 policy: no_limit
             payment_order_generation:
+                policy: no_limit
+            filing_package_build:
                 policy: no_limit
             portal_check:
                 policy: no_limit

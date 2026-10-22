@@ -1168,7 +1168,8 @@ case_overview:
             submit: 'Upload'
             cancel: 'Cancel'
     zip_package:
-        title: 'ZIP pack: court filing'
+        title: 'Package for filing through another channel'
+        other_channel_note: 'For REJUST, the registry, post or courier. It is not the package to sign for filing by email.'
         intro: 'Download everything you need to file the payment order petition at %court%:'
         intro_no_court: 'Download everything you need to file the payment order petition:'
         item_cerere: 'Payment order petition (to be generated)'
@@ -1900,6 +1901,8 @@ pdf:
         amount_value: 'Amount'
         amount_principal: 'Principal (claim)'
         amount_interest: 'Accrued interest'
+        amount_interest_as_of: 'Accrued interest, computed to %date%'
+        interest_continuing: 'Interest is computed to %date% and is claimed further, until the date of actual payment.'
         conventional_rep: 'Represented by counsel, av. %lawyer%.'
         lawyer_contact: 'Counsel contact details: %contacts%.'
         contact_email: 'email %email%'
@@ -1955,6 +1958,32 @@ pdf:
         total: 'Total documents: %count%'
         signature_label: '(signature and stamp)'
         footer_disclaimer: 'Document generated electronically through the LexRecovery platform.'
+    opis_package:
+        heading: 'INDEX OF DOCUMENTS'
+        subheading: 'Annex to the payment order petition (art. 1.017 of the Code of Civil Procedure)'
+        court_label: 'Court'
+        creditor_label: 'Creditor'
+        debtor_label: 'Debtor'
+        files_title: 'Files filed'
+        column_file: 'File'
+        file_petition: 'Payment order petition'
+        file_petition_with_opis: 'Payment order petition, followed by this index'
+        file_opis: 'This index'
+        file_annexes: 'Annexes, in copy, pages %from%-%to%'
+        file_annexes_none: 'Annexes: none'
+        file_power_of_attorney_note: 'separate file'
+        annexes_title: 'Annexes'
+        column_pages: 'Pages'
+        page_single: 'p. %page%'
+        page_range: 'pp. %from%-%to%'
+    annex_cover:
+        heading: 'ANNEXES'
+        page_single: 'Page %page%'
+        page_range: 'Pages %from%-%to%'
+        # Provisional wording, pending the consulting lawyer's answer (question 7).
+        statement: 'I, the undersigned lawyer %lawyer%, certify that the copies of the documents in this volume of annexes are true copies of the originals.'
+        lawyer: 'Lawyer %lawyer%'
+        signature_label: '(signature of the lawyer)'
 
 # =============================================================================
 # Document Upload/Delete
@@ -2366,6 +2395,28 @@ fiscal_invoices:
 # Enums (label() returns these keys; consumers apply |trans)
 # =============================================================================
 enum:
+    filing_package_status:
+        BUILT: 'Built'
+        AWAITING_SIGNATURES: 'Being signed'
+        SIGNED: 'Signed'
+        STALE: 'Out of date'
+        SUPERSEDED: 'Superseded'
+        SENT: 'Sent'
+    filing_part_role:
+        PETITION: 'Petition'
+        OPIS: 'Index'
+        ANNEX_BUNDLE: 'Annexes'
+        POWER_OF_ATTORNEY: 'Power of attorney'
+    signature_status:
+        MISSING: 'Missing'
+        PRESENT_MATCHED: 'Signature detected'
+        PRESENT_PROBABLE: 'Signature detected, to confirm'
+        MISMATCH: 'File differs from the generated one'
+        NOT_SIGNED: 'Not signed'
+        DAMAGED: 'Damaged file'
+    opis_placement:
+        MERGED: 'In the payment order petition'
+        SEPARATE: 'Separate file'
     anaf_status:
         ACTIV: 'Active'
         INACTIV: 'Fiscally inactive'
@@ -3322,3 +3373,68 @@ deadlines:
         '5': 'Friday'
         '6': 'Saturday'
         '7': 'Sunday'
+
+# =============================================================================
+# Court filing package (unsigned files for signing and filing)
+# =============================================================================
+filing:
+    package:
+        title: 'Filing package'
+        intro: 'The files to sign for filing the petition: the petition with the index, the numbered annexes and the power of attorney. Each file is downloaded separately.'
+        build: 'Build the package'
+        rebuild: 'Rebuild the package'
+        blocked_title: 'The package cannot be built yet'
+        blocked_wrong_status: 'The package is built after the payment order petition is generated and before it is filed.'
+        blocked_petition_missing: 'The payment order petition file is missing from storage, so the package cannot be built.'
+        download_unsigned: 'Download (unsigned)'
+        part_meta: '%pages% pages · %size% MB'
+        part_annex_page: 'annexes, page %page%'
+        part_annex_range: 'annexes, pages %from%-%to%'
+        part_title:
+            PETITION: 'Payment order petition'
+            PETITION_with_opis: 'Payment order petition, with the index'
+            OPIS: 'Index of documents'
+            ANNEX_BUNDLE: 'Annexes'
+            ANNEX_BUNDLE_volume: 'Annexes, volume %volume% of %count%'
+            POWER_OF_ATTORNEY: 'Power of attorney'
+        compressed_badge: 'Compressed copy'
+        emails_info: '{1} Technical information: the package will be sent in a single email.|]1,Inf[ Technical information: the package will be sent in %count% emails.'
+        volumes_banner: 'The annexes are split into %count% volumes because of the email size limit. Each volume has its own cover page, and page numbering continues from one volume to the next.'
+        skipped_documents: 'Not included in the package (file missing from storage or undated power of attorney): %documents%.'
+        owner_only: 'Only the lawyer of the case downloads the files.'
+        stale_title: 'The package no longer matches the case'
+        stale_reason:
+            petition: 'The payment order petition changed after the package was built.'
+            claim_totals: 'The claim amounts changed after the package was built.'
+            interest_date: 'The interest calculation date changed after the package was built.'
+            power_of_attorney: 'The power of attorney (file, series, number or date) changed after the package was built.'
+            annexes: 'The annexes of the case changed after the package was built.'
+            stamp_duty: 'The stamp duty situation changed after the package was built.'
+            court: 'The court of the case changed after the package was built.'
+            opis_placement: 'The index placement (in the petition or separate) changed after the package was built.'
+            other: 'The case data changed after the package was built.'
+        frozen_petition_warning: 'Rebuilding the package does not change the payment order petition: its amounts stay as they were when it was generated.'
+        warning:
+            petition_without_interest_date: 'The generated petition does not show the date the interest is computed to. It needs checking before signing.'
+            petition_stamp_wording_mismatch: 'The stamp duty statement in the petition does not match the package (for example, the payment proof was uploaded after the petition was generated). It needs checking before signing.'
+        cover_text_provisional: 'The text on the annex cover page ("true copy of the original") is provisional until the final wording is confirmed. The statement is the signing lawyer''s, not the platform''s.'
+        unsigned_instructions: 'The files are unsigned. The qualified electronic signature is applied by the lawyer, locally, as the last step; a signed file is never modified again. The content and the signature remain the lawyer''s responsibility.'
+        compression_note: 'When needed, the platform compresses the annexes locally. Uploading documents to external compression services may breach professional secrecy (art. 11 of Law 51/1995) and the GDPR.'
+        flash:
+            built: 'The filing package was built.'
+            csrf: 'The form session expired. Reload the page and try again.'
+            rate_limited: 'The hourly limit of package builds was reached. Try again later.'
+        error:
+            tool_failed: 'A document could not be processed locally, so the package was not built.'
+            tool_missing: 'The PDF processing tools are not available on the server, so the package was not built.'
+            timeout: 'Processing the documents took longer than allowed, so the package was not built.'
+            encrypted: 'The document "%document%" is password protected or encrypted. The package needs an unprotected version.'
+            corrupt: 'The document "%document%" is damaged or cannot be read. The package needs a valid copy.'
+            active_content: 'The document "%document%" contains JavaScript or an XFA form. The package needs a plain PDF version without active content.'
+            unsupported: 'The document "%document%" has a format that cannot go into the package.'
+            annex_too_large: 'The annex "%document%" alone exceeds the limit of one email, even compressed. The package needs a smaller version or the document split.'
+            first_email_too_large: 'The petition together with the power of attorney exceed the limit of one email.'
+            too_large: 'The package could not be fitted within the email size limit.'
+            concurrent_build: 'The package of this case is already being built.'
+            lawyer_name_missing: 'The lawyer name is missing from the profile. The cover of each annex volume carries the signing lawyer statement, so the name must be filled in on the profile before the package is built.'
+            rebuild_ranges_changed: 'The annex pages changed, so the index no longer matches. A new package is needed, with the petition signed again.'

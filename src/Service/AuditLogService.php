@@ -82,6 +82,9 @@ class AuditLogService
     /** Notification center read actions (single mark-read, bulk mark-all-read). */
     public const CATEGORY_NOTIFICATION = 'NOTIFICATION';
 
+    /** Filing package built, one of its files downloaded, or the alternative-channel ZIP downloaded. */
+    public const CATEGORY_FILING_PACKAGE = 'FILING_PACKAGE';
+
     public function __construct(
         private EntityManagerInterface $em,
         private Security $security,

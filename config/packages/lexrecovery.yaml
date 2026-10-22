@@ -13,3 +13,9 @@ parameters:
     # Absolute session lifetime in seconds (12h): forced re-login regardless of activity,
     # on top of the 30-min idle expiry. Injected into AbsoluteSessionTimeoutSubscriber.
     app.session.absolute_ttl: 43200
+    # Court filing by email. The court mailbox limit applies to the encoded message
+    # (base64 + MIME, about 1.37x the raw bytes); the reserve leaves room for the
+    # lawyer's qualified signature, added after the build.
+    lexrecovery.filing.max_email_bytes: 9500000
+    lexrecovery.filing.signature_reserve_bytes: 300000
+    lexrecovery.filing.signed_upload_max_bytes: 20971520

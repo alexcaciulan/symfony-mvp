@@ -1185,6 +1185,16 @@ class LegalCase
     }
 
     /**
+     * Whether the stamp-duty proof goes to the court with the petition. One
+     * predicate for the petition wording ("conform dovezii anexate") and for the
+     * filing package, so the package never contradicts what the petition says.
+     */
+    public function stampDutyProofAnnexed(): bool
+    {
+        return $this->stampDutyStatus === StampDutyStatus::ACHITATA && $this->hasStampDutyProof();
+    }
+
+    /**
      * Whether the lawyer's power of attorney is on the case. The petition is filed
      * through a representative, so the act proving that capacity travels with it.
      */

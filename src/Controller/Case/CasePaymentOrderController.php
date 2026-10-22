@@ -296,6 +296,17 @@ final class CasePaymentOrderController extends AbstractController
             return $this->redirectToRoute('case_overview', ['id' => $id]);
         }
 
+        // The ZIP carries the debtor's personal data and files under professional
+        // secrecy, so every download is on record with its user and IP.
+        $this->auditLogService->log(
+            action: 'zip_package_downloaded',
+            entityType: LegalCase::class,
+            entityId: (string) $case->getId(),
+            newData: ['fileCount' => $this->zipFileCount($zipPath)],
+            category: AuditLogService::CATEGORY_FILING_PACKAGE,
+        );
+        $this->em->flush();
+
         $response = new BinaryFileResponse($zipPath);
         $response->setContentDisposition(
             ResponseHeaderBag::DISPOSITION_ATTACHMENT,
@@ -304,6 +315,18 @@ final class CasePaymentOrderController extends AbstractController
         $response->headers->set('Content-Type', 'application/zip');
 
         return $response;
+    }
+
+    private function zipFileCount(string $zipPath): int
+    {
+        $zip = new \ZipArchive();
+        if ($zip->open($zipPath, \ZipArchive::RDONLY) !== true) {
+            return 0;
+        }
+        $count = $zip->numFiles;
+        $zip->close();
+
+        return $count;
     }
 
     private function findOrThrow(int $id): LegalCase

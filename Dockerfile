@@ -20,6 +20,7 @@ RUN apk add --no-cache \
     poppler-utils \
     imagemagick \
     ghostscript \
+    qpdf \
     font-dejavu \
     $PHPIZE_DEPS
 

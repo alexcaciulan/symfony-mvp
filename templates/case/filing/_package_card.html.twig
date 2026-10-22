@@ -1,0 +1,127 @@
+{# Filing package: the unsigned files built for signing and filing, one download per file.
+   Context from OverviewContextBuilder: filing_package (already re-checked for staleness)
+   and filing_gate_blocker. The files are unsigned; nothing here says the package is ready
+   or valid, because the signature and the responsibility for the content are the lawyer's. #}
+{% from 'case/overview/_icons.html.twig' import icon_document, icon_download, icon_warning, icon_refresh, icon_lock %}
+{% import 'case/overview/_power_of_attorney_macros.html.twig' as poa %}
+
+{% set package = filing_package|default(null) %}
+{% set gate_blocker = filing_gate_blocker|default(null) %}
+{% set is_owner = app.user and app.user.id == case.user.id %}
+{% set can_build = gate_blocker is null and is_granted('CASE_TRANSITION', case) %}
+{% set readiness_blockers = gate_blocker and case.status.value == 'CERERE_GENERATA' ? filing_readiness(case).blockers : [] %}
+{% set poa_editable = power_of_attorney_editable(case) and is_granted('CASE_UPLOAD', case) %}
+
+<section id="filing-package-card" class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft overflow-hidden">
+    <div class="p-5">
+        <div class="flex items-start justify-between gap-3 mb-3">
+            <div class="flex items-center gap-2">
+                {{ icon_document('size-5 text-slate-400') }}
+                <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ 'filing.package.title'|trans }}</h3>
+            </div>
+            {% if package %}
+                <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold {{ package.status.value == 'STALE' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200' }}" data-testid="filing-package-status">
+                    {{ package.status.label|trans }} · v{{ package.version }}
+                </span>
+            {% endif %}
+        </div>
+
+        <p class="text-xs text-slate-600 dark:text-slate-300 mb-3">{{ 'filing.package.intro'|trans }}</p>
+
+        {% if gate_blocker %}
+            <div class="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 p-3 mb-3 text-xs text-amber-900 dark:text-amber-100" data-testid="filing-package-blocker">
+                <p class="font-semibold">{{ 'filing.package.blocked_title'|trans }}</p>
+                <p class="mt-0.5">{{ gate_blocker|trans }}</p>
+                {% for issue in readiness_blockers %}
+                    {% set poa_doc = issue.documentId ? case.documents|filter(d => d.id == issue.documentId)|first : null %}
+                    {% if issue.code.value == 'power_of_attorney_date_missing' and poa_doc and poa_editable %}
+                        <button type="button" {{ poa.edit_trigger_attrs(case, poa_doc) }}
+                                class="mt-2 py-1.5 px-3 inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg bg-white border border-amber-300 text-amber-900 hover:bg-amber-100 transition">
+                            {{ 'case_overview.modal.generate_op_power_of_attorney_cta_complete'|trans }}
+                        </button>
+                    {% elseif issue.code.value in ['power_of_attorney_missing', 'claim_document_missing', 'contract_missing'] and not case.fullPaymentDate %}
+                        <button type="button"
+                                data-hs-overlay="#hs-modal-upload-document"
+                                data-upload-preset-type="{{ {'power_of_attorney_missing': 'imputernicire_avocatiala', 'claim_document_missing': 'factura', 'contract_missing': 'contract'}[issue.code.value] }}"
+                                class="mt-2 py-1.5 px-3 inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg bg-white border border-amber-300 text-amber-900 hover:bg-amber-100 transition">
+                            {{ ('case_overview.modal.generate_op_' ~ {'power_of_attorney_missing': 'power_of_attorney', 'claim_document_missing': 'claim_document', 'contract_missing': 'contract'}[issue.code.value] ~ '_cta_upload')|trans }}
+                        </button>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        {% if package and package.status.value == 'STALE' %}
+            <div class="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 p-3 mb-3 text-xs text-amber-900 dark:text-amber-100" data-testid="filing-package-stale">
+                <p class="font-semibold">{{ 'filing.package.stale_title'|trans }}</p>
+                <p class="mt-0.5">{{ ('filing.package.stale_reason.' ~ (package.staleReason ?? 'other'))|trans }}</p>
+                {% if package.staleReason in ['claim_totals', 'interest_date'] %}
+                    {# Not dismissable: rebuilding does not touch the petition, so its amounts stay as generated. #}
+                    <p class="mt-2 font-semibold" data-testid="filing-package-frozen-petition">{{ 'filing.package.frozen_petition_warning'|trans }}</p>
+                {% endif %}
+            </div>
+        {% endif %}
+
+        {% if package %}
+            {% for warning in package.warnings %}
+                <div class="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 p-3 mb-3 text-xs text-amber-900 dark:text-amber-100 flex gap-2" data-testid="filing-package-warning-{{ warning }}">
+                    {{ icon_warning('size-4 shrink-0 mt-0.5') }}
+                    <span>{{ ('filing.package.warning.' ~ warning)|trans }}</span>
+                </div>
+            {% endfor %}
+
+            <ul class="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-lg mb-3" data-testid="filing-package-parts">
+                {% for part in package.parts %}
+                    <li class="p-3 flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <p class="text-sm font-medium text-slate-900 dark:text-slate-100">{{ part.title }}</p>
+                            <p class="text-[11px] text-slate-500">
+                                {{ 'filing.package.part_meta'|trans({'%pages%': part.pageCount, '%size%': (part.unsignedBytes / 1048576)|number_format(2, ',', '.')}) }}
+                                {% if part.annexPageFrom %} · {{ part.annexPageFrom == part.annexPageTo ? 'filing.package.part_annex_page'|trans({'%page%': part.annexPageFrom}) : 'filing.package.part_annex_range'|trans({'%from%': part.annexPageFrom, '%to%': part.annexPageTo}) }}{% endif %}
+                            </p>
+                            {% if part.compressionApplied %}
+                                <span class="mt-1 inline-flex rounded px-1.5 py-0.5 text-[10px] font-semibold bg-sky-50 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200" data-testid="filing-part-compressed">{{ 'filing.package.compressed_badge'|trans }}</span>
+                            {% endif %}
+                        </div>
+                        {% if is_owner %}
+                            <a href="{{ path('case_filing_part_download', {id: case.id, packageId: package.id, partId: part.id}) }}"
+                               data-turbo="false"
+                               class="shrink-0 py-1.5 px-2.5 inline-flex items-center gap-1 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
+                                {{ icon_download('size-3.5') }}
+                                {{ 'filing.package.download_unsigned'|trans }}
+                            </a>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+
+            <p class="text-xs text-slate-600 dark:text-slate-300 mb-1" data-testid="filing-package-emails">{{ 'filing.package.emails_info'|trans({'%count%': package.emailCount}) }}</p>
+            {% if package.annexVolumeCount > 1 %}
+                <p class="text-xs text-slate-600 dark:text-slate-300 mb-1" data-testid="filing-package-volumes">{{ 'filing.package.volumes_banner'|trans({'%count%': package.annexVolumeCount}) }}</p>
+            {% endif %}
+            {% if package.skippedDocuments is not empty %}
+                <p class="text-xs text-amber-800 dark:text-amber-200 mb-1">{{ 'filing.package.skipped_documents'|trans({'%documents%': package.skippedDocuments|join(', ')}) }}</p>
+            {% endif %}
+            {% if not is_owner %}
+                <p class="text-xs text-slate-500 mb-1">{{ 'filing.package.owner_only'|trans }}</p>
+            {% endif %}
+        {% endif %}
+
+        {% if can_build and (package is null or package.status.value == 'STALE') %}
+            <form method="post" action="{{ path('case_filing_package_build', {id: case.id}) }}" class="mt-3">
+                <input type="hidden" name="_token" value="{{ csrf_token('filing_package_build_' ~ case.id) }}">
+                <button type="submit" data-testid="filing-package-build"
+                        class="w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-semibold rounded-lg bg-lex-navy text-white hover:bg-lex-navy-dark transition">
+                    {{ icon_refresh('size-4') }}
+                    {{ (package ? 'filing.package.rebuild' : 'filing.package.build')|trans }}
+                </button>
+            </form>
+        {% endif %}
+
+        <div class="mt-4 space-y-2 text-[11px] text-slate-500 dark:text-slate-400">
+            <p class="flex gap-1.5">{{ icon_lock('size-3.5 shrink-0 mt-0.5') }}<span>{{ 'filing.package.unsigned_instructions'|trans }}</span></p>
+            <p>{{ 'filing.package.cover_text_provisional'|trans }}</p>
+            <p>{{ 'filing.package.compression_note'|trans }}</p>
+        </div>
+    </div>
+</section>

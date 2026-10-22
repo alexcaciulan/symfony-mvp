@@ -434,6 +434,33 @@ final class PaymentOrderRequestGeneratorServiceTest extends KernelTestCase
         self::assertStringContainsString('Dobândă acumulată', $html, 'The recalculated interest row is still shown.');
     }
 
+    /**
+     * Interest runs until payment (art. 1535 C.civ.), so a bare figure reads as the
+     * final sum and cannot be checked. The petition states the date it is computed to
+     * and claims it further.
+     */
+    public function testRenderHtmlStatesTheInterestCalculationDateAndClaimsItFurther(): void
+    {
+        $this->addClaimItem('FACT-1', '10000.00', 'Contract 10/2024');
+        $this->em->flush();
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString('Dobândă acumulată, calculată până la 01.02.2026', $html);
+        self::assertStringContainsString('Dobânda este calculată până la data de 01.02.2026 și se solicită în continuare, până la data plății efective.', $html);
+    }
+
+    /** The stored fallback figure was computed at a date nobody recorded: no date is printed for it. */
+    public function testRenderHtmlPrintsNoCalculationDateForTheStoredFallbackInterest(): void
+    {
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString('850,00', $html);
+        self::assertStringContainsString('Dobândă acumulată', $html);
+        self::assertStringNotContainsString('calculată până la', $html);
+        self::assertStringNotContainsString('se solicită în continuare', $html);
+    }
+
     private function addClaimItem(string $documentNumber, string $amountRon, ?string $causeReference): ClaimItem
     {
         $item = new ClaimItem();

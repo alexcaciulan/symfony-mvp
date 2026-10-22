@@ -20,6 +20,8 @@ use App\Repository\LegalDeadlineRepository;
 use App\Service\Calculation\InterestCalculatorService;
 use App\Service\Calculation\StampDutyCalculator;
 use App\Service\Deadline\DeadlineService;
+use App\Service\Filing\FilingGate;
+use App\Service\Filing\FilingPackageStalenessChecker;
 use App\Service\Portal\RulingProposalResolver;
 use App\Service\StampDuty\StampDutyUatResolver;
 
@@ -42,6 +44,8 @@ final class OverviewContextBuilder
         private readonly StampDutyCalculator $stampDutyCalculator,
         private readonly CaseAccessoryService $caseAccessories,
         private readonly CaseFullPaymentClosureService $fullPaymentClosure,
+        private readonly FilingPackageStalenessChecker $filingStaleness,
+        private readonly FilingGate $filingGate,
     ) {}
 
     /**
@@ -95,6 +99,9 @@ final class OverviewContextBuilder
             'can_close_full_payment' => $this->fullPaymentClosure->canClose($case),
             'closed_from_status' => $this->closedFromStatus($case),
             'debtor_count' => $case->getDebtors()->count(),
+            // Looked at, so re-checked: a package whose sources changed is marked stale here.
+            'filing_package' => $this->filingStaleness->refresh($case),
+            'filing_gate_blocker' => $this->filingGate->firstBlocker($case),
             'just_created' => false,
         ], $extra);
     }

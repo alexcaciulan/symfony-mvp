@@ -1,0 +1,12 @@
+{# Turbo Stream answer of the filing package build: the card is replaced in place on
+   success, and every outcome, errors included, is a toast on the same page. #}
+{% if replace_card %}
+    <turbo-stream action="replace" target="filing-package-card">
+        <template>{{ include('case/filing/_package_card.html.twig') }}</template>
+    </turbo-stream>
+{% endif %}
+<turbo-stream action="append" target="toasts">
+    <template>
+        {% include 'components/Toast.html.twig' with { message: toast_key|trans(toast_params|default({})), variant: toast_variant, details: [] } only %}
+    </template>
+</turbo-stream>

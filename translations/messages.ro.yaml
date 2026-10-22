@@ -1168,7 +1168,8 @@ case_overview:
             submit: 'Încarcă'
             cancel: 'Anulează'
     zip_package:
-        title: 'Pachet ZIP: depunere instanță'
+        title: 'Pachet pentru depunere pe alt canal'
+        other_channel_note: 'Pentru REJUST, registratură, poștă sau curier. Nu este pachetul de semnat pentru trimiterea prin e-mail.'
         intro: 'Descarcă tot ce ai nevoie pentru a depune cererea OP la %court%:'
         intro_no_court: 'Descarcă tot ce ai nevoie pentru a depune cererea OP:'
         item_cerere: 'Cerere OP (va fi generată)'
@@ -1897,6 +1898,8 @@ pdf:
         amount_value: 'Valoare'
         amount_principal: 'Sumă principală (creanță)'
         amount_interest: 'Dobândă acumulată'
+        amount_interest_as_of: 'Dobândă acumulată, calculată până la %date%'
+        interest_continuing: 'Dobânda este calculată până la data de %date% și se solicită în continuare, până la data plății efective.'
         conventional_rep: 'Reprezentată convențional prin av. %lawyer%.'
         lawyer_contact: 'Date de contact ale avocatului: %contacts%.'
         contact_email: 'e-mail %email%'
@@ -1952,6 +1955,32 @@ pdf:
         total: 'Total documente: %count%'
         signature_label: '(semnătură și ștampilă)'
         footer_disclaimer: 'Document generat electronic prin platforma LexRecovery.'
+    opis_package:
+        heading: 'OPIS DE DOCUMENTE'
+        subheading: 'Anexă la cererea de ordonanță de plată (art. 1.017 din Codul de procedură civilă)'
+        court_label: 'Instanța'
+        creditor_label: 'Creditor'
+        debtor_label: 'Debitor'
+        files_title: 'Fișierele depuse'
+        column_file: 'Fișier'
+        file_petition: 'Cererea de ordonanță de plată'
+        file_petition_with_opis: 'Cererea de ordonanță de plată, urmată de prezentul opis'
+        file_opis: 'Prezentul opis'
+        file_annexes: 'Anexele, în copie, paginile %from%-%to%'
+        file_annexes_none: 'Anexe: nu sunt'
+        file_power_of_attorney_note: 'fișier separat'
+        annexes_title: 'Anexe'
+        column_pages: 'Paginile'
+        page_single: 'pag. %page%'
+        page_range: 'pag. %from%-%to%'
+    annex_cover:
+        heading: 'ANEXE'
+        page_single: 'Pagina %page%'
+        page_range: 'Paginile %from%-%to%'
+        # Provisional wording, pending the consulting lawyer's answer (question 7).
+        statement: 'Subsemnatul, av. %lawyer%, certific conformitatea cu originalul a copiilor înscrisurilor cuprinse în prezentul volum de anexe.'
+        lawyer: 'Av. %lawyer%'
+        signature_label: '(semnătura avocatului)'
 
 # =============================================================================
 # Document Upload/Delete
@@ -2363,6 +2392,28 @@ fiscal_invoices:
 # Enums (label() returns these keys; consumers apply |trans)
 # =============================================================================
 enum:
+    filing_package_status:
+        BUILT: 'Construit'
+        AWAITING_SIGNATURES: 'În curs de semnare'
+        SIGNED: 'Semnat'
+        STALE: 'Neactualizat'
+        SUPERSEDED: 'Înlocuit'
+        SENT: 'Trimis'
+    filing_part_role:
+        PETITION: 'Cerere'
+        OPIS: 'Opis'
+        ANNEX_BUNDLE: 'Anexe'
+        POWER_OF_ATTORNEY: 'Împuternicire'
+    signature_status:
+        MISSING: 'Lipsă'
+        PRESENT_MATCHED: 'Semnătură detectată'
+        PRESENT_PROBABLE: 'Semnătură detectată, de confirmat'
+        MISMATCH: 'Fișier diferit de cel generat'
+        NOT_SIGNED: 'Nesemnat'
+        DAMAGED: 'Fișier deteriorat'
+    opis_placement:
+        MERGED: 'În cererea de ordonanță de plată'
+        SEPARATE: 'Fișier separat'
     anaf_status:
         ACTIV: 'Activ'
         INACTIV: 'Inactiv fiscal'
@@ -3319,3 +3370,68 @@ deadlines:
         '5': 'vineri'
         '6': 'sâmbătă'
         '7': 'duminică'
+
+# =============================================================================
+# Court filing package (unsigned files for signing and filing)
+# =============================================================================
+filing:
+    package:
+        title: 'Pachet de depunere'
+        intro: 'Fișierele de semnat pentru depunerea cererii: cererea cu opisul, anexele numerotate și împuternicirea avocațială. Fiecare fișier se descarcă separat.'
+        build: 'Construiește pachetul'
+        rebuild: 'Reconstruiește pachetul'
+        blocked_title: 'Pachetul nu se poate construi încă'
+        blocked_wrong_status: 'Pachetul se construiește după generarea cererii de ordonanță de plată și înainte de depunerea ei.'
+        blocked_petition_missing: 'Fișierul cererii de ordonanță de plată lipsește din stocare, deci pachetul nu se poate construi.'
+        download_unsigned: 'Descarcă (nesemnat)'
+        part_meta: '%pages% pagini · %size% MB'
+        part_annex_page: 'anexele, pagina %page%'
+        part_annex_range: 'anexele, paginile %from%-%to%'
+        part_title:
+            PETITION: 'Cererea de ordonanță de plată'
+            PETITION_with_opis: 'Cererea de ordonanță de plată, cu opisul'
+            OPIS: 'Opisul documentelor'
+            ANNEX_BUNDLE: 'Anexe'
+            ANNEX_BUNDLE_volume: 'Anexe, volumul %volume% din %count%'
+            POWER_OF_ATTORNEY: 'Împuternicirea avocațială'
+        compressed_badge: 'Copie comprimată'
+        emails_info: '{1} Informație tehnică: pachetul se va trimite într-un singur e-mail.|]1,Inf[ Informație tehnică: pachetul se va trimite în %count% e-mailuri.'
+        volumes_banner: 'Anexele sunt împărțite în %count% volume, din cauza limitei de dimensiune a unui e-mail. Fiecare volum are pagina lui de gardă, iar numerotarea paginilor continuă de la un volum la altul.'
+        skipped_documents: 'Nu sunt incluse în pachet (fișier lipsă din stocare sau împuternicire fără dată): %documents%.'
+        owner_only: 'Fișierele se descarcă doar de avocatul dosarului.'
+        stale_title: 'Pachetul nu mai corespunde dosarului'
+        stale_reason:
+            petition: 'Cererea de ordonanță de plată s-a schimbat după construirea pachetului.'
+            claim_totals: 'Sumele creanței s-au schimbat după construirea pachetului.'
+            interest_date: 'Data de calcul a dobânzii s-a schimbat după construirea pachetului.'
+            power_of_attorney: 'Împuternicirea avocațială (fișierul, seria, numărul sau data) s-a schimbat după construirea pachetului.'
+            annexes: 'Anexele dosarului s-au schimbat după construirea pachetului.'
+            stamp_duty: 'Situația taxei judiciare de timbru s-a schimbat după construirea pachetului.'
+            court: 'Instanța dosarului s-a schimbat după construirea pachetului.'
+            opis_placement: 'Așezarea opisului (în cerere sau separat) s-a schimbat după construirea pachetului.'
+            other: 'Datele dosarului s-au schimbat după construirea pachetului.'
+        frozen_petition_warning: 'Reconstruirea pachetului nu modifică cererea de ordonanță de plată: sumele din cerere rămân cele de la generarea ei.'
+        warning:
+            petition_without_interest_date: 'Cererea generată nu arată data până la care este calculată dobânda. Verificarea ei înainte de semnare este necesară.'
+            petition_stamp_wording_mismatch: 'Mențiunea despre taxa de timbru din cerere nu corespunde pachetului (de exemplu, dovada plății a fost încărcată după generarea cererii). Verificarea ei înainte de semnare este necesară.'
+        cover_text_provisional: 'Textul de pe pagina de gardă a anexelor („conform cu originalul”) este provizoriu, până la confirmarea formulării finale. Mențiunea este a avocatului semnatar, nu a platformei.'
+        unsigned_instructions: 'Fișierele sunt nesemnate. Semnătura electronică calificată se aplică de avocat, local, ca ultim pas; un fișier semnat nu se mai modifică. Conținutul și semnătura rămân în responsabilitatea avocatului.'
+        compression_note: 'Comprimarea anexelor, când este necesară, o face platforma, local. Încărcarea documentelor pe servicii externe de compresie poate încălca secretul profesional (art. 11 din Legea nr. 51/1995) și GDPR.'
+        flash:
+            built: 'Pachetul de depunere a fost construit.'
+            csrf: 'Sesiunea formularului a expirat. Reîncărcați pagina și reîncercați.'
+            rate_limited: 'Limita de construiri de pachet pe oră a fost atinsă. Reîncercați mai târziu.'
+        error:
+            tool_failed: 'Un document nu a putut fi procesat local, deci pachetul nu a fost construit.'
+            tool_missing: 'Instrumentele de procesare PDF nu sunt disponibile pe server, deci pachetul nu a fost construit.'
+            timeout: 'Procesarea documentelor a depășit timpul permis, deci pachetul nu a fost construit.'
+            encrypted: 'Documentul „%document%” este protejat cu parolă sau criptat. Pentru pachet este necesară o versiune fără protecție.'
+            corrupt: 'Documentul „%document%” este deteriorat sau nu poate fi citit. Pentru pachet este necesară o copie validă.'
+            active_content: 'Documentul „%document%” conține JavaScript sau un formular XFA. Pentru pachet este necesară o versiune PDF simplă, fără conținut activ.'
+            unsupported: 'Documentul „%document%” are un format care nu poate intra în pachet.'
+            annex_too_large: 'Anexa „%document%” depășește singură limita unui e-mail, chiar comprimată. Pentru pachet este necesară o versiune mai mică sau împărțirea documentului.'
+            first_email_too_large: 'Cererea împreună cu împuternicirea depășesc limita unui e-mail.'
+            too_large: 'Pachetul nu a putut fi încadrat în limita de dimensiune a e-mailurilor.'
+            concurrent_build: 'Pachetul acestui dosar este deja în construcție.'
+            lawyer_name_missing: 'Numele avocatului lipsește din profil. Pagina de gardă a fiecărui volum de anexe poartă mențiunea avocatului semnatar, deci completarea numelui în profil este necesară înainte de construirea pachetului.'
+            rebuild_ranges_changed: 'Paginile anexelor s-au schimbat, deci opisul nu mai corespunde. Este necesar un pachet nou, cu semnarea din nou a cererii.'

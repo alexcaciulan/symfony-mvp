@@ -103,6 +103,9 @@ services:
             $mercurePublicUrl: '%env(MERCURE_PUBLIC_URL)%'
             # Absolute session lifetime, injected into AbsoluteSessionTimeoutSubscriber.
             $absoluteSessionTtl: '%app.session.absolute_ttl%'
+            # Court filing size budget, injected into the filing package services.
+            $filingMaxEmailBytes: '%lexrecovery.filing.max_email_bytes%'
+            $filingSignatureReserveBytes: '%lexrecovery.filing.signature_reserve_bytes%'
 
     # interface-based auto-tagging (Strategy + Tagged Iterator pattern)
     _instanceof:
