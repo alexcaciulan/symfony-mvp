@@ -29,6 +29,11 @@
     'EXECUTARE': {target: '#hs-modal-close-case', label: 'case_overview.cta.close_case_executare', color: 'bg-emerald-600 text-white hover:bg-emerald-700', icon: 'money'},
 } %}
 {% set primary = primary_modal[case.status.value] ?? null %}
+{# While the platform is transmitting the petition by email, a manual filing would file it twice. #}
+{% set filing_in_progress = filing_submission|default(null) and filing_submission.active %}
+{% if case.status.value == 'CERERE_GENERATA' and filing_in_progress %}
+    {% set primary = null %}
+{% endif %}
 
 <div id="case-hero-actions" class="flex items-center gap-2 self-start">
     {% if case.status.value == 'AMIABIL' or case.status.value == 'CERERE_DEPUSA' or primary %}

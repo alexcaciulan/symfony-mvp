@@ -85,6 +85,16 @@ final class FilingAnnexSelector
         return $this->uploadsDir . '/' . $document->getStoredFilename();
     }
 
+    /** The power of attorney the package carries, null when no dated one is on the case. */
+    public function chosenPowerOfAttorney(LegalCase $case): ?Document
+    {
+        try {
+            return $this->powerOfAttorney($case)[0];
+        } catch (FilingPackageBlockedException) {
+            return null;
+        }
+    }
+
     /**
      * The newest dated power of attorney, the one the readiness check validates.
      *

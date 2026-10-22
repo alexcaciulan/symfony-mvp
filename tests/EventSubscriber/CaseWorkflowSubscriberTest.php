@@ -143,6 +143,22 @@ class CaseWorkflowSubscriberTest extends KernelTestCase
         $this->assertNull($history->getCreatedBy());
     }
 
+    public function testActorFromTransitionContextIsRecordedWithoutSession(): void
+    {
+        $case = $this->createCase();
+        $caseId = $case->getId();
+
+        // A worker applies the transition on the lawyer's behalf: no session, actor in the context.
+        $this->workflowService->apply($case, 'trimite_somatie', ['actor' => $this->user]);
+        $this->em->flush();
+
+        $history = $this->em->getRepository(CaseStatusHistory::class)->findOneBy(['legalCase' => $caseId]);
+        $this->assertSame($this->user->getId(), $history->getCreatedBy()?->getId());
+
+        $audit = $this->em->getRepository(AuditLog::class)->findOneBy(['entityType' => 'LegalCase', 'entityId' => (string) $caseId, 'action' => 'case_status_change']);
+        $this->assertSame($this->user->getId(), $audit?->getUser()?->getId());
+    }
+
     public function testSubscriberListensToCorrectEvent(): void
     {
         $events = \App\EventSubscriber\CaseWorkflowSubscriber::getSubscribedEvents();

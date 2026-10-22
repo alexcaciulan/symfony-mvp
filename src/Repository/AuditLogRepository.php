@@ -35,6 +35,22 @@ class AuditLogRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+    /** Whether the case's trail holds at least one entry with this action. */
+    public function hasActionForCase(LegalCase $case, string $action): bool
+    {
+        return (bool) $this->createQueryBuilder('a')
+            ->select('1')
+            ->andWhere('a.entityType = :type')
+            ->andWhere('a.entityId = :id')
+            ->andWhere('a.action = :action')
+            ->setParameter('type', LegalCase::class)
+            ->setParameter('id', (string) $case->getId())
+            ->setParameter('action', $action)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
+
     /**
      * When the case's first somatie was generated; null for a case whose
      * somatie predates this record.

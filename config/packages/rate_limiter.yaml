@@ -52,6 +52,17 @@ framework:
             policy: sliding_window
             limit: 30
             interval: '1 hour'
+        # Court filings sent by email, per user and per court: each one leaves the
+        # platform's domain for a court, so a compromised or careless account must
+        # not be able to flood a registry.
+        filing_submission:
+            policy: fixed_window
+            limit: 10
+            interval: '1 day'
+        filing_court_cap:
+            policy: fixed_window
+            limit: 50
+            interval: '1 day'
         # Court address actions from a case page (confirm, add by hand, report),
         # per user: each one is audited and visible to the admin.
         court_address_validation:
@@ -156,6 +167,10 @@ when@test:
             filing_signed_upload:
                 policy: no_limit
             court_address_validation:
+                policy: no_limit
+            filing_submission:
+                policy: no_limit
+            filing_court_cap:
                 policy: no_limit
             portal_check:
                 policy: no_limit

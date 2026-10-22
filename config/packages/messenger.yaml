@@ -19,6 +19,21 @@ framework:
                     multiplier: 2
             failed: 'doctrine://default?queue_name=failed'
             sync: 'sync://'
+            # Court filing emails, consumed by their own worker so a long extraction
+            # on `async` never delays a filing nor triggers a false redelivery. The
+            # handler marks a part it finds mid-send as uncertain instead of sending
+            # it twice, and failures go to their own queue: a global
+            # `messenger:failed:retry` on `failed` must never resend a court email.
+            court_filing:
+                dsn: 'doctrine://default?auto_setup=0&queue_name=court_filing'
+                failure_transport: court_filing_failed
+                retry_strategy:
+                    max_retries: 3
+                    delay: 300000
+                    multiplier: 6
+                    max_delay: 7200000
+                    jitter: 0
+            court_filing_failed: 'doctrine://default?auto_setup=0&queue_name=court_filing_failed'
 
         default_bus: messenger.bus.default
 
@@ -52,3 +67,6 @@ framework:
             # handler (only settles a PENDING invoice), so the retry_strategy
             # retries transient DB failures safely without double-settling.
             App\Message\ProcessPaymentWebhookMessage: async
+
+            # One email of a court filing; parts are dispatched one at a time, in order.
+            App\Message\SendFilingEmailPartMessage: court_filing

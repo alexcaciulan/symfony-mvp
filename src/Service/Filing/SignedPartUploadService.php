@@ -54,6 +54,7 @@ final class SignedPartUploadService
         private readonly ProcessSandbox $sandbox,
         private readonly AuditLogService $auditLogService,
         private readonly int $filingMaxEmailBytes,
+        private readonly FilingLockQuery $filingLock,
     ) {}
 
     /**
@@ -304,6 +305,10 @@ final class SignedPartUploadService
             || !in_array($package->getStatus(), self::UPLOADABLE_PACKAGE_STATUSES, true)
             || $package->getLegalCase()->getStatus() !== CaseStatus::CERERE_GENERATA) {
             throw new SignedUploadRefusedException('filing.upload.error.not_uploadable');
+        }
+        // A signed file may not change while the package is being transmitted.
+        if ($this->filingLock->isLockedNow($package->getLegalCase())) {
+            throw new SignedUploadRefusedException('filing.package.blocked_submission_active');
         }
     }
 

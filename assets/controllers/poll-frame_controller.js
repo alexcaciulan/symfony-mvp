@@ -28,11 +28,15 @@ import { Controller } from '@hotwired/stimulus';
  * Used in Pas 3.0 wizard step 0 as a fallback for Mercure private topics
  * with JWT-templated subscriptions, which can fail to deliver in some hub
  * configurations. Mercure stays the fast path; this is the safety net.
+ *
+ * `url-value`, when set, is fetched instead of the current page: a small
+ * endpoint that renders only the frame (the court filing status card).
  */
 export default class extends Controller {
     static values = {
         pending: Boolean,
         intervalMs: { type: Number, default: 3000 },
+        url: String,
     };
 
     initialize() {
@@ -68,7 +72,7 @@ export default class extends Controller {
         if (this._fetching) return;
         this._fetching = true;
         try {
-            const response = await fetch(window.location.href, {
+            const response = await fetch(this.hasUrlValue && this.urlValue ? this.urlValue : window.location.href, {
                 headers: {
                     'Turbo-Frame': this.element.id,
                     'Accept': 'text/html, application/xhtml+xml',

@@ -19,3 +19,7 @@ parameters:
     lexrecovery.filing.max_email_bytes: 9500000
     lexrecovery.filing.signature_reserve_bytes: 300000
     lexrecovery.filing.signed_upload_max_bytes: 20971520
+    # The day the platform started sending filings by email. A case whose petition
+    # was generated before it may already have been filed on another channel, so
+    # sending it asks the lawyer to state that it was not.
+    lexrecovery.filing.email_channel_since: '2026-10-22'

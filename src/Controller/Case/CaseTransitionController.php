@@ -25,6 +25,7 @@ use App\Service\Case\CaseFullPaymentClosureService;
 use App\Service\Case\CaseWorkflowService;
 use App\Service\Case\OverviewContextBuilder;
 use App\Service\Document\DocumentUploadService;
+use App\Service\Filing\FilingLockQuery;
 use App\Util\PiiMasker;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
@@ -51,20 +52,26 @@ final class CaseTransitionController extends AbstractController
         private readonly CaseFullPaymentClosureService $fullPaymentClosure,
         private readonly OverviewContextBuilder $overviewContext,
         private readonly TranslatorInterface $translator,
+        private readonly FilingLockQuery $filingLock,
     ) {}
 
     /**
-     * The lawyer declares that the petition has left for the court. The platform
-     * files nothing itself, so this is the only signal that anything reached the
-     * registry, and several downstream rules hang on it: the six-month term of
-     * NCC art. 2540 and the stamp-duty follow-up both start from filing, not from
-     * the moment the PDF was produced.
+     * The lawyer declares that the petition was filed on a channel the platform
+     * does not operate (registry, REJUST, post, courier). Several downstream rules
+     * hang on it: the six-month term of NCC art. 2540 and the stamp-duty follow-up
+     * both start from filing, not from the moment the PDF was produced. Refused
+     * while the platform is transmitting the case by email: the same petition
+     * would otherwise reach the court twice.
      */
     #[Route('/case/{id}/transition/file', name: 'case_transition_file', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function confirmFiling(Request $request, int $id): Response
     {
         $case = $this->findOrThrow($id);
         $this->denyAccessUnlessGranted(CaseVoter::TRANSITION, $case);
+
+        if ($this->filingLock->isLockedNow($case)) {
+            return $this->respondErrorToast($request, $case, $this->translator->trans('filing.send.flash_manual_refused_active'));
+        }
 
         $form = $this->createForm(ConfirmFilingType::class);
         $form->handleRequest($request);
@@ -399,11 +406,11 @@ final class CaseTransitionController extends AbstractController
                 ? $firstError->getMessage()
                 : $this->translator->trans('case_overview.transition.flash_error_validation');
 
-            return $this->respondFullPaymentError($request, $case, $message);
+            return $this->respondErrorToast($request, $case, $message);
         }
 
         if (!$this->fullPaymentClosure->canClose($case)) {
-            return $this->respondFullPaymentError($request, $case, $this->translator->trans('case_overview.transition.flash_error_wrong_status'));
+            return $this->respondErrorToast($request, $case, $this->translator->trans('case_overview.transition.flash_error_wrong_status'));
         }
 
         /** @var \App\Entity\User $user */
@@ -419,7 +426,7 @@ final class CaseTransitionController extends AbstractController
                 $form->get('details')->getData(),
             );
         } catch (\DomainException) {
-            return $this->respondFullPaymentError($request, $case, $this->translator->trans('case_overview.transition.flash_error_wrong_status'));
+            return $this->respondErrorToast($request, $case, $this->translator->trans('case_overview.transition.flash_error_wrong_status'));
         }
 
         if ($this->wantsTurboStream($request)) {
@@ -628,7 +635,7 @@ final class CaseTransitionController extends AbstractController
         return str_contains((string) $request->headers->get('Accept', ''), 'text/vnd.turbo-stream.html');
     }
 
-    private function respondFullPaymentError(Request $request, LegalCase $case, string $message): Response
+    private function respondErrorToast(Request $request, LegalCase $case, string $message): Response
     {
         if ($this->wantsTurboStream($request)) {
             return $this->render(

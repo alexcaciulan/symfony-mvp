@@ -17,15 +17,20 @@ enum CaseStatus: string
     case SOMATIE_TRIMISA = 'SOMATIE_TRIMISA';
 
     /**
-     * The petition package exists but nothing has left for the court yet. Filing
-     * is the lawyer's own act, on a channel the platform does not operate, so it
-     * cannot be inferred from the fact that a PDF was produced. Keeping the two
-     * apart matters beyond bookkeeping: the six-month term of NCC art. 2540 runs
-     * on the request reaching the court, not on generating it.
+     * The petition package exists but nothing has left for the court yet. Leaving
+     * takes a request of the lawyer: a filing on another channel they confirm, or a
+     * transmission by the platform to the court address they validated. It cannot
+     * be inferred from the fact that a PDF was produced. Keeping the two apart
+     * matters beyond bookkeeping: the six-month term of NCC art. 2540 runs on the
+     * request reaching the court, not on generating it.
      */
     case CERERE_GENERATA = 'CERERE_GENERATA';
 
-    /** Confirmed by the lawyer, with the date and channel they filed on. */
+    /**
+     * The petition left for the court: transmitted by the platform (the email
+     * carrying it was accepted by the SMTP server) or a filing confirmed by the
+     * lawyer. The filing date (filedAt) stays the lawyer's declaration either way.
+     */
     case CERERE_DEPUSA = 'CERERE_DEPUSA';
     case DOSAR_INREGISTRAT = 'DOSAR_INREGISTRAT';
     case TERMEN_FIXAT = 'TERMEN_FIXAT';

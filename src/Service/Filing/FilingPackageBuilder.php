@@ -55,6 +55,7 @@ final class FilingPackageBuilder
         private readonly AuditLogService $auditLogService,
         private readonly int $filingMaxEmailBytes,
         private readonly int $filingSignatureReserveBytes,
+        private readonly FilingLockQuery $filingLock,
     ) {}
 
     public function opisPlacement(): OpisPlacement
@@ -78,6 +79,7 @@ final class FilingPackageBuilder
         if ($blocker !== null) {
             throw new FilingPackageBlockedException($blocker);
         }
+        $this->assertNotBeingSent($case);
         $this->assertLawyerNamed($case);
 
         $placement = $this->opisPlacement();
@@ -122,6 +124,7 @@ final class FilingPackageBuilder
             || !in_array($package->getStatus(), [FilingPackageStatus::BUILT, FilingPackageStatus::AWAITING_SIGNATURES, FilingPackageStatus::SIGNED], true)) {
             throw new FilingPackageBlockedException('filing.package.error.rebuild_not_allowed');
         }
+        $this->assertNotBeingSent($case);
         $this->assertLawyerNamed($case);
         $previousRanges = $package->getSizePlan()['annexRanges'] ?? [];
         $annexes = $this->annexDocuments($package);
@@ -207,6 +210,14 @@ final class FilingPackageBuilder
      * Every annex volume carries a cover with the lawyer's statement; a nameless
      * statement must not reach a file the lawyer signs.
      */
+    /** A package being transmitted to the court is never replaced under it. */
+    private function assertNotBeingSent(LegalCase $case, bool $fresh = false): void
+    {
+        if ($fresh ? $this->filingLock->isLockedNow($case) : $this->filingLock->isLocked($case)) {
+            throw new FilingPackageBlockedException('filing.package.blocked_submission_active');
+        }
+    }
+
     private function assertLawyerNamed(LegalCase $case): void
     {
         if (trim((string) $case->getUser()?->getFullName()) === '') {
@@ -236,6 +247,7 @@ final class FilingPackageBuilder
         try {
             $case = $new->getLegalCase();
             $this->em->lock($case, LockMode::PESSIMISTIC_WRITE);
+            $this->assertNotBeingSent($case, true);
 
             $latest = $this->packages->findCurrentForCase($case);
             if ($this->packages->nextVersion($case) !== $new->getVersion() || $latest?->getId() !== $expectedCurrent?->getId()) {

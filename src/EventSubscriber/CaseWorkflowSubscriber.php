@@ -4,6 +4,7 @@ namespace App\EventSubscriber;
 
 use App\Entity\CaseStatusHistory;
 use App\Entity\LegalCase;
+use App\Entity\User;
 use App\Service\AuditLogService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
@@ -36,7 +37,10 @@ class CaseWorkflowSubscriber implements EventSubscriberInterface
         $transition = $event->getTransition();
         $oldStatus = $transition->getFroms()[0];
         $newStatus = $transition->getTos()[0];
-        $user = $this->security->getUser();
+        // A transition applied by a worker has no session: the caller names the actor.
+        $actor = $event->getContext()['actor'] ?? null;
+        $sessionUser = $this->security->getUser();
+        $user = $actor instanceof User ? $actor : ($sessionUser instanceof User ? $sessionUser : null);
 
         // Create CaseStatusHistory entry
         $history = new CaseStatusHistory();
@@ -53,6 +57,7 @@ class CaseWorkflowSubscriber implements EventSubscriberInterface
             (string) $subject->getId(),
             ['status' => $oldStatus],
             ['status' => $newStatus],
+            actor: $user,
         );
 
         // Reset the flag here: the cron already skips non-monitorable statuses,
@@ -70,6 +75,7 @@ class CaseWorkflowSubscriber implements EventSubscriberInterface
                     'reason' => 'status_left_monitorable_set',
                 ],
                 category: AuditLogService::CATEGORY_PORTAL_MONITORING,
+                actor: $user,
             );
         }
     }

@@ -10,6 +10,7 @@ use App\Entity\LegalCase;
 use App\Enum\CaseStatus;
 use App\Enum\DocumentType;
 use App\Service\AuditLogService;
+use App\Service\Filing\FilingLockQuery;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
@@ -34,6 +35,7 @@ final class PowerOfAttorneyService
     public function __construct(
         private readonly EntityManagerInterface $em,
         private readonly AuditLogService $auditLogService,
+        private readonly FilingLockQuery $filingLock,
     ) {}
 
     public function apply(Document $document, PowerOfAttorneyDetails $details): void
@@ -65,8 +67,10 @@ final class PowerOfAttorneyService
 
     public function canEditDetails(LegalCase $case): bool
     {
+        // The act travels in the package being sent; its details must match the signed file.
         return $case->getFullPaymentDate() === null
-            && in_array($case->getStatus(), self::EDITABLE_STATUSES, true);
+            && in_array($case->getStatus(), self::EDITABLE_STATUSES, true)
+            && !$this->filingLock->isLocked($case);
     }
 
     /**

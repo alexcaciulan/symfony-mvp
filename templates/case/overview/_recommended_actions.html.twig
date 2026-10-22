@@ -103,7 +103,7 @@
 
         {# Status-driven transitions exposed inline as secondary CTAs. Each opens the matching
            Preline modal; the controller validates and applies the workflow transition. #}
-        {% if case.status.value == 'CERERE_GENERATA' %}
+        {% if case.status.value == 'CERERE_GENERATA' and not (filing_submission|default(null) and filing_submission.active) %}
             <button type="button"
                     data-hs-overlay="#hs-modal-confirm-filing"
                     class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg bg-gradient-to-r from-purple-50 to-purple-50/50 dark:from-purple-950/40 dark:to-purple-950/20 border border-purple-200/60 dark:border-purple-900/40 hover:from-purple-100 dark:hover:from-purple-950/60 transition group">

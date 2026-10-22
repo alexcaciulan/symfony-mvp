@@ -15,6 +15,8 @@ final class NotificationTypeTest extends TestCase
         self::assertSame('deadline_alert', NotificationType::DEADLINE_ALERT->value);
         self::assertSame('missing_communication_date', NotificationType::MISSING_COMMUNICATION_DATE->value);
         self::assertSame('portal_event', NotificationType::PORTAL_EVENT->value);
+        self::assertSame('filing_sent', NotificationType::FILING_SENT->value);
+        self::assertSame('filing_annexes_cancelled', NotificationType::FILING_ANNEXES_CANCELLED->value);
     }
 
     public function testLabelKeyFollowsConvention(): void

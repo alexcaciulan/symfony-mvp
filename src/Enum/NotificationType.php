@@ -28,6 +28,8 @@ enum NotificationType: string
     case PAYMENT_SUCCEEDED = 'payment_succeeded';
     case INVOICE_ISSUED = 'invoice_issued';
     case SLOT_OVERAGE = 'slot_overage';
+    case FILING_SENT = 'filing_sent';
+    case FILING_ANNEXES_CANCELLED = 'filing_annexes_cancelled';
 
     public function label(): string
     {
@@ -51,6 +53,8 @@ enum NotificationType: string
             self::PAYMENT_SUCCEEDED => 'card',
             self::INVOICE_ISSUED => 'document',
             self::SLOT_OVERAGE => 'card',
+            self::FILING_SENT => 'document',
+            self::FILING_ANNEXES_CANCELLED => 'document',
         };
     }
 

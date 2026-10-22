@@ -8,3 +8,10 @@ services:
     App\Service\Company\AnafLookupService:
         class: App\Tests\Support\OfflineAnafLookupService
         public: true
+
+    # Court filings are recorded instead of sent; the decorated transport is the
+    # `null://` one built from .env.test, so even a bypass would go nowhere.
+    App\Tests\Support\RecordingCourtTransport:
+        decorates: app.court_filing_transport
+        arguments: ['@.inner']
+        public: true

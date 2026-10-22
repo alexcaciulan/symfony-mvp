@@ -13,16 +13,21 @@ use App\Entity\LegalDeadline;
 use App\Enum\CaseStatus;
 use App\Enum\DocumentType;
 use App\Enum\FilingChannel;
+use App\Enum\FilingPackageStatus;
 use App\Enum\PenaltyType;
 use App\Repository\AuditLogRepository;
 use App\Repository\CourtPortalEventRepository;
+use App\Repository\FilingSubmissionRepository;
 use App\Repository\LegalDeadlineRepository;
 use App\Service\Calculation\InterestCalculatorService;
 use App\Service\Court\CourtFilingAddressResolver;
 use App\Service\Calculation\StampDutyCalculator;
 use App\Service\Deadline\DeadlineService;
+use App\Service\Filing\FilingDateService;
 use App\Service\Filing\FilingGate;
 use App\Service\Filing\FilingPackageStalenessChecker;
+use App\Service\Filing\FilingSendGuard;
+use App\Service\Filing\FilingSubmissionService;
 use App\Service\Portal\RulingProposalResolver;
 use App\Service\StampDuty\StampDutyUatResolver;
 
@@ -48,6 +53,10 @@ final class OverviewContextBuilder
         private readonly FilingPackageStalenessChecker $filingStaleness,
         private readonly FilingGate $filingGate,
         private readonly CourtFilingAddressResolver $courtFilingAddressResolver,
+        private readonly FilingSubmissionRepository $filingSubmissions,
+        private readonly FilingSendGuard $filingSendGuard,
+        private readonly FilingSubmissionService $filingSubmissionService,
+        private readonly FilingDateService $filingDates,
     ) {}
 
     /**
@@ -62,6 +71,8 @@ final class OverviewContextBuilder
         $deadlines = $this->deadlines->findByCase($case);
         $portalEvents = $this->portalEvents->findByLegalCase($case);
         [$interestBreakdown, $breakdownError] = $this->computeBreakdown($case);
+        $filingPackage = $this->filingStaleness->refresh($case);
+        $filingSubmission = $this->filingSubmissions->findActiveForCase($case) ?? $this->filingSubmissions->findLatestForCase($case);
         $countingItems = $case->getCountingClaimItems();
         $accessories = $this->caseAccessories->aggregate($case);
 
@@ -102,7 +113,16 @@ final class OverviewContextBuilder
             'closed_from_status' => $this->closedFromStatus($case),
             'debtor_count' => $case->getDebtors()->count(),
             // Looked at, so re-checked: a package whose sources changed is marked stale here.
-            'filing_package' => $this->filingStaleness->refresh($case),
+            'filing_package' => $filingPackage,
+            'filing_submission' => $filingSubmission,
+            'filing_submission_cancellable' => $filingSubmission !== null && $this->filingSubmissionService->isCancellable($filingSubmission),
+            // Only worth asking once there is something signed to send and nothing on its way.
+            'filing_send_verdict' => $case->getStatus() === CaseStatus::CERERE_GENERATA
+                && $filingPackage?->getStatus() === FilingPackageStatus::SIGNED
+                && !($filingSubmission?->isActive() ?? false)
+                    ? $this->filingSendGuard->checkForSubmit($case, $case->getUser())
+                    : null,
+            'filing_can_set_filed_date' => $this->filingDates->canSet($case),
             'filing_gate_blocker' => $this->filingGate->firstBlocker($case),
             'filing_recipient' => $this->courtFilingAddressResolver->resolve($case),
             'just_created' => false,

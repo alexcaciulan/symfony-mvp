@@ -1170,6 +1170,7 @@ case_overview:
     zip_package:
         title: 'Pachet pentru depunere pe alt canal'
         other_channel_note: 'Pentru REJUST, registratură, poștă sau curier. Nu este pachetul de semnat pentru trimiterea prin e-mail.'
+        archive_note: 'Cererea a fost transmisă prin e-mail; arhiva rămâne disponibilă ca evidență a dosarului.'
         intro: 'Descarcă tot ce ai nevoie pentru a depune cererea OP la %court%:'
         intro_no_court: 'Descarcă tot ce ai nevoie pentru a depune cererea OP:'
         item_cerere: 'Cerere OP (va fi generată)'
@@ -2392,6 +2393,46 @@ fiscal_invoices:
 # Enums (label() returns these keys; consumers apply |trans)
 # =============================================================================
 enum:
+    filing_delivery_status:
+        QUEUED: 'În așteptare'
+        SENDING: 'Se transmite'
+        PARTIALLY_SENT: 'Anexe în curs'
+        SENT: 'Transmisă, fără confirmare de primire'
+        FAILED_TEMPORARY_EXHAUSTED: 'Eșuată (erori temporare)'
+        FAILED_PERMANENT: 'Eșuată (refuz permanent)'
+        FAILED_SIZE: 'Eșuată (dimensiune)'
+        FAILED_INTERNAL: 'Eșuată (eroare internă)'
+        NEEDS_REVIEW: 'Necesită verificare'
+        CANCELLED: 'Anulată'
+        UNDELIVERED: 'Nelivrată'
+    filing_evidence_status:
+        AWAITING_RECEIPT: 'Fără confirmare de primire'
+        RECEIPT_RECEIVED: 'Confirmare de primire primită'
+        RECEIPT_MANUAL: 'Confirmare de primire declarată de avocat'
+        RECEIPT_OVERDUE: 'Confirmare de primire întârziată'
+    filing_part_status:
+        PENDING: 'în așteptare'
+        SENDING: 'se trimite'
+        ACCEPTED: 'acceptat de serverul de e-mail'
+        RETRY_SCHEDULED: 'reîncercare programată'
+        FAILED_TEMPORARY_EXHAUSTED: 'eșuat (erori temporare)'
+        FAILED_PERMANENT: 'eșuat (refuz permanent)'
+        FAILED_SIZE: 'eșuat (dimensiune)'
+        FAILED_INTERNAL: 'eșuat (eroare internă)'
+        UNCERTAIN: 'incert'
+        CANCELLED: 'anulat, netrimis'
+    filing_attempt_outcome:
+        ACCEPTED: 'Acceptat'
+        TEMPORARY: 'Eroare temporară'
+        PERMANENT: 'Refuz permanent'
+        SIZE: 'Dimensiune'
+        INTERNAL: 'Eroare internă'
+        UNCERTAIN: 'Incert'
+    filing_attempt_source:
+        SMTP: 'Server SMTP'
+        ASYNC_BOUNCE: 'Mesaj de nelivrare'
+        LAWYER_CC_CHECK: 'Verificarea avocatului'
+        ADMIN_OVERRIDE: 'Decizia administratorului'
     court_email_purpose:
         REGISTRY: 'Registratură'
         SECTION_CIVIL: 'Secția civilă'
@@ -2612,6 +2653,8 @@ enum:
         email: 'Email'
         in_app: 'În aplicație'
     notification_type:
+        filing_sent: 'Cerere transmisă instanței'
+        filing_annexes_cancelled: 'Anexe netransmise'
         case_status: 'Status dosar'
         deadline_alert: 'Termen'
         missing_communication_date: 'Dată comunicare lipsă'
@@ -2816,6 +2859,10 @@ validation:
 # Email notifications (EmailNotificationSubscriber + templates/emails/)
 # =============================================================================
 email:
+    filing_sent:
+        subject: 'Cerere transmisă instanței: %case%'
+    filing_annexes_cancelled:
+        subject: 'Anexe netransmise instanței: %case%'
     sender_name: 'LexRecovery'
     footer_disclaimer: 'Acest mesaj este informativ și nu constituie consultanță juridică. Verificați termenele și soluțiile direct pe portalul instanței.'
     cta:
@@ -2944,6 +2991,12 @@ email:
 # In-app notifications + Mercure toast text (NotificationDispatcher)
 # =============================================================================
 notification:
+    filing_sent:
+        title: 'Cerere transmisă instanței: %case%'
+        message: 'Cererea a fost transmisă la adresa %address%; nu există încă o confirmare de primire.'
+    filing_annexes_cancelled:
+        title: 'Anexe netransmise: %case%'
+        message: 'Au fost transmise doar: %sent%. Nu au fost transmise: %not_sent%. Anexele nu au fost trimise și trebuie depuse separat.'
     deadline_alert:
         procedural:
             title: 'Termen %type% pe dosarul %case%'
@@ -3402,6 +3455,108 @@ deadlines:
 # Court filing package (unsigned files for signing and filing)
 # =============================================================================
 filing:
+    send:
+        cta: 'Trimite la instanță'
+        title: 'Transmiterea cererii la instanță prin e-mail'
+        blocked_title: 'Transmiterea la instanță nu este disponibilă încă'
+        dev_banner: 'Mediu de test: mesajele nu pleacă spre instanță. Se trimit la %override% în loc de %address%.'
+        court: 'Instanța'
+        competence_line: 'Instanța a fost calculată automat pe datele din dosar; verificarea competenței aparține avocatului.'
+        address: 'Adresa de e-mail a instanței'
+        address_meta: 'adresă confirmată la %date% · sursa: %source%'
+        headers: 'Expeditor și copie'
+        from: 'De la'
+        cc: 'Copie (CC)'
+        reply_to: 'Răspuns la'
+        subject: 'Subiect'
+        body: 'Textul e-mailului'
+        attachments: '{1} Atașamente (un e-mail)|]1,Inf[ Atașamente (%count% e-mailuri, trimise în ordine)'
+        attachment_line: 'E-mail %k%: %name% (%size% MB)'
+        interest_date: 'Data de calcul a dobânzii din cerere'
+        irreversible_note: 'După acceptarea primului e-mail (cererea și împuternicirea) de serverul de e-mail, transmiterea nu mai poate fi anulată.'
+        submit: 'Transmite'
+        dismiss: 'Renunță'
+        confirm_hint: 'Transmiterea cere bifarea fiecărei declarații.'
+        flash_queued: 'Transmiterea a fost pusă în așteptare. Starea se actualizează pe card.'
+        flash_manual_refused_active: 'Cererea este în curs de transmitere prin platformă, deci confirmarea unei depuneri pe alt canal nu este disponibilă.'
+        confirm:
+            documents_checked: 'Am verificat documentele semnate, textul e-mailului și adresa instanței.'
+            other_channel: 'Cererea nu a fost depusă pe alt canal (registratură, REJUST, poștă sau curier).'
+        blocker:
+            not_owner: 'Transmiterea se face doar de avocatul dosarului.'
+            user_not_verified: 'Adresa de e-mail a contului nu este confirmată.'
+            subscription_inactive: 'Contul nu are un abonament activ.'
+            lawyer_email_missing: 'Numele sau adresa de e-mail a avocatului lipsesc din profil.'
+            communication_details_missing: 'Data primirii somației și modul de comunicare (executor judecătoresc sau scrisoare recomandată cu confirmare de primire) lipsesc din dosar.'
+            package_not_signed: 'Pachetul nu are semnături detectate pe toate fișierele.'
+            package_stale: 'Pachetul nu mai corespunde dosarului și trebuie reconstruit și semnat din nou.'
+            court_changed: 'Sediul actual al debitorului indică altă instanță decât cea calculată de platformă pentru dosar.'
+            address_court_differs: 'Adresa de e-mail aparține altei instanțe decât cea calculată de platformă pentru dosar.'
+            address_missing: 'Nicio adresă de e-mail validată pentru instanța dosarului.'
+            submission_active: 'O transmitere a acestui dosar este deja în curs.'
+            portal_match: 'Există o potrivire posibilă pe portal pentru acest dosar; confirmarea sau respingerea ei este necesară înainte de transmitere.'
+            court_case_number: 'Dosarul are deja un număr la instanță.'
+            manual_filing: 'Pentru acest dosar a fost confirmată o depunere pe alt canal.'
+            power_of_attorney_details: 'Seria, numărul sau data împuternicirii avocațiale lipsesc.'
+            first_email_layout: 'Primul e-mail al pachetului nu conține cererea și împuternicirea. Pachetul trebuie reconstruit.'
+            email_too_large: 'Un e-mail al pachetului depășește limita de dimensiune după semnare.'
+            configuration: 'Configurația de trimitere a platformei nu permite transmiterea. Administratorul platformei a fost informat prin jurnal.'
+        warning:
+            cn_differs: 'Numele din certificatul de semnătură diferă de numele contului.'
+            interest_date_old: 'Dobânda din cerere este calculată până la %date%, acum mai mult de 30 de zile.'
+        error:
+            confirmation_required: 'Transmiterea cere bifarea fiecărei declarații.'
+            rate_limited: 'Limita zilnică de transmiteri a fost atinsă. Reîncercați mâine.'
+    status:
+        hero_label: 'Transmisă instanței'
+        transmitted_no_receipt: 'Transmisă instanței, fără confirmare de primire'
+        annexes_in_progress: 'Anexe în curs: %done% din %total% e-mailuri acceptate de serverul de e-mail.'
+        headline:
+            QUEUED: 'În așteptare: e-mailul către instanță urmează să fie trimis'
+            SENDING: 'Se transmite e-mailul către instanță'
+            PARTIALLY_SENT: 'Transmisă instanței, fără confirmare de primire'
+            SENT: 'Transmisă instanței, fără confirmare de primire'
+            NEEDS_REVIEW: 'Transmiterea s-a oprit și necesită verificare'
+            CANCELLED: 'Transmiterea a fost anulată înainte de trimitere'
+            FAILED_TEMPORARY_EXHAUSTED: 'Transmiterea nu a reușit'
+            FAILED_PERMANENT: 'Transmiterea nu a reușit'
+            FAILED_SIZE: 'Transmiterea nu a reușit'
+            FAILED_INTERNAL: 'Transmiterea nu a reușit'
+            UNDELIVERED: 'Mesajul nu a fost livrat instanței'
+        recipient: 'Destinatar: %address%'
+        override_note: 'Mediu de test: mesajul a fost trimis la adresa de simulare, nu la %address%.'
+        part: 'E-mail %k% din %n%'
+        accepted_at: 'acceptat la %date%'
+        sent_at_note: 'Ora indicată este momentul acceptării de serverul de e-mail (ora României), nu data depunerii.'
+        download_eml: 'Copia e-mailului (.eml)'
+        filed_at: 'Data depunerii declarată: %date%'
+        filed_at_pending: 'Data depunerii se declară de avocat, după înregistrarea pe portal sau după confirmarea instanței.'
+        cancel: 'Anulează transmiterea'
+        cancelled: 'Transmiterea a fost anulată. Nimic nu a plecat spre instanță.'
+        cancel_refused: 'Transmiterea nu mai poate fi anulată: cel puțin un e-mail a plecat sau este în curs de trimitere.'
+        review:
+            annexes_cancelled: 'Dosarul a primit număr la instanță înainte ca toate e-mailurile să plece. Au fost transmise doar documentele marcate ca acceptate; anexele rămase nu au fost trimise și trebuie depuse separat.'
+            case_moved_on: 'Starea dosarului s-a schimbat în timpul transmiterii, deci e-mailurile rămase nu au fost trimise.'
+            package_changed: 'Pachetul semnat s-a schimbat după cererea de transmitere.'
+            address_changed: 'Adresa de depunere a instanței s-a schimbat după cererea de transmitere.'
+            signed_file_changed: 'Un fișier semnat nu mai corespunde celui încărcat, deci nu a fost trimis.'
+            not_active: 'Transmiterea nu mai este activă.'
+            part_cancelled: 'E-mailul a fost anulat.'
+            part_uncertain: 'Trimiterea unui e-mail a fost întreruptă și nu se știe dacă serverul l-a primit. Verificarea copiei din CC a avocatului este necesară; nimic nu a fost retrimis.'
+            send_failed: 'Serverul de e-mail nu a acceptat mesajul. Nimic nu a fost retrimis automat.'
+            recipient_changed: 'Destinatarul efectiv s-a schimbat față de cererea de transmitere (configurația platformei).'
+            too_large: 'E-mailul depășește limita de dimensiune și nu a fost trimis.'
+            internal_error: 'E-mailul nu a putut fi pregătit pentru trimitere.'
+        set_date:
+            title: 'Stabilește data depunerii'
+            help: 'Data la care cererea a fost depusă la instanță (de exemplu, data înregistrării), declarată de avocat pe baza confirmării instanței sau a portalului. Platforma nu confirmă această dată.'
+            submit: 'Salvează data'
+            saved: 'Data depunerii a fost salvată.'
+            error_invalid: 'Data nu are un format valid.'
+            error_future: 'Data depunerii nu poate fi în viitor.'
+            error_before_sent: 'Data depunerii nu poate fi anterioară transmiterii e-mailului.'
+            error_before_generated: 'Data depunerii nu poate fi anterioară generării cererii.'
+            error_not_allowed: 'Data depunerii se stabilește aici doar pentru o cerere transmisă prin platformă.'
     package:
         title: 'Pachet de depunere'
         intro: 'Fișierele de semnat pentru depunerea cererii: cererea cu opisul, anexele numerotate și împuternicirea avocațială. Fiecare fișier se descarcă separat.'
@@ -3410,6 +3565,7 @@ filing:
         blocked_title: 'Pachetul nu se poate construi încă'
         blocked_wrong_status: 'Pachetul se construiește după generarea cererii de ordonanță de plată și înainte de depunerea ei.'
         blocked_petition_missing: 'Fișierul cererii de ordonanță de plată lipsește din stocare, deci pachetul nu se poate construi.'
+        blocked_submission_active: 'Pachetul este în curs de transmitere la instanță, deci nu poate fi modificat.'
         download_unsigned: 'Descarcă (nesemnat)'
         part_meta: '%pages% pagini · %size% MB'
         part_annex_page: 'anexele, pagina %page%'
@@ -3564,3 +3720,28 @@ court_address:
             invalid_reason: 'Motivul ales nu este disponibil.'
             csrf: 'Sesiunea a expirat. Reîncarcă pagina și încearcă din nou.'
             rate_limited: 'Prea multe acțiuni într-un interval scurt. Încearcă din nou mai târziu.'
+court_email:
+    from_name: 'Av. %name% prin LexRecovery'
+    subject: 'Cerere de emitere a ordonanței de plată: %creditor% contra %debtor%'
+    subject_part: '%subject% (partea %k% din %n%)'
+    debtor_others_suffix: ' și alții'
+    salutation: 'Către %court%,'
+    creditor_line: 'Subscrisa %creditor%, cu sediul în %seat%, CUI %cui%, prin avocat %lawyer%, transmite cererea de emitere a ordonanței de plată, semnată electronic de avocat, împreună cu documentele care o însoțesc.'
+    creditor_line_no_cui: 'Subscrisa %creditor%, cu sediul în %seat%, prin avocat %lawyer%, transmite cererea de emitere a ordonanței de plată, semnată electronic de avocat, împreună cu documentele care o însoțesc.'
+    continuation_line: 'Subscrisa %creditor%, prin avocat %lawyer%, transmite în continuare anexele cererii de emitere a ordonanței de plată (partea %k% din %n%).'
+    documents_intro: 'Documente atașate acestui mesaj:'
+    document_line: '- %file%: %title%'
+    package_intro: 'Documentele sunt transmise în %n% mesaje, în ordine:'
+    package_email_line: 'Mesajul %k%: %files%'
+    annexes_follow: 'Anexele urmează în mesajele următoare, în același fir de discuție.'
+    stamp_duty_proof: 'Dovada achitării taxei judiciare de timbru este inclusă în anexe.'
+    stamp_duty_registry: 'Mențiunea privind taxa judiciară de timbru se regăsește în cerere (plată prin registratura electronică a instanțelor).'
+    stamp_duty_later: 'Taxa judiciară de timbru se va achita la indicarea instanței.'
+    receipt_request: 'Vă rugăm să confirmați primirea acestui mesaj și să comunicați numărul dosarului la adresa avocatului, %lawyer_email%, aflată în copie.'
+    signature_closing: 'Cu stimă,'
+    signature_name: 'Av. %name%'
+    signature_poa: 'Împuternicire avocațială seria %series% nr. %number% din %date%'
+    signature_phone: 'Telefon: %phone%'
+    signature_email: 'E-mail: %email%'
+    footer_platform: 'Mesaj transmis prin platforma LexRecovery în numele avocatului.'
+    footer_signed: 'Actele sunt semnate electronic de avocat; acest e-mail asigură doar transmiterea.'

@@ -27,6 +27,7 @@ final class FilingPackageStalenessChecker
         private readonly FilingSourceManifestBuilder $manifestBuilder,
         private readonly AppSettingRepository $settings,
         private readonly EntityManagerInterface $em,
+        private readonly FilingLockQuery $filingLock,
     ) {}
 
     /** The current package, marked stale (and flushed) when its sources changed. */
@@ -34,6 +35,10 @@ final class FilingPackageStalenessChecker
     {
         $package = $this->packages->findCurrentForCase($case);
         if ($package === null || !$package->getStatus()->canBecomeStale()) {
+            return $package;
+        }
+        // Being transmitted: the files that leave are the ones signed, whatever changes now.
+        if ($this->filingLock->isLocked($case)) {
             return $package;
         }
 

@@ -10,11 +10,14 @@
 {% set package = filing_package|default(null) %}
 {% set gate_blocker = filing_gate_blocker|default(null) %}
 {% set is_owner = app.user and app.user.id == case.user.id %}
-{% set can_build = gate_blocker is null and is_granted('CASE_TRANSITION', case) %}
+{# A package being transmitted is frozen: no upload, no rebuild until the transmission ends. #}
+{% set submission = filing_submission|default(null) %}
+{% set filing_locked = submission and submission.active %}
+{% set can_build = gate_blocker is null and is_granted('CASE_TRANSITION', case) and not filing_locked %}
 {% set readiness_blockers = gate_blocker and case.status.value == 'CERERE_GENERATA' ? filing_readiness(case).blockers : [] %}
 {% set poa_editable = power_of_attorney_editable(case) and is_granted('CASE_UPLOAD', case) %}
 {% set over_budget = filing_over_budget|default(null) %}
-{% set uploads_open = package and is_owner and case.status.value == 'CERERE_GENERATA' and package.status.value in ['BUILT', 'AWAITING_SIGNATURES', 'SIGNED'] %}
+{% set uploads_open = package and is_owner and not filing_locked and case.status.value == 'CERERE_GENERATA' and package.status.value in ['BUILT', 'AWAITING_SIGNATURES', 'SIGNED'] %}
 {% set validator_url = 'https://ec.europa.eu/digital-building-blocks/DSS/webapp-demo/validation' %}
 
 <section id="filing-package-card" class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft overflow-hidden">
@@ -32,6 +35,32 @@
         </div>
 
         <p class="text-xs text-slate-600 dark:text-slate-300 mb-3">{{ 'filing.package.intro'|trans }}</p>
+
+        {% if submission %}
+            {{ include('case/filing/_submission_card.html.twig') }}
+        {% endif %}
+
+        {% set verdict = filing_send_verdict|default(null) %}
+        {% if verdict and is_owner %}
+            {% if verdict.allowed %}
+                <turbo-frame id="filing-send-panel" class="block mb-3">
+                    <a href="{{ path('case_filing_submission_confirm', {id: case.id}) }}"
+                       data-testid="filing-send-open"
+                       class="w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-semibold rounded-lg bg-lex-navy text-white hover:bg-lex-navy-dark transition">
+                        {{ 'filing.send.cta'|trans }}
+                    </a>
+                </turbo-frame>
+            {% else %}
+                <div class="rounded-lg border border-slate-200 dark:border-slate-800 p-3 mb-3 text-xs text-slate-700 dark:text-slate-200" data-testid="filing-send-blockers">
+                    <p class="font-semibold">{{ 'filing.send.blocked_title'|trans }}</p>
+                    <ul class="mt-1 list-disc ps-4 space-y-0.5">
+                        {% for blocker in verdict.blockers %}
+                            <li>{{ blocker|trans }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+        {% endif %}
 
         {% if package and package.status.value == 'SIGNED' %}
             <p class="text-xs font-semibold text-slate-700 dark:text-slate-200 mb-3" data-testid="filing-package-signed">{{ 'filing.signature.package_signed'|trans }}</p>

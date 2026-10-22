@@ -107,6 +107,16 @@ services:
             $filingMaxEmailBytes: '%lexrecovery.filing.max_email_bytes%'
             $filingSignatureReserveBytes: '%lexrecovery.filing.signature_reserve_bytes%'
             $filingSignedUploadMaxBytes: '%lexrecovery.filing.signed_upload_max_bytes%'
+            # Court filing by email: the dedicated SMTP transport (never the
+            # notification mailer), the platform sender and bounce domain, and the
+            # opt-in that alone lets a message reach a real court address.
+            $courtFilingTransport: '@app.court_filing_transport'
+            $courtFilingFrom: '%env(COURT_FILING_FROM)%'
+            $courtFilingBounceDomain: '%env(COURT_FILING_BOUNCE_DOMAIN)%'
+            $courtFilingLive: '%env(bool:COURT_FILING_LIVE)%'
+            $courtFilingRecipientOverride: '%env(default::COURT_FILING_RECIPIENT_OVERRIDE)%'
+            $courtFilingMailerDsn: '%env(COURT_FILING_MAILER_DSN)%'
+            $filingEmailChannelSince: '%lexrecovery.filing.email_channel_since%'
 
     # interface-based auto-tagging (Strategy + Tagged Iterator pattern)
     _instanceof:
@@ -164,6 +174,13 @@ services:
         arguments:
             $fixedAmount: '%app.taxa_timbru_op.fixed%'
             $lawVersion: '%app.taxa_timbru_op.law_version%'
+
+    # SMTP transport for court filings only, built from its own DSN with a socket
+    # timeout well under the messenger redelivery window.
+    app.court_filing_transport:
+        class: Symfony\Component\Mailer\Transport\TransportInterface
+        factory: ['App\Service\Filing\CourtFilingTransportFactory', 'create']
+        arguments: ['%env(COURT_FILING_MAILER_DSN)%']
 
     App\Service\Deadline\WorkingDayResolver:
         arguments:

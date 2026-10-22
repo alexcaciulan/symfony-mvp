@@ -7,10 +7,15 @@ namespace App\Tests\Support;
 use App\Entity\Court;
 use App\Entity\CourtEmailAddress;
 use App\Entity\Creditor;
+use App\Entity\AppSetting;
 use App\Entity\Debtor;
 use App\Entity\Document;
+use App\Entity\FilingPackage;
+use App\Entity\FilingPackagePart;
 use App\Entity\LegalCase;
 use App\Entity\LegalCaseDebtor;
+use App\Entity\Plan;
+use App\Entity\Subscription;
 use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\CourtEmailPurpose;
@@ -19,8 +24,19 @@ use App\Enum\CourtEmailStatus;
 use App\Enum\CourtType;
 use App\Enum\DocumentType;
 use App\Enum\ExtractionStatus;
+use App\Enum\FilingPackageStatus;
+use App\Enum\FilingPartRole;
+use App\Enum\OpisPlacement;
+use App\Enum\PaymentNoticeCommunicationMethod;
 use App\Enum\PersonType;
+use App\Enum\SignatureStatus;
 use App\Enum\StampDutyStatus;
+use App\Enum\SubscriptionStatus;
+use App\Repository\AppSettingRepository;
+use App\Service\Filing\FilingAnnexSelector;
+use App\Service\Filing\FilingPackageFingerprint;
+use App\Service\Filing\FilingSizePlanner;
+use App\Service\Filing\FilingSourceManifestBuilder;
 use App\Service\Pdf\HtmlToPdfRenderer;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Process\Process;
@@ -236,6 +252,104 @@ trait FilingCaseFixtureTrait
         return $encrypted;
     }
 
+    /** @var list<int> */
+    private array $filingPlanIds = [];
+
+    private function createFilingSubscription(EntityManagerInterface $em, User $user, SubscriptionStatus $status = SubscriptionStatus::ACTIVE): Subscription
+    {
+        $plan = new Plan();
+        $plan->setName('filing-plan-' . uniqid());
+        $plan->setPriceMonthly('99.00');
+        $plan->setIncludedCases(5);
+        $plan->setPricePerExtra('25.00');
+        $plan->setIsActive(true);
+        $plan->setIsTrial(false);
+        $em->persist($plan);
+
+        $subscription = new Subscription();
+        $subscription->setUser($user);
+        $subscription->setPlan($plan);
+        $subscription->setStatus($status);
+        $subscription->setCurrentPeriodStart(new \DateTimeImmutable('-1 day'));
+        $subscription->setCurrentPeriodEnd(new \DateTimeImmutable('+1 month'));
+        $subscription->setCasesConsumed(0);
+        $em->persist($subscription);
+        $em->flush();
+        $this->filingPlanIds[] = (int) $plan->getId();
+
+        return $subscription;
+    }
+
+    /**
+     * A case every send condition holds for: documents on disk, the summons served
+     * by a bailiff, a confirmed registry address for its court, an active
+     * subscription and a package whose files all carry an accepted signature.
+     * The package is assembled directly, without the PDF tools: its fingerprint is
+     * the real one, so the staleness check sees it as current.
+     */
+    private function createSendableFilingCase(EntityManagerInterface $em, User $user, int $emails = 1): LegalCase
+    {
+        $case = $this->createFilingCase($em, $user);
+        $case->setPaymentNoticeCommunicationMethod(PaymentNoticeCommunicationMethod::EXECUTOR);
+        $this->attachFilingDocuments($em, $case, $user);
+        $this->createCourtEmailAddress($em, $case->getCourt(), 'registratura-' . uniqid() . '@example.test', CourtEmailPurpose::REGISTRY, CourtEmailStatus::VALIDATED, new \DateTimeImmutable('-10 days'), $user, true);
+        $this->createFilingSubscription($em, $user);
+        $this->createSignedFilingPackage($em, $case, $user, $emails);
+        $em->flush();
+
+        return $case;
+    }
+
+    private function createSignedFilingPackage(EntityManagerInterface $em, LegalCase $case, User $user, int $emails = 1): FilingPackage
+    {
+        $container = static::getContainer();
+        $placement = $container->get(AppSettingRepository::class)->get(AppSetting::KEY_FILING_OPIS_PLACEMENT) === 'separate' ? OpisPlacement::SEPARATE : OpisPlacement::MERGED;
+        $selection = $container->get(FilingAnnexSelector::class)->select($case);
+        $manifest = $container->get(FilingSourceManifestBuilder::class)->build($case, $selection, $placement);
+
+        $package = new FilingPackage($case, 1, $placement, $user);
+        $package->setSource(FilingPackageFingerprint::hash($manifest), $manifest);
+        $package->setIncludesStampDutyProof($selection->stampDutyProofAnnexed);
+
+        $volumes = max(1, $emails - 1);
+        $layout = [[FilingPartRole::PETITION, null, 'Cererea de ordonanță de plată, cu opisul'], [FilingPartRole::POWER_OF_ATTORNEY, null, 'Împuternicirea avocațială']];
+        for ($v = 1; $v <= $volumes; ++$v) {
+            $layout[] = [FilingPartRole::ANNEX_BUNDLE, $v, $volumes > 1 ? "Anexe, volumul $v din $volumes" : 'Anexe'];
+        }
+
+        $tokensPerEmail = array_fill(0, $emails, []);
+        foreach ($layout as $position => [$role, $volume, $title]) {
+            $token = bin2hex(random_bytes(16));
+            $dir = 'cases/' . $case->getId() . '/filing/v1';
+            $unsigned = self::pdfBytes([$title . ' ' . $token]);
+            $signed = $unsigned . "\n% signed " . $token . "\n";
+            foreach (['unsigned' => $unsigned, 'signed' => $signed] as $kind => $bytes) {
+                if (!is_dir($this->filingUploadsDir . '/' . $dir . '/' . $kind)) {
+                    mkdir($this->filingUploadsDir . '/' . $dir . '/' . $kind, 0o755, true);
+                }
+                file_put_contents($this->filingUploadsDir . '/' . $dir . '/' . $kind . '/' . $token . '.pdf', $bytes);
+            }
+
+            $part = new FilingPackagePart($role, $position + 1, $title, 1, $dir . '/unsigned/' . $token . '.pdf', hash('sha256', $unsigned), strlen($unsigned), $token);
+            if ($volume !== null) {
+                $part->setVolume($volume, $volumes);
+            }
+            $part->recordSignedUpload($dir . '/signed/' . $token . '.pdf', hash('sha256', $signed), strlen($signed), $user, SignatureStatus::PRESENT_MATCHED, ['warnings' => []]);
+            $package->addPart($part);
+
+            $email = $role === FilingPartRole::ANNEX_BUNDLE && $emails > 1 ? (int) $volume : 0;
+            $tokensPerEmail[$email][] = $token;
+        }
+
+        $package->setSizePlan(['budget' => 6_000_000, 'emails' => FilingSizePlanner::emailBytes($package->getParts(), $tokensPerEmail), 'annexRanges' => [], 'warnings' => [], 'skippedDocuments' => []]);
+        $package->recomputeSignedTotals();
+        $package->setStatus(FilingPackageStatus::SIGNED);
+        $em->persist($package);
+        $em->flush();
+
+        return $package;
+    }
+
     private function removeFilingFixtures(EntityManagerInterface $em, ?User $user, ?LegalCase $case): void
     {
         $caseId = $case?->getId();
@@ -255,6 +369,8 @@ trait FilingCaseFixtureTrait
         $conn = $em->getConnection();
         $cases = 'SELECT id FROM legal_case WHERE user_id = ?';
         $courtIds = $conn->fetchFirstColumn('SELECT DISTINCT court_id FROM legal_case WHERE user_id = ? AND court_id IS NOT NULL', [$userId]);
+        // Submissions first: their emails reference package parts, and a submission the package.
+        $conn->executeStatement('DELETE FROM filing_submission WHERE legal_case_id IN (' . $cases . ')', [$userId]);
         $conn->executeStatement('DELETE FROM filing_package_part WHERE package_id IN (SELECT id FROM filing_package WHERE legal_case_id IN (' . $cases . '))', [$userId]);
         $conn->executeStatement('UPDATE filing_package SET previous_version_id = NULL WHERE legal_case_id IN (' . $cases . ')', [$userId]);
         $conn->executeStatement('DELETE FROM filing_package WHERE legal_case_id IN (' . $cases . ')', [$userId]);
@@ -279,6 +395,11 @@ trait FilingCaseFixtureTrait
             }
             $conn->executeStatement("DELETE FROM court_email_address WHERE court_id = ? AND court_id IN (SELECT id FROM court WHERE name LIKE 'Judecătoria Test Filing %')", [$courtId]);
             $conn->executeStatement("DELETE FROM court WHERE id = ? AND name LIKE 'Judecătoria Test Filing %'", [$courtId]);
+        }
+        $conn->executeStatement('DELETE FROM invoice WHERE user_id = ?', [$userId]);
+        $conn->executeStatement('DELETE FROM subscription WHERE user_id = ?', [$userId]);
+        foreach ($this->filingPlanIds as $planId) {
+            $conn->executeStatement('DELETE FROM plan WHERE id = ? AND id NOT IN (SELECT plan_id FROM subscription)', [$planId]);
         }
         $conn->executeStatement('DELETE FROM `user` WHERE id = ?', [$userId]);
     }

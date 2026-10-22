@@ -30,8 +30,11 @@ framework:
                 genereaza_cerere:
                     from: SOMATIE_TRIMISA
                     to: CERERE_GENERATA
-                # Filing is an act of the lawyer on a channel we do not operate, so
-                # only their confirmation moves the case here.
+                # Applied when the lawyer confirms a filing on another channel, or
+                # when the platform's email carrying the petition is accepted by the
+                # SMTP server; the filing date stays the lawyer's declaration. While a
+                # transmission holds the case, only the platform's own path may apply
+                # it (FilingWorkflowInterlockSubscriber).
                 depune_cerere:
                     from: CERERE_GENERATA
                     to: CERERE_DEPUSA

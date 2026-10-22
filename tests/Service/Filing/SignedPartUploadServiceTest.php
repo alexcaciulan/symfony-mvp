@@ -18,6 +18,7 @@ use App\Enum\SignatureStatus;
 use App\Repository\AppSettingRepository;
 use App\Service\AuditLogService;
 use App\Service\Filing\FilingPackageBuilder;
+use App\Service\Filing\FilingLockQuery;
 use App\Service\Filing\FilingPackageStalenessChecker;
 use App\Service\Filing\FilingPartWriter;
 use App\Service\Filing\FilingSizePlanner;
@@ -422,6 +423,7 @@ final class SignedPartUploadServiceTest extends KernelTestCase
             $sandbox,
             $container->get(AuditLogService::class),
             $maxEmailBytes,
+            $container->get(FilingLockQuery::class),
         );
     }
 }

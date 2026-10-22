@@ -1170,6 +1170,7 @@ case_overview:
     zip_package:
         title: 'Package for filing through another channel'
         other_channel_note: 'For REJUST, the registry, post or courier. It is not the package to sign for filing by email.'
+        archive_note: 'The petition was transmitted by email; the archive stays available as a record of the case.'
         intro: 'Download everything you need to file the payment order petition at %court%:'
         intro_no_court: 'Download everything you need to file the payment order petition:'
         item_cerere: 'Payment order petition (to be generated)'
@@ -2395,6 +2396,46 @@ fiscal_invoices:
 # Enums (label() returns these keys; consumers apply |trans)
 # =============================================================================
 enum:
+    filing_delivery_status:
+        QUEUED: 'Queued'
+        SENDING: 'Sending'
+        PARTIALLY_SENT: 'Annexes in progress'
+        SENT: 'Transmitted, no receipt confirmation'
+        FAILED_TEMPORARY_EXHAUSTED: 'Failed (temporary errors)'
+        FAILED_PERMANENT: 'Failed (permanent refusal)'
+        FAILED_SIZE: 'Failed (size)'
+        FAILED_INTERNAL: 'Failed (internal error)'
+        NEEDS_REVIEW: 'Needs checking'
+        CANCELLED: 'Cancelled'
+        UNDELIVERED: 'Undelivered'
+    filing_evidence_status:
+        AWAITING_RECEIPT: 'No receipt confirmation'
+        RECEIPT_RECEIVED: 'Receipt confirmation received'
+        RECEIPT_MANUAL: 'Receipt confirmation declared by the lawyer'
+        RECEIPT_OVERDUE: 'Receipt confirmation overdue'
+    filing_part_status:
+        PENDING: 'pending'
+        SENDING: 'sending'
+        ACCEPTED: 'accepted by the mail server'
+        RETRY_SCHEDULED: 'retry scheduled'
+        FAILED_TEMPORARY_EXHAUSTED: 'failed (temporary errors)'
+        FAILED_PERMANENT: 'failed (permanent refusal)'
+        FAILED_SIZE: 'failed (size)'
+        FAILED_INTERNAL: 'failed (internal error)'
+        UNCERTAIN: 'uncertain'
+        CANCELLED: 'cancelled, not sent'
+    filing_attempt_outcome:
+        ACCEPTED: 'Accepted'
+        TEMPORARY: 'Temporary error'
+        PERMANENT: 'Permanent refusal'
+        SIZE: 'Size'
+        INTERNAL: 'Internal error'
+        UNCERTAIN: 'Uncertain'
+    filing_attempt_source:
+        SMTP: 'SMTP server'
+        ASYNC_BOUNCE: 'Non-delivery report'
+        LAWYER_CC_CHECK: 'Lawyer''s check'
+        ADMIN_OVERRIDE: 'Administrator''s decision'
     court_email_purpose:
         REGISTRY: 'Registry'
         SECTION_CIVIL: 'Civil section'
@@ -2615,6 +2656,8 @@ enum:
         email: 'Email'
         in_app: 'In-app'
     notification_type:
+        filing_sent: 'Petition transmitted to the court'
+        filing_annexes_cancelled: 'Annexes not transmitted'
         case_status: 'Case status'
         deadline_alert: 'Deadline'
         missing_communication_date: 'Missing service date'
@@ -2819,6 +2862,10 @@ validation:
 # Email notifications (EmailNotificationSubscriber + templates/emails/)
 # =============================================================================
 email:
+    filing_sent:
+        subject: 'Petition transmitted to the court: %case%'
+    filing_annexes_cancelled:
+        subject: 'Annexes not transmitted to the court: %case%'
     sender_name: 'LexRecovery'
     footer_disclaimer: 'This message is informational and does not constitute legal advice. Always verify deadlines and rulings directly on the court portal.'
     cta:
@@ -2946,6 +2993,12 @@ email:
 # In-app notifications + Mercure toast text (NotificationDispatcher)
 # =============================================================================
 notification:
+    filing_sent:
+        title: 'Petition transmitted to the court: %case%'
+        message: 'The petition was transmitted to %address%; there is no receipt confirmation yet.'
+    filing_annexes_cancelled:
+        title: 'Annexes not transmitted: %case%'
+        message: 'Only these were transmitted: %sent%. Not transmitted: %not_sent%. The annexes were not sent and must be filed separately.'
     deadline_alert:
         procedural:
             title: '%type% deadline on case %case%'
@@ -3405,6 +3458,108 @@ deadlines:
 # Court filing package (unsigned files for signing and filing)
 # =============================================================================
 filing:
+    send:
+        cta: 'Send to the court'
+        title: 'Transmitting the petition to the court by email'
+        blocked_title: 'Transmission to the court is not available yet'
+        dev_banner: 'Test environment: messages do not go to the court. They are sent to %override% instead of %address%.'
+        court: 'Court'
+        competence_line: 'The court was calculated automatically from the case data; checking competence is up to the lawyer.'
+        address: 'Court email address'
+        address_meta: 'address confirmed on %date% · source: %source%'
+        headers: 'Sender and copy'
+        from: 'From'
+        cc: 'Copy (CC)'
+        reply_to: 'Reply to'
+        subject: 'Subject'
+        body: 'Email text'
+        attachments: '{1} Attachments (one email)|]1,Inf[ Attachments (%count% emails, sent in order)'
+        attachment_line: 'Email %k%: %name% (%size% MB)'
+        interest_date: 'Interest calculation date in the petition'
+        irreversible_note: 'Once the first email (petition and power of attorney) is accepted by the mail server, the transmission can no longer be cancelled.'
+        submit: 'Transmit'
+        dismiss: 'Cancel'
+        confirm_hint: 'Transmitting requires ticking every statement.'
+        flash_queued: 'The transmission was queued. Its status updates on the card.'
+        flash_manual_refused_active: 'The petition is being transmitted through the platform, so confirming a filing on another channel is not available.'
+        confirm:
+            documents_checked: 'I have checked the signed documents, the email text and the court address.'
+            other_channel: 'The petition was not filed on another channel (registry, REJUST, post or courier).'
+        blocker:
+            not_owner: 'Only the lawyer of the case can transmit it.'
+            user_not_verified: 'The account email address is not confirmed.'
+            subscription_inactive: 'The account has no active subscription.'
+            lawyer_email_missing: 'The lawyer''s name or email address is missing from the profile.'
+            communication_details_missing: 'The date the summons was received and the way it was served (bailiff or registered letter with acknowledgement of receipt) are missing from the case.'
+            package_not_signed: 'The package does not have detected signatures on every file.'
+            package_stale: 'The package no longer matches the case and must be rebuilt and signed again.'
+            court_changed: 'The debtor''s current seat points to a court other than the one the platform calculated for the case.'
+            address_court_differs: 'The email address belongs to a court other than the one the platform calculated for the case.'
+            address_missing: 'No validated email address for the case''s court.'
+            submission_active: 'A transmission of this case is already in progress.'
+            portal_match: 'There is a possible match on the portal for this case; it has to be confirmed or rejected before transmitting.'
+            court_case_number: 'The case already has a court case number.'
+            manual_filing: 'A filing on another channel was confirmed for this case.'
+            power_of_attorney_details: 'The series, number or date of the power of attorney is missing.'
+            first_email_layout: 'The first email of the package does not carry the petition and the power of attorney. The package must be rebuilt.'
+            email_too_large: 'An email of the package exceeds the size limit after signing.'
+            configuration: 'The platform''s sending configuration does not allow transmitting. The platform administrator was informed through the log.'
+        warning:
+            cn_differs: 'The name in the signing certificate differs from the account name.'
+            interest_date_old: 'The interest in the petition is calculated up to %date%, more than 30 days ago.'
+        error:
+            confirmation_required: 'Transmitting requires ticking every statement.'
+            rate_limited: 'The daily transmission limit was reached. Try again tomorrow.'
+    status:
+        hero_label: 'Transmitted to the court'
+        transmitted_no_receipt: 'Transmitted to the court, no receipt confirmation'
+        annexes_in_progress: 'Annexes in progress: %done% of %total% emails accepted by the mail server.'
+        headline:
+            QUEUED: 'Queued: the email to the court is about to be sent'
+            SENDING: 'Sending the email to the court'
+            PARTIALLY_SENT: 'Transmitted to the court, no receipt confirmation'
+            SENT: 'Transmitted to the court, no receipt confirmation'
+            NEEDS_REVIEW: 'The transmission stopped and needs checking'
+            CANCELLED: 'The transmission was cancelled before sending'
+            FAILED_TEMPORARY_EXHAUSTED: 'The transmission failed'
+            FAILED_PERMANENT: 'The transmission failed'
+            FAILED_SIZE: 'The transmission failed'
+            FAILED_INTERNAL: 'The transmission failed'
+            UNDELIVERED: 'The message was not delivered to the court'
+        recipient: 'Recipient: %address%'
+        override_note: 'Test environment: the message was sent to the simulation address, not to %address%.'
+        part: 'Email %k% of %n%'
+        accepted_at: 'accepted at %date%'
+        sent_at_note: 'The time shown is when the mail server accepted the message (Romanian time), not the filing date.'
+        download_eml: 'Copy of the email (.eml)'
+        filed_at: 'Declared filing date: %date%'
+        filed_at_pending: 'The filing date is declared by the lawyer, after the registration on the portal or the court''s confirmation.'
+        cancel: 'Cancel the transmission'
+        cancelled: 'The transmission was cancelled. Nothing left for the court.'
+        cancel_refused: 'The transmission can no longer be cancelled: at least one email left or is being sent.'
+        review:
+            annexes_cancelled: 'The case received a court number before every email left. Only the documents marked as accepted were transmitted; the remaining annexes were not sent and must be filed separately.'
+            case_moved_on: 'The case status changed during the transmission, so the remaining emails were not sent.'
+            package_changed: 'The signed package changed after the transmission was requested.'
+            address_changed: 'The court''s filing address changed after the transmission was requested.'
+            signed_file_changed: 'A signed file no longer matches the uploaded one, so it was not sent.'
+            not_active: 'The transmission is no longer active.'
+            part_cancelled: 'The email was cancelled.'
+            part_uncertain: 'Sending an email was interrupted and it is unknown whether the server received it. The lawyer''s CC copy needs checking; nothing was resent.'
+            send_failed: 'The mail server did not accept the message. Nothing was resent automatically.'
+            recipient_changed: 'The effective recipient changed since the transmission was requested (platform configuration).'
+            too_large: 'The email exceeds the size limit and was not sent.'
+            internal_error: 'The email could not be prepared for sending.'
+        set_date:
+            title: 'Set the filing date'
+            help: 'The date the petition was filed with the court (for example, the registration date), declared by the lawyer from the court''s confirmation or the portal. The platform does not confirm this date.'
+            submit: 'Save the date'
+            saved: 'The filing date was saved.'
+            error_invalid: 'The date does not have a valid format.'
+            error_future: 'The filing date cannot be in the future.'
+            error_before_sent: 'The filing date cannot be earlier than the email transmission.'
+            error_before_generated: 'The filing date cannot be earlier than the petition generation.'
+            error_not_allowed: 'The filing date is set here only for a petition transmitted through the platform.'
     package:
         title: 'Filing package'
         intro: 'The files to sign for filing the petition: the petition with the index, the numbered annexes and the power of attorney. Each file is downloaded separately.'
@@ -3413,6 +3568,7 @@ filing:
         blocked_title: 'The package cannot be built yet'
         blocked_wrong_status: 'The package is built after the payment order petition is generated and before it is filed.'
         blocked_petition_missing: 'The payment order petition file is missing from storage, so the package cannot be built.'
+        blocked_submission_active: 'The package is being transmitted to the court, so it cannot be changed.'
         download_unsigned: 'Download (unsigned)'
         part_meta: '%pages% pages · %size% MB'
         part_annex_page: 'annexes, page %page%'
@@ -3567,3 +3723,29 @@ court_address:
             invalid_reason: 'The chosen reason is not available.'
             csrf: 'The session has expired. Reload the page and try again.'
             rate_limited: 'Too many actions in a short time. Try again later.'
+# Maintenance copy only: the court email is always rendered from the ro locale.
+court_email:
+    from_name: 'Av. %name% via LexRecovery'
+    subject: 'Request for a payment order: %creditor% v. %debtor%'
+    subject_part: '%subject% (part %k% of %n%)'
+    debtor_others_suffix: ' and others'
+    salutation: 'To %court%,'
+    creditor_line: '%creditor%, with its seat at %seat%, CUI %cui%, through lawyer %lawyer%, transmits the request for a payment order, electronically signed by the lawyer, together with the accompanying documents.'
+    creditor_line_no_cui: '%creditor%, with its seat at %seat%, through lawyer %lawyer%, transmits the request for a payment order, electronically signed by the lawyer, together with the accompanying documents.'
+    continuation_line: '%creditor%, through lawyer %lawyer%, continues transmitting the annexes of the request for a payment order (part %k% of %n%).'
+    documents_intro: 'Documents attached to this message:'
+    document_line: '- %file%: %title%'
+    package_intro: 'The documents are transmitted in %n% messages, in order:'
+    package_email_line: 'Message %k%: %files%'
+    annexes_follow: 'The annexes follow in the next messages, in the same thread.'
+    stamp_duty_proof: 'The proof of payment of the judicial stamp duty is included in the annexes.'
+    stamp_duty_registry: 'The statement on the judicial stamp duty is in the petition (payment through the courts'' electronic registry).'
+    stamp_duty_later: 'The judicial stamp duty will be paid as the court directs.'
+    receipt_request: 'Please confirm receipt of this message and communicate the case number to the lawyer''s address, %lawyer_email%, in copy.'
+    signature_closing: 'Kind regards,'
+    signature_name: 'Av. %name%'
+    signature_poa: 'Power of attorney series %series% no. %number% of %date%'
+    signature_phone: 'Phone: %phone%'
+    signature_email: 'Email: %email%'
+    footer_platform: 'Message transmitted through the LexRecovery platform on behalf of the lawyer.'
+    footer_signed: 'The documents are electronically signed by the lawyer; this email only ensures their transmission.'

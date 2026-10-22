@@ -308,6 +308,7 @@ final class T5MalformedResponseReviewTest extends TestCase
                 ?array $oldData = null,
                 ?array $newData = null,
                 ?string $category = null,
+                ?\App\Entity\User $actor = null,
             ): AuditLog {
                 return new AuditLog();
             }

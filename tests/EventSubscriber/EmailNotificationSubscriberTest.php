@@ -92,6 +92,24 @@ final class EmailNotificationSubscriberTest extends TestCase
         self::assertTrue($request->persistInApp);
     }
 
+    public function testPlatformTransmissionDoesNotAnnounceAFiling(): void
+    {
+        $spy = new SpyNotificationDispatcher();
+
+        $this->subscriber($spy)->onCerereDepusa(new EnteredEvent($this->case(), new Marking(), null, null, ['filing_submission_id' => 12]));
+
+        self::assertSame([], $spy->captured);
+    }
+
+    public function testManualFilingConfirmationStillNotifies(): void
+    {
+        $spy = new SpyNotificationDispatcher();
+
+        $this->subscriber($spy)->onCerereDepusa(new EnteredEvent($this->case(), new Marking()));
+
+        self::assertSame('notification.case_status.cerere_depusa.title', $spy->last()->title);
+    }
+
     public function testWorkflowInAnulareMapsToInfoStatusNotification(): void
     {
         $spy = new SpyNotificationDispatcher();

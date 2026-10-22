@@ -44,9 +44,18 @@ services:
       NETOPIA_PUBLIC_KEY: ${NETOPIA_PUBLIC_KEY:-}
       NETOPIA_NOTIFY_URL: ${DEMO_PUBLIC_URL}/webhook/netopia
       NETOPIA_RETURN_URL: ${DEMO_PUBLIC_URL}/subscription/return
+      # The demo runs as prod with real-looking data: court filings stay in the
+      # demo Mailpit, addressed to the override, whatever .env.local says.
+      COURT_FILING_LIVE: '0'
+      COURT_FILING_MAILER_DSN: smtp://mailer:1025
+      COURT_FILING_RECIPIENT_OVERRIDE: instanta-simulata@example.test
 
   worker:
     container_name: lexdemo-worker
+    environment: *demo_php_env
+
+  worker-filing:
+    container_name: lexdemo-worker-filing
     environment: *demo_php_env
 
   nginx:

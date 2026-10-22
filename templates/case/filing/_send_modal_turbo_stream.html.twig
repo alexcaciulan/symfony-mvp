@@ -1,0 +1,4 @@
+{# A refused transmission: the panel stays open with the reason, nothing else on the page changes. #}
+<turbo-stream action="replace" target="filing-send-panel">
+    <template>{{ include('case/filing/_send_modal.html.twig') }}</template>
+</turbo-stream>

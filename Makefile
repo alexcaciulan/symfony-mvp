@@ -38,7 +38,7 @@ shell-db: ## Access database container shell
 
 composer: ## Run composer install (also restarts the worker, whose DI container the post-install cache clear invalidates)
 	docker compose exec php composer install
-	docker compose restart worker
+	docker compose restart worker worker-filing
 
 composer-update: ## Run composer update
 	docker compose exec php composer update
@@ -54,7 +54,7 @@ migrate-diff: ## Generate migration from entity changes
 
 cache-clear: ## Clear Symfony cache (also restarts the worker, whose DI container the clear invalidates)
 	docker compose exec php php bin/console cache:clear
-	docker compose restart worker
+	docker compose restart worker worker-filing
 
 import-courts: ## Import Romanian courts from data/courts.json
 	docker compose exec php php bin/console app:import-courts

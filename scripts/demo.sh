@@ -94,8 +94,8 @@ case "${1:-}" in
     # so entrypoint changes are invisible to a plain restart. `up -d` then
     # recreates only what the new config or image actually changed, which a
     # `restart` would not do either.
-    compose build php worker
-    compose up -d php worker
+    compose build php worker worker-filing
+    compose up -d php worker worker-filing
     wait_until_up
     ;;
 

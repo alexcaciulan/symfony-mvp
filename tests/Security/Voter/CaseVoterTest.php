@@ -5,7 +5,9 @@ namespace App\Tests\Security\Voter;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\CaseStatus;
+use App\Repository\FilingSubmissionRepository;
 use App\Security\Voter\CaseVoter;
+use App\Service\Filing\FilingLockQuery;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Security\Core\Authentication\Token\UsernamePasswordToken;
@@ -17,7 +19,52 @@ class CaseVoterTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->voter = new CaseVoter();
+        $this->voter = new CaseVoter($this->lockQuery(false));
+    }
+
+    private function lockQuery(bool $locked): FilingLockQuery
+    {
+        $repository = $this->createStub(FilingSubmissionRepository::class);
+        $repository->method('hasActiveForCaseId')->willReturn($locked);
+
+        return new FilingLockQuery($repository);
+    }
+
+    /** A persisted case: the filing lock is looked up by id. */
+    private function persistedCase(User $owner, CaseStatus $status): LegalCase
+    {
+        $case = new LegalCase();
+        $case->setUser($owner);
+        $case->setStatus($status);
+        (new \ReflectionProperty(LegalCase::class, 'id'))->setValue($case, 4242);
+
+        return $case;
+    }
+
+    /** What feeds the email being sent stays frozen, for the admin too; reading does not. */
+    public function testFilingLockDeniesChangesEvenToAdmin(): void
+    {
+        $voter = new CaseVoter($this->lockQuery(true));
+        $owner = new User();
+        $admin = new User();
+        $admin->setRoles(['ROLE_ADMIN']);
+        $case = $this->persistedCase($owner, CaseStatus::CERERE_GENERATA);
+
+        foreach ([CaseVoter::UPLOAD, CaseVoter::EDIT, CaseVoter::STAMP_DUTY_MANAGE] as $attribute) {
+            self::assertSame(VoterInterface::ACCESS_DENIED, $voter->vote($this->createToken($owner), $case, [$attribute]), $attribute);
+            self::assertSame(VoterInterface::ACCESS_DENIED, $voter->vote($this->createToken($admin), $case, [$attribute]), $attribute);
+        }
+        self::assertSame(VoterInterface::ACCESS_GRANTED, $voter->vote($this->createToken($owner), $case, [CaseVoter::VIEW]));
+        self::assertSame(VoterInterface::ACCESS_GRANTED, $voter->vote($this->createToken($owner), $case, [CaseVoter::FILING_CONTENT]));
+        self::assertSame(VoterInterface::ACCESS_GRANTED, $voter->vote($this->createToken($owner), $case, [CaseVoter::TRANSITION]));
+    }
+
+    public function testWithoutFilingLockOwnerMayUpload(): void
+    {
+        $owner = new User();
+        $case = $this->persistedCase($owner, CaseStatus::CERERE_GENERATA);
+
+        self::assertSame(VoterInterface::ACCESS_GRANTED, $this->voter->vote($this->createToken($owner), $case, [CaseVoter::UPLOAD]));
     }
 
     private function createToken(User $user): UsernamePasswordToken

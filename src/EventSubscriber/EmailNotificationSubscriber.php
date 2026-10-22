@@ -48,6 +48,12 @@ final class EmailNotificationSubscriber
     #[AsEventListener(event: 'workflow.legal_case.entered.CERERE_DEPUSA')]
     public function onCerereDepusa(EnteredEvent $event): void
     {
+        // The platform's own transmission sends its own notice, which says what is
+        // known (transmitted, no receipt yet) instead of announcing a filing.
+        if (isset($event->getContext()['filing_submission_id'])) {
+            return;
+        }
+
         $this->notifyStatusChange($event, 'cerere_depusa', 'info');
     }
 

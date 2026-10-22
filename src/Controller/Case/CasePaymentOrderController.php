@@ -36,8 +36,9 @@ use Symfony\Component\Routing\Attribute\Route;
 /**
  * Builds the payment-order petition, the index of annexes and the downloadable
  * package. Applies `genereaza_cerere` (SOMATIE_TRIMISA to CERERE_GENERATA): the
- * documents now exist, but nothing has been filed. Filing is confirmed separately
- * by the lawyer, on a channel this platform does not operate.
+ * documents now exist, but nothing has been filed. What follows is a separate
+ * request of the lawyer: a filing on another channel they confirm, or a
+ * transmission by the platform to the court address they validated.
  * Strictly idempotent: one petition per case.
  */
 final class CasePaymentOrderController extends AbstractController
