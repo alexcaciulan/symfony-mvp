@@ -35,7 +35,7 @@ Citările legale marcate **[V]** nu sunt verificate pe sursă primară și se ve
 | Erori de dimensiune | Fără retry orb, notificare și propunere de împărțire; verificarea dinainte de trimitere le previne. |
 | Transport | Implementare completă acum cu transport simulat (Mailpit). Căsuța reală de trimitere (SPF/DKIM) și cea de primire se conectează la deploy. |
 | Inbound | Abstracție cu implementare dev/test (API Mailpit, fixture-uri) și producție (IMAP; webhook la alegerea furnizorului), aleasă prin config. |
-| Import adrese | Se construiește și se rulează pe dev; rezultatele rămân propuneri validate de avocat/admin. Politicos: rate limit, User-Agent identificabil, cache pentru paginile brute. |
+| Import adrese | Se construiește și se rulează pe dev; rezultatele rămân propuneri validate de avocat/admin. Politicos: rate limit și cache pentru paginile brute. Cererile nu conțin nicio adresă de e-mail sau alt dat de contact. |
 | Tranziție | `depune_cerere` se aplică la trimiterea reușită (momentul exact: T14, de confirmat). |
 
 ### 1.3. Decizii tehnice
@@ -64,7 +64,7 @@ Alegeri de implementare. Cele marcate „confirmare” se confirmă cu utilizato
 | T18 | `CaseWorkflowService::apply($case, $transition, array $context = [])` transmite `actor` în contextul workflow; `CaseWorkflowSubscriber` preferă `$event->getContext()['actor']` față de `Security::getUser()`; `AuditLogService::log` primește `?User $actor`. | În worker nu există utilizator în sesiune; istoricul trebuie să aibă autor. | nu |
 | T19 | „O singură depunere activă per dosar” impusă în DB: coloana `activeLock` (1 cât e activă, NULL la terminal) cu unique (`legal_case_id`, `active_lock`), plus `PESSIMISTIC_WRITE` pe `LegalCase` în `submit()`. La dublu clic se returnează depunerea existentă (Turbo Stream). Analog pentru build (unique `legal_case_id`+`version` + lock) și upload semnat (lock pe rândul părții). | Idempotență fără condiții de cursă. | nu |
 
-**Constatare (3b).** `https://portal.just.ro/` a răspuns cu **403 Cloudflare** la o cerere automată și la un Playwright de pe același IP. Importul separă sursa paginilor de parsare și are fallback „pagini salvate din browser de un operator” și introducere manuală. User-Agent-ul conține doar adresa de contact a platformei (`contact@lexrecovery.ro`, căsuță reală, monitorizată).
+**Constatare (3b).** `https://portal.just.ro/` a răspuns cu **403 Cloudflare** la o cerere automată și la un Playwright de pe același IP. Importul separă sursa paginilor de parsare și are fallback „pagini salvate din browser de un operator” și introducere manuală. Cererile citesc doar pagina instanței și nu conțin nicio adresă de e-mail (nici a utilizatorului, nici a platformei).
 
 ### 1.4. Interpretarea „Fără ZIP”
 
@@ -271,7 +271,7 @@ Fișiere: `{uploadsDir}/cases/{caseId}/filing/v{version}/unsigned/` și `.../sig
 - `tests/fixtures/court_pages/*.html`
 
 **Servicii**
-- `HttpCourtPageFetcher`: scoped HttpClient `https://portal.just.ro`, User-Agent `LexRecoveryCourtDirectory/1.0 (+https://lexrecovery.ro/bot; contact@lexrecovery.ro)`, timeout 20 s, cel mult o cerere la 5 s, respectă `robots.txt`, cache `var/court_pages/{siteId}/{Ymd}.html` + sha256, fără re-descărcare sub 30 de zile (`--refresh`), oprire la primul 403/429.
+- `HttpCourtPageFetcher`: scoped HttpClient `https://portal.just.ro`, User-Agent fix, fără adresă de e-mail sau alt dat de contact, timeout 20 s, cel mult o cerere la 5 s, respectă `robots.txt`, cache `var/court_pages/{siteId}/{Ymd}.html` + sha256, fără re-descărcare sub 30 de zile (`--refresh`), oprire la primul 403/429.
 - `SavedHtmlCourtPageFetcher`: citește paginile salvate de operator în același director.
 - `CourtSiteIdResolver`: `portalCode` / nume -> `portalSiteId`, reutilizând `CourtNameIndex`.
 - `CourtContactPageParser` (pur): HTML -> `list<EmailCandidate>`; `mailto:`, entități, `[at]`, `(at)`, ` at `, adrese despărțite de taguri.
@@ -291,7 +291,7 @@ Fișiere: `{uploadsDir}/cases/{caseId}/filing/v{version}/unsigned/` și `.../sig
 **Teste**
 - TestCase: parser pe fixture-urile din Pas 0 (judecătorie, tribunal cu secții, obfuscare, personală, duplicate); classifier.
 - KernelTestCase: importer (idempotență, `missingSince`, nu suprascrie `VALIDATED`); resolver (judecătorie, tribunal cu/fără secție, invalidă, propusă, personală, expirată); service (un singur implicit, audit, `PERSONAL` nu se validează).
-- `HttpCourtPageFetcher` cu `MockHttpClient`: User-Agent, cache hit, oprire la 403.
+- `HttpCourtPageFetcher` cu `MockHttpClient`: User-Agent fără adresă de e-mail, cache hit, oprire la 403.
 - CommandTester pe ambele comenzi cu fetcher fals.
 - WebTestCase: pagina avocatului (voter pe dosar, CSRF, validare cu bifă, fără bifă refuzat, adresa altei instanțe refuzată); acțiunile EasyAdmin.
 - Niciun test nu face apel de rețea.
