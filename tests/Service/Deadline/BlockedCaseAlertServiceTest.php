@@ -108,18 +108,142 @@ final class BlockedCaseAlertServiceTest extends KernelTestCase
         self::assertSame([BlockedCaseAlert::REGULARIZATION_NOTICE_DATE_MISSING], $this->reasonsFor($case));
     }
 
-    /** Once the stamping term exists, the ordinary deadline alerts cover the case. */
+    /** While the stamping term is open and running, the ordinary deadline alerts cover the case. */
     public function testACaseThatAlreadyCarriesTheStampingTermIsNotAlerted(): void
     {
         $case = $this->createCase(CaseStatus::DOSAR_INREGISTRAT);
         $case->setCourtCaseNumber('803/211/2026');
         $case->setStampDutyStatus(StampDutyStatus::NEACHITATA);
-        $this->createStampDutyDeadline($case);
+        $this->createStampDutyDeadline($case, date: new \DateTimeImmutable('2026-08-10'));
         $this->em->flush();
 
         $this->process();
 
         self::assertSame([], $this->reasonsFor($case));
+    }
+
+    /**
+     * An expired term with the duty still unpaid is the worst case: the annulment risk
+     * may already be consumed, so the term that lapsed must not be what hides it.
+     */
+    public function testAnExpiredOpenStampingTermDoesNotSilenceTheAlert(): void
+    {
+        $case = $this->createCase(CaseStatus::DOSAR_INREGISTRAT);
+        $case->setCourtCaseNumber('810/211/2026');
+        $case->setStampDutyStatus(StampDutyStatus::NEACHITATA);
+        $this->createStampDutyDeadline($case, date: new \DateTimeImmutable('2026-08-02'));
+        $this->em->flush();
+
+        $this->process();
+
+        self::assertSame([BlockedCaseAlert::STAMP_DUTY_DUE], $this->reasonsFor($case));
+    }
+
+    /** The term due on the run date itself is still running. */
+    public function testAStampingTermDueOnTheRunDateStillSilencesTheAlert(): void
+    {
+        $case = $this->createCase(CaseStatus::DOSAR_INREGISTRAT);
+        $case->setCourtCaseNumber('811/211/2026');
+        $case->setStampDutyStatus(StampDutyStatus::NEACHITATA);
+        $this->createStampDutyDeadline($case, date: new \DateTimeImmutable('2026-08-03'));
+        $this->em->flush();
+
+        $this->process(new \DateTimeImmutable('2026-08-03 14:30'));
+
+        self::assertSame([], $this->reasonsFor($case));
+    }
+
+    /**
+     * Closing the term says nothing about payment: while the duty reads unpaid the card
+     * and the petition treat it as unpaid, so the alert keeps asking for the payment.
+     */
+    public function testAClosedStampingTermDoesNotSilenceTheAlertWhileTheDutyReadsUnpaid(): void
+    {
+        $case = $this->createCase(CaseStatus::TERMEN_FIXAT);
+        $case->setCourtCaseNumber('812/211/2026');
+        $case->setStampDutyStatus(StampDutyStatus::NEACHITATA);
+        $this->createStampDutyDeadline($case, completed: true, date: new \DateTimeImmutable('2026-08-10'));
+        $this->em->flush();
+
+        $this->process();
+
+        self::assertSame([BlockedCaseAlert::STAMP_DUTY_DUE], $this->reasonsFor($case));
+    }
+
+    /** Annulment for non-payment still operates after the order is issued and while it is challenged. */
+    public function testACaseInOrdonantaEmisaWithUnpaidDutyIsAlerted(): void
+    {
+        $case = $this->createCase(CaseStatus::ORDONANTA_EMISA);
+        $case->setCourtCaseNumber('813/211/2026');
+        $case->setStampDutyStatus(StampDutyStatus::NEACHITATA);
+        $this->em->flush();
+
+        $this->process();
+
+        self::assertSame([BlockedCaseAlert::STAMP_DUTY_DUE], $this->reasonsFor($case));
+    }
+
+    public function testACaseInAnulareWithUnpaidDutyIsAlerted(): void
+    {
+        $case = $this->createCase(CaseStatus::IN_ANULARE);
+        $case->setCourtCaseNumber('814/211/2026');
+        $case->setStampDutyStatus(StampDutyStatus::NEACHITATA);
+        $this->em->flush();
+
+        $this->process();
+
+        self::assertSame([BlockedCaseAlert::STAMP_DUTY_DUE], $this->reasonsFor($case));
+    }
+
+    /** Once the order is final the annulment sanction is no longer operable, and terminal cases are done. */
+    public function testDefinitivaExecutareAndTerminalCasesAreNotAlertedForStampDuty(): void
+    {
+        $cases = [];
+        foreach ([CaseStatus::DEFINITIVA, CaseStatus::EXECUTARE, CaseStatus::RESPINSA, CaseStatus::INCHIS_SUCCES] as $i => $status) {
+            $case = $this->createCase($status);
+            $case->setCourtCaseNumber((820 + $i) . '/211/2026');
+            $case->setStampDutyStatus(StampDutyStatus::NEACHITATA);
+            $cases[$status->name] = $case;
+        }
+        $this->em->flush();
+
+        $this->process();
+
+        foreach ($cases as $name => $case) {
+            self::assertNotContains(BlockedCaseAlert::STAMP_DUTY_DUE, $this->reasonsFor($case), $name);
+        }
+    }
+
+    /** Any stamping term, even closed, means the notice date was recorded. */
+    public function testADeferredCaseWithAClosedStampingTermDoesNotAskForTheNoticeDate(): void
+    {
+        $case = $this->createCase(CaseStatus::DOSAR_INREGISTRAT);
+        $case->setCourtCaseNumber('815/211/2026');
+        $case->setStampDutyStatus(StampDutyStatus::AMANATA_REGULARIZARE);
+        $this->createStampDutyDeadline($case, completed: true, date: new \DateTimeImmutable('2026-07-20'));
+        $this->em->flush();
+
+        $this->process();
+
+        self::assertSame([], $this->reasonsFor($case));
+    }
+
+    /** The wider status set keeps the two triggers disjoint on `stampDutyStatus`. */
+    public function testTheTwoStampDutyAlertSetsStayDisjoint(): void
+    {
+        $due = $this->createCase(CaseStatus::ORDONANTA_EMISA);
+        $due->setCourtCaseNumber('816/211/2026');
+        $due->setStampDutyStatus(StampDutyStatus::NEACHITATA);
+
+        $deferred = $this->createCase(CaseStatus::ORDONANTA_EMISA);
+        $deferred->setCourtCaseNumber('817/211/2026');
+        $deferred->setStampDutyStatus(StampDutyStatus::AMANATA_REGULARIZARE);
+        $this->em->flush();
+
+        $this->process();
+
+        self::assertSame([BlockedCaseAlert::STAMP_DUTY_DUE], $this->reasonsFor($due));
+        self::assertSame([BlockedCaseAlert::REGULARIZATION_NOTICE_DATE_MISSING], $this->reasonsFor($deferred));
     }
 
     /**
@@ -311,12 +435,13 @@ final class BlockedCaseAlertServiceTest extends KernelTestCase
         return $case;
     }
 
-    private function createStampDutyDeadline(LegalCase $case): void
+    private function createStampDutyDeadline(LegalCase $case, bool $completed = false, ?\DateTimeImmutable $date = null): void
     {
         $deadline = new LegalDeadline();
         $deadline->setLegalCase($case);
         $deadline->setType(DeadlineType::TIMBRARE);
-        $deadline->setDeadlineDate(new \DateTimeImmutable('+7 days'));
+        $deadline->setDeadlineDate($date ?? new \DateTimeImmutable('2026-08-10'));
+        $deadline->setCompleted($completed);
         $deadline->setPriority(DeadlineType::TIMBRARE->defaultPriority());
         $this->em->persist($deadline);
     }

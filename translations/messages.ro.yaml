@@ -1202,7 +1202,8 @@ case_overview:
         paid_to: 'Către primăria %uat%'
         paid_to_sector: 'Către Direcția de Taxe și Impozite Locale a Sectorului %sector%'
         view_proof: 'Vezi dovada'
-        paid_through_registry: 'Plată prin registratura electronică. Confirmarea a fost transmisă instanței pe acest canal, deci nu există un fișier de atașat aici.'
+        paid_through_registry: 'Plată individualizată pe dosar prin registratura electronică, declarată la data de mai sus. Confirmarea plății nu este atașată.'
+        cta_attach_registry_confirmation: 'Atașează confirmarea'
         deferred_title: 'Depusă fără dovadă de plată'
         deferred_body: 'Taxa rămâne de achitat. Din ziua în care instanța comunică înștiințarea de timbrare curg 10 zile, sub sancțiunea anulării cererii.'
         cta_pay: 'Plătește pe registratura.rejust.ro'
@@ -1242,10 +1243,12 @@ case_overview:
             submit: 'Depun fără dovadă'
         modal_registry_paid:
             title: 'Confirmă plata prin registratură'
-            intro: 'Confirmarea plății a plecat la instanță prin registratura electronică, deci nu avem nevoie de fișier. Notați data și, dacă aveți, referința tranzacției.'
+            intro: 'Plata a fost făcută în dosarul existent prin registratura electronică. Se completează data plății și, opțional, referința tranzacției. Confirmarea primită de la portal poate fi atașată, dar nu este obligatorie.'
             field_paid_at: 'Data plății'
             field_reference: 'Referința plății (opțional)'
             field_reference_hint: 'Numărul tranzacției din confirmarea primită de la portal.'
+            field_file: 'Confirmarea plății (opțional)'
+            field_file_hint: 'PDF, JPG sau PNG, maxim 10 MB. Se încarcă doar confirmarea plății, fără extrase de cont complete.'
             cancel: 'Renunță'
             submit: 'Confirmă plata'
         modal_court_notice:
@@ -1261,6 +1264,7 @@ case_overview:
         flash_success_paid: 'Dovada plății a fost salvată. Taxa de timbru figurează ca achitată.'
         flash_success_deferred: 'Dosarul a fost marcat pentru timbrare ulterioară. Confirmați plata aici după ce achitați.'
         flash_success_registry_paid: 'Plata prin registratură a fost înregistrată. Taxa de timbru figurează ca achitată.'
+        flash_success_registry_paid_with_file: 'Taxa de timbru a fost marcată ca achitată, iar confirmarea a fost atașată la dosar.'
         filed_unpaid_banner: 'Cererea a fost depusă, dar taxa de timbru nu figurează achitată. Netimbrarea atrage anularea cererii, iar înștiințarea instanței poate ajunge la client, nu la tine.'
         flash_success_court_notice: 'Termenul de timbrare a fost calculat și adăugat la termenele dosarului.'
         flash_warning_payer_mismatch: 'Pe dovadă apare alt plătitor decât creditorul. Taxa este datorată de creditor (OUG 80/2013 art. 40), deci instanța poate cere lămuriri.'
@@ -1884,7 +1888,7 @@ pdf:
         costs_title: 'Cheltuieli de judecată'
         costs_body: 'Solicit obligarea debitorului la plata cheltuielilor de judecată, în temeiul art. 453 din Codul de procedură civilă.'
         costs_stamp_duty_paid: 'Taxă judiciară de timbru: %amount% RON, achitată conform dovezii anexate.'
-        costs_stamp_duty_paid_registry: 'Taxă judiciară de timbru: %amount% RON, achitată prin registratura electronică a instanțelor, confirmarea plății fiind transmisă instanței pe această cale.'
+        costs_stamp_duty_paid_registry: 'Taxă judiciară de timbru: %amount% RON, achitată prin registratura electronică a instanțelor, prin plată individualizată pe numărul de dosar.'
         costs_stamp_duty_deferred: 'Taxă judiciară de timbru: %amount% RON, urmând a fi achitată potrivit art. 33 alin. 2 din OUG 80/2013, cu depunerea dovezii la dosar.'
         costs_lawyer_fee: 'Onorariu avocațial: %fixed% %currency%, conform contractului de asistență juridică, urmând a fi dovedit cu înscrisurile depuse la dosar.'
         legal_basis_title: 'Temei juridic'
@@ -2785,11 +2789,11 @@ email:
         missing_label: 'Ce lipsește:'
         action_label: 'Ce ai de făcut:'
         STAMP_DUTY_DUE:
-            subject: 'Achită taxa de timbru pentru dosarul %case%'
-            heading: 'Dosarul are număr, taxa de timbru se achită acum'
-            body: 'Dosarul %case% are număr de dosar la instanță, iar taxa de timbru este încă înregistrată ca neachitată. Taxa se plătește anticipat (OUG 80/2013 art. 33 alin. 1), deci nu aștepta înștiințarea de regularizare. După plată, încarcă dovada în dosar.'
-            missing: 'Dovada plății taxei de timbru pe dosarul %case%.'
-            action: 'Achită taxa, apoi încarcă dovada în dosar și marchează taxa ca achitată.'
+            subject: 'Taxa de timbru figurează neachitată pe dosarul %case%'
+            heading: 'Taxa de timbru este încă înregistrată ca neachitată'
+            body: 'Dosarul %case% are număr la instanță, iar taxa de timbru figurează ca neachitată. Taxa se plătește anticipat (OUG 80/2013 art. 33 alin. 1); dacă instanța comunică obligația de plată, neplata în termenul acordat atrage anularea cererii (art. 33 alin. 2). Dacă taxa a fost deja achitată, plata se înregistrează în dosar pentru ca alerta să nu se mai repete.'
+            missing: 'Înregistrarea plății taxei de timbru pe dosarul %case%.'
+            action: 'Se achită taxa prin registratura electronică, apoi se confirmă plata în dosar (prin registratură sau cu dovada de plată).'
         REGULARIZATION_NOTICE_DATE_MISSING:
             subject: 'Dosarul %case% așteaptă data înștiințării de regularizare'
             heading: 'Dacă ai primit înștiințarea, introdu data'
@@ -2882,8 +2886,8 @@ notification:
         message: 'Introdu data comunicării ordonanței pe dosarul %case% pentru a porni termenul cererii în anulare.'
     blocked_case:
         STAMP_DUTY_DUE:
-            title: 'Achită taxa de timbru: %case%'
-            message: 'Dosarul %case% are număr de dosar, iar taxa de timbru este încă neachitată. Taxa se plătește anticipat, deci nu aștepta înștiințarea de regularizare.'
+            title: 'Taxa de timbru neachitată: %case%'
+            message: 'Dosarul %case% are număr la instanță, iar taxa de timbru figurează ca neachitată. Taxa se plătește anticipat; dacă a fost deja achitată, plata se înregistrează în dosar.'
         REGULARIZATION_NOTICE_DATE_MISSING:
             title: 'Data înștiințării de regularizare: %case%'
             message: 'Pe dosarul %case% taxa este amânată până la regularizare. Dacă ai primit înștiințarea de la instanță, introdu data comunicării ei ca să pornească termenul de 10 zile.'

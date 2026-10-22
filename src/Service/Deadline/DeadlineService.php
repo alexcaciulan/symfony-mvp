@@ -64,7 +64,7 @@ final class DeadlineService
      * working day. Returns null unless the case is final (DEFINITIVA) and that
      * communication date is known. This is NOT a procedural term and never blocks
      * `trece_la_executare`: a final order is enforceable immediately (CPC art.
-     * 1021); the window is a practical courtesy before enforcing.
+     * 1022); the window is a practical courtesy before enforcing.
      */
     public function recommendedExecutionDate(LegalCase $legalCase): ?\DateTimeImmutable
     {
@@ -254,7 +254,7 @@ final class DeadlineService
      * Returns false when the real communication date is unknown: the term cannot
      * be proven expired, so OP generation relies on the lawyer's explicit consent
      * instead (it is never computed from the PDF generation date, which would be
-     * premature and inadmissible per CPC art. 1016).
+     * premature and inadmissible per CPC art. 1015 alin. 1 and art. 1017).
      */
     public function isPaymentTermExpired(LegalCase $legalCase, \DateTimeImmutable $today): bool
     {
@@ -266,7 +266,7 @@ final class DeadlineService
         // Strictly after: on free-days counting the term still runs throughout its
         // maturity day (service date + 16 calendar days, prorogated), so the debtor
         // may still pay that day and the OP is admissible only from the day after
-        // it. Filing on the maturity day itself is premature (CPC art. 1015-1016).
+        // it. Filing on the maturity day itself is premature (CPC art. 1015-1017).
         return $today > $termEnd;
     }
 

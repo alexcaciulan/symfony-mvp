@@ -90,7 +90,7 @@ final class CasePaymentOrderController extends AbstractController
             return $this->respond($request, $case, false, 'error', 'case_overview.payment_order.flash_error_debtor_changed');
         }
 
-        // Procedural prerequisite (CPC art. 1015-1016): the 15-day payment term
+        // Procedural prerequisite (CPC art. 1015-1017): the 15-day payment term
         // must have expired. When the real communication date is known we block if
         // it has not; otherwise the explicit consent below stands in for it.
         $payload = $request->getPayload();
@@ -116,7 +116,7 @@ final class CasePaymentOrderController extends AbstractController
             return $this->respond($request, $case, false, 'error', 'case_overview.payment_order.flash_error_stamp_duty_missing');
         }
 
-        // Proof that the summons reached the debtor. CPC art. 1016 para. 2 requires it to
+        // Proof that the summons reached the debtor. CPC art. 1017 para. 2 requires it to
         // be attached to the petition, under sanction of the petition being dismissed as
         // inadmissible, so the court is shown the bailiff record or the postal
         // acknowledgement rather than the lawyer's statement of the date. The date is

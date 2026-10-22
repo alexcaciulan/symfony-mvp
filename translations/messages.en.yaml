@@ -1205,7 +1205,8 @@ case_overview:
         paid_to: 'To the town hall of %uat%'
         paid_to_sector: 'To the Local Taxes Directorate of Sector %sector%'
         view_proof: 'View proof'
-        paid_through_registry: 'Paid through the electronic registry. The confirmation was transmitted to the court on that channel, so there is no file to attach here.'
+        paid_through_registry: 'Payment individualized on the case through the electronic registry, declared on the date above. The payment confirmation is not attached.'
+        cta_attach_registry_confirmation: 'Attach the confirmation'
         deferred_title: 'Filed without proof of payment'
         deferred_body: 'The duty is still owed. Ten days run from the day the court serves the stamping notice, or the petition is annulled.'
         cta_pay: 'Pay on registratura.rejust.ro'
@@ -1245,10 +1246,12 @@ case_overview:
             submit: 'File without proof'
         modal_registry_paid:
             title: 'Confirm the registry payment'
-            intro: 'The payment confirmation reached the court through the electronic registry, so no file is needed here. Note the date and, if you have it, the transaction reference.'
+            intro: 'The payment was made in the existing case through the electronic registry. Enter the payment date and, optionally, the transaction reference. The confirmation received from the portal can be attached, but it is not required.'
             field_paid_at: 'Payment date'
             field_reference: 'Payment reference (optional)'
             field_reference_hint: 'The transaction number from the confirmation issued by the portal.'
+            field_file: 'Payment confirmation (optional)'
+            field_file_hint: 'PDF, JPG or PNG, up to 10 MB. Upload only the payment confirmation, not full bank statements.'
             cancel: 'Cancel'
             submit: 'Confirm the payment'
         modal_court_notice:
@@ -1264,6 +1267,7 @@ case_overview:
         flash_success_paid: 'The proof of payment was saved. The stamp duty is recorded as paid.'
         flash_success_deferred: 'The case was marked for later payment of the duty. Confirm the payment here once you have paid.'
         flash_success_registry_paid: 'The registry payment was recorded. The stamp duty is marked as paid.'
+        flash_success_registry_paid_with_file: 'The stamp duty was marked as paid and the confirmation was attached to the case.'
         filed_unpaid_banner: 'The petition has been filed, but the stamp duty is not recorded as paid. Non-payment annuls the petition, and the court notice may reach your client rather than you.'
         flash_success_court_notice: 'The stamp-duty term was computed and added to the case deadlines.'
         flash_warning_payer_mismatch: 'The proof names a payer other than the creditor. The duty is owed by the creditor (OUG 80/2013 art. 40), so the court may ask for clarification.'
@@ -1887,7 +1891,7 @@ pdf:
         costs_title: 'Legal costs'
         costs_body: 'I request that the debtor be ordered to pay the legal costs, under art. 453 of the Code of Civil Procedure.'
         costs_stamp_duty_paid: 'Judicial stamp duty: %amount% RON, paid as per the attached proof.'
-        costs_stamp_duty_paid_registry: 'Judicial stamp duty: %amount% RON, paid through the courts electronic registry, the payment confirmation being transmitted to the court by that channel.'
+        costs_stamp_duty_paid_registry: 'Judicial stamp duty: %amount% RON, paid through the courts electronic registry, as a payment individualized on the case number.'
         costs_stamp_duty_deferred: 'Judicial stamp duty: %amount% RON, to be paid under art. 33 para. 2 of OUG 80/2013, with the proof filed with the court.'
         costs_lawyer_fee: 'Lawyer fee: %fixed% %currency%, under the legal assistance contract, to be evidenced by the documents filed with the court.'
         legal_basis_title: 'Legal basis'
@@ -2787,11 +2791,11 @@ email:
         missing_label: 'What is missing:'
         action_label: 'What to do:'
         STAMP_DUTY_DUE:
-            subject: 'Pay the stamp duty for case %case%'
-            heading: 'The case has a file number, the stamp duty is due now'
-            body: 'Case %case% has a court file number and the stamp duty is still recorded as unpaid. The duty is paid in advance (OUG 80/2013 art. 33 para. 1), so do not wait for a regularization notice. Upload the proof on the case once paid.'
-            missing: 'Proof that the stamp duty was paid on case %case%.'
-            action: 'Pay the duty, then upload the proof on the case and mark the duty as paid.'
+            subject: 'The stamp duty reads unpaid on case %case%'
+            heading: 'The stamp duty is still recorded as unpaid'
+            body: 'Case %case% has a court file number and the stamp duty reads unpaid. The duty is paid in advance (OUG 80/2013 art. 33 para. 1); if the court communicates the obligation to pay, non-payment within the granted term leads to the annulment of the request (art. 33 para. 2). If the duty was already paid, record the payment on the case so the alert stops repeating.'
+            missing: 'The stamp duty payment recorded on case %case%.'
+            action: 'Pay the duty through the electronic registry, then confirm the payment on the case (through the registry or with the proof of payment).'
         REGULARIZATION_NOTICE_DATE_MISSING:
             subject: 'Case %case% is waiting for the regularization notice date'
             heading: 'If you received the notice, enter its date'
@@ -2884,8 +2888,8 @@ notification:
         message: 'Enter the payment order service date on case %case% to start the annulment request term.'
     blocked_case:
         STAMP_DUTY_DUE:
-            title: 'Pay the stamp duty: %case%'
-            message: 'Case %case% has a court file number and the stamp duty is still unpaid. The duty is paid in advance, so do not wait for a regularization notice.'
+            title: 'Stamp duty unpaid: %case%'
+            message: 'Case %case% has a court file number and the stamp duty reads unpaid. The duty is paid in advance; if it was already paid, record the payment on the case.'
         REGULARIZATION_NOTICE_DATE_MISSING:
             title: 'Regularization notice date: %case%'
             message: 'On case %case% the duty is deferred pending regularization. If you received the notice from the court, enter the date it was served so the 10-day term starts.'

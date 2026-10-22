@@ -223,7 +223,7 @@ final class CaseTransitionController extends AbstractController
             $this->em->flush();
         });
 
-        // Optionally attach the issued order document (CPC art. 1020). Best-effort
+        // Optionally attach the issued order document (CPC art. 1022). Best-effort
         // after the transition: a failed upload (disk/IO) must not undo the issued
         // ruling, which is already committed. The lawyer can attach it later.
         $rulingDocument = $form->get('rulingDocument')->getData();

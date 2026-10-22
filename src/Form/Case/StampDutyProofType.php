@@ -30,11 +30,7 @@ final class StampDutyProofType extends AbstractType
                 'mapped' => false,
                 'constraints' => [
                     new Assert\NotBlank(message: 'case_overview.stamp_duty.error.file_required'),
-                    new Assert\File(
-                        maxSize: '10M',
-                        mimeTypes: ['application/pdf', 'image/jpeg', 'image/png'],
-                        mimeTypesMessage: 'document.upload.invalid_type',
-                    ),
+                    self::fileConstraint(),
                 ],
             ])
             ->add('paidAt', DateType::class, [
@@ -80,6 +76,17 @@ final class StampDutyProofType extends AbstractType
                 'required' => false,
             ])
         ;
+    }
+
+    /** Shared with the registry confirmation, which accepts the same kind of file. */
+    public static function fileConstraint(): Assert\File
+    {
+        return new Assert\File(
+            maxSize: '10M',
+            mimeTypes: ['application/pdf', 'image/jpeg', 'image/png'],
+            maxSizeMessage: 'document.upload.too_large',
+            mimeTypesMessage: 'document.upload.invalid_type',
+        );
     }
 
     public function configureOptions(OptionsResolver $resolver): void

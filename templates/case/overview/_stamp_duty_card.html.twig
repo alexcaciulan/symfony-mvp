@@ -57,10 +57,15 @@
                                 {{ 'case_overview.stamp_duty.view_proof'|trans }}
                             </a>
                         {% elseif case.stampDutyPaidAt %}
-                            {# Fără fișier de descărcat, dar nu fiindcă lipsește ceva: pe
-                               calea registraturii confirmarea a plecat la instanță pe
-                               canalul ei, iar tăcerea aici ar arăta ca o dovadă pierdută. #}
+                            {# Registry payment declared without a file. The portal may have
+                               sent the confirmation only to the payer, so the lawyer can still
+                               attach it later through the proof upload. #}
                             <p class="mt-0.5">{{ 'case_overview.stamp_duty.paid_through_registry'|trans }}</p>
+                            <button type="button" data-hs-overlay="#hs-modal-stamp-duty-proof"
+                                    class="mt-1 inline-flex items-center gap-1 font-semibold underline">
+                                {{ icon_document('size-3.5') }}
+                                {{ 'case_overview.stamp_duty.cta_attach_registry_confirmation'|trans }}
+                            </button>
                         {% endif %}
                     </div>
                 </div>
@@ -138,8 +143,8 @@
                 </button>
             {% endif %}
 
-            {# Paying in the existing case sends the confirmation to the court on the
-               registry's own channel, so there is no proof file to upload here. #}
+            {# The registry takes the duty only in an existing case; its confirmation
+               file is optional in the modal, since the platform cannot know who got it. #}
             {% if status.outstanding and rejust_form.value == 'EXISTING_CASE' %}
                 <button type="button" data-hs-overlay="#hs-modal-stamp-duty-registry-paid"
                         class="w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-semibold rounded-lg bg-lex-navy text-white hover:bg-lex-navy-dark transition">

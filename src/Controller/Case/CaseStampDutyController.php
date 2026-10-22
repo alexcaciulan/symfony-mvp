@@ -13,10 +13,12 @@ use App\Security\Voter\CaseVoter;
 use App\Service\Case\OverviewContextBuilder;
 use App\Service\StampDuty\StampDutyService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 /**
  * Judicial stamp duty (OUG 80/2013): proof of payment, deferral to the court's
@@ -113,12 +115,19 @@ final class CaseStampDutyController extends AbstractController
     }
 
     /**
-     * Payment went through the electronic registry, so the confirmation reached the
-     * court on its own channel and there is no file for us to hold. The registry
-     * takes the duty only in an existing case, hence the file-number guard.
+     * Payment was individualized on the existing case through the electronic registry.
+     * The portal sends its confirmation to the debtor of the duty and/or the court
+     * (OUG 80/2013 art. 40 alin. 3), so the platform cannot know the court has it; the
+     * lawyer may attach the confirmation they received, but does not have to. The
+     * registry takes the duty only in an existing case, hence the file-number guard.
      */
     #[Route('/case/{id}/stamp-duty/registry-paid', name: 'case_stamp_duty_registry_paid', requirements: ['id' => '\d+'], methods: ['POST'])]
-    public function registryPaid(int $id, Request $request): Response
+    public function registryPaid(
+        int $id,
+        Request $request,
+        RateLimiterFactory $documentUploadLimiter,
+        ValidatorInterface $validator,
+    ): Response
     {
         $case = $this->findOrThrow($id);
         $this->denyAccessUnlessGranted(CaseVoter::STAMP_DUTY_MANAGE, $case);
@@ -150,12 +159,35 @@ final class CaseStampDutyController extends AbstractController
             return $this->respond($request, $case, false, 'error', 'case_overview.stamp_duty.error.payment_reference_too_long');
         }
 
+        $file = $request->files->get('file');
+        if (!$file instanceof UploadedFile) {
+            $file = null;
+        }
+
+        $user = $this->getUser();
+        if ($file !== null) {
+            if ($case->hasStampDutyProof()) {
+                return $this->respond($request, $case, false, 'warning', 'case_overview.stamp_duty.flash_error_already_paid');
+            }
+
+            if ($user !== null && !$documentUploadLimiter->create($user->getUserIdentifier())->consume()->isAccepted()) {
+                return $this->respond($request, $case, false, 'warning', 'rate_limit.document_upload');
+            }
+
+            // Validated here so a wrong type is a message, not the upload service's exception.
+            $violations = $validator->validate($file, StampDutyProofType::fileConstraint());
+            if (\count($violations) > 0) {
+                return $this->respond($request, $case, false, 'error', (string) $violations->get(0)->getMessage());
+            }
+        }
+
         $this->stampDutyService->confirmPaymentThroughRegistry(
             case: $case,
-            user: $this->getUser(),
+            user: $user,
             paidAt: $paidAt,
             paymentReference: $reference !== '' ? $reference : null,
             lawVersion: $this->stampDutyLawVersion,
+            file: $file,
         );
 
         return $this->respond(
@@ -163,7 +195,9 @@ final class CaseStampDutyController extends AbstractController
             $case,
             true,
             'success',
-            'case_overview.stamp_duty.flash_success_registry_paid',
+            $file !== null
+                ? 'case_overview.stamp_duty.flash_success_registry_paid_with_file'
+                : 'case_overview.stamp_duty.flash_success_registry_paid',
             'hs-modal-stamp-duty-registry-paid',
         );
     }

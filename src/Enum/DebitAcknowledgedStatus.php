@@ -7,7 +7,7 @@ namespace App\Enum;
 /**
  * Debt status confirmed by the lawyer before generating the payment-order
  * petition: partially paid or unpaid. Required for the OP-generation consent
- * (prior procedure, CPC art. 1015-1016).
+ * (prior procedure, CPC art. 1015-1017).
  */
 enum DebitAcknowledgedStatus: string
 {

@@ -422,7 +422,7 @@ final class DeadlineCreationSubscriberTest extends KernelTestCase
     }
 
     /**
-     * Enforcement started directly from ORDONANTA_EMISA (CPC art. 1021), bypassing
+     * Enforcement started directly from ORDONANTA_EMISA (CPC art. 1022), bypassing
      * DEFINITIVA. No enforcement-limitation term is created: that term measures the
      * window in which the right to ask for enforcement is still alive, and asking for
      * it is exactly what just happened.

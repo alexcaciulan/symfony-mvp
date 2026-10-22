@@ -162,18 +162,34 @@ final class PaymentOrderRequestGeneratorServiceTest extends KernelTestCase
     }
 
     /**
-     * Payment through the electronic registry reaches the court on its own channel,
-     * so the case reads as paid while no proof sits in our package. Invoking an annex
-     * that is not there would be contradicted by the very package filed.
+     * A registry payment declared without a file reads as paid while no proof sits in
+     * the package. Invoking an annex that is not there would be contradicted by the
+     * package itself, and the platform cannot know the portal's confirmation reached
+     * the court (OUG 80/2013 art. 40 alin. 3), so the text may not claim that either.
      */
     public function testRenderHtmlDoesNotInvokeAnAnnexWhenThePaymentWentThroughTheRegistry(): void
     {
         $this->case->setStampDutyStatus(StampDutyStatus::ACHITATA);
+        $this->case->setStampDutyPaidAt(new \DateTimeImmutable('2026-07-15'));
 
         $html = $this->service->renderHtml($this->case);
 
         self::assertStringNotContainsString('achitată conform dovezii anexate', $html);
         self::assertStringContainsString('registratura electronică', $html);
+        self::assertStringNotContainsString('transmisă instanței', $html);
+    }
+
+    /** With the confirmation attached on the registry path, the proof is in the package and is cited. */
+    public function testRenderHtmlCitesTheAttachedConfirmationOfARegistryPayment(): void
+    {
+        $this->case->setStampDutyStatus(StampDutyStatus::ACHITATA);
+        $this->case->setStampDutyPaidAt(new \DateTimeImmutable('2026-07-15'));
+        $this->attachStampDutyProof();
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString('achitată conform dovezii anexate', $html);
+        self::assertStringNotContainsString('registratura electronică', $html);
     }
 
     public function testRenderHtmlGivesTheLawyerContactAsCounselsNotTheCreditors(): void

@@ -9,13 +9,10 @@ enum CaseStatus: string
     case AMIABIL = 'AMIABIL';
 
     /**
-     * Somația de plată a fost generată (PDF) și avocatul urmează să o comunice
-     * debitorului. Statusul NU înseamnă „comunicare confirmată" — el reflectă
-     * intenția procedurală a creditorului. Termenul legal de 15 zile (CPC
-     * art. 1015 alin. 1) curge de la PRIMIREA somației de către debitor, nu
-     * de la data acestei tranziții. Pas 4.1 (DeadlineService) va calcula
-     * termenul pe baza datei comunicării efective (atașată ca dovadă), nu
-     * pe baza `paymentNoticeDate` setat la generare.
+     * The summons PDF was generated and the lawyer is about to deliver it. This is
+     * the creditor's procedural intent, not confirmed delivery: the 15-day term of
+     * CPC art. 1015 alin. 1 runs from the debtor RECEIVING the summons, so deadlines
+     * are computed from the proven delivery date, not from `paymentNoticeDate`.
      */
     case SOMATIE_TRIMISA = 'SOMATIE_TRIMISA';
 
@@ -78,5 +75,23 @@ enum CaseStatus: string
             self::DOSAR_INREGISTRAT, self::TERMEN_FIXAT, self::ORDONANTA_EMISA, self::IN_ANULARE => true,
             default => false,
         };
+    }
+
+    /**
+     * The request is at the court and an unpaid stamp duty can still cost it:
+     * annulment for non-payment (OUG 80/2013 art. 33 alin. 2, CPC art. 197) operates
+     * until the order is final. Once DEFINITIVA or EXECUTARE the claim stands on an
+     * enforceable title, so the sanction is no longer operable; terminal and
+     * pre-filing statuses are out by nature.
+     */
+    public function isStampDutyAtStakeAtCourt(): bool
+    {
+        return self::CERERE_DEPUSA === $this || $this->isActiveOnPortal();
+    }
+
+    /** @return list<self> */
+    public static function stampDutyAtStakeAtCourt(): array
+    {
+        return array_values(array_filter(self::cases(), static fn (self $s): bool => $s->isStampDutyAtStakeAtCourt()));
     }
 }

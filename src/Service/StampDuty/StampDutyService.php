@@ -124,10 +124,12 @@ final class StampDutyService
     }
 
     /**
-     * Payment went through the electronic registry, which transmits the confirmation
-     * to the court in the existing case (OUG 80/2013 art. 40 alin. 3, as added
-     * by Legea 268/2024). There is no file to attach here: the proof is already where
-     * it needs to be, and asking for it a second time would be asking for nothing.
+     * Payment was individualized on the existing case through the electronic registry.
+     * Under OUG 80/2013 art. 40 alin. 3 the portal sends the confirmation to the debtor
+     * of the duty and/or the court, so the platform cannot know the court has it. The
+     * confirmation file is therefore optional and only recorded when the lawyer has it;
+     * with it the petition can cite an attached proof, without it the payment stays a
+     * declaration.
      *
      * The UAT snapshot is still taken, because what matters in a dispute is which
      * town hall we pointed at when the money moved.
@@ -138,33 +140,51 @@ final class StampDutyService
         \DateTimeImmutable $paidAt,
         ?string $paymentReference,
         string $lawVersion,
-    ): void {
+        ?UploadedFile $file = null,
+    ): ?Document {
         $target = $this->uatResolver->resolve($case);
 
-        $this->em->wrapInTransaction(function () use ($case, $user, $paidAt, $paymentReference, $lawVersion, $target): void {
-            $case->setStampDutyStatus(StampDutyStatus::ACHITATA);
-            $case->setStampDutyPaidAt($paidAt);
-            $case->setStampDutyPaymentReference($paymentReference);
-            $case->setStampDutyUat($target->uatName());
-            $case->setStampDutyLawVersion($lawVersion);
-            $this->em->flush();
+        // Same compensation as recordPayment: the upload commits on its own flush.
+        $document = null !== $file
+            ? $this->documentUploadService->upload($case, $file, DocumentType::DOVADA_TAXA_TIMBRU, $user)
+            : null;
 
-            $this->auditLogService->log(
-                action: 'stamp_duty_paid_through_registry',
-                entityType: LegalCase::class,
-                entityId: (string) $case->getId(),
-                newData: [
-                    'caseNumber' => $case->getCaseNumber(),
-                    'paidAt' => $paidAt->format('Y-m-d'),
-                    'paymentReference' => $paymentReference,
-                    'uat' => $target->uatName(),
-                    'confirmedBy' => $user->getUserIdentifier(),
-                    'lawVersion' => $lawVersion,
-                ],
-                category: AuditLogService::CATEGORY_STAMP_DUTY,
-            );
-            $this->em->flush();
-        });
+        try {
+            $this->em->wrapInTransaction(function () use ($case, $user, $document, $paidAt, $paymentReference, $lawVersion, $target): void {
+                $case->setStampDutyStatus(StampDutyStatus::ACHITATA);
+                $case->setStampDutyPaidAt($paidAt);
+                $case->setStampDutyPaymentReference($paymentReference);
+                $case->setStampDutyUat($target->uatName());
+                $case->setStampDutyLawVersion($lawVersion);
+                $this->em->flush();
+
+                $this->auditLogService->log(
+                    action: 'stamp_duty_paid_through_registry',
+                    entityType: LegalCase::class,
+                    entityId: (string) $case->getId(),
+                    newData: [
+                        'caseNumber' => $case->getCaseNumber(),
+                        'documentId' => $document?->getId(),
+                        'paidAt' => $paidAt->format('Y-m-d'),
+                        'paymentReference' => $paymentReference,
+                        'uat' => $target->uatName(),
+                        'confirmedBy' => $user->getUserIdentifier(),
+                        'lawVersion' => $lawVersion,
+                    ],
+                    category: AuditLogService::CATEGORY_STAMP_DUTY,
+                );
+                $this->em->flush();
+            });
+        } catch (\Throwable $e) {
+            if (null !== $document) {
+                $case->getDocuments()->removeElement($document);
+                $this->documentUploadService->delete($document);
+            }
+
+            throw $e;
+        }
+
+        return $document;
     }
 
     /**

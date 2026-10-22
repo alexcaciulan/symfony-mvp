@@ -14,7 +14,7 @@ use Symfony\Component\Validator\Constraints as Assert;
 /**
  * Form for the `emite_ordonanta` workflow transition: captures the date the
  * court issued the payment order, plus an optional upload of the issued order
- * document (CPC art. 1020). The date must not be in the future. data_class null.
+ * document (CPC art. 1022). The date must not be in the future. data_class null.
  */
 final class IssueRulingType extends AbstractType
 {

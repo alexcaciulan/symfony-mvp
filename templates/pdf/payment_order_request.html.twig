@@ -232,10 +232,10 @@
     {% if stampDuty and stampDuty != '0' and stampDuty != '0.00' %}
     <li>
         {% if case.stampDutyStatus.value == 'ACHITATA' %}
-            {# „Conform dovezii anexate" se afirmă doar dacă dovada chiar e în pachet.
-               Plata prin registratura electronică ajunge la instanță pe canalul ei,
-               fără fișier la noi, iar a invoca o anexă inexistentă ar fi contrazis
-               chiar de pachetul depus. #}
+            {# "Conform dovezii anexate" only when the proof is actually in the package,
+               whichever path recorded it. A registry payment without a file stays a
+               declaration of the payment: citing a missing annex would be contradicted
+               by the package itself. #}
             {% if case.hasStampDutyProof %}
                 {{ 'pdf.payment_order.costs_stamp_duty_paid'|trans({'%amount%': stampDuty|number_format(2, ',', '.')}) }}
             {% else %}

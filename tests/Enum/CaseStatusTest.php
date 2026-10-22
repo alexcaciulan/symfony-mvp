@@ -53,6 +53,27 @@ class CaseStatusTest extends TestCase
         $this->assertFalse(CaseStatus::EXECUTARE->isActiveOnPortal());
     }
 
+    /**
+     * Annulment for an unpaid stamp duty can still operate from filing until the order
+     * is final, so exactly these statuses keep the duty at stake.
+     */
+    public function testStampDutyIsAtStakeFromFilingUntilTheOrderIsFinal(): void
+    {
+        $expected = [
+            CaseStatus::CERERE_DEPUSA,
+            CaseStatus::DOSAR_INREGISTRAT,
+            CaseStatus::TERMEN_FIXAT,
+            CaseStatus::ORDONANTA_EMISA,
+            CaseStatus::IN_ANULARE,
+        ];
+
+        foreach (CaseStatus::cases() as $status) {
+            $this->assertSame(\in_array($status, $expected, true), $status->isStampDutyAtStakeAtCourt(), $status->name);
+        }
+
+        $this->assertSame($expected, CaseStatus::stampDutyAtStakeAtCourt());
+    }
+
     public function testCanCreateFromValue(): void
     {
         $this->assertSame(CaseStatus::AMIABIL, CaseStatus::from('AMIABIL'));

@@ -37,7 +37,7 @@ final class DeadlineCertaintyResolver
      *   stopped being seeded from the generation date, must not claim certainty.
      * - PRESCRIPTIE_EXECUTARE runs from the order becoming final (CPC art. 705 para.
      *   2), not from it becoming enforceable, which happens earlier and is a separate
-     *   question (CPC art. 1021). Which date made it final depends on whether the
+     *   question (CPC art. 1022). Which date made it final depends on whether the
      *   debtor challenged it: after an annulment request it is the communication of
      *   the ruling given on that request (CPC art. 1024 para. 8), otherwise the
      *   subscriber derives the day from `rulingCommunicationDate` and, failing that,

@@ -83,7 +83,7 @@ enum DocumentType: string
 
     /**
      * Pieces the procedure itself imposes, as opposed to evidence the lawyer chooses
-     * to annex: the proof that the summons was communicated (CPC art. 1016 para. 2)
+     * to annex: the proof that the summons was communicated (CPC art. 1017 para. 2)
      * and the proof that the stamp duty was paid (CPC art. 197). Both gate the filing
      * of the petition, so they must never compete with the contracts and invoices for
      * the per-case attachment cap: a case that reached the cap on evidence would
