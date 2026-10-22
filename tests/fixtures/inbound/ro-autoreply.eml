@@ -1,0 +1,11 @@
+Authentication-Results: mx.lexrecovery.test; dmarc=pass header.from=instanta-test.just.ro
+From: Registratura <registratura@instanta-test.example.test>
+To: depuneri@lexrecovery.test
+Date: Thu, 22 Oct 2026 18:30:00 +0000
+Subject: Răspuns automat: Cerere de ordonanta de plata
+Message-ID: <ro-auto-0001@instanta-test.example.test>
+In-Reply-To: {{MSGID}}
+Auto-Submitted: auto-replied
+Content-Type: text/plain; charset=utf-8
+
+Programul registraturii este de luni până vineri, între orele 8 și 16.

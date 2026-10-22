@@ -90,4 +90,29 @@ final class SmtpFailureClassifierTest extends TestCase
         self::assertNull($result->smtpCode);
         self::assertSame(SmtpFailureKind::TEMPORARY, $result->kind);
     }
+
+    /** @return iterable<string, array{?int, string, SmtpFailureKind, bool}> */
+    public static function reportStatuses(): iterable
+    {
+        yield '5.1.1 unknown user' => [null, '5.1.1', SmtpFailureKind::PERMANENT, true];
+        yield '5.4.4 no route to the domain' => [null, '5.4.4', SmtpFailureKind::PERMANENT, true];
+        yield '5.2.2 mailbox full' => [null, '5.2.2', SmtpFailureKind::TEMPORARY, false];
+        yield '552 5.3.4 size' => [552, '5.3.4', SmtpFailureKind::SIZE, false];
+        yield '5.7.1 policy' => [null, '5.7.1', SmtpFailureKind::PERMANENT, false];
+        yield '4.4.7 expired' => [421, '4.4.7', SmtpFailureKind::TEMPORARY, false];
+    }
+
+    #[DataProvider('reportStatuses')]
+    public function testClassifyStatusInvalidatesTheAddressOnlyForAnUnknownRecipient(?int $code, string $enhanced, SmtpFailureKind $kind, bool $invalidates): void
+    {
+        $result = (new SmtpFailureClassifier())->classifyStatus($code, $enhanced, 'dsn', true);
+
+        self::assertSame($kind, $result->kind);
+        self::assertSame($invalidates, $result->invalidatesCourtAddress);
+    }
+
+    public function testClassifyStatusNeverInvalidatesForAnotherRecipient(): void
+    {
+        self::assertFalse((new SmtpFailureClassifier())->classifyStatus(null, '5.1.1', 'dsn', false)->invalidatesCourtAddress);
+    }
 }

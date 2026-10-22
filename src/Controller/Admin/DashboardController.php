@@ -72,6 +72,7 @@ class DashboardController extends AbstractDashboardController
         yield MenuItem::linkTo(DocumentCrudController::class, 'Documente', 'fas fa-file-lines')->setAction(Action::INDEX);
         yield MenuItem::linkTo(LegalDeadlineCrudController::class, 'Termene', 'fas fa-calendar-day')->setAction(Action::INDEX);
         yield MenuItem::linkTo(FilingSubmissionCrudController::class, 'Transmiteri la instanță', 'fas fa-paper-plane')->setAction(Action::INDEX);
+        yield MenuItem::linkTo(InboundMailCrudController::class, 'Mesaje primite', 'fas fa-inbox')->setAction(Action::INDEX);
         yield MenuItem::section('Monetizare');
         yield MenuItem::linkTo(PlanCrudController::class, 'Planuri', 'fas fa-layer-group')->setAction(Action::INDEX);
         yield MenuItem::linkTo(SubscriptionCrudController::class, 'Abonamente', 'fas fa-id-card')->setAction(Action::INDEX);

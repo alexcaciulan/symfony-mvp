@@ -13,8 +13,10 @@ use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\FilingDeliveryStatus;
 use App\Enum\FilingPartStatus;
+use App\Enum\InboundReviewStatus;
 use App\Message\SendFilingEmailPartMessage;
 use App\Repository\FilingSubmissionRepository;
+use App\Repository\InboundMailRepository;
 use App\Service\AuditLogService;
 use Doctrine\DBAL\Exception\UniqueConstraintViolationException;
 use Doctrine\DBAL\LockMode;
@@ -51,6 +53,7 @@ final class FilingSubmissionService
         private readonly RateLimiterFactory $filingSubmissionLimiter,
         private readonly RateLimiterFactory $filingCourtCapLimiter,
         private readonly FilingPartOutcomeApplier $outcomes,
+        private readonly InboundMailRepository $inboundMails,
     ) {}
 
     /**
@@ -172,7 +175,49 @@ final class FilingSubmissionService
     public function isCancellable(FilingSubmission $submission): bool
     {
         return $submission->isActive()
+            && $submission->getReviewReason() !== FilingPartOutcomeApplier::REVIEW_LATE_BOUNCE
             && !$submission->hasPartWithStatus(FilingPartStatus::ACCEPTED, FilingPartStatus::SENDING, FilingPartStatus::UNCERTAIN);
+    }
+
+    public function isLateBounceReview(FilingSubmission $submission): bool
+    {
+        return $submission->isActive()
+            && $submission->getDeliveryStatus() === FilingDeliveryStatus::NEEDS_REVIEW
+            && $submission->getReviewReason() === FilingPartOutcomeApplier::REVIEW_LATE_BOUNCE;
+    }
+
+    /**
+     * The lawyer checked a late bounce on a case that had already moved on (court
+     * number, declared date or confirmed portal match): nothing on the case is
+     * undone, the review ends and the case is free again.
+     *
+     * @throws FilingSendBlockedException
+     */
+    public function acknowledgeLateBounce(FilingSubmission $submission, User $user): void
+    {
+        if ($submission->getLegalCase()->getUser() !== $user) {
+            throw new FilingSendBlockedException('filing.send.blocker.not_owner');
+        }
+        $this->inLockedSubmission($submission, function () use ($submission, $user): void {
+            if (!$this->isLateBounceReview($submission)) {
+                throw new FilingSendBlockedException('filing.undelivered.ack_refused');
+            }
+            $submission->endLateReview();
+            foreach ($this->inboundMails->findForSubmission($submission) as $mail) {
+                if ($mail->getReviewStatus() === InboundReviewStatus::PENDING && $mail->getReviewReason() === 'late_bounce_case_advanced') {
+                    $mail->resolveReview();
+                }
+            }
+            $submission->appendConfirmation('late_bounce', ['checked' => $this->translator->trans('filing.undelivered.ack_statement')], $user, $this->clock->now());
+            $this->auditLogService->log(
+                action: 'filing_late_bounce_acknowledged',
+                entityType: LegalCase::class,
+                entityId: (string) $submission->getLegalCase()->getId(),
+                newData: ['submissionId' => $submission->getId(), 'status' => $submission->getDeliveryStatus()->value],
+                category: AuditLogService::CATEGORY_FILING_SUBMISSION,
+                actor: $user,
+            );
+        });
     }
 
     /** The petition left; what did not can be closed so the case is free again. */

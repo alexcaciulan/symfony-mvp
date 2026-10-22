@@ -42,6 +42,12 @@ final class EmailNotificationSubscriber
     #[AsEventListener(event: 'workflow.legal_case.entered.CERERE_GENERATA')]
     public function onCerereGenerata(EnteredEvent $event): void
     {
+        // Back from an undelivered filing: the platform sends its own notice, and the
+        // request was not generated again.
+        if ($event->getTransition()?->getName() === 'anuleaza_depunere_nelivrata') {
+            return;
+        }
+
         $this->notifyStatusChange($event, 'cerere_generata', 'info');
     }
 

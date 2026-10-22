@@ -101,6 +101,26 @@ final class EmailNotificationSubscriberTest extends TestCase
         self::assertSame([], $spy->captured);
     }
 
+    public function testUndoneUndeliveredFilingDoesNotAnnounceAGeneratedRequest(): void
+    {
+        $spy = new SpyNotificationDispatcher();
+        $transition = new Transition('anuleaza_depunere_nelivrata', 'CERERE_DEPUSA', 'CERERE_GENERATA');
+
+        $this->subscriber($spy)->onCerereGenerata(new EnteredEvent($this->case(), new Marking(), $transition));
+
+        self::assertSame([], $spy->captured);
+    }
+
+    public function testGeneratedRequestStillNotifies(): void
+    {
+        $spy = new SpyNotificationDispatcher();
+        $transition = new Transition('genereaza_cerere', 'SOMATIE_TRIMISA', 'CERERE_GENERATA');
+
+        $this->subscriber($spy)->onCerereGenerata(new EnteredEvent($this->case(), new Marking(), $transition));
+
+        self::assertSame('notification.case_status.cerere_generata.title', $spy->last()->title);
+    }
+
     public function testManualFilingConfirmationStillNotifies(): void
     {
         $spy = new SpyNotificationDispatcher();

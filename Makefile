@@ -1,4 +1,4 @@
-.PHONY: help build up down restart logs shell composer test migrate db-create tailwind tailwind-watch expose demo-setup demo-up demo-down demo-sync demo-logs demo-db-copy demo-expose
+.PHONY: help build up down restart logs shell composer test migrate db-create tailwind tailwind-watch expose demo-setup demo-up demo-down demo-sync demo-logs demo-db-copy demo-expose filing-poll filing-simulate
 
 help: ## Show this help message
 	@echo 'Usage: make [target]'
@@ -74,6 +74,12 @@ tailwind-watch: ## Watch and rebuild Tailwind CSS on file changes
 
 monitor-cases: ## Monitor court cases via portal.just.ro
 	docker compose exec php php bin/console app:monitor-court-cases --no-interaction
+
+filing-poll: ## Read the inbound mailbox once (court receipts, bounces, replies)
+	docker compose exec -T php php bin/console app:filing:poll-inbound
+
+filing-simulate: ## Dev only: write a simulated court answer to Mailpit (ARGS='--submission=ID --kind=receipt')
+	docker compose exec -T php php bin/console app:filing:simulate-court-reply $(ARGS)
 
 import-portal-codes: ## Import portal.just.ro institution codes for courts
 	docker compose exec php php bin/console app:import-court-portal-codes --no-interaction

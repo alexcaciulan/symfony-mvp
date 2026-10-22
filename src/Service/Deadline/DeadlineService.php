@@ -430,6 +430,74 @@ final class DeadlineService
     }
 
     /**
+     * Reopens the six-month term after the platform's email filing turned out
+     * undelivered (a permanent bounce for the court on the petition): the closing
+     * rested on the case entering CERERE_DEPUSA, and the case is back before filing.
+     * Only a closing the platform made is undone; one the lawyer made stays, and is
+     * audited as skipped. The due date is recomputed from the communication date,
+     * the same way createFilingDeadline() computes it.
+     *
+     * This only reopens the term in the application: it does not extend or revive
+     * anything in law. Whether the legal term ran out meanwhile is the lawyer's call.
+     *
+     * @return bool whether the term was reopened
+     */
+    public function reopenFilingDeadline(LegalCase $legalCase, string $reason): bool
+    {
+        $deadline = $this->deadlineRepository->findOneByCaseAndType($legalCase, DeadlineType::DEPUNERE_CERERE);
+        if ($deadline === null || !$deadline->isCompleted()) {
+            return false;
+        }
+        if ($deadline->getCompletedBy() !== null) {
+            $this->auditLogService->log(
+                action: 'filing_deadline_reopen_skipped',
+                entityType: LegalDeadline::class,
+                entityId: (string) $deadline->getId(),
+                newData: [
+                    'deadlineId' => $deadline->getId(),
+                    'type' => DeadlineType::DEPUNERE_CERERE->value,
+                    'caseNumber' => $legalCase->getCaseNumber(),
+                    'reason' => $reason,
+                    'why' => 'closed_by_lawyer',
+                ],
+                category: AuditLogService::CATEGORY_DEADLINE_EDITED,
+            );
+
+            return false;
+        }
+
+        $previousDate = $deadline->getDeadlineDate();
+        $deadline->setCompleted(false);
+        $deadline->setCompletedAt(null);
+        $deadline->setCompletedBy(null);
+        $deadline->resetAlertFlags();
+        $communicationDate = $legalCase->getPaymentNoticeCommunicationDate();
+        if ($communicationDate !== null) {
+            $deadline->setDeadlineDate($this->filingInterruptionTermEnd($communicationDate)->end);
+        }
+        $this->em->flush();
+
+        $this->auditLogService->log(
+            action: 'filing_deadline_reopened',
+            entityType: LegalDeadline::class,
+            entityId: (string) $deadline->getId(),
+            oldData: ['deadlineDate' => $previousDate->format('Y-m-d'), 'completed' => true],
+            newData: [
+                'deadlineId' => $deadline->getId(),
+                'type' => DeadlineType::DEPUNERE_CERERE->value,
+                'caseNumber' => $legalCase->getCaseNumber(),
+                'deadlineDate' => $deadline->getDeadlineDate()->format('Y-m-d'),
+                'completed' => false,
+                'reason' => $reason,
+            ],
+            category: AuditLogService::CATEGORY_DEADLINE_EDITED,
+        );
+        $this->em->flush();
+
+        return true;
+    }
+
+    /**
      * Closes the enforcement-limitation term against the date the enforcement request
      * was filed with the bailiff. That filing is what interrupts the limitation of the
      * right to enforce (CPC art. 708 para. 1 pt. 2), so from that date the term has no

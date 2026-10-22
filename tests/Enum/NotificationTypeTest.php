@@ -23,6 +23,14 @@ final class NotificationTypeTest extends TestCase
         self::assertSame('filing_failed_internal', NotificationType::FILING_FAILED_INTERNAL->value);
         self::assertSame('filing_needs_review', NotificationType::FILING_NEEDS_REVIEW->value);
         self::assertSame('filing_partially_sent', NotificationType::FILING_PARTIALLY_SENT->value);
+        self::assertSame('filing_receipt_received', NotificationType::FILING_RECEIPT_RECEIVED->value);
+        self::assertSame('filing_receipt_overdue', NotificationType::FILING_RECEIPT_OVERDUE->value);
+        self::assertSame('filing_bounced_permanent', NotificationType::FILING_BOUNCED_PERMANENT->value);
+        self::assertSame('filing_court_message', NotificationType::FILING_COURT_MESSAGE->value);
+        self::assertSame('filing_cc_bounced', NotificationType::FILING_CC_BOUNCED->value);
+        self::assertSame('filing_delivery_delayed', NotificationType::FILING_DELIVERY_DELAYED->value);
+        self::assertSame('filing_inbound_review', NotificationType::FILING_INBOUND_REVIEW->value);
+        self::assertSame('inbound_poll_stale', NotificationType::INBOUND_POLL_STALE->value);
     }
 
     public function testFilingFailureTypesAreHighTierAndNeverMuted(): void
@@ -34,6 +42,14 @@ final class NotificationTypeTest extends TestCase
             NotificationType::FILING_FAILED_INTERNAL,
             NotificationType::FILING_NEEDS_REVIEW,
             NotificationType::FILING_PARTIALLY_SENT,
+            NotificationType::FILING_RECEIPT_RECEIVED,
+            NotificationType::FILING_RECEIPT_OVERDUE,
+            NotificationType::FILING_BOUNCED_PERMANENT,
+            NotificationType::FILING_COURT_MESSAGE,
+            NotificationType::FILING_CC_BOUNCED,
+            NotificationType::FILING_DELIVERY_DELAYED,
+            NotificationType::FILING_INBOUND_REVIEW,
+            NotificationType::INBOUND_POLL_STALE,
         ];
         foreach ($types as $type) {
             self::assertFalse($type->suppressible(), $type->value);

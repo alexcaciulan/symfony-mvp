@@ -1,0 +1,25 @@
+{# A message received on the platform mailbox, forwarded to the lawyer of the case.
+   The received text is shown escaped, never as HTML; the original is attached. #}
+{% extends 'emails/_layout.html.twig' %}
+
+{% block content %}
+    <h2 style="color:#1e293b;margin-bottom:16px;">{{ 'inbound.forward.heading'|trans({'%case%': caseLabel}) }}</h2>
+
+    <p style="font-size:14px;line-height:1.6;padding:12px;border:1px solid #fca5a5;background:#fef2f2;border-radius:6px;">{{ 'inbound.forward.disclaimer'|trans }}</p>
+
+    <p style="font-size:13px;line-height:1.6;color:#475569;">
+        {{ 'inbound.forward.meta'|trans({'%from%': from, '%date%': receivedAt, '%subject%': subject}) }}<br>
+        {{ (authTrusted ? 'inbound.forward.auth_trusted' : 'inbound.forward.auth_unverified')|trans }}
+    </p>
+
+    <pre style="white-space:pre-wrap;font-family:inherit;font-size:14px;line-height:1.6;border-left:3px solid #cbd5e1;padding-left:12px;">{{ excerpt }}</pre>
+
+    <p style="font-size:13px;color:#475569;">{{ 'inbound.forward.attachment_note'|trans }}</p>
+
+    <p style="text-align:center;margin:32px 0;">
+        <a href="{{ caseUrl }}"
+           style="display:inline-block;padding:14px 28px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:6px;font-size:16px;font-weight:bold;">
+            {{ 'email.cta.view_case'|trans }}
+        </a>
+    </p>
+{% endblock %}

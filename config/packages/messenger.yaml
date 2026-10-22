@@ -75,3 +75,8 @@ framework:
 
             # One email of a court filing; parts are dispatched one at a time, in order.
             App\Message\SendFilingEmailPartMessage: court_filing
+
+            # Processing of one received mail (court receipt, bounce, reply). On
+            # `async`, not `court_filing`: the handler is idempotent and must not
+            # inherit the outgoing SMTP retry schedule or its failure queue.
+            App\Message\ProcessInboundMailMessage: async

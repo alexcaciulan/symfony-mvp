@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 namespace App\Service\Filing;
 
+use App\Entity\FilingAttempt;
 use App\Entity\FilingEmailPart;
 use App\Entity\FilingSubmission;
+use App\Entity\InboundMail;
 use App\Entity\LegalCase;
 use App\Entity\User;
+use App\Enum\CaseStatus;
+use App\Enum\FilingAttemptOutcome;
 use App\Enum\FilingAttemptSource;
 use App\Enum\FilingDeliveryStatus;
+use App\Enum\FilingPackageStatus;
 use App\Enum\FilingPartStatus;
 use App\Message\SendFilingEmailPartMessage;
 use App\Service\AuditLogService;
@@ -36,6 +41,7 @@ final class FilingPartOutcomeApplier
 {
     public const REVIEW_UNCERTAIN = 'filing.status.review.part_uncertain';
     public const REVIEW_ANNEXES_CANCELLED_PENDING = 'filing.status.review.annexes_cancelled_pending';
+    public const REVIEW_LATE_BOUNCE = 'filing.status.review.late_bounce_case_advanced';
 
     public function __construct(
         private readonly EntityManagerInterface $em,
@@ -136,6 +142,84 @@ final class FilingPartOutcomeApplier
         };
     }
 
+    /**
+     * An annex email the server accepted came back later for good (a delivery
+     * report tied to it by its VERP token). The acceptance is revoked and the 3d2
+     * policy applies: a submission still on its way, or one that ended as sent
+     * while nothing else holds the case, becomes partially sent for the lawyer to
+     * resume or close. Anything else (closed without the annexes, a case that moved
+     * on, another submission holding the case) only goes to the lawyer's review.
+     * The court address is never invalidated for an annex. Idempotent.
+     *
+     * @return bool whether the submission was reopened as partially sent
+     */
+    public function asyncFailed(FilingEmailPart $part, SmtpFailure $smtp, InboundMail $mail): bool
+    {
+        $submission = $part->getSubmission();
+        if ($part->getStatus() !== FilingPartStatus::ACCEPTED) {
+            return false;
+        }
+        $failure = $smtp->kind === SmtpFailureKind::SIZE ? FilingPartStatus::FAILED_SIZE : FilingPartStatus::FAILED_PERMANENT;
+        $this->recordAsyncAttempt($part, $failure === FilingPartStatus::FAILED_SIZE ? FilingAttemptOutcome::SIZE : FilingAttemptOutcome::PERMANENT, $smtp);
+        $part->recordAsyncFailure($failure, $smtp->enhancedStatus, $smtp->safeMessage);
+        $this->audit($submission, 'filing_part_failed_async', [
+            'sequence' => $part->getSequence(),
+            'status' => $failure->value,
+            'enhancedStatus' => $smtp->enhancedStatus,
+            'inboundMailId' => $mail->getId(),
+        ]);
+
+        $case = $submission->getLegalCase();
+        $reopenable = !$submission->isActive()
+            && $submission->getDeliveryStatus() === FilingDeliveryStatus::SENT
+            && $case->getStatus() === CaseStatus::CERERE_DEPUSA
+            && $submission->getPackage()->getStatus() === FilingPackageStatus::SENT
+            && !$this->filingLock->isLockedNow($case);
+        if ($reopenable) {
+            $submission->reacquireLock();
+        }
+        if ($submission->isActive() && $submission->getDeliveryStatus() !== FilingDeliveryStatus::NEEDS_REVIEW) {
+            $this->settle($submission);
+            $this->filingLock->forget($case);
+            if ($submission->isStalled()) {
+                $this->notifier->partiallySent($submission, $part);
+
+                return true;
+            }
+
+            return false;
+        }
+
+        $mail->markForReview('annex_bounce');
+        $this->notifier->annexBounced($submission, $part, $mail);
+
+        return false;
+    }
+
+    /** A finding from a delivery report, recorded next to the SMTP tries. */
+    public function recordAsyncAttempt(FilingEmailPart $part, FilingAttemptOutcome $outcome, SmtpFailure $smtp): FilingAttempt
+    {
+        $now = $this->clock->now();
+        $attempt = new FilingAttempt($part, $part->nextAttemptNo(), FilingAttemptSource::ASYNC_BOUNCE, $now);
+        $attempt->finish($outcome, $now, $smtp->smtpCode, $smtp->enhancedStatus, null, $smtp->safeMessage);
+        $this->em->persist($attempt);
+
+        return $attempt;
+    }
+
+    /** Whether the part already carries a delivery report that revoked its acceptance. */
+    public static function hasAsyncFailure(FilingEmailPart $part): bool
+    {
+        foreach ($part->getAttempts() as $attempt) {
+            if ($attempt->getSource() === FilingAttemptSource::ASYNC_BOUNCE
+                && in_array($attempt->getOutcome(), [FilingAttemptOutcome::PERMANENT, FilingAttemptOutcome::SIZE], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /** Whether the server took the message is unknown: it is never sent again on its own. */
     public function uncertain(FilingEmailPart $part, string $why): void
     {
@@ -156,6 +240,11 @@ final class FilingPartOutcomeApplier
         }
         $status = $submission->getDeliveryStatus();
         $reason = $submission->getReviewReason();
+        // A review opened after the submission ended waits for the lawyer alone:
+        // recomputing it would read the bounced petition as a fresh failure.
+        if ($status === FilingDeliveryStatus::NEEDS_REVIEW && $reason === self::REVIEW_LATE_BOUNCE) {
+            return;
+        }
 
         if ($submission->hasUncertainPart()) {
             if ($status !== FilingDeliveryStatus::NEEDS_REVIEW) {

@@ -118,6 +118,17 @@ services:
             $courtFilingMailerDsn: '%env(COURT_FILING_MAILER_DSN)%'
             $filingEmailChannelSince: '%lexrecovery.filing.email_channel_since%'
             $sendingStaleSeconds: '%env(int:COURT_FILING_SENDING_STALE_SECONDS)%'
+            # Inbound court mail: the source DSN, the authserv-id our own MTA writes,
+            # the receipt-overdue delay, the purge and heartbeat limits, and the
+            # dev-only simulator switch.
+            $inboundMailDsn: '%env(default::INBOUND_MAIL_DSN)%'
+            $inboundAuthservId: '%env(default::INBOUND_AUTHSERV_ID)%'
+            $receiptOverdueWorkingDays: '%lexrecovery.filing.receipt_overdue_working_days%'
+            $inboundPurgeDays: '%lexrecovery.filing.inbound_purge_days%'
+            $inboundHeartbeatMaxAgeMinutes: '%lexrecovery.filing.inbound_heartbeat_max_age_minutes%'
+            $inboundSimulatorEnabled: '%env(bool:default::INBOUND_SIMULATOR_ENABLED)%'
+            $receiptPhrases: '%lexrecovery.inbound.receipt_phrases%'
+            $receiptGeneralPhrases: '%lexrecovery.inbound.receipt_general_phrases%'
 
     # interface-based auto-tagging (Strategy + Tagged Iterator pattern)
     _instanceof:
@@ -149,6 +160,11 @@ services:
     # netopia from the PAYMENT_GATEWAY env toggle (deploy-time, not runtime).
     App\Service\Billing\PaymentGatewayInterface:
         alias: App\Service\Billing\PaymentGatewayResolver
+
+    # The inbound mailbox the poll reads, chosen once from INBOUND_MAIL_DSN:
+    # Mailpit in dev, the fixture directory in tests, IMAP in prod.
+    App\Service\Inbound\InboundMailSourceInterface:
+        factory: ['@App\Service\Inbound\InboundMailSourceResolver', 'resolve']
 
     App\Service\Extraction\DataExtractionService:
         arguments:

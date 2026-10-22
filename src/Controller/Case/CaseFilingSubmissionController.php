@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace App\Controller\Case;
 
 use App\Entity\FilingSubmission;
+use App\Entity\InboundMail;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Repository\FilingSubmissionRepository;
+use App\Repository\InboundMailRepository;
 use App\Repository\LegalCaseRepository;
 use App\Security\Voter\CaseVoter;
+use App\Service\AuditLogService;
 use App\Service\Case\OverviewContextBuilder;
 use App\Service\Document\MissingDocumentFileException;
 use App\Service\Filing\CourtFilingEmailFactory;
@@ -24,9 +27,15 @@ use App\Service\Filing\FilingSendGuard;
 use App\Service\Filing\FilingSubmissionService;
 use App\Service\Filing\RecipientOverrideGuard;
 use App\Service\Filing\UncertainPartResolver;
+use App\Service\Inbound\InboundMailView;
+use App\Service\Inbound\InboundRawStorage;
+use App\Service\Inbound\ManualReceiptRefusedException;
+use App\Service\Inbound\ManualReceiptUploadService;
 use App\Service\Pdf\PdfToolException;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
@@ -40,8 +49,9 @@ use Symfony\Contracts\Translation\TranslatorInterface;
  * anything left, what follows a failure (resuming the emails that did not leave,
  * closing them, splitting the annexes again, declaring the copy in CC received or
  * not), the copy of each sent email, and the filing date the lawyer declares
- * afterwards. Only the lawyer of the case acts here; the content is
- * under professional secrecy, so an admin has no access.
+ * afterwards, the receipts and messages received about it, and the lawyer's own
+ * receipt upload. Only the lawyer of the case acts here; the content is under
+ * professional secrecy, so an admin has no access.
  */
 final class CaseFilingSubmissionController extends AbstractController
 {
@@ -59,6 +69,11 @@ final class CaseFilingSubmissionController extends AbstractController
         private readonly FilingResumeService $resumeService,
         private readonly FilingResplitService $resplitService,
         private readonly UncertainPartResolver $uncertainResolver,
+        private readonly ManualReceiptUploadService $receiptUploads,
+        private readonly InboundMailRepository $inboundMails,
+        private readonly InboundRawStorage $inboundStorage,
+        private readonly AuditLogService $auditLogService,
+        private readonly EntityManagerInterface $em,
     ) {}
 
     #[Route('/case/{id}/filing/submission/confirm', name: 'case_filing_submission_confirm', requirements: ['id' => '\d+'], methods: ['GET'])]
@@ -231,6 +246,88 @@ final class CaseFilingSubmissionController extends AbstractController
         $response->headers->set('Content-Type', 'message/rfc822');
 
         return $response;
+    }
+
+    /** The lawyer's own receipt (the court's answer as .eml, a PDF or a picture): recorded as declared by the lawyer. */
+    #[Route('/case/{id}/filing/submission/{submissionId}/receipt-upload', name: 'case_filing_submission_receipt_upload', requirements: ['id' => '\d+', 'submissionId' => '\d+'], methods: ['POST'])]
+    public function receiptUpload(int $id, int $submissionId, Request $request): Response
+    {
+        [$case, $submission] = $this->ownedSubmission($id, $submissionId);
+        if (!$this->isCsrfTokenValid('filing_receipt_upload_' . $submissionId, $request->getPayload()->getString('_token'))) {
+            return $this->respondCard($request, $case, 'error', 'filing.package.flash.csrf', false);
+        }
+        $file = $request->files->get('receipt');
+        if (!$file instanceof UploadedFile) {
+            return $this->respondCard($request, $case, 'error', 'filing.receipt.upload.error.missing', false);
+        }
+
+        try {
+            $this->receiptUploads->upload($submission, $file, $this->currentUser());
+        } catch (ManualReceiptRefusedException $e) {
+            return $this->respondCard($request, $case, 'error', $e->messageKey, false);
+        }
+
+        return $this->respondCard($request, $case, 'success', 'filing.receipt.upload.saved');
+    }
+
+    /** A received message or an uploaded receipt, for the lawyer of the case only. */
+    #[Route('/case/{id}/filing/inbound/{mailId}/download', name: 'case_filing_inbound_download', requirements: ['id' => '\d+', 'mailId' => '\d+'], methods: ['GET'])]
+    public function inboundDownload(int $id, int $mailId): Response
+    {
+        $case = $this->findOrThrow($id);
+        $this->denyAccessUnlessGranted(CaseVoter::FILING_CONTENT, $case);
+        if ($case->getUser() !== $this->currentUser()) {
+            throw $this->createAccessDeniedException();
+        }
+        $mail = $this->inboundMails->find($mailId);
+        if (!$mail instanceof InboundMail || $mail->getMatchedSubmission()?->getLegalCase()->getId() !== $case->getId()
+            || !InboundMailView::isVisibleToLawyer($mail)) {
+            throw $this->createNotFoundException();
+        }
+        $path = $this->inboundStorage->verifiedPath($mail) ?? throw $this->createNotFoundException();
+
+        $this->auditLogService->log(
+            action: 'inbound_mail_downloaded',
+            entityType: LegalCase::class,
+            entityId: (string) $case->getId(),
+            newData: ['inboundMailId' => $mail->getId(), 'submissionId' => $mail->getMatchedSubmission()?->getId()],
+            category: AuditLogService::CATEGORY_FILING_SUBMISSION,
+            actor: $this->currentUser(),
+        );
+        $this->em->flush();
+
+        [$extension, $type] = match ($mail->getRawMime()) {
+            InboundMail::MIME_PDF => ['pdf', 'application/pdf'],
+            InboundMail::MIME_IMAGE => [str_ends_with($mail->getRawPath(), '.png') ? 'png' : 'jpg', str_ends_with($mail->getRawPath(), '.png') ? 'image/png' : 'image/jpeg'],
+            default => ['eml', 'message/rfc822'],
+        };
+        $response = new BinaryFileResponse($path);
+        $response->setContentDisposition(
+            ResponseHeaderBag::DISPOSITION_ATTACHMENT,
+            sprintf('mesaj-primit-%s-%d.%s', preg_replace('/[^A-Za-z0-9_-]+/', '_', $case->getCaseNumber()), (int) $mail->getId(), $extension),
+        );
+        $response->headers->set('Content-Type', $type);
+        $response->headers->set('X-Content-Type-Options', 'nosniff');
+
+        return $response;
+    }
+
+    /** A late bounce on a case that had moved on: the lawyer checked it, nothing on the case is undone. */
+    #[Route('/case/{id}/filing/submission/{submissionId}/late-bounce-ack', name: 'case_filing_submission_late_bounce_ack', requirements: ['id' => '\d+', 'submissionId' => '\d+'], methods: ['POST'])]
+    public function lateBounceAck(int $id, int $submissionId, Request $request): Response
+    {
+        [$case, $submission] = $this->ownedSubmission($id, $submissionId);
+        if (!$this->isCsrfTokenValid('filing_late_bounce_' . $submissionId, $request->getPayload()->getString('_token'))) {
+            return $this->respondCard($request, $case, 'error', 'filing.package.flash.csrf', false);
+        }
+
+        try {
+            $this->submissionService->acknowledgeLateBounce($submission, $this->currentUser());
+        } catch (FilingSendBlockedException $e) {
+            return $this->respondCard($request, $case, 'error', $e->messageKey, false);
+        }
+
+        return $this->respondCard($request, $case, 'success', 'filing.undelivered.ack_saved');
     }
 
     #[Route('/case/{id}/filing/submission/filed-date', name: 'case_filing_submission_filed_date', requirements: ['id' => '\d+'], methods: ['POST'])]

@@ -2396,6 +2396,34 @@ fiscal_invoices:
 # Enums (label() returns these keys; consumers apply |trans)
 # =============================================================================
 enum:
+    inbound_classification:
+        RECEIPT: 'Automatic receipt confirmation'
+        READ_RECEIPT: 'Display notification'
+        BOUNCE_TEMPORARY: 'Delivery report (temporary)'
+        BOUNCE_PERMANENT: 'Delivery report (permanent)'
+        BOUNCE_SIZE: 'Delivery report (size)'
+        DELAYED: 'Delayed delivery'
+        AUTO_REPLY_OTHER: 'Automatic reply'
+        HUMAN_REPLY: 'Reply'
+        SPAM: 'Unsolicited message'
+        UNKNOWN: 'Unclassified'
+    inbound_auth_verdict:
+        TRUSTED_PASS: 'Sender technically verified (just.ro)'
+        FAIL: 'Technical check failed'
+        ABSENT: 'No technical check'
+    inbound_match_method:
+        VERP: 'Email return address'
+        IN_REPLY_TO: 'Reply to the email sent'
+        EMBEDDED_HEADERS: 'Headers quoted in the report'
+        HEURISTIC: 'Sender domain'
+        MANUAL: 'Uploaded by the lawyer'
+    inbound_match_confidence:
+        CERTAIN: 'Certain'
+        PROBABLE: 'Probable, needs confirmation'
+    inbound_review_status:
+        NONE: 'No review'
+        PENDING: 'To review'
+        RESOLVED: 'Reviewed'
     filing_delivery_status:
         QUEUED: 'Queued'
         SENDING: 'Sending'
@@ -2411,8 +2439,8 @@ enum:
         CLOSED_PARTIAL: 'Closed without all annexes'
     filing_evidence_status:
         AWAITING_RECEIPT: 'No receipt confirmation'
-        RECEIPT_RECEIVED: 'Receipt confirmation received'
-        RECEIPT_MANUAL: 'Receipt confirmation declared by the lawyer'
+        RECEIPT_RECEIVED: 'Automatic receipt confirmation from the court address'
+        RECEIPT_MANUAL: 'Confirmation uploaded by the lawyer'
         RECEIPT_OVERDUE: 'Receipt confirmation overdue'
     filing_part_status:
         PENDING: 'pending'
@@ -2562,6 +2590,7 @@ enum:
         inchide_succes: 'Close: recovered'
         inchide_fara_recuperare: 'Close: not recovered'
         inchide_plata_integrala: 'Close: paid in full'
+        anuleaza_depunere_nelivrata: 'Undo an undelivered filing'
     court_type:
         judecatorie: 'Local court'
         tribunal: 'Tribunal'
@@ -2657,6 +2686,14 @@ enum:
         email: 'Email'
         in_app: 'In-app'
     notification_type:
+        filing_receipt_received: 'Automatic receipt confirmation'
+        filing_receipt_overdue: 'No receipt confirmation'
+        filing_bounced_permanent: 'Email returned by the mail server'
+        filing_court_message: 'Message received from the court address'
+        filing_cc_bounced: 'CC copy returned'
+        filing_delivery_delayed: 'Delayed delivery'
+        filing_inbound_review: 'Received message to review'
+        inbound_poll_stale: 'Inbound mailbox not read'
         filing_sent: 'Petition transmitted to the court'
         filing_annexes_cancelled: 'Annexes not transmitted'
         filing_failed_temporary: 'Transmission temporarily not accepted'
@@ -2869,6 +2906,20 @@ validation:
 # Email notifications (EmailNotificationSubscriber + templates/emails/)
 # =============================================================================
 email:
+    filing_receipt_received:
+        subject: 'Automatic receipt confirmation: %case%'
+    filing_receipt_overdue:
+        subject: 'No receipt confirmation: %case%'
+    filing_bounced_permanent:
+        subject: 'The email to the court was returned: %case%'
+    filing_delivery_delayed:
+        subject: 'Delayed delivery to the court: %case%'
+    filing_cc_bounced:
+        subject: 'CC copy returned: %case%'
+    filing_court_message:
+        subject: 'Message received from the court address: %case%'
+    filing_inbound_review:
+        subject: 'Received message to review: %case%'
     filing_sent:
         subject: 'Petition transmitted to the court: %case%'
     filing_annexes_cancelled:
@@ -3012,6 +3063,47 @@ email:
 # In-app notifications + Mercure toast text (NotificationDispatcher)
 # =============================================================================
 notification:
+    filing_receipt_received:
+        title: 'Automatic receipt confirmation: %case%'
+        message: 'A message from the court address, attributed to this transmission, confirms receipt of the email (%date%). It is not a registration of the petition: check the registration on portal.just.ro or with the registry. The date can be proposed under "Set the filing date", subject to the lawyer''s confirmation.'
+    filing_receipt_overdue:
+        title: 'No receipt confirmation: %case%'
+        message: 'No receipt confirmation arrived within %days% working days of the transmission. A missing confirmation does not show that the petition was not registered; check the registration with the court. A confirmation received another way can be uploaded on the case card.'
+    filing_bounced_permanent:
+        address:
+            title: 'The email with the petition was returned: %case%'
+            message: 'The recipient''s mail server permanently returned the email with the petition (code %code%), reporting the address as unknown. This is not a rejection by the court. The case went back to the generated petition, and the address was taken out of use until it is confirmed again. %deadline% The filing deadline is NOT extended by the application. Check whether the legal term has expired (CPC art. 181-185) and, if so, consider a request for reinstatement (CPC art. 186).'
+        other:
+            title: 'The email with the petition was returned: %case%'
+            message: 'The recipient''s mail server permanently returned the email with the petition (code %code%). This is not a rejection by the court; the cause may be a full mailbox or a server rule. The case went back to the generated petition, and the address stays in use. %deadline% The filing deadline is NOT extended by the application. Check whether the legal term has expired (CPC art. 181-185) and, if so, consider a request for reinstatement (CPC art. 186).'
+        size:
+            title: 'The email with the petition was returned for its size: %case%'
+            message: 'The recipient''s mail server returned the email with the petition because of its size (code %code%). This is not a rejection by the court. The case went back to the generated petition; the annexes can be split into smaller volumes where possible. %deadline% The filing deadline is NOT extended by the application. Check whether the legal term has expired (CPC art. 181-185) and, if so, consider a request for reinstatement (CPC art. 186).'
+        annex:
+            title: 'Annex email returned: %case%'
+            message: 'The recipient''s mail server returned email %k% of %n% (code %code%) after accepting it. The annexes in this email may not have reached the court. The transmission can no longer be resumed automatically; check the situation and, if needed, file the annexes another way.'
+    filing_delivery_delayed:
+        title: 'Delayed delivery: %case%'
+        message: 'A mail server reported that delivery of email %k% of %n% is delayed (code %code%). Delayed delivery; no effect on the transmission status. Nothing is resent automatically.'
+    filing_cc_bounced:
+        title: 'CC copy returned: %case%'
+        message: 'The copy sent to the lawyer in CC was returned (code %code%). The email to the court is not affected. Check the email address in the profile.'
+    filing_court_message:
+        forwarded:
+            title: 'Message received from the court address: %case%'
+            message: 'A message received on the platform address (%date%) was forwarded to the lawyer''s email. The platform address is not a procedural address: the platform does not receive procedural communications and no term runs from receipt on the platform. Check the case on portal.just.ro and with the registry, and answer the court from your own address.'
+        in_copy:
+            title: 'Message received from the court address: %case%'
+            message: 'A message received on the platform address (%date%) already has the lawyer among its recipients, so it was not forwarded. The platform address is not a procedural address: the platform does not receive procedural communications and no term runs from receipt on the platform. Check the case on portal.just.ro and with the registry.'
+    filing_late_bounce_review:
+        title: 'Delivery report after the case moved on: %case%'
+        message: 'A delivery report arrived for the email with the petition (code %code%), but the case already shows that the petition reached the court. Nothing was undone automatically. Check the situation with the court and confirm on the case card.'
+    filing_inbound_review:
+        title: 'Received message to review: %case%'
+        message: 'A message received on the platform address (%date%) seems to concern this transmission, but the link is not certain. Possible match, needs confirmation; nothing was applied. The message can be downloaded from the case card.'
+    inbound_poll_stale:
+        title: 'Inbound mailbox not read'
+        message: 'Last successful read of the inbound mailbox: %since% (limit: %minutes% minutes). Court confirmations and replies are not picked up until this is fixed.'
     filing_sent:
         title: 'Petition transmitted to the court: %case%'
         message: 'The petition was transmitted to %address%; there is no receipt confirmation yet.'
@@ -3507,6 +3599,59 @@ deadlines:
 # Court filing package (unsigned files for signing and filing)
 # =============================================================================
 filing:
+    receipt:
+        inbound_title: 'Messages received about this transmission'
+        manual_line: 'uploaded by the lawyer'
+        from_line: 'from %from%'
+        auth_note: 'technical check of the sender, not an attestation by the court'
+        probable_line: 'possible match, needs confirmation'
+        dsn_line: 'code %status%'
+        download: 'Download'
+        received: 'Message received from the court address (automatic receipt confirmation), attributed to this transmission, at %date%. Check the registration of the petition on portal.just.ro.'
+        manual: 'Confirmation uploaded by the lawyer at %date%.'
+        manual_eml_date: 'Confirmation date, taken from the header of the .eml message: %date%.'
+        manual_no_date: 'No date is read from a PDF or an image. The confirmation date is entered manually, from the document, under "Set the filing date".'
+        technical_check_note: 'The file check is technical, not legal.'
+        overdue: 'No receipt confirmation arrived within the usual time; check the registration with the court. A confirmation received another way can be uploaded below.'
+        read: 'Technical display notification received at %date%, with no value as proof of registration or reading.'
+        delayed: 'Delayed delivery reported by a mail server; no effect on the transmission status.'
+        proposal_label: 'Date proposed from the receipt confirmation: %date% (proposal, needs the lawyer''s confirmation).'
+        disclaimer: 'Messages received on the platform address are for information. The platform address is not a procedural address. The filing date and the registration of the petition are set by the lawyer from official evidence (CPC art. 148). Check portal.just.ro and the court registry. Meeting the deadlines is the lawyer''s responsibility.'
+        upload:
+            title: 'Upload a receipt confirmation'
+            help: '.eml, PDF or image file (PNG, JPG), at most 20 MB. Outlook .msg files are not accepted. The check is technical, not legal. Only the header date of an .eml is taken, as a proposal; no date is read from a PDF or an image.'
+            cta: 'Upload'
+            saved: 'The confirmation was uploaded.'
+            error:
+                missing: 'No file was chosen.'
+                not_allowed: 'A confirmation can only be uploaded for a transmitted petition.'
+                too_large: 'The file is over the 20 MB limit.'
+                failed: 'The file could not be uploaded.'
+                msg_refused: 'Outlook .msg files are not accepted. Save the message as .eml or PDF.'
+                type: 'File type not accepted. Use .eml, PDF, PNG or JPG.'
+                eml_invalid: 'The .eml file has no sender or date.'
+                unreadable: 'The file cannot be read.'
+                not_pdf: 'The file is not a valid PDF.'
+                encrypted: 'The PDF is encrypted or password protected.'
+                active_content: 'The PDF has active content (JavaScript or XFA forms).'
+                timeout: 'Checking the file took too long.'
+                tool_missing: 'Checking the file is not available right now.'
+    undelivered:
+        not_platform: 'Only the platform undoes an undelivered filing.'
+        case_advanced: 'The case already shows that the petition reached the court.'
+        explain: 'The mail server returned the message with the petition after accepting it. This is not a rejection by the court.'
+        diagnostic: 'Server report: %code% %text%'
+        address_invalidated: 'The address was reported as unknown and was taken out of use until it is confirmed again.'
+        deadline_warning: 'The filing deadline is NOT extended by the application. Check whether the legal term has expired (CPC art. 181-185) and, if so, consider a request for reinstatement (CPC art. 186).'
+        deadline_reopened: 'The deadline in the application was reopened; check the legal term.'
+        deadline_unchanged: 'The deadline in the application was not changed.'
+        next_step: 'The case went back to the generated petition. The signed package can be sent again after the address is checked, or the petition can be filed another way. Check the signed files before a new transmission.'
+        late_headline: 'Delivery report after the case moved on'
+        late_explain: 'The case already shows that the petition reached the court (number, declared filing date or case confirmed on the portal), so nothing was undone. Check the situation and confirm.'
+        ack_cta: 'Checked'
+        ack_saved: 'The check was recorded.'
+        ack_refused: 'There is no delivery report to check.'
+        ack_statement: 'I checked the delivery report received after the case moved on.'
     send:
         cta: 'Send to the court'
         title: 'Transmitting the petition to the court by email'
@@ -3562,6 +3707,7 @@ filing:
     status:
         hero_label: 'Transmitted to the court'
         transmitted_no_receipt: 'Transmitted to the court, no receipt confirmation'
+        transmitted_with_receipt: 'Transmitted to the court; a receipt confirmation arrived (check the registration of the petition on the portal)'
         annexes_in_progress: 'Annexes in progress: %done% of %total% emails accepted by the mail server.'
         headline:
             QUEUED: 'Queued: the email to the court is about to be sent'
@@ -3574,7 +3720,7 @@ filing:
             FAILED_PERMANENT: 'The transmission failed'
             FAILED_SIZE: 'The transmission failed'
             FAILED_INTERNAL: 'The transmission failed'
-            UNDELIVERED: 'The message was not delivered to the court'
+            UNDELIVERED: 'The email with the petition was returned by the mail server'
             CLOSED_PARTIAL: 'The petition was sent, but the transmission was closed without all annexes'
             stalled: 'The petition was sent, but not all annexes were accepted'
             NEEDS_REVIEW_after_petition: 'The petition was sent; the transmission of the rest stopped and needs review'
@@ -3593,6 +3739,7 @@ filing:
         attempt_line: 'Try %no%, %date%: %source%, %outcome%%code%'
         attempt_running: 'in progress'
         review:
+            late_bounce_case_advanced: 'A delivery report arrived after the case moved on (court number, declared filing date or case confirmed on the portal). Nothing was undone automatically.'
             annexes_cancelled: 'The case received a court number before every email left. Only the documents marked as accepted were transmitted; the remaining annexes were not sent and must be filed separately.'
             case_moved_on: 'The case status changed during the transmission, so the remaining emails were not sent.'
             package_changed: 'The signed package changed after the transmission was requested.'
@@ -3866,3 +4013,12 @@ court_email:
     signature_email: 'Email: %email%'
     footer_platform: 'Message transmitted through the LexRecovery platform on behalf of the lawyer.'
     footer_signed: 'The documents are electronically signed by the lawyer; this email only ensures their transmission.'
+inbound:
+    forward:
+        subject: '[LexRecovery] Message received on the platform address: %case%: %subject%'
+        heading: 'Message received on the platform address, case %case%'
+        disclaimer: 'The platform address is not a procedural address: the platform does not receive procedural communications and no term runs from receipt on the platform. Check the case on portal.just.ro and with the registry, and answer the court from your own address.'
+        meta: 'From: %from%. Received at: %date%. Subject: %subject%'
+        auth_trusted: 'The sender passed the technical check (just.ro); this is not an attestation by the court.'
+        auth_unverified: 'The sender was not technically verified.'
+        attachment_note: 'The original message is attached. HTML content is not displayed.'

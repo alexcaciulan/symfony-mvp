@@ -378,6 +378,23 @@ class FilingEmailPart
         return $this->lastError;
     }
 
+    /**
+     * A delivery report received after the server accepted the message: it revokes
+     * that acceptance explicitly, which recordFailure never does on its own.
+     */
+    public function recordAsyncFailure(FilingPartStatus $status, ?string $enhancedStatus, string $error): static
+    {
+        if ($status !== FilingPartStatus::FAILED_PERMANENT && $status !== FilingPartStatus::FAILED_SIZE) {
+            throw new \LogicException('A delivery report only records a permanent or a size refusal.');
+        }
+        $this->status = $status;
+        $this->lastSmtpCode = null;
+        $this->lastEnhancedStatus = $enhancedStatus !== null ? mb_substr($enhancedStatus, 0, 20) : null;
+        $this->lastError = mb_substr($error, 0, 500);
+
+        return $this;
+    }
+
     public function recordFailure(FilingPartStatus $status, ?int $smtpCode, ?string $enhancedStatus, string $error): static
     {
         $this->status = $status;

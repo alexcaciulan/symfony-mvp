@@ -6,6 +6,7 @@ namespace App\Service\Filing;
 
 use App\Entity\FilingEmailPart;
 use App\Entity\FilingSubmission;
+use App\Entity\InboundMail;
 use App\Entity\LegalCase;
 use App\Enum\FilingPartStatus;
 use App\Enum\NotificationType;
@@ -130,6 +131,108 @@ final class FilingNotifier
         ], $this->key($submission, $failed, 'partially_sent'), 'email.filing_partially_sent.subject');
     }
 
+    /**
+     * A message from the court's mailbox acknowledging receipt, tied to this
+     * submission. Not a registration: the date is only proposed to the lawyer.
+     */
+    public function receiptReceived(FilingSubmission $submission, InboundMail $mail): void
+    {
+        $case = $submission->getLegalCase();
+        $this->dispatch($case, NotificationType::FILING_RECEIPT_RECEIVED, 'filing_receipt_received', 'info', [
+            '%case%' => $this->caseLabel($case),
+            '%date%' => $this->localTime($mail->getReceivedAt()),
+        ], sprintf('filing:%d:receipt:m%d', (int) $submission->getId(), (int) $mail->getId()));
+    }
+
+    public function receiptOverdue(FilingSubmission $submission, int $workingDays): void
+    {
+        $case = $submission->getLegalCase();
+        $this->dispatch($case, NotificationType::FILING_RECEIPT_OVERDUE, 'filing_receipt_overdue', 'warning', [
+            '%case%' => $this->caseLabel($case),
+            '%days%' => (string) $workingDays,
+        ], sprintf('filing:%d:receipt_overdue', (int) $submission->getId()));
+    }
+
+    /**
+     * The mail server returned the petition email for good after accepting it. Says
+     * where the report comes from (a mail server, not the court) and that the
+     * deadline is not extended by the application.
+     */
+    public function bouncedPermanent(FilingSubmission $submission, FilingEmailPart $part, InboundMail $mail, bool $addressInvalidated, bool $deadlineReopened): void
+    {
+        $case = $submission->getLegalCase();
+        $variant = $part->getStatus() === FilingPartStatus::FAILED_SIZE ? 'size' : ($addressInvalidated ? 'address' : 'other');
+        $this->dispatch($case, NotificationType::FILING_BOUNCED_PERMANENT, 'filing_bounced_permanent.' . $variant, 'error', [
+            '%case%' => $this->caseLabel($case),
+            '%code%' => (string) ($mail->getDsnStatus() ?? '-'),
+            '%deadline%' => $this->translator->trans($deadlineReopened ? 'filing.undelivered.deadline_reopened' : 'filing.undelivered.deadline_unchanged'),
+        ], sprintf('filing:%d:bounced:m%d', (int) $submission->getId(), (int) $mail->getId()), 'email.filing_bounced_permanent.subject');
+    }
+
+    /** An annex email bounced after acceptance while the submission cannot reopen: the lawyer checks it. */
+    public function annexBounced(FilingSubmission $submission, FilingEmailPart $part, InboundMail $mail): void
+    {
+        $case = $submission->getLegalCase();
+        $this->dispatch($case, NotificationType::FILING_BOUNCED_PERMANENT, 'filing_bounced_permanent.annex', 'error', [
+            '%case%' => $this->caseLabel($case),
+            '%k%' => (string) $part->getSequence(),
+            '%n%' => (string) $part->getTotal(),
+            '%code%' => (string) ($mail->getDsnStatus() ?? '-'),
+        ], sprintf('filing:%d:p%d:annex_bounced:m%d', (int) $submission->getId(), $part->getSequence(), (int) $mail->getId()), 'email.filing_bounced_permanent.subject');
+    }
+
+    /** Delivery delayed: no effect on the status, never resent on its own. */
+    public function deliveryDelayed(FilingSubmission $submission, FilingEmailPart $part, InboundMail $mail): void
+    {
+        $case = $submission->getLegalCase();
+        $this->dispatch($case, NotificationType::FILING_DELIVERY_DELAYED, 'filing_delivery_delayed', 'warning', [
+            '%case%' => $this->caseLabel($case),
+            '%k%' => (string) $part->getSequence(),
+            '%n%' => (string) $part->getTotal(),
+            '%code%' => (string) ($mail->getDsnStatus() ?? '-'),
+        ], sprintf('filing:%d:p%d:delayed', (int) $submission->getId(), $part->getSequence()));
+    }
+
+    /** Only the lawyer's copy in CC came back: the court email is not affected. */
+    public function ccBounced(FilingSubmission $submission, InboundMail $mail): void
+    {
+        $case = $submission->getLegalCase();
+        $this->dispatch($case, NotificationType::FILING_CC_BOUNCED, 'filing_cc_bounced', 'warning', [
+            '%case%' => $this->caseLabel($case),
+            '%code%' => (string) ($mail->getDsnStatus() ?? '-'),
+        ], sprintf('filing:%d:cc_bounced:m%d', (int) $submission->getId(), (int) $mail->getId()));
+    }
+
+    /** Any other message from the court side: forwarded, with the procedural-address warning. */
+    public function courtMessage(FilingSubmission $submission, InboundMail $mail, bool $forwarded): void
+    {
+        $case = $submission->getLegalCase();
+        $this->dispatch($case, NotificationType::FILING_COURT_MESSAGE, 'filing_court_message.' . ($forwarded ? 'forwarded' : 'in_copy'), 'error', [
+            '%case%' => $this->caseLabel($case),
+            '%date%' => $this->localTime($mail->getReceivedAt()),
+        ], sprintf('filing:%d:court_message:m%d', (int) $submission->getId(), (int) $mail->getId()), 'email.filing_court_message.subject');
+    }
+
+    /** A late bounce on a case that already moved on: nothing is undone, the lawyer checks. */
+    public function lateBounceReview(FilingSubmission $submission, InboundMail $mail): void
+    {
+        $case = $submission->getLegalCase();
+        $this->dispatch($case, NotificationType::FILING_NEEDS_REVIEW, 'filing_late_bounce_review', 'error', [
+            '%case%' => $this->caseLabel($case),
+            '%code%' => (string) ($mail->getDsnStatus() ?? '-'),
+        ], sprintf('filing:%d:late_bounce:m%d', (int) $submission->getId(), (int) $mail->getId()), 'email.filing_needs_review.subject');
+    }
+
+    /** A message that probably concerns this submission but is not proven to: nothing was applied. */
+    public function inboundReview(FilingSubmission $submission, InboundMail $mail): void
+    {
+        $case = $submission->getLegalCase();
+        $this->dispatch($case, NotificationType::FILING_INBOUND_REVIEW, 'filing_inbound_review', 'warning', [
+            '%case%' => $this->caseLabel($case),
+            '%date%' => $this->localTime($mail->getReceivedAt()),
+        ], sprintf('filing:%d:inbound_review:m%d', (int) $submission->getId(), (int) $mail->getId()));
+    }
+
     /** The failure kind of a failed part, as used in the filing.failure.kind.* keys. */
     public static function kindOf(FilingEmailPart $part): string
     {
@@ -178,6 +281,11 @@ final class FilingNotifier
             ],
             dedupKey: $dedupKey,
         ));
+    }
+
+    private function localTime(\DateTimeImmutable $at): string
+    {
+        return $at->setTimezone(new \DateTimeZone('Europe/Bucharest'))->format('d.m.Y H:i');
     }
 
     private function caseLabel(LegalCase $case): string

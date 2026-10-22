@@ -17,4 +17,15 @@ class FilingEmailPartRepository extends ServiceEntityRepository
     {
         parent::__construct($registry, FilingEmailPart::class);
     }
+
+    public function findOneByVerpToken(string $token): ?FilingEmailPart
+    {
+        return $this->findOneBy(['verpToken' => strtolower($token)]);
+    }
+
+    /** @param string $messageId with or without the angle brackets */
+    public function findOneByMessageId(string $messageId): ?FilingEmailPart
+    {
+        return $this->findOneBy(['messageId' => '<' . trim($messageId, '<> ') . '>']);
+    }
 }

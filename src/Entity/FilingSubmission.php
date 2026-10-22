@@ -110,12 +110,25 @@ class FilingSubmission
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $readReceiptAt = null;
 
+    /** The message that set courtReceiptAt: an automatic answer, or the lawyer's upload. */
+    #[ORM\ManyToOne(targetEntity: InboundMail::class)]
+    #[ORM\JoinColumn(onDelete: 'SET NULL')]
+    private ?InboundMail $receiptInboundMail = null;
+
+    #[ORM\ManyToOne(targetEntity: InboundMail::class)]
+    #[ORM\JoinColumn(onDelete: 'SET NULL')]
+    private ?InboundMail $readReceiptInboundMail = null;
+
     #[ORM\Column(length: 40)]
     private string $templateVersion;
 
     /** Translation key explaining why the submission stopped for review. */
     #[ORM\Column(length: 120, nullable: true)]
     private ?string $reviewReason = null;
+
+    /** The status a review opened after the submission ended returns to once the lawyer acknowledges it. */
+    #[ORM\Column(length: 40, nullable: true, enumType: FilingDeliveryStatus::class)]
+    private ?FilingDeliveryStatus $reviewReturnStatus = null;
 
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $cancelledAt = null;
@@ -399,6 +412,131 @@ class FilingSubmission
     public function getReadReceiptAt(): ?\DateTimeImmutable
     {
         return $this->readReceiptAt;
+    }
+
+    public function getReceiptInboundMail(): ?InboundMail
+    {
+        return $this->receiptInboundMail;
+    }
+
+    public function getReadReceiptInboundMail(): ?InboundMail
+    {
+        return $this->readReceiptInboundMail;
+    }
+
+    /**
+     * A receipt for the message, never the filing itself. The automatic one wins
+     * over an upload (an upload then changes nothing), and the earliest time of
+     * the same kind is kept. An upload may carry no time at all (a PDF or a
+     * picture): the receipt is then recorded without a court time, so nothing is
+     * proposed as the filing date.
+     */
+    public function markReceipt(?\DateTimeImmutable $at, ?InboundMail $mail, FilingEvidenceStatus $status): static
+    {
+        if ($status !== FilingEvidenceStatus::RECEIPT_RECEIVED && $status !== FilingEvidenceStatus::RECEIPT_MANUAL) {
+            throw new \LogicException('Only a received or an uploaded receipt is recorded.');
+        }
+        if ($at === null && $status === FilingEvidenceStatus::RECEIPT_RECEIVED) {
+            throw new \LogicException('An automatic receipt always has a time.');
+        }
+        if ($this->evidenceStatus === FilingEvidenceStatus::RECEIPT_RECEIVED && $status === FilingEvidenceStatus::RECEIPT_MANUAL) {
+            return $this;
+        }
+        // The first automatic receipt replaces the lawyer's time, so the card never
+        // shows an uploaded file's date as the court's automatic answer.
+        if ($status === FilingEvidenceStatus::RECEIPT_RECEIVED && $this->evidenceStatus !== FilingEvidenceStatus::RECEIPT_RECEIVED) {
+            $this->courtReceiptAt = null;
+        }
+        $this->evidenceStatus = $status;
+        if ($at === null) {
+            $this->receiptInboundMail ??= $mail;
+        } elseif ($this->courtReceiptAt === null || $at < $this->courtReceiptAt) {
+            $this->courtReceiptAt = $at;
+            $this->receiptInboundMail = $mail;
+        }
+
+        return $this;
+    }
+
+    /** A display notification only: the first one is kept and nothing else changes. */
+    public function markReadReceipt(\DateTimeImmutable $at, InboundMail $mail): static
+    {
+        if ($this->readReceiptAt === null) {
+            $this->readReceiptAt = $at;
+            $this->readReceiptInboundMail = $mail;
+        }
+
+        return $this;
+    }
+
+    /** @return bool whether it changed */
+    public function markReceiptOverdue(): bool
+    {
+        if ($this->evidenceStatus !== FilingEvidenceStatus::AWAITING_RECEIPT) {
+            return false;
+        }
+        $this->evidenceStatus = FilingEvidenceStatus::RECEIPT_OVERDUE;
+
+        return true;
+    }
+
+    /**
+     * A late permanent bounce on the petition after the SMTP acceptance. Unlike
+     * failTerminal it also applies to a submission that already released the case.
+     */
+    public function markUndelivered(): static
+    {
+        if ($this->deliveryStatus === FilingDeliveryStatus::CANCELLED) {
+            throw new \LogicException('A cancelled submission sent nothing.');
+        }
+        $this->deliveryStatus = FilingDeliveryStatus::UNDELIVERED;
+        $this->reviewReason = null;
+        $this->activeLock = null;
+
+        return $this;
+    }
+
+    /**
+     * Holds the case again, for a review opened after the submission ended. The
+     * caller checks under the case lock that no other submission holds it.
+     */
+    public function reacquireLock(): static
+    {
+        $this->activeLock = 1;
+
+        return $this;
+    }
+
+    /**
+     * A finding after the submission ended (a late bounce on a case that moved on):
+     * it holds the case again for the lawyer's review and remembers where it was.
+     */
+    public function openLateReview(string $reasonKey): static
+    {
+        if (!$this->deliveryStatus->isTerminal()) {
+            throw new \LogicException('A late review opens on an ended submission only.');
+        }
+        $this->reviewReturnStatus = $this->deliveryStatus;
+        $this->reacquireLock();
+        $this->markNeedsReview($reasonKey);
+
+        return $this;
+    }
+
+    public function getReviewReturnStatus(): ?FilingDeliveryStatus
+    {
+        return $this->reviewReturnStatus;
+    }
+
+    /** Ends a late review: back to the status recorded before it, freeing the case. */
+    public function endLateReview(): static
+    {
+        $this->deliveryStatus = $this->reviewReturnStatus ?? FilingDeliveryStatus::SENT;
+        $this->reviewReturnStatus = null;
+        $this->reviewReason = null;
+        $this->activeLock = null;
+
+        return $this;
     }
 
     public function getTemplateVersion(): string

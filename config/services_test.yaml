@@ -15,3 +15,9 @@ services:
         decorates: app.court_filing_transport
         arguments: ['@.inner']
         public: true
+
+    # The inbound source the poll reads (the fixture source in tests), public so
+    # end-to-end tests can queue a message built from a real submission.
+    test.public.inbound_source:
+        alias: App\Service\Inbound\InboundMailSourceInterface
+        public: true

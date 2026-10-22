@@ -2393,6 +2393,34 @@ fiscal_invoices:
 # Enums (label() returns these keys; consumers apply |trans)
 # =============================================================================
 enum:
+    inbound_classification:
+        RECEIPT: 'Confirmare automată de primire'
+        READ_RECEIPT: 'Notificare de afișare'
+        BOUNCE_TEMPORARY: 'Raport de nelivrare (temporar)'
+        BOUNCE_PERMANENT: 'Raport de nelivrare (definitiv)'
+        BOUNCE_SIZE: 'Raport de nelivrare (dimensiune)'
+        DELAYED: 'Livrare întârziată'
+        AUTO_REPLY_OTHER: 'Răspuns automat'
+        HUMAN_REPLY: 'Răspuns'
+        SPAM: 'Mesaj nesolicitat'
+        UNKNOWN: 'Neclasificat'
+    inbound_auth_verdict:
+        TRUSTED_PASS: 'Expeditor verificat tehnic (just.ro)'
+        FAIL: 'Verificare tehnică nereușită'
+        ABSENT: 'Fără verificare tehnică'
+    inbound_match_method:
+        VERP: 'Adresa de retur a e-mailului'
+        IN_REPLY_TO: 'Răspuns la e-mailul trimis'
+        EMBEDDED_HEADERS: 'Antete citate în raport'
+        HEURISTIC: 'Domeniul expeditorului'
+        MANUAL: 'Încărcat de avocat'
+    inbound_match_confidence:
+        CERTAIN: 'Sigură'
+        PROBABLE: 'Probabilă, necesită confirmare'
+    inbound_review_status:
+        NONE: 'Fără verificare'
+        PENDING: 'De verificat'
+        RESOLVED: 'Verificat'
     filing_delivery_status:
         QUEUED: 'În așteptare'
         SENDING: 'Se transmite'
@@ -2408,8 +2436,8 @@ enum:
         CLOSED_PARTIAL: 'Închisă fără toate anexele'
     filing_evidence_status:
         AWAITING_RECEIPT: 'Fără confirmare de primire'
-        RECEIPT_RECEIVED: 'Confirmare de primire primită'
-        RECEIPT_MANUAL: 'Confirmare de primire declarată de avocat'
+        RECEIPT_RECEIVED: 'Confirmare automată de primire de la adresa instanței'
+        RECEIPT_MANUAL: 'Confirmare încărcată de avocat'
         RECEIPT_OVERDUE: 'Confirmare de primire întârziată'
     filing_part_status:
         PENDING: 'în așteptare'
@@ -2559,6 +2587,7 @@ enum:
         inchide_succes: 'Închide cu succes'
         inchide_fara_recuperare: 'Închide fără recuperare'
         inchide_plata_integrala: 'Închide: plată integrală'
+        anuleaza_depunere_nelivrata: 'Anulare depunere nelivrată'
     court_type:
         judecatorie: 'Judecătorie'
         tribunal: 'Tribunal'
@@ -2654,6 +2683,14 @@ enum:
         email: 'Email'
         in_app: 'În aplicație'
     notification_type:
+        filing_receipt_received: 'Confirmare automată de primire'
+        filing_receipt_overdue: 'Confirmare de primire neprimită'
+        filing_bounced_permanent: 'E-mail returnat de serverul de e-mail'
+        filing_court_message: 'Mesaj primit de la adresa instanței'
+        filing_cc_bounced: 'Copia în CC a fost returnată'
+        filing_delivery_delayed: 'Livrare întârziată'
+        filing_inbound_review: 'Mesaj primit care necesită verificare'
+        inbound_poll_stale: 'Căsuța de mesaje primite nu a fost citită'
         filing_sent: 'Cerere transmisă instanței'
         filing_annexes_cancelled: 'Anexe netransmise'
         filing_failed_temporary: 'Transmitere neacceptată temporar'
@@ -2866,6 +2903,20 @@ validation:
 # Email notifications (EmailNotificationSubscriber + templates/emails/)
 # =============================================================================
 email:
+    filing_receipt_received:
+        subject: 'Confirmare automată de primire: %case%'
+    filing_receipt_overdue:
+        subject: 'Confirmare de primire neprimită: %case%'
+    filing_bounced_permanent:
+        subject: 'E-mailul către instanță a fost returnat: %case%'
+    filing_delivery_delayed:
+        subject: 'Livrare întârziată către instanță: %case%'
+    filing_cc_bounced:
+        subject: 'Copia în CC a fost returnată: %case%'
+    filing_court_message:
+        subject: 'Mesaj primit de la adresa instanței: %case%'
+    filing_inbound_review:
+        subject: 'Mesaj primit care necesită verificare: %case%'
     filing_sent:
         subject: 'Cerere transmisă instanței: %case%'
     filing_annexes_cancelled:
@@ -3010,6 +3061,47 @@ email:
 # In-app notifications + Mercure toast text (NotificationDispatcher)
 # =============================================================================
 notification:
+    filing_receipt_received:
+        title: 'Confirmare automată de primire: %case%'
+        message: 'Un mesaj de la adresa instanței, atribuit acestei transmiteri, confirmă primirea e-mailului (%date%). Nu este o înregistrare a cererii: înregistrarea se verifică pe portal.just.ro sau la registratură. Data poate fi propusă la „Stabilește data depunerii”, cu confirmarea avocatului.'
+    filing_receipt_overdue:
+        title: 'Fără confirmare de primire: %case%'
+        message: 'Nu a fost primită confirmare de primire în %days% zile lucrătoare de la transmitere. Lipsa confirmării nu arată că cererea nu a fost înregistrată; verificați înregistrarea la instanță. O confirmare primită pe altă cale se poate încărca pe cardul dosarului.'
+    filing_bounced_permanent:
+        address:
+            title: 'E-mailul cu cererea a fost returnat: %case%'
+            message: 'Serverul de e-mail al destinatarului a returnat definitiv e-mailul cu cererea (cod %code%), cu adresa raportată ca inexistentă. Nu este o respingere a instanței. Dosarul a revenit la cererea generată, iar adresa a fost scoasă din uz până la o nouă confirmare. %deadline% Termenul de depunere NU este prelungit de aplicație. Verificați dacă s-a împlinit termenul legal (art. 181-185 CPC) și, dacă da, luați în considerare repunerea în termen (art. 186 CPC).'
+        other:
+            title: 'E-mailul cu cererea a fost returnat: %case%'
+            message: 'Serverul de e-mail al destinatarului a returnat definitiv e-mailul cu cererea (cod %code%). Nu este o respingere a instanței; motivul poate fi o căsuță plină sau o regulă a serverului. Dosarul a revenit la cererea generată, iar adresa rămâne în uz. %deadline% Termenul de depunere NU este prelungit de aplicație. Verificați dacă s-a împlinit termenul legal (art. 181-185 CPC) și, dacă da, luați în considerare repunerea în termen (art. 186 CPC).'
+        size:
+            title: 'E-mailul cu cererea a fost returnat pentru dimensiune: %case%'
+            message: 'Serverul de e-mail al destinatarului a returnat e-mailul cu cererea din cauza dimensiunii (cod %code%). Nu este o respingere a instanței. Dosarul a revenit la cererea generată; anexele pot fi împărțite în volume mai mici, dacă este posibil. %deadline% Termenul de depunere NU este prelungit de aplicație. Verificați dacă s-a împlinit termenul legal (art. 181-185 CPC) și, dacă da, luați în considerare repunerea în termen (art. 186 CPC).'
+        annex:
+            title: 'E-mail cu anexe returnat: %case%'
+            message: 'Serverul de e-mail al destinatarului a returnat e-mailul %k% din %n% (cod %code%), după ce îl acceptase. Anexele din acest e-mail este posibil să nu fi ajuns la instanță. Transmiterea nu mai poate fi reluată automat; verificați situația și, dacă este cazul, depuneți anexele pe altă cale.'
+    filing_delivery_delayed:
+        title: 'Livrare întârziată: %case%'
+        message: 'Un server de e-mail a raportat că livrarea e-mailului %k% din %n% este întârziată (cod %code%). Livrare întârziată; fără efect asupra stării transmiterii. Nimic nu este retrimis automat.'
+    filing_cc_bounced:
+        title: 'Copia în CC a fost returnată: %case%'
+        message: 'Copia în CC trimisă avocatului a fost returnată (cod %code%). E-mailul către instanță nu este afectat. Verificați adresa de e-mail din profil.'
+    filing_court_message:
+        forwarded:
+            title: 'Mesaj primit de la adresa instanței: %case%'
+            message: 'Un mesaj primit pe adresa platformei (%date%) a fost redirecționat pe e-mailul avocatului. Adresa platformei nu este adresă procedurală: platforma nu primește comunicări procedurale și termenele nu curg de la primirea pe platformă. Verificați dosarul pe portal.just.ro și la registratură și răspundeți instanței de pe adresa proprie.'
+        in_copy:
+            title: 'Mesaj primit de la adresa instanței: %case%'
+            message: 'Un mesaj primit pe adresa platformei (%date%) are avocatul deja în destinatari, deci nu a fost redirecționat. Adresa platformei nu este adresă procedurală: platforma nu primește comunicări procedurale și termenele nu curg de la primirea pe platformă. Verificați dosarul pe portal.just.ro și la registratură.'
+    filing_late_bounce_review:
+        title: 'Raport de nelivrare după avansarea dosarului: %case%'
+        message: 'A sosit un raport de nelivrare pentru e-mailul cu cererea (cod %code%), dar dosarul arată deja că cererea a ajuns la instanță. Nimic nu a fost anulat automat. Verificați situația la instanță și confirmați pe cardul dosarului.'
+    filing_inbound_review:
+        title: 'Mesaj primit care necesită verificare: %case%'
+        message: 'Un mesaj primit pe adresa platformei (%date%) pare să privească această transmitere, dar legătura nu este sigură. Posibilă potrivire, necesită confirmare; nu a fost aplicat nimic. Mesajul se poate descărca de pe cardul dosarului.'
+    inbound_poll_stale:
+        title: 'Căsuța de mesaje primite nu a fost citită'
+        message: 'Ultima citire reușită a căsuței de mesaje primite: %since% (limită: %minutes% minute). Confirmările și răspunsurile instanțelor nu sunt preluate până la remediere.'
     filing_sent:
         title: 'Cerere transmisă instanței: %case%'
         message: 'Cererea a fost transmisă la adresa %address%; nu există încă o confirmare de primire.'
@@ -3504,6 +3596,59 @@ deadlines:
 # Court filing package (unsigned files for signing and filing)
 # =============================================================================
 filing:
+    receipt:
+        inbound_title: 'Mesaje primite despre această transmitere'
+        manual_line: 'încărcat de avocat'
+        from_line: 'de la %from%'
+        auth_note: 'verificare tehnică a expeditorului, nu atestare a instanței'
+        probable_line: 'posibilă potrivire, necesită confirmare'
+        dsn_line: 'cod %status%'
+        download: 'Descarcă'
+        received: 'Mesaj primit de la adresa instanței (confirmare automată de primire), atribuit acestei transmiteri, la %date%. Înregistrarea cererii se verifică pe portal.just.ro.'
+        manual: 'Confirmare încărcată de avocat la %date%.'
+        manual_eml_date: 'Data confirmării, preluată din antetul mesajului .eml: %date%.'
+        manual_no_date: 'Din PDF sau imagine nu se citește nicio dată. Data confirmării se introduce manual, din document, la „Stabilește data depunerii”.'
+        technical_check_note: 'Validarea fișierului este tehnică, nu juridică.'
+        overdue: 'Nu a fost primită confirmare de primire în termenul obișnuit; verificați înregistrarea la instanță. O confirmare primită pe altă cale se poate încărca mai jos.'
+        read: 'Notificare tehnică de afișare primită la %date%, fără valoare de dovadă a înregistrării sau citirii.'
+        delayed: 'Livrare întârziată raportată de un server de e-mail; fără efect asupra stării transmiterii.'
+        proposal_label: 'Data propusă din confirmarea de primire: %date% (propunere, necesită confirmarea avocatului).'
+        disclaimer: 'Mesajele primite pe adresa platformei sunt informative. Adresa platformei nu este adresă procedurală. Data depunerii și înregistrarea cererii se stabilesc de avocat pe baza dovezilor oficiale (art. 148 CPC). Verificați portal.just.ro și registratura instanței. Răspunderea pentru respectarea termenelor aparține avocatului.'
+        upload:
+            title: 'Încarcă o confirmare de primire'
+            help: 'Fișier .eml, PDF sau imagine (PNG, JPG), cel mult 20 MB. Fișierele .msg nu sunt acceptate. Validarea este tehnică, nu juridică. Din .eml se preia doar data din antet, ca propunere; din PDF sau imagine nu se citește nicio dată.'
+            cta: 'Încarcă'
+            saved: 'Confirmarea a fost încărcată.'
+            error:
+                missing: 'Nu a fost ales niciun fișier.'
+                not_allowed: 'Confirmarea se poate încărca doar pentru o cerere transmisă.'
+                too_large: 'Fișierul depășește limita de 20 MB.'
+                failed: 'Fișierul nu a putut fi încărcat.'
+                msg_refused: 'Fișierele Outlook .msg nu sunt acceptate. Salvați mesajul ca .eml sau PDF.'
+                type: 'Tip de fișier neacceptat. Se acceptă .eml, PDF, PNG sau JPG.'
+                eml_invalid: 'Fișierul .eml nu are expeditor sau dată.'
+                unreadable: 'Fișierul nu poate fi citit.'
+                not_pdf: 'Fișierul nu este un PDF valid.'
+                encrypted: 'PDF-ul este criptat sau protejat cu parolă.'
+                active_content: 'PDF-ul conține conținut activ (JavaScript sau formulare XFA).'
+                timeout: 'Verificarea fișierului a durat prea mult.'
+                tool_missing: 'Verificarea fișierului nu este disponibilă momentan.'
+    undelivered:
+        not_platform: 'Anularea unei depuneri nelivrate se aplică doar de platformă.'
+        case_advanced: 'Dosarul arată deja că cererea a ajuns la instanță.'
+        explain: 'Serverul de e-mail a returnat mesajul cu cererea după ce îl acceptase. Nu este o respingere a instanței.'
+        diagnostic: 'Raportul serverului: %code% %text%'
+        address_invalidated: 'Adresa a fost raportată ca inexistentă și a fost scoasă din uz până la o nouă confirmare.'
+        deadline_warning: 'Termenul de depunere NU este prelungit de aplicație. Verificați dacă s-a împlinit termenul legal (art. 181-185 CPC) și, dacă da, luați în considerare repunerea în termen (art. 186 CPC).'
+        deadline_reopened: 'Termenul din aplicație a fost redeschis; verificați termenul legal.'
+        deadline_unchanged: 'Termenul din aplicație nu a fost modificat.'
+        next_step: 'Dosarul a revenit la cererea generată. Pachetul semnat poate fi transmis din nou după verificarea adresei, sau cererea se poate depune pe altă cale. Verificați fișierele semnate înainte de o nouă transmitere.'
+        late_headline: 'Raport de nelivrare după avansarea dosarului'
+        late_explain: 'Dosarul arată deja că cererea a ajuns la instanță (număr, dată de depunere declarată sau dosar confirmat pe portal), deci nimic nu a fost anulat. Verificați situația și confirmați.'
+        ack_cta: 'Am verificat'
+        ack_saved: 'Verificarea a fost înregistrată.'
+        ack_refused: 'Nu există un raport de nelivrare de verificat.'
+        ack_statement: 'Am verificat raportul de nelivrare primit după avansarea dosarului.'
     send:
         cta: 'Trimite la instanță'
         title: 'Transmiterea cererii la instanță prin e-mail'
@@ -3559,6 +3704,7 @@ filing:
     status:
         hero_label: 'Transmisă instanței'
         transmitted_no_receipt: 'Transmisă instanței, fără confirmare de primire'
+        transmitted_with_receipt: 'Transmisă instanței; a sosit o confirmare de primire (înregistrarea cererii se verifică pe portal)'
         annexes_in_progress: 'Anexe în curs: %done% din %total% e-mailuri acceptate de serverul de e-mail.'
         headline:
             QUEUED: 'În așteptare: e-mailul către instanță urmează să fie trimis'
@@ -3571,7 +3717,7 @@ filing:
             FAILED_PERMANENT: 'Transmiterea nu a reușit'
             FAILED_SIZE: 'Transmiterea nu a reușit'
             FAILED_INTERNAL: 'Transmiterea nu a reușit'
-            UNDELIVERED: 'Mesajul nu a fost livrat instanței'
+            UNDELIVERED: 'E-mailul cu cererea a fost returnat de serverul de e-mail'
             CLOSED_PARTIAL: 'Cererea a fost trimisă, dar transmiterea s-a închis fără toate anexele'
             stalled: 'Cererea a fost trimisă, dar nu toate anexele au fost acceptate'
             NEEDS_REVIEW_after_petition: 'Cererea a fost trimisă; transmiterea restului s-a oprit și necesită verificare'
@@ -3590,6 +3736,7 @@ filing:
         attempt_line: 'Încercarea %no%, %date%: %source%, %outcome%%code%'
         attempt_running: 'în curs'
         review:
+            late_bounce_case_advanced: 'Un raport de nelivrare a sosit după ce dosarul a avansat (număr la instanță, dată de depunere declarată sau dosar confirmat pe portal). Nimic nu a fost anulat automat.'
             annexes_cancelled: 'Dosarul a primit număr la instanță înainte ca toate e-mailurile să plece. Au fost transmise doar documentele marcate ca acceptate; anexele rămase nu au fost trimise și trebuie depuse separat.'
             case_moved_on: 'Starea dosarului s-a schimbat în timpul transmiterii, deci e-mailurile rămase nu au fost trimise.'
             package_changed: 'Pachetul semnat s-a schimbat după cererea de transmitere.'
@@ -3862,3 +4009,12 @@ court_email:
     signature_email: 'E-mail: %email%'
     footer_platform: 'Mesaj transmis prin platforma LexRecovery în numele avocatului.'
     footer_signed: 'Actele sunt semnate electronic de avocat; acest e-mail asigură doar transmiterea.'
+inbound:
+    forward:
+        subject: '[LexRecovery] Mesaj primit pe adresa platformei: %case%: %subject%'
+        heading: 'Mesaj primit pe adresa platformei, dosarul %case%'
+        disclaimer: 'Adresa platformei nu este adresă procedurală: platforma nu primește comunicări procedurale și termenele nu curg de la primirea pe platformă. Verificați dosarul pe portal.just.ro și la registratură și răspundeți instanței de pe adresa proprie.'
+        meta: 'De la: %from%. Primit la: %date%. Subiect: %subject%'
+        auth_trusted: 'Expeditorul a trecut verificarea tehnică (just.ro); nu este o atestare a instanței.'
+        auth_unverified: 'Expeditorul nu a fost verificat tehnic.'
+        attachment_note: 'Mesajul original este atașat. Conținutul HTML nu este afișat.'

@@ -49,6 +49,10 @@ services:
       COURT_FILING_LIVE: '0'
       COURT_FILING_MAILER_DSN: smtp://mailer:1025
       COURT_FILING_RECIPIENT_OVERRIDE: instanta-simulata@example.test
+      # No inbound mailbox on the demo and no simulated court answers: the poll
+      # only logs, and app:filing:simulate-court-reply refuses to run.
+      INBOUND_MAIL_DSN: ''
+      INBOUND_SIMULATOR_ENABLED: '0'
 
   worker:
     container_name: lexdemo-worker

@@ -7,7 +7,11 @@
    resume the emails that did not leave, close them, split the annexes again,
    declare the copy in CC received or not, or cancel. Context from
    OverviewContextBuilder: filing_submission and the filing_submission_* flags,
-   filing_can_set_filed_date. #}
+   filing_can_set_filed_date, and for the messages received afterwards
+   filing_receipt_proposal, filing_inbound_mails, filing_receipt_uploadable,
+   filing_late_bounce_review and filing_undelivered_deadline_open. A receipt is
+   evidence that the court mailbox answered, never a registration; its date is
+   only proposed for the filing date. #}
 {% set submission = filing_submission|default(null) %}
 {% set is_owner = app.user and app.user.id == case.user.id %}
 {% set failure = filing_submission_failure|default(null) %}
@@ -15,6 +19,7 @@
 {% set uncertain_part = filing_submission_uncertain_part|default(null) %}
 {% set retry_pending = failure and failure.part.status.value == 'RETRY_SCHEDULED' %}
 {% set polling = submission and ((submission.deliveryStatus.inFlight and not stalled) or retry_pending) %}
+{% set late_review = filing_late_bounce_review|default(false) %}
 <turbo-frame id="filing-submission-card"
              data-controller="poll-frame"
              data-poll-frame-pending-value="{{ polling ? 'true' : 'false' }}"
@@ -26,10 +31,14 @@
         {% set accepted = submission.countAcceptedParts %}
         {% set total = submission.parts|length %}
         {% set petition_left = submission.petitionAccepted %}
-        {% set alarming = status in ['NEEDS_REVIEW', 'FAILED_TEMPORARY_EXHAUSTED', 'FAILED_PERMANENT', 'FAILED_SIZE', 'FAILED_INTERNAL', 'CLOSED_PARTIAL'] or stalled or retry_pending %}
+        {% set alarming = status in ['NEEDS_REVIEW', 'FAILED_TEMPORARY_EXHAUSTED', 'FAILED_PERMANENT', 'FAILED_SIZE', 'FAILED_INTERNAL', 'CLOSED_PARTIAL', 'UNDELIVERED'] or stalled or retry_pending %}
+        {% set evidence = submission.evidenceStatus.value %}
+        {% set delayed_parts = submission.parts|filter(p => p.attempts|filter(a => a.source.value == 'ASYNC_BOUNCE' and a.outcome and a.outcome.value == 'TEMPORARY')|length > 0) %}
         <div class="rounded-lg border p-3 text-xs {{ alarming ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-100' : 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200' }}" data-testid="filing-submission-card" data-status="{{ status }}" data-stalled="{{ stalled ? '1' : '0' }}">
             <p class="font-semibold text-sm" data-testid="filing-submission-headline">
-                {% if stalled and petition_left %}
+                {% if late_review %}
+                    {{ 'filing.undelivered.late_headline'|trans }}
+                {% elseif stalled and petition_left %}
                     {{ 'filing.status.headline.stalled'|trans }}
                 {% elseif status == 'NEEDS_REVIEW' and petition_left %}
                     {{ 'filing.status.headline.NEEDS_REVIEW_after_petition'|trans }}
@@ -37,6 +46,8 @@
                     {{ 'filing.status.headline.CLOSED_PARTIAL'|trans }}
                 {% elseif retry_pending %}
                     {{ 'filing.status.headline.retrying'|trans }}
+                {% elseif status in ['SENT', 'PARTIALLY_SENT'] and evidence in ['RECEIPT_RECEIVED', 'RECEIPT_MANUAL'] %}
+                    {{ 'filing.status.transmitted_with_receipt'|trans }}
                 {% elseif status in ['SENT', 'PARTIALLY_SENT'] %}
                     {{ 'filing.status.transmitted_no_receipt'|trans }}
                 {% else %}
@@ -50,7 +61,42 @@
                 <p class="mt-1" data-testid="filing-submission-review-reason">{{ submission.reviewReason|trans }}</p>
             {% endif %}
 
-            {% if failure and status != 'CANCELLED' %}
+            {% if status == 'UNDELIVERED' or late_review %}
+                {% set bounced = submission.part(1) %}
+                <div class="mt-2 space-y-1" data-testid="filing-submission-undelivered">
+                    <p>{{ 'filing.undelivered.explain'|trans }}</p>
+                    {% if bounced and (bounced.lastEnhancedStatus or bounced.lastError) %}
+                        <p class="text-[11px] text-slate-600 dark:text-slate-300 break-words" data-testid="filing-submission-undelivered-diagnostic">{{ 'filing.undelivered.diagnostic'|trans({'%code%': bounced.lastEnhancedStatus ?? '-', '%text%': bounced.lastError ?? ''}) }}</p>
+                    {% endif %}
+                    {% if status == 'UNDELIVERED' %}
+                        {% if failure and failure.address_invalidated %}
+                            <p data-testid="filing-submission-address-rejected">{{ 'filing.undelivered.address_invalidated'|trans }}</p>
+                            {% if is_owner %}
+                                <a href="{{ path('case_court_address', {id: case.id}) }}" data-turbo-frame="_top" class="text-[11px] underline hover:no-underline">{{ 'filing.failure.address_link'|trans }}</a>
+                            {% endif %}
+                        {% endif %}
+                        {% if bounced and bounced.status.value == 'FAILED_SIZE' %}
+                            <p data-testid="filing-submission-size-help">{{ (filing_submission_resplittable|default(false) ? 'filing.resplit.proposal' : 'filing.resplit.cannot_help')|trans }}</p>
+                        {% endif %}
+                        <p class="rounded border border-red-300 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 p-2 text-red-900 dark:text-red-100" data-testid="filing-submission-undelivered-deadline">{{ 'filing.undelivered.deadline_warning'|trans }}</p>
+                        {% if filing_undelivered_deadline_open|default(false) %}
+                            <p class="text-[11px]" data-testid="filing-submission-undelivered-reopened">{{ 'filing.undelivered.deadline_reopened'|trans }}</p>
+                        {% endif %}
+                        <p class="text-[11px]">{{ 'filing.undelivered.next_step'|trans }}</p>
+                    {% endif %}
+                    {% if late_review %}
+                        <p data-testid="filing-submission-late-bounce">{{ 'filing.undelivered.late_explain'|trans }}</p>
+                        {% if is_owner %}
+                            <form method="post" action="{{ path('case_filing_submission_late_bounce_ack', {id: case.id, submissionId: submission.id}) }}" data-turbo-frame="_top">
+                                <input type="hidden" name="_token" value="{{ csrf_token('filing_late_bounce_' ~ submission.id) }}">
+                                <button type="submit" data-testid="filing-submission-late-bounce-ack" class="py-1.5 px-2.5 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition">{{ 'filing.undelivered.ack_cta'|trans }}</button>
+                            </form>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            {% endif %}
+
+            {% if failure and status not in ['CANCELLED', 'UNDELIVERED'] and not late_review %}
                 <div class="mt-2 space-y-1" data-testid="filing-submission-failure" data-kind="{{ failure.kind }}">
                     <p>{{ ('filing.failure.reason.' ~ failure.kind)|trans({'%k%': failure.part.sequence, '%n%': failure.part.total}) }}</p>
                     {% if failure.code or failure.enhanced %}
@@ -109,7 +155,7 @@
                                         '%date%': attempt.startedAt|date('d.m.Y H:i', 'Europe/Bucharest'),
                                         '%source%': attempt.source.label|trans,
                                         '%outcome%': attempt.outcome ? attempt.outcome.label|trans : 'filing.status.attempt_running'|trans,
-                                        '%code%': attempt.smtpCode ? ' (SMTP ' ~ attempt.smtpCode ~ (attempt.enhancedStatus ? ' ' ~ attempt.enhancedStatus : '') ~ ')' : '',
+                                        '%code%': attempt.smtpCode ? ' (SMTP ' ~ attempt.smtpCode ~ (attempt.enhancedStatus ? ' ' ~ attempt.enhancedStatus : '') ~ ')' : (attempt.enhancedStatus ? ' (' ~ attempt.enhancedStatus ~ ')' : ''),
                                     }) }}</li>
                                 {% endfor %}
                             </ul>
@@ -121,6 +167,37 @@
             {% if submission.sentAt %}
                 <p class="mt-2 text-[11px] text-slate-500 dark:text-slate-400">{{ 'filing.status.sent_at_note'|trans }}</p>
             {% endif %}
+
+            {% if evidence == 'RECEIPT_RECEIVED' and submission.courtReceiptAt %}
+                <div class="mt-2 space-y-0.5" data-testid="filing-receipt-received">
+                    <p>{{ 'filing.receipt.received'|trans({'%date%': submission.courtReceiptAt|date('d.m.Y H:i', 'Europe/Bucharest')}) }}</p>
+                    {% if submission.receiptInboundMail and submission.receiptInboundMail.authVerdict and submission.receiptInboundMail.authVerdict.value == 'TRUSTED_PASS' %}
+                        <p class="text-[11px] text-slate-500 dark:text-slate-400">{{ 'filing.receipt.auth_note'|trans }}</p>
+                    {% endif %}
+                </div>
+            {% elseif evidence == 'RECEIPT_MANUAL' %}
+                <div class="mt-2 space-y-0.5" data-testid="filing-receipt-manual">
+                    {% if submission.receiptInboundMail %}
+                        <p>{{ 'filing.receipt.manual'|trans({'%date%': submission.receiptInboundMail.receivedAt|date('d.m.Y H:i', 'Europe/Bucharest')}) }}</p>
+                    {% endif %}
+                    {% if submission.courtReceiptAt and submission.receiptInboundMail and submission.receiptInboundMail.rawMime == 'eml' %}
+                        <p data-testid="filing-receipt-manual-date">{{ 'filing.receipt.manual_eml_date'|trans({'%date%': submission.courtReceiptAt|date('d.m.Y H:i', 'Europe/Bucharest')}) }}</p>
+                    {% else %}
+                        <p data-testid="filing-receipt-manual-no-date">{{ 'filing.receipt.manual_no_date'|trans }}</p>
+                    {% endif %}
+                    <p class="text-[11px] text-slate-500 dark:text-slate-400">{{ 'filing.receipt.technical_check_note'|trans }}</p>
+                </div>
+            {% elseif evidence == 'RECEIPT_OVERDUE' and status != 'UNDELIVERED' %}
+                <p class="mt-2" data-testid="filing-receipt-overdue">{{ 'filing.receipt.overdue'|trans }}</p>
+            {% endif %}
+            {% if submission.readReceiptAt %}
+                <p class="mt-1 text-[11px]" data-testid="filing-read-receipt">{{ 'filing.receipt.read'|trans({'%date%': submission.readReceiptAt|date('d.m.Y H:i', 'Europe/Bucharest')}) }}</p>
+            {% endif %}
+            {% if delayed_parts is not empty and status != 'UNDELIVERED' %}
+                <p class="mt-1 text-[11px]" data-testid="filing-delivery-delayed">{{ 'filing.receipt.delayed'|trans }}</p>
+            {% endif %}
+
+            {% include 'case/filing/_inbound_mail_list.html.twig' with {rows: filing_inbound_mails|default([]), case: case, is_owner: is_owner} only %}
 
             {% if case.filedAt %}
                 <p class="mt-2" data-testid="filing-submission-filed-at">{{ 'filing.status.filed_at'|trans({'%date%': case.filedAt|date('d.m.Y')}) }}</p>
@@ -184,12 +261,32 @@
                     <input type="hidden" name="_token" value="{{ csrf_token('filing_filed_date_' ~ case.id) }}">
                     <label class="block font-semibold" for="filing-filed-at">{{ 'filing.status.set_date.title'|trans }}</label>
                     <p class="text-[11px] text-slate-500 dark:text-slate-400">{{ 'filing.status.set_date.help'|trans }}</p>
+                    {% set proposal = filing_receipt_proposal|default(null) %}
+                    {% if proposal %}
+                        <p class="text-[11px] text-amber-800 dark:text-amber-200" data-testid="filing-filed-date-proposal">{{ 'filing.receipt.proposal_label'|trans({'%date%': proposal|date('d.m.Y')}) }}</p>
+                    {% endif %}
                     <div class="flex items-center gap-2">
-                        <input id="filing-filed-at" type="date" name="filed_at" required max="{{ 'now'|date('Y-m-d', 'Europe/Bucharest') }}" value="{{ case.filedAt ? case.filedAt|date('Y-m-d') : '' }}"
+                        <input id="filing-filed-at" type="date" name="filed_at" required max="{{ 'now'|date('Y-m-d', 'Europe/Bucharest') }}" value="{{ case.filedAt ? case.filedAt|date('Y-m-d') : (proposal ? proposal|date('Y-m-d') : '') }}"
                                class="py-1 px-2 text-xs rounded border border-slate-300 dark:border-slate-700 dark:bg-slate-900">
                         <button type="submit" class="py-1.5 px-2.5 text-xs font-semibold rounded-lg bg-lex-navy text-white hover:bg-lex-navy-dark transition">{{ 'filing.status.set_date.submit'|trans }}</button>
                     </div>
                 </form>
+            {% endif %}
+
+            {% if is_owner and filing_receipt_uploadable|default(false) and evidence != 'RECEIPT_RECEIVED' %}
+                <form method="post" enctype="multipart/form-data" action="{{ path('case_filing_submission_receipt_upload', {id: case.id, submissionId: submission.id}) }}" class="mt-3 space-y-1" data-turbo="false" data-testid="filing-receipt-upload-form">
+                    <input type="hidden" name="_token" value="{{ csrf_token('filing_receipt_upload_' ~ submission.id) }}">
+                    <label class="block font-semibold" for="filing-receipt-file">{{ 'filing.receipt.upload.title'|trans }}</label>
+                    <p class="text-[11px] text-slate-500 dark:text-slate-400">{{ 'filing.receipt.upload.help'|trans }}</p>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <input id="filing-receipt-file" type="file" name="receipt" required accept=".eml,.pdf,.png,.jpg,.jpeg" class="text-xs max-w-full">
+                        <button type="submit" data-testid="filing-receipt-upload" class="py-1.5 px-2.5 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition">{{ 'filing.receipt.upload.cta'|trans }}</button>
+                    </div>
+                </form>
+            {% endif %}
+
+            {% if submission.sentAt %}
+                <p class="mt-3 text-[11px] text-slate-500 dark:text-slate-400" data-testid="filing-inbound-disclaimer">{{ 'filing.receipt.disclaimer'|trans }}</p>
             {% endif %}
         </div>
     {% endif %}

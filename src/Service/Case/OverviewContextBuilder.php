@@ -10,11 +10,15 @@ use App\Entity\ClaimItem;
 use App\Entity\Document;
 use App\Entity\FilingEmailPart;
 use App\Entity\FilingSubmission;
+use App\Entity\InboundMail;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Enum\CaseStatus;
+use App\Enum\DeadlineType;
 use App\Enum\DocumentType;
 use App\Enum\FilingChannel;
+use App\Enum\FilingDeliveryStatus;
+use App\Enum\FilingEvidenceStatus;
 use App\Enum\FilingPackageStatus;
 use App\Enum\FilingPartStatus;
 use App\Enum\PenaltyType;
@@ -34,6 +38,8 @@ use App\Service\Filing\FilingResplitService;
 use App\Service\Filing\FilingResumeService;
 use App\Service\Filing\FilingSendGuard;
 use App\Service\Filing\FilingSubmissionService;
+use App\Service\Inbound\InboundMailView;
+use App\Service\Inbound\ManualReceiptUploadService;
 use App\Service\Portal\RulingProposalResolver;
 use App\Service\StampDuty\StampDutyUatResolver;
 
@@ -65,7 +71,40 @@ final class OverviewContextBuilder
         private readonly FilingDateService $filingDates,
         private readonly FilingResumeService $filingResume,
         private readonly FilingResplitService $filingResplit,
+        private readonly InboundMailView $inboundMailView,
+        private readonly ManualReceiptUploadService $receiptUploads,
     ) {}
+
+    /**
+     * The receipt time, as a date the lawyer may adopt as the filing date: a
+     * proposal only, never written to the case without the lawyer's submit.
+     */
+    private function receiptProposal(LegalCase $case, ?FilingSubmission $submission): ?\DateTimeImmutable
+    {
+        if ($submission === null || $case->getFiledAt() !== null || $submission->getCourtReceiptAt() === null
+            || !in_array($submission->getEvidenceStatus(), [FilingEvidenceStatus::RECEIPT_RECEIVED, FilingEvidenceStatus::RECEIPT_MANUAL], true)) {
+            return null;
+        }
+        // Only an uploaded .eml carries the court's own time; a PDF or a picture has none.
+        if ($submission->getEvidenceStatus() === FilingEvidenceStatus::RECEIPT_MANUAL
+            && $submission->getReceiptInboundMail()?->getRawMime() !== InboundMail::MIME_EML) {
+            return null;
+        }
+
+        return $submission->getCourtReceiptAt()->setTimezone(new \DateTimeZone('Europe/Bucharest'));
+    }
+
+    /** @param iterable<LegalDeadline> $deadlines */
+    private function hasOpenFilingDeadline(iterable $deadlines): bool
+    {
+        foreach ($deadlines as $deadline) {
+            if ($deadline->getType() === DeadlineType::DEPUNERE_CERERE && !$deadline->isCompleted()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private function firstWithStatus(FilingSubmission $submission, FilingPartStatus $status): ?FilingEmailPart
     {
@@ -106,7 +145,10 @@ final class OverviewContextBuilder
             'next_retry_at' => $failed->getStatus() === FilingPartStatus::RETRY_SCHEDULED
                 ? $failed->latestSmtpAttempt()?->getNextRetryAt()?->setTimezone(new \DateTimeZone('Europe/Bucharest'))
                 : null,
-            'address_invalidated' => $address !== null && $address->getInvalidatedBySubmission()?->getId() === $submission->getId(),
+            'address_invalidated' => $address !== null && (
+                $address->getInvalidatedBySubmission()?->getId() === $submission->getId()
+                || $address->getInvalidatedByInboundMail()?->getMatchedSubmission()?->getId() === $submission->getId()
+            ),
         ];
     }
 
@@ -181,6 +223,12 @@ final class OverviewContextBuilder
                     ? $this->filingSendGuard->checkForSubmit($case, $case->getUser())
                     : null,
             'filing_can_set_filed_date' => $this->filingDates->canSet($case),
+            'filing_receipt_proposal' => $this->receiptProposal($case, $filingSubmission),
+            'filing_inbound_mails' => $filingSubmission !== null ? $this->inboundMailView->rows($filingSubmission) : [],
+            'filing_receipt_uploadable' => $filingSubmission !== null && $this->receiptUploads->isUploadable($filingSubmission),
+            'filing_late_bounce_review' => $filingSubmission !== null && $this->filingSubmissionService->isLateBounceReview($filingSubmission),
+            'filing_undelivered_deadline_open' => $filingSubmission?->getDeliveryStatus() === FilingDeliveryStatus::UNDELIVERED
+                && $this->hasOpenFilingDeadline($deadlines),
             'filing_gate_blocker' => $this->filingGate->firstBlocker($case),
             'filing_recipient' => $this->courtFilingAddressResolver->resolve($case),
             'just_created' => false,

@@ -178,6 +178,27 @@ class AdminAccessTest extends WebTestCase
         $this->assertSame(CaseStatus::AMIABIL, $freshEm->getRepository(LegalCase::class)->find($caseId)->getStatus());
     }
 
+    /** Undoing an undelivered filing belongs to the inbound processing alone. */
+    public function testChangeStatusDoesNotOfferUndoingAFiling(): void
+    {
+        $this->client->loginUser($this->admin);
+        $case = $this->createTestCase(CaseStatus::CERERE_DEPUSA);
+        $caseId = $case->getId();
+
+        $crawler = $this->client->request('GET', '/admin/case/' . $caseId . '/change-status');
+        $this->assertStringNotContainsString('anuleaza_depunere_nelivrata', (string) $this->client->getResponse()->getContent());
+        $csrfToken = $crawler->filter('input[name="_token"]')->attr('value');
+
+        $this->client->request('POST', '/admin/case/' . $caseId . '/change-status', [
+            'transition' => 'anuleaza_depunere_nelivrata',
+            'reason' => '',
+            '_token' => $csrfToken,
+        ]);
+
+        $freshEm = static::getContainer()->get(EntityManagerInterface::class);
+        $this->assertSame(CaseStatus::CERERE_DEPUSA, $freshEm->getRepository(LegalCase::class)->find($caseId)->getStatus());
+    }
+
     public function testChangeStatusRejectsInvalidTransition(): void
     {
         $this->client->loginUser($this->admin);

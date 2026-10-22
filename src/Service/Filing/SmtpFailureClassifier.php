@@ -48,6 +48,26 @@ final class SmtpFailureClassifier
         return new SmtpFailure($kind, $code, $enhanced, $stage, $invalidates, mb_substr($safe, 0, 500));
     }
 
+    /**
+     * The same rules for a code and an enhanced status known without an SMTP
+     * dialogue, as in a delivery report received later. The address is invalidated
+     * only for the court's own recipient rejected as unknown, never for a policy
+     * (5.7.x), mailbox (5.2.x) or size refusal.
+     */
+    public function classifyStatus(?int $code, ?string $enhanced, string $stage, bool $isCourtRecipient, string $safeMessage = ''): SmtpFailure
+    {
+        $classCode = $code;
+        if ($classCode === null && $enhanced !== null && preg_match('/^([245])\./', $enhanced, $m) === 1) {
+            // A report gives the enhanced status only: its class stands in for the reply
+            // code when deciding, and is never recorded as a code the server sent.
+            $classCode = ((int) $m[1]) * 100;
+        }
+        $kind = $this->kind($classCode, $enhanced, $stage);
+        $invalidates = $kind === SmtpFailureKind::PERMANENT && $isCourtRecipient && self::rejectsRecipient($classCode, $enhanced);
+
+        return new SmtpFailure($kind, $code, $enhanced, $stage, $invalidates, mb_substr($safeMessage, 0, 500));
+    }
+
     private function kind(?int $code, ?string $enhanced, string $stage): SmtpFailureKind
     {
         if ($code === null) {
@@ -73,11 +93,14 @@ final class SmtpFailureClassifier
         return SmtpFailureKind::PERMANENT;
     }
 
-    /** "Unknown or invalid recipient": enhanced 5.1.1 to 5.1.3, or a bare 550/551/553 without an enhanced status. */
+    /**
+     * "Unknown or invalid recipient": enhanced 5.1.1 to 5.1.3, 5.4.4 (no route to the
+     * domain), or a bare 550/551/553 without an enhanced status.
+     */
     private static function rejectsRecipient(?int $code, ?string $enhanced): bool
     {
         if ($enhanced !== null) {
-            return in_array($enhanced, ['5.1.1', '5.1.2', '5.1.3'], true);
+            return in_array($enhanced, ['5.1.1', '5.1.2', '5.1.3', '5.4.4'], true);
         }
 
         return in_array($code, [550, 551, 553], true);

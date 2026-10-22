@@ -1,0 +1,39 @@
+{# Messages received about this submission (receipts, read notices, delivery
+   reports, answers) and the lawyer's uploaded receipts. Metadata and a short
+   plain-text excerpt only: the excerpt is escaped by Twig and HTML is never
+   rendered. The stored copy downloads for the lawyer of the case only.
+   Context: rows (list of {mail, excerpt}), case, is_owner. #}
+{% if rows is not empty %}
+    <div class="mt-3" data-testid="filing-inbound-mails">
+        <p class="font-semibold">{{ 'filing.receipt.inbound_title'|trans }}</p>
+        <ul class="mt-1 space-y-1">
+            {% for row in rows %}
+                {% set mail = row.mail %}
+                <li class="text-[11px]" data-testid="filing-inbound-mail" data-classification="{{ mail.classification ? mail.classification.value : '' }}">
+                    <span class="font-medium">{{ mail.classification ? mail.classification.label|trans : '' }}</span>
+                    <span class="text-slate-500 dark:text-slate-400">{{ mail.receivedAt|date('d.m.Y H:i', 'Europe/Bucharest') }}</span>
+                    {% if mail.manual %}
+                        <span>{{ 'filing.receipt.manual_line'|trans }}</span>
+                    {% else %}
+                        <span class="text-slate-500 dark:text-slate-400">{{ 'filing.receipt.from_line'|trans({'%from%': mail.fromAddress ?? '-'}) }}</span>
+                        {% if mail.authVerdict and mail.authVerdict.value == 'TRUSTED_PASS' %}
+                            <span class="text-slate-500 dark:text-slate-400">({{ 'filing.receipt.auth_note'|trans }})</span>
+                        {% endif %}
+                    {% endif %}
+                    {% if mail.reviewStatus.value == 'PENDING' %}
+                        <span class="text-amber-700 dark:text-amber-300" data-testid="filing-inbound-mail-review">{{ 'filing.receipt.probable_line'|trans }}</span>
+                    {% endif %}
+                    {% if mail.dsnStatus %}
+                        <span class="text-slate-500 dark:text-slate-400">{{ 'filing.receipt.dsn_line'|trans({'%status%': mail.dsnStatus}) }}</span>
+                    {% endif %}
+                    {% if is_owner %}
+                        <a href="{{ path('case_filing_inbound_download', {id: case.id, mailId: mail.id}) }}" data-turbo="false" class="underline hover:no-underline" data-testid="filing-inbound-mail-download">{{ 'filing.receipt.download'|trans }}</a>
+                    {% endif %}
+                    {% if row.excerpt %}
+                        <p class="mt-0.5 ms-2 text-slate-600 dark:text-slate-300 break-words" data-testid="filing-inbound-mail-excerpt">{{ row.excerpt }}</p>
+                    {% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+{% endif %}

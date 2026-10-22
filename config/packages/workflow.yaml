@@ -86,3 +86,12 @@ framework:
                 inchide_plata_integrala:
                     from: [AMIABIL, SOMATIE_TRIMISA]
                     to: INCHIS_SUCCES
+                # A permanent bounce for the court address on the petition email,
+                # received after the SMTP server accepted it: the petition did not
+                # reach the court mailbox, so the case goes back to a generated
+                # request. Applied only by the platform (FilingWorkflowInterlockSubscriber)
+                # and never once the case has a court number, a declared filing date
+                # or a confirmed portal match.
+                anuleaza_depunere_nelivrata:
+                    from: CERERE_DEPUSA
+                    to: CERERE_GENERATA

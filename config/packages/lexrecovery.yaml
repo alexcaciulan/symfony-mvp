@@ -23,3 +23,27 @@ parameters:
     # was generated before it may already have been filed on another channel, so
     # sending it asks the lawyer to state that it was not.
     lexrecovery.filing.email_channel_since: '2026-10-22'
+    # Inbound mail: a transmitted petition with no court receipt after this many
+    # working days (Romanian calendar) is flagged; unattributed and spam messages
+    # are deleted after the purge delay; the heartbeat alerts when the last good
+    # poll is older than its limit.
+    lexrecovery.filing.receipt_overdue_working_days: '%env(int:FILING_RECEIPT_OVERDUE_WORKING_DAYS)%'
+    lexrecovery.filing.inbound_purge_days: 30
+    lexrecovery.filing.inbound_heartbeat_max_age_minutes: '%env(int:INBOUND_HEARTBEAT_MAX_AGE_MINUTES)%'
+    # Words of an automatic court answer that acknowledges receipt, compared without
+    # diacritics and case. A match only marks a receipt of the message, never a
+    # registration of the petition. The explicit phrases name the confirmation
+    # itself and are enough on any automatic answer; the general ones also occur in
+    # out-of-office replies ("your message has been received, I am away"), so they
+    # count only on an automatic answer that is not marked as an auto-reply.
+    lexrecovery.inbound.receipt_phrases:
+        - 'confirmam primirea'
+        - 'confirmare de primire'
+        - 'confirmare primire'
+        - 'confirmarea primirii'
+        - 'confirm receipt'
+        - 'acknowledge receipt'
+    lexrecovery.inbound.receipt_general_phrases:
+        - 'a fost primit'
+        - 'a fost receptionat'
+        - 'has been received'

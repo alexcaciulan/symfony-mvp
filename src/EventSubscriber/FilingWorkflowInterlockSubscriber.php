@@ -30,6 +30,7 @@ final class FilingWorkflowInterlockSubscriber implements EventSubscriberInterfac
     {
         return [
             'workflow.legal_case.guard.depune_cerere' => 'guardManualFiling',
+            'workflow.legal_case.guard.anuleaza_depunere_nelivrata' => 'guardUndeliveredFiling',
             'workflow.legal_case.completed.inregistreaza_dosar' => 'onRegistered',
         ];
     }
@@ -45,6 +46,39 @@ final class FilingWorkflowInterlockSubscriber implements EventSubscriberInterfac
         if ($active !== null && !$this->permit->allows($active->getId())) {
             $event->setBlocked(true, 'filing.send.flash_manual_refused_active');
         }
+    }
+
+    /**
+     * Only the platform undoes a filing, for the submission it names, and never on a
+     * case that shows the petition arrived (court number, declared date, confirmed
+     * portal match).
+     */
+    public function guardUndeliveredFiling(GuardEvent $event): void
+    {
+        $case = $event->getSubject();
+        if (!$case instanceof LegalCase || $case->getId() === null) {
+            $event->setBlocked(true);
+
+            return;
+        }
+
+        $latest = $this->submissions->findLatestForCase($case);
+        if ($latest === null || !$this->permit->allows($latest->getId())) {
+            $event->setBlocked(true, 'filing.undelivered.not_platform');
+
+            return;
+        }
+        if (!self::canUndoFiling($case)) {
+            $event->setBlocked(true, 'filing.undelivered.case_advanced');
+        }
+    }
+
+    /** Nothing on the case says the petition reached the court on another path. */
+    public static function canUndoFiling(LegalCase $case): bool
+    {
+        return $case->getCourtCaseNumber() === null
+            && $case->getFiledAt() === null
+            && !$case->hasAcceptedPortalMatch();
     }
 
     public function onRegistered(CompletedEvent $event): void

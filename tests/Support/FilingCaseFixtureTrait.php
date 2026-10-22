@@ -369,7 +369,22 @@ trait FilingCaseFixtureTrait
         $conn = $em->getConnection();
         $cases = 'SELECT id FROM legal_case WHERE user_id = ?';
         $courtIds = $conn->fetchFirstColumn('SELECT DISTINCT court_id FROM legal_case WHERE user_id = ? AND court_id IS NOT NULL', [$userId]);
-        // Submissions first: their emails reference package parts, and a submission the package.
+        // Received messages first: their links to the case and the submission are SET NULL,
+        // which would leave them behind. Their raw files go with them.
+        $inbound = $conn->fetchAllAssociative(
+            'SELECT id, raw_path FROM inbound_mail WHERE legal_case_id IN (' . $cases . ') OR matched_submission_id IN (SELECT id FROM filing_submission WHERE legal_case_id IN (' . $cases . ')) OR uploaded_by_id = ?',
+            [$userId, $userId, $userId],
+        );
+        if ($inbound !== []) {
+            $conn->executeStatement('UPDATE court_email_address SET invalidated_by_inbound_mail_id = NULL WHERE invalidated_by_inbound_mail_id IN (' . implode(',', array_map('intval', array_column($inbound, 'id'))) . ')');
+            $conn->executeStatement('DELETE FROM inbound_mail WHERE id IN (' . implode(',', array_map('intval', array_column($inbound, 'id'))) . ')');
+            foreach (array_unique(array_column($inbound, 'raw_path')) as $rawPath) {
+                if ((int) $conn->fetchOne('SELECT COUNT(*) FROM inbound_mail WHERE raw_path = ?', [$rawPath]) === 0) {
+                    @unlink($this->filingUploadsDir . '/' . $rawPath);
+                }
+            }
+        }
+        // Submissions next: their emails reference package parts, and a submission the package.
         $conn->executeStatement('DELETE FROM filing_submission WHERE legal_case_id IN (' . $cases . ')', [$userId]);
         $conn->executeStatement('DELETE FROM filing_package_part WHERE package_id IN (SELECT id FROM filing_package WHERE legal_case_id IN (' . $cases . '))', [$userId]);
         $conn->executeStatement('UPDATE filing_package SET previous_version_id = NULL WHERE legal_case_id IN (' . $cases . ')', [$userId]);

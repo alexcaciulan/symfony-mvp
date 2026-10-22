@@ -36,6 +36,14 @@ enum NotificationType: string
     case FILING_FAILED_INTERNAL = 'filing_failed_internal';
     case FILING_NEEDS_REVIEW = 'filing_needs_review';
     case FILING_PARTIALLY_SENT = 'filing_partially_sent';
+    case FILING_RECEIPT_RECEIVED = 'filing_receipt_received';
+    case FILING_RECEIPT_OVERDUE = 'filing_receipt_overdue';
+    case FILING_BOUNCED_PERMANENT = 'filing_bounced_permanent';
+    case FILING_COURT_MESSAGE = 'filing_court_message';
+    case FILING_CC_BOUNCED = 'filing_cc_bounced';
+    case FILING_DELIVERY_DELAYED = 'filing_delivery_delayed';
+    case FILING_INBOUND_REVIEW = 'filing_inbound_review';
+    case INBOUND_POLL_STALE = 'inbound_poll_stale';
 
     public function label(): string
     {
@@ -67,6 +75,14 @@ enum NotificationType: string
             self::FILING_FAILED_INTERNAL => 'document',
             self::FILING_NEEDS_REVIEW => 'document',
             self::FILING_PARTIALLY_SENT => 'document',
+            self::FILING_RECEIPT_RECEIVED => 'document',
+            self::FILING_RECEIPT_OVERDUE => 'document',
+            self::FILING_BOUNCED_PERMANENT => 'document',
+            self::FILING_COURT_MESSAGE => 'document',
+            self::FILING_CC_BOUNCED => 'document',
+            self::FILING_DELIVERY_DELAYED => 'document',
+            self::FILING_INBOUND_REVIEW => 'document',
+            self::INBOUND_POLL_STALE => 'document',
         };
     }
 

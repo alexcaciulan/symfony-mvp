@@ -56,13 +56,19 @@ class FilingSubmissionCrudController extends AbstractCrudController
         yield IntegerField::new('legalCase.id', 'ID dosar');
         yield TextField::new('court.name', 'Instanța');
         yield TextField::new('deliveryStatus', 'Stare transmitere')
-            ->formatValue(static fn ($value): string => $value?->value ?? '');
+            ->formatValue(static fn ($value): string => $value?->value ?? '')
+            // The text template prints the raw value as a title, which an enum cannot be.
+            ->setTemplateName('crud/field/generic');
         yield TextField::new('evidenceStatus', 'Dovada primirii')
-            ->formatValue(static fn ($value): string => $value?->value ?? '');
+            ->formatValue(static fn ($value): string => $value?->value ?? '')
+            // The text template prints the raw value as a title, which an enum cannot be.
+            ->setTemplateName('crud/field/generic');
         yield DateTimeField::new('initiatedAt', 'Cerută la');
         yield DateTimeField::new('sentAt', 'Acceptată SMTP la');
         yield TextField::new('reviewReason', 'Motiv verificare')->onlyOnDetail();
-        yield DateTimeField::new('courtReceiptAt', 'Confirmare instanță la')->onlyOnDetail();
+        yield DateTimeField::new('courtReceiptAt', 'Confirmare de primire la')->onlyOnDetail();
+        yield IntegerField::new('receiptInboundMail.id', 'ID mesaj confirmare')->onlyOnDetail();
+        yield DateTimeField::new('readReceiptAt', 'Notificare de afișare la')->onlyOnDetail();
         yield TextField::new('templateVersion', 'Versiune șablon')->onlyOnDetail();
         yield IntegerField::new('parts', 'E-mailuri')
             ->onlyOnIndex()

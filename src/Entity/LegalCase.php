@@ -11,6 +11,7 @@ use App\Enum\FilingChannel;
 use App\Enum\PaymentNoticeCommunicationMethod;
 use App\Enum\PenaltyType;
 use App\Enum\PortalCaseMatchSource;
+use App\Enum\PortalCaseMatchStatus;
 use App\Enum\RejustStampDutyForm;
 use App\Enum\RelationshipType;
 use App\Enum\StampDutyStatus;
@@ -1079,6 +1080,18 @@ class LegalCase
     public function getPortalCaseMatches(): Collection
     {
         return $this->portalCaseMatches;
+    }
+
+    /** Whether a court case found on the portal was confirmed as this one. */
+    public function hasAcceptedPortalMatch(): bool
+    {
+        foreach ($this->portalCaseMatches as $match) {
+            if ($match->getStatus() === PortalCaseMatchStatus::ACCEPTED) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** The court case number found on the portal and still waiting for the lawyer, if any. */
