@@ -291,4 +291,20 @@ class CaseVoterTest extends TestCase
             $this->voter->vote($token, $case, [CaseVoter::DEADLINE_MANAGE])
         );
     }
+
+    public function testFilingContentIsGrantedToTheOwnerOnly(): void
+    {
+        $owner = new User();
+        $admin = new User();
+        $admin->setRoles(['ROLE_ADMIN']);
+        $other = new User();
+        $case = new LegalCase();
+        $case->setUser($owner);
+        $case->setStatus(CaseStatus::CERERE_GENERATA);
+
+        $this->assertSame(VoterInterface::ACCESS_GRANTED, $this->voter->vote($this->createToken($owner), $case, [CaseVoter::FILING_CONTENT]));
+        // Professional secrecy: no admin bypass for the filing files.
+        $this->assertSame(VoterInterface::ACCESS_DENIED, $this->voter->vote($this->createToken($admin), $case, [CaseVoter::FILING_CONTENT]));
+        $this->assertSame(VoterInterface::ACCESS_DENIED, $this->voter->vote($this->createToken($other), $case, [CaseVoter::FILING_CONTENT]));
+    }
 }

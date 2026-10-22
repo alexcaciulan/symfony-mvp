@@ -47,6 +47,11 @@ framework:
             policy: sliding_window
             limit: 10
             interval: '1 hour'
+        # Signed file uploads: each one parses an untrusted PDF with qpdf and Ghostscript.
+        filing_signed_upload:
+            policy: sliding_window
+            limit: 30
+            interval: '1 hour'
         # Manual portal.just.ro check (Pas 6.1 CasePortalController::checkNow) —
         # SOAP I/O extern la cerere; limitează abuzul de butonul „Verifică acum".
         portal_check:
@@ -141,6 +146,8 @@ when@test:
             payment_order_generation:
                 policy: no_limit
             filing_package_build:
+                policy: no_limit
+            filing_signed_upload:
                 policy: no_limit
             portal_check:
                 policy: no_limit

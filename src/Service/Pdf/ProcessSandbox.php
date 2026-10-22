@@ -86,9 +86,12 @@ final class ProcessSandbox
 
     /**
      * @param list<string> $command
-     * @param list<int>    $okExitCodes qpdf exits 3 on recoverable warnings, which is fine
+     * @param list<int>    $okExitCodes   qpdf exits 3 on recoverable warnings, which is fine
+     * @param int|null     $memoryLimitKb virtual memory cap for a tool parsing an untrusted
+     *                                    file; applied with the shell's ulimit, since prlimit
+     *                                    is not available in the container
      */
-    public function run(array $command, float $timeoutSeconds = 60.0, array $okExitCodes = [0]): Process
+    public function run(array $command, float $timeoutSeconds = 60.0, array $okExitCodes = [0], ?int $memoryLimitKb = null): Process
     {
         $workDir = $this->workDir();
         $timeout = min($timeoutSeconds, $this->remainingSeconds());
@@ -96,21 +99,31 @@ final class ProcessSandbox
             throw new PdfToolException('PDF processing budget exhausted', 'filing.package.error.timeout');
         }
 
+        $tool = $command[0];
+        if ($memoryLimitKb !== null) {
+            $command = ['sh', '-c', 'ulimit -v ' . $memoryLimitKb . ' && exec "$@"', 'sh', ...$command];
+        }
+
         $process = new Process($command, $workDir, $this->environment($workDir), null, $timeout);
 
         try {
             $process->run();
         } catch (ProcessTimedOutException $e) {
-            throw new PdfToolException(sprintf('%s timed out', $command[0]), 'filing.package.error.timeout', [], $e);
+            throw new PdfToolException(sprintf('%s timed out', $tool), 'filing.package.error.timeout', [], $e);
         } catch (\RuntimeException $e) {
             // ProcessStartFailedException and friends: the binary is missing or not executable.
-            throw new PdfToolException(sprintf('%s could not run: %s', $command[0], $e->getMessage()), 'filing.package.error.tool_missing', [], $e);
+            throw new PdfToolException(sprintf('%s could not run: %s', $tool, $e->getMessage()), 'filing.package.error.tool_missing', [], $e);
+        }
+
+        // Behind the shell wrapper a missing binary is exit 127, not a start failure.
+        if ($memoryLimitKb !== null && $process->getExitCode() === 127) {
+            throw new PdfToolException(sprintf('%s could not run', $tool), 'filing.package.error.tool_missing');
         }
 
         if (!in_array($process->getExitCode(), $okExitCodes, true)) {
             throw new PdfToolException(sprintf(
                 '%s exited with %d: %s',
-                $command[0],
+                $tool,
                 (int) $process->getExitCode(),
                 mb_substr(trim($process->getErrorOutput() . ' ' . $process->getOutput()), 0, 500),
             ));

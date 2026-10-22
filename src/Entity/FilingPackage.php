@@ -8,6 +8,7 @@ use App\Enum\FilingPackageStatus;
 use App\Enum\FilingPartRole;
 use App\Enum\OpisPlacement;
 use App\Repository\FilingPackageRepository;
+use App\Service\Filing\FilingSizePlanner;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
@@ -276,5 +277,48 @@ class FilingPackage
     public function annexVolumeCount(): int
     {
         return count($this->partsWithRole(FilingPartRole::ANNEX_BUNDLE));
+    }
+
+    /** Every file carries a signature the platform detected and matched, confirmed where needed. */
+    public function allPartsSignatureAccepted(): bool
+    {
+        return !$this->parts->isEmpty()
+            && $this->parts->forAll(static fn (int $_k, FilingPackagePart $p): bool => $p->isSignatureAccepted());
+    }
+
+    /** Index (0-based) of the email a part travels in, null when the plan does not list it. */
+    public function emailIndexForPart(string $partToken): ?int
+    {
+        foreach ($this->sizePlan['emails'] ?? [] as $i => $email) {
+            if (in_array($partToken, $email['parts'] ?? [], true)) {
+                return (int) $i;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Sizes after a signed upload: a signed file replaces its unsigned one in the
+     * email it travels in, so the per-email totals follow the real bytes.
+     */
+    public function recomputeSignedTotals(): static
+    {
+        $signed = null;
+        foreach ($this->parts as $part) {
+            if ($part->getSignedBytes() !== null) {
+                $signed = ($signed ?? 0) + $part->getSignedBytes();
+            }
+        }
+        $this->totalSignedBytes = $signed;
+
+        if (isset($this->sizePlan['emails'])) {
+            $this->sizePlan['emails'] = FilingSizePlanner::emailBytes(
+                $this->parts->toArray(),
+                array_map(static fn (array $e): array => $e['parts'] ?? [], $this->sizePlan['emails']),
+            );
+        }
+
+        return $this;
     }
 }

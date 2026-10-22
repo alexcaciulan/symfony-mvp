@@ -106,6 +106,7 @@ services:
             # Court filing size budget, injected into the filing package services.
             $filingMaxEmailBytes: '%lexrecovery.filing.max_email_bytes%'
             $filingSignatureReserveBytes: '%lexrecovery.filing.signature_reserve_bytes%'
+            $filingSignedUploadMaxBytes: '%lexrecovery.filing.signed_upload_max_bytes%'
 
     # interface-based auto-tagging (Strategy + Tagged Iterator pattern)
     _instanceof:

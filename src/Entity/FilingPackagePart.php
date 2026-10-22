@@ -296,4 +296,72 @@ class FilingPackagePart
     {
         return $this->signatureReport;
     }
+
+    /** @return list<string> */
+    public function getSignatureWarnings(): array
+    {
+        return array_values($this->signatureReport['warnings'] ?? []);
+    }
+
+    /**
+     * Records an accepted signed file. Refused outcomes never reach the part, so
+     * the previous accepted file stays in place. A text-only match carries the
+     * lawyer's confirmation only when given for this very file.
+     *
+     * @param array<string, mixed> $report
+     */
+    public function recordSignedUpload(
+        string $path,
+        string $sha256,
+        int $bytes,
+        User $uploadedBy,
+        SignatureStatus $status,
+        array $report,
+    ): static {
+        if (!in_array($status, [SignatureStatus::PRESENT_MATCHED, SignatureStatus::PRESENT_PROBABLE], true)) {
+            throw new \LogicException('Only a detected and matched signature is recorded on a part.');
+        }
+
+        $this->signedPath = $path;
+        $this->signedSha256 = $sha256;
+        $this->signedBytes = $bytes;
+        $this->signedUploadedAt = new \DateTimeImmutable();
+        $this->signedUploadedBy = $uploadedBy;
+        $this->signatureStatus = $status;
+        $this->signatureReport = $report;
+
+        // A text-only match is confirmed afterwards, once the lawyer has seen its warnings.
+        $this->probableMatchConfirmedBy = null;
+        $this->probableMatchConfirmedAt = null;
+
+        return $this;
+    }
+
+    public function confirmProbableMatch(User $user): static
+    {
+        if (!$this->isAwaitingProbableConfirmation()) {
+            throw new \LogicException('Only an unconfirmed text-only match can be confirmed.');
+        }
+
+        $this->probableMatchConfirmedBy = $user;
+        $this->probableMatchConfirmedAt = new \DateTimeImmutable();
+
+        return $this;
+    }
+
+    public function isAwaitingProbableConfirmation(): bool
+    {
+        return $this->signatureStatus === SignatureStatus::PRESENT_PROBABLE && $this->probableMatchConfirmedAt === null;
+    }
+
+    public function isSignatureAccepted(): bool
+    {
+        return $this->signatureStatus === SignatureStatus::PRESENT_MATCHED
+            || ($this->signatureStatus === SignatureStatus::PRESENT_PROBABLE && $this->probableMatchConfirmedAt !== null);
+    }
+
+    public function hasSignedFile(): bool
+    {
+        return $this->signedPath !== null;
+    }
 }

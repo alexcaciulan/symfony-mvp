@@ -15,19 +15,23 @@ use App\Enum\DocumentType;
 use App\Enum\FilingPackageStatus;
 use App\Enum\FilingPartRole;
 use App\Enum\OpisPlacement;
+use App\Enum\SignatureStatus;
 use App\Enum\StampDutyStatus;
 use App\Repository\AppSettingRepository;
 use App\Service\Document\OpisGeneratorService;
 use App\Service\Filing\FilingPackageBlockedException;
 use App\Service\Filing\FilingPackageBuilder;
 use App\Service\Filing\FilingSizePlanner;
+use App\Service\Filing\SignedPartUploadService;
 use App\Service\Pdf\PdfTextProbe;
 use App\Service\Pdf\PdfToolException;
 use App\Service\Pdf\ProcessSandbox;
 use App\Service\Pdf\QpdfRunner;
 use App\Tests\Support\FilingCaseFixtureTrait;
+use App\Tests\Support\TestPdfSigner;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 final class FilingPackageBuilderTest extends KernelTestCase
 {
@@ -59,6 +63,9 @@ final class FilingPackageBuilderTest extends KernelTestCase
     {
         if (isset($this->em)) {
             $this->settings()->set(AppSetting::KEY_FILING_OPIS_PLACEMENT, null);
+            if (isset($this->case)) {
+                $this->em->getConnection()->executeStatement('DELETE FROM audit_log WHERE entity_type = ? AND entity_id = ?', [LegalCase::class, (string) $this->case->getId()]);
+            }
             $this->removeFilingFixtures($this->em, $this->user ?? null, $this->case ?? null);
         }
         parent::tearDown();
@@ -329,6 +336,53 @@ final class FilingPackageBuilderTest extends KernelTestCase
         $this->expectExceptionMessage('filing.package.error.rebuild_ranges_changed');
 
         $this->builder->rebuildAnnexVolumes($package, 9_500_000);
+    }
+
+    public function testRebuildKeepsTheSignedPetitionAndPowerOfAttorneyAndLeavesTheNewVolumesUnsigned(): void
+    {
+        $package = $this->builder->build($this->case, $this->user);
+        $uploads = static::getContainer()->get(SignedPartUploadService::class);
+        foreach ($package->getParts() as $part) {
+            $signed = tempnam(sys_get_temp_dir(), 'rbsig');
+            TestPdfSigner::sign($this->abs($part), $signed);
+            $uploads->upload($part, new UploadedFile($signed, 'semnat.pdf', 'application/pdf', null, true), $this->user, false, false);
+        }
+        self::assertSame(FilingPackageStatus::SIGNED, $package->getStatus());
+        $petition = $package->partsWithRole(FilingPartRole::PETITION)[0];
+        $poa = $package->partsWithRole(FilingPartRole::POWER_OF_ATTORNEY)[0];
+
+        $rebuilt = $this->builder->rebuildAnnexVolumes($package, 9_500_000);
+
+        self::assertSame(FilingPackageStatus::AWAITING_SIGNATURES, $rebuilt->getStatus());
+        foreach ([$petition, $poa] as $kept) {
+            $copy = $rebuilt->partsWithRole($kept->getRole())[0];
+            self::assertSame($kept->getSignedPath(), $copy->getSignedPath());
+            self::assertSame($kept->getSignedSha256(), $copy->getSignedSha256());
+            self::assertTrue($copy->isSignatureAccepted());
+        }
+        foreach ($rebuilt->partsWithRole(FilingPartRole::ANNEX_BUNDLE) as $volume) {
+            self::assertSame(SignatureStatus::MISSING, $volume->getSignatureStatus());
+            self::assertNull($volume->getSignedPath());
+        }
+        // The index inside the signed petition still describes the annexes.
+        self::assertEquals($package->getSizePlan()['annexRanges'], $rebuilt->getSizePlan()['annexRanges']);
+    }
+
+    public function testRebuildRefusesAStaleOrASentPackage(): void
+    {
+        $package = $this->builder->build($this->case, $this->user);
+
+        foreach ([FilingPackageStatus::SENT, FilingPackageStatus::STALE] as $status) {
+            $package->setStatus($status);
+            $this->em->flush();
+            try {
+                $this->builder->rebuildAnnexVolumes($package, 9_500_000);
+                self::fail('Expected a refusal for ' . $status->value);
+            } catch (FilingPackageBlockedException $e) {
+                self::assertSame('filing.package.error.rebuild_not_allowed', $e->messageKey);
+            }
+        }
+        self::assertSame(1, $this->packageCount());
     }
 
     private function abs(Document|FilingPackagePart $item): string

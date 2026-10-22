@@ -12,6 +12,8 @@ namespace App\Service\Pdf;
 final class QpdfRunner
 {
     public const PART_ID_KEY = 'LexRecoveryPartId';
+    /** Virtual memory cap for qpdf parsing an untrusted file. */
+    public const MEMORY_LIMIT_KB = 524_288;
 
     public function __construct(
         private readonly ProcessSandbox $sandbox,
@@ -23,7 +25,7 @@ final class QpdfRunner
      */
     public function inspect(string $path): PdfInspection
     {
-        $check = $this->sandbox->run(['qpdf', '--check', $path], 60.0, [0, 2, 3]);
+        $check = $this->sandbox->run(['qpdf', '--check', $path], 60.0, [0, 2, 3], self::MEMORY_LIMIT_KB);
         if ($check->getExitCode() === 2) {
             $output = $check->getOutput() . $check->getErrorOutput();
             if (stripos($output, 'password') !== false || stripos($output, 'encrypt') !== false) {
@@ -35,7 +37,7 @@ final class QpdfRunner
 
         $process = $this->sandbox->run([
             'qpdf', '--json=2', '--json-key=encrypt', '--json-key=pages', '--json-key=acroform', '--json-key=qpdf', '--json-stream-data=none', $path,
-        ], 60.0, [0, 3]);
+        ], 60.0, [0, 3], self::MEMORY_LIMIT_KB);
         $json = $process->getOutput();
         $data = json_decode($json, true);
         if (!is_array($data)) {
@@ -57,6 +59,41 @@ final class QpdfRunner
         }
 
         return new PdfInspection($pages, (bool) ($data['acroform']['hasacroform'] ?? false));
+    }
+
+    /**
+     * The form fields and the pages of a file, as qpdf describes them.
+     *
+     * @return array<string, mixed>
+     */
+    public function json(string $path): array
+    {
+        $data = json_decode($this->sandbox->run(
+            ['qpdf', '--json=2', '--json-key=acroform', '--json-key=pages', $path],
+            60.0,
+            [0, 3],
+            self::MEMORY_LIMIT_KB,
+        )->getOutput(), true);
+        if (!is_array($data)) {
+            throw new PdfToolException('Unreadable qpdf JSON', 'filing.package.error.corrupt');
+        }
+
+        return $data;
+    }
+
+    /**
+     * One object's value (dictionary, array or scalar) in qpdf's JSON v2 notation.
+     */
+    public function object(string $path, string $ref): mixed
+    {
+        $data = json_decode($this->sandbox->run(
+            ['qpdf', '--json=2', '--json-key=qpdf', '--json-object=' . $ref, '--json-stream-data=none', $path],
+            60.0,
+            [0, 3],
+            self::MEMORY_LIMIT_KB,
+        )->getOutput(), true);
+
+        return $data['qpdf'][1]['obj:' . $ref]['value'] ?? null;
     }
 
     public function pageCount(string $path): int

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Service\Filing;
 
+use App\Entity\FilingPackagePart;
+
 /**
  * Decides whether the package fits the court mailbox, needs compression, or has
  * to be split into annex volumes. Pure arithmetic over byte sizes.
@@ -28,6 +30,33 @@ final class FilingSizePlanner
     public static function budget(int $maxEmailBytes, int $signatureReserveBytes): int
     {
         return (int) floor($maxEmailBytes / self::ENCODING_FACTOR) - $signatureReserveBytes;
+    }
+
+    /**
+     * Raw and encoded bytes of each email, counting a part's signed file when it has one.
+     *
+     * @param iterable<FilingPackagePart> $parts
+     * @param array<int, list<string>>    $tokensPerEmail
+     *
+     * @return array<int, array{parts: list<string>, bytes: int, encodedBytes: int}>
+     */
+    public static function emailBytes(iterable $parts, array $tokensPerEmail): array
+    {
+        $bytesByToken = [];
+        foreach ($parts as $part) {
+            $bytesByToken[$part->getPartToken()] = $part->getSignedBytes() ?? $part->getUnsignedBytes();
+        }
+
+        $emails = [];
+        foreach ($tokensPerEmail as $i => $tokens) {
+            $bytes = 0;
+            foreach ($tokens as $token) {
+                $bytes += $bytesByToken[$token] ?? 0;
+            }
+            $emails[$i] = ['parts' => $tokens, 'bytes' => $bytes, 'encodedBytes' => (int) ceil($bytes * self::ENCODING_FACTOR)];
+        }
+
+        return $emails;
     }
 
     /**

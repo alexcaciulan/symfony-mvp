@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller\Case;
 
+use App\Entity\AppSetting;
 use App\Entity\AuditLog;
 use App\Entity\FilingPackage;
 use App\Entity\FilingPackagePart;
@@ -11,12 +12,19 @@ use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\FilingPackageStatus;
+use App\Enum\SignatureStatus;
+use App\Repository\AppSettingRepository;
 use App\Service\Filing\FilingPackageBuilder;
+use App\Service\Filing\SignedPartUploadService;
 use App\Service\Pdf\ProcessSandbox;
 use App\Tests\Support\FilingCaseFixtureTrait;
+use App\Tests\Support\TestPdfSigner;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\HttpFoundation\RequestStack;
 
 final class CaseFilingControllerTest extends WebTestCase
 {
@@ -48,6 +56,10 @@ final class CaseFilingControllerTest extends WebTestCase
     protected function tearDown(): void
     {
         if (isset($this->em)) {
+            static::getContainer()->get(AppSettingRepository::class)->set(AppSetting::KEY_FILING_OPIS_PLACEMENT, null);
+            if (isset($this->case)) {
+                $this->em->getConnection()->executeStatement('DELETE FROM audit_log WHERE entity_type = ? AND entity_id = ?', [LegalCase::class, (string) $this->case->getId()]);
+            }
             $this->removeFilingFixtures($this->em, $this->user ?? null, $this->case ?? null);
             foreach ($this->otherUsers as $other) {
                 $this->removeFilingFixtures($this->em, $other, null);
@@ -167,6 +179,125 @@ final class CaseFilingControllerTest extends WebTestCase
         self::assertResponseStatusCodeSame(404);
     }
 
+    public function testOwnerUploadsASignedPartAndTheCardShowsTheDetectedSignature(): void
+    {
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $part = $package->getParts()->first();
+        $this->client->loginUser($this->user);
+        $token = $this->uploadTokenFromCard($part);
+
+        $this->client->request('POST', $this->partUrl($package, $part) . '/signed', ['_token' => $token], ['signed_file' => $this->signedUpload($part)], self::TURBO);
+
+        self::assertResponseIsSuccessful();
+        $content = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('target="filing-package-card"', $content);
+        self::assertStringContainsString($this->trans('filing.upload.success.matched'), $content);
+        self::assertStringContainsString($this->trans('filing.signature.chip.PRESENT_MATCHED'), $content);
+        self::assertStringContainsString($this->trans('filing.signature.notice.validity'), $content);
+        self::assertStringContainsString('rel="noopener noreferrer"', $content);
+
+        $this->em->clear();
+        self::assertSame(SignatureStatus::PRESENT_MATCHED, $this->em->find(FilingPackagePart::class, $part->getId())?->getSignatureStatus());
+    }
+
+    public function testUploadWithAnInvalidCsrfTokenIsRefusedAndStoresNothing(): void
+    {
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $part = $package->getParts()->first();
+        $this->client->loginUser($this->user);
+
+        $this->client->request('POST', $this->partUrl($package, $part) . '/signed', ['_token' => 'forged'], ['signed_file' => $this->signedUpload($part)], self::TURBO);
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString($this->trans('filing.upload.error.csrf'), (string) $this->client->getResponse()->getContent());
+        $this->em->clear();
+        self::assertSame(SignatureStatus::MISSING, $this->em->find(FilingPackagePart::class, $part->getId())?->getSignatureStatus());
+    }
+
+    public function testAnEmptiedOversizedPostReadsAsTooLargeNotAsAnExpiredSession(): void
+    {
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $this->client->loginUser($this->user);
+
+        $this->client->request('POST', $this->partUrl($package, $package->getParts()->first()) . '/signed', [], [], [...self::TURBO, 'CONTENT_LENGTH' => '25000000']);
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString($this->trans('filing.upload.error.too_large'), (string) $this->client->getResponse()->getContent());
+    }
+
+    public function testAdminAndAnotherLawyerCannotUploadOrDownloadASignedFile(): void
+    {
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $part = $package->getParts()->first();
+        $this->uploadDirectly($part);
+        $admin = $this->createFilingUser($this->em, 'filing-admin');
+        $admin->setRoles(['ROLE_ADMIN']);
+        $other = $this->createFilingUser($this->em, 'filing-other');
+        $this->em->flush();
+        $this->otherUsers[] = $admin;
+        $this->otherUsers[] = $other;
+
+        foreach ([$admin, $other] as $intruder) {
+            $this->client->loginUser($intruder);
+            $this->client->request('GET', $this->partUrl($package, $part) . '/signed');
+            self::assertResponseStatusCodeSame(403);
+            $this->client->request('POST', $this->partUrl($package, $part) . '/signed', ['_token' => 'irrelevant'], ['signed_file' => $this->signedUpload($part)], self::TURBO);
+            self::assertResponseStatusCodeSame(403);
+            $this->client->request('POST', $this->partUrl($package, $part) . '/signed/confirm', ['_token' => 'irrelevant'], [], self::TURBO);
+            self::assertResponseStatusCodeSame(403);
+        }
+    }
+
+    public function testSignedDownloadReturnsTheUploadedBytesToTheOwnerAndIsAudited(): void
+    {
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $part = $package->getParts()->first();
+        $sha = $this->uploadDirectly($part);
+        $this->client->loginUser($this->user);
+
+        $this->client->request('GET', $this->partUrl($package, $part) . '/signed');
+
+        self::assertResponseIsSuccessful();
+        $response = $this->client->getResponse();
+        self::assertStringContainsString('_semnat.pdf', (string) $response->headers->get('Content-Disposition'));
+        self::assertInstanceOf(BinaryFileResponse::class, $response);
+        self::assertSame($sha, hash_file('sha256', $response->getFile()->getPathname()));
+        self::assertNotNull($this->em->getRepository(AuditLog::class)->findOneBy(['action' => 'filing_signed_part_downloaded', 'entityId' => (string) $this->case->getId()]));
+    }
+
+    public function testInSeparateModeThePackageIsSignedOnlyAfterTheFourthSignature(): void
+    {
+        static::getContainer()->get(AppSettingRepository::class)->set(AppSetting::KEY_FILING_OPIS_PLACEMENT, 'separate');
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $parts = $package->getParts()->toArray();
+        self::assertCount(4, $parts);
+        $this->client->loginUser($this->user);
+
+        foreach ($parts as $i => $part) {
+            $token = $this->uploadTokenFromCard($part);
+            $this->client->request('POST', $this->partUrl($package, $part) . '/signed', ['_token' => $token], ['signed_file' => $this->signedUpload($part)], self::TURBO);
+            self::assertResponseIsSuccessful();
+            $this->em->clear();
+            $status = $this->em->find(FilingPackage::class, $package->getId())?->getStatus();
+            self::assertSame($i < 3 ? FilingPackageStatus::AWAITING_SIGNATURES : FilingPackageStatus::SIGNED, $status);
+        }
+        self::assertStringContainsString($this->trans('filing.signature.package_signed'), (string) $this->client->getResponse()->getContent());
+    }
+
+    public function testRebuildRouteClampsTheExcessAndCreatesANewVersion(): void
+    {
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $this->client->loginUser($this->user);
+        $token = $this->csrfToken('filing_annex_rebuild_' . $package->getId());
+
+        // An excess larger than the whole mailbox is clamped, so the volumes stay plannable.
+        $this->client->request('POST', sprintf('/case/%d/filing/package/%d/rebuild-annexes', $this->case->getId(), $package->getId()), ['_token' => $token, 'excess' => '999999999'], [], self::TURBO);
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString($this->trans('filing.upload.over_budget.rebuilt'), (string) $this->client->getResponse()->getContent());
+        self::assertSame(2, $this->packageCount());
+    }
+
     private function buildUrl(): string
     {
         return '/case/' . $this->case->getId() . '/filing/package/build';
@@ -183,6 +314,52 @@ final class CaseFilingControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
 
         return (string) $crawler->filter('#filing-package-card form[action$="/filing/package/build"] input[name="_token"]')->attr('value');
+    }
+
+    private function uploadTokenFromCard(FilingPackagePart $part): string
+    {
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+        self::assertResponseIsSuccessful();
+        $form = $crawler->filter(sprintf('#filing-package-card [data-testid="filing-part-%d"] form[data-testid="filing-part-upload-form"]', $part->getId()));
+        self::assertCount(1, $form);
+        // A text-only match is confirmed only after upload, once its warnings are shown.
+        self::assertCount(0, $form->filter('input[name="probable_confirmed"]'));
+
+        return (string) $form->filter('input[name="_token"]')->attr('value');
+    }
+
+    private function signedUpload(FilingPackagePart $part): UploadedFile
+    {
+        $path = tempnam(sys_get_temp_dir(), 'ctrlsig');
+        TestPdfSigner::sign($this->filingUploadsDir . '/' . $part->getUnsignedPath(), $path);
+
+        return new UploadedFile($path, 'semnat.pdf', 'application/pdf', null, true);
+    }
+
+    private function uploadDirectly(FilingPackagePart $part): string
+    {
+        $file = $this->signedUpload($part);
+        $sha = (string) hash_file('sha256', $file->getPathname());
+        static::getContainer()->get(SignedPartUploadService::class)->upload($part, $file, $this->user, false);
+
+        return $sha;
+    }
+
+    /** A stateful CSRF token bound to the test client's session (see DeadlineAgendaAuthorizationTest). */
+    private function csrfToken(string $tokenId): string
+    {
+        $this->client->request('GET', '/case/' . $this->case->getId());
+        $request = $this->client->getRequest();
+        $stack = static::getContainer()->get(RequestStack::class);
+        $stack->push($request);
+        try {
+            $token = static::getContainer()->get('security.csrf.token_manager')->getToken($tokenId)->getValue();
+        } finally {
+            $stack->pop();
+        }
+        $request->getSession()->save();
+
+        return $token;
     }
 
     private function packageCount(): int

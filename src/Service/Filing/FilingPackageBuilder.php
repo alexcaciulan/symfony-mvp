@@ -115,6 +115,13 @@ final class FilingPackageBuilder
     public function rebuildAnnexVolumes(FilingPackage $package, int $maxEmailBytes): FilingPackage
     {
         $case = $package->getLegalCase();
+        // Only the current package that has not left yet: a stale one no longer
+        // matches the case, and a sent one is a record of what the court received.
+        $current = $this->packages->findCurrentForCase($case);
+        if ($current?->getId() !== $package->getId()
+            || !in_array($package->getStatus(), [FilingPackageStatus::BUILT, FilingPackageStatus::AWAITING_SIGNATURES, FilingPackageStatus::SIGNED], true)) {
+            throw new FilingPackageBlockedException('filing.package.error.rebuild_not_allowed');
+        }
         $this->assertLawyerNamed($case);
         $previousRanges = $package->getSizePlan()['annexRanges'] ?? [];
         $annexes = $this->annexDocuments($package);
@@ -360,20 +367,9 @@ final class FilingPackageBuilder
             $emails[$email - 1][] = $part->getPartToken();
         }
 
-        $emailBytes = [];
-        foreach ($emails as $i => $tokens) {
-            $bytes = 0;
-            foreach ($package->getParts() as $part) {
-                if (in_array($part->getPartToken(), $tokens, true)) {
-                    $bytes += $part->getSignedBytes() ?? $part->getUnsignedBytes();
-                }
-            }
-            $emailBytes[$i] = ['parts' => $tokens, 'bytes' => $bytes, 'encodedBytes' => (int) ceil($bytes * FilingSizePlanner::ENCODING_FACTOR)];
-        }
-
         return [
             'budget' => $plan->budget,
-            'emails' => $emailBytes,
+            'emails' => FilingSizePlanner::emailBytes($package->getParts(), $emails),
             'annexRanges' => $this->annexBundle->rangesForStorage($ranges),
             'warnings' => $warnings,
             'skippedDocuments' => $skipped,

@@ -60,6 +60,29 @@ final class PdfTextProbe
         return $result;
     }
 
+    /**
+     * Whether every page of the generated file still reads the same in the signed
+     * one. Containment, not equality: a visible signature adds its own words to a
+     * page. A page without text matches only a page without text.
+     *
+     * @param list<string> $unsigned
+     * @param list<string> $signed
+     */
+    public static function pageTextsContained(array $unsigned, array $signed): bool
+    {
+        if (count($unsigned) !== count($signed)) {
+            return false;
+        }
+        foreach ($unsigned as $i => $text) {
+            $other = $signed[$i];
+            if ($text === '' ? $other !== '' : !str_contains($other, $text)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public static function normalize(string $text): string
     {
         return trim((string) preg_replace('/\s+/u', ' ', $text));

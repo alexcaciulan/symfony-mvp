@@ -85,6 +85,26 @@ final class FilingPartWriter
         );
     }
 
+    /**
+     * Stores the lawyer's signed file next to the package, copied byte for byte and
+     * checked against its hash: a signed file is never rewritten.
+     *
+     * @return string the path relative to the uploads directory
+     */
+    public function storeSigned(string $source, string $sha256, FilingPackagePart $part): string
+    {
+        $package = $part->getPackage();
+        $relativeDir = sprintf('cases/%d/filing/v%d/signed', $package->getLegalCase()->getId(), $package->getVersion());
+        $written = [];
+        $relative = $this->store($source, $relativeDir, $part->getRole(), $part->getVolume(), $written, copy: true);
+        if (hash_file('sha256', $this->absolute($relative)) !== $sha256) {
+            $this->removeFiles($written);
+            throw new PdfToolException('Copy of the signed ' . $part->getRole()->value . ' differs from the upload');
+        }
+
+        return $relative;
+    }
+
     public function title(FilingPartRole $role, ?int $volume, ?int $volumeCount = null, bool $withOpis = false): string
     {
         if ($role === FilingPartRole::ANNEX_BUNDLE && $volumeCount !== null && $volumeCount > 1) {

@@ -35,6 +35,13 @@ class CaseVoter extends Voter
      */
     public const STAMP_DUTY_MANAGE = 'CASE_STAMP_DUTY_MANAGE';
 
+    /**
+     * The files of a filing package, signed or not: uploading, confirming and
+     * downloading them. Owner only, with no admin bypass, because their content is
+     * covered by professional secrecy.
+     */
+    public const FILING_CONTENT = 'CASE_FILING_CONTENT';
+
     private const EDITABLE_STATUSES = [
         CaseStatus::AMIABIL,
         CaseStatus::SOMATIE_TRIMISA,
@@ -46,7 +53,7 @@ class CaseVoter extends Voter
 
     protected function supports(string $attribute, mixed $subject): bool
     {
-        return in_array($attribute, [self::VIEW, self::EDIT, self::UPLOAD, self::TRANSITION, self::DEADLINE_MANAGE, self::STAMP_DUTY_MANAGE], true)
+        return in_array($attribute, [self::VIEW, self::EDIT, self::UPLOAD, self::TRANSITION, self::DEADLINE_MANAGE, self::STAMP_DUTY_MANAGE, self::FILING_CONTENT], true)
             && $subject instanceof LegalCase;
     }
 
@@ -60,6 +67,12 @@ class CaseVoter extends Voter
 
         /** @var LegalCase $legalCase */
         $legalCase = $subject;
+
+        // Evaluated before the admin bypass on purpose: an admin sees the package
+        // metadata on the case page, never the files themselves.
+        if ($attribute === self::FILING_CONTENT) {
+            return $this->canView($legalCase, $user);
+        }
 
         if (in_array('ROLE_ADMIN', $user->getRoles(), true)) {
             return true;
