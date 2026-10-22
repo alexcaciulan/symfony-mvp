@@ -8,24 +8,30 @@ use App\DTO\Calculation\AggregatedAccessoryResult;
 use App\DTO\Calculation\PenaltyBreakdownRow;
 use App\Entity\ClaimItem;
 use App\Entity\Document;
+use App\Entity\FilingEmailPart;
+use App\Entity\FilingSubmission;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Enum\CaseStatus;
 use App\Enum\DocumentType;
 use App\Enum\FilingChannel;
 use App\Enum\FilingPackageStatus;
+use App\Enum\FilingPartStatus;
 use App\Enum\PenaltyType;
 use App\Repository\AuditLogRepository;
 use App\Repository\CourtPortalEventRepository;
 use App\Repository\FilingSubmissionRepository;
 use App\Repository\LegalDeadlineRepository;
 use App\Service\Calculation\InterestCalculatorService;
-use App\Service\Court\CourtFilingAddressResolver;
 use App\Service\Calculation\StampDutyCalculator;
+use App\Service\Court\CourtFilingAddressResolver;
 use App\Service\Deadline\DeadlineService;
 use App\Service\Filing\FilingDateService;
 use App\Service\Filing\FilingGate;
+use App\Service\Filing\FilingNotifier;
 use App\Service\Filing\FilingPackageStalenessChecker;
+use App\Service\Filing\FilingResplitService;
+use App\Service\Filing\FilingResumeService;
 use App\Service\Filing\FilingSendGuard;
 use App\Service\Filing\FilingSubmissionService;
 use App\Service\Portal\RulingProposalResolver;
@@ -57,7 +63,52 @@ final class OverviewContextBuilder
         private readonly FilingSendGuard $filingSendGuard,
         private readonly FilingSubmissionService $filingSubmissionService,
         private readonly FilingDateService $filingDates,
+        private readonly FilingResumeService $filingResume,
+        private readonly FilingResplitService $filingResplit,
     ) {}
+
+    private function firstWithStatus(FilingSubmission $submission, FilingPartStatus $status): ?FilingEmailPart
+    {
+        foreach ($submission->getParts() as $part) {
+            if ($part->getStatus() === $status) {
+                return $part;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * What the card says about the latest failure: the kind, the SMTP code, the
+     * next retry (Romanian time) and whether the court address was taken out of use.
+     *
+     * @return array{part: FilingEmailPart, kind: string, code: ?int, enhanced: ?string, next_retry_at: ?\DateTimeImmutable, address_invalidated: bool}|null
+     */
+    private function filingFailure(FilingSubmission $submission): ?array
+    {
+        $failed = null;
+        foreach ($submission->getParts() as $part) {
+            if ($part->isFailed() || in_array($part->getStatus(), [FilingPartStatus::RETRY_SCHEDULED, FilingPartStatus::UNCERTAIN], true)) {
+                $failed = $part;
+                break;
+            }
+        }
+        if ($failed === null) {
+            return null;
+        }
+        $address = $submission->getCourtEmailAddress();
+
+        return [
+            'part' => $failed,
+            'kind' => FilingNotifier::kindOf($failed),
+            'code' => $failed->getLastSmtpCode(),
+            'enhanced' => $failed->getLastEnhancedStatus(),
+            'next_retry_at' => $failed->getStatus() === FilingPartStatus::RETRY_SCHEDULED
+                ? $failed->latestSmtpAttempt()?->getNextRetryAt()?->setTimezone(new \DateTimeZone('Europe/Bucharest'))
+                : null,
+            'address_invalidated' => $address !== null && $address->getInvalidatedBySubmission()?->getId() === $submission->getId(),
+        ];
+    }
 
     /**
      * @param array<string, mixed> $extra Overrides or additions on top of
@@ -116,6 +167,13 @@ final class OverviewContextBuilder
             'filing_package' => $filingPackage,
             'filing_submission' => $filingSubmission,
             'filing_submission_cancellable' => $filingSubmission !== null && $this->filingSubmissionService->isCancellable($filingSubmission),
+            'filing_submission_closable' => $filingSubmission !== null && $this->filingSubmissionService->isClosable($filingSubmission),
+            'filing_submission_resumable' => $filingSubmission !== null && $this->filingResume->isResumable($filingSubmission),
+            'filing_submission_resplittable' => $filingSubmission !== null && $filingPackage?->getId() === $filingSubmission->getPackage()->getId()
+                && $this->filingResplit->isResplittable($filingSubmission),
+            'filing_submission_uncertain_part' => $filingSubmission?->isActive() ? $this->firstWithStatus($filingSubmission, FilingPartStatus::UNCERTAIN) : null,
+            'filing_submission_stalled' => $filingSubmission?->isStalled() ?? false,
+            'filing_submission_failure' => $filingSubmission !== null ? $this->filingFailure($filingSubmission) : null,
             // Only worth asking once there is something signed to send and nothing on its way.
             'filing_send_verdict' => $case->getStatus() === CaseStatus::CERERE_GENERATA
                 && $filingPackage?->getStatus() === FilingPackageStatus::SIGNED

@@ -30,6 +30,12 @@ enum NotificationType: string
     case SLOT_OVERAGE = 'slot_overage';
     case FILING_SENT = 'filing_sent';
     case FILING_ANNEXES_CANCELLED = 'filing_annexes_cancelled';
+    case FILING_FAILED_TEMPORARY = 'filing_failed_temporary';
+    case FILING_FAILED_PERMANENT = 'filing_failed_permanent';
+    case FILING_FAILED_SIZE = 'filing_failed_size';
+    case FILING_FAILED_INTERNAL = 'filing_failed_internal';
+    case FILING_NEEDS_REVIEW = 'filing_needs_review';
+    case FILING_PARTIALLY_SENT = 'filing_partially_sent';
 
     public function label(): string
     {
@@ -55,6 +61,12 @@ enum NotificationType: string
             self::SLOT_OVERAGE => 'card',
             self::FILING_SENT => 'document',
             self::FILING_ANNEXES_CANCELLED => 'document',
+            self::FILING_FAILED_TEMPORARY => 'document',
+            self::FILING_FAILED_PERMANENT => 'document',
+            self::FILING_FAILED_SIZE => 'document',
+            self::FILING_FAILED_INTERNAL => 'document',
+            self::FILING_NEEDS_REVIEW => 'document',
+            self::FILING_PARTIALLY_SENT => 'document',
         };
     }
 

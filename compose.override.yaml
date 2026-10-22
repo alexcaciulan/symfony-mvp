@@ -17,6 +17,8 @@ services:
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: 1
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
+      # Chaos (forced SMTP errors) stays off unless a live check turns it on.
+      MP_ENABLE_CHAOS: ${MP_ENABLE_CHAOS:-0}
     networks:
       - symfony-network
 ###< symfony/mailer ###

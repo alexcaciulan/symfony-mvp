@@ -6,6 +6,7 @@ namespace App\Service\Court;
 
 use App\Entity\Court;
 use App\Entity\CourtEmailAddress;
+use App\Entity\FilingSubmission;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\CourtEmailPurpose;
@@ -107,17 +108,25 @@ class CourtEmailAddressService
         $this->em->flush();
     }
 
-    /** @param string $reason a fixed code, never free text that could carry personal data */
-    public function markInvalid(CourtEmailAddress $address, string $reason, ?LegalCase $context = null): void
+    /**
+     * @param string               $reason  a fixed code, never free text that could carry personal data
+     * @param ?FilingSubmission    $by      the court filing whose SMTP rejection caused it
+     * @param array<string, mixed> $details SMTP code, enhanced status and the like, for the audit
+     */
+    public function markInvalid(CourtEmailAddress $address, string $reason, ?LegalCase $context = null, ?FilingSubmission $by = null, array $details = []): void
     {
         if (!in_array($address->getStatus(), [CourtEmailStatus::PROPOSED, CourtEmailStatus::VALIDATED], true)) {
             throw new CourtEmailActionRefusedException('court_address.validation.error.not_allowed_state');
         }
         $old = $this->snapshot($address);
         // The confirmation fields stay as the record of who relied on the address.
-        $address->markInvalid($this->now(), $reason);
+        $address->markInvalid($this->now(), $reason, $by);
 
-        $this->audit('court_email_invalidated', $address, $old, ['invalidReason' => $address->getInvalidReason()], $context);
+        $extra = ['invalidReason' => $address->getInvalidReason()];
+        if ($by !== null) {
+            $extra['submissionId'] = $by->getId();
+        }
+        $this->audit('court_email_invalidated', $address, $old, $extra + $details, $context ?? $by?->getLegalCase());
         $this->em->flush();
     }
 

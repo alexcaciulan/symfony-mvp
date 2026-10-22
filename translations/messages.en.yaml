@@ -2408,6 +2408,7 @@ enum:
         NEEDS_REVIEW: 'Needs checking'
         CANCELLED: 'Cancelled'
         UNDELIVERED: 'Undelivered'
+        CLOSED_PARTIAL: 'Closed without all annexes'
     filing_evidence_status:
         AWAITING_RECEIPT: 'No receipt confirmation'
         RECEIPT_RECEIVED: 'Receipt confirmation received'
@@ -2658,6 +2659,12 @@ enum:
     notification_type:
         filing_sent: 'Petition transmitted to the court'
         filing_annexes_cancelled: 'Annexes not transmitted'
+        filing_failed_temporary: 'Transmission temporarily not accepted'
+        filing_failed_permanent: 'Transmission refused'
+        filing_failed_size: 'Transmission refused for size'
+        filing_failed_internal: 'Transmission stopped (internal error)'
+        filing_needs_review: 'Transmission needing review'
+        filing_partially_sent: 'Petition sent without all annexes'
         case_status: 'Case status'
         deadline_alert: 'Deadline'
         missing_communication_date: 'Missing service date'
@@ -2866,6 +2873,18 @@ email:
         subject: 'Petition transmitted to the court: %case%'
     filing_annexes_cancelled:
         subject: 'Annexes not transmitted to the court: %case%'
+    filing_failed_temporary:
+        subject: 'Sending to the court did not work: %case%'
+    filing_failed_permanent:
+        subject: 'Sending to the court was refused: %case%'
+    filing_failed_size:
+        subject: 'Sending to the court was refused for size: %case%'
+    filing_failed_internal:
+        subject: 'Sending to the court stopped: %case%'
+    filing_needs_review:
+        subject: 'The transmission to the court needs review: %case%'
+    filing_partially_sent:
+        subject: 'Petition sent without all annexes: %case%'
     sender_name: 'LexRecovery'
     footer_disclaimer: 'This message is informational and does not constitute legal advice. Always verify deadlines and rulings directly on the court portal.'
     cta:
@@ -2999,6 +3018,36 @@ notification:
     filing_annexes_cancelled:
         title: 'Annexes not transmitted: %case%'
         message: 'Only these were transmitted: %sent%. Not transmitted: %not_sent%. The annexes were not sent and must be filed separately.'
+    filing_failed_temporary:
+        retrying:
+            title: 'Sending did not work: %case%'
+            message: 'Email %k% of %n% was not accepted by the recipient''s server (temporary error, code %code%). It is retried automatically after 5 minutes, 30 minutes and 2 hours; next try: %next%. The automatic retry does not guarantee delivery. If a deadline is close, check the situation and, if needed, file through another channel.'
+        exhausted:
+            title: 'Sending failed after the retries: %case%'
+            message: 'Email %k% of %n% was not accepted by the recipient''s server even after the automatic retries (last code: %code%). Nothing else is sent automatically. If a deadline is close, check the situation and, if needed, file through another channel.'
+    filing_failed_permanent:
+        address:
+            title: 'Sending was refused: %case%'
+            message: 'The recipient''s server rejected the address (code %code%). Check the address with the court registry. The address is out of use until it is confirmed again. Nothing was resent.'
+        other:
+            title: 'Sending was refused: %case%'
+            message: 'The recipient''s server refused email %k% of %n% for good (code %code%). Nothing was resent. Check the situation and, if needed, file through another channel.'
+    filing_failed_size:
+        resplit:
+            title: 'Email refused for size: %case%'
+            message: 'The recipient''s server refused email %k% of %n% because of its size (code %code%). The annexes can be split into smaller volumes, which are signed again before a new transmission.'
+        other_channel:
+            title: 'Email refused for size: %case%'
+            message: 'The recipient''s server refused email %k% of %n% because of its size (code %code%). A new split is not available for this email. Check the situation and, if needed, file through another channel.'
+    filing_failed_internal:
+        title: 'The transmission stopped: %case%'
+        message: 'Email %k% of %n% was not sent (internal error, for example a signed file missing or changed). The details are on the case card.'
+    filing_needs_review:
+        title: 'The transmission needs review: %case%'
+        message: '%reason%'
+    filing_partially_sent:
+        title: 'Petition sent without all annexes: %case%'
+        message: 'The petition was accepted by the recipient''s server, but email %k% of %n% was not accepted (%kind%, code %code%). Not all annexes were accepted by the server. On the case card the remaining emails can be sent again, or the transmission closed with the annexes filed through another channel.'
     deadline_alert:
         procedural:
             title: '%type% deadline on case %case%'
@@ -3526,6 +3575,10 @@ filing:
             FAILED_SIZE: 'The transmission failed'
             FAILED_INTERNAL: 'The transmission failed'
             UNDELIVERED: 'The message was not delivered to the court'
+            CLOSED_PARTIAL: 'The petition was sent, but the transmission was closed without all annexes'
+            stalled: 'The petition was sent, but not all annexes were accepted'
+            NEEDS_REVIEW_after_petition: 'The petition was sent; the transmission of the rest stopped and needs review'
+            retrying: 'Sending did not work; it is retried automatically'
         recipient: 'Recipient: %address%'
         override_note: 'Test environment: the message was sent to the simulation address, not to %address%.'
         part: 'Email %k% of %n%'
@@ -3537,6 +3590,8 @@ filing:
         cancel: 'Cancel the transmission'
         cancelled: 'The transmission was cancelled. Nothing left for the court.'
         cancel_refused: 'The transmission can no longer be cancelled: at least one email left or is being sent.'
+        attempt_line: 'Try %no%, %date%: %source%, %outcome%%code%'
+        attempt_running: 'in progress'
         review:
             annexes_cancelled: 'The case received a court number before every email left. Only the documents marked as accepted were transmitted; the remaining annexes were not sent and must be filed separately.'
             case_moved_on: 'The case status changed during the transmission, so the remaining emails were not sent.'
@@ -3545,8 +3600,8 @@ filing:
             signed_file_changed: 'A signed file no longer matches the uploaded one, so it was not sent.'
             not_active: 'The transmission is no longer active.'
             part_cancelled: 'The email was cancelled.'
-            part_uncertain: 'Sending an email was interrupted and it is unknown whether the server received it. The lawyer''s CC copy needs checking; nothing was resent.'
-            send_failed: 'The mail server did not accept the message. Nothing was resent automatically.'
+            part_uncertain: 'Sending an email was interrupted and it is unknown whether the recipient''s server received it. Nothing was resent. The lawyer declares below whether the CC copy arrived.'
+            annexes_cancelled_pending: 'The case received a court number during the transmission. The remaining emails are no longer sent; the transmission closes once the email in progress is clarified.'
             recipient_changed: 'The effective recipient changed since the transmission was requested (platform configuration).'
             too_large: 'The email exceeds the size limit and was not sent.'
             internal_error: 'The email could not be prepared for sending.'
@@ -3683,6 +3738,68 @@ filing:
         action_validate: 'Confirm the court address'
         action_revalidate: 'Confirm the court address again'
         open_page: 'Court address'
+    failure:
+        kind:
+            temporary: 'temporary error'
+            permanent: 'permanent refusal'
+            size: 'size'
+            internal: 'internal error'
+            uncertain: 'unknown outcome'
+        reason:
+            temporary: 'Email %k% of %n% was not accepted by the recipient''s server (temporary error).'
+            permanent: 'The recipient''s server refused email %k% of %n% for good.'
+            size: 'The recipient''s server refused email %k% of %n% because of its size.'
+            internal: 'Email %k% of %n% was not sent (internal error, for example a signed file missing or changed).'
+            uncertain: 'Sending email %k% of %n% was interrupted; it is unknown whether the recipient''s server received it.'
+        code: 'SMTP code: %code%'
+        next_retry: 'Next automatic try: %date%'
+        deadline_warning: 'The automatic retry does not guarantee delivery. If a deadline is close, check the situation and, if needed, file through another channel.'
+        address_rejected: 'The recipient''s server rejected the address. Check the address with the court registry.'
+        permanent_other: 'The refusal does not necessarily concern the court address, which stays in use. Check the situation and, if needed, file through another channel.'
+        address_link: 'The court''s email address'
+        responsibility: 'The platform only reports the mail server''s answer. Checking the filing and the deadlines remains the lawyer''s responsibility.'
+    uncertain:
+        title: 'Email %k% of %n%: unknown outcome'
+        explain: 'The CC copy only shows the message left, not that the court received it. The declaration below is the lawyer''s.'
+        received_cta: 'I received the CC copy'
+        not_received_cta: 'I did not receive the CC copy'
+        not_received: 'The lawyer declared the CC copy was not received.'
+        saved: 'The declaration was recorded.'
+        refused: 'The email no longer has an unknown outcome.'
+        confirm:
+            cc_received: 'I declare that I received the CC copy of this message.'
+            cc_received_petition: 'I declare that I received the CC copy. The platform will consider the petition sent, with the time approximated to the last attempt; I declare the filing date separately.'
+            cc_not_received: 'I declare that I did not receive the CC copy of this message.'
+    resume:
+        cta: 'Send the remaining parts'
+        confirm: 'I checked the situation. Only the emails of this transmission that were not accepted are sent again, in the same thread; the petition is not sent again.'
+        queued: 'The remaining emails were queued.'
+        refused: 'Resuming is not available in the current state of the transmission.'
+    close:
+        cta: 'Close without the remaining annexes'
+        warning: 'The recipient''s server accepted the petition, but not all annexes. The remaining annexes are filed through another channel (registry, post or courier); the platform no longer sends them.'
+        done: 'The transmission was closed. The remaining annexes were not sent.'
+        refused: 'Closing is not available in the current state of the transmission.'
+        confirm:
+            incomplete: 'The petition was sent without all annexes; the remaining annexes are filed through another channel.'
+    resplit:
+        cta: 'Split the annexes again'
+        proposal: 'The annexes can be split into smaller volumes. The new volumes are signed again, then a new transmission is requested.'
+        cannot_help: 'Splitting the annexes again cannot make this email small enough. Check the situation and, if needed, file through another channel.'
+        after_petition: 'The remaining annexes are not split again once the petition was sent. Check the situation and, if needed, file the annexes through another channel.'
+        done: 'The annexes were split into smaller volumes. The new volumes must be signed before a new transmission.'
+        error:
+            not_allowed: 'A new split of the annexes is not available for this transmission.'
+    override:
+        failed: 'Marked as not sent by an administrator.'
+        error:
+            reason_required: 'The reason is required (at least 10 characters).'
+            not_allowed: 'The action is not allowed.'
+            petition_lawyer_only: 'Only the lawyer declares the petition accepted.'
+        flash:
+            saved: 'The email status was updated.'
+            closed: 'The transmission was closed.'
+            csrf: 'The form session expired. Reload the page and try again.'
 court_address:
     validation:
         page_title: 'Court address'

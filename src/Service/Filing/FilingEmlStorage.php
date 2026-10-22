@@ -9,7 +9,8 @@ use App\Entity\FilingEmailPart;
 /**
  * The exact bytes of each court email, kept next to the case's package files.
  * Written before the SMTP hand-off, so the record of what was sent never depends
- * on rebuilding the message.
+ * on rebuilding the message. Each try has its own copy: a retry never overwrites
+ * what an earlier one handed over.
  */
 final class FilingEmlStorage
 {
@@ -18,14 +19,15 @@ final class FilingEmlStorage
     ) {}
 
     /** @return string the path relative to the uploads directory */
-    public function write(FilingEmailPart $part, string $bytes): string
+    public function write(FilingEmailPart $part, int $attemptNo, string $bytes): string
     {
         $submission = $part->getSubmission();
         $relative = sprintf(
-            'cases/%d/filing/submissions/%s/%d.eml',
+            'cases/%d/filing/submissions/%s/%d-a%d.eml',
             (int) $submission->getLegalCase()->getId(),
             $submission->getToken(),
             $part->getSequence(),
+            $attemptNo,
         );
         $absolute = $this->uploadsDir . '/' . $relative;
         $dir = dirname($absolute);

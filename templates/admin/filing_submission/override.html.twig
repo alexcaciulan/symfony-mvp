@@ -1,0 +1,58 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Deblocare transmitere · #{{ submission.id }}{% endblock %}
+
+{# Metadata only: statuses, codes and attempts. No subject, body, statements or .eml copies. #}
+{% block body %}
+<div style="max-width: 760px; margin: 40px auto; padding: 0 16px;">
+    <div style="margin-bottom: 20px;">
+        <a href="{{ back_url }}" style="color: #2563eb; text-decoration: none; font-size: 14px;">Înapoi la transmitere</a>
+    </div>
+
+    <h2 style="font-size: 20px; font-weight: 600; color: #111827; margin: 0 0 8px 0;">Deblocare operațională a transmiterii #{{ submission.id }}</h2>
+    <p style="font-size: 13px; color: #6b7280; margin: 0 0 20px 0;">Acțiunile de aici doar deblochează dosarul. Nu declară primirea cererii de către instanță și nu modifică data depunerii. Motivul este obligatoriu și se păstrează în jurnalul de audit.</p>
+
+    <div style="background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px; margin-bottom: 20px; font-size: 14px;">
+        <p style="margin: 0 0 8px 0;">Dosar #{{ submission.legalCase.id }} · stare: <strong data-testid="admin-submission-status">{{ submission.deliveryStatus.value }}</strong>{% if submission.reviewReason %} · motiv: {{ submission.reviewReason }}{% endif %}</p>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+            <tr style="text-align: left; color: #6b7280;"><th style="padding: 4px;">E-mail</th><th style="padding: 4px;">Stare</th><th style="padding: 4px;">Încercări</th><th style="padding: 4px;">Ultimul cod SMTP</th></tr>
+            {% for part in submission.parts %}
+                <tr>
+                    <td style="padding: 4px;">{{ part.sequence }} din {{ part.total }}</td>
+                    <td style="padding: 4px;">{{ part.status.value }}</td>
+                    <td style="padding: 4px;">
+                        {% for attempt in part.attempts %}
+                            #{{ attempt.attemptNo }} {{ attempt.source.value }} {{ attempt.outcome ? attempt.outcome.value : '…' }} {{ attempt.startedAt|date('d.m.Y H:i', 'Europe/Bucharest') }}{% if not loop.last %}<br>{% endif %}
+                        {% endfor %}
+                    </td>
+                    <td style="padding: 4px;">{{ part.lastSmtpCode ?? '-' }} {{ part.lastEnhancedStatus }}</td>
+                </tr>
+                {% if part.status.value == 'UNCERTAIN' %}
+                    <tr><td colspan="4" style="padding: 8px 4px;">
+                        <form method="post" action="{{ path('admin_filing_submission_part_override', {id: submission.id, sequence: part.sequence}) }}" data-testid="admin-override-form-{{ part.sequence }}">
+                            <input type="hidden" name="_token" value="{{ csrf_token('filing_override_' ~ submission.id ~ '_' ~ part.sequence) }}">
+                            <select name="outcome" style="padding: 6px; border: 1px solid #d1d5db; border-radius: 6px;">
+                                <option value="failed">Marchează ca netrimis (permite reluarea)</option>
+                                {% if part.sequence > 1 %}<option value="accepted">Marchează ca trimis (doar anexe)</option>{% endif %}
+                            </select>
+                            <input type="text" name="reason" required minlength="10" maxlength="500" placeholder="Motiv (obligatoriu)" style="width: 60%; padding: 6px; border: 1px solid #d1d5db; border-radius: 6px;">
+                            <button type="submit" style="padding: 6px 14px; background: #2563eb; color: #fff; border: none; border-radius: 6px;">Aplică</button>
+                        </form>
+                    </td></tr>
+                {% endif %}
+            {% endfor %}
+        </table>
+    </div>
+
+    {% if closable %}
+        <div style="background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px; font-size: 14px;">
+            <p style="margin: 0 0 8px 0;">Închide transmiterea: e-mailurile neplecate nu mai sunt trimise, iar dosarul este deblocat.</p>
+            <form method="post" action="{{ path('admin_filing_submission_close', {id: submission.id}) }}" data-testid="admin-close-form">
+                <input type="hidden" name="_token" value="{{ csrf_token('filing_admin_close_' ~ submission.id) }}">
+                <input type="text" name="reason" required minlength="10" maxlength="500" placeholder="Motiv (obligatoriu)" style="width: 70%; padding: 6px; border: 1px solid #d1d5db; border-radius: 6px;">
+                <button type="submit" style="padding: 6px 14px; background: #b91c1c; color: #fff; border: none; border-radius: 6px;">Închide</button>
+            </form>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

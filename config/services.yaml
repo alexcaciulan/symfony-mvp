@@ -117,6 +117,7 @@ services:
             $courtFilingRecipientOverride: '%env(default::COURT_FILING_RECIPIENT_OVERRIDE)%'
             $courtFilingMailerDsn: '%env(COURT_FILING_MAILER_DSN)%'
             $filingEmailChannelSince: '%lexrecovery.filing.email_channel_since%'
+            $sendingStaleSeconds: '%env(int:COURT_FILING_SENDING_STALE_SECONDS)%'
 
     # interface-based auto-tagging (Strategy + Tagged Iterator pattern)
     _instanceof:

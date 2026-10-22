@@ -17,6 +17,29 @@ final class NotificationTypeTest extends TestCase
         self::assertSame('portal_event', NotificationType::PORTAL_EVENT->value);
         self::assertSame('filing_sent', NotificationType::FILING_SENT->value);
         self::assertSame('filing_annexes_cancelled', NotificationType::FILING_ANNEXES_CANCELLED->value);
+        self::assertSame('filing_failed_temporary', NotificationType::FILING_FAILED_TEMPORARY->value);
+        self::assertSame('filing_failed_permanent', NotificationType::FILING_FAILED_PERMANENT->value);
+        self::assertSame('filing_failed_size', NotificationType::FILING_FAILED_SIZE->value);
+        self::assertSame('filing_failed_internal', NotificationType::FILING_FAILED_INTERNAL->value);
+        self::assertSame('filing_needs_review', NotificationType::FILING_NEEDS_REVIEW->value);
+        self::assertSame('filing_partially_sent', NotificationType::FILING_PARTIALLY_SENT->value);
+    }
+
+    public function testFilingFailureTypesAreHighTierAndNeverMuted(): void
+    {
+        $types = [
+            NotificationType::FILING_FAILED_TEMPORARY,
+            NotificationType::FILING_FAILED_PERMANENT,
+            NotificationType::FILING_FAILED_SIZE,
+            NotificationType::FILING_FAILED_INTERNAL,
+            NotificationType::FILING_NEEDS_REVIEW,
+            NotificationType::FILING_PARTIALLY_SENT,
+        ];
+        foreach ($types as $type) {
+            self::assertFalse($type->suppressible(), $type->value);
+            self::assertSame('high', $type->tier(), $type->value);
+            self::assertSame('document', $type->icon(), $type->value);
+        }
     }
 
     public function testLabelKeyFollowsConvention(): void

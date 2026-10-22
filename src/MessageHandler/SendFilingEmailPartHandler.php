@@ -6,41 +6,47 @@ namespace App\MessageHandler;
 
 use App\Entity\FilingAttempt;
 use App\Entity\FilingEmailPart;
-use App\Entity\FilingSubmission;
-use App\Entity\LegalCase;
 use App\Enum\FilingAttemptOutcome;
 use App\Enum\FilingAttemptSource;
 use App\Enum\FilingDeliveryStatus;
 use App\Enum\FilingPartStatus;
 use App\Message\SendFilingEmailPartMessage;
-use App\Service\AuditLogService;
 use App\Service\Filing\BuiltFilingEmail;
 use App\Service\Filing\CourtFilingEmailException;
 use App\Service\Filing\CourtFilingEmailFactory;
 use App\Service\Filing\CourtFilingNotAllowedException;
-use App\Service\Filing\FilingCompletion;
 use App\Service\Filing\FilingEmlStorage;
-use App\Service\Filing\FilingLockQuery;
+use App\Service\Filing\FilingPartOutcomeApplier;
 use App\Service\Filing\FilingSendGuard;
 use App\Service\Filing\RecipientOverrideGuard;
+use App\Service\Filing\SmtpFailureClassifier;
+use App\Service\Filing\SmtpFailureKind;
 use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Clock\ClockInterface;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use Symfony\Component\Mailer\Transport\TransportInterface;
 use Symfony\Component\Messenger\Attribute\AsMessageHandler;
+use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\Exception\UnrecoverableMessageHandlingException;
 use Symfony\Component\Messenger\MessageBusInterface;
+use Symfony\Component\Messenger\Stamp\DelayStamp;
 use Symfony\Component\Mime\RawMessage;
 
 /**
  * Sends one email of a court filing on the `court_filing` worker. The part is
  * marked SENDING and its exact bytes written to disk in a committed transaction
- * before the SMTP hand-off, so a crash mid-send leaves a part that is recognised
- * as uncertain instead of being sent a second time. The conditions are checked
- * again here, since time passed since the lawyer's request. Every failure stops
- * the submission for review without an automatic resend; classifying temporary
- * SMTP errors for retries is a separate concern.
+ * before the SMTP hand-off. The conditions are checked again before every try,
+ * since time passed since the lawyer's request.
+ *
+ * Failure policy: a temporary SMTP failure (4xx, connection or TLS before the
+ * message was complete) is rethrown so the transport retries it after 5 min,
+ * 30 min and 2 h; a permanent or size refusal and an internal error (a signed
+ * file missing or changed) end the part at once without using up the retries.
+ * A connection lost after the whole message was written, or a part found
+ * mid-send past the stale window, is uncertain and never sent again on its own:
+ * resending could file the petition twice. A redelivery that finds the part
+ * mid-send inside the window looks again later instead of sending.
  */
 #[AsMessageHandler]
 final class SendFilingEmailPartHandler
@@ -51,13 +57,13 @@ final class SendFilingEmailPartHandler
         private readonly RecipientOverrideGuard $recipientGuard,
         private readonly CourtFilingEmailFactory $emailFactory,
         private readonly FilingEmlStorage $emlStorage,
-        private readonly FilingCompletion $completion,
-        private readonly FilingLockQuery $filingLock,
-        private readonly AuditLogService $auditLogService,
+        private readonly FilingPartOutcomeApplier $outcomes,
+        private readonly SmtpFailureClassifier $classifier,
         private readonly MessageBusInterface $bus,
         private readonly ClockInterface $clock,
         private readonly TransportInterface $courtFilingTransport,
         private readonly int $filingMaxEmailBytes,
+        private readonly int $sendingStaleSeconds,
     ) {}
 
     public function __invoke(SendFilingEmailPartMessage $message): void
@@ -71,51 +77,20 @@ final class SendFilingEmailPartHandler
         try {
             $this->courtFilingTransport->send(new RawMessage($built->bytes), $built->envelope);
         } catch (\Throwable $e) {
-            $this->inTransaction(function () use ($part, $attempt, $e): void {
-                $code = $e instanceof TransportExceptionInterface && $e->getCode() >= 200 ? $e->getCode() : null;
-                $attempt->finish(FilingAttemptOutcome::INTERNAL, $this->clock->now(), $code, null, $e::class, 'SMTP hand-off failed');
-                $part->recordFailure(FilingPartStatus::FAILED_INTERNAL, $code, null, $e::class);
-                $this->stopForReview($part->getSubmission(), 'filing.status.review.send_failed');
-            });
-
-            throw new UnrecoverableMessageHandlingException('Court filing email was not accepted.', 0, $e);
+            $this->onSendFailure($part, $attempt, $e);
         }
 
         $this->inTransaction(function () use ($part, $attempt): void {
+            $this->lockFresh($part);
             $now = $this->clock->now();
             $attempt->finish(FilingAttemptOutcome::ACCEPTED, $now);
-            $part->markAccepted($now);
-            $submission = $part->getSubmission();
-            $this->audit($submission, 'filing_part_accepted', ['sequence' => $part->getSequence(), 'messageId' => $part->getMessageId(), 'encodedBytes' => $part->getEncodedBytes()]);
-
-            if ($part->isFirst()) {
-                $this->completion->onPetitionAccepted($submission);
-            }
-            if ($submission->getDeliveryStatus() === FilingDeliveryStatus::NEEDS_REVIEW) {
-                return;
-            }
-
-            if ($part->isLast()) {
-                $submission->setDeliveryStatus(FilingDeliveryStatus::SENT);
-                $submission->setSentAt($submission->getPart(1)?->getSentAt());
-                $submission->release();
-                $this->filingLock->forget($submission->getLegalCase());
-
-                return;
-            }
-
-            $submission->setDeliveryStatus(FilingDeliveryStatus::PARTIALLY_SENT);
-            $submission->setSentAt($submission->getPart(1)?->getSentAt());
-            $next = $submission->getPart($part->getSequence() + 1);
-            $this->em->flush();
-            if ($next !== null) {
-                $this->bus->dispatch(new SendFilingEmailPartMessage((int) $next->getId()));
-            }
+            // A definitive answer wins over an "uncertain" set by a recheck meanwhile.
+            $this->outcomes->accepted($part, $now, FilingAttemptSource::SMTP);
         });
     }
 
     /**
-     * Claims the part and writes its bytes, or decides it must not be sent.
+     * Claims the part and writes its bytes, or decides it must not be sent now.
      *
      * @return array{0: FilingEmailPart, 1: FilingAttempt, 2: BuiltFilingEmail}|null
      */
@@ -127,59 +102,71 @@ final class SendFilingEmailPartHandler
             if (!$part instanceof FilingEmailPart) {
                 return null;
             }
-            $this->em->lock($part, LockMode::PESSIMISTIC_WRITE);
-            $this->em->refresh($part);
+            $this->lockFresh($part);
             $submission = $part->getSubmission();
-            $this->em->refresh($submission);
+            $now = $this->clock->now();
 
             if ($part->getStatus() === FilingPartStatus::SENDING) {
-                // A previous run died between the claim and the answer: whether the server
-                // took the message is unknown, and sending again could file the petition twice.
-                $attempt = new FilingAttempt($part, $part->getAttemptCount() + 1, FilingAttemptSource::SMTP, $this->clock->now());
-                $attempt->finish(FilingAttemptOutcome::UNCERTAIN, $this->clock->now(), message: 'Found mid-send on redelivery');
-                $this->em->persist($attempt);
-                $part->setStatus(FilingPartStatus::UNCERTAIN);
-                $this->stopForReview($submission, 'filing.status.review.part_uncertain');
+                $this->onFoundMidSend($part, $now);
 
                 return null;
             }
-            if ($part->getStatus() !== FilingPartStatus::PENDING || !$submission->isActive()
-                || $submission->getDeliveryStatus() === FilingDeliveryStatus::NEEDS_REVIEW) {
+            if (!in_array($part->getStatus(), [FilingPartStatus::PENDING, FilingPartStatus::RETRY_SCHEDULED], true)
+                || !$submission->isActive() || $submission->getDeliveryStatus() === FilingDeliveryStatus::NEEDS_REVIEW) {
                 return null;
             }
 
             $verdict = $this->guard->checkForPart($part);
             if (!$verdict->isAllowed()) {
-                $this->stopForReview($submission, (string) $verdict->firstBlocker());
+                $blocker = (string) $verdict->firstBlocker();
+                if ($blocker === 'filing.status.review.signed_file_changed') {
+                    $attempt = new FilingAttempt($part, $part->nextAttemptNo(), FilingAttemptSource::SMTP, $now);
+                    $attempt->finish(FilingAttemptOutcome::INTERNAL, $now, message: $blocker);
+                    $this->em->persist($attempt);
+                    $this->outcomes->failed($part, FilingPartStatus::FAILED_INTERNAL, null, $blocker);
+                    $failure = new CourtFilingEmailException($blocker);
+
+                    return null;
+                }
+                // Not retried by the transport any more: the lawyer resumes or cancels.
+                if ($part->getStatus() === FilingPartStatus::RETRY_SCHEDULED) {
+                    $part->setStatus(FilingPartStatus::PENDING);
+                }
+                $this->outcomes->review($submission, $blocker);
 
                 return null;
             }
 
-            $attempt = new FilingAttempt($part, $part->startAttempt(), FilingAttemptSource::SMTP, $this->clock->now());
+            $attemptNo = $part->nextAttemptNo();
+            $attempt = new FilingAttempt($part, $attemptNo, FilingAttemptSource::SMTP, $now);
             $this->em->persist($attempt);
-            if ($submission->getDeliveryStatus() === FilingDeliveryStatus::QUEUED) {
-                $submission->setDeliveryStatus(FilingDeliveryStatus::SENDING);
-            }
 
             try {
                 $to = $this->recipientGuard->resolve($submission->getIntendedToAddress(), $submission->getCcAddress());
                 if ($to !== $submission->getToAddress()) {
                     throw new CourtFilingEmailException('filing.status.review.recipient_changed');
                 }
-                $built = $this->emailFactory->build($part, $to, $this->clock->now());
+                $built = $this->emailFactory->build($part, $to, $now);
                 if ($built->encodedBytes > $this->filingMaxEmailBytes) {
+                    $part->recordEncodedBytes($built->encodedBytes);
                     throw new CourtFilingEmailException('filing.status.review.too_large');
                 }
-                $path = $this->emlStorage->write($part, $built->bytes);
+                $path = $this->emlStorage->write($part, $attemptNo, $built->bytes);
                 $part->recordEml($path, $built->sha256, $built->encodedBytes);
             } catch (CourtFilingEmailException | CourtFilingNotAllowedException | \RuntimeException $e) {
+                // Nothing reached a server: these never use up the SMTP retries.
                 $key = $e instanceof CourtFilingEmailException ? $e->messageKey : 'filing.status.review.internal_error';
-                $attempt->finish(FilingAttemptOutcome::INTERNAL, $this->clock->now(), errorClass: $e::class, message: $key);
-                $part->recordFailure(FilingPartStatus::FAILED_INTERNAL, null, null, $key);
-                $this->stopForReview($submission, $key);
+                $tooLarge = $key === 'filing.status.review.too_large';
+                $attempt->finish($tooLarge ? FilingAttemptOutcome::SIZE : FilingAttemptOutcome::INTERNAL, $now, errorClass: $e::class, message: $key);
+                $this->outcomes->failed($part, $tooLarge ? FilingPartStatus::FAILED_SIZE : FilingPartStatus::FAILED_INTERNAL, null, $key);
                 $failure = $e;
 
                 return null;
+            }
+
+            $part->startAttempt();
+            if ($submission->getDeliveryStatus() === FilingDeliveryStatus::QUEUED) {
+                $submission->setDeliveryStatus(FilingDeliveryStatus::SENDING);
             }
 
             return [$part, $attempt, $built];
@@ -192,23 +179,83 @@ final class SendFilingEmailPartHandler
         return $result;
     }
 
-    private function stopForReview(FilingSubmission $submission, string $reasonKey): void
+    /**
+     * Another run claimed the part. Inside the stale window it may still be talking
+     * to the server, so this one looks again once the window has passed; after it,
+     * the run died between the claim and the answer and the outcome is unknown.
+     */
+    private function onFoundMidSend(FilingEmailPart $part, \DateTimeImmutable $now): void
     {
-        $submission->markNeedsReview($reasonKey);
-        $this->audit($submission, 'filing_submission_needs_review', ['reason' => $reasonKey]);
+        $running = $part->latestSmtpAttempt();
+        $staleBefore = $now->modify('-' . $this->sendingStaleSeconds . ' seconds');
+        if ($running !== null && !$running->isFinished() && $running->getStartedAt() > $staleBefore) {
+            $this->bus->dispatch(new Envelope(new SendFilingEmailPartMessage((int) $part->getId()), [new DelayStamp($this->sendingStaleSeconds * 1000)]));
+
+            return;
+        }
+
+        $attempt = new FilingAttempt($part, $part->nextAttemptNo(), FilingAttemptSource::SMTP, $now);
+        $attempt->finish(FilingAttemptOutcome::UNCERTAIN, $now, message: 'Found mid-send after the stale window');
+        $this->em->persist($attempt);
+        $this->outcomes->uncertain($part, 'found_mid_send');
     }
 
-    /** @param array<string, mixed> $data */
-    private function audit(FilingSubmission $submission, string $action, array $data): void
+    private function onSendFailure(FilingEmailPart $part, FilingAttempt $attempt, \Throwable $e): never
     {
-        $this->auditLogService->log(
-            action: $action,
-            entityType: LegalCase::class,
-            entityId: (string) $submission->getLegalCase()->getId(),
-            newData: ['submissionId' => $submission->getId(), ...$data],
-            category: AuditLogService::CATEGORY_FILING_SUBMISSION,
-            actor: $submission->getInitiatedBy(),
-        );
+        $kind = $this->inTransaction(function () use ($part, $attempt, $e): ?SmtpFailureKind {
+            $this->lockFresh($part);
+            $now = $this->clock->now();
+            $answered = in_array($part->getStatus(), [FilingPartStatus::SENDING, FilingPartStatus::UNCERTAIN], true);
+
+            if (!$e instanceof TransportExceptionInterface) {
+                // Refused by the mailer before any server answered (an invalid address, a broken message).
+                $attempt->finish(FilingAttemptOutcome::INTERNAL, $now, errorClass: $e::class, message: 'filing.status.review.internal_error');
+                if ($answered) {
+                    $this->outcomes->failed($part, FilingPartStatus::FAILED_INTERNAL, null, 'filing.status.review.internal_error');
+                }
+
+                return null;
+            }
+
+            $failure = $this->classifier->classify($e, $part->getSubmission()->getToAddress());
+            $outcome = match ($failure->kind) {
+                SmtpFailureKind::TEMPORARY => FilingAttemptOutcome::TEMPORARY,
+                SmtpFailureKind::PERMANENT => FilingAttemptOutcome::PERMANENT,
+                SmtpFailureKind::SIZE => FilingAttemptOutcome::SIZE,
+                SmtpFailureKind::UNCERTAIN => FilingAttemptOutcome::UNCERTAIN,
+            };
+            $attempt->finish($outcome, $now, $failure->smtpCode, $failure->enhancedStatus, $e::class, $failure->safeMessage);
+            if (!$answered) {
+                return null;
+            }
+
+            match ($failure->kind) {
+                SmtpFailureKind::TEMPORARY => $part->scheduleRetry($failure->smtpCode, $failure->enhancedStatus, $failure->safeMessage),
+                SmtpFailureKind::PERMANENT => $this->outcomes->failed($part, FilingPartStatus::FAILED_PERMANENT, $failure, $failure->safeMessage),
+                SmtpFailureKind::SIZE => $this->outcomes->failed($part, FilingPartStatus::FAILED_SIZE, $failure, $failure->safeMessage),
+                SmtpFailureKind::UNCERTAIN => $this->outcomes->uncertain($part, $failure->safeMessage),
+            };
+            if ($failure->kind === SmtpFailureKind::TEMPORARY) {
+                // Leaves a review a recheck may have opened while the server was still answering.
+                $this->outcomes->settle($part->getSubmission());
+            }
+
+            return $failure->kind;
+        });
+
+        if ($kind === SmtpFailureKind::TEMPORARY) {
+            // Retryable: the transport's retry strategy schedules the next try.
+            throw $e;
+        }
+
+        throw new UnrecoverableMessageHandlingException('Court filing email was not accepted.', 0, $e);
+    }
+
+    private function lockFresh(FilingEmailPart $part): void
+    {
+        $this->em->lock($part, LockMode::PESSIMISTIC_WRITE);
+        $this->em->refresh($part);
+        $this->em->refresh($part->getSubmission());
     }
 
     /**

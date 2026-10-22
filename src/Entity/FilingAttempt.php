@@ -19,7 +19,7 @@ class FilingAttempt
     #[ORM\Column]
     private ?int $id = null;
 
-    #[ORM\ManyToOne(targetEntity: FilingEmailPart::class)]
+    #[ORM\ManyToOne(targetEntity: FilingEmailPart::class, inversedBy: 'attempts')]
     #[ORM\JoinColumn(nullable: false, onDelete: 'CASCADE')]
     private FilingEmailPart $part;
 
@@ -59,6 +59,7 @@ class FilingAttempt
         $this->attemptNo = $attemptNo;
         $this->source = $source;
         $this->startedAt = $startedAt;
+        $part->addAttempt($this);
     }
 
     public function getId(): ?int
@@ -119,6 +120,18 @@ class FilingAttempt
     public function getNextRetryAt(): ?\DateTimeImmutable
     {
         return $this->nextRetryAt;
+    }
+
+    public function setNextRetryAt(?\DateTimeImmutable $nextRetryAt): static
+    {
+        $this->nextRetryAt = $nextRetryAt;
+
+        return $this;
+    }
+
+    public function isFinished(): bool
+    {
+        return $this->outcome !== null;
     }
 
     public function finish(

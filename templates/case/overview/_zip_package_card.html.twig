@@ -17,7 +17,7 @@
         </div>
         {# The signable files for an email filing are in the filing package card; this archive is for the other channels. #}
         {# Once the platform transmitted the petition, the archive is the case's record, not a package to file. #}
-        {% set transmitted = filing_submission|default(null) and filing_submission.deliveryStatus.value in ['SENT', 'PARTIALLY_SENT'] %}
+        {% set transmitted = filing_submission|default(null) and filing_submission.petitionAccepted %}
         {% if transmitted %}
             <p class="text-[11px] text-blue-100/70 mb-2" data-testid="zip-archive-note">{{ 'case_overview.zip_package.archive_note'|trans }}</p>
         {% else %}

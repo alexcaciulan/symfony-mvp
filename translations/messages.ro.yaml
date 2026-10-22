@@ -2405,6 +2405,7 @@ enum:
         NEEDS_REVIEW: 'Necesită verificare'
         CANCELLED: 'Anulată'
         UNDELIVERED: 'Nelivrată'
+        CLOSED_PARTIAL: 'Închisă fără toate anexele'
     filing_evidence_status:
         AWAITING_RECEIPT: 'Fără confirmare de primire'
         RECEIPT_RECEIVED: 'Confirmare de primire primită'
@@ -2655,6 +2656,12 @@ enum:
     notification_type:
         filing_sent: 'Cerere transmisă instanței'
         filing_annexes_cancelled: 'Anexe netransmise'
+        filing_failed_temporary: 'Transmitere neacceptată temporar'
+        filing_failed_permanent: 'Transmitere refuzată'
+        filing_failed_size: 'Transmitere refuzată pentru dimensiune'
+        filing_failed_internal: 'Transmitere oprită (eroare internă)'
+        filing_needs_review: 'Transmitere care necesită verificare'
+        filing_partially_sent: 'Cerere trimisă fără toate anexele'
         case_status: 'Status dosar'
         deadline_alert: 'Termen'
         missing_communication_date: 'Dată comunicare lipsă'
@@ -2863,6 +2870,18 @@ email:
         subject: 'Cerere transmisă instanței: %case%'
     filing_annexes_cancelled:
         subject: 'Anexe netransmise instanței: %case%'
+    filing_failed_temporary:
+        subject: 'Trimiterea către instanță nu a funcționat: %case%'
+    filing_failed_permanent:
+        subject: 'Trimiterea către instanță a fost refuzată: %case%'
+    filing_failed_size:
+        subject: 'Trimiterea către instanță a fost refuzată pentru dimensiune: %case%'
+    filing_failed_internal:
+        subject: 'Trimiterea către instanță s-a oprit: %case%'
+    filing_needs_review:
+        subject: 'Transmiterea către instanță necesită verificare: %case%'
+    filing_partially_sent:
+        subject: 'Cerere trimisă fără toate anexele: %case%'
     sender_name: 'LexRecovery'
     footer_disclaimer: 'Acest mesaj este informativ și nu constituie consultanță juridică. Verificați termenele și soluțiile direct pe portalul instanței.'
     cta:
@@ -2997,6 +3016,36 @@ notification:
     filing_annexes_cancelled:
         title: 'Anexe netransmise: %case%'
         message: 'Au fost transmise doar: %sent%. Nu au fost transmise: %not_sent%. Anexele nu au fost trimise și trebuie depuse separat.'
+    filing_failed_temporary:
+        retrying:
+            title: 'Trimiterea nu a funcționat: %case%'
+            message: 'E-mailul %k% din %n% nu a fost acceptat de serverul destinatarului (eroare temporară, cod %code%). Se reîncearcă automat după 5 minute, 30 de minute și 2 ore; următoarea încercare: %next%. Retrimiterea automată nu garantează livrarea. Dacă un termen este aproape de expirare, verificați situația și, dacă este cazul, depuneți pe altă cale.'
+        exhausted:
+            title: 'Trimiterea nu a reușit după reîncercări: %case%'
+            message: 'E-mailul %k% din %n% nu a fost acceptat de serverul destinatarului nici după reîncercările automate (ultimul cod: %code%). Nimic nu mai este trimis automat. Dacă un termen este aproape de expirare, verificați situația și, dacă este cazul, depuneți pe altă cale.'
+    filing_failed_permanent:
+        address:
+            title: 'Trimiterea a fost refuzată: %case%'
+            message: 'Serverul destinatarului a respins adresa (cod %code%). Verificați adresa cu registratura instanței. Adresa a fost scoasă din uz până la o nouă confirmare. Nimic nu a fost retrimis.'
+        other:
+            title: 'Trimiterea a fost refuzată: %case%'
+            message: 'Serverul destinatarului a refuzat definitiv e-mailul %k% din %n% (cod %code%). Nimic nu a fost retrimis. Verificați situația și, dacă este cazul, depuneți pe altă cale.'
+    filing_failed_size:
+        resplit:
+            title: 'E-mail refuzat pentru dimensiune: %case%'
+            message: 'Serverul destinatarului a refuzat e-mailul %k% din %n% din cauza dimensiunii (cod %code%). Anexele pot fi împărțite în volume mai mici, care se semnează din nou înainte de o nouă transmitere.'
+        other_channel:
+            title: 'E-mail refuzat pentru dimensiune: %case%'
+            message: 'Serverul destinatarului a refuzat e-mailul %k% din %n% din cauza dimensiunii (cod %code%). O nouă împărțire nu este disponibilă pentru acest e-mail. Verificați situația și, dacă este cazul, depuneți pe altă cale.'
+    filing_failed_internal:
+        title: 'Transmiterea s-a oprit: %case%'
+        message: 'E-mailul %k% din %n% nu a fost trimis (eroare internă, de exemplu un fișier semnat lipsă sau modificat). Detaliile sunt pe cardul dosarului.'
+    filing_needs_review:
+        title: 'Transmiterea necesită verificare: %case%'
+        message: '%reason%'
+    filing_partially_sent:
+        title: 'Cerere trimisă fără toate anexele: %case%'
+        message: 'Cererea a fost acceptată de serverul destinatarului, dar e-mailul %k% din %n% nu a fost acceptat (%kind%, cod %code%). Nu toate anexele au fost acceptate de server. Pe cardul dosarului se pot retrimite e-mailurile rămase sau se poate închide transmiterea, cu depunerea anexelor pe altă cale.'
     deadline_alert:
         procedural:
             title: 'Termen %type% pe dosarul %case%'
@@ -3523,6 +3572,10 @@ filing:
             FAILED_SIZE: 'Transmiterea nu a reușit'
             FAILED_INTERNAL: 'Transmiterea nu a reușit'
             UNDELIVERED: 'Mesajul nu a fost livrat instanței'
+            CLOSED_PARTIAL: 'Cererea a fost trimisă, dar transmiterea s-a închis fără toate anexele'
+            stalled: 'Cererea a fost trimisă, dar nu toate anexele au fost acceptate'
+            NEEDS_REVIEW_after_petition: 'Cererea a fost trimisă; transmiterea restului s-a oprit și necesită verificare'
+            retrying: 'Trimiterea nu a funcționat; se reîncearcă automat'
         recipient: 'Destinatar: %address%'
         override_note: 'Mediu de test: mesajul a fost trimis la adresa de simulare, nu la %address%.'
         part: 'E-mail %k% din %n%'
@@ -3534,6 +3587,8 @@ filing:
         cancel: 'Anulează transmiterea'
         cancelled: 'Transmiterea a fost anulată. Nimic nu a plecat spre instanță.'
         cancel_refused: 'Transmiterea nu mai poate fi anulată: cel puțin un e-mail a plecat sau este în curs de trimitere.'
+        attempt_line: 'Încercarea %no%, %date%: %source%, %outcome%%code%'
+        attempt_running: 'în curs'
         review:
             annexes_cancelled: 'Dosarul a primit număr la instanță înainte ca toate e-mailurile să plece. Au fost transmise doar documentele marcate ca acceptate; anexele rămase nu au fost trimise și trebuie depuse separat.'
             case_moved_on: 'Starea dosarului s-a schimbat în timpul transmiterii, deci e-mailurile rămase nu au fost trimise.'
@@ -3542,8 +3597,8 @@ filing:
             signed_file_changed: 'Un fișier semnat nu mai corespunde celui încărcat, deci nu a fost trimis.'
             not_active: 'Transmiterea nu mai este activă.'
             part_cancelled: 'E-mailul a fost anulat.'
-            part_uncertain: 'Trimiterea unui e-mail a fost întreruptă și nu se știe dacă serverul l-a primit. Verificarea copiei din CC a avocatului este necesară; nimic nu a fost retrimis.'
-            send_failed: 'Serverul de e-mail nu a acceptat mesajul. Nimic nu a fost retrimis automat.'
+            part_uncertain: 'Trimiterea unui e-mail a fost întreruptă și nu se știe dacă serverul destinatarului l-a primit. Nimic nu a fost retrimis. Avocatul declară mai jos dacă a primit copia în CC.'
+            annexes_cancelled_pending: 'Dosarul a primit număr la instanță în timpul transmiterii. E-mailurile rămase nu se mai trimit; transmiterea se închide după clarificarea e-mailului aflat în curs.'
             recipient_changed: 'Destinatarul efectiv s-a schimbat față de cererea de transmitere (configurația platformei).'
             too_large: 'E-mailul depășește limita de dimensiune și nu a fost trimis.'
             internal_error: 'E-mailul nu a putut fi pregătit pentru trimitere.'
@@ -3680,6 +3735,68 @@ filing:
         action_validate: 'Confirmă adresa instanței'
         action_revalidate: 'Reconfirmă adresa instanței'
         open_page: 'Adresa instanței'
+    failure:
+        kind:
+            temporary: 'eroare temporară'
+            permanent: 'refuz permanent'
+            size: 'dimensiune'
+            internal: 'eroare internă'
+            uncertain: 'rezultat necunoscut'
+        reason:
+            temporary: 'E-mailul %k% din %n% nu a fost acceptat de serverul destinatarului (eroare temporară).'
+            permanent: 'Serverul destinatarului a refuzat definitiv e-mailul %k% din %n%.'
+            size: 'Serverul destinatarului a refuzat e-mailul %k% din %n% din cauza dimensiunii.'
+            internal: 'E-mailul %k% din %n% nu a fost trimis (eroare internă, de exemplu un fișier semnat lipsă sau modificat).'
+            uncertain: 'Trimiterea e-mailului %k% din %n% a fost întreruptă; nu se știe dacă serverul destinatarului l-a primit.'
+        code: 'Cod SMTP: %code%'
+        next_retry: 'Următoarea încercare automată: %date%'
+        deadline_warning: 'Retrimiterea automată nu garantează livrarea. Dacă un termen este aproape de expirare, verificați situația și, dacă este cazul, depuneți pe altă cale.'
+        address_rejected: 'Serverul destinatarului a respins adresa. Verificați adresa cu registratura instanței.'
+        permanent_other: 'Refuzul nu privește neapărat adresa instanței, care rămâne în uz. Verificați situația și, dacă este cazul, depuneți pe altă cale.'
+        address_link: 'Adresa de e-mail a instanței'
+        responsibility: 'Platforma raportează doar răspunsul serverului de e-mail. Verificarea depunerii și a termenelor rămâne în sarcina avocatului.'
+    uncertain:
+        title: 'E-mailul %k% din %n%: rezultat necunoscut'
+        explain: 'Copia din CC arată doar că mesajul a plecat, nu că instanța l-a primit. Declarația de mai jos aparține avocatului.'
+        received_cta: 'Am primit copia în CC'
+        not_received_cta: 'Nu am primit copia în CC'
+        not_received: 'Avocatul a declarat că nu a primit copia în CC.'
+        saved: 'Declarația a fost înregistrată.'
+        refused: 'E-mailul nu mai are un rezultat necunoscut.'
+        confirm:
+            cc_received: 'Declar că am primit copia în CC a acestui mesaj.'
+            cc_received_petition: 'Declar că am primit copia în CC. Platforma va considera cererea trimisă, cu data aproximată la ora ultimei încercări; data depunerii o declar separat.'
+            cc_not_received: 'Declar că nu am primit copia în CC a acestui mesaj.'
+    resume:
+        cta: 'Trimite părțile rămase'
+        confirm: 'Am verificat situația. Se retrimit doar e-mailurile neacceptate ale acestei transmiteri, în același fir de discuție; cererea nu se retrimite.'
+        queued: 'E-mailurile rămase au fost puse în așteptare.'
+        refused: 'Reluarea nu este disponibilă în starea actuală a transmiterii.'
+    close:
+        cta: 'Închide fără anexele rămase'
+        warning: 'Serverul destinatarului a acceptat cererea, dar nu toate anexele. Anexele rămase se depun pe altă cale (registratură, poștă sau curier); platforma nu le mai trimite.'
+        done: 'Transmiterea a fost închisă. Anexele rămase nu au fost trimise.'
+        refused: 'Închiderea nu este disponibilă în starea actuală a transmiterii.'
+        confirm:
+            incomplete: 'Cererea a fost trimisă fără toate anexele; anexele rămase se depun pe altă cale.'
+    resplit:
+        cta: 'Reîmparte anexele'
+        proposal: 'Anexele pot fi împărțite în volume mai mici. Volumele noi se semnează din nou, apoi se cere o nouă transmitere.'
+        cannot_help: 'O nouă împărțire a anexelor nu poate micșora suficient acest e-mail. Verificați situația și, dacă este cazul, depuneți pe altă cale.'
+        after_petition: 'Anexele rămase nu se mai împart după trimiterea cererii. Verificați situația și, dacă este cazul, depuneți anexele pe altă cale.'
+        done: 'Anexele au fost împărțite în volume mai mici. Volumele noi trebuie semnate înainte de o nouă transmitere.'
+        error:
+            not_allowed: 'O nouă împărțire a anexelor nu este disponibilă pentru această transmitere.'
+    override:
+        failed: 'Marcat ca netrimis de administrator.'
+        error:
+            reason_required: 'Motivul este obligatoriu (cel puțin 10 caractere).'
+            not_allowed: 'Acțiunea nu este permisă.'
+            petition_lawyer_only: 'Acceptarea cererii se declară doar de avocat.'
+        flash:
+            saved: 'Starea e-mailului a fost actualizată.'
+            closed: 'Transmiterea a fost închisă.'
+            csrf: 'Sesiunea formularului a expirat. Reîncărcați pagina și reîncercați.'
 court_address:
     validation:
         page_title: 'Adresa instanței'

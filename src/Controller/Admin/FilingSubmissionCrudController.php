@@ -40,8 +40,13 @@ class FilingSubmissionCrudController extends AbstractCrudController
 
     public function configureActions(Actions $actions): Actions
     {
+        $override = Action::new('override', 'Deblocare operațională', 'fa fa-unlock')
+            ->linkToRoute('admin_filing_submission_override', static fn (FilingSubmission $s): array => ['id' => $s->getId()])
+            ->displayIf(static fn (FilingSubmission $s): bool => $s->isActive());
+
         return $actions
             ->add(Crud::PAGE_INDEX, Action::DETAIL)
+            ->add(Crud::PAGE_DETAIL, $override)
             ->disable(Action::NEW, Action::EDIT, Action::DELETE, Action::BATCH_DELETE);
     }
 
@@ -56,6 +61,7 @@ class FilingSubmissionCrudController extends AbstractCrudController
             ->formatValue(static fn ($value): string => $value?->value ?? '');
         yield DateTimeField::new('initiatedAt', 'Cerută la');
         yield DateTimeField::new('sentAt', 'Acceptată SMTP la');
+        yield TextField::new('reviewReason', 'Motiv verificare')->onlyOnDetail();
         yield DateTimeField::new('courtReceiptAt', 'Confirmare instanță la')->onlyOnDetail();
         yield TextField::new('templateVersion', 'Versiune șablon')->onlyOnDetail();
         yield IntegerField::new('parts', 'E-mailuri')

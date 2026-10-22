@@ -262,7 +262,11 @@ class FilingSubmission
         return $this;
     }
 
-    /** Stops the submission for the lawyer's review; it keeps holding the case. */
+    /**
+     * Stops the submission for the lawyer's review. It keeps holding the case on
+     * purpose: a part may have reached the court, so nothing else may start until
+     * the review ends in a resume, a close or a cancel.
+     */
     public function markNeedsReview(string $reasonKey): static
     {
         $this->deliveryStatus = FilingDeliveryStatus::NEEDS_REVIEW;
@@ -271,7 +275,55 @@ class FilingSubmission
         return $this;
     }
 
-    /** @return list<array{key: string, text: string}> */
+    /** Leaves a review whose cause is gone; the status goes back to what the parts say. */
+    public function clearReview(): static
+    {
+        if ($this->deliveryStatus === FilingDeliveryStatus::NEEDS_REVIEW) {
+            $this->deliveryStatus = $this->isPetitionAccepted() ? FilingDeliveryStatus::PARTIALLY_SENT : FilingDeliveryStatus::SENDING;
+        }
+        $this->reviewReason = null;
+
+        return $this;
+    }
+
+    /** A final failure: the submission ends and frees the case. */
+    public function failTerminal(FilingDeliveryStatus $status): static
+    {
+        if (!$status->isTerminal()) {
+            throw new \LogicException('Only a terminal status ends a submission.');
+        }
+        $this->deliveryStatus = $status;
+        $this->activeLock = null;
+
+        return $this;
+    }
+
+    /** The petition left and the remaining emails were closed without being sent. */
+    public function closePartial(\DateTimeImmutable $at): static
+    {
+        $this->deliveryStatus = FilingDeliveryStatus::CLOSED_PARTIAL;
+        $this->cancelledAt = $at;
+        $this->activeLock = null;
+
+        return $this;
+    }
+
+    /**
+     * Adds the statements of a later step (a resume, a close, a lawyer's declaration),
+     * keeping the original ones.
+     *
+     * @param array<string, string> $texts key => text as shown
+     */
+    public function appendConfirmation(string $kind, array $texts, User $by, \DateTimeImmutable $at): static
+    {
+        foreach ($texts as $key => $text) {
+            $this->confirmations[] = ['key' => $kind . ':' . $key, 'text' => $text, 'userId' => $by->getId(), 'at' => $at->format(\DateTimeInterface::ATOM)];
+        }
+
+        return $this;
+    }
+
+    /** @return list<array{key: string, text: string, userId?: ?int, at?: string}> */
     public function getConfirmations(): array
     {
         return $this->confirmations;
@@ -402,6 +454,50 @@ class FilingSubmission
     public function isPetitionAccepted(): bool
     {
         return $this->getPart(1)?->getStatus() === FilingPartStatus::ACCEPTED;
+    }
+
+    public function hasFailedPart(): bool
+    {
+        return $this->parts->exists(static fn (int $_k, FilingEmailPart $p): bool => $p->isFailed());
+    }
+
+    public function hasUncertainPart(): bool
+    {
+        return $this->parts->exists(static fn (int $_k, FilingEmailPart $p): bool => $p->getStatus() === FilingPartStatus::UNCERTAIN);
+    }
+
+    public function hasOpenPart(): bool
+    {
+        return $this->parts->exists(static fn (int $_k, FilingEmailPart $p): bool => $p->isOpen());
+    }
+
+    public function hasPartWithStatus(FilingPartStatus ...$statuses): bool
+    {
+        return $this->parts->exists(static fn (int $_k, FilingEmailPart $p): bool => in_array($p->getStatus(), $statuses, true));
+    }
+
+    /** The first email, in order, that the server has not accepted (cancelled ones excluded). */
+    public function firstUnacceptedPart(): ?FilingEmailPart
+    {
+        foreach ($this->parts as $part) {
+            if ($part->getStatus() !== FilingPartStatus::ACCEPTED && $part->getStatus() !== FilingPartStatus::CANCELLED) {
+                return $part;
+            }
+        }
+
+        return null;
+    }
+
+    /** Every email that was not cancelled was accepted. */
+    public function allLivePartsAccepted(): bool
+    {
+        return $this->firstUnacceptedPart() === null && $this->countAcceptedParts() > 0;
+    }
+
+    /** A part failed and none is still on its way: nothing moves until the lawyer acts. */
+    public function isStalled(): bool
+    {
+        return $this->isActive() && $this->hasFailedPart() && !$this->hasOpenPart();
     }
 
     public function countAcceptedParts(): int

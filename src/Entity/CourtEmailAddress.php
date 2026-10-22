@@ -89,6 +89,11 @@ class CourtEmailAddress
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $invalidReason = null;
 
+    /** The court filing whose SMTP rejection marked the address invalid, if any. */
+    #[ORM\ManyToOne(targetEntity: FilingSubmission::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?FilingSubmission $invalidatedBySubmission = null;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
@@ -304,20 +309,27 @@ class CourtEmailAddress
         return $this->invalidReason;
     }
 
-    public function markInvalid(\DateTimeImmutable $at, string $reason): static
+    public function markInvalid(\DateTimeImmutable $at, string $reason, ?FilingSubmission $by = null): static
     {
         $this->status = CourtEmailStatus::INVALID;
         $this->invalidatedAt = $at;
         $this->invalidReason = mb_substr($reason, 0, 255);
+        $this->invalidatedBySubmission = $by;
         $this->filingDefault = false;
 
         return $this;
+    }
+
+    public function getInvalidatedBySubmission(): ?FilingSubmission
+    {
+        return $this->invalidatedBySubmission;
     }
 
     public function clearInvalidation(): static
     {
         $this->invalidatedAt = null;
         $this->invalidReason = null;
+        $this->invalidatedBySubmission = null;
 
         return $this;
     }

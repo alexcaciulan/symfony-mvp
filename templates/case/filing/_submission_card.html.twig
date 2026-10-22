@@ -1,14 +1,23 @@
 {# Status of the transmission to the court. An accepted email is "transmitted, no
    receipt": never filed, registered or received, and the filing date stays the
    lawyer's declaration. Times are the mail server's acceptance, shown in Romanian
-   time. While emails are on their way the frame refreshes itself from
-   case_filing_submission_card. Context: filing_submission, filing_submission_cancellable,
-   filing_can_set_filed_date (OverviewContextBuilder). #}
+   time. While emails are on their way (and not stalled after a failure) the frame
+   refreshes itself from case_filing_submission_card. After a failure the card
+   names the kind of error and its SMTP code, and offers the one way out that fits:
+   resume the emails that did not leave, close them, split the annexes again,
+   declare the copy in CC received or not, or cancel. Context from
+   OverviewContextBuilder: filing_submission and the filing_submission_* flags,
+   filing_can_set_filed_date. #}
 {% set submission = filing_submission|default(null) %}
 {% set is_owner = app.user and app.user.id == case.user.id %}
+{% set failure = filing_submission_failure|default(null) %}
+{% set stalled = filing_submission_stalled|default(false) %}
+{% set uncertain_part = filing_submission_uncertain_part|default(null) %}
+{% set retry_pending = failure and failure.part.status.value == 'RETRY_SCHEDULED' %}
+{% set polling = submission and ((submission.deliveryStatus.inFlight and not stalled) or retry_pending) %}
 <turbo-frame id="filing-submission-card"
              data-controller="poll-frame"
-             data-poll-frame-pending-value="{{ submission and submission.deliveryStatus.inFlight ? 'true' : 'false' }}"
+             data-poll-frame-pending-value="{{ polling ? 'true' : 'false' }}"
              data-poll-frame-interval-ms-value="5000"
              data-poll-frame-url-value="{{ path('case_filing_submission_card', {id: case.id}) }}"
              class="block mb-3">
@@ -16,19 +25,62 @@
         {% set status = submission.deliveryStatus.value %}
         {% set accepted = submission.countAcceptedParts %}
         {% set total = submission.parts|length %}
-        <div class="rounded-lg border p-3 text-xs {{ status == 'NEEDS_REVIEW' ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-100' : 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200' }}" data-testid="filing-submission-card" data-status="{{ status }}">
+        {% set petition_left = submission.petitionAccepted %}
+        {% set alarming = status in ['NEEDS_REVIEW', 'FAILED_TEMPORARY_EXHAUSTED', 'FAILED_PERMANENT', 'FAILED_SIZE', 'FAILED_INTERNAL', 'CLOSED_PARTIAL'] or stalled or retry_pending %}
+        <div class="rounded-lg border p-3 text-xs {{ alarming ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-100' : 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200' }}" data-testid="filing-submission-card" data-status="{{ status }}" data-stalled="{{ stalled ? '1' : '0' }}">
             <p class="font-semibold text-sm" data-testid="filing-submission-headline">
-                {% if status in ['SENT', 'PARTIALLY_SENT'] or (status == 'NEEDS_REVIEW' and submission.petitionAccepted) %}
+                {% if stalled and petition_left %}
+                    {{ 'filing.status.headline.stalled'|trans }}
+                {% elseif status == 'NEEDS_REVIEW' and petition_left %}
+                    {{ 'filing.status.headline.NEEDS_REVIEW_after_petition'|trans }}
+                {% elseif status == 'CLOSED_PARTIAL' %}
+                    {{ 'filing.status.headline.CLOSED_PARTIAL'|trans }}
+                {% elseif retry_pending %}
+                    {{ 'filing.status.headline.retrying'|trans }}
+                {% elseif status in ['SENT', 'PARTIALLY_SENT'] %}
                     {{ 'filing.status.transmitted_no_receipt'|trans }}
                 {% else %}
                     {{ ('filing.status.headline.' ~ status)|trans }}
                 {% endif %}
             </p>
-            {% if status == 'PARTIALLY_SENT' %}
+            {% if status == 'PARTIALLY_SENT' and not stalled %}
                 <p class="mt-0.5" data-testid="filing-submission-annexes-pending">{{ 'filing.status.annexes_in_progress'|trans({'%done%': accepted, '%total%': total}) }}</p>
             {% endif %}
             {% if status == 'NEEDS_REVIEW' and submission.reviewReason %}
                 <p class="mt-1" data-testid="filing-submission-review-reason">{{ submission.reviewReason|trans }}</p>
+            {% endif %}
+
+            {% if failure and status != 'CANCELLED' %}
+                <div class="mt-2 space-y-1" data-testid="filing-submission-failure" data-kind="{{ failure.kind }}">
+                    <p>{{ ('filing.failure.reason.' ~ failure.kind)|trans({'%k%': failure.part.sequence, '%n%': failure.part.total}) }}</p>
+                    {% if failure.code or failure.enhanced %}
+                        <p class="text-[11px] text-slate-600 dark:text-slate-300" data-testid="filing-submission-failure-code">{{ 'filing.failure.code'|trans({'%code%': (failure.code ?? '-') ~ (failure.enhanced ? ' ' ~ failure.enhanced : '')}) }}</p>
+                    {% endif %}
+                    {% if failure.next_retry_at %}
+                        <p data-testid="filing-submission-next-retry">{{ 'filing.failure.next_retry'|trans({'%date%': failure.next_retry_at|date('d.m.Y H:i', 'Europe/Bucharest')}) }}</p>
+                    {% endif %}
+                    {% if failure.kind == 'temporary' %}
+                        <p class="text-[11px]" data-testid="filing-submission-deadline-warning">{{ 'filing.failure.deadline_warning'|trans }}</p>
+                    {% endif %}
+                    {% if failure.kind == 'permanent' %}
+                        <p data-testid="filing-submission-address-rejected">{{ (failure.address_invalidated ? 'filing.failure.address_rejected' : 'filing.failure.permanent_other')|trans }}</p>
+                        {% if failure.address_invalidated and is_owner %}
+                            <a href="{{ path('case_court_address', {id: case.id}) }}" data-turbo-frame="_top" class="text-[11px] underline hover:no-underline" data-testid="filing-submission-address-link">{{ 'filing.failure.address_link'|trans }}</a>
+                        {% endif %}
+                    {% endif %}
+                    {% if failure.kind == 'size' and not petition_left %}
+                        <p data-testid="filing-submission-size-help">{{ (filing_submission_resplittable|default(false) ? 'filing.resplit.proposal' : 'filing.resplit.cannot_help')|trans }}</p>
+                    {% elseif failure.kind == 'size' %}
+                        <p data-testid="filing-submission-size-help">{{ 'filing.resplit.after_petition'|trans }}</p>
+                    {% endif %}
+                    {% if failure.kind == 'uncertain' and not (is_owner and uncertain_part) %}
+                        <p>{{ 'filing.uncertain.explain'|trans }}</p>
+                    {% endif %}
+                </div>
+            {% endif %}
+
+            {% if petition_left and (stalled or status in ['NEEDS_REVIEW', 'CLOSED_PARTIAL']) and accepted < total %}
+                <p class="mt-2 rounded border border-red-300 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 p-2 text-red-900 dark:text-red-100" data-testid="filing-submission-incomplete-warning">{{ 'filing.close.warning'|trans }}</p>
             {% endif %}
 
             <p class="mt-2">{{ 'filing.status.recipient'|trans({'%address%': submission.toAddress}) }}</p>
@@ -38,14 +90,29 @@
 
             <ol class="mt-2 space-y-1" data-testid="filing-submission-parts">
                 {% for part in submission.parts %}
-                    <li class="flex flex-wrap items-center gap-x-2">
-                        <span class="font-medium">{{ 'filing.status.part'|trans({'%k%': part.sequence, '%n%': part.total}) }}</span>
-                        <span>{{ part.status.label|trans }}</span>
-                        {% if part.sentAt %}
-                            <span class="text-[11px] text-slate-500 dark:text-slate-400">{{ 'filing.status.accepted_at'|trans({'%date%': part.sentAt|date('d.m.Y H:i', 'Europe/Bucharest')}) }}</span>
-                        {% endif %}
-                        {% if is_owner and part.emlPath %}
-                            <a href="{{ path('case_filing_submission_eml', {id: case.id, submissionId: submission.id, sequence: part.sequence}) }}" data-turbo="false" class="text-[11px] underline hover:no-underline">{{ 'filing.status.download_eml'|trans }}</a>
+                    <li>
+                        <div class="flex flex-wrap items-center gap-x-2">
+                            <span class="font-medium">{{ 'filing.status.part'|trans({'%k%': part.sequence, '%n%': part.total}) }}</span>
+                            <span data-testid="filing-submission-part-status-{{ part.sequence }}">{{ part.status.label|trans }}</span>
+                            {% if part.sentAt %}
+                                <span class="text-[11px] text-slate-500 dark:text-slate-400">{{ 'filing.status.accepted_at'|trans({'%date%': part.sentAt|date('d.m.Y H:i', 'Europe/Bucharest')}) }}</span>
+                            {% endif %}
+                            {% if is_owner and part.emlPath %}
+                                <a href="{{ path('case_filing_submission_eml', {id: case.id, submissionId: submission.id, sequence: part.sequence}) }}" data-turbo="false" class="text-[11px] underline hover:no-underline">{{ 'filing.status.download_eml'|trans }}</a>
+                            {% endif %}
+                        </div>
+                        {% if part.attempts|length > 1 or (part.attempts|length == 1 and part.status.value != 'ACCEPTED') %}
+                            <ul class="ms-3 text-[11px] text-slate-500 dark:text-slate-400" data-testid="filing-submission-attempts-{{ part.sequence }}">
+                                {% for attempt in part.attempts %}
+                                    <li>{{ 'filing.status.attempt_line'|trans({
+                                        '%no%': attempt.attemptNo,
+                                        '%date%': attempt.startedAt|date('d.m.Y H:i', 'Europe/Bucharest'),
+                                        '%source%': attempt.source.label|trans,
+                                        '%outcome%': attempt.outcome ? attempt.outcome.label|trans : 'filing.status.attempt_running'|trans,
+                                        '%code%': attempt.smtpCode ? ' (SMTP ' ~ attempt.smtpCode ~ (attempt.enhancedStatus ? ' ' ~ attempt.enhancedStatus : '') ~ ')' : '',
+                                    }) }}</li>
+                                {% endfor %}
+                            </ul>
                         {% endif %}
                     </li>
                 {% endfor %}
@@ -61,11 +128,55 @@
                 <p class="mt-2">{{ 'filing.status.filed_at_pending'|trans }}</p>
             {% endif %}
 
+            {% if is_owner and uncertain_part %}
+                <div class="mt-3 space-y-2 rounded border border-amber-300 dark:border-amber-900/60 p-2" data-testid="filing-submission-uncertain-actions">
+                    <p class="font-semibold">{{ 'filing.uncertain.title'|trans({'%k%': uncertain_part.sequence, '%n%': uncertain_part.total}) }}</p>
+                    <p data-testid="filing-submission-uncertain-explain">{{ 'filing.uncertain.explain'|trans }}</p>
+                    <form method="post" action="{{ path('case_filing_submission_cc_received', {id: case.id, submissionId: submission.id, sequence: uncertain_part.sequence}) }}" data-turbo-frame="_top" class="space-y-1">
+                        <input type="hidden" name="_token" value="{{ csrf_token('filing_uncertain_' ~ submission.id ~ '_' ~ uncertain_part.sequence) }}">
+                        <label class="flex items-start gap-2"><input type="checkbox" name="confirm_cc_received" value="1" required class="mt-0.5"><span>{{ (uncertain_part.sequence == 1 ? 'filing.uncertain.confirm.cc_received_petition' : 'filing.uncertain.confirm.cc_received')|trans }}</span></label>
+                        <button type="submit" data-testid="filing-submission-cc-received" class="py-1.5 px-2.5 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition">{{ 'filing.uncertain.received_cta'|trans }}</button>
+                    </form>
+                    <form method="post" action="{{ path('case_filing_submission_cc_not_received', {id: case.id, submissionId: submission.id, sequence: uncertain_part.sequence}) }}" data-turbo-frame="_top" class="space-y-1">
+                        <input type="hidden" name="_token" value="{{ csrf_token('filing_uncertain_' ~ submission.id ~ '_' ~ uncertain_part.sequence) }}">
+                        <label class="flex items-start gap-2"><input type="checkbox" name="confirm_cc_not_received" value="1" required class="mt-0.5"><span>{{ 'filing.uncertain.confirm.cc_not_received'|trans }}</span></label>
+                        <button type="submit" data-testid="filing-submission-cc-not-received" class="py-1.5 px-2.5 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition">{{ 'filing.uncertain.not_received_cta'|trans }}</button>
+                    </form>
+                </div>
+            {% endif %}
+
+            {% if is_owner and filing_submission_resumable|default(false) %}
+                <form method="post" action="{{ path('case_filing_submission_resume', {id: case.id, submissionId: submission.id}) }}" class="mt-3 space-y-1" data-turbo-frame="_top" data-testid="filing-submission-resume-form">
+                    <input type="hidden" name="_token" value="{{ csrf_token('filing_resume_' ~ submission.id) }}">
+                    <label class="flex items-start gap-2"><input type="checkbox" name="confirm_resume_remaining" value="1" required class="mt-0.5"><span>{{ 'filing.resume.confirm'|trans }}</span></label>
+                    <button type="submit" data-testid="filing-submission-resume" class="py-1.5 px-2.5 text-xs font-semibold rounded-lg bg-lex-navy text-white hover:bg-lex-navy-dark transition">{{ 'filing.resume.cta'|trans }}</button>
+                </form>
+            {% endif %}
+
+            {% if is_owner and filing_submission_resplittable|default(false) %}
+                <form method="post" action="{{ path('case_filing_submission_resplit', {id: case.id, submissionId: submission.id}) }}" class="mt-3" data-turbo-frame="_top">
+                    <input type="hidden" name="_token" value="{{ csrf_token('filing_resplit_' ~ submission.id) }}">
+                    <button type="submit" data-testid="filing-submission-resplit" class="py-1.5 px-2.5 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition">{{ 'filing.resplit.cta'|trans }}</button>
+                </form>
+            {% endif %}
+
+            {% if is_owner and filing_submission_closable|default(false) %}
+                <form method="post" action="{{ path('case_filing_submission_close', {id: case.id, submissionId: submission.id}) }}" class="mt-3 space-y-1" data-turbo-frame="_top" data-testid="filing-submission-close-form">
+                    <input type="hidden" name="_token" value="{{ csrf_token('filing_close_' ~ submission.id) }}">
+                    <label class="flex items-start gap-2"><input type="checkbox" name="confirm_incomplete" value="1" required class="mt-0.5"><span>{{ 'filing.close.confirm.incomplete'|trans }}</span></label>
+                    <button type="submit" data-testid="filing-submission-close" class="py-1.5 px-2.5 text-xs font-semibold rounded-lg border border-red-300 text-red-800 dark:border-red-900/60 dark:text-red-200 hover:bg-red-50 dark:hover:bg-red-950/30 transition">{{ 'filing.close.cta'|trans }}</button>
+                </form>
+            {% endif %}
+
             {% if is_owner and filing_submission_cancellable|default(false) %}
                 <form method="post" action="{{ path('case_filing_submission_cancel', {id: case.id, submissionId: submission.id}) }}" class="mt-2" data-turbo-frame="_top">
                     <input type="hidden" name="_token" value="{{ csrf_token('filing_cancel_' ~ submission.id) }}">
                     <button type="submit" data-testid="filing-submission-cancel" class="py-1.5 px-2.5 text-xs font-semibold rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 transition">{{ 'filing.status.cancel'|trans }}</button>
                 </form>
+            {% endif %}
+
+            {% if alarming or stalled %}
+                <p class="mt-2 text-[11px] text-slate-500 dark:text-slate-400">{{ 'filing.failure.responsibility'|trans }}</p>
             {% endif %}
 
             {% if is_owner and filing_can_set_filed_date|default(false) %}

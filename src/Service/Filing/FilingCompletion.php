@@ -29,16 +29,24 @@ final class FilingCompletion
         private readonly AuditLogService $auditLogService,
     ) {}
 
-    /** Runs in the transaction that records the acceptance. */
-    public function onPetitionAccepted(FilingSubmission $submission): void
+    /**
+     * Runs in the transaction that records the acceptance.
+     *
+     * @param ?User $actor who established the acceptance: the requesting lawyer, or
+     *                     the lawyer declaring the copy received; never an admin
+     */
+    public function onPetitionAccepted(FilingSubmission $submission, ?User $actor = null): void
     {
         $case = $submission->getLegalCase();
-        $actor = $submission->getInitiatedBy();
+        $actor ??= $submission->getInitiatedBy();
         $messageId = (string) $submission->getPart(1)?->getMessageId();
 
         if ($case->getStatus() !== CaseStatus::CERERE_GENERATA) {
+            // The petition left but the case went on without it: the submission keeps
+            // holding the case until the lawyer closes the rest (or an admin does).
             $submission->markNeedsReview('filing.status.review.case_moved_on');
             $this->audit($case, $submission, $actor, 'filing_petition_accepted_case_moved_on');
+            $this->notifier->needsReview($submission, 'filing.status.review.case_moved_on');
 
             return;
         }

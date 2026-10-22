@@ -20,6 +20,7 @@ use App\Service\Case\CaseWorkflowService;
 use App\Service\Filing\FilingSubmissionService;
 use App\Tests\Support\FilingCaseFixtureTrait;
 use App\Tests\Support\FilingSubmissionTestTrait;
+use App\Tests\Support\RecordingCourtTransport;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\Mailer\Exception\TransportException;
@@ -155,11 +156,36 @@ final class SendFilingEmailPartHandlerTest extends KernelTestCase
         self::assertTrue($submission->isActive(), 'An uncertain part keeps the case held.');
     }
 
-    public function testTransportFailureIsRecordedAndNeverRetried(): void
+    public function testConnectionFailureBeforeDataSchedulesRetry(): void
     {
         $this->case = $this->createSendableFilingCase($this->em, $this->user);
         $submission = $this->submitFiling($this->case, $this->user);
-        $this->courtTransport()->failNext = new TransportException('Connection refused');
+        $this->courtTransport()->failNext = RecordingCourtTransport::connectionRefused();
+
+        try {
+            $this->handleNextFilingMessage();
+            self::fail('The failure must surface to the worker.');
+        } catch (HandlerFailedException $e) {
+            // Retryable: the original transport error, not an unrecoverable one.
+            self::assertInstanceOf(TransportException::class, $e->getPrevious());
+        }
+
+        $this->em->refresh($submission);
+        $part = $submission->getPart(1);
+        self::assertSame(FilingPartStatus::RETRY_SCHEDULED, $part?->getStatus());
+        self::assertSame(1, $part->getAttemptCount());
+        self::assertTrue($submission->isActive());
+        $attempts = $this->em->getRepository(FilingAttempt::class)->findBy(['part' => $part]);
+        self::assertCount(1, $attempts);
+        self::assertSame(FilingAttemptOutcome::TEMPORARY, $attempts[0]->getOutcome());
+        self::assertSame(CaseStatus::CERERE_GENERATA, $this->case->getStatus());
+    }
+
+    public function testConnectionLostAfterTheWholeMessageIsUncertainAndNeverRetried(): void
+    {
+        $this->case = $this->createSendableFilingCase($this->em, $this->user);
+        $submission = $this->submitFiling($this->case, $this->user);
+        $this->courtTransport()->failNext = RecordingCourtTransport::lostAfterData();
 
         try {
             $this->handleNextFilingMessage();
@@ -169,13 +195,30 @@ final class SendFilingEmailPartHandlerTest extends KernelTestCase
         }
 
         $this->em->refresh($submission);
-        $part = $submission->getPart(1);
-        self::assertSame(FilingPartStatus::FAILED_INTERNAL, $part?->getStatus());
+        self::assertSame(FilingPartStatus::UNCERTAIN, $submission->getPart(1)?->getStatus());
         self::assertSame(FilingDeliveryStatus::NEEDS_REVIEW, $submission->getDeliveryStatus());
-        $attempts = $this->em->getRepository(FilingAttempt::class)->findBy(['part' => $part]);
-        self::assertCount(1, $attempts);
-        self::assertSame(FilingAttemptOutcome::INTERNAL, $attempts[0]->getOutcome());
+        self::assertTrue($submission->isActive(), 'The case stays held until the lawyer declares what happened.');
         self::assertSame(CaseStatus::CERERE_GENERATA, $this->case->getStatus());
+    }
+
+    public function testRetryEnvelopeOfACancelledSubmissionSendsNothing(): void
+    {
+        $this->case = $this->createSendableFilingCase($this->em, $this->user);
+        $submission = $this->submitFiling($this->case, $this->user);
+        $partId = (int) $submission->getPart(1)?->getId();
+        $this->courtTransport()->failNext = RecordingCourtTransport::rcptRefused(451, 'Try again later');
+        try {
+            $this->handleNextFilingMessage();
+        } catch (HandlerFailedException) {
+        }
+
+        static::getContainer()->get(FilingSubmissionService::class)->cancel($submission, $this->user);
+        $this->handleFilingPart($partId);
+
+        $this->em->refresh($submission);
+        self::assertSame([], $this->courtTransport()->sent);
+        self::assertSame(FilingDeliveryStatus::CANCELLED, $submission->getDeliveryStatus());
+        self::assertSame(FilingPartStatus::CANCELLED, $submission->getPart(1)?->getStatus());
     }
 
     public function testRegistrationCancelsAnnexesStillWaitingAndSaysWhichDidNotLeave(): void
@@ -190,8 +233,7 @@ final class SendFilingEmailPartHandlerTest extends KernelTestCase
         $this->em->flush();
 
         $this->em->refresh($submission);
-        self::assertSame(FilingDeliveryStatus::NEEDS_REVIEW, $submission->getDeliveryStatus());
-        self::assertSame('filing.status.review.annexes_cancelled', $submission->getReviewReason());
+        self::assertSame(FilingDeliveryStatus::CLOSED_PARTIAL, $submission->getDeliveryStatus());
         self::assertFalse($submission->isActive());
         self::assertSame(FilingPartStatus::ACCEPTED, $submission->getPart(1)?->getStatus());
         self::assertSame(FilingPartStatus::CANCELLED, $submission->getPart(2)?->getStatus());

@@ -34,6 +34,7 @@ final class FilingSubmissionService
 {
     public const CONFIRM_DOCUMENTS = 'documents_checked';
     public const CONFIRM_OTHER_CHANNEL = 'other_channel';
+    public const CONFIRM_CLOSE_INCOMPLETE = 'incomplete';
 
     public function __construct(
         private readonly EntityManagerInterface $em,
@@ -49,6 +50,7 @@ final class FilingSubmissionService
         private readonly ClockInterface $clock,
         private readonly RateLimiterFactory $filingSubmissionLimiter,
         private readonly RateLimiterFactory $filingCourtCapLimiter,
+        private readonly FilingPartOutcomeApplier $outcomes,
     ) {}
 
     /**
@@ -164,79 +166,105 @@ final class FilingSubmissionService
 
     /**
      * Whether nothing can have reached a mail server: no part accepted, none caught
-     * mid-send, and no SMTP hand-off that failed in a way that could hide an acceptance.
+     * mid-send and none whose outcome is unknown. A part waiting for a retry, or one
+     * refused for good, never reached the court.
      */
     public function isCancellable(FilingSubmission $submission): bool
     {
-        if (!$submission->isActive()
-            || !in_array($submission->getDeliveryStatus(), [FilingDeliveryStatus::QUEUED, FilingDeliveryStatus::NEEDS_REVIEW], true)
-            || $submission->getReviewReason() === 'filing.status.review.send_failed') {
-            return false;
-        }
+        return $submission->isActive()
+            && !$submission->hasPartWithStatus(FilingPartStatus::ACCEPTED, FilingPartStatus::SENDING, FilingPartStatus::UNCERTAIN);
+    }
 
-        foreach ($submission->getParts() as $part) {
-            if (in_array($part->getStatus(), [FilingPartStatus::ACCEPTED, FilingPartStatus::SENDING, FilingPartStatus::UNCERTAIN], true)) {
-                return false;
-            }
-        }
-
-        return true;
+    /** The petition left; what did not can be closed so the case is free again. */
+    public function isClosable(FilingSubmission $submission): bool
+    {
+        return $submission->isActive()
+            && $submission->isPetitionAccepted()
+            && !$submission->hasPartWithStatus(FilingPartStatus::SENDING, FilingPartStatus::UNCERTAIN)
+            && ($submission->firstUnacceptedPart() !== null || $submission->getDeliveryStatus() === FilingDeliveryStatus::NEEDS_REVIEW);
     }
 
     /**
-     * Only before anything left: once the petition was accepted by the server,
-     * it cannot be called back.
+     * The statements the lawyer confirms to close a submission whose petition left
+     * without every annex.
+     *
+     * @return array<string, string> key => text
+     */
+    public function closeConfirmationTexts(): array
+    {
+        return [self::CONFIRM_CLOSE_INCOMPLETE => $this->translator->trans('filing.close.confirm.incomplete')];
+    }
+
+    /**
+     * Only before anything reached a server: once the petition was accepted, it
+     * cannot be called back. Failed parts keep their status as evidence.
      *
      * @throws FilingSendBlockedException
      */
     public function cancel(FilingSubmission $submission, User $user): void
+    {
+        if ($submission->getLegalCase()->getUser() !== $user) {
+            throw new FilingSendBlockedException('filing.send.blocker.not_owner');
+        }
+
+        $this->inLockedSubmission($submission, function () use ($submission, $user): void {
+            $this->cancelLocked($submission, $user);
+        });
+    }
+
+    /**
+     * Closes, on the lawyer's request, a submission whose petition left: the emails
+     * still waiting are cancelled, failed ones keep their status as evidence, and the
+     * case is free again. The court has the petition without the remaining annexes,
+     * which the lawyer files on another channel; the stored copies stay.
+     *
+     * @param array<string, bool> $confirmed statement key => ticked
+     *
+     * @throws FilingSendBlockedException
+     */
+    public function closeRemaining(FilingSubmission $submission, User $user, array $confirmed): void
     {
         $case = $submission->getLegalCase();
         if ($case->getUser() !== $user) {
             throw new FilingSendBlockedException('filing.send.blocker.not_owner');
         }
 
-        $connection = $this->em->getConnection();
-        $connection->beginTransaction();
-        try {
-            $this->em->lock($case, LockMode::PESSIMISTIC_WRITE);
-            foreach ($submission->getParts() as $part) {
-                $this->em->lock($part, LockMode::PESSIMISTIC_WRITE);
-                $this->em->refresh($part);
-            }
-            $this->em->refresh($submission);
-            if (!$this->isCancellable($submission)) {
-                throw new FilingSendBlockedException('filing.status.cancel_refused');
-            }
+        $this->inLockedSubmission($submission, function () use ($submission, $user, $confirmed): void {
+            $this->closeLocked($submission, $user, $confirmed, 'lawyer');
+        });
+    }
 
-            foreach ($submission->getParts() as $part) {
-                $part->setStatus(FilingPartStatus::CANCELLED);
-            }
-            $submission->markCancelled($this->clock->now());
-            $this->auditLogService->log(
-                action: 'filing_submission_cancelled',
-                entityType: LegalCase::class,
-                entityId: (string) $case->getId(),
-                newData: ['submissionId' => $submission->getId()],
-                category: AuditLogService::CATEGORY_FILING_SUBMISSION,
-                actor: $user,
-            );
-            $this->em->flush();
-            $connection->commit();
-            $this->filingLock->forget($case);
-        } catch (\Throwable $e) {
-            if ($connection->isTransactionActive()) {
-                $connection->rollBack();
-            }
-
-            throw $e;
+    /**
+     * The same close, done by an admin to unblock a case: operational only, with
+     * the reason audited. It declares nothing about what the court received.
+     *
+     * @throws FilingSendBlockedException
+     */
+    public function closeByAdmin(FilingSubmission $submission, User $admin, string $reason): void
+    {
+        if (mb_strlen(trim($reason)) < 10) {
+            throw new FilingSendBlockedException('filing.override.error.reason_required');
         }
+        $this->inLockedSubmission($submission, function () use ($submission, $admin, $reason): void {
+            if ($this->isCancellable($submission)) {
+                $this->cancelLocked($submission, $admin, ['adminReason' => trim($reason)]);
+
+                return;
+            }
+            if (!$this->isClosable($submission)) {
+                throw new FilingSendBlockedException('filing.close.refused');
+            }
+            $this->closeParts($submission);
+            $this->outcomes->closePartial($submission, 'admin: ' . mb_substr(trim($reason), 0, 200), $admin);
+        });
     }
 
     /**
      * The case was registered on another path (portal number, manual entry, admin)
      * while emails were still waiting: nothing more is sent, and the lawyer is told
-     * exactly which documents did not leave. Runs inside the caller's transaction.
+     * exactly which documents did not leave. A part whose outcome is not known yet
+     * keeps the submission open for review until it is answered. Runs inside the
+     * caller's transaction. Copies, attempts and hashes are kept.
      */
     public function cancelRemainingOnRegistration(LegalCase $case): void
     {
@@ -253,17 +281,19 @@ final class FilingSubmissionService
             } elseif ($part->getStatus()->isCancellable()) {
                 $part->setStatus(FilingPartStatus::CANCELLED);
                 $notSent = [...$notSent, ...$this->titles($part)];
+            } elseif ($part->isFailed()) {
+                $notSent = [...$notSent, ...$this->titles($part)];
             }
         }
-        if ($notSent === []) {
-            return;
-        }
 
-        if ($sent === []) {
+        if ($sent === [] && !$submission->hasPartWithStatus(FilingPartStatus::SENDING, FilingPartStatus::UNCERTAIN)) {
             $submission->markCancelled($this->clock->now());
+        } elseif ($submission->hasPartWithStatus(FilingPartStatus::SENDING, FilingPartStatus::UNCERTAIN)) {
+            $this->outcomes->review($submission, FilingPartOutcomeApplier::REVIEW_ANNEXES_CANCELLED_PENDING);
         } else {
-            $submission->markNeedsReview('filing.status.review.annexes_cancelled');
-            $submission->release();
+            $this->outcomes->closePartial($submission, 'registration');
+        }
+        if ($sent !== [] && $notSent !== []) {
             $this->notifier->annexesCancelled($submission, $sent, $notSent);
         }
 
@@ -271,10 +301,101 @@ final class FilingSubmissionService
             action: 'filing_submission_parts_cancelled_on_registration',
             entityType: LegalCase::class,
             entityId: (string) $case->getId(),
-            newData: ['submissionId' => $submission->getId(), 'sent' => $sent, 'notSent' => $notSent],
+            newData: ['submissionId' => $submission->getId(), 'sent' => $sent, 'notSent' => $notSent, 'status' => $submission->getDeliveryStatus()->value],
             category: AuditLogService::CATEGORY_FILING_SUBMISSION,
         );
         $this->filingLock->forget($case);
+    }
+
+    /** @param array<string, bool> $confirmed */
+    private function closeLocked(FilingSubmission $submission, User $user, array $confirmed, string $why): void
+    {
+        if (!$this->isClosable($submission)) {
+            throw new FilingSendBlockedException('filing.close.refused');
+        }
+        $texts = $this->closeConfirmationTexts();
+        foreach (array_keys($texts) as $key) {
+            if (($confirmed[$key] ?? false) !== true) {
+                throw new FilingSendBlockedException('filing.send.error.confirmation_required');
+            }
+        }
+        $submission->appendConfirmation('close', $texts, $user, $this->clock->now());
+
+        $sent = [];
+        $notSent = [];
+        foreach ($submission->getParts() as $part) {
+            if ($part->getStatus() === FilingPartStatus::ACCEPTED) {
+                $sent = [...$sent, ...$this->titles($part)];
+            } else {
+                $notSent = [...$notSent, ...$this->titles($part)];
+            }
+        }
+        $this->closeParts($submission);
+        $this->outcomes->closePartial($submission, $why, $user);
+        if ($notSent !== []) {
+            $this->notifier->annexesCancelled($submission, $sent, $notSent);
+        }
+    }
+
+    /** Waiting emails are cancelled; failed ones keep their status as evidence. */
+    private function closeParts(FilingSubmission $submission): void
+    {
+        foreach ($submission->getParts() as $part) {
+            if ($part->getStatus()->isCancellable()) {
+                $part->setStatus(FilingPartStatus::CANCELLED);
+            }
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $extra
+     */
+    private function cancelLocked(FilingSubmission $submission, User $user, array $extra = []): void
+    {
+        if (!$this->isCancellable($submission)) {
+            throw new FilingSendBlockedException('filing.status.cancel_refused');
+        }
+        foreach ($submission->getParts() as $part) {
+            if (!$part->isFailed()) {
+                $part->setStatus(FilingPartStatus::CANCELLED);
+            }
+        }
+        $submission->markCancelled($this->clock->now());
+        $this->auditLogService->log(
+            action: 'filing_submission_cancelled',
+            entityType: LegalCase::class,
+            entityId: (string) $submission->getLegalCase()->getId(),
+            newData: ['submissionId' => $submission->getId(), ...$extra],
+            category: AuditLogService::CATEGORY_FILING_SUBMISSION,
+            actor: $user,
+        );
+    }
+
+    /** @param callable(): void $work */
+    private function inLockedSubmission(FilingSubmission $submission, callable $work): void
+    {
+        $case = $submission->getLegalCase();
+        $connection = $this->em->getConnection();
+        $connection->beginTransaction();
+        try {
+            $this->em->lock($case, LockMode::PESSIMISTIC_WRITE);
+            $this->em->lock($submission, LockMode::PESSIMISTIC_WRITE);
+            foreach ($submission->getParts() as $part) {
+                $this->em->lock($part, LockMode::PESSIMISTIC_WRITE);
+                $this->em->refresh($part);
+            }
+            $this->em->refresh($submission);
+            $work();
+            $this->em->flush();
+            $connection->commit();
+            $this->filingLock->forget($case);
+        } catch (\Throwable $e) {
+            if ($connection->isTransactionActive()) {
+                $connection->rollBack();
+            }
+
+            throw $e;
+        }
     }
 
     /** @param list<array{key: string, text: string}> $confirmations */

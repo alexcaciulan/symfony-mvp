@@ -24,14 +24,19 @@ framework:
             # handler marks a part it finds mid-send as uncertain instead of sending
             # it twice, and failures go to their own queue: a global
             # `messenger:failed:retry` on `failed` must never resend a court email.
+            # Temporary SMTP failures are retried after 5 min, 30 min and 2 h; the
+            # delays come from env only so a live check can shorten them in dev.
+            # The redelivery window stays well above the 60 s socket timeout.
             court_filing:
                 dsn: 'doctrine://default?auto_setup=0&queue_name=court_filing'
+                options:
+                    redeliver_timeout: '%env(int:COURT_FILING_REDELIVER_TIMEOUT)%'
                 failure_transport: court_filing_failed
                 retry_strategy:
                     max_retries: 3
-                    delay: 300000
+                    delay: '%env(int:COURT_FILING_RETRY_DELAY_MS)%'
                     multiplier: 6
-                    max_delay: 7200000
+                    max_delay: '%env(int:COURT_FILING_RETRY_MAX_DELAY_MS)%'
                     jitter: 0
             court_filing_failed: 'doctrine://default?auto_setup=0&queue_name=court_filing_failed'
 

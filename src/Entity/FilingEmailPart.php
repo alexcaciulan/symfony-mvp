@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use App\Enum\FilingAttemptSource;
 use App\Enum\FilingPartRole;
 use App\Enum\FilingPartStatus;
 use App\Repository\FilingEmailPartRepository;
@@ -85,6 +86,11 @@ class FilingEmailPart
     #[ORM\Column(length: 500, nullable: true)]
     private ?string $lastError = null;
 
+    /** @var Collection<int, FilingAttempt> */
+    #[ORM\OneToMany(targetEntity: FilingAttempt::class, mappedBy: 'part')]
+    #[ORM\OrderBy(['attemptNo' => 'ASC'])]
+    private Collection $attempts;
+
     public function __construct(
         FilingSubmission $submission,
         int $sequence,
@@ -100,6 +106,7 @@ class FilingEmailPart
         $this->messageId = $messageId;
         $this->verpToken = $verpToken;
         $this->packageParts = new ArrayCollection();
+        $this->attempts = new ArrayCollection();
         $submission->addPart($this);
     }
 
@@ -221,11 +228,98 @@ class FilingEmailPart
         return $this->attemptCount;
     }
 
+    /** Claims the part for one SMTP hand-off; only SMTP tries count towards attemptCount. */
     public function startAttempt(): int
     {
         $this->status = FilingPartStatus::SENDING;
 
         return ++$this->attemptCount;
+    }
+
+    /** A temporary SMTP failure: the worker retries on the transport's schedule. */
+    public function scheduleRetry(?int $smtpCode, ?string $enhancedStatus, string $error): static
+    {
+        return $this->recordFailure(FilingPartStatus::RETRY_SCHEDULED, $smtpCode, $enhancedStatus, $error);
+    }
+
+    /**
+     * Back to PENDING for a resume on the same submission. The identifiers stay, so
+     * the court sees the same message in the same thread.
+     */
+    public function resetForResume(): static
+    {
+        if (!$this->isFailed()) {
+            throw new \LogicException('Only a failed part is resumed.');
+        }
+        $this->status = FilingPartStatus::PENDING;
+
+        return $this;
+    }
+
+    public function isFailed(): bool
+    {
+        return in_array($this->status, [
+            FilingPartStatus::FAILED_TEMPORARY_EXHAUSTED,
+            FilingPartStatus::FAILED_PERMANENT,
+            FilingPartStatus::FAILED_SIZE,
+            FilingPartStatus::FAILED_INTERNAL,
+        ], true);
+    }
+
+    /** Still on its way: not answered yet, or waiting for its next try. */
+    public function isOpen(): bool
+    {
+        return in_array($this->status, [FilingPartStatus::PENDING, FilingPartStatus::SENDING, FilingPartStatus::RETRY_SCHEDULED], true);
+    }
+
+    /** @return Collection<int, FilingAttempt> */
+    public function getAttempts(): Collection
+    {
+        return $this->attempts;
+    }
+
+    public function addAttempt(FilingAttempt $attempt): static
+    {
+        if (!$this->attempts->contains($attempt)) {
+            $this->attempts->add($attempt);
+        }
+
+        return $this;
+    }
+
+    /** Unique per part across every source (SMTP, lawyer, admin). */
+    public function nextAttemptNo(): int
+    {
+        $max = 0;
+        foreach ($this->attempts as $attempt) {
+            $max = max($max, $attempt->getAttemptNo());
+        }
+
+        return $max + 1;
+    }
+
+    public function latestAttempt(): ?FilingAttempt
+    {
+        $latest = null;
+        foreach ($this->attempts as $attempt) {
+            if ($latest === null || $attempt->getAttemptNo() > $latest->getAttemptNo()) {
+                $latest = $attempt;
+            }
+        }
+
+        return $latest;
+    }
+
+    public function latestSmtpAttempt(): ?FilingAttempt
+    {
+        $latest = null;
+        foreach ($this->attempts as $attempt) {
+            if ($attempt->getSource() === FilingAttemptSource::SMTP && ($latest === null || $attempt->getAttemptNo() > $latest->getAttemptNo())) {
+                $latest = $attempt;
+            }
+        }
+
+        return $latest;
     }
 
     public function getSentAt(): ?\DateTimeImmutable
@@ -256,6 +350,14 @@ class FilingEmailPart
     {
         $this->emlPath = $path;
         $this->emlSha256 = $sha256;
+        $this->encodedBytes = $encodedBytes;
+
+        return $this;
+    }
+
+    /** The real size of a message that was built but not sent (over the limit). */
+    public function recordEncodedBytes(int $encodedBytes): static
+    {
         $this->encodedBytes = $encodedBytes;
 
         return $this;

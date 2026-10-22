@@ -24,6 +24,8 @@ enum FilingDeliveryStatus: string
     case CANCELLED = 'CANCELLED';
     /** A late permanent bounce on the petition after the SMTP acceptance. */
     case UNDELIVERED = 'UNDELIVERED';
+    /** The petition left; the remaining emails were closed without being sent. */
+    case CLOSED_PARTIAL = 'CLOSED_PARTIAL';
 
     public function label(): string
     {
@@ -34,12 +36,15 @@ enum FilingDeliveryStatus: string
     {
         return match ($this) {
             self::SENT, self::FAILED_TEMPORARY_EXHAUSTED, self::FAILED_PERMANENT, self::FAILED_SIZE,
-            self::FAILED_INTERNAL, self::CANCELLED, self::UNDELIVERED => true,
+            self::FAILED_INTERNAL, self::CANCELLED, self::UNDELIVERED, self::CLOSED_PARTIAL => true,
             self::QUEUED, self::SENDING, self::PARTIALLY_SENT, self::NEEDS_REVIEW => false,
         };
     }
 
-    /** Whether the submission keeps the case's single active-filing slot. */
+    /**
+     * Whether the submission keeps the case's single active-filing slot. A review
+     * keeps it: something may have reached the court and nothing else may start.
+     */
     public function holdsLock(): bool
     {
         return match ($this) {
@@ -48,7 +53,7 @@ enum FilingDeliveryStatus: string
         };
     }
 
-    /** Still moving on its own: the status card refreshes itself. */
+    /** Still moving on its own, unless a part failed with nothing left open (see FilingSubmission::isStalled). */
     public function isInFlight(): bool
     {
         return in_array($this, [self::QUEUED, self::SENDING, self::PARTIALLY_SENT], true);
