@@ -85,6 +85,12 @@ class AuditLogService
     /** Filing package built, one of its files downloaded, or the alternative-channel ZIP downloaded. */
     public const CATEGORY_FILING_PACKAGE = 'FILING_PACKAGE';
 
+    /**
+     * Court email addresses: added, confirmed, rejected, reported, invalidated,
+     * reopened or erased. A nominal (personal) address is never written here in clear.
+     */
+    public const CATEGORY_COURT_EMAIL = 'COURT_EMAIL';
+
     public function __construct(
         private EntityManagerInterface $em,
         private Security $security,

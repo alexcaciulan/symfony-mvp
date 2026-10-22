@@ -12,8 +12,9 @@ use EasyCorp\Bundle\EasyAdminBundle\Controller\AbstractCrudController;
 use EasyCorp\Bundle\EasyAdminBundle\Field\AssociationField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\BooleanField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\ChoiceField;
-use EasyCorp\Bundle\EasyAdminBundle\Field\EmailField;
+use EasyCorp\Bundle\EasyAdminBundle\Field\Field;
 use EasyCorp\Bundle\EasyAdminBundle\Field\IdField;
+use EasyCorp\Bundle\EasyAdminBundle\Field\IntegerField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\TelephoneField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\TextField;
 use EasyCorp\Bundle\EasyAdminBundle\Filter\BooleanFilter;
@@ -55,9 +56,13 @@ class CourtCrudController extends AbstractCrudController
                 'Tribunal specializat' => CourtType::TRIBUNAL_SPECIALIZAT,
             ]);
         yield TextField::new('address', 'Adresă')->hideOnIndex();
-        yield EmailField::new('email', 'Email')->hideOnIndex();
         yield TelephoneField::new('phone', 'Telefon')->hideOnIndex();
         yield BooleanField::new('active', 'Activ');
+        yield IntegerField::new('portalSiteId', 'ID pagină portal')->hideOnIndex()->setRequired(false);
+        // Read-only here: addresses change only through their own admin actions.
+        yield Field::new('emailAddresses', 'Adrese e-mail')
+            ->onlyOnDetail()
+            ->setTemplatePath('admin/court/_email_addresses.html.twig');
     }
 
     public function configureFilters(Filters $filters): Filters

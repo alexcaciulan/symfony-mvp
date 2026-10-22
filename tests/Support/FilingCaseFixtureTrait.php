@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Support;
 
 use App\Entity\Court;
+use App\Entity\CourtEmailAddress;
 use App\Entity\Creditor;
 use App\Entity\Debtor;
 use App\Entity\Document;
@@ -12,6 +13,9 @@ use App\Entity\LegalCase;
 use App\Entity\LegalCaseDebtor;
 use App\Entity\User;
 use App\Enum\CaseStatus;
+use App\Enum\CourtEmailPurpose;
+use App\Enum\CourtEmailSource;
+use App\Enum\CourtEmailStatus;
 use App\Enum\CourtType;
 use App\Enum\DocumentType;
 use App\Enum\ExtractionStatus;
@@ -92,6 +96,29 @@ trait FilingCaseFixtureTrait
         $em->flush();
 
         return $case;
+    }
+
+    private function createCourtEmailAddress(
+        EntityManagerInterface $em,
+        Court $court,
+        string $email,
+        CourtEmailPurpose $purpose,
+        CourtEmailStatus $status = CourtEmailStatus::PROPOSED,
+        ?\DateTimeImmutable $validatedAt = null,
+        ?User $validatedBy = null,
+        bool $filingDefault = false,
+    ): CourtEmailAddress {
+        $address = new CourtEmailAddress($court, $email, $purpose, CourtEmailSource::PORTAL_IMPORT, new \DateTimeImmutable('-1 year'));
+        if ($status === CourtEmailStatus::VALIDATED) {
+            $address->markValidated($validatedBy ?? throw new \LogicException('A validated address needs its validator.'), $validatedAt ?? new \DateTimeImmutable(), 'statement');
+        } else {
+            $address->setStatus($status);
+        }
+        $address->setFilingDefault($filingDefault);
+        $em->persist($address);
+        $em->flush();
+
+        return $address;
     }
 
     /**
@@ -232,6 +259,7 @@ trait FilingCaseFixtureTrait
         $conn->executeStatement('UPDATE filing_package SET previous_version_id = NULL WHERE legal_case_id IN (' . $cases . ')', [$userId]);
         $conn->executeStatement('DELETE FROM filing_package WHERE legal_case_id IN (' . $cases . ')', [$userId]);
         $conn->executeStatement('DELETE FROM audit_log WHERE user_id = ?', [$userId]);
+        $conn->executeStatement('UPDATE court_email_address SET validated_by_id = NULL WHERE validated_by_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM legal_deadline WHERE legal_case_id IN (' . $cases . ')', [$userId]);
         $conn->executeStatement('DELETE FROM claim_item WHERE legal_case_id IN (' . $cases . ')', [$userId]);
         $conn->executeStatement('DELETE FROM document WHERE legal_case_id IN (' . $cases . ')', [$userId]);
@@ -245,6 +273,11 @@ trait FilingCaseFixtureTrait
             $courtIds[] = $court->getId();
         }
         foreach (array_unique(array_filter($courtIds)) as $courtId) {
+            // A court another fixture user's case still points at is left for that user's cleanup.
+            if ((int) $conn->fetchOne('SELECT COUNT(*) FROM legal_case WHERE court_id = ?', [$courtId]) > 0) {
+                continue;
+            }
+            $conn->executeStatement("DELETE FROM court_email_address WHERE court_id = ? AND court_id IN (SELECT id FROM court WHERE name LIKE 'Judecătoria Test Filing %')", [$courtId]);
             $conn->executeStatement("DELETE FROM court WHERE id = ? AND name LIKE 'Judecătoria Test Filing %'", [$courtId]);
         }
         $conn->executeStatement('DELETE FROM `user` WHERE id = ?', [$userId]);

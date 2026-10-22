@@ -60,6 +60,32 @@
             </div>
         {% endif %}
 
+        {% set recipient = filing_recipient|default(null) %}
+        {% if recipient %}
+            {# Only where the filing would go, or why that is unknown: never a sign that the case can be sent. #}
+            <div class="rounded-lg border p-3 mb-3 text-xs {{ recipient.address ? 'border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200' : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-100' }}" data-testid="filing-recipient">
+                <p class="font-semibold">{{ 'filing.recipient.title'|trans }}</p>
+                {% if recipient.address %}
+                    <p class="mt-0.5 font-mono break-all" data-testid="filing-recipient-email">{{ recipient.address.email }}</p>
+                    <p class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                        {{ recipient.address.purpose.label|trans }} · {{ 'filing.recipient.source'|trans }}: {{ recipient.address.source.label|trans }}
+                        · {{ 'filing.recipient.confirmed_by'|trans({'%date%': recipient.address.validatedAt|date('d.m.Y')}) }}
+                    </p>
+                    <a href="{{ path('case_court_address', {id: case.id}) }}" class="mt-1 inline-block underline hover:no-underline">{{ 'filing.recipient.open_page'|trans }}</a>
+                {% else %}
+                    <p class="mt-0.5" data-testid="filing-recipient-reason">{{ recipient.reason.label|trans }}</p>
+                    {% set action = recipient.reason.action %}
+                    {% if action != 'none' %}
+                        {% if is_owner %}
+                            <a href="{{ path('case_court_address', {id: case.id}) }}" class="mt-1 inline-block font-semibold underline hover:no-underline" data-testid="filing-recipient-action">{{ ('filing.recipient.action_' ~ action)|trans }}</a>
+                        {% else %}
+                            <a href="{{ path('case_court_address', {id: case.id}) }}" class="mt-1 inline-block underline hover:no-underline">{{ 'filing.recipient.open_page'|trans }}</a>
+                        {% endif %}
+                    {% endif %}
+                {% endif %}
+            </div>
+        {% endif %}
+
         {% if package and package.status.value == 'STALE' %}
             <div class="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 p-3 mb-3 text-xs text-amber-900 dark:text-amber-100" data-testid="filing-package-stale">
                 <p class="font-semibold">{{ 'filing.package.stale_title'|trans }}</p>

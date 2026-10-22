@@ -36,7 +36,7 @@ Citările legale marcate **[V]** nu sunt verificate pe sursă primară și se ve
 | Transport | Implementare completă acum cu transport simulat (Mailpit). Căsuța reală de trimitere (SPF/DKIM) și cea de primire se conectează la deploy. |
 | Inbound | Abstracție cu implementare dev/test (API Mailpit, fixture-uri) și producție (IMAP; webhook la alegerea furnizorului), aleasă prin config. |
 | Import adrese | Se construiește și se rulează pe dev; rezultatele rămân propuneri validate de avocat/admin. Politicos: rate limit și cache pentru paginile brute. Cererile nu conțin nicio adresă de e-mail sau alt dat de contact. |
-| Tranziție | `depune_cerere` se aplică la trimiterea reușită (momentul exact: T14, de confirmat). |
+| Tranziție | `depune_cerere` se aplică la trimiterea reușită (momentul exact: T14, confirmat 2026-10-22). |
 
 ### 1.3. Decizii tehnice
 
@@ -57,9 +57,9 @@ Alegeri de implementare. Cele marcate „confirmare” se confirmă cu utilizato
 | T11 | Confirmarea instanței nu devine `Document`; se păstrează ca `InboundMail` (.eml integral + sha256) legat de depunere. | Aceeași logică ca T2. | nu |
 | T12 | Adresele nominale (`prenume.nume@just.ro`) se marchează `PERSONAL`: niciodată adresă de depunere, ascunse avocatului, șterse la cerere. | GDPR art. 5 alin. 1 lit. c și art. 17 [V]. | nu |
 | T13 | Trimitere reală doar cu opt-in explicit `COURT_FILING_LIVE=1`, absent implicit peste tot (inclusiv demo cu `DEMO_APP_ENV=prod`). Fără el: destinatarii `just.ro` sunt refuzați și `COURT_FILING_RECIPIENT_OVERRIDE` e obligatoriu, oricare ar fi `APP_ENV`. Cu el: override-ul setat este refuzat. Verificat la fiecare trimitere și de `app:filing:preflight` (deploy, healthcheck). | Adresele importate sunt reale; `APP_ENV` nu protejează demo-ul. | nu |
-| T14 | `depune_cerere` se aplică când **partea 1** (cererea + împuternicirea) e acceptată SMTP, nu când toate părțile sunt acceptate. Cardul arată „anexe în curs”. Starea depunerii devine `PARTIALLY_SENT` până la ultima parte. | Cererea a ajuns la instanță; termenul de 6 luni (NCC 2540 [V]) se închide; o retrimitere integrală ar dubla cererea. Ajustează ușor decizia „la trimiterea reușită”. | **da, înainte de 3d1** |
-| T15 | Validarea adresei de către avocat **promovează** adresa la `VALIDATED` (`validatedBy` = avocatul, `source` păstrat). Este un act separat de trimitere, cu propriul formular și bifa „Confirm că la această adresă instanța primește cereri introductive”. Trimiterea la o adresă `PROPOSED` e blocată. Validarea expiră după 180 de zile sau la setarea `missingSince`. | Pct. 11 („avocatul doar validează”); o bifă la trimitere nu e validare; organization tenancy e amânat. | **da, înainte de 3b** |
-| T16 | Pentru debitor persoană fizică (PF, PFA, II), subiectul folosește denumirea/numele scurtat la inițiale + CUI unde există; pentru PJ rămâne denumirea completă. | Subiectul circulă necriptat prin intermediari (GDPR art. 5 alin. 1 lit. c, art. 32 [V]). Ajustează formatul decis. | **da, înainte de 3d1** |
+| T14 | `depune_cerere` se aplică când **partea 1** (cererea + împuternicirea) e acceptată SMTP, nu când toate părțile sunt acceptate. Cardul arată „anexe în curs”. Starea depunerii devine `PARTIALLY_SENT` până la ultima parte. | Cererea a ajuns la instanță; termenul de 6 luni (NCC 2540 [V]) se închide; o retrimitere integrală ar dubla cererea. Ajustează ușor decizia „la trimiterea reușită”. | **confirmat 2026-10-22** |
+| T15 | Validarea adresei de către avocat **promovează** adresa la `VALIDATED` (`validatedBy` = avocatul, `source` păstrat). Este un act separat de trimitere, cu propriul formular și bifa „Confirm că la această adresă instanța primește cereri introductive”. Trimiterea la o adresă `PROPOSED` e blocată. Validarea expiră după 180 de zile sau la setarea `missingSince`. | Pct. 11 („avocatul doar validează”); o bifă la trimitere nu e validare; organization tenancy e amânat. | **confirmat 2026-10-22**; textul bifei: varianta juridică, vezi 4.1 |
+| T16 | Pentru debitor persoană fizică (PF, PFA, II), subiectul folosește denumirea/numele scurtat la inițiale + CUI unde există; pentru PJ rămâne denumirea completă. | Subiectul circulă necriptat prin intermediari (GDPR art. 5 alin. 1 lit. c, art. 32 [V]). Ajustează formatul decis. | **confirmat 2026-10-22** |
 | T17 | Pachete composer `zbateson/mail-mime-parser` (BSD-2) și `webklex/php-imap` (MIT). După `composer require`: `make restart`. | Parsare MIME robustă; IMAP fără ext-imap. | **da, înainte de 3e** |
 | T18 | `CaseWorkflowService::apply($case, $transition, array $context = [])` transmite `actor` în contextul workflow; `CaseWorkflowSubscriber` preferă `$event->getContext()['actor']` față de `Security::getUser()`; `AuditLogService::log` primește `?User $actor`. | În worker nu există utilizator în sesiune; istoricul trebuie să aibă autor. | nu |
 | T19 | „O singură depunere activă per dosar” impusă în DB: coloana `activeLock` (1 cât e activă, NULL la terminal) cu unique (`legal_case_id`, `active_lock`), plus `PESSIMISTIC_WRITE` pe `LegalCase` în `submit()`. La dublu clic se returnează depunerea existentă (Turbo Stream). Analog pentru build (unique `legal_case_id`+`version` + lock) și upload semnat (lock pe rândul părții). | Idempotență fără condiții de cursă. | nu |
@@ -163,7 +163,7 @@ Toate entitățile noi vin cu migrare în secțiunea care le introduce. Enum-uri
 | `sectionLabel` | string nullable | textul secției de pe pagină |
 | `status` | enum `CourtEmailStatus` | `PROPOSED`, `VALIDATED`, `REJECTED`, `INVALID` |
 | `filingDefault` | bool | cel mult unul `VALIDATED` per (instanță, scop) (impus în serviciu) |
-| `source` | enum `CourtEmailSource` | `PORTAL_IMPORT`, `MANUAL` |
+| `source` | enum `CourtEmailSource` | `MANUAL`, `PORTAL_IMPORT`, `SAVED_PAGE` (pagină salvată din browser de un operator) |
 | `sourceUrl`, `context` | string / text | context ~200 caractere + cel mai apropiat titlu |
 | `firstSeenAt`, `lastSeenAt`, `missingSince` | datetime_immutable | `missingSince` setat când adresa dispare de pe pagină |
 | `validatedBy`, `validatedAt`, `validationStatement` | User, datetime, string | textul bifei confirmate la validare |
@@ -305,6 +305,21 @@ Fișiere: `{uploadsDir}/cases/{caseId}/filing/v{version}/unsigned/` și `.../sig
 **Verificare live**
 - `fetch --limit=3`, `import --dry-run`, apoi import real; verifică `var/court_pages` și ritmul în log.
 - Playwright cu avocatul dev: validează adresa instanțelor a 3 dosare `CERERE_GENERATA`; screenshot.
+
+**Livrare 3b-core (2026-10-22).** Modelul, validarea, adminul și rezolvarea adresei de depunere sunt livrate **fără import**: portal.just.ro răspunde 403 Cloudflare, iar paginile salvate manual sunt încă așteptate. `HttpCourtPageFetcher`, `SavedHtmlCourtPageFetcher`, parserul, `CourtEmailPurposeClassifier`, importerul și comenzile `app:court-directory:*` rămân pentru 3b-import. Clasificatorul va reutiliza `CourtEmailPersonalDetector` (detectorul pur al adreselor nominale `prenume.nume@just.ro`). Nicio cerere către portal în această livrare.
+
+Decizii luate implicit în 3b-core:
+- **Sursa** are trei valori (`MANUAL`, `PORTAL_IMPORT`, `SAVED_PAGE`), ca importul de pe pagini salvate să nu ceară o migrare de enum.
+- **Scopul de depunere** la judecătorie și la tribunalul specializat: adresa confirmată, neexpirată și implicită, în ordinea `REGISTRY`, `SECTION_CIVIL`, `SECTION_PROFESSIONALS`. `OTHER` și `PERSONAL` nu sunt niciodată adrese de depunere. Tribunalul specializat nu are împărțirea civil/profesioniști și se tratează ca judecătoria.
+- **Tribunal**: `SECTION_PROFESSIONALS` doar când toți debitorii dosarului sunt PJ. Orice debitor PF (poate fi PFA, II sau IF) dă `TRIBUNAL_SECTION_UNKNOWN`. Registratura nu este niciodată fallback.
+- **Implicită**: confirmarea setează automat adresa ca implicită dacă perechea (instanță, scop) nu are alta; `NO_FILING_DEFAULT` rămâne ca motiv defensiv.
+- **Adăugare manuală**: o adresă nominală este refuzată și nu se stochează deloc (minimizare). Starea `PERSONAL` se atinge doar prin importul viitor sau prin schimbarea scopului de către admin.
+- **Efectul confirmării** este la nivel de instanță: o adresă confirmată de un avocat (inclusiv una adăugată manual de el) devine adresa de depunere pentru toate dosarele acelei instanțe din platformă, ale oricărui avocat, până la expirare sau invalidare. Pagina avocatului spune explicit acest lucru în lista de note și lângă bifă. O notificare către admin la fiecare adresă `MANUAL` confirmată de un avocat **nu** se implementează în 3b-core: confirmarea rămâne în auditul `court_email_validated` (cu `validatedBy` și `caseId`), iar adminul o poate invalida din EasyAdmin. Se reevaluează înainte de 3d (prima trimitere reală), eventual ca revizie admin obligatorie pentru adresele `MANUAL` înainte să servească alte conturi.
+- **Schimbarea scopului** de către admin pentru o adresă confirmată o readuce la `PROPOSED` și șterge confirmarea și marcajul de implicită, pentru orice scop nou: declarația avocatului a fost dată pentru scopul anterior.
+- **Raportarea adresei greșite** folosește o listă fixă de motive (`WRONG_COURT`, `BOUNCED`, `NOT_ACCEPTING_FILINGS`, `OTHER`), fără text liber. O adresă confirmată devine `INVALID` (`reported_by_lawyer:<motiv>`), o propunere devine `REJECTED`.
+- **Textul bifei** (T15, varianta juridică, mai strictă): „Confirm că la această adresă instanța primește cereri introductive, inclusiv cereri de ordonanță de plată, pe cale electronică.” Se stochează textul exact afișat, nu cheia de traducere.
+- **Audit**: categoria `COURT_EMAIL`; payload-urile conțin starea, scopul, `courtId` și, din pagina dosarului, doar `caseId`. Adresa în clar apare doar pentru adresele nenominale. Ștergerea unei adrese nominale înlocuiește adresa și în rândurile de audit anterioare și păstrează doar faptul ștergerii și un hash.
+- **Adminul** nu folosește formularele generice de creare, editare sau ștergere: fiecare schimbare (validare, respingere, implicită, invalidare cu motiv din lista fixă, redeschidere, schimbarea scopului, ștergerea adresei nominale) trece prin serviciu, pe o pagină de confirmare proprie.
 
 **Riscuri**: 403 Cloudflare; structuri diferite de pagini; Tribunalul București fără adresă (manual); secție greșită = pierdere tăcută (resolver null); adrese personale (ascunse, ștergere la cerere); pagini schimbate (`missingSince` expiră validarea).
 
@@ -555,9 +570,9 @@ Fișiere: `{uploadsDir}/cases/{caseId}/filing/v{version}/unsigned/` și `.../sig
 
 | Decizie | Înainte de |
 |---|---|
-| T15: validarea avocatului promovează adresa; trimiterea la `PROPOSED` blocată; expirare 180 de zile | 3b |
-| T14: `depune_cerere` la acceptarea părții 1, `PARTIALLY_SENT` | 3d1 |
-| T16: subiect cu debitor PF scurtat | 3d1 |
+| T15: validarea avocatului promovează adresa; trimiterea la `PROPOSED` blocată; expirare 180 de zile | 3b (confirmat 2026-10-22) |
+| T14: `depune_cerere` la acceptarea părții 1, `PARTIALLY_SENT` | 3d1 (confirmat 2026-10-22) |
+| T16: subiect cu debitor PF scurtat | 3d1 (confirmat 2026-10-22) |
 | T9: tranziția `anuleaza_depunere_nelivrata` | 3e |
 | T17: pachetele composer | 3e |
 

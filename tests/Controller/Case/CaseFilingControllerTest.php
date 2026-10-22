@@ -11,6 +11,8 @@ use App\Entity\FilingPackagePart;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\CaseStatus;
+use App\Enum\CourtEmailPurpose;
+use App\Enum\CourtEmailStatus;
 use App\Enum\FilingPackageStatus;
 use App\Enum\SignatureStatus;
 use App\Repository\AppSettingRepository;
@@ -297,6 +299,30 @@ final class CaseFilingControllerTest extends WebTestCase
         self::assertStringContainsString($this->trans('filing.upload.over_budget.rebuilt'), (string) $this->client->getResponse()->getContent());
         self::assertSame(2, $this->packageCount());
     }
+    public function testCardShowsWhyThereIsNoFilingAddressAndWhereToAddOne(): void
+    {
+        $this->client->loginUser($this->user);
+
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('#filing-package-card [data-testid="filing-recipient-reason"]', $this->rawTrans('enum.court_filing_address_missing_reason.NO_ADDRESS'));
+        self::assertSelectorExists(sprintf('#filing-package-card [data-testid="filing-recipient-action"][href="/case/%d/court-address"]', $this->case->getId()));
+        self::assertSelectorNotExists('#filing-package-card [data-testid="filing-recipient-email"]');
+    }
+
+    public function testCardShowsTheConfirmedFilingAddressWithItsConfirmationDate(): void
+    {
+        $this->createCourtEmailAddress($this->em, $this->case->getCourt(), 'registratura@just.ro', CourtEmailPurpose::REGISTRY, CourtEmailStatus::VALIDATED, new \DateTimeImmutable('2026-10-01'), $this->user, true);
+        $this->client->loginUser($this->user);
+
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('#filing-package-card [data-testid="filing-recipient-email"]', 'registratura@just.ro');
+        self::assertSelectorTextContains('#filing-package-card [data-testid="filing-recipient"]', '01.10.2026');
+        self::assertSelectorNotExists('#filing-package-card [data-testid="filing-recipient-reason"]');
+    }
 
     private function buildUrl(): string
     {
@@ -365,6 +391,11 @@ final class CaseFilingControllerTest extends WebTestCase
     private function packageCount(): int
     {
         return (int) $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM filing_package WHERE legal_case_id = ?', [$this->case->getId()]);
+    }
+
+    private function rawTrans(string $key): string
+    {
+        return static::getContainer()->get('translator')->trans($key);
     }
 
     private function trans(string $key): string

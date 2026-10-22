@@ -42,7 +42,7 @@ class ImportCourtsCommand extends Command
             'update',
             null,
             InputOption::VALUE_NONE,
-            'Update existing courts (refresh covered cities / address / email / phone) instead of skipping them.',
+            'Update existing courts (refresh covered cities / address / phone) instead of skipping them.',
         );
         $this->addOption(
             'strict',
@@ -205,9 +205,6 @@ class ImportCourtsCommand extends Command
         }
         if (isset($entry['address']) && is_string($entry['address'])) {
             $court->setAddress($entry['address']);
-        }
-        if (isset($entry['email']) && is_string($entry['email'])) {
-            $court->setEmail($entry['email']);
         }
         if (isset($entry['phone']) && is_string($entry['phone'])) {
             $court->setPhone($entry['phone']);

@@ -77,4 +77,38 @@ class AuditLogRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    /**
+     * Replaces the given strings in the stored payloads of one entity's audit rows,
+     * so an erasure request also reaches what the trail recorded about it.
+     *
+     * @param array<string, string> $replace search => replacement
+     */
+    public function redactEntityPayloads(string $entityType, string $entityId, array $replace): int
+    {
+        /** @var list<AuditLog> $rows */
+        $rows = $this->findBy(['entityType' => $entityType, 'entityId' => $entityId]);
+        $redact = static function (mixed $value) use (&$redact, $replace): mixed {
+            if (is_string($value)) {
+                return str_ireplace(array_keys($replace), array_values($replace), $value);
+            }
+            if (is_array($value)) {
+                $out = [];
+                foreach ($value as $key => $item) {
+                    $out[is_string($key) ? $redact($key) : $key] = $redact($item);
+                }
+
+                return $out;
+            }
+
+            return $value;
+        };
+
+        foreach ($rows as $row) {
+            $row->setOldData($row->getOldData() !== null ? $redact($row->getOldData()) : null);
+            $row->setNewData($row->getNewData() !== null ? $redact($row->getNewData()) : null);
+        }
+
+        return count($rows);
+    }
 }

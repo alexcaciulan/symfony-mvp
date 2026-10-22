@@ -18,6 +18,7 @@ use App\Repository\AuditLogRepository;
 use App\Repository\CourtPortalEventRepository;
 use App\Repository\LegalDeadlineRepository;
 use App\Service\Calculation\InterestCalculatorService;
+use App\Service\Court\CourtFilingAddressResolver;
 use App\Service\Calculation\StampDutyCalculator;
 use App\Service\Deadline\DeadlineService;
 use App\Service\Filing\FilingGate;
@@ -46,6 +47,7 @@ final class OverviewContextBuilder
         private readonly CaseFullPaymentClosureService $fullPaymentClosure,
         private readonly FilingPackageStalenessChecker $filingStaleness,
         private readonly FilingGate $filingGate,
+        private readonly CourtFilingAddressResolver $courtFilingAddressResolver,
     ) {}
 
     /**
@@ -102,6 +104,7 @@ final class OverviewContextBuilder
             // Looked at, so re-checked: a package whose sources changed is marked stale here.
             'filing_package' => $this->filingStaleness->refresh($case),
             'filing_gate_blocker' => $this->filingGate->firstBlocker($case),
+            'filing_recipient' => $this->courtFilingAddressResolver->resolve($case),
             'just_created' => false,
         ], $extra);
     }

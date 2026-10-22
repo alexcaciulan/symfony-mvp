@@ -1,0 +1,59 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ title }} · #{{ address.id }}{% endblock %}
+
+{% block body %}
+<div style="max-width: 640px; margin: 40px auto; padding: 0 16px;">
+    <div style="margin-bottom: 20px;">
+        <a href="{{ back_url }}" style="color: #2563eb; text-decoration: none; font-size: 14px;">Înapoi la adresă</a>
+    </div>
+
+    <h2 style="font-size: 20px; font-weight: 600; color: #111827; margin: 0 0 20px 0;">{{ title }}</h2>
+
+    <div style="background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 24px; margin-bottom: 20px; font-size: 14px;">
+        <table style="width: 100%;">
+            <tr><td style="padding: 4px 8px; color: #6b7280; width: 140px;">Instanță:</td><td style="padding: 4px 8px; font-weight: 600;">{{ address.court.name }}</td></tr>
+            <tr><td style="padding: 4px 8px; color: #6b7280;">E-mail:</td><td style="padding: 4px 8px; font-family: monospace;">{{ address.email }}</td></tr>
+            <tr><td style="padding: 4px 8px; color: #6b7280;">Scop:</td><td style="padding: 4px 8px;">{{ address.purpose.label|trans }}</td></tr>
+            <tr><td style="padding: 4px 8px; color: #6b7280;">Status:</td><td style="padding: 4px 8px;">{{ address.status.label|trans }}</td></tr>
+            <tr><td style="padding: 4px 8px; color: #6b7280;">Sursă:</td><td style="padding: 4px 8px;">{{ address.source.label|trans }}</td></tr>
+        </table>
+    </div>
+
+    <div style="background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 24px;">
+        <form method="post" action="{{ path('admin_court_email_action', {id: address.id, action: action}) }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('court_email_' ~ action ~ '_' ~ address.id) }}">
+
+            {% if action == 'validate' %}
+                <label style="display: flex; gap: 8px; align-items: flex-start; font-size: 14px; margin-bottom: 20px;">
+                    <input type="checkbox" name="statement_confirmed" value="1" required style="margin-top: 3px;">
+                    <span>{{ statement }}</span>
+                </label>
+            {% elseif action == 'invalidate' %}
+                <label for="reason" style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px;">Motiv</label>
+                <select name="reason" id="reason" required style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; margin-bottom: 20px;">
+                    {% for reason in reasons %}
+                        <option value="{{ reason.value }}">{{ reason.label|trans }}</option>
+                    {% endfor %}
+                </select>
+            {% elseif action == 'purpose' %}
+                <label for="purpose" style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px;">Scop</label>
+                <select name="purpose" id="purpose" required style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; margin-bottom: 12px;">
+                    {% for label, purpose in purposes %}
+                        <option value="{{ purpose.value }}" {{ purpose == address.purpose ? 'selected' }}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <label for="section_label" style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px;">Secția (opțional)</label>
+                <input type="text" name="section_label" id="section_label" maxlength="255" value="{{ address.sectionLabel }}" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; margin-bottom: 20px;">
+            {% elseif action == 'erase' %}
+                <p style="font-size: 14px; color: #374151; margin: 0 0 20px 0;">Adresa este ștearsă definitiv, iar valoarea ei este înlocuită și în jurnalul de audit. Rămâne doar faptul ștergerii.</p>
+            {% endif %}
+
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" style="padding: 8px 20px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer;">Confirmă</button>
+                <a href="{{ back_url }}" style="padding: 8px 20px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-weight: 500; text-decoration: none;">Anulează</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
