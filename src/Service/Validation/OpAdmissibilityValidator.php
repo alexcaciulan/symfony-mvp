@@ -13,7 +13,7 @@ use App\Service\Case\ClaimTextSignals;
 
 /**
  * Validează admisibilitatea unei cereri de ordonanță de plată față de fiecare debitor
- * (CPC art. 1013 + Legea 85/2014).
+ * (CPC art. 1014 + Legea 85/2014).
  *
  * Returnează lista de issue-uri (ERROR / WARNING) pe care wizard-ul (Pas 3.x)
  * și PDF generator-ul (Pas 5.x) le consumă pentru a bloca / preveni acțiuni inadmisibile.
@@ -80,7 +80,7 @@ final class OpAdmissibilityValidator
     }
 
     /**
-     * CPC art. 1013: the claim must be certain, liquid and EXIGIBLE. A due date
+     * CPC art. 1014: the claim must be certain, liquid and EXIGIBLE. A due date
      * in the future means the debt is not yet payable, so the petition is
      * inadmissible regardless of the debtor's standing.
      *
@@ -183,7 +183,7 @@ final class OpAdmissibilityValidator
 
     /**
      * A sum already partly settled is not certain in the amount claimed
-     * (CPC art. 1013 alin. 1). The deduction is never applied here: imputation
+     * (CPC art. 1014 alin. 1). The deduction is never applied here: imputation
      * follows Civil Code art. 1507-1509 and belongs to the lawyer. What is owed
      * is that they be told the position states one.
      *

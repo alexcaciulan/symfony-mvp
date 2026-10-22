@@ -111,7 +111,7 @@ final class ClaimTotalsService
      * A scalar is only ever overwritten by a value the positions actually
      * supply. The due date and the invoice identity the lawyer entered are not
      * erased by positions that carry none: a null due date silently disables
-     * the exigibility check of CPC art. 1013.
+     * the exigibility check of CPC art. 1014.
      */
     public function recalculate(LegalCase $case): ClaimTotals
     {

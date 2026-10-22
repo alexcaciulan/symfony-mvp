@@ -170,7 +170,7 @@ final class ClaimItemDeduplicator
      * Any disagreement about what is owed or when it fell due. Both are
      * blocking: the first decides what is asked of the court, the second
      * decides the interest and whether the claim is exigible at all
-     * (CPC art. 1013 para. 1).
+     * (CPC art. 1014 para. 1).
      *
      * @return list<PrefillConflict>
      */

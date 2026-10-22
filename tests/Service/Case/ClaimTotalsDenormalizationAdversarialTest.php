@@ -32,7 +32,7 @@ final class ClaimTotalsDenormalizationAdversarialTest extends TestCase
      * most often). Recalculating the totals must not throw the typed date away.
      *
      * Losing it is not cosmetic: with no due date on the case and none on the
-     * positions, the accessory is zero, exigibility (CPC art. 1013) can no
+     * positions, the accessory is zero, exigibility (CPC art. 1014) can no
      * longer be shown, and the summons states no term.
      */
     public function testPositionsWithoutADueDateDoNotEraseTheDueDateOnTheCase(): void

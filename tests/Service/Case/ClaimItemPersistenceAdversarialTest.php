@@ -52,7 +52,6 @@ final class ClaimItemPersistenceAdversarialTest extends KernelTestCase
         $this->user->setIsVerified(true);
         $this->user->setFirstName('Avocat');
         $this->user->setLastName('Pozitii');
-        $this->user->setBarNumber('B-90210');
         $this->em->persist($this->user);
 
         $this->creditor = new Creditor();

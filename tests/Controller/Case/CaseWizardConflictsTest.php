@@ -23,7 +23,7 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
  * The aggregation has always known what the documents disagreed about; until
  * now the wizard threw it away and showed the lawyer a single value with an
  * "auto" badge. A divergent registered office decides the competent court
- * (CPC art. 1013 alin. 1 with art. 107) and resolving it silently by ranking is
+ * (CPC art. 1014 alin. 1 with art. 107) and resolving it silently by ranking is
  * how a petition lands at the wrong court without anybody knowing it was in
  * dispute.
  */

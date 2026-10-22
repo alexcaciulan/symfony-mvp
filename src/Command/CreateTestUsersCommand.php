@@ -72,7 +72,6 @@ class CreateTestUsersCommand extends Command
                 'lastName' => 'Georgescu',
                 'roles' => ['ROLE_USER', 'ROLE_CREDITOR'],
                 'type' => UserType::AVOCAT,
-                'barNumber' => 'B-12345',
                 'phone' => '0721000003',
                 'city' => 'Timișoara',
                 'county' => 'Timiș',
@@ -115,9 +114,6 @@ class CreateTestUsersCommand extends Command
             }
             if (isset($data['companyName'])) {
                 $user->setCompanyName($data['companyName']);
-            }
-            if (isset($data['barNumber'])) {
-                $user->setBarNumber($data['barNumber']);
             }
             if (isset($data['phone'])) {
                 $user->setPhone($data['phone']);

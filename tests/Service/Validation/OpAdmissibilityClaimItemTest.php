@@ -13,7 +13,7 @@ use App\Service\Validation\OpAdmissibilityValidator;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Exigibility (CPC art. 1013) evaluated per claim position. Kept in the one
+ * Exigibility (CPC art. 1014) evaluated per claim position. Kept in the one
  * validator that owns admissibility, so no second engine can drift from it.
  */
 class OpAdmissibilityClaimItemTest extends TestCase
