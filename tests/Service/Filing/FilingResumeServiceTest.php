@@ -34,6 +34,7 @@ final class FilingResumeServiceTest extends KernelTestCase
     private EntityManagerInterface $em;
     private User $user;
     private LegalCase $case;
+    private ?User $admin = null;
 
     protected function setUp(): void
     {
@@ -48,6 +49,9 @@ final class FilingResumeServiceTest extends KernelTestCase
     {
         if (isset($this->em)) {
             $this->removeFilingFixtures($this->em, $this->user ?? null, $this->case ?? null);
+            if ($this->admin !== null) {
+                $this->removeFilingFixtures($this->em, $this->admin, null);
+            }
         }
         parent::tearDown();
     }
@@ -158,7 +162,11 @@ final class FilingResumeServiceTest extends KernelTestCase
         $addresses = static::getContainer()->get(CourtEmailAddressService::class);
         $addresses->reopen($address);
         self::assertNull($address->getInvalidatedBySubmission());
-        $addresses->validate($address, $this->user, true);
+        // Only the admin puts an address back in use, after checking it.
+        $this->admin = $this->createFilingUser($this->em, 'filing-resume-admin');
+        $this->admin->setRoles(['ROLE_ADMIN']);
+        $this->em->flush();
+        $addresses->validate($address, $this->admin, true);
         $addresses->setFilingDefault($address);
 
         $second = $this->submitFiling($this->case, $this->user);

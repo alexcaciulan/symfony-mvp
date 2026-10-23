@@ -11,6 +11,7 @@ use App\Entity\FilingPackagePart;
 use App\Entity\FilingSubmission;
 use App\Entity\LegalCase;
 use App\Entity\User;
+use App\Enum\FilingAttemptOutcome;
 use App\Enum\FilingDeliveryStatus;
 use App\Enum\FilingPartStatus;
 use App\Enum\InboundReviewStatus;
@@ -54,6 +55,7 @@ final class FilingSubmissionService
         private readonly RateLimiterFactory $filingCourtCapLimiter,
         private readonly FilingPartOutcomeApplier $outcomes,
         private readonly InboundMailRepository $inboundMails,
+        private readonly FilingRowLocker $locker,
     ) {}
 
     /**
@@ -174,9 +176,24 @@ final class FilingSubmissionService
      */
     public function isCancellable(FilingSubmission $submission): bool
     {
-        return $submission->isActive()
-            && $submission->getReviewReason() !== FilingPartOutcomeApplier::REVIEW_LATE_BOUNCE
-            && !$submission->hasPartWithStatus(FilingPartStatus::ACCEPTED, FilingPartStatus::SENDING, FilingPartStatus::UNCERTAIN);
+        if (!$submission->isActive()
+            || $submission->getReviewReason() === FilingPartOutcomeApplier::REVIEW_LATE_BOUNCE
+            || $submission->hasPartWithStatus(FilingPartStatus::ACCEPTED, FilingPartStatus::SENDING, FilingPartStatus::UNCERTAIN)) {
+            return false;
+        }
+        // A part a server once accepted (even if a report later revoked it) did leave.
+        foreach ($submission->getParts() as $part) {
+            if (FilingPartOutcomeApplier::hasAsyncFailure($part)) {
+                return false;
+            }
+            foreach ($part->getAttempts() as $attempt) {
+                if ($attempt->getOutcome() === FilingAttemptOutcome::ACCEPTED) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     public function isLateBounceReview(FilingSubmission $submission): bool
@@ -202,12 +219,8 @@ final class FilingSubmissionService
             if (!$this->isLateBounceReview($submission)) {
                 throw new FilingSendBlockedException('filing.undelivered.ack_refused');
             }
-            $submission->endLateReview();
-            foreach ($this->inboundMails->findForSubmission($submission) as $mail) {
-                if ($mail->getReviewStatus() === InboundReviewStatus::PENDING && $mail->getReviewReason() === 'late_bounce_case_advanced') {
-                    $mail->resolveReview();
-                }
-            }
+            $submission->endLateReview($this->clock->now());
+            $this->resolveLateBounceMails($submission);
             $submission->appendConfirmation('late_bounce', ['checked' => $this->translator->trans('filing.undelivered.ack_statement')], $user, $this->clock->now());
             $this->auditLogService->log(
                 action: 'filing_late_bounce_acknowledged',
@@ -291,6 +304,21 @@ final class FilingSubmissionService
             throw new FilingSendBlockedException('filing.override.error.reason_required');
         }
         $this->inLockedSubmission($submission, function () use ($submission, $admin, $reason): void {
+            // A late bounce holds the case for a check that changes nothing on it: the admin may end the hold.
+            if ($this->isLateBounceReview($submission)) {
+                $submission->endLateReview($this->clock->now());
+                $this->resolveLateBounceMails($submission);
+                $this->auditLogService->log(
+                    action: 'filing_late_bounce_closed_by_admin',
+                    entityType: LegalCase::class,
+                    entityId: (string) $submission->getLegalCase()->getId(),
+                    newData: ['submissionId' => $submission->getId(), 'status' => $submission->getDeliveryStatus()->value, 'adminReason' => trim($reason)],
+                    category: AuditLogService::CATEGORY_FILING_SUBMISSION,
+                    actor: $admin,
+                );
+
+                return;
+            }
             if ($this->isCancellable($submission)) {
                 $this->cancelLocked($submission, $admin, ['adminReason' => trim($reason)]);
 
@@ -315,6 +343,18 @@ final class FilingSubmissionService
     {
         $submission = $this->submissions->findActiveForCase($case);
         if ($submission === null) {
+            return;
+        }
+        // Registered from this very filing: the annexes the petition lists still go.
+        if (self::isRegisteredFromThisFiling($case, $submission)) {
+            $this->auditLogService->log(
+                action: 'filing_registration_annexes_continue',
+                entityType: LegalCase::class,
+                entityId: (string) $case->getId(),
+                newData: ['submissionId' => $submission->getId(), 'status' => $submission->getDeliveryStatus()->value],
+                category: AuditLogService::CATEGORY_FILING_SUBMISSION,
+            );
+
             return;
         }
 
@@ -350,6 +390,30 @@ final class FilingSubmissionService
             category: AuditLogService::CATEGORY_FILING_SUBMISSION,
         );
         $this->filingLock->forget($case);
+    }
+
+    /**
+     * The petition of this submission was accepted and the case's filing reference
+     * is its Message-ID: a registration then follows from this filing, not from
+     * another channel.
+     */
+    public static function isRegisteredFromThisFiling(LegalCase $case, FilingSubmission $submission): bool
+    {
+        $petition = $submission->getPart(1);
+
+        return $petition !== null
+            && $submission->isPetitionAccepted()
+            && $case->getFilingReference() !== null
+            && $case->getFilingReference() === $petition->getMessageId();
+    }
+
+    private function resolveLateBounceMails(FilingSubmission $submission): void
+    {
+        foreach ($this->inboundMails->findForSubmission($submission) as $mail) {
+            if ($mail->getReviewStatus() === InboundReviewStatus::PENDING && $mail->getReviewReason() === 'late_bounce_case_advanced') {
+                $mail->resolveReview();
+            }
+        }
     }
 
     /** @param array<string, bool> $confirmed */
@@ -423,13 +487,7 @@ final class FilingSubmissionService
         $connection = $this->em->getConnection();
         $connection->beginTransaction();
         try {
-            $this->em->lock($case, LockMode::PESSIMISTIC_WRITE);
-            $this->em->lock($submission, LockMode::PESSIMISTIC_WRITE);
-            foreach ($submission->getParts() as $part) {
-                $this->em->lock($part, LockMode::PESSIMISTIC_WRITE);
-                $this->em->refresh($part);
-            }
-            $this->em->refresh($submission);
+            $this->locker->lock($submission);
             $work();
             $this->em->flush();
             $connection->commit();

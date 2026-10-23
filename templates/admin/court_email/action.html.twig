@@ -16,8 +16,20 @@
             <tr><td style="padding: 4px 8px; color: #6b7280;">E-mail:</td><td style="padding: 4px 8px; font-family: monospace;">{{ address.email }}</td></tr>
             <tr><td style="padding: 4px 8px; color: #6b7280;">Scop:</td><td style="padding: 4px 8px;">{{ address.purpose.label|trans }}</td></tr>
             <tr><td style="padding: 4px 8px; color: #6b7280;">Status:</td><td style="padding: 4px 8px;">{{ address.status.label|trans }}</td></tr>
-            <tr><td style="padding: 4px 8px; color: #6b7280;">Sursă:</td><td style="padding: 4px 8px;">{{ address.source.label|trans }}</td></tr>
+            <tr><td style="padding: 4px 8px; color: #6b7280;">Sursă:</td><td style="padding: 4px 8px;" data-testid="admin-court-email-source">{{ address.source.label|trans }}</td></tr>
+            {% if address.sourceUrl %}
+                <tr><td style="padding: 4px 8px; color: #6b7280;">URL sursă:</td><td style="padding: 4px 8px; word-break: break-all;">{{ address.sourceUrl }}</td></tr>
+            {% endif %}
+            {% if address.context %}
+                <tr><td style="padding: 4px 8px; color: #6b7280;">Context:</td><td style="padding: 4px 8px;">{{ address.context }}</td></tr>
+            {% endif %}
+            {% if open_reports is defined and open_reports is not empty %}
+                <tr><td style="padding: 4px 8px; color: #6b7280;">Rapoarte deschise:</td><td style="padding: 4px 8px; color: #b45309;">{{ open_reports|length }}</td></tr>
+            {% endif %}
         </table>
+        {% if action == 'validate' and address.source.value == 'LAWYER_SUGGESTION' %}
+            <p style="margin: 12px 8px 0; color: #b45309;">Adresa a fost sugerată de un avocat și nu a fost verificată. Se validează doar după verificarea pe o sursă a instanței.</p>
+        {% endif %}
     </div>
 
     <div style="background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 24px;">

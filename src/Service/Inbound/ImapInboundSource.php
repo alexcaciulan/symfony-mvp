@@ -10,7 +10,10 @@ use App\Service\Inbound\Imap\ImapSettings;
 
 /**
  * Production source: the platform mailbox over IMAP. Nothing connects until the
- * first fetch; a stored message is moved to the processed folder.
+ * first fetch; a stored message is moved to the processed folder. The source id
+ * names the host, the folder and its UIDVALIDITY next to the UID, so a mailbox
+ * whose UIDs restart (another account, a recreated folder) never has its new
+ * messages taken for ones already stored.
  */
 final class ImapInboundSource implements InboundMailSourceInterface
 {
@@ -48,16 +51,37 @@ final class ImapInboundSource implements InboundMailSourceInterface
     public function fetch(int $limit): iterable
     {
         $out = [];
+        $mailbox = str_contains($this->settings->username, '@') ? mb_strtolower($this->settings->username) : null;
         foreach ($this->mailbox()->fetch($limit) as $message) {
-            $out[] = new RawInboundMail(self::NAME, $message['uid'], $message['raw'], $message['date'] ?? new \DateTimeImmutable());
+            $out[] = new RawInboundMail(
+                self::NAME,
+                $this->sourceId($message['uidvalidity'], $message['uid']),
+                $message['raw'],
+                $message['date'] ?? new \DateTimeImmutable(),
+                $mailbox,
+            );
         }
 
         return $out;
     }
 
+    /** Moved only while the folder's UIDVALIDITY is the one the UID was read under. */
     public function acknowledge(RawInboundMail $mail): void
     {
-        $this->mailbox()->moveToProcessed($mail->sourceId);
+        $prefix = $this->settings->host . '/' . $this->settings->inbox . ':';
+        if (!str_starts_with($mail->sourceId, $prefix)
+            || preg_match('/^([^:]*):(\d+)$/', substr($mail->sourceId, strlen($prefix)), $m) !== 1) {
+            return;
+        }
+        if ($m[1] !== $this->mailbox()->uidValidity()) {
+            return;
+        }
+        $this->mailbox()->moveToProcessed($m[2]);
+    }
+
+    private function sourceId(string $uidValidity, string $uid): string
+    {
+        return sprintf('%s/%s:%s:%s', $this->settings->host, $this->settings->inbox, $uidValidity, $uid);
     }
 
     public function name(): string

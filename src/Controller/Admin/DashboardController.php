@@ -2,6 +2,8 @@
 
 namespace App\Controller\Admin;
 
+use App\Enum\CourtEmailSource;
+use App\Repository\CourtEmailAddressReportRepository;
 use App\Repository\CourtEmailAddressRepository;
 use App\Repository\InvoiceRepository;
 use App\Repository\LegalCaseRepository;
@@ -23,6 +25,7 @@ class DashboardController extends AbstractDashboardController
         private LegalCaseRepository $legalCaseRepository,
         private InvoiceRepository $invoiceRepository,
         private CourtEmailAddressRepository $courtEmailAddressRepository,
+        private CourtEmailAddressReportRepository $courtEmailAddressReportRepository,
         private AdminUrlGenerator $adminUrlGenerator,
         private ClockInterface $clock,
     ) {
@@ -49,6 +52,23 @@ class DashboardController extends AbstractDashboardController
                 ->setController(CourtEmailAddressCrudController::class)
                 ->setAction(Action::INDEX)
                 ->set('filters', ['status' => ['comparison' => '=', 'value' => 'PROPOSED']])
+                ->generateUrl(),
+            'lawyerSuggestions' => $this->courtEmailAddressRepository->countProposedFromSource(CourtEmailSource::LAWYER_SUGGESTION),
+            'lawyerSuggestionsUrl' => $this->adminUrlGenerator
+                ->unsetAll()
+                ->setController(CourtEmailAddressCrudController::class)
+                ->setAction(Action::INDEX)
+                ->set('filters', [
+                    'status' => ['comparison' => '=', 'value' => 'PROPOSED'],
+                    'source' => ['comparison' => '=', 'value' => CourtEmailSource::LAWYER_SUGGESTION->value],
+                ])
+                ->generateUrl(),
+            'openCourtEmailReports' => $this->courtEmailAddressReportRepository->countOpen(),
+            'openCourtEmailReportsUrl' => $this->adminUrlGenerator
+                ->unsetAll()
+                ->setController(CourtEmailAddressReportCrudController::class)
+                ->setAction(Action::INDEX)
+                ->set('filters', ['resolvedAt' => 'null'])
                 ->generateUrl(),
         ]);
     }
@@ -83,6 +103,7 @@ class DashboardController extends AbstractDashboardController
         yield MenuItem::linkTo(UserCrudController::class, 'Utilizatori', 'fas fa-users')->setAction(Action::INDEX);
         yield MenuItem::linkTo(CourtCrudController::class, 'Instanțe', 'fas fa-landmark')->setAction(Action::INDEX);
         yield MenuItem::linkTo(CourtEmailAddressCrudController::class, 'Adrese e-mail instanțe', 'fas fa-at')->setAction(Action::INDEX);
+        yield MenuItem::linkTo(CourtEmailAddressReportCrudController::class, 'Rapoarte adrese instanțe', 'fas fa-flag')->setAction(Action::INDEX);
         yield MenuItem::linkTo(CourtPortalEventCrudController::class, 'Evenimente portal', 'fas fa-satellite-dish')->setAction(Action::INDEX);
         yield MenuItem::linkTo(InterestRateConfigCrudController::class, 'Rate dobândă', 'fas fa-percent')->setAction(Action::INDEX);
         yield MenuItem::linkTo(BnrExchangeRateCrudController::class, 'Cursuri valutare BNR', 'fas fa-money-bill-transfer')->setAction(Action::INDEX);

@@ -1,0 +1,33 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Adaugă adresă · {{ court.name }}{% endblock %}
+
+{% block body %}
+<div style="max-width: 640px; margin: 40px auto; padding: 0 16px;">
+    <div style="margin-bottom: 20px;">
+        <a href="{{ back_url }}" style="color: #2563eb; text-decoration: none; font-size: 14px;">Înapoi la instanță</a>
+    </div>
+
+    <h2 style="font-size: 20px; font-weight: 600; color: #111827; margin: 0 0 8px 0;">Adaugă o adresă de e-mail</h2>
+    <p style="font-size: 14px; color: #374151; margin: 0 0 20px 0;">{{ court.name }}</p>
+    <p style="font-size: 13px; color: #6b7280; margin: 0 0 20px 0;">Adresa intră ca propusă și nu se folosește la depunere până la validare. Validarea se face după verificarea adresei pe sursa ei (pagina instanței, portal.just.ro). Adresele nominale nu se acceptă.</p>
+
+    <div style="background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 24px;">
+        <form method="post" action="{{ path('admin_court_email_add', {courtId: court.id}) }}" data-testid="admin-court-email-add-form">
+            <input type="hidden" name="_token" value="{{ csrf_token('court_email_add_' ~ court.id) }}">
+            <label for="email" style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px;">E-mail</label>
+            <input type="email" name="email" id="email" required maxlength="254" autocomplete="off" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; margin-bottom: 12px;">
+            <label for="purpose" style="display: block; font-size: 14px; font-weight: 500; margin-bottom: 6px;">Scop</label>
+            <select name="purpose" id="purpose" required style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; margin-bottom: 20px;">
+                {% for label, purpose in purposes %}
+                    <option value="{{ purpose.value }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" style="padding: 8px 20px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer;">Adaugă</button>
+                <a href="{{ back_url }}" style="padding: 8px 20px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-weight: 500; text-decoration: none;">Anulează</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

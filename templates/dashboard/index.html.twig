@@ -147,7 +147,7 @@
                                 <td class="px-5 py-3 text-slate-700 dark:text-slate-300">{{ case.court ? case.court.name : '—' }}</td>
                                 <td class="px-5 py-3 text-right font-medium tnum">{{ case.amount ? (case.amount|number_format(2, ',', '.') ~ ' ' ~ case.currency) : '—' }}</td>
                                 <td class="px-5 py-3">
-                                    <twig:StatusBadge status="{{ case.status }}" />
+                                    <twig:StatusBadge status_label="{{ case.displayStatusLabel|trans }}" status_color="{{ case.status.color() }}" />
                                 </td>
                                 <td class="px-5 py-3 text-xs text-slate-500 dark:text-slate-400">{{ case.createdAt|date('d.m.Y') }}</td>
                                 <td class="px-5 py-3 text-right">

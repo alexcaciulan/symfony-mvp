@@ -1,5 +1,6 @@
-{# Read-only list of the court's addresses on the court detail page. #}
+{# The court's addresses on the court detail page, with the admin's way to add one. #}
 {% set addresses = field.value %}
+<p><a href="{{ path('admin_court_email_add', {courtId: entity.instance.id}) }}" class="btn btn-sm btn-secondary" data-testid="admin-court-email-add">Adaugă o adresă</a></p>
 {% if addresses is empty %}
     <span class="text-muted" data-testid="court-email-addresses-empty">Nicio adresă înregistrată.</span>
 {% else %}

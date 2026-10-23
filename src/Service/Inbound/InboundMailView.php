@@ -32,15 +32,20 @@ final class InboundMailView
             && $mail->getMatchMethod() !== InboundMatchMethod::HEURISTIC;
     }
 
-    /** @return list<array{mail: InboundMail, excerpt: ?string}> */
-    public function rows(FilingSubmission $submission): array
+    /**
+     * The excerpt is the court's words about a client's case (professional secrecy),
+     * so it is read only for the lawyer of the case; anyone else gets metadata.
+     *
+     * @return list<array{mail: InboundMail, excerpt: ?string}>
+     */
+    public function rows(FilingSubmission $submission, bool $withExcerpt): array
     {
         $rows = [];
         foreach ($this->mails->findForSubmission($submission) as $mail) {
             if (!self::isVisibleToLawyer($mail)) {
                 continue;
             }
-            $rows[] = ['mail' => $mail, 'excerpt' => $this->excerpt($mail)];
+            $rows[] = ['mail' => $mail, 'excerpt' => $withExcerpt ? $this->excerpt($mail) : null];
         }
 
         return $rows;

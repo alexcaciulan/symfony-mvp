@@ -6,9 +6,12 @@ namespace App\Tests\Controller\Case;
 
 use App\Entity\Court;
 use App\Entity\CourtEmailAddress;
+use App\Entity\CourtEmailAddressReport;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\CourtEmailPurpose;
+use App\Enum\CourtEmailReportKind;
+use App\Enum\CourtEmailReportReason;
 use App\Enum\CourtEmailSource;
 use App\Enum\CourtEmailStatus;
 use App\Tests\Support\FilingCaseFixtureTrait;
@@ -51,7 +54,7 @@ final class CaseCourtAddressControllerTest extends WebTestCase
         parent::tearDown();
     }
 
-    public function testOwnerSeesTheCourtAddressesWithoutNominalOnes(): void
+    public function testOwnerSeesTheCourtAddressesWithoutNominalOnesAndCannotConfirm(): void
     {
         $this->createCourtEmailAddress($this->em, $this->court, 'registratura@just.ro', CourtEmailPurpose::REGISTRY);
         $this->createCourtEmailAddress($this->em, $this->court, 'ion.popescu@just.ro', CourtEmailPurpose::PERSONAL);
@@ -63,8 +66,22 @@ final class CaseCourtAddressControllerTest extends WebTestCase
         $html = (string) $this->client->getResponse()->getContent();
         self::assertStringContainsString('registratura@just.ro', $html);
         self::assertStringNotContainsString('ion.popescu', $html);
-        self::assertSelectorExists('form[data-testid="court-address-validate-form"]');
-        self::assertSelectorExists('form[data-testid="court-address-manual-form"]');
+        self::assertSelectorNotExists('form[data-testid="court-address-validate-form"]');
+        self::assertSelectorExists('[data-testid="court-address-awaiting-admin"]');
+        self::assertSelectorExists('form[data-testid="court-address-suggest-form"]');
+        self::assertSelectorExists('form[data-testid="court-address-report-form"]');
+    }
+
+    public function testTheLawyerValidationAndManualRoutesAreGone(): void
+    {
+        $address = $this->createCourtEmailAddress($this->em, $this->court, 'registratura@just.ro', CourtEmailPurpose::REGISTRY);
+        $this->client->loginUser($this->user);
+
+        $this->client->request('POST', $this->pageUrl() . '/' . $address->getId() . '/validate', ['statement_confirmed' => '1'], [], self::TURBO);
+        self::assertResponseStatusCodeSame(404);
+        $this->client->request('POST', $this->pageUrl() . '/manual', ['email' => 'x@just.ro', 'purpose' => 'REGISTRY'], [], self::TURBO);
+        self::assertResponseStatusCodeSame(404);
+        self::assertSame(CourtEmailStatus::PROPOSED, $this->reload($address)->getStatus());
     }
 
     public function testAnotherLawyerIsRefusedOnTheReadAndOnEveryAction(): void
@@ -77,15 +94,15 @@ final class CaseCourtAddressControllerTest extends WebTestCase
 
         $this->client->request('GET', $this->pageUrl());
         self::assertResponseStatusCodeSame(403);
-        $this->client->request('POST', $this->pageUrl() . '/' . $address->getId() . '/validate', ['statement_confirmed' => '1'], [], self::TURBO);
+        $this->client->request('POST', $this->pageUrl() . '/' . $address->getId() . '/report', ['reason' => 'BOUNCED'], [], self::TURBO);
         self::assertResponseStatusCodeSame(403);
-        $this->client->request('POST', $this->pageUrl() . '/manual', ['email' => 'x@just.ro', 'purpose' => 'REGISTRY'], [], self::TURBO);
+        $this->client->request('POST', $this->pageUrl() . '/suggest', ['email' => 'x@just.ro', 'purpose' => 'REGISTRY'], [], self::TURBO);
         self::assertResponseStatusCodeSame(403);
     }
 
-    public function testAdminReadsThePageWithoutFormsAndCannotConfirm(): void
+    public function testAdminReadsThePageWithoutForms(): void
     {
-        $address = $this->createCourtEmailAddress($this->em, $this->court, 'registratura@just.ro', CourtEmailPurpose::REGISTRY);
+        $this->createCourtEmailAddress($this->em, $this->court, 'registratura@just.ro', CourtEmailPurpose::REGISTRY);
         $admin = $this->createFilingUser($this->em, 'court-addr-admin');
         $admin->setRoles(['ROLE_ADMIN']);
         $this->em->flush();
@@ -96,51 +113,18 @@ final class CaseCourtAddressControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
         self::assertSelectorExists('[data-testid="court-address-read-only"]');
         self::assertSelectorNotExists('#court-address-list form');
-
-        $this->client->request('POST', $this->pageUrl() . '/' . $address->getId() . '/validate', ['statement_confirmed' => '1'], [], self::TURBO);
-        self::assertResponseStatusCodeSame(403);
-        self::assertSame(CourtEmailStatus::PROPOSED, $this->reload($address)->getStatus());
     }
 
     public function testAForgedTokenIsRefused(): void
     {
-        $address = $this->createCourtEmailAddress($this->em, $this->court, 'registratura@just.ro', CourtEmailPurpose::REGISTRY);
+        $address = $this->createCourtEmailAddress($this->em, $this->court, 'registratura@just.ro', CourtEmailPurpose::REGISTRY, CourtEmailStatus::VALIDATED, new \DateTimeImmutable('-5 days'), $this->user, true);
         $this->client->loginUser($this->user);
 
-        $this->client->request('POST', $this->validateUrl($address), ['_token' => 'forged', 'statement_confirmed' => '1'], [], self::TURBO);
+        $this->client->request('POST', $this->reportUrl($address), ['_token' => 'forged', 'reason' => 'BOUNCED'], [], self::TURBO);
 
         self::assertResponseIsSuccessful();
         self::assertStringContainsString($this->trans('court_address.validation.error.csrf'), (string) $this->client->getResponse()->getContent());
-        self::assertSame(CourtEmailStatus::PROPOSED, $this->reload($address)->getStatus());
-    }
-
-    public function testValidationWithTheStatementConfirmsTheAddressInAStream(): void
-    {
-        $address = $this->createCourtEmailAddress($this->em, $this->court, 'registratura@just.ro', CourtEmailPurpose::REGISTRY);
-        $this->client->loginUser($this->user);
-        $token = $this->token('form[data-testid="court-address-validate-form"]');
-
-        $this->client->request('POST', $this->validateUrl($address), ['_token' => $token, 'statement_confirmed' => '1'], [], self::TURBO);
-
-        self::assertResponseIsSuccessful();
-        self::assertStringContainsString('text/vnd.turbo-stream.html', (string) $this->client->getResponse()->headers->get('Content-Type'));
-        self::assertStringContainsString('target="court-address-list"', (string) $this->client->getResponse()->getContent());
-        $address = $this->reload($address);
-        self::assertSame(CourtEmailStatus::VALIDATED, $address->getStatus());
-        self::assertSame($this->user->getId(), $address->getValidatedBy()?->getId());
-    }
-
-    public function testValidationWithoutTheStatementLeavesTheAddressProposed(): void
-    {
-        $address = $this->createCourtEmailAddress($this->em, $this->court, 'registratura@just.ro', CourtEmailPurpose::REGISTRY);
-        $this->client->loginUser($this->user);
-        $token = $this->token('form[data-testid="court-address-validate-form"]');
-
-        $this->client->request('POST', $this->validateUrl($address), ['_token' => $token], [], self::TURBO);
-
-        self::assertResponseIsSuccessful();
-        self::assertStringContainsString($this->trans('court_address.validation.error.statement_required'), (string) $this->client->getResponse()->getContent());
-        self::assertSame(CourtEmailStatus::PROPOSED, $this->reload($address)->getStatus());
+        self::assertSame(0, $this->reportCount());
     }
 
     public function testAnAddressOfAnotherCourtOrANominalOneIsNotFound(): void
@@ -152,62 +136,69 @@ final class CaseCourtAddressControllerTest extends WebTestCase
         $personal = $this->createCourtEmailAddress($this->em, $this->court, 'ion.popescu@just.ro', CourtEmailPurpose::PERSONAL);
         $this->client->loginUser($this->user);
 
-        $this->client->request('POST', $this->validateUrl($foreign), ['statement_confirmed' => '1'], [], self::TURBO);
+        $this->client->request('POST', $this->reportUrl($foreign), ['reason' => 'BOUNCED'], [], self::TURBO);
         self::assertResponseStatusCodeSame(404);
-        $this->client->request('POST', $this->validateUrl($personal), ['statement_confirmed' => '1'], [], self::TURBO);
+        $this->client->request('POST', $this->reportUrl($personal), ['reason' => 'BOUNCED'], [], self::TURBO);
         self::assertResponseStatusCodeSame(404);
     }
 
-    public function testManualAddOfANominalAddressIsRefusedWithAToast(): void
+    public function testSuggestingANominalAddressIsRefusedWithAToast(): void
     {
         $this->client->loginUser($this->user);
-        $token = $this->token('form[data-testid="court-address-manual-form"]');
+        $token = $this->token('form[data-testid="court-address-suggest-form"]');
 
-        $this->client->request('POST', $this->pageUrl() . '/manual', ['_token' => $token, 'email' => 'ion.popescu@just.ro', 'purpose' => 'REGISTRY'], [], self::TURBO);
+        $this->client->request('POST', $this->pageUrl() . '/suggest', ['_token' => $token, 'email' => 'ion.popescu@just.ro', 'purpose' => 'REGISTRY'], [], self::TURBO);
 
         self::assertResponseIsSuccessful();
         self::assertStringContainsString($this->trans('court_address.validation.error.personal_refused'), (string) $this->client->getResponse()->getContent());
         self::assertSame(0, (int) $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM court_email_address WHERE court_id = ?', [$this->court->getId()]));
-
-        $this->client->request('POST', $this->pageUrl() . '/manual', ['_token' => $token, 'email' => 'registratura@example.test', 'purpose' => 'REGISTRY'], [], self::TURBO);
-        self::assertStringContainsString('registratura@example.test', (string) $this->client->getResponse()->getContent());
     }
 
-    public function testManualAddStoresAProposedManualAddressAndShowsItForConfirmation(): void
+    public function testASuggestionWaitsProposedForTheAdministrator(): void
     {
         $this->client->loginUser($this->user);
-        $token = $this->token('form[data-testid="court-address-manual-form"]');
+        $token = $this->token('form[data-testid="court-address-suggest-form"]');
 
-        $this->client->request('POST', $this->pageUrl() . '/manual', ['_token' => $token, 'email' => ' Registratura@Just.ro ', 'purpose' => 'SECTION_CIVIL'], [], self::TURBO);
+        $this->client->request('POST', $this->pageUrl() . '/suggest', ['_token' => $token, 'email' => ' Registratura@Just.ro ', 'purpose' => 'SECTION_CIVIL'], [], self::TURBO);
 
         self::assertResponseIsSuccessful();
         $content = (string) $this->client->getResponse()->getContent();
         self::assertStringContainsString('target="court-address-list"', $content);
-        self::assertStringContainsString($this->trans('court_address.validation.toast.added'), $content);
-        self::assertStringContainsString('data-testid="court-address-validate-form"', $content);
-        self::assertStringContainsString($this->trans('court_address.validation.scope_note'), $content);
+        self::assertStringContainsString($this->trans('court_address.validation.toast.suggested'), $content);
+        self::assertStringContainsString('data-testid="court-address-awaiting-admin"', $content);
+        self::assertStringNotContainsString('court-address-validate-form', $content);
 
         $this->em->clear();
         $address = $this->em->getRepository(CourtEmailAddress::class)->findOneBy(['court' => $this->court->getId(), 'email' => 'registratura@just.ro']);
         self::assertNotNull($address);
         self::assertSame(CourtEmailStatus::PROPOSED, $address->getStatus());
-        self::assertSame(CourtEmailSource::MANUAL, $address->getSource());
+        self::assertSame(CourtEmailSource::LAWYER_SUGGESTION, $address->getSource());
         self::assertSame(CourtEmailPurpose::SECTION_CIVIL, $address->getPurpose());
         self::assertNull($address->getValidatedBy());
+        self::assertFalse($address->isFilingDefault());
     }
 
-    public function testReportMovesAConfirmedAddressToInvalid(): void
+    public function testAReportLeavesTheAddressInUseAndGoesToTheAdministrator(): void
     {
         $address = $this->createCourtEmailAddress($this->em, $this->court, 'registratura@just.ro', CourtEmailPurpose::REGISTRY, CourtEmailStatus::VALIDATED, new \DateTimeImmutable('-5 days'), $this->user, true);
         $this->client->loginUser($this->user);
         $token = $this->token('form[data-testid="court-address-report-form"]');
 
-        $this->client->request('POST', $this->pageUrl() . '/' . $address->getId() . '/report', ['_token' => $token, 'reason' => 'BOUNCED'], [], self::TURBO);
+        $this->client->request('POST', $this->reportUrl($address), ['_token' => $token, 'reason' => 'BOUNCED'], [], self::TURBO);
 
         self::assertResponseIsSuccessful();
+        $content = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString($this->trans('court_address.validation.toast.reported'), $content);
+        self::assertStringContainsString('data-testid="court-address-reported"', $content);
         $address = $this->reload($address);
-        self::assertSame(CourtEmailStatus::INVALID, $address->getStatus());
-        self::assertSame('reported_by_lawyer:BOUNCED', $address->getInvalidReason());
+        self::assertSame(CourtEmailStatus::VALIDATED, $address->getStatus(), 'Only the administrator takes an address out of use.');
+        self::assertTrue($address->isFilingDefault());
+        $report = $this->em->getRepository(CourtEmailAddressReport::class)->findOneBy(['address' => $address->getId()]);
+        self::assertNotNull($report);
+        self::assertSame(CourtEmailReportKind::LAWYER, $report->getKind());
+        self::assertSame(CourtEmailReportReason::BOUNCED, $report->getReason());
+        self::assertSame($this->case->getId(), $report->getLegalCase()?->getId());
+        self::assertTrue($report->isOpen());
     }
 
     private function pageUrl(): string
@@ -215,9 +206,14 @@ final class CaseCourtAddressControllerTest extends WebTestCase
         return '/case/' . $this->case->getId() . '/court-address';
     }
 
-    private function validateUrl(CourtEmailAddress $address): string
+    private function reportUrl(CourtEmailAddress $address): string
     {
-        return $this->pageUrl() . '/' . $address->getId() . '/validate';
+        return $this->pageUrl() . '/' . $address->getId() . '/report';
+    }
+
+    private function reportCount(): int
+    {
+        return (int) $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM court_email_address_report WHERE legal_case_id = ?', [$this->case->getId()]);
     }
 
     private function token(string $formSelector): string

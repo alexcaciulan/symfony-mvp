@@ -523,15 +523,37 @@ class FilingSubmission
         return $this;
     }
 
+    /**
+     * The same late finding on a submission still holding the case (annexes on
+     * their way after the filing was declared): it stops for the lawyer's review and
+     * returns, once acknowledged, to what the parts allow.
+     */
+    public function openLateReviewWhileActive(string $reasonKey, FilingDeliveryStatus $returnTo): static
+    {
+        if (!$this->isActive()) {
+            throw new \LogicException('This late review opens on an active submission only.');
+        }
+        if (!$returnTo->isTerminal()) {
+            throw new \LogicException('A late review returns to an ended status.');
+        }
+        $this->reviewReturnStatus = $returnTo;
+        $this->markNeedsReview($reasonKey);
+
+        return $this;
+    }
+
     public function getReviewReturnStatus(): ?FilingDeliveryStatus
     {
         return $this->reviewReturnStatus;
     }
 
     /** Ends a late review: back to the status recorded before it, freeing the case. */
-    public function endLateReview(): static
+    public function endLateReview(?\DateTimeImmutable $at = null): static
     {
         $this->deliveryStatus = $this->reviewReturnStatus ?? FilingDeliveryStatus::SENT;
+        if ($this->deliveryStatus === FilingDeliveryStatus::CLOSED_PARTIAL && $this->cancelledAt === null) {
+            $this->cancelledAt = $at ?? new \DateTimeImmutable();
+        }
         $this->reviewReturnStatus = null;
         $this->reviewReason = null;
         $this->activeLock = null;

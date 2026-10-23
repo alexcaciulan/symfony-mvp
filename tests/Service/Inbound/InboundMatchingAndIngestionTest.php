@@ -9,6 +9,7 @@ use App\Entity\InboundPollHeartbeat;
 use App\Entity\LegalCase;
 use App\Entity\Notification;
 use App\Entity\User;
+use App\Enum\CaseStatus;
 use App\Enum\FilingDeliveryStatus;
 use App\Enum\FilingEvidenceStatus;
 use App\Enum\InboundAuthVerdict;
@@ -17,6 +18,8 @@ use App\Enum\InboundMatchMethod;
 use App\Enum\InboundReviewStatus;
 use App\Enum\NotificationType;
 use App\Message\ProcessInboundMailMessage;
+use App\Service\Filing\RecipientOverrideGuard;
+use App\Service\Inbound\CourtReplySimulator;
 use App\Service\Inbound\FixtureInboundSource;
 use App\Service\Inbound\InboundEmailIngestor;
 use App\Service\Inbound\InboundMatch;
@@ -32,7 +35,11 @@ use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Console\Application;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\Console\Tester\CommandTester;
+use Symfony\Component\Mailer\Envelope as MailerEnvelope;
+use Symfony\Component\Mailer\SentMessage;
+use Symfony\Component\Mailer\Transport\TransportInterface;
 use Symfony\Component\Messenger\Envelope;
+use Symfony\Component\Mime\RawMessage;
 use Symfony\Component\Messenger\Transport\InMemory\InMemoryTransport;
 
 /**
@@ -48,6 +55,8 @@ final class InboundMatchingAndIngestionTest extends KernelTestCase
     private EntityManagerInterface $em;
     private User $user;
     private LegalCase $case;
+    /** @var list<int> stored messages tied to no case, removed after each test */
+    private array $looseMailIds = [];
 
     protected function setUp(): void
     {
@@ -62,6 +71,13 @@ final class InboundMatchingAndIngestionTest extends KernelTestCase
     {
         if (isset($this->em)) {
             $this->em->clear();
+            foreach ($this->looseMailIds as $id) {
+                $path = $this->em->getConnection()->fetchOne('SELECT raw_path FROM inbound_mail WHERE id = ?', [$id]);
+                if (is_string($path)) {
+                    static::getContainer()->get(InboundRawStorage::class)->delete($path);
+                }
+                $this->em->getConnection()->executeStatement('DELETE FROM inbound_mail WHERE id = ?', [$id]);
+            }
             $this->removeFilingFixtures($this->em, $this->user ?? null, $this->case ?? null);
         }
         parent::tearDown();
@@ -75,6 +91,111 @@ final class InboundMatchingAndIngestionTest extends KernelTestCase
         self::assertSame(InboundMatchMethod::VERP, $match?->method);
         self::assertSame(InboundMatchConfidence::CERTAIN, $match->confidence);
         self::assertSame($submission->getPart(1)?->getId(), $match->part?->getId());
+    }
+
+    public function testVerpTokenOnlyInTheToHeaderIsProbableAndUndoesNothing(): void
+    {
+        $submission = $this->sent();
+        // No delivery header from our MTA: the token is only where any sender can write it.
+        $raw = (string) preg_replace('/^Delivered-To: .*\n/m', '', $this->rawForPart($submission->getPart(1), 'exchange-ndr-5.1.1'), 1);
+
+        self::assertSame(InboundMatchConfidence::PROBABLE, $this->match($raw, InboundAuthVerdict::ABSENT)?->confidence);
+
+        $mail = $this->receive($raw);
+        self::assertSame(InboundReviewStatus::PENDING, $mail->getReviewStatus());
+        $submission = $this->freshSubmission((int) $submission->getId());
+        self::assertSame(FilingDeliveryStatus::SENT, $submission->getDeliveryStatus());
+        self::assertSame(CaseStatus::CERERE_DEPUSA, $submission->getLegalCase()->getStatus(), 'A probable match never undoes the filing.');
+        self::assertCount(1, $this->em->getRepository(Notification::class)->findBy(['user' => $this->user->getId(), 'type' => NotificationType::FILING_INBOUND_REVIEW->value]));
+    }
+
+    public function testAForgedDeliveredToBelowTheOneOurServerWroteIsIgnored(): void
+    {
+        $submission = $this->sent();
+        $raw = "Delivered-To: depuneri@lexrecovery.test\n" . $this->rawForPart($submission->getPart(1), 'exchange-ndr-5.1.1');
+
+        self::assertSame(InboundMatchConfidence::PROBABLE, $this->match($raw, InboundAuthVerdict::ABSENT)?->confidence);
+    }
+
+    public function testTheMailboxTheSourceReadIsTrustedLikeOurDeliveryHeader(): void
+    {
+        $submission = $this->sent();
+        $part = $submission->getPart(1);
+        $raw = (string) preg_replace('/^Delivered-To: .*\n/m', '', $this->rawForPart($part, 'exchange-ndr-5.1.1'), 1);
+        $verp = 'bounces+' . $part?->getVerpToken() . substr($submission->getEnvelopeSender(), (int) strrpos($submission->getEnvelopeSender(), '@'));
+
+        $match = static::getContainer()->get(InboundMailMatcher::class)->match((new InboundMailParser())->parse($raw), InboundAuthVerdict::ABSENT, $verp);
+
+        self::assertSame(InboundMatchConfidence::CERTAIN, $match?->confidence);
+    }
+
+    public function testTheSimulatedDeliveryReportStillMatchesWithCertainty(): void
+    {
+        $submission = $this->sent();
+        $captured = new class implements TransportInterface {
+            public string $raw = '';
+
+            public function send(RawMessage $message, ?MailerEnvelope $envelope = null): ?SentMessage
+            {
+                $this->raw = $message->toString();
+
+                return null;
+            }
+
+            public function __toString(): string
+            {
+                return 'capture://';
+            }
+        };
+        $simulator = new CourtReplySimulator($captured, new RecipientOverrideGuard(false, 'instanta-simulata@example.test'), true, 'test', 'mx.lexrecovery.test', 'depuneri@lexrecovery.test', 'Delivered-To');
+
+        $simulator->simulate($submission, 'bounce-permanent');
+
+        self::assertSame(InboundMatchConfidence::CERTAIN, $this->match($captured->raw, InboundAuthVerdict::ABSENT)?->confidence);
+    }
+
+    public function testAStoredButUnprocessedMessageIsQueuedAgainWhenFoundAgain(): void
+    {
+        $ingestor = static::getContainer()->get(InboundEmailIngestor::class);
+        $raw = strtr(self::corpus('spam'), ['spam-0001' => 'spam-' . bin2hex(random_bytes(4))]);
+        $id = 'requeue-' . bin2hex(random_bytes(4));
+        $first = $ingestor->ingest(new RawInboundMail('fixture', $id, $raw, new \DateTimeImmutable()));
+        self::assertNotNull($first);
+        $this->looseMailIds[] = (int) $first->getId();
+
+        // The processing message was lost: the next poll finds the stored row unprocessed.
+        self::assertNull($ingestor->ingest(new RawInboundMail('fixture', $id, $raw, new \DateTimeImmutable())));
+
+        self::assertCount(2, $this->dispatchedProcessing());
+        $mail = $this->reloadInbound((int) $first->getId());
+        self::assertSame(1, $mail->getRequeueCount());
+        $this->processInbound((int) $mail->getId());
+        self::assertNotNull($this->reloadInbound((int) $mail->getId())->getProcessedAt());
+    }
+
+    public function testThePollQueuesAgainAnOldUnprocessedMessageAtMostThreeTimes(): void
+    {
+        $ingestor = static::getContainer()->get(InboundEmailIngestor::class);
+        $raw = strtr(self::corpus('spam'), ['spam-0001' => 'spam-' . bin2hex(random_bytes(4))]);
+        $mail = $ingestor->ingest(new RawInboundMail('fixture', 'stale-' . bin2hex(random_bytes(4)), $raw, new \DateTimeImmutable()));
+        self::assertNotNull($mail);
+        $id = (int) $mail->getId();
+        $this->looseMailIds[] = $id;
+        $tester = new CommandTester((new Application(self::$kernel))->find('app:filing:poll-inbound'));
+        $age = fn () => $this->em->getConnection()->executeStatement(
+            'UPDATE inbound_mail SET created_at = ?, requeued_at = IF(requeued_at IS NULL, NULL, ?) WHERE id = ?',
+            [(new \DateTimeImmutable('-20 minutes'))->format('Y-m-d H:i:s'), (new \DateTimeImmutable('-15 minutes'))->format('Y-m-d H:i:s'), $id],
+        );
+
+        for ($run = 1; $run <= 4; ++$run) {
+            $age();
+            self::assertSame(0, $tester->execute([]));
+        }
+
+        self::assertCount(1 + InboundEmailIngestor::MAX_REQUEUES, $this->dispatchedProcessing(), 'The first dispatch, then three more at most.');
+        self::assertSame(InboundEmailIngestor::MAX_REQUEUES, $this->reloadInbound($id)->getRequeueCount());
+        $this->processInbound($id);
+        self::assertNotNull($this->reloadInbound($id)->getProcessedAt());
     }
 
     public function testReplyOnOurMessageIdIsCertainOnlyWithAnAuthenticatedJustRoSender(): void
@@ -136,17 +257,18 @@ final class InboundMatchingAndIngestionTest extends KernelTestCase
         $id = 'ingest-' . bin2hex(random_bytes(4));
 
         $first = $ingestor->ingest(new RawInboundMail('fixture', $id, $raw, new \DateTimeImmutable()));
-        $again = $ingestor->ingest(new RawInboundMail('fixture', $id, $raw, new \DateTimeImmutable()));
-        $sameBytes = $ingestor->ingest(new RawInboundMail('fixture', $id . '-copy', $raw, new \DateTimeImmutable()));
-
         self::assertNotNull($first);
-        self::assertNull($again, 'Same source id.');
-        self::assertNull($sameBytes, 'Same bytes and Message-ID from another source id.');
         self::assertSame(hash('sha256', $raw), $first->getRawSha256());
         self::assertNotNull(static::getContainer()->get(InboundRawStorage::class)->verifiedPath($first));
         self::assertCount(1, $this->dispatchedProcessing());
-
         $this->processInbound((int) $first->getId());
+
+        $again = $ingestor->ingest(new RawInboundMail('fixture', $id, $raw, new \DateTimeImmutable()));
+        $sameBytes = $ingestor->ingest(new RawInboundMail('fixture', $id . '-copy', $raw, new \DateTimeImmutable()));
+
+        self::assertNull($again, 'Same source id.');
+        self::assertNull($sameBytes, 'Same bytes and Message-ID from another source id.');
+        self::assertCount(1, $this->dispatchedProcessing(), 'A processed message is not queued again.');
         $mail = $this->reloadInbound((int) $first->getId());
         self::assertNotNull($mail->getPurgeAfter(), 'Spam is kept only until the purge.');
 

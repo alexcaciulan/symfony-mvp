@@ -31,6 +31,9 @@ final class NotificationTypeTest extends TestCase
         self::assertSame('filing_delivery_delayed', NotificationType::FILING_DELIVERY_DELAYED->value);
         self::assertSame('filing_inbound_review', NotificationType::FILING_INBOUND_REVIEW->value);
         self::assertSame('inbound_poll_stale', NotificationType::INBOUND_POLL_STALE->value);
+        self::assertSame('inbound_unprocessed', NotificationType::INBOUND_UNPROCESSED->value);
+        self::assertSame('court_email_reported', NotificationType::COURT_EMAIL_REPORTED->value);
+        self::assertSame('court_email_suggested', NotificationType::COURT_EMAIL_SUGGESTED->value);
     }
 
     public function testFilingFailureTypesAreHighTierAndNeverMuted(): void
@@ -50,6 +53,9 @@ final class NotificationTypeTest extends TestCase
             NotificationType::FILING_DELIVERY_DELAYED,
             NotificationType::FILING_INBOUND_REVIEW,
             NotificationType::INBOUND_POLL_STALE,
+            NotificationType::INBOUND_UNPROCESSED,
+            NotificationType::COURT_EMAIL_REPORTED,
+            NotificationType::COURT_EMAIL_SUGGESTED,
         ];
         foreach ($types as $type) {
             self::assertFalse($type->suppressible(), $type->value);

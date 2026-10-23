@@ -137,6 +137,13 @@ class InboundMail
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $processedAt = null;
 
+    /** How many times the processing was queued again because it never completed. */
+    #[ORM\Column(options: ['default' => 0])]
+    private int $requeueCount = 0;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $requeuedAt = null;
+
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $forwardedAt = null;
 
@@ -407,6 +414,24 @@ class InboundMail
     public function getProcessedAt(): ?\DateTimeImmutable
     {
         return $this->processedAt;
+    }
+
+    public function getRequeueCount(): int
+    {
+        return $this->requeueCount;
+    }
+
+    public function getRequeuedAt(): ?\DateTimeImmutable
+    {
+        return $this->requeuedAt;
+    }
+
+    public function markRequeued(\DateTimeImmutable $at): static
+    {
+        ++$this->requeueCount;
+        $this->requeuedAt = $at;
+
+        return $this;
     }
 
     public function markProcessed(\DateTimeImmutable $at, ?\DateTimeImmutable $purgeAfter): static

@@ -7,10 +7,12 @@ namespace App\Tests\Controller\Case;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\CaseStatus;
+use App\Enum\StampDutyStatus;
 use App\Service\AuditLogService;
 use App\Tests\Support\FilingCaseFixtureTrait;
 use App\Tests\Support\FilingSubmissionTestTrait;
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -196,6 +198,113 @@ final class CaseFilingSubmissionControllerTest extends WebTestCase
         self::assertSelectorTextContains('#case-status-badge', 'Transmisă instanței');
         self::assertSelectorTextContains('[data-testid="filing-submission-headline"]', 'Transmisă instanței, fără confirmare de primire');
         self::assertSelectorExists('[data-testid="filing-filed-date-form"]');
+    }
+
+    public function testFilingAnswersAlsoRefreshTheHeroAndTheRecommendedActions(): void
+    {
+        $this->client->loginUser($this->user);
+        $token = $this->csrfToken('filing_submit_' . $this->case->getId());
+
+        $this->client->request('POST', $this->submitUrl(), ['_token' => $token, 'confirm_documents_checked' => '1'], [], self::TURBO);
+
+        $content = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('target="case-hero"', $content);
+        self::assertStringContainsString('target="case-detalii-sidebar"', $content);
+        self::assertStringContainsString('target="case-pipeline"', $content);
+        $hero = $this->templateHtml($content, 'case-hero');
+        self::assertNotSame('', $hero);
+        self::assertStringNotContainsString('#hs-modal-confirm-filing', $hero, 'The hero no longer offers to confirm a manual filing.');
+        self::assertStringNotContainsString('#hs-modal-confirm-filing', $this->templateHtml($content, 'case-detalii-sidebar'), 'Nor do the recommended actions.');
+
+        $submissionId = (int) $this->em->getConnection()->fetchOne('SELECT id FROM filing_submission WHERE legal_case_id = ?', [$this->case->getId()]);
+        $cancelToken = $this->csrfToken('filing_cancel_' . $submissionId);
+        $this->client->request('POST', sprintf('/case/%d/filing/submission/%d/cancel', $this->case->getId(), $submissionId), ['_token' => $cancelToken], [], self::TURBO);
+        self::assertStringContainsString('target="case-hero"', (string) $this->client->getResponse()->getContent());
+    }
+
+    public function testTheFiledDateAnswerRefreshesTheStatusBadge(): void
+    {
+        $this->submitFiling($this->case, $this->user);
+        $this->handleAllFilingMessages();
+        $this->client->loginUser($this->user);
+        $token = $this->csrfToken('filing_filed_date_' . $this->case->getId());
+
+        $this->client->request('POST', sprintf('/case/%d/filing/submission/filed-date', $this->case->getId()), ['_token' => $token, 'filed_at' => (new \DateTimeImmutable('today'))->format('Y-m-d')], [], self::TURBO);
+
+        $hero = $this->templateHtml((string) $this->client->getResponse()->getContent(), 'case-hero');
+        self::assertStringContainsString(static::getContainer()->get('translator')->trans(CaseStatus::CERERE_DEPUSA->label()), $hero);
+        self::assertStringNotContainsString(static::getContainer()->get('translator')->trans('filing.status.hero_label'), $hero);
+    }
+
+    public function testTheStateStreamReturnsTheRegionsTheFilingChanges(): void
+    {
+        $this->submitFiling($this->case, $this->user);
+        $this->client->loginUser($this->user);
+
+        $this->client->request('GET', sprintf('/case/%d/filing/state', $this->case->getId()), [], [], ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html']);
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('text/vnd.turbo-stream.html', (string) $this->client->getResponse()->headers->get('Content-Type'));
+        foreach (['case-hero', 'case-pipeline', 'case-kpi-grid', 'case-detalii-sidebar'] as $target) {
+            self::assertStringContainsString('target="' . $target . '"', (string) $this->client->getResponse()->getContent());
+        }
+
+        // The polling card carries the key the page compares to decide when to fetch it.
+        $this->client->request('GET', sprintf('/case/%d/filing/submission/card', $this->case->getId()));
+        self::assertSelectorExists('turbo-frame[data-poll-frame-state-key-value*="CERERE_GENERATA|-|active|QUEUED"]');
+    }
+
+    /** @return iterable<string, array{bool}> */
+    public static function lockingSubmissions(): iterable
+    {
+        yield 'queued' => [false];
+        yield 'in review' => [true];
+    }
+
+    #[DataProvider('lockingSubmissions')]
+    public function testWhileASubmissionHoldsTheCaseTheRefusedActionsAreNotOffered(bool $review): void
+    {
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId() . '?tab=documente');
+        self::assertSelectorExists('[data-testid="documents-source-add"]', 'Offered while nothing holds the case.');
+        $this->case = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        $this->user = $this->em->getRepository(User::class)->find($this->user->getId());
+        $submission = $this->submitFiling($this->case, $this->user);
+        // The duty is still owed while the case is being sent (it is paid once the court gives a number).
+        $this->case->setStampDutyStatus(StampDutyStatus::NEACHITATA);
+        if ($review) {
+            $submission->markNeedsReview('filing.status.review.case_moved_on');
+        }
+        $this->em->flush();
+        $this->client->loginUser($this->user);
+
+        $this->client->request('GET', '/case/' . $this->case->getId() . '?tab=documente');
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorExists('#case-stamp-duty-card');
+        self::assertSelectorNotExists('#case-stamp-duty-card [data-hs-overlay="#hs-modal-stamp-duty-proof"]');
+        self::assertSelectorNotExists('#case-stamp-duty-card [data-hs-overlay="#hs-modal-stamp-duty-court-notice"]');
+        self::assertSelectorNotExists('[data-testid="documents-source-add"]');
+        self::assertSelectorExists('[data-testid="stamp-duty-filing-lock-note"]');
+        self::assertSelectorExists('[data-testid="documents-filing-lock-note"]');
+    }
+
+    public function testDashboardNeverCallsAnEmailTransmittedCaseFiled(): void
+    {
+        $this->submitFiling($this->case, $this->user);
+        $this->handleAllFilingMessages();
+        self::assertSame('CERERE_DEPUSA', $this->em->getConnection()->fetchOne('SELECT status FROM legal_case WHERE id = ?', [$this->case->getId()]));
+        $this->client->loginUser($this->user);
+
+        $this->client->request('GET', '/dashboard');
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('Transmisă instanței', (string) $this->client->getResponse()->getContent());
+    }
+
+    private function templateHtml(string $stream, string $target): string
+    {
+        return preg_match('#<turbo-stream action="[a-z]+" target="' . preg_quote($target, '#') . '">\s*<template>(.*?)</template>\s*</turbo-stream>#s', $stream, $m) === 1 ? $m[1] : '';
     }
 
     private function submitUrl(): string

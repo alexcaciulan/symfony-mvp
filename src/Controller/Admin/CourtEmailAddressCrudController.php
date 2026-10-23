@@ -48,10 +48,11 @@ class CourtEmailAddressCrudController extends AbstractCrudController
         'Invalidă' => CourtEmailStatus::INVALID,
     ];
 
-    private const SOURCE_LABELS = [
-        'Introdusă manual' => CourtEmailSource::MANUAL,
+    public const SOURCE_LABELS = [
+        'Introdusă manual (admin)' => CourtEmailSource::MANUAL,
         'Portal (neoficial)' => CourtEmailSource::PORTAL_IMPORT,
         'Pagină salvată (neoficial)' => CourtEmailSource::SAVED_PAGE,
+        'Sugestie avocat (neverificată)' => CourtEmailSource::LAWYER_SUGGESTION,
     ];
 
     public static function getEntityFqcn(): string
@@ -108,6 +109,7 @@ class CourtEmailAddressCrudController extends AbstractCrudController
         return $filters
             ->add(ChoiceFilter::new('status', 'Status')->setChoices(array_map(static fn (CourtEmailStatus $s): string => $s->value, self::STATUS_LABELS)))
             ->add(ChoiceFilter::new('purpose', 'Scop')->setChoices(array_map(static fn (CourtEmailPurpose $p): string => $p->value, self::PURPOSE_LABELS)))
+            ->add(ChoiceFilter::new('source', 'Sursă')->setChoices(array_map(static fn (CourtEmailSource $s): string => $s->value, self::SOURCE_LABELS)))
             ->add(EntityFilter::new('court', 'Instanță'))
             ->add(CourtCountyFilter::new())
             ->add(CourtTypeFilter::new());

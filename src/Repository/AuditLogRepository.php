@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Entity\AuditLog;
+use App\Entity\FilingSubmission;
 use App\Entity\LegalCase;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -49,6 +50,27 @@ class AuditLogRepository extends ServiceEntityRepository
             ->setMaxResults(1)
             ->getQuery()
             ->getOneOrNullResult();
+    }
+
+    /** Whether the case's audit trail holds this action for one filing submission. */
+    public function hasActionForSubmission(FilingSubmission $submission, string $action): bool
+    {
+        $rows = $this->createQueryBuilder('a')
+            ->andWhere('a.entityType = :type')
+            ->andWhere('a.entityId = :id')
+            ->andWhere('a.action = :action')
+            ->setParameter('type', LegalCase::class)
+            ->setParameter('id', (string) $submission->getLegalCase()->getId())
+            ->setParameter('action', $action)
+            ->getQuery()
+            ->getResult();
+        foreach ($rows as $row) {
+            if ((int) ($row->getNewData()['submissionId'] ?? 0) === (int) $submission->getId()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

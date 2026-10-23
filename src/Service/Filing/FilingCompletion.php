@@ -42,6 +42,13 @@ final class FilingCompletion
         $messageId = (string) $submission->getPart(1)?->getMessageId();
 
         if ($case->getStatus() !== CaseStatus::CERERE_GENERATA) {
+            // Registered while the petition was on its way: the review opened then already
+            // closes the rest once this answer is in, so the lawyer is not told twice.
+            if ($submission->getReviewReason() === FilingPartOutcomeApplier::REVIEW_ANNEXES_CANCELLED_PENDING) {
+                $this->audit($case, $submission, $actor, 'filing_petition_accepted_after_registration');
+
+                return;
+            }
             // The petition left but the case went on without it: the submission keeps
             // holding the case until the lawyer closes the rest (or an admin does).
             $submission->markNeedsReview('filing.status.review.case_moved_on');

@@ -11,6 +11,8 @@ enum CourtEmailSource: string
     case PORTAL_IMPORT = 'PORTAL_IMPORT';
     /** A portal page saved from a browser by an operator and imported offline. */
     case SAVED_PAGE = 'SAVED_PAGE';
+    /** Suggested by a lawyer from a case; only an admin may confirm it. */
+    case LAWYER_SUGGESTION = 'LAWYER_SUGGESTION';
 
     public function label(): string
     {
@@ -20,5 +22,11 @@ enum CourtEmailSource: string
     public function isUnofficial(): bool
     {
         return $this !== self::MANUAL;
+    }
+
+    /** Typed in by hand (admin or lawyer): no external source can see it again. */
+    public function isTypedIn(): bool
+    {
+        return $this === self::MANUAL || $this === self::LAWYER_SUGGESTION;
     }
 }

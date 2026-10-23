@@ -553,6 +553,19 @@ class LegalCase
         return $this->status;
     }
 
+    /**
+     * The status label shown for the case. Transmitted by the platform with no
+     * filing date declared yet, the case is never shown as filed.
+     */
+    public function displayStatusLabel(): string
+    {
+        if ($this->status === CaseStatus::CERERE_DEPUSA && $this->filingChannel === FilingChannel::EMAIL && $this->filedAt === null) {
+            return 'filing.status.hero_label';
+        }
+
+        return $this->status->label();
+    }
+
     public function setStatus(CaseStatus $status): static
     {
         $this->status = $status;

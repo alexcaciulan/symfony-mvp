@@ -17,6 +17,7 @@ use App\Enum\FilingDeliveryStatus;
 use App\Enum\FilingPackageStatus;
 use App\Enum\FilingPartStatus;
 use App\Message\SendFilingEmailPartMessage;
+use App\Repository\AuditLogRepository;
 use App\Service\AuditLogService;
 use App\Service\Court\CourtEmailActionRefusedException;
 use App\Service\Court\CourtEmailAddressService;
@@ -51,6 +52,7 @@ final class FilingPartOutcomeApplier
         private readonly FilingLockQuery $filingLock,
         private readonly FilingResplitService $resplit,
         private readonly AuditLogService $auditLogService,
+        private readonly AuditLogRepository $auditLogs,
         private readonly MessageBusInterface $bus,
         private readonly ClockInterface $clock,
     ) {}
@@ -170,7 +172,12 @@ final class FilingPartOutcomeApplier
         ]);
 
         $case = $submission->getLegalCase();
+        $petition = $submission->getPart(1);
+        // After a late bounce on the petition, the submission is no ordinary sent one:
+        // recomputing it would read that bounce as a fresh petition failure.
         $reopenable = !$submission->isActive()
+            && ($petition === null || !self::hasAsyncFailure($petition))
+            && !$this->lateBounceWasAcknowledged($submission)
             && $submission->getDeliveryStatus() === FilingDeliveryStatus::SENT
             && $case->getStatus() === CaseStatus::CERERE_DEPUSA
             && $submission->getPackage()->getStatus() === FilingPackageStatus::SENT
@@ -194,6 +201,40 @@ final class FilingPartOutcomeApplier
         $this->notifier->annexBounced($submission, $part, $mail);
 
         return false;
+    }
+
+    /**
+     * A delivery report for an email whose SMTP answer was lost: the server had
+     * taken it, then returned it. That settles the doubt as a failure, recorded as
+     * a report so it is never mistaken for a refusal at sending time.
+     */
+    public function uncertainBounced(FilingEmailPart $part, SmtpFailure $smtp, InboundMail $mail): void
+    {
+        $submission = $part->getSubmission();
+        if ($part->getStatus() !== FilingPartStatus::UNCERTAIN) {
+            return;
+        }
+        $failure = $smtp->kind === SmtpFailureKind::SIZE ? FilingPartStatus::FAILED_SIZE : FilingPartStatus::FAILED_PERMANENT;
+        $this->recordAsyncAttempt($part, $failure === FilingPartStatus::FAILED_SIZE ? FilingAttemptOutcome::SIZE : FilingAttemptOutcome::PERMANENT, $smtp);
+        $part->recordAsyncFailure($failure, $smtp->enhancedStatus, $smtp->safeMessage);
+        $this->audit($submission, 'filing_part_failed_async', [
+            'sequence' => $part->getSequence(),
+            'status' => $failure->value,
+            'previousStatus' => FilingPartStatus::UNCERTAIN->value,
+            'enhancedStatus' => $smtp->enhancedStatus,
+            'inboundMailId' => $mail->getId(),
+        ]);
+
+        $this->settle($submission);
+        $this->filingLock->forget($submission->getLegalCase());
+        if ($submission->isPetitionAccepted() && $submission->isStalled()) {
+            $this->notifier->partiallySent($submission, $part);
+
+            return;
+        }
+        $failure === FilingPartStatus::FAILED_SIZE
+            ? $this->notifier->failedSize($submission, $part, $this->resplit->isResplittable($submission))
+            : $this->notifier->failedPermanent($submission, $part, false);
     }
 
     /** A finding from a delivery report, recorded next to the SMTP tries. */
@@ -260,6 +301,21 @@ final class FilingPartOutcomeApplier
 
         // Registered on another path while a part was still in doubt: close once it is answered.
         if ($status === FilingDeliveryStatus::NEEDS_REVIEW && $reason === self::REVIEW_ANNEXES_CANCELLED_PENDING) {
+            $first = $submission->getPart(1);
+            if ($first !== null && $first->isFailed()) {
+                // The pending answer was the petition's refusal: nothing left, so nothing was partially sent.
+                foreach ($submission->getParts() as $part) {
+                    if ($part->getStatus()->isCancellable()) {
+                        $part->setStatus(FilingPartStatus::CANCELLED);
+                    }
+                }
+                $terminal = FilingDeliveryStatus::from($first->getStatus()->value);
+                $submission->failTerminal($terminal);
+                $this->audit($submission, 'filing_submission_failed', ['status' => $terminal->value, 'why' => 'registration']);
+                $this->filingLock->forget($submission->getLegalCase());
+
+                return;
+            }
             if (!$submission->hasPartWithStatus(FilingPartStatus::SENDING)) {
                 foreach ($submission->getParts() as $part) {
                     if ($part->getStatus()->isCancellable()) {
@@ -356,6 +412,12 @@ final class FilingPartOutcomeApplier
         }
 
         $this->settle($submission);
+    }
+
+    private function lateBounceWasAcknowledged(FilingSubmission $submission): bool
+    {
+        return $this->auditLogs->hasActionForSubmission($submission, 'filing_late_bounce_acknowledged')
+            || $this->auditLogs->hasActionForSubmission($submission, 'filing_late_bounce_closed_by_admin');
     }
 
     /** @param array<string, mixed> $data */

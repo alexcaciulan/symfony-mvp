@@ -203,7 +203,7 @@ final class UncertainPartResolverTest extends KernelTestCase
         self::assertCount(1, $this->em->getRepository(FilingAttempt::class)->findBy(['part' => $submission->getPart(2)]));
     }
 
-    public function testRegistrationWithAWaitingAnnexClosesAndFreesTheCase(): void
+    public function testRegistrationThatFollowsThisFilingKeepsSendingTheWaitingAnnex(): void
     {
         $this->case = $this->createSendableFilingCase($this->em, $this->user, 2);
         $submission = $this->submitFiling($this->case, $this->user);
@@ -212,14 +212,21 @@ final class UncertainPartResolverTest extends KernelTestCase
         $this->register();
 
         $this->em->refresh($submission);
-        self::assertSame(FilingDeliveryStatus::CLOSED_PARTIAL, $submission->getDeliveryStatus());
-        self::assertNull($submission->getActiveLock());
-        self::assertSame(FilingPartStatus::CANCELLED, $submission->getPart(2)?->getStatus());
+        self::assertTrue($submission->isActive(), 'The petition listing the annexes came from this filing: they still go.');
+        self::assertSame(FilingPartStatus::PENDING, $submission->getPart(2)?->getStatus());
+
+        $this->handleAllFilingMessages();
+
+        $this->em->refresh($submission);
+        self::assertSame(FilingDeliveryStatus::SENT, $submission->getDeliveryStatus());
+        self::assertSame(FilingPartStatus::ACCEPTED, $submission->getPart(2)?->getStatus());
+        self::assertCount(2, $this->courtTransport()->sent);
+        self::assertSame(CaseStatus::DOSAR_INREGISTRAT, $this->case->getStatus());
     }
 
-    public function testRegistrationWithAnUncertainAnnexWaitsForItThenCloses(): void
+    public function testRegistrationWhileThePetitionIsUncertainWaitsForItThenCloses(): void
     {
-        $submission = $this->uncertainAt(2, 3);
+        $submission = $this->uncertainAt(1, 3);
 
         $this->register();
 
@@ -227,13 +234,29 @@ final class UncertainPartResolverTest extends KernelTestCase
         self::assertSame(FilingDeliveryStatus::NEEDS_REVIEW, $submission->getDeliveryStatus());
         self::assertSame(FilingPartOutcomeApplier::REVIEW_ANNEXES_CANCELLED_PENDING, $submission->getReviewReason());
         self::assertTrue($submission->isActive());
+        self::assertSame(FilingPartStatus::CANCELLED, $submission->getPart(2)?->getStatus());
         self::assertSame(FilingPartStatus::CANCELLED, $submission->getPart(3)?->getStatus());
 
-        $this->resolver()->declareNotReceived($submission->getPart(2) ?? throw new \LogicException(), $this->user, [UncertainPartResolver::CONFIRM_NOT_RECEIVED => true]);
+        $this->resolver()->declareReceived($submission->getPart(1) ?? throw new \LogicException(), $this->user, [UncertainPartResolver::CONFIRM_RECEIVED => true]);
 
         $this->em->refresh($submission);
+        $this->em->refresh($this->case);
         self::assertSame(FilingDeliveryStatus::CLOSED_PARTIAL, $submission->getDeliveryStatus());
         self::assertNull($submission->getActiveLock());
+        self::assertSame(CaseStatus::DOSAR_INREGISTRAT, $this->case->getStatus(), 'The late acceptance never moves a registered case back.');
+    }
+
+    public function testRegistrationWhileThePetitionIsUncertainThenRefusedEndsAsFailedNotPartial(): void
+    {
+        $submission = $this->uncertainAt(1, 3);
+        $this->register();
+
+        $this->resolver()->declareNotReceived($submission->getPart(1) ?? throw new \LogicException(), $this->user, [UncertainPartResolver::CONFIRM_NOT_RECEIVED => true]);
+
+        $this->em->refresh($submission);
+        self::assertSame(FilingDeliveryStatus::FAILED_INTERNAL, $submission->getDeliveryStatus(), 'Nothing left: it is not "the petition left and the rest was closed".');
+        self::assertNull($submission->getActiveLock());
+        self::assertNull($submission->getCancelledAt());
     }
 
     /** A submission of $emails emails whose email $sequence is uncertain (the earlier ones accepted). */

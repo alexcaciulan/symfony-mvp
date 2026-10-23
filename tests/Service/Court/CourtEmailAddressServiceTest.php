@@ -8,11 +8,15 @@ use App\Entity\AuditLog;
 use App\Entity\Court;
 use App\Entity\CourtEmailAddress;
 use App\Entity\LegalCase;
+use App\Entity\Notification;
 use App\Entity\User;
 use App\Enum\CourtEmailPurpose;
+use App\Enum\CourtEmailReportKind;
 use App\Enum\CourtEmailReportReason;
+use App\Enum\CourtEmailReportResolution;
 use App\Enum\CourtEmailSource;
 use App\Enum\CourtEmailStatus;
+use App\Enum\NotificationType;
 use App\Service\AuditLogService;
 use App\Service\Court\CourtEmailActionRefusedException;
 use App\Service\Court\CourtEmailAddressService;
@@ -27,6 +31,7 @@ final class CourtEmailAddressServiceTest extends KernelTestCase
     private EntityManagerInterface $em;
     private CourtEmailAddressService $service;
     private User $user;
+    private User $admin;
     private LegalCase $case;
     private Court $court;
 
@@ -37,6 +42,9 @@ final class CourtEmailAddressServiceTest extends KernelTestCase
         $this->service = static::getContainer()->get(CourtEmailAddressService::class);
         $this->filingUploadsDir = static::getContainer()->getParameter('kernel.project_dir') . '/var/uploads';
         $this->user = $this->createFilingUser($this->em, 'court-email-svc');
+        $this->admin = $this->createFilingUser($this->em, 'court-email-svc-admin');
+        $this->admin->setRoles(['ROLE_ADMIN']);
+        $this->em->flush();
         $this->case = $this->createFilingCase($this->em, $this->user);
         $this->court = $this->case->getCourt();
     }
@@ -50,6 +58,9 @@ final class CourtEmailAddressServiceTest extends KernelTestCase
             );
         }
         $this->removeFilingFixtures($this->em, $this->user ?? null, $this->case ?? null);
+        if (isset($this->admin)) {
+            $this->removeFilingFixtures($this->em, $this->admin, null);
+        }
         parent::tearDown();
     }
 
@@ -57,7 +68,7 @@ final class CourtEmailAddressServiceTest extends KernelTestCase
     {
         $address = $this->proposed('registratura@just.ro');
 
-        $this->assertRefused('court_address.validation.error.statement_required', fn () => $this->service->validate($address, $this->user, false));
+        $this->assertRefused('court_address.validation.error.statement_required', fn () => $this->service->validate($address, $this->admin, false));
 
         $this->em->refresh($address);
         self::assertSame(CourtEmailStatus::PROPOSED, $address->getStatus());
@@ -71,7 +82,7 @@ final class CourtEmailAddressServiceTest extends KernelTestCase
         $invalid = $this->createCourtEmailAddress($this->em, $this->court, 'b@just.ro', CourtEmailPurpose::REGISTRY, CourtEmailStatus::INVALID);
 
         foreach ([$personal, $rejected, $invalid] as $address) {
-            $this->assertRefused('court_address.validation.error.not_allowed_state', fn () => $this->service->validate($address, $this->user, true));
+            $this->assertRefused('court_address.validation.error.not_allowed_state', fn () => $this->service->validate($address, $this->admin, true));
             self::assertNotSame(CourtEmailStatus::VALIDATED, $address->getStatus());
         }
     }
@@ -80,15 +91,15 @@ final class CourtEmailAddressServiceTest extends KernelTestCase
     {
         $address = $this->proposed('registratura@just.ro');
 
-        $this->service->validate($address, $this->user, true, $this->case);
+        $this->service->validate($address, $this->admin, true, $this->case);
 
         $this->em->clear();
         $address = $this->em->find(CourtEmailAddress::class, $address->getId());
         self::assertSame(CourtEmailStatus::VALIDATED, $address->getStatus());
-        self::assertSame($this->user->getId(), $address->getValidatedBy()?->getId());
+        self::assertSame($this->admin->getId(), $address->getValidatedBy()?->getId());
         self::assertNotNull($address->getValidatedAt());
         self::assertSame(
-            'Confirm că la această adresă instanța primește cereri introductive, inclusiv cereri de ordonanță de plată, pe cale electronică.',
+            'Confirm că am verificat adresa pe sursa indicată și că, potrivit acestei surse, instanța primește la această adresă cereri introductive, inclusiv cereri de ordonanță de plată, pe cale electronică.',
             $address->getValidationStatement(),
         );
         self::assertTrue($address->isFilingDefault());
@@ -104,8 +115,8 @@ final class CourtEmailAddressServiceTest extends KernelTestCase
     {
         $first = $this->proposed('registratura@just.ro');
         $second = $this->proposed('registratura2@just.ro');
-        $this->service->validate($first, $this->user, true);
-        $this->service->validate($second, $this->user, true);
+        $this->service->validate($first, $this->admin, true);
+        $this->service->validate($second, $this->admin, true);
         self::assertTrue($first->isFilingDefault());
         self::assertFalse($second->isFilingDefault(), 'Validation sets a default only when none exists.');
 
@@ -117,38 +128,88 @@ final class CourtEmailAddressServiceTest extends KernelTestCase
         self::assertTrue($second->isFilingDefault());
     }
 
-    public function testAddManualRefusesBadInputAndCreatesAProposedManualAddress(): void
+    public function testAddByAdminRefusesBadInputAndCreatesAProposedManualAddress(): void
     {
-        $this->assertRefused('court_address.validation.error.invalid_format', fn () => $this->service->addManual($this->court, 'not-an-email', CourtEmailPurpose::REGISTRY));
-        $this->assertRefused('court_address.validation.error.personal_refused', fn () => $this->service->addManual($this->court, 'ion.popescu@just.ro', CourtEmailPurpose::REGISTRY));
-        $this->assertRefused('court_address.validation.error.personal_refused', fn () => $this->service->addManual($this->court, 'registratura@just.ro', CourtEmailPurpose::PERSONAL));
+        $this->assertRefused('court_address.validation.error.invalid_format', fn () => $this->service->addByAdmin($this->court, 'not-an-email', CourtEmailPurpose::REGISTRY, $this->admin));
+        $this->assertRefused('court_address.validation.error.personal_refused', fn () => $this->service->addByAdmin($this->court, 'ion.popescu@just.ro', CourtEmailPurpose::REGISTRY, $this->admin));
+        $this->assertRefused('court_address.validation.error.personal_refused', fn () => $this->service->addByAdmin($this->court, 'registratura@just.ro', CourtEmailPurpose::PERSONAL, $this->admin));
         self::assertSame(0, $this->addressCount());
 
-        $address = $this->service->addManual($this->court, ' Registratura@Just.ro ', CourtEmailPurpose::REGISTRY, $this->case);
+        $address = $this->service->addByAdmin($this->court, ' Registratura@Just.ro ', CourtEmailPurpose::REGISTRY, $this->admin);
 
         self::assertSame('registratura@just.ro', $address->getEmail());
         self::assertSame(CourtEmailStatus::PROPOSED, $address->getStatus());
         self::assertSame(CourtEmailSource::MANUAL, $address->getSource());
         self::assertNull($address->getValidatedAt());
 
-        $this->assertRefused('court_address.validation.error.duplicate', fn () => $this->service->addManual($this->court, 'REGISTRATURA@just.ro', CourtEmailPurpose::SECTION_CIVIL));
+        $this->assertRefused('court_address.validation.error.duplicate', fn () => $this->service->addByAdmin($this->court, 'REGISTRATURA@just.ro', CourtEmailPurpose::SECTION_CIVIL, $this->admin));
         self::assertSame(1, $this->addressCount());
     }
 
-    public function testReportWrongInvalidatesAConfirmedAddressAndRejectsAProposalAndReopenClearsBoth(): void
+    public function testOnlyAnAdministratorValidatesOrAddsAnAddress(): void
+    {
+        $address = $this->proposed('registratura@just.ro');
+
+        $this->assertRefused('court_address.validation.error.admin_only', fn () => $this->service->validate($address, $this->user, true, $this->case));
+        $this->assertRefused('court_address.validation.error.admin_only', fn () => $this->service->addByAdmin($this->court, 'civil@just.ro', CourtEmailPurpose::SECTION_CIVIL, $this->user));
+
+        $this->em->refresh($address);
+        self::assertSame(CourtEmailStatus::PROPOSED, $address->getStatus());
+        self::assertFalse($address->isFilingDefault());
+        self::assertSame(1, $this->addressCount());
+    }
+
+    public function testALawyerSuggestionWaitsProposedAndTellsTheAdministrators(): void
+    {
+        $address = $this->service->suggestByLawyer($this->court, ' Civil@Just.ro ', CourtEmailPurpose::SECTION_CIVIL, $this->case, $this->user);
+
+        self::assertSame('civil@just.ro', $address->getEmail());
+        self::assertSame(CourtEmailStatus::PROPOSED, $address->getStatus());
+        self::assertSame(CourtEmailSource::LAWYER_SUGGESTION, $address->getSource());
+        self::assertFalse($address->isUsableForFiling(new \DateTimeImmutable()));
+        $audit = $this->auditRows((int) $address->getId());
+        self::assertSame('court_email_suggested', end($audit)->getAction());
+        self::assertSame($this->case->getId(), end($audit)->getNewData()['caseId']);
+        self::assertCount(1, $this->adminNotices(NotificationType::COURT_EMAIL_SUGGESTED));
+        $this->assertRefused('court_address.validation.error.personal_refused', fn () => $this->service->suggestByLawyer($this->court, 'ion.popescu@just.ro', CourtEmailPurpose::REGISTRY, $this->case, $this->user));
+        $this->assertRefused('court_address.validation.error.duplicate', fn () => $this->service->suggestByLawyer($this->court, 'CIVIL@just.ro', CourtEmailPurpose::REGISTRY, $this->case, $this->user));
+    }
+
+    public function testALawyerReportKeepsTheAddressInUseUntilTheAdministratorDecides(): void
     {
         $validated = $this->proposed('registratura@just.ro');
-        $this->service->validate($validated, $this->user, true);
-        $proposed = $this->proposed('civil@just.ro', CourtEmailPurpose::SECTION_CIVIL);
+        $this->service->validate($validated, $this->admin, true);
 
-        $this->service->reportWrong($validated, CourtEmailReportReason::BOUNCED, $this->case);
-        $this->service->reportWrong($proposed, CourtEmailReportReason::WRONG_COURT, $this->case);
+        $report = $this->service->report($validated, CourtEmailReportReason::BOUNCED, $this->case, $this->user);
+        $again = $this->service->report($validated, CourtEmailReportReason::WRONG_COURT, $this->case, $this->user);
+
+        self::assertSame($report->getId(), $again->getId(), 'An open report of the same lawyer is not added twice.');
+        self::assertSame(CourtEmailStatus::VALIDATED, $validated->getStatus());
+        self::assertTrue($validated->isFilingDefault());
+        self::assertSame(CourtEmailReportKind::LAWYER, $report->getKind());
+        self::assertTrue($report->isOpen());
+        self::assertCount(1, $this->adminNotices(NotificationType::COURT_EMAIL_REPORTED));
+
+        $this->assertRefused('court_address.validation.error.admin_only', fn () => $this->service->resolveReport($report, $this->user, true));
+        $this->service->resolveReport($report, $this->admin, false);
+        self::assertSame(CourtEmailReportResolution::DISMISSED, $report->getResolution());
+        self::assertSame(CourtEmailStatus::VALIDATED, $validated->getStatus());
+    }
+
+    public function testInvalidatingFromAReportTakesTheAddressOutOfUseAndClosesItsReportsAndReopenClearsIt(): void
+    {
+        $validated = $this->proposed('registratura@just.ro');
+        $this->service->validate($validated, $this->admin, true);
+        $report = $this->service->report($validated, CourtEmailReportReason::NOT_ACCEPTING_FILINGS, $this->case, $this->user);
+
+        $this->service->resolveReport($report, $this->admin, true);
 
         self::assertSame(CourtEmailStatus::INVALID, $validated->getStatus());
-        self::assertSame('reported_by_lawyer:BOUNCED', $validated->getInvalidReason());
+        self::assertSame('admin_report:LAWYER:NOT_ACCEPTING_FILINGS', $validated->getInvalidReason());
         self::assertFalse($validated->isFilingDefault());
         self::assertNotNull($validated->getValidatedAt(), 'The confirmation stays as the record of who relied on it.');
-        self::assertSame(CourtEmailStatus::REJECTED, $proposed->getStatus());
+        self::assertSame(CourtEmailReportResolution::INVALIDATED, $report->getResolution());
+        self::assertSame($this->admin->getId(), $report->getResolvedBy()?->getId());
 
         $this->service->reopen($validated);
 
@@ -163,7 +224,7 @@ final class CourtEmailAddressServiceTest extends KernelTestCase
     public function testErasePersonalRemovesTheRowAndTheAddressFromEarlierAuditPayloads(): void
     {
         $address = $this->proposed('ana.marin@just.ro');
-        $this->service->validate($address, $this->user, true);
+        $this->service->validate($address, $this->admin, true);
         $this->service->changePurpose($address, CourtEmailPurpose::PERSONAL, null);
         self::assertSame(CourtEmailStatus::PROPOSED, $address->getStatus());
         $id = $address->getId();
@@ -185,7 +246,7 @@ final class CourtEmailAddressServiceTest extends KernelTestCase
     public function testChangingThePurposeOfAConfirmedAddressSendsItBackToProposed(): void
     {
         $address = $this->proposed('registratura@just.ro');
-        $this->service->validate($address, $this->user, true);
+        $this->service->validate($address, $this->admin, true);
         self::assertTrue($address->isFilingDefault());
 
         $this->service->changePurpose($address, CourtEmailPurpose::SECTION_PROFESSIONALS, ' Secția a VI-a ');
@@ -206,7 +267,7 @@ final class CourtEmailAddressServiceTest extends KernelTestCase
     public function testChangingOnlyTheSectionLabelKeepsTheConfirmation(): void
     {
         $address = $this->proposed('civil@just.ro', CourtEmailPurpose::SECTION_CIVIL);
-        $this->service->validate($address, $this->user, true);
+        $this->service->validate($address, $this->admin, true);
 
         $this->service->changePurpose($address, CourtEmailPurpose::SECTION_CIVIL, 'Secția I civilă');
 
@@ -229,12 +290,12 @@ final class CourtEmailAddressServiceTest extends KernelTestCase
 
     public function testAnExpiredManualAddressMissingFromItsSourceCanBeReconfirmed(): void
     {
-        $address = $this->service->addManual($this->court, 'registratura@just.ro', CourtEmailPurpose::REGISTRY);
+        $address = $this->service->addByAdmin($this->court, 'registratura@just.ro', CourtEmailPurpose::REGISTRY, $this->admin);
         $address->markValidated($this->user, new \DateTimeImmutable('-200 days'), 'statement');
         $address->setMissingSince(new \DateTimeImmutable('-3 days'));
         $this->em->flush();
 
-        $this->service->validate($address, $this->user, true, $this->case);
+        $this->service->validate($address, $this->admin, true, $this->case);
 
         $this->em->clear();
         $address = $this->em->find(CourtEmailAddress::class, $address->getId());
@@ -254,7 +315,7 @@ final class CourtEmailAddressServiceTest extends KernelTestCase
         $this->em->flush();
         $validatedAt = $address->getValidatedAt()?->format('Y-m-d H:i:s');
 
-        $this->assertRefused('court_address.validation.error.missing_on_source', fn () => $this->service->validate($address, $this->user, true));
+        $this->assertRefused('court_address.validation.error.missing_on_source', fn () => $this->service->validate($address, $this->admin, true));
 
         $this->em->refresh($address);
         self::assertNotNull($address->getMissingSince());
@@ -266,7 +327,7 @@ final class CourtEmailAddressServiceTest extends KernelTestCase
     {
         $address = $this->createCourtEmailAddress($this->em, $this->court, 'registratura@just.ro', CourtEmailPurpose::REGISTRY, CourtEmailStatus::VALIDATED, new \DateTimeImmutable('-200 days'), $this->user);
 
-        $this->service->validate($address, $this->user, true);
+        $this->service->validate($address, $this->admin, true);
 
         self::assertTrue($address->isUsableForFiling(new \DateTimeImmutable()));
         $audit = $this->auditRows($address->getId());
@@ -279,6 +340,12 @@ final class CourtEmailAddressServiceTest extends KernelTestCase
 
         $this->assertRefused('court_address.validation.error.not_allowed_state', fn () => $this->service->erasePersonal($address));
         self::assertSame(1, $this->addressCount());
+    }
+
+    /** @return list<Notification> */
+    private function adminNotices(NotificationType $type): array
+    {
+        return $this->em->getRepository(Notification::class)->findBy(['user' => $this->admin->getId(), 'type' => $type->value]);
     }
 
     private function proposed(string $email, CourtEmailPurpose $purpose = CourtEmailPurpose::REGISTRY): CourtEmailAddress

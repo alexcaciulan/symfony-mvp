@@ -13,6 +13,7 @@ use App\Entity\FilingSubmission;
 use App\Entity\InboundMail;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
+use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\DeadlineType;
 use App\Enum\DocumentType;
@@ -23,6 +24,7 @@ use App\Enum\FilingPackageStatus;
 use App\Enum\FilingPartStatus;
 use App\Enum\PenaltyType;
 use App\Repository\AuditLogRepository;
+use App\Repository\CourtEmailAddressReportRepository;
 use App\Repository\CourtPortalEventRepository;
 use App\Repository\FilingSubmissionRepository;
 use App\Repository\LegalDeadlineRepository;
@@ -42,6 +44,7 @@ use App\Service\Inbound\InboundMailView;
 use App\Service\Inbound\ManualReceiptUploadService;
 use App\Service\Portal\RulingProposalResolver;
 use App\Service\StampDuty\StampDutyUatResolver;
+use Symfony\Bundle\SecurityBundle\Security;
 
 /**
  * Builds the Twig context for the case overview page in a single place
@@ -73,6 +76,8 @@ final class OverviewContextBuilder
         private readonly FilingResplitService $filingResplit,
         private readonly InboundMailView $inboundMailView,
         private readonly ManualReceiptUploadService $receiptUploads,
+        private readonly Security $security,
+        private readonly CourtEmailAddressReportRepository $addressReports,
     ) {}
 
     /**
@@ -121,7 +126,7 @@ final class OverviewContextBuilder
      * What the card says about the latest failure: the kind, the SMTP code, the
      * next retry (Romanian time) and whether the court address was taken out of use.
      *
-     * @return array{part: FilingEmailPart, kind: string, code: ?int, enhanced: ?string, next_retry_at: ?\DateTimeImmutable, address_invalidated: bool}|null
+     * @return array{part: FilingEmailPart, kind: string, code: ?int, enhanced: ?string, next_retry_at: ?\DateTimeImmutable, address_invalidated: bool, address_reported: bool, address_report_open: bool}|null
      */
     private function filingFailure(FilingSubmission $submission): ?array
     {
@@ -149,6 +154,8 @@ final class OverviewContextBuilder
                 $address->getInvalidatedBySubmission()?->getId() === $submission->getId()
                 || $address->getInvalidatedByInboundMail()?->getMatchedSubmission()?->getId() === $submission->getId()
             ),
+            'address_reported' => $address !== null && $this->addressReports->existsForSubmission($submission),
+            'address_report_open' => $address !== null && $this->addressReports->hasOpenForSubmission($submission),
         ];
     }
 
@@ -211,6 +218,10 @@ final class OverviewContextBuilder
             'filing_submission_cancellable' => $filingSubmission !== null && $this->filingSubmissionService->isCancellable($filingSubmission),
             'filing_submission_closable' => $filingSubmission !== null && $this->filingSubmissionService->isClosable($filingSubmission),
             'filing_submission_resumable' => $filingSubmission !== null && $this->filingResume->isResumable($filingSubmission),
+            // The annexes were already split again for this failure: a new package waits to be signed.
+            'filing_submission_resplit_done' => $filingSubmission !== null && $filingPackage !== null
+                && $filingPackage->getId() !== $filingSubmission->getPackage()->getId()
+                && $filingSubmission->getPart(1)?->getStatus() === FilingPartStatus::FAILED_SIZE,
             'filing_submission_resplittable' => $filingSubmission !== null && $filingPackage?->getId() === $filingSubmission->getPackage()->getId()
                 && $this->filingResplit->isResplittable($filingSubmission),
             'filing_submission_uncertain_part' => $filingSubmission?->isActive() ? $this->firstWithStatus($filingSubmission, FilingPartStatus::UNCERTAIN) : null,
@@ -224,15 +235,35 @@ final class OverviewContextBuilder
                     : null,
             'filing_can_set_filed_date' => $this->filingDates->canSet($case),
             'filing_receipt_proposal' => $this->receiptProposal($case, $filingSubmission),
-            'filing_inbound_mails' => $filingSubmission !== null ? $this->inboundMailView->rows($filingSubmission) : [],
+            'filing_inbound_mails' => $filingSubmission !== null ? $this->inboundMailView->rows($filingSubmission, $this->isCaseOwner($case)) : [],
             'filing_receipt_uploadable' => $filingSubmission !== null && $this->receiptUploads->isUploadable($filingSubmission),
             'filing_late_bounce_review' => $filingSubmission !== null && $this->filingSubmissionService->isLateBounceReview($filingSubmission),
             'filing_undelivered_deadline_open' => $filingSubmission?->getDeliveryStatus() === FilingDeliveryStatus::UNDELIVERED
                 && $this->hasOpenFilingDeadline($deadlines),
             'filing_gate_blocker' => $this->filingGate->firstBlocker($case),
             'filing_recipient' => $this->courtFilingAddressResolver->resolve($case),
+            // Changes whenever the hero, the pipeline or the recommended actions would; the
+            // polling card compares it and refreshes those regions in place.
+            'filing_state_key' => self::filingStateKey($case, $filingSubmission),
             'just_created' => false,
         ], $extra);
+    }
+
+    public static function filingStateKey(LegalCase $case, ?FilingSubmission $submission): string
+    {
+        return implode('|', [
+            $case->getStatus()->value,
+            $case->getFiledAt()?->format('Y-m-d') ?? '-',
+            $submission?->isActive() ? 'active' : 'idle',
+            $submission?->getDeliveryStatus()->value ?? '-',
+        ]);
+    }
+
+    private function isCaseOwner(LegalCase $case): bool
+    {
+        $user = $this->security->getUser();
+
+        return $user instanceof User && $user->getId() === $case->getUser()->getId();
     }
 
     /**

@@ -37,6 +37,8 @@ final readonly class ParsedInboundMail
         public ?MdnResult $mdn,
         public ?string $embeddedMessageId,
         public ?string $embeddedRef,
+        /** The recipient in the delivery header our own MTA prepends, never one that came with the message. */
+        public ?string $trustedDeliveryRecipient = null,
     ) {}
 
     public function marker(string $name): ?string

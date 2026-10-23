@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\EventSubscriber;
 
+use App\Entity\FilingSubmission;
 use App\Entity\LegalCase;
+use App\Enum\FilingEvidenceStatus;
 use App\Repository\FilingSubmissionRepository;
 use App\Service\Filing\FilingSubmissionService;
 use App\Service\Filing\FilingTransitionPermit;
@@ -68,14 +70,26 @@ final class FilingWorkflowInterlockSubscriber implements EventSubscriberInterfac
 
             return;
         }
-        if (!self::canUndoFiling($case)) {
+        if (!self::canUndoFiling($case, $latest)) {
             $event->setBlocked(true, 'filing.undelivered.case_advanced');
         }
     }
 
-    /** Nothing on the case says the petition reached the court on another path. */
-    public static function canUndoFiling(LegalCase $case): bool
+    /**
+     * Nothing says the petition reached the court: no court number, no declared
+     * date, no confirmed portal match, and on the submission no receipt from the
+     * court mailbox (automatic or uploaded) and no read receipt. Any of those
+     * contradicts a later delivery report, which then goes to the lawyer's check.
+     */
+    public static function canUndoFiling(LegalCase $case, ?FilingSubmission $submission = null): bool
     {
+        if ($submission !== null && (
+            in_array($submission->getEvidenceStatus(), [FilingEvidenceStatus::RECEIPT_RECEIVED, FilingEvidenceStatus::RECEIPT_MANUAL], true)
+            || $submission->getReadReceiptAt() !== null
+        )) {
+            return false;
+        }
+
         return $case->getCourtCaseNumber() === null
             && $case->getFiledAt() === null
             && !$case->hasAcceptedPortalMatch();

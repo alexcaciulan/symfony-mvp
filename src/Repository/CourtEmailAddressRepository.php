@@ -7,6 +7,7 @@ namespace App\Repository;
 use App\Entity\Court;
 use App\Entity\CourtEmailAddress;
 use App\Enum\CourtEmailPurpose;
+use App\Enum\CourtEmailSource;
 use App\Enum\CourtEmailStatus;
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
@@ -97,6 +98,11 @@ class CourtEmailAddressRepository extends ServiceEntityRepository
     public function countProposed(): int
     {
         return $this->count(['status' => CourtEmailStatus::PROPOSED]);
+    }
+
+    public function countProposedFromSource(CourtEmailSource $source): int
+    {
+        return $this->count(['status' => CourtEmailStatus::PROPOSED, 'source' => $source]);
     }
 
     public function countExpiredValidations(\DateTimeImmutable $now): int

@@ -6,17 +6,25 @@ namespace App\Service\Court;
 
 use App\Entity\Court;
 use App\Entity\CourtEmailAddress;
+use App\Entity\CourtEmailAddressReport;
 use App\Entity\FilingSubmission;
 use App\Entity\InboundMail;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\CourtEmailPurpose;
+use App\Enum\CourtEmailReportKind;
 use App\Enum\CourtEmailReportReason;
+use App\Enum\CourtEmailReportResolution;
 use App\Enum\CourtEmailSource;
 use App\Enum\CourtEmailStatus;
+use App\Enum\NotificationType;
 use App\Repository\AuditLogRepository;
+use App\Repository\CourtEmailAddressReportRepository;
 use App\Repository\CourtEmailAddressRepository;
+use App\Repository\UserRepository;
 use App\Service\AuditLogService;
+use App\Service\Notification\NotificationDispatch;
+use App\Service\Notification\NotificationDispatcherInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Clock\ClockInterface;
 use Symfony\Component\Validator\Constraints as Assert;
@@ -24,10 +32,15 @@ use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
- * Every change to a court address. Confirming an address is the lawyer's (or the
- * admin's) own declaration, made with an explicit statement and kept verbatim; it
- * is a separate act from sending anything to the court. Each action is audited and
- * a nominal address never reaches the audit trail in clear.
+ * Every change to a court address. An address serves every lawyer's filings at
+ * that court, so only an admin adds, confirms or takes one out of use: the
+ * confirmation says the admin checked the address on the source shown, with the
+ * statement kept verbatim, and it is a separate act from sending anything. A
+ * lawyer may only suggest an address (it waits, proposed, in the admin's queue)
+ * or report one as wrong (the report goes to the admin; the address stays in use
+ * until the admin decides). The only automatic removal is the platform's own SMTP
+ * refusal at RCPT. Each action is audited and a nominal address never reaches the
+ * audit trail in clear.
  */
 class CourtEmailAddressService
 {
@@ -42,6 +55,9 @@ class CourtEmailAddressService
         private readonly CourtEmailPersonalDetector $personalDetector,
         private readonly ClockInterface $clock,
         private readonly TranslatorInterface $translator,
+        private readonly CourtEmailAddressReportRepository $reports,
+        private readonly UserRepository $users,
+        private readonly NotificationDispatcherInterface $dispatcher,
     ) {}
 
     /** The statement exactly as the Romanian UI shows it next to the checkbox. */
@@ -52,6 +68,7 @@ class CourtEmailAddressService
 
     public function validate(CourtEmailAddress $address, User $by, bool $statementConfirmed, ?LegalCase $context = null): void
     {
+        self::requireAdmin($by);
         if (!$statementConfirmed) {
             throw new CourtEmailActionRefusedException('court_address.validation.error.statement_required');
         }
@@ -62,7 +79,7 @@ class CourtEmailAddressService
         }
         // Only a fresh sighting in the source clears this; a new confirmation cannot.
         if ($address->getMissingSince() !== null) {
-            if ($address->getSource() !== CourtEmailSource::MANUAL) {
+            if (!$address->getSource()->isTypedIn()) {
                 throw new CourtEmailActionRefusedException('court_address.validation.error.missing_on_source');
             }
             $address->setMissingSince(null);
@@ -150,16 +167,97 @@ class CourtEmailAddressService
     }
 
     /**
-     * A lawyer's report from a case: a confirmed address becomes invalid, a proposal
-     * is rejected. Only the case id travels with it, never the case content.
+     * A lawyer's report from a case. It goes to the admin and changes nothing on
+     * the address, which stays in use until the admin decides. Only the case id
+     * travels with it, never the case content. A second open report by the same
+     * lawyer on the same address is not added.
      */
-    public function reportWrong(CourtEmailAddress $address, CourtEmailReportReason $reason, LegalCase $case): void
+    public function report(CourtEmailAddress $address, CourtEmailReportReason $reason, LegalCase $case, User $by): CourtEmailAddressReport
     {
-        match ($address->getStatus()) {
-            CourtEmailStatus::VALIDATED => $this->markInvalid($address, 'reported_by_lawyer:' . $reason->value, $case),
-            CourtEmailStatus::PROPOSED => $this->rejectReported($address, $reason, $case),
-            default => throw new CourtEmailActionRefusedException('court_address.validation.error.not_allowed_state'),
-        };
+        if (!in_array($address->getStatus(), [CourtEmailStatus::PROPOSED, CourtEmailStatus::VALIDATED], true)) {
+            throw new CourtEmailActionRefusedException('court_address.validation.error.not_allowed_state');
+        }
+        $open = $this->reports->findOpenByLawyer($address, $by);
+        if ($open !== null) {
+            return $open;
+        }
+
+        $report = (new CourtEmailAddressReport($address, CourtEmailReportKind::LAWYER, $reason, $this->now()))->setContext($case, $by);
+        $this->em->persist($report);
+        $this->em->flush();
+
+        $this->audit('court_email_reported', $address, null, ['reportId' => $report->getId(), 'reportReason' => $reason->value], $case);
+        $this->notifyAdmins(NotificationType::COURT_EMAIL_REPORTED, 'court_email_reported', $address, 'report:' . $report->getId());
+        $this->em->flush();
+
+        return $report;
+    }
+
+    /**
+     * A delivery report says the mailbox does not exist. It may be forged or come
+     * from an internal redirect, so it is the admin who decides; the address stays
+     * in use meanwhile.
+     */
+    public function reportFromDeliveryReport(CourtEmailAddress $address, FilingSubmission $submission, InboundMail $mail, ?string $enhancedStatus): CourtEmailAddressReport
+    {
+        foreach ($this->reports->findOpenForAddress($address) as $open) {
+            if ($open->getKind() === CourtEmailReportKind::DELIVERY_REPORT && $open->getSubmission()?->getId() === $submission->getId()) {
+                return $open;
+            }
+        }
+
+        $report = (new CourtEmailAddressReport($address, CourtEmailReportKind::DELIVERY_REPORT, CourtEmailReportReason::BOUNCED, $this->now()))
+            ->setContext($submission->getLegalCase(), null, $submission, $mail, $enhancedStatus);
+        $this->em->persist($report);
+        $this->em->flush();
+
+        $this->audit('court_email_delivery_reported', $address, null, [
+            'reportId' => $report->getId(),
+            'submissionId' => $submission->getId(),
+            'inboundMailId' => $mail->getId(),
+            'enhancedStatus' => $enhancedStatus,
+            'recipientOverridden' => $submission->isRecipientOverridden(),
+        ], $submission->getLegalCase());
+        $this->notifyAdmins(NotificationType::COURT_EMAIL_REPORTED, 'court_email_reported', $address, 'report:' . $report->getId());
+        $this->em->flush();
+
+        return $report;
+    }
+
+    /**
+     * The admin's decision on a report: dismissed (the address stays in use), or
+     * the address is taken out of use, which also closes the other open reports on it.
+     */
+    public function resolveReport(CourtEmailAddressReport $report, User $admin, bool $invalidate): void
+    {
+        self::requireAdmin($admin);
+        if (!$report->isOpen()) {
+            throw new CourtEmailActionRefusedException('court_address.validation.error.not_allowed_state');
+        }
+        $address = $report->getAddress();
+        $now = $this->now();
+        if (!$invalidate) {
+            $report->resolve($admin, CourtEmailReportResolution::DISMISSED, $now);
+            $this->audit('court_email_report_dismissed', $address, null, ['reportId' => $report->getId()], $report->getLegalCase());
+            $this->em->flush();
+
+            return;
+        }
+
+        if (in_array($address->getStatus(), [CourtEmailStatus::PROPOSED, CourtEmailStatus::VALIDATED], true)) {
+            $this->markInvalid(
+                $address,
+                'admin_report:' . $report->getKind()->value . ':' . $report->getReason()->value,
+                $report->getLegalCase(),
+                $report->getSubmission(),
+                ['reportId' => $report->getId(), 'enhancedStatus' => $report->getEnhancedStatus()],
+                $report->getInboundMail(),
+            );
+        }
+        foreach ($this->reports->findOpenForAddress($address) as $open) {
+            $open->resolve($admin, CourtEmailReportResolution::INVALIDATED, $now);
+        }
+        $this->em->flush();
     }
 
     /**
@@ -190,7 +288,32 @@ class CourtEmailAddressService
         $this->em->flush();
     }
 
-    public function addManual(Court $court, string $email, CourtEmailPurpose $purpose, ?LegalCase $context = null): CourtEmailAddress
+    /** Added by an admin: proposed until the admin confirms it on its source. */
+    public function addByAdmin(Court $court, string $email, CourtEmailPurpose $purpose, User $admin): CourtEmailAddress
+    {
+        self::requireAdmin($admin);
+        $address = $this->create($court, $email, $purpose, CourtEmailSource::MANUAL);
+        $this->audit('court_email_added', $address, null);
+        $this->em->flush();
+
+        return $address;
+    }
+
+    /**
+     * A lawyer's suggestion from a case: it waits, proposed and unusable, in the
+     * admin's queue. Nothing about the case travels with it beyond its id.
+     */
+    public function suggestByLawyer(Court $court, string $email, CourtEmailPurpose $purpose, LegalCase $case, User $lawyer): CourtEmailAddress
+    {
+        $address = $this->create($court, $email, $purpose, CourtEmailSource::LAWYER_SUGGESTION);
+        $this->audit('court_email_suggested', $address, null, ['suggestedById' => $lawyer->getId()], $case);
+        $this->notifyAdmins(NotificationType::COURT_EMAIL_SUGGESTED, 'court_email_suggested', $address, 'suggestion:' . $address->getId());
+        $this->em->flush();
+
+        return $address;
+    }
+
+    private function create(Court $court, string $email, CourtEmailPurpose $purpose, CourtEmailSource $source): CourtEmailAddress
     {
         $email = CourtEmailAddress::normalizeEmail($email);
         if ($purpose === CourtEmailPurpose::PERSONAL) {
@@ -212,11 +335,8 @@ class CourtEmailAddressService
             throw new CourtEmailActionRefusedException('court_address.validation.error.duplicate');
         }
 
-        $address = new CourtEmailAddress($court, $email, $purpose, CourtEmailSource::MANUAL, $this->now());
+        $address = new CourtEmailAddress($court, $email, $purpose, $source, $this->now());
         $this->em->persist($address);
-        $this->em->flush();
-
-        $this->audit('court_email_added', $address, null, [], $context);
         $this->em->flush();
 
         return $address;
@@ -247,14 +367,31 @@ class CourtEmailAddressService
         $this->em->flush();
     }
 
-    private function rejectReported(CourtEmailAddress $address, CourtEmailReportReason $reason, LegalCase $case): void
+    /** Checked here, not only on the route: an address serves every lawyer's filings. */
+    private static function requireAdmin(User $user): void
     {
-        $old = $this->snapshot($address);
-        $address->setStatus(CourtEmailStatus::REJECTED);
-        $address->setFilingDefault(false);
+        if (!in_array('ROLE_ADMIN', $user->getRoles(), true)) {
+            throw new CourtEmailActionRefusedException('court_address.validation.error.admin_only');
+        }
+    }
 
-        $this->audit('court_email_rejected', $address, $old, ['reportReason' => $reason->value], $case);
-        $this->em->flush();
+    private function notifyAdmins(NotificationType $type, string $key, CourtEmailAddress $address, string $dedup): void
+    {
+        $params = ['%court%' => $address->getCourt()->getName(), '%email%' => $address->getEmail()];
+        foreach ($this->users->findAdmins() as $admin) {
+            $this->dispatcher->dispatch(new NotificationDispatch(
+                user: $admin,
+                legalCase: null,
+                type: $type,
+                title: $this->translator->trans('notification.' . $key . '.title', $params),
+                message: $this->translator->trans('notification.' . $key . '.message', $params),
+                resourceLink: null,
+                variant: 'warning',
+                emailSubject: null,
+                emailTemplate: null,
+                dedupKey: sprintf('%s:%s:%d', $key, $dedup, (int) $admin->getId()),
+            ));
+        }
     }
 
     /** @return list<CourtEmailAddress> */

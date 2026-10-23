@@ -106,13 +106,54 @@ final class InboundSourcesTest extends TestCase
 
     public function testImapConnectsOnlyOnFetchAndMovesWhatWasTaken(): void
     {
-        $mailbox = new class implements ImapMailbox {
+        $mailbox = self::mailbox('1700000000');
+        $factory = $this->createMock(ImapMailboxFactory::class);
+        $source = new ImapInboundSource(new ImapSettings('imap.example.test', 993, true, 'depuneri@lexrecovery.test', 'p', 'INBOX', 'Processed'), $factory);
+
+        $factory->expects(self::once())->method('create')->willReturn($mailbox);
+        $mails = [...$source->fetch(5)];
+        $source->acknowledge($mails[0]);
+
+        self::assertSame('imap.example.test/INBOX:1700000000:17', $mails[0]->sourceId, 'Host, folder and UIDVALIDITY make the UID unique.');
+        self::assertSame('depuneri@lexrecovery.test', $mails[0]->deliveredTo, 'The mailbox the source read, not a header of the message.');
+        self::assertSame(ImapInboundSource::NAME, $mails[0]->source);
+        self::assertSame(['17'], $mailbox->moved);
+    }
+
+    public function testImapDoesNotMoveAMessageOnceTheUidValidityChanged(): void
+    {
+        $mailbox = self::mailbox('1700000000');
+        $factory = $this->createStub(ImapMailboxFactory::class);
+        $factory->method('create')->willReturn($mailbox);
+        $source = new ImapInboundSource(new ImapSettings('imap.example.test', 993, true, 'u', 'p', 'INBOX', 'Processed'), $factory);
+        $mails = [...$source->fetch(5)];
+
+        // The folder was recreated between the fetch and the acknowledgement: UID 17 is another message now.
+        $mailbox->uidValidity = '1800000000';
+        $source->acknowledge($mails[0]);
+
+        self::assertSame([], $mailbox->moved);
+        self::assertNull($mails[0]->deliveredTo, 'A user name that is not an address names no mailbox.');
+    }
+
+    private static function mailbox(string $uidValidity): ImapMailbox
+    {
+        return new class($uidValidity) implements ImapMailbox {
             /** @var list<string> */
             public array $moved = [];
 
+            public function __construct(public string $uidValidity)
+            {
+            }
+
             public function fetch(int $limit): array
             {
-                return [['uid' => '17', 'raw' => "Subject: x\r\n\r\nx", 'date' => new \DateTimeImmutable('2026-10-22 10:00:00')]];
+                return [['uid' => '17', 'uidvalidity' => $this->uidValidity, 'raw' => "Subject: x\r\n\r\nx", 'date' => new \DateTimeImmutable('2026-10-22 10:00:00')]];
+            }
+
+            public function uidValidity(): string
+            {
+                return $this->uidValidity;
             }
 
             public function moveToProcessed(string $uid): void
@@ -120,16 +161,6 @@ final class InboundSourcesTest extends TestCase
                 $this->moved[] = $uid;
             }
         };
-        $factory = $this->createMock(ImapMailboxFactory::class);
-        $source = new ImapInboundSource(new ImapSettings('imap.example.test', 993, true, 'u', 'p', 'INBOX', 'Processed'), $factory);
-
-        $factory->expects(self::once())->method('create')->willReturn($mailbox);
-        $mails = [...$source->fetch(5)];
-        $source->acknowledge($mails[0]);
-
-        self::assertSame('17', $mails[0]->sourceId);
-        self::assertSame(ImapInboundSource::NAME, $mails[0]->source);
-        self::assertSame(['17'], $mailbox->moved);
     }
 
     public function testImapSourceBuiltFromTheDsnDoesNotConnect(): void

@@ -11,7 +11,9 @@
    filing_receipt_proposal, filing_inbound_mails, filing_receipt_uploadable,
    filing_late_bounce_review and filing_undelivered_deadline_open. A receipt is
    evidence that the court mailbox answered, never a registration; its date is
-   only proposed for the filing date. #}
+   only proposed for the filing date. filing_state_key changes with what the hero,
+   the pipeline and the recommended actions show: the poller refreshes those
+   regions when it changes. #}
 {% set submission = filing_submission|default(null) %}
 {% set is_owner = app.user and app.user.id == case.user.id %}
 {% set failure = filing_submission_failure|default(null) %}
@@ -25,6 +27,8 @@
              data-poll-frame-pending-value="{{ polling ? 'true' : 'false' }}"
              data-poll-frame-interval-ms-value="5000"
              data-poll-frame-url-value="{{ path('case_filing_submission_card', {id: case.id}) }}"
+             data-poll-frame-state-key-value="{{ filing_state_key|default('') }}"
+             data-poll-frame-state-url-value="{{ path('case_filing_state_stream', {id: case.id}) }}"
              class="block mb-3">
     {% if submission %}
         {% set status = submission.deliveryStatus.value %}
@@ -69,14 +73,14 @@
                         <p class="text-[11px] text-slate-600 dark:text-slate-300 break-words" data-testid="filing-submission-undelivered-diagnostic">{{ 'filing.undelivered.diagnostic'|trans({'%code%': bounced.lastEnhancedStatus ?? '-', '%text%': bounced.lastError ?? ''}) }}</p>
                     {% endif %}
                     {% if status == 'UNDELIVERED' %}
-                        {% if failure and failure.address_invalidated %}
-                            <p data-testid="filing-submission-address-rejected">{{ 'filing.undelivered.address_invalidated'|trans }}</p>
+                        {% if failure and failure.address_reported %}
+                            <p data-testid="filing-submission-address-reported">{{ (failure.address_report_open ? 'filing.undelivered.address_reported' : 'filing.undelivered.address_report_resolved')|trans }}</p>
                             {% if is_owner %}
                                 <a href="{{ path('case_court_address', {id: case.id}) }}" data-turbo-frame="_top" class="text-[11px] underline hover:no-underline">{{ 'filing.failure.address_link'|trans }}</a>
                             {% endif %}
                         {% endif %}
                         {% if bounced and bounced.status.value == 'FAILED_SIZE' %}
-                            <p data-testid="filing-submission-size-help">{{ (filing_submission_resplittable|default(false) ? 'filing.resplit.proposal' : 'filing.resplit.cannot_help')|trans }}</p>
+                            <p data-testid="filing-submission-size-help">{{ (filing_submission_resplit_done|default(false) ? 'filing.resplit.after_resplit' : (filing_submission_resplittable|default(false) ? 'filing.resplit.proposal' : 'filing.resplit.cannot_help'))|trans }}</p>
                         {% endif %}
                         <p class="rounded border border-red-300 dark:border-red-900/60 bg-red-50 dark:bg-red-950/30 p-2 text-red-900 dark:text-red-100" data-testid="filing-submission-undelivered-deadline">{{ 'filing.undelivered.deadline_warning'|trans }}</p>
                         {% if filing_undelivered_deadline_open|default(false) %}
@@ -115,7 +119,7 @@
                         {% endif %}
                     {% endif %}
                     {% if failure.kind == 'size' and not petition_left %}
-                        <p data-testid="filing-submission-size-help">{{ (filing_submission_resplittable|default(false) ? 'filing.resplit.proposal' : 'filing.resplit.cannot_help')|trans }}</p>
+                        <p data-testid="filing-submission-size-help">{{ (filing_submission_resplit_done|default(false) ? 'filing.resplit.after_resplit' : (filing_submission_resplittable|default(false) ? 'filing.resplit.proposal' : 'filing.resplit.cannot_help'))|trans }}</p>
                     {% elseif failure.kind == 'size' %}
                         <p data-testid="filing-submission-size-help">{{ 'filing.resplit.after_petition'|trans }}</p>
                     {% endif %}
@@ -274,7 +278,7 @@
             {% endif %}
 
             {% if is_owner and filing_receipt_uploadable|default(false) and evidence != 'RECEIPT_RECEIVED' %}
-                <form method="post" enctype="multipart/form-data" action="{{ path('case_filing_submission_receipt_upload', {id: case.id, submissionId: submission.id}) }}" class="mt-3 space-y-1" data-turbo="false" data-testid="filing-receipt-upload-form">
+                <form method="post" enctype="multipart/form-data" action="{{ path('case_filing_submission_receipt_upload', {id: case.id, submissionId: submission.id}) }}" class="mt-3 space-y-1" data-turbo-frame="_top" data-testid="filing-receipt-upload-form">
                     <input type="hidden" name="_token" value="{{ csrf_token('filing_receipt_upload_' ~ submission.id) }}">
                     <label class="block font-semibold" for="filing-receipt-file">{{ 'filing.receipt.upload.title'|trans }}</label>
                     <p class="text-[11px] text-slate-500 dark:text-slate-400">{{ 'filing.receipt.upload.help'|trans }}</p>

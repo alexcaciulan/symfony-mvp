@@ -219,6 +219,23 @@ final class CaseFilingSubmissionController extends AbstractController
         return $this->resolveUncertain($id, $submissionId, $sequence, $request, UncertainPartResolver::CONFIRM_NOT_RECEIVED);
     }
 
+    /**
+     * The regions of the case page the filing changes (hero, pipeline, figures,
+     * recommended actions), fetched by the polling card when its state key changes.
+     */
+    #[Route('/case/{id}/filing/state', name: 'case_filing_state_stream', requirements: ['id' => '\d+'], methods: ['GET'])]
+    public function stateStream(int $id): Response
+    {
+        $case = $this->findOrThrow($id);
+        $this->denyAccessUnlessGranted(CaseVoter::VIEW, $case);
+
+        return new Response(
+            $this->renderView('case/filing/_state_regions_turbo_stream.html.twig', $this->contextBuilder->build($case)),
+            Response::HTTP_OK,
+            ['Content-Type' => 'text/vnd.turbo-stream.html; charset=utf-8'],
+        );
+    }
+
     /** The card alone, refreshed by the page while the emails are on their way. */
     #[Route('/case/{id}/filing/submission/card', name: 'case_filing_submission_card', requirements: ['id' => '\d+'], methods: ['GET'])]
     public function card(int $id): Response
@@ -250,11 +267,15 @@ final class CaseFilingSubmissionController extends AbstractController
 
     /** The lawyer's own receipt (the court's answer as .eml, a PDF or a picture): recorded as declared by the lawyer. */
     #[Route('/case/{id}/filing/submission/{submissionId}/receipt-upload', name: 'case_filing_submission_receipt_upload', requirements: ['id' => '\d+', 'submissionId' => '\d+'], methods: ['POST'])]
-    public function receiptUpload(int $id, int $submissionId, Request $request): Response
+    public function receiptUpload(int $id, int $submissionId, Request $request, RateLimiterFactory $filingSignedUploadLimiter): Response
     {
         [$case, $submission] = $this->ownedSubmission($id, $submissionId);
         if (!$this->isCsrfTokenValid('filing_receipt_upload_' . $submissionId, $request->getPayload()->getString('_token'))) {
             return $this->respondCard($request, $case, 'error', 'filing.package.flash.csrf', false);
+        }
+        // Each upload may run a large PDF through the sandbox and always stores a copy.
+        if (!$filingSignedUploadLimiter->create($this->currentUser()->getUserIdentifier())->consume()->isAccepted()) {
+            return $this->respondCard($request, $case, 'warning', 'filing.receipt.upload.error.rate_limited', false);
         }
         $file = $request->files->get('receipt');
         if (!$file instanceof UploadedFile) {

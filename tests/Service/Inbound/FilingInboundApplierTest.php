@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests\Service\Inbound;
 
 use App\Entity\CaseStatusHistory;
+use App\Entity\CourtEmailAddressReport;
 use App\Entity\FilingAttempt;
 use App\Entity\FilingSubmission;
 use App\Entity\LegalCase;
@@ -13,6 +14,7 @@ use App\Entity\Notification;
 use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\CaseTransition;
+use App\Enum\CourtEmailReportKind;
 use App\Enum\CourtEmailStatus;
 use App\Enum\DeadlineType;
 use App\Enum\FilingAttemptOutcome;
@@ -30,15 +32,22 @@ use App\Repository\LegalDeadlineRepository;
 use App\Service\Case\CaseWorkflowService;
 use App\Service\Deadline\DeadlineService;
 use App\Service\Filing\FilingDateService;
+use App\Service\Filing\FilingPartOutcomeApplier;
+use App\Service\Filing\FilingSendBlockedException;
+use App\Service\Filing\FilingSendGuard;
 use App\Service\Filing\FilingSubmissionService;
 use App\Service\Filing\FilingTransitionPermit;
+use App\Service\Filing\UncertainPartResolver;
+use App\Service\Inbound\FilingInboundApplier;
 use App\Service\Inbound\InboundForwarder;
 use App\Tests\Support\FilingCaseFixtureTrait;
 use App\Tests\Support\FilingSubmissionTestTrait;
 use App\Tests\Support\InboundTestTrait;
+use App\Tests\Support\RecordingCourtTransport;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use Symfony\Component\Messenger\Exception\HandlerFailedException;
 use Symfony\Component\Mime\Email;
 
 /**
@@ -54,6 +63,8 @@ final class FilingInboundApplierTest extends KernelTestCase
     private EntityManagerInterface $em;
     private User $user;
     private LegalCase $case;
+    /** @var list<User> */
+    private array $otherUsers = [];
 
     protected function setUp(): void
     {
@@ -68,6 +79,9 @@ final class FilingInboundApplierTest extends KernelTestCase
     {
         if (isset($this->em)) {
             $this->em->clear();
+            foreach ($this->otherUsers as $other) {
+                $this->removeFilingFixtures($this->em, $other, null);
+            }
             $this->removeFilingFixtures($this->em, $this->user ?? null, $this->case ?? null);
         }
         parent::tearDown();
@@ -173,9 +187,15 @@ final class FilingInboundApplierTest extends KernelTestCase
         self::assertSame(FilingAttemptSource::ASYNC_BOUNCE, $part->latestAttempt()?->getSource());
         self::assertSame(FilingPackageStatus::SIGNED, $submission->getPackage()->getStatus());
 
+        // A delivery report never takes the shared address out of use: it goes to the admin.
         $address = $submission->getCourtEmailAddress();
-        self::assertSame(CourtEmailStatus::INVALID, $address?->getStatus());
-        self::assertSame($mail->getId(), $address->getInvalidatedByInboundMail()?->getId());
+        self::assertSame(CourtEmailStatus::VALIDATED, $address?->getStatus());
+        $reports = $this->em->getRepository(CourtEmailAddressReport::class)->findBy(['address' => $address->getId()]);
+        self::assertCount(1, $reports);
+        self::assertSame(CourtEmailReportKind::DELIVERY_REPORT, $reports[0]->getKind());
+        self::assertTrue($reports[0]->isOpen());
+        self::assertSame($mail->getId(), $reports[0]->getInboundMail()?->getId());
+        self::assertSame('5.1.1', $reports[0]->getEnhancedStatus());
 
         $case = $submission->getLegalCase();
         self::assertSame(CaseStatus::CERERE_GENERATA, $case->getStatus());
@@ -189,8 +209,10 @@ final class FilingInboundApplierTest extends KernelTestCase
 
         $notices = $this->notices(NotificationType::FILING_BOUNCED_PERMANENT);
         self::assertCount(1, $notices);
-        self::assertStringContainsString('art. 186 CPC', $notices[0]->getMessage());
-        self::assertStringContainsString('NU', $notices[0]->getMessage());
+        self::assertStringContainsString('NCC art. 2540', $notices[0]->getMessage());
+        self::assertStringNotContainsString('186', $notices[0]->getMessage());
+        self::assertStringNotContainsString('181', $notices[0]->getMessage());
+        self::assertStringContainsString('raportată administratorului', $notices[0]->getMessage());
         self::assertCount($statusNoticesBefore, $this->notices(NotificationType::CASE_STATUS), 'No cerere_generata or cerere_depusa notice.');
         self::assertFalse(static::getContainer()->get(FilingDateService::class)->canSet($case));
 
@@ -201,6 +223,209 @@ final class FilingInboundApplierTest extends KernelTestCase
         self::assertSame($attempts, $submission->getPart(1)?->getAttempts()->count());
         self::assertSame(CaseStatus::CERERE_GENERATA, $submission->getLegalCase()->getStatus());
         self::assertCount(1, $this->notices(NotificationType::FILING_BOUNCED_PERMANENT));
+
+        // Sending again from this case waits for the admin; another lawyer's case at the court does not.
+        $this->actAs($this->user);
+        $case = $this->em->getRepository(LegalCase::class)->find($caseId);
+        self::assertContains('filing.send.blocker.address_bounce_reported', static::getContainer()->get(FilingSendGuard::class)->checkForSubmit($case, $case->getUser())->blockers);
+        $this->countyFixtureCache = [];
+        $other = $this->createFilingUser($this->em, 'inbound-apply-other');
+        $this->otherUsers[] = $other;
+        $otherCase = $this->createFilingCase($this->em, $other);
+        $otherCase->setCourt($this->em->getRepository(LegalCase::class)->find($caseId)->getCourt());
+        $this->em->flush();
+        $this->actAs($other);
+        self::assertNotContains('filing.send.blocker.address_bounce_reported', static::getContainer()->get(FilingSendGuard::class)->checkForSubmit($otherCase, $other)->blockers);
+    }
+
+    public function testLatePetitionBounceWhileAnnexesAreOnTheirWayHoldsTheCaseForAReviewThatFreesIt(): void
+    {
+        $submission = $this->annexesOnTheirWay();
+
+        $this->receive($this->rawForPart($submission->getPart(1), 'exchange-ndr-5.1.1'));
+
+        $submission = $this->freshSubmission((int) $submission->getId());
+        self::assertSame(FilingDeliveryStatus::NEEDS_REVIEW, $submission->getDeliveryStatus());
+        self::assertSame(FilingPartOutcomeApplier::REVIEW_LATE_BOUNCE, $submission->getReviewReason());
+        self::assertTrue($submission->isActive());
+        self::assertSame(FilingPartStatus::CANCELLED, $submission->getPart(3)?->getStatus(), 'The emails still waiting are not sent after a late bounce.');
+        self::assertSame(CaseStatus::CERERE_DEPUSA, $submission->getLegalCase()->getStatus());
+        $service = static::getContainer()->get(FilingSubmissionService::class);
+        self::assertTrue($service->isLateBounceReview($submission));
+        self::assertFalse($service->isCancellable($submission), 'The petition left: it is never "nothing was sent".');
+
+        $this->actAs($this->user);
+        $service->acknowledgeLateBounce($submission, $this->em->getRepository(User::class)->find($this->user->getId()));
+
+        $submission = $this->freshSubmission((int) $submission->getId());
+        self::assertFalse($submission->isActive(), 'The acknowledgement frees the case.');
+        self::assertSame(FilingDeliveryStatus::CLOSED_PARTIAL, $submission->getDeliveryStatus());
+        self::assertNotNull($submission->getCancelledAt());
+    }
+
+    public function testAnAdminCanEndTheLateBounceHoldOnAnActiveSubmission(): void
+    {
+        $submission = $this->annexesOnTheirWay();
+        $this->receive($this->rawForPart($submission->getPart(1), 'exchange-ndr-5.1.1'));
+        $admin = $this->createFilingUser($this->em, 'inbound-apply-admin');
+        $admin->setRoles(['ROLE_ADMIN']);
+        $this->em->flush();
+        $this->otherUsers[] = $admin;
+
+        static::getContainer()->get(FilingSubmissionService::class)->closeByAdmin($this->freshSubmission((int) $submission->getId()), $this->em->getRepository(User::class)->find($admin->getId()), 'Verificat cu avocatul la telefon');
+
+        $submission = $this->freshSubmission((int) $submission->getId());
+        self::assertFalse($submission->isActive());
+        self::assertSame(FilingDeliveryStatus::CLOSED_PARTIAL, $submission->getDeliveryStatus());
+        self::assertSame(CaseStatus::CERERE_DEPUSA, $submission->getLegalCase()->getStatus());
+    }
+
+    public function testALatePetitionBounceWithNoAnnexAcceptedNeverMakesTheSubmissionCancellable(): void
+    {
+        $this->case = $this->createSendableFilingCase($this->em, $this->user, 2);
+        $submission = $this->submitFiling($this->case, $this->user);
+        $this->handleNextFilingMessage();
+        $this->leaveTheRestWaiting($submission, [2]);
+        $case = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        $case->setFiledAt(new \DateTimeImmutable('today'));
+        $this->em->flush();
+
+        $this->receive($this->rawForPart($this->freshSubmission((int) $submission->getId())->getPart(1), 'exchange-ndr-5.1.1'));
+
+        $submission = $this->freshSubmission((int) $submission->getId());
+        self::assertSame(FilingPartStatus::FAILED_PERMANENT, $submission->getPart(1)?->getStatus());
+        self::assertSame(FilingPartStatus::CANCELLED, $submission->getPart(2)?->getStatus());
+        self::assertFalse(static::getContainer()->get(FilingSubmissionService::class)->isCancellable($submission), 'The petition left even though no annex did.');
+        self::assertTrue(static::getContainer()->get(FilingSubmissionService::class)->isLateBounceReview($submission));
+    }
+
+    public function testABounceSettlesAnUncertainPetitionAsReturned(): void
+    {
+        $this->case = $this->createSendableFilingCase($this->em, $this->user);
+        $submission = $this->submitFiling($this->case, $this->user);
+        $this->courtTransport()->failNext = RecordingCourtTransport::lostAfterData();
+        try {
+            $this->handleNextFilingMessage();
+        } catch (HandlerFailedException) {
+            // The connection was lost after DATA: the outcome is unknown.
+        }
+        self::assertSame(FilingPartStatus::UNCERTAIN, $this->freshSubmission((int) $submission->getId())->getPart(1)?->getStatus());
+
+        $mail = $this->receive($this->rawForPart($this->freshSubmission((int) $submission->getId())->getPart(1), 'exchange-ndr-5.1.1'));
+
+        $submission = $this->freshSubmission((int) $submission->getId());
+        $part = $submission->getPart(1);
+        self::assertSame(FilingPartStatus::FAILED_PERMANENT, $part?->getStatus());
+        self::assertSame(FilingAttemptSource::ASYNC_BOUNCE, $part->latestAttempt()?->getSource());
+        self::assertSame(FilingDeliveryStatus::FAILED_PERMANENT, $submission->getDeliveryStatus());
+        self::assertFalse($submission->isActive());
+        self::assertSame(CaseStatus::CERERE_GENERATA, $submission->getLegalCase()->getStatus());
+        self::assertNotSame(InboundReviewStatus::PENDING, $mail->getReviewStatus());
+        self::assertSame(CourtEmailStatus::VALIDATED, $submission->getCourtEmailAddress()?->getStatus());
+
+        // The CC copy can no longer be declared received over the report.
+        $this->expectException(FilingSendBlockedException::class);
+        static::getContainer()->get(UncertainPartResolver::class)->declareReceived($part, $this->em->getRepository(User::class)->find($this->user->getId()), [UncertainPartResolver::CONFIRM_RECEIVED => true]);
+    }
+
+    public function testABounceOnAPartStillBeingSentGoesToReviewAndChangesNothing(): void
+    {
+        $this->case = $this->createSendableFilingCase($this->em, $this->user);
+        $submission = $this->submitFiling($this->case, $this->user);
+        $entity = $this->em->getRepository(FilingSubmission::class)->find($submission->getId());
+        $entity->getPart(1)?->setStatus(FilingPartStatus::SENDING);
+        $this->em->flush();
+
+        $mail = $this->receive($this->rawForPart($entity->getPart(1), 'exchange-ndr-5.1.1'));
+
+        self::assertSame(InboundReviewStatus::PENDING, $mail->getReviewStatus());
+        self::assertSame(FilingInboundApplier::REVIEW_PART_NOT_ACCEPTED, $mail->getReviewReason());
+        self::assertSame(FilingPartStatus::SENDING, $this->freshSubmission((int) $submission->getId())->getPart(1)?->getStatus());
+        self::assertCount(1, $this->notices(NotificationType::FILING_INBOUND_REVIEW));
+    }
+
+    public function testAnAnnexBounceAfterAnAcknowledgedLateBounceIsToldAndNotReadAsAPetitionFailure(): void
+    {
+        $submission = $this->sent(2);
+        $case = $this->em->getRepository(LegalCase::class)->find($submission->getLegalCase()->getId());
+        $case->setFiledAt(new \DateTimeImmutable('today'));
+        $this->em->flush();
+        $this->receive($this->rawForPart($submission->getPart(1), 'exchange-ndr-5.1.1'));
+        $this->actAs($this->user);
+        static::getContainer()->get(FilingSubmissionService::class)->acknowledgeLateBounce($this->freshSubmission((int) $submission->getId()), $this->em->getRepository(User::class)->find($this->user->getId()));
+
+        $mail = $this->receive($this->rawForPart($this->freshSubmission((int) $submission->getId())->getPart(2), 'postfix-5.1.1'));
+
+        $submission = $this->freshSubmission((int) $submission->getId());
+        self::assertSame(FilingDeliveryStatus::SENT, $submission->getDeliveryStatus(), 'Not relabelled as a failed petition.');
+        self::assertFalse($submission->isActive());
+        self::assertSame(FilingPartStatus::FAILED_PERMANENT, $submission->getPart(2)?->getStatus());
+        self::assertSame('annex_bounce', $mail->getReviewReason());
+        $annexNotices = array_filter($this->notices(NotificationType::FILING_BOUNCED_PERMANENT), static fn (Notification $n): bool => str_contains((string) $n->getDedupKey(), 'annex_bounced'));
+        self::assertCount(1, $annexNotices);
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function receiptEvidence(): iterable
+    {
+        yield 'automatic receipt' => ['receipt'];
+        yield 'uploaded receipt' => ['manual'];
+    }
+
+    #[DataProvider('receiptEvidence')]
+    public function testABounceAfterAReceiptDoesNotUndoTheFiling(string $evidence): void
+    {
+        $submission = $this->sent();
+        if ($evidence === 'receipt') {
+            $this->receive($this->rawForPart($submission->getPart(1), 'justro-receipt'));
+        } else {
+            $entity = $this->em->getRepository(FilingSubmission::class)->find($submission->getId());
+            $entity->markReceipt(null, null, FilingEvidenceStatus::RECEIPT_MANUAL);
+            $this->em->flush();
+        }
+
+        $mail = $this->receive($this->rawForPart($this->freshSubmission((int) $submission->getId())->getPart(1), 'exchange-ndr-5.1.1'));
+
+        $submission = $this->freshSubmission((int) $submission->getId());
+        self::assertSame(CaseStatus::CERERE_DEPUSA, $submission->getLegalCase()->getStatus(), 'The court mailbox answered: a later report does not undo the filing.');
+        self::assertSame(FilingDeliveryStatus::NEEDS_REVIEW, $submission->getDeliveryStatus());
+        self::assertSame(FilingPartOutcomeApplier::REVIEW_LATE_BOUNCE, $submission->getReviewReason());
+        self::assertSame(InboundReviewStatus::PENDING, $mail->getReviewStatus());
+        self::assertSame([], $this->notices(NotificationType::FILING_BOUNCED_PERMANENT));
+    }
+
+    public function testPetitionThenAnnexReportsGiveOneNoticeForAnUndoneFiling(): void
+    {
+        $submission = $this->sent(2);
+
+        $this->receive($this->rawForPart($submission->getPart(1), 'exchange-ndr-5.1.1'));
+        $annex = $this->receive($this->rawForPart($this->freshSubmission((int) $submission->getId())->getPart(2), 'postfix-5.1.1'));
+
+        $submission = $this->freshSubmission((int) $submission->getId());
+        self::assertSame(FilingDeliveryStatus::UNDELIVERED, $submission->getDeliveryStatus());
+        self::assertSame(FilingPartStatus::FAILED_PERMANENT, $submission->getPart(2)?->getStatus(), 'Recorded as evidence.');
+        self::assertNotSame(InboundReviewStatus::PENDING, $annex->getReviewStatus());
+        self::assertCount(1, $this->notices(NotificationType::FILING_BOUNCED_PERMANENT), 'No annex notice on a filing that was undone.');
+        self::assertSame([], $this->notices(NotificationType::FILING_PARTIALLY_SENT));
+    }
+
+    public function testAnnexThenPetitionReportsLeaveOnlyTheUndoNoticeActive(): void
+    {
+        $submission = $this->sent(2);
+
+        $this->receive($this->rawForPart($submission->getPart(2), 'postfix-5.1.1'));
+        self::assertCount(1, $this->notices(NotificationType::FILING_PARTIALLY_SENT));
+        $this->receive($this->rawForPart($this->freshSubmission((int) $submission->getId())->getPart(1), 'exchange-ndr-5.1.1'));
+
+        $submission = $this->freshSubmission((int) $submission->getId());
+        self::assertSame(FilingDeliveryStatus::UNDELIVERED, $submission->getDeliveryStatus());
+        self::assertSame(CaseStatus::CERERE_GENERATA, $submission->getLegalCase()->getStatus());
+        $unread = array_filter(
+            [...$this->notices(NotificationType::FILING_PARTIALLY_SENT), ...$this->notices(NotificationType::FILING_BOUNCED_PERMANENT)],
+            static fn (Notification $n): bool => !$n->isRead(),
+        );
+        self::assertCount(1, $unread);
+        self::assertSame(NotificationType::FILING_BOUNCED_PERMANENT->value, array_values($unread)[0]->getType());
     }
 
     public function testPetitionBounceOnACaseThatMovedOnOnlyOpensAReview(): void
@@ -376,6 +601,42 @@ final class FilingInboundApplierTest extends KernelTestCase
         $this->em->flush();
         self::assertTrue($deadlines->reopenFilingDeadline($this->case, 'test'));
         self::assertFalse($this->filingDeadline((int) $this->case->getId())?->isCompleted());
+    }
+
+    /**
+     * Three emails: the petition and the first annex accepted, the last annex
+     * waiting for a retry, and the filing date already declared.
+     */
+    private function annexesOnTheirWay(): FilingSubmission
+    {
+        $this->case = $this->createSendableFilingCase($this->em, $this->user, 3);
+        $submission = $this->submitFiling($this->case, $this->user);
+        $this->handleNextFilingMessage();
+        $this->handleNextFilingMessage();
+        $this->leaveTheRestWaiting($submission, [3]);
+        $case = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        $case->setFiledAt(new \DateTimeImmutable('today'));
+        $this->em->flush();
+
+        $submission = $this->freshSubmission((int) $submission->getId());
+        self::assertTrue($submission->isActive());
+        self::assertSame(FilingPartStatus::ACCEPTED, $submission->getPart(2)?->getStatus());
+
+        return $submission;
+    }
+
+    /** @param list<int> $sequences parts left waiting for a retry instead of being sent */
+    private function leaveTheRestWaiting(FilingSubmission $submission, array $sequences): void
+    {
+        foreach ([...$this->courtQueue()->get()] as $envelope) {
+            $this->courtQueue()->ack($envelope);
+        }
+        $this->em->clear();
+        $entity = $this->em->getRepository(FilingSubmission::class)->find($submission->getId());
+        foreach ($sequences as $sequence) {
+            $entity->getPart($sequence)?->setStatus(FilingPartStatus::RETRY_SCHEDULED);
+        }
+        $this->em->flush();
     }
 
     private function sent(int $emails = 1): FilingSubmission

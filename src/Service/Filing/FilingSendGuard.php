@@ -16,6 +16,7 @@ use App\Enum\FilingPartRole;
 use App\Enum\FilingPartStatus;
 use App\Enum\PortalCaseMatchStatus;
 use App\Repository\AuditLogRepository;
+use App\Repository\CourtEmailAddressReportRepository;
 use App\Repository\FilingSubmissionRepository;
 use App\Security\Voter\CaseVoter;
 use App\Service\Billing\SubscriptionService;
@@ -48,6 +49,7 @@ final class FilingSendGuard
         private readonly FilingSubmissionRepository $submissions,
         private readonly CourtFilingEmailFactory $emailFactory,
         private readonly AuditLogRepository $auditLogs,
+        private readonly CourtEmailAddressReportRepository $addressReports,
         private readonly ClockInterface $clock,
         private readonly int $filingMaxEmailBytes,
         private readonly string $filingEmailChannelSince,
@@ -116,6 +118,9 @@ final class FilingSendGuard
             $blockers[] = 'filing.send.blocker.address_court_differs';
         } elseif ($self !== null && $self->getCourtEmailAddress()?->getId() !== $address->getId()) {
             $blockers[] = 'filing.status.review.address_changed';
+        } elseif ($this->addressReports->hasOpenDeliveryReportForCase($address, $case)) {
+            // This case's filing came back from that address: not again until the admin has checked it.
+            $blockers[] = 'filing.send.blocker.address_bounce_reported';
         }
 
         $active = $this->submissions->findActiveForCase($case);
@@ -158,7 +163,10 @@ final class FilingSendGuard
         if ($part->getStatus() === FilingPartStatus::CANCELLED) {
             $blockers[] = 'filing.status.review.part_cancelled';
         }
-        if ($case->getCourtCaseNumber() !== null || $case->getStatus() !== CaseStatus::CERERE_DEPUSA) {
+        // A registration that follows from this filing does not stop the annexes it lists.
+        $registeredFromThis = $case->getStatus() === CaseStatus::DOSAR_INREGISTRAT
+            && FilingSubmissionService::isRegisteredFromThisFiling($case, $submission);
+        if (!$registeredFromThis && ($case->getCourtCaseNumber() !== null || $case->getStatus() !== CaseStatus::CERERE_DEPUSA)) {
             $blockers[] = 'filing.status.review.case_moved_on';
         }
         $package = $submission->getPackage();

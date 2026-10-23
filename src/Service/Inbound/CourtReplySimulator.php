@@ -36,6 +36,7 @@ final class CourtReplySimulator
         private readonly string $environment,
         private readonly string $inboundAuthservId,
         private readonly string $courtFilingFrom,
+        private readonly string $inboundDeliveryHeader,
     ) {}
 
     /** @return ?string why it refuses, or null when it may run */
@@ -134,7 +135,11 @@ final class CourtReplySimulator
         $boundary = 'sim-dsn-' . bin2hex(random_bytes(6));
         $submission = $part->getSubmission();
 
-        return "Return-Path: <>\r\n"
+        // Our MTA's delivery header on top, as in production, so the token matches CERTAIN.
+        $delivery = trim($this->inboundDeliveryHeader) !== '' ? sprintf("%s: %s\r\n", trim($this->inboundDeliveryHeader), $this->verp($submission, $part)) : '';
+
+        return $delivery
+            . "Return-Path: <>\r\n"
             . $this->headers(self::DAEMON, $this->verp($submission, $part), $now, $action === 'delayed' ? 'Delayed Mail (still being retried)' : 'Undelivered Mail Returned to Sender')
             . "Auto-Submitted: auto-replied\r\n"
             . sprintf("Content-Type: multipart/report; report-type=delivery-status; boundary=\"%s\"\r\n\r\n", $boundary)

@@ -17,12 +17,14 @@ use App\Service\Filing\CourtFilingEmailFactory;
 use App\Service\Filing\CourtFilingNotAllowedException;
 use App\Service\Filing\FilingEmlStorage;
 use App\Service\Filing\FilingPartOutcomeApplier;
+use App\Service\Filing\FilingRowLocker;
 use App\Service\Filing\FilingSendGuard;
 use App\Service\Filing\RecipientOverrideGuard;
 use App\Service\Filing\SmtpFailureClassifier;
 use App\Service\Filing\SmtpFailureKind;
-use Doctrine\DBAL\LockMode;
+use Doctrine\DBAL\Exception\RetryableException;
 use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\Persistence\ManagerRegistry;
 use Psr\Clock\ClockInterface;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use Symfony\Component\Mailer\Transport\TransportInterface;
@@ -47,12 +49,21 @@ use Symfony\Component\Mime\RawMessage;
  * mid-send past the stale window, is uncertain and never sent again on its own:
  * resending could file the petition twice. A redelivery that finds the part
  * mid-send inside the window looks again later instead of sending.
+ *
+ * Every transaction locks the case, the submission and the parts in that order
+ * (FilingRowLocker), the same as every other writer. Recording an SMTP answer is
+ * retried on a deadlock or a lock timeout: the answer is already known, and
+ * leaving it unrecorded would turn an accepted petition into an uncertain one.
  */
 #[AsMessageHandler]
 final class SendFilingEmailPartHandler
 {
+    private const RECORD_TRIES = 3;
+
     public function __construct(
         private readonly EntityManagerInterface $em,
+        private readonly ManagerRegistry $registry,
+        private readonly FilingRowLocker $locker,
         private readonly FilingSendGuard $guard,
         private readonly RecipientOverrideGuard $recipientGuard,
         private readonly CourtFilingEmailFactory $emailFactory,
@@ -80,13 +91,47 @@ final class SendFilingEmailPartHandler
             $this->onSendFailure($part, $attempt, $e);
         }
 
-        $this->inTransaction(function () use ($part, $attempt): void {
-            $this->lockFresh($part);
+        $this->recording($part, $attempt, function (FilingEmailPart $part, FilingAttempt $attempt): void {
             $now = $this->clock->now();
             $attempt->finish(FilingAttemptOutcome::ACCEPTED, $now);
             // A definitive answer wins over an "uncertain" set by a recheck meanwhile.
             $this->outcomes->accepted($part, $now, FilingAttemptSource::SMTP);
         });
+    }
+
+    /**
+     * Records the SMTP answer under the canonical locks, again after a deadlock or
+     * a lock timeout with a fresh manager and the rows read again by id.
+     *
+     * @template T
+     *
+     * @param callable(FilingEmailPart, FilingAttempt): T $work
+     *
+     * @return T
+     */
+    private function recording(FilingEmailPart $part, FilingAttempt $attempt, callable $work): mixed
+    {
+        $partId = (int) $part->getId();
+        $attemptId = (int) $attempt->getId();
+        for ($try = 1; ; ++$try) {
+            try {
+                return $this->inTransaction(function () use ($part, $attempt, $partId, $attemptId, $try, $work): mixed {
+                    if ($try > 1) {
+                        $part = $this->em->find(FilingEmailPart::class, $partId) ?? throw new \LogicException('Court filing email part gone.');
+                        $attempt = $this->em->find(FilingAttempt::class, $attemptId) ?? throw new \LogicException('Court filing attempt gone.');
+                    }
+                    $this->locker->lock($part->getSubmission());
+                    $this->em->refresh($attempt);
+
+                    return $work($part, $attempt);
+                });
+            } catch (RetryableException $e) {
+                if ($try >= self::RECORD_TRIES) {
+                    throw $e;
+                }
+                $this->registry->resetManager();
+            }
+        }
     }
 
     /**
@@ -102,8 +147,8 @@ final class SendFilingEmailPartHandler
             if (!$part instanceof FilingEmailPart) {
                 return null;
             }
-            $this->lockFresh($part);
             $submission = $part->getSubmission();
+            $this->locker->lock($submission);
             $now = $this->clock->now();
 
             if ($part->getStatus() === FilingPartStatus::SENDING) {
@@ -202,8 +247,7 @@ final class SendFilingEmailPartHandler
 
     private function onSendFailure(FilingEmailPart $part, FilingAttempt $attempt, \Throwable $e): never
     {
-        $kind = $this->inTransaction(function () use ($part, $attempt, $e): ?SmtpFailureKind {
-            $this->lockFresh($part);
+        $kind = $this->recording($part, $attempt, function (FilingEmailPart $part, FilingAttempt $attempt) use ($e): ?SmtpFailureKind {
             $now = $this->clock->now();
             $answered = in_array($part->getStatus(), [FilingPartStatus::SENDING, FilingPartStatus::UNCERTAIN], true);
 
@@ -249,13 +293,6 @@ final class SendFilingEmailPartHandler
         }
 
         throw new UnrecoverableMessageHandlingException('Court filing email was not accepted.', 0, $e);
-    }
-
-    private function lockFresh(FilingEmailPart $part): void
-    {
-        $this->em->lock($part, LockMode::PESSIMISTIC_WRITE);
-        $this->em->refresh($part);
-        $this->em->refresh($part->getSubmission());
     }
 
     /**

@@ -90,8 +90,10 @@ final class CaseFilingSubmissionActionsTest extends WebTestCase
         $submission = $this->submitFiling($this->case, $this->user);
         $submissionId = (int) $submission->getId();
         // The case went on by another path while the petition was being handed over.
-        $this->courtTransport()->beforeSend = function (): void {
-            $this->case->setStatus(CaseStatus::CERERE_DEPUSA);
+        $conn = $this->em->getConnection();
+        $caseId = (int) $this->case->getId();
+        $this->courtTransport()->beforeSend = static function () use ($conn, $caseId): void {
+            $conn->executeStatement('UPDATE legal_case SET status = ? WHERE id = ?', [CaseStatus::CERERE_DEPUSA->value, $caseId]);
         };
         $this->handleFilingPart((int) $submission->getPart(1)?->getId());
         self::assertSame('NEEDS_REVIEW', $this->submissionStatus($submissionId));
@@ -178,6 +180,38 @@ final class CaseFilingSubmissionActionsTest extends WebTestCase
 
         self::assertResponseStatusCodeSame(403);
         self::assertSame('PARTIALLY_SENT', $this->submissionStatus($submissionId));
+    }
+
+    public function testAfterSplittingTheAnnexesAgainTheCardSaysSoInsteadOfThatItCannotHelp(): void
+    {
+        // One email carrying the annexes, refused for its size: splitting again can help.
+        $lawyer = $this->createFilingUser($this->em, 'filing-actions-resplit');
+        $this->otherUsers[] = $lawyer;
+        $case = $this->createSendableFilingCase($this->em, $lawyer);
+        $submission = $this->submitFiling($case, $lawyer);
+        $this->courtTransport()->failNext = RecordingCourtTransport::endOfDataRefused(552, 'Message size exceeds fixed limit');
+        try {
+            $this->handleFilingPart((int) $submission->getPart(1)?->getId());
+        } catch (HandlerFailedException) {
+        }
+        $this->em->refresh($submission);
+        $submission->getPart(1)?->recordEncodedBytes(4_000_000);
+        $this->em->flush();
+        $submissionId = (int) $submission->getId();
+        $card = sprintf('/case/%d/filing/submission/card', $case->getId());
+        $translator = static::getContainer()->get('translator');
+
+        $this->client->loginUser($lawyer);
+        $crawler = $this->client->request('GET', $card);
+        self::assertSelectorTextContains('[data-testid="filing-submission-size-help"]', $translator->trans('filing.resplit.proposal'));
+        $this->client->submit($crawler->filter('[data-testid="filing-submission-resplit"]')->form(), [], self::TURBO);
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString(htmlspecialchars($translator->trans('filing.resplit.done'), ENT_QUOTES), (string) $this->client->getResponse()->getContent());
+
+        $this->client->request('GET', $card);
+        self::assertSame('FAILED_SIZE', $this->submissionStatus($submissionId));
+        self::assertSelectorTextContains('[data-testid="filing-submission-size-help"]', $translator->trans('filing.resplit.after_resplit'));
+        self::assertStringNotContainsString($translator->trans('filing.resplit.cannot_help'), (string) $this->client->getResponse()->getContent());
     }
 
     /** Petition accepted, the annex refused for good: the submission is partially sent and stalled. */

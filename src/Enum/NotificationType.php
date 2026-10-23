@@ -44,6 +44,9 @@ enum NotificationType: string
     case FILING_DELIVERY_DELAYED = 'filing_delivery_delayed';
     case FILING_INBOUND_REVIEW = 'filing_inbound_review';
     case INBOUND_POLL_STALE = 'inbound_poll_stale';
+    case INBOUND_UNPROCESSED = 'inbound_unprocessed';
+    case COURT_EMAIL_REPORTED = 'court_email_reported';
+    case COURT_EMAIL_SUGGESTED = 'court_email_suggested';
 
     public function label(): string
     {
@@ -83,6 +86,9 @@ enum NotificationType: string
             self::FILING_DELIVERY_DELAYED => 'document',
             self::FILING_INBOUND_REVIEW => 'document',
             self::INBOUND_POLL_STALE => 'document',
+            self::INBOUND_UNPROCESSED => 'document',
+            self::COURT_EMAIL_REPORTED => 'document',
+            self::COURT_EMAIL_SUGGESTED => 'document',
         };
     }
 

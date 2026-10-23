@@ -20,7 +20,12 @@ use Psr\Clock\ClockInterface;
  * confirmed, unexpired address of a filing purpose is ever returned. A tribunal
  * routes filings by section, so without a confirmed section for these parties the
  * answer is "unknown", never the registry: a wrong section means redistribution
- * or delay that nobody would notice.
+ * or delay that nobody would notice. The professionals' section is derived only
+ * when every party is a professional by nature: a legal person registered with
+ * the trade register as a company (ONRC number starting with J). Not every legal
+ * person is a professional (associations, foundations, owners' associations,
+ * public authorities), and a natural person registered as PFA, II or IF is one by
+ * law but is not inferred here: the lawyer confirms the section.
  */
 final class CourtFilingAddressResolver
 {
@@ -43,8 +48,7 @@ final class CourtFilingAddressResolver
         }
 
         $isTribunal = $court->getType() === CourtType::TRIBUNAL;
-        if ($isTribunal && !$this->allDebtorsAreLegalEntities($case)) {
-            // A natural person may still be a professional (PFA, II, IF): the section is not derivable.
+        if ($isTribunal && !$this->allPartiesAreProfessionalsByNature($case)) {
             return CourtFilingAddressResult::missing(CourtFilingAddressMissingReason::TRIBUNAL_SECTION_UNKNOWN);
         }
         $purposes = $isTribunal ? [CourtEmailPurpose::SECTION_PROFESSIONALS] : self::JUDECATORIE_ORDER;
@@ -78,14 +82,21 @@ final class CourtFilingAddressResolver
         return CourtFilingAddressResult::missing($reason, $requiredPurpose);
     }
 
-    private function allDebtorsAreLegalEntities(LegalCase $case): bool
+    private function allPartiesAreProfessionalsByNature(LegalCase $case): bool
     {
+        $creditor = $case->getCreditor();
         $debtors = $case->getDebtors();
-        if ($debtors->isEmpty()) {
+        if ($creditor === null || $debtors->isEmpty()
+            || !self::isCompany($creditor->getPersonType(), $creditor->getOnrcNumber())) {
             return false;
         }
 
-        return $debtors->forAll(static fn (int $_k, LegalCaseDebtor $d): bool => $d->getPersonType() === PersonType::PJ);
+        return $debtors->forAll(static fn (int $_k, LegalCaseDebtor $d): bool => self::isCompany($d->getPersonType(), $d->getOnrcNumber()));
+    }
+
+    private static function isCompany(PersonType $type, ?string $onrcNumber): bool
+    {
+        return $type === PersonType::PJ && str_starts_with(strtoupper(trim((string) $onrcNumber)), 'J');
     }
 
     /**

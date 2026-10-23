@@ -32,6 +32,7 @@ final class FilingSendGuardTest extends KernelTestCase
 
     private EntityManagerInterface $em;
     private User $user;
+    private ?User $firstUser = null;
     private LegalCase $case;
 
     protected function setUp(): void
@@ -50,6 +51,9 @@ final class FilingSendGuardTest extends KernelTestCase
         if (isset($this->em)) {
             $this->em->getConnection()->executeStatement('DELETE FROM portal_case_match WHERE legal_case_id = ?', [(int) $this->case->getId()]);
             $this->removeFilingFixtures($this->em, $this->user ?? null, $this->case ?? null);
+            if ($this->firstUser !== null) {
+                $this->removeFilingFixtures($this->em, $this->firstUser, null);
+            }
         }
         parent::tearDown();
     }
@@ -211,12 +215,10 @@ final class FilingSendGuardTest extends KernelTestCase
         return static::getContainer()->get(CourtEmailAddressRepository::class)->findForCourt($this->case->getCourt())[0];
     }
 
+    /** A sendable case of another lawyer with this many emails; the teardown removes both. */
     private function recreateWithEmails(int $emails): LegalCase
     {
-        $this->removeFilingFixtures($this->em, $this->user, $this->case);
-        $this->em->clear();
-        $this->countyFixtureCache = [];
-        $this->filingCourts = [];
+        $this->firstUser = $this->user;
         $this->user = $this->createFilingUser($this->em, 'filing-guard');
 
         return $this->createSendableFilingCase($this->em, $this->user, $emails);

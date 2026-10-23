@@ -1,6 +1,6 @@
 # Plan: depunerea cererii de ordonanță de plată la instanță prin email (secțiunile 3b-3e)
 
-Branch: `feature/trimitere-email-instanta`. Data: 2026-10-22. Revizia 2 (după verificarea pe cod și verificarea juridică din aceeași zi; vezi secțiunea 10).
+Branch: `feature/trimitere-email-instanta`. Data: 2026-10-22. Revizia 2 (după verificarea pe cod și verificarea juridică din aceeași zi; vezi secțiunea 10). Revizia 3 (2026-10-23): fix-urile din review-ul pe tot branch-ul (F0-F24) și decizia „doar adminul decide” adresele instanțelor; vezi secțiunea 11.
 
 Documentul este decision-first: deciziile de mai jos sunt obligatorii pentru implementare. Fiecare secțiune se implementează, se testează și se revizuiește separat, într-un singur ciclu, în ordinea: **3b, 3c1, 3c2, 3d1, 3d2, 3e**. Identificatorii de cod sunt în engleză. Textele pentru avocat trec prin translator (RO și EN în paralel, fără em-dash). Textul emailului către instanță trece tot prin translator, cu chei `court_email.*` randate cu locale `ro` forțat; copia EN există doar pentru mentenanță.
 
@@ -21,7 +21,7 @@ Citările legale marcate **[V]** nu sunt verificate pe sursă primară și se ve
 | 4 | Dovada = confirmarea automată de primire a instanței (toate trimit; unele și confirmare de citire). | 3e: confirmarea de primire se păstrează ca dovadă a **primirii mesajului**; înregistrarea cererii se vede pe portal. Confirmarea de citire doar în istoric. |
 | 9 | Contract + facturi + alte dovezi într-un singur PDF semnat o dată, plus cererea semnată, plus împuternicirea semnată (3 semnături). Opisul: implicit în PDF-ul cererii, comutabil. | 3c1: trei fișiere logice; `filing.opis_placement = merged|separate`, implicit `merged`. |
 | 10 | Nu se atinge 10 MB; la refuz de dimensiune se trimite în mai multe emailuri. Compresia înainte de semnare. | 3c1: compresie și împărțire în volume înainte de semnare; 3c2: bugetul reverificat pe bytes semnați; 3d: trimitere în mai multe emailuri. |
-| 11 | Adresele instanțelor sunt doar pe pagina fiecărei instanțe de pe portal.just.ro; colectare automată, avocatul doar validează. Import aprobat pe dev. | 3b: import ca propuneri; validare de către avocat (pagină dedicată) sau admin (EasyAdmin). |
+| 11 | Adresele instanțelor sunt doar pe pagina fiecărei instanțe de pe portal.just.ro; colectare automată, avocatul doar validează. Import aprobat pe dev. | 3b: import ca propuneri; validare de către avocat (pagină dedicată) sau admin (EasyAdmin). **Revizia 3 (2026-10-23): decizia s-a schimbat la „doar adminul decide”; vezi 11.1 D7.** |
 | 12 | Trimiterea e blocată fără documentele obligatorii. | `FilingReadinessChecker` (din `b291f83`) reutilizat neschimbat ca poartă. |
 | Semnături | Semnătură calificată aplicată local; platforma generează PDF-uri nesemnate, avocatul descarcă, semnează, încarcă; platforma verifică prezența semnăturii. Fără ZIP. | 3c1 și 3c2. „Fără ZIP” se interpretează în 1.4. |
 
@@ -58,7 +58,7 @@ Alegeri de implementare. Cele marcate „confirmare” se confirmă cu utilizato
 | T12 | Adresele nominale (`prenume.nume@just.ro`) se marchează `PERSONAL`: niciodată adresă de depunere, ascunse avocatului, șterse la cerere. | GDPR art. 5 alin. 1 lit. c și art. 17 [V]. | nu |
 | T13 | Trimitere reală doar cu opt-in explicit `COURT_FILING_LIVE=1`, absent implicit peste tot (inclusiv demo cu `DEMO_APP_ENV=prod`). Fără el: destinatarii `just.ro` sunt refuzați și `COURT_FILING_RECIPIENT_OVERRIDE` e obligatoriu, oricare ar fi `APP_ENV`. Cu el: override-ul setat este refuzat. Verificat la fiecare trimitere și de `app:filing:preflight` (deploy, healthcheck). | Adresele importate sunt reale; `APP_ENV` nu protejează demo-ul. | nu |
 | T14 | `depune_cerere` se aplică când **partea 1** (cererea + împuternicirea) e acceptată SMTP, nu când toate părțile sunt acceptate. Cardul arată „anexe în curs”. Starea depunerii devine `PARTIALLY_SENT` până la ultima parte. | Cererea a ajuns la instanță; termenul de 6 luni (NCC 2540 [V]) se închide; o retrimitere integrală ar dubla cererea. Ajustează ușor decizia „la trimiterea reușită”. | **confirmat 2026-10-22** |
-| T15 | Validarea adresei de către avocat **promovează** adresa la `VALIDATED` (`validatedBy` = avocatul, `source` păstrat). Este un act separat de trimitere, cu propriul formular și bifa „Confirm că la această adresă instanța primește cereri introductive”. Trimiterea la o adresă `PROPOSED` e blocată. Validarea expiră după 180 de zile sau la setarea `missingSince`. | Pct. 11 („avocatul doar validează”); o bifă la trimitere nu e validare; organization tenancy e amânat. | **confirmat 2026-10-22**; textul bifei: varianta juridică, vezi 4.1 |
+| T15 | Validarea adresei de către avocat **promovează** adresa la `VALIDATED` (`validatedBy` = avocatul, `source` păstrat). Este un act separat de trimitere, cu propriul formular și bifa „Confirm că la această adresă instanța primește cereri introductive”. Trimiterea la o adresă `PROPOSED` e blocată. Validarea expiră după 180 de zile sau la setarea `missingSince`. | Pct. 11 („avocatul doar validează”); o bifă la trimitere nu e validare; organization tenancy e amânat. | **confirmat 2026-10-22**; textul bifei: varianta juridică, vezi 4.1. **Revizia 3 (2026-10-23): decizia s-a schimbat la „doar adminul decide”; vezi 11.1 D7.** Avocatul doar sugerează și raportează. |
 | T16 | Pentru debitor persoană fizică (PF, PFA, II), subiectul folosește denumirea/numele scurtat la inițiale + CUI unde există; pentru PJ rămâne denumirea completă. | Subiectul circulă necriptat prin intermediari (GDPR art. 5 alin. 1 lit. c, art. 32 [V]). Ajustează formatul decis. | **confirmat 2026-10-22** |
 | T17 | Pachete composer `zbateson/mail-mime-parser` (BSD-2) și `webklex/php-imap` (MIT). După `composer require`: `make restart`. | Parsare MIME robustă; IMAP fără ext-imap. | **da, înainte de 3e** |
 | T18 | `CaseWorkflowService::apply($case, $transition, array $context = [])` transmite `actor` în contextul workflow; `CaseWorkflowSubscriber` preferă `$event->getContext()['actor']` față de `Security::getUser()`; `AuditLogService::log` primește `?User $actor`. | În worker nu există utilizator în sesiune; istoricul trebuie să aibă autor. | nu |
@@ -314,9 +314,9 @@ Decizii luate implicit în 3b-core:
 - **Tribunal**: `SECTION_PROFESSIONALS` doar când toți debitorii dosarului sunt PJ. Orice debitor PF (poate fi PFA, II sau IF) dă `TRIBUNAL_SECTION_UNKNOWN`. Registratura nu este niciodată fallback.
 - **Implicită**: confirmarea setează automat adresa ca implicită dacă perechea (instanță, scop) nu are alta; `NO_FILING_DEFAULT` rămâne ca motiv defensiv.
 - **Adăugare manuală**: o adresă nominală este refuzată și nu se stochează deloc (minimizare). Starea `PERSONAL` se atinge doar prin importul viitor sau prin schimbarea scopului de către admin.
-- **Efectul confirmării** este la nivel de instanță: o adresă confirmată de un avocat (inclusiv una adăugată manual de el) devine adresa de depunere pentru toate dosarele acelei instanțe din platformă, ale oricărui avocat, până la expirare sau invalidare. Pagina avocatului spune explicit acest lucru în lista de note și lângă bifă. O notificare către admin la fiecare adresă `MANUAL` confirmată de un avocat **nu** se implementează în 3b-core: confirmarea rămâne în auditul `court_email_validated` (cu `validatedBy` și `caseId`), iar adminul o poate invalida din EasyAdmin. Se reevaluează înainte de 3d (prima trimitere reală), eventual ca revizie admin obligatorie pentru adresele `MANUAL` înainte să servească alte conturi.
+- **Efectul confirmării** este la nivel de instanță: o adresă confirmată de un avocat (inclusiv una adăugată manual de el) devine adresa de depunere pentru toate dosarele acelei instanțe din platformă, ale oricărui avocat, până la expirare sau invalidare. Pagina avocatului spune explicit acest lucru în lista de note și lângă bifă. O notificare către admin la fiecare adresă `MANUAL` confirmată de un avocat **nu** se implementează în 3b-core: confirmarea rămâne în auditul `court_email_validated` (cu `validatedBy` și `caseId`), iar adminul o poate invalida din EasyAdmin. Se reevaluează înainte de 3d (prima trimitere reală), eventual ca revizie admin obligatorie pentru adresele `MANUAL` înainte să servească alte conturi. **Revizia 3 (2026-10-23): decizia s-a schimbat la „doar adminul decide”; vezi 11.1 D7.** Avocatul nu mai confirmă și nu mai adaugă adrese active.
 - **Schimbarea scopului** de către admin pentru o adresă confirmată o readuce la `PROPOSED` și șterge confirmarea și marcajul de implicită, pentru orice scop nou: declarația avocatului a fost dată pentru scopul anterior.
-- **Raportarea adresei greșite** folosește o listă fixă de motive (`WRONG_COURT`, `BOUNCED`, `NOT_ACCEPTING_FILINGS`, `OTHER`), fără text liber. O adresă confirmată devine `INVALID` (`reported_by_lawyer:<motiv>`), o propunere devine `REJECTED`.
+- **Raportarea adresei greșite** folosește o listă fixă de motive (`WRONG_COURT`, `BOUNCED`, `NOT_ACCEPTING_FILINGS`, `OTHER`), fără text liber. O adresă confirmată devine `INVALID` (`reported_by_lawyer:<motiv>`), o propunere devine `REJECTED`. **Revizia 3 (2026-10-23): decizia s-a schimbat la „doar adminul decide”; vezi 11.1 D7.** Raportul avocatului ajunge în coada adminului, iar adresa rămâne în uz până decide adminul.
 - **Textul bifei** (T15, varianta juridică, mai strictă): „Confirm că la această adresă instanța primește cereri introductive, inclusiv cereri de ordonanță de plată, pe cale electronică.” Se stochează textul exact afișat, nu cheia de traducere.
 - **Audit**: categoria `COURT_EMAIL`; payload-urile conțin starea, scopul, `courtId` și, din pagina dosarului, doar `caseId`. Adresa în clar apare doar pentru adresele nenominale. Ștergerea unei adrese nominale înlocuiește adresa și în rândurile de audit anterioare și păstrează doar faptul ștergerii și un hash.
 - **Adminul** nu folosește formularele generice de creare, editare sau ștergere: fiecare schimbare (validare, respingere, implicită, invalidare cu motiv din lista fixă, redeschidere, schimbarea scopului, ștergerea adresei nominale) trece prin serviciu, pe o pagină de confirmare proprie.
@@ -570,7 +570,7 @@ Decizii luate implicit în 3b-core:
 
 | Decizie | Înainte de |
 |---|---|
-| T15: validarea avocatului promovează adresa; trimiterea la `PROPOSED` blocată; expirare 180 de zile | 3b (confirmat 2026-10-22) |
+| T15: validarea avocatului promovează adresa; trimiterea la `PROPOSED` blocată; expirare 180 de zile | 3b (confirmat 2026-10-22); înlocuit 2026-10-23 de „doar adminul decide” (11.1 D7) |
 | T14: `depune_cerere` la acceptarea părții 1, `PARTIALLY_SENT` | 3d1 (confirmat 2026-10-22) |
 | T16: subiect cu debitor PF scurtat | 3d1 (confirmat 2026-10-22) |
 | T9: tranziția `anuleaza_depunere_nelivrata` | 3e |
@@ -627,3 +627,167 @@ Revizia 2 aplică critica tehnică și critica juridică din 2026-10-22. Accepta
 - **Juridic 4 (marcaj temporal calificat)**: acceptat ca opțiune de deploy, nu în secțiunile 3b-3e (necesită un furnizor extern).
 - **Juridic 20 (`REQUIRETLS`)**: acceptat ca TLS obligatoriu la transport și MTA-STS; extensia SMTP `REQUIRETLS` (RFC 8689) depinde de furnizor și se evaluează la deploy.
 - **Juridic 25 (termeni de utilizare)**: acceptat ca livrabil de deploy (secțiunea 5), nu ca cod.
+
+---
+
+## 11. Revizia 3: fix-urile din review-ul pe tot branch-ul (F0-F24)
+
+Data: 2026-10-23. Sursa: review-ul pe tot branch-ul (`13465d4..79d3887`), 25 de constatări confirmate de un verificator adversarial. Toate se repară în această revizie; fiecare fix are cel puțin un test care reproduce scenariul. Nu se face commit, push, merge sau demo-sync din această revizie.
+
+### 11.1. Decizii
+
+| Nr. | Decizie | De ce |
+|---|---|---|
+| D1 | **Ordinea canonică a lock-urilor** este `legal_case` -> `filing_submission` -> părțile, cu `refresh` pe fiecare rând după lock. Se extrage într-un singur helper `App\Service\Filing\FilingRowLocker::lock(FilingSubmission, bool $refreshCase = true)`, folosit de worker, `FilingInboundApplier`, `FilingSubmissionService::inLockedSubmission`, `FilingResumeService`, `UncertainPartResolver` și `FilingSendFailureSubscriber`. | F0, F13: workerul înregistra acceptarea cererii pe un dosar citit înainte de trimiterea SMTP și lua lock-urile în ordine inversă (deadlock posibil). |
+| D2 | Tranzacția care înregistrează rezultatul SMTP se reîncearcă de până la 3 ori pe `Doctrine\DBAL\Exception\RetryableException`, cu `ManagerRegistry::resetManager()` și re-citirea părții și a încercării după id. | Rezultatul SMTP e deja cunoscut; înregistrarea e idempotentă. Fără retry, un deadlock transformă o cerere acceptată în `UNCERTAIN`. |
+| D3 | Un bounce tardiv pe cerere, pe o depunere **încă activă**, deschide o revizie explicită (`openLateReviewWhileActive`) cu status de revenire `CLOSED_PARTIAL` (dacă ceva a fost anulat sau a eșuat) sau `SENT`. Confirmarea avocatului sau închiderea de către admin eliberează dosarul. | F1 (BLOCKER): lock permanent pe dosar, fără nicio ieșire. |
+| D4 | `isCancellable` refuză dacă vreo parte are un eșec asincron sau o încercare SMTP `ACCEPTED`. | Varianta F1: „nu s-a trimis nimic” declarat pentru o cerere care a plecat. |
+| D5 | Un DSN pe o parte `UNCERTAIN` rezolvă partea ca „acceptată, apoi returnată”: încercare asincronă + `recordAsyncFailure` + `settle()`. Pe `SENDING` sau alt status: revizie `bounce_part_not_accepted`, fără schimbarea părții. | F2: dovada de nelivrare era aruncată exact când era decisivă. |
+| D6 | `canUndoFiling` primește și depunerea: refuză dacă `evidenceStatus` este `RECEIPT_RECEIVED`/`RECEIPT_MANUAL` sau dacă există `readReceiptAt`. Atunci se deschide `lateReview` (verificare de către avocat), fără a afirma că depunerea a fost retrasă. | F7: dovezile proprii de primire contrazic anularea automată; risc de depunere dublă. |
+| D7 | **Doar adminul decide adresele instanțelor** (decizie utilizator confirmată 2026-10-23, înlocuiește T15 și nota „Efectul confirmării” din 4.1). Adminul adaugă, confirmă și scoate din uz adresele, din admin. Avocatul poate doar **sugera** o adresă (intră `PROPOSED`, sursa `LAWYER_SUGGESTION`, în coada adminului) și **raporta** o adresă ca greșită (raport către admin; adresa rămâne în uz până decide adminul). Până la decizie, avocatul depune pe altă cale, iar cardul spune asta. | F9: acțiunile unui avocat schimbau adresa de depunere pentru toți avocații acelei instanțe. Juridic: adresă greșită = date personale la un terț (GDPR art. 33-34, secret profesional). |
+| D8 | Scoaterea automată din uz rămâne **doar** la refuzul SMTP sincron la `RCPT` al serverului nostru (dovadă proprie). Un DSN asincron care indică adresa inexistentă creează un raport `DELIVERY_REPORT` pentru admin și o notificare, fără invalidare automată. Pentru dosarul al cărui e-mail a fost returnat se blochează retrimiterea la aceeași adresă cât timp raportul e deschis (`filing.send.blocker.address_bounce_reported`); ceilalți avocați nu sunt afectați. | Un DSN poate fi falsificat sau poate veni dintr-un redirect intern. Blocajul pe dosar evită retrimiterea imediată la o adresă care tocmai a returnat. |
+| D9 | Tokenul VERP se acceptă doar din antetul de livrare pus de MTA-ul nostru (`INBOUND_DELIVERY_HEADER`, implicit `Delivered-To`, prima apariție de sus, ca regula authserv-id) sau din căsuța/plicul IMAP (`RawInboundMail::$deliveredTo`). Găsit doar în To/Cc sau într-un antet de livrare de mai jos: cel mult `PROBABLE`, adică doar revizie și notificare, fără schimbarea stării dosarului. | F11: un terț care are tokenul putea anula depunerea și redeschide termenul. |
+| D10 | Rândul `InboundMail` și dispatch-ul `ProcessInboundMailMessage` se fac în aceeași tranzacție. Un rând existent cu `processed_at` NULL se re-dispecerizează la ingest. `app:filing:poll-inbound` re-dispecerizează rândurile neprocesate de peste 10 minute, cel mult 3 ori (`requeue_count`, `requeued_at`); `app:filing:inbound-heartbeat` alertează adminii pentru rânduri neprocesate de peste 30 de minute. | F15: niciun mesaj al instanței nu are voie să se piardă (citații, termene scurte de completare). Contorul oprește bucla de re-dispatch pentru un mesaj care eșuează mereu. |
+| D11 | `sourceId` IMAP devine `{host}/{folder}:{uidvalidity}:{uid}`; `acknowledge` mută mesajul doar dacă `uidvalidity` coincide. | F16: după resetarea UID-urilor, mesajele noi erau luate drept duplicate și mutate fără procesare. |
+| D12 | Termenul redeschis `DEPUNERE_CERERE` este termenul de 6 luni din NCC art. 2540 (menținerea întreruperii prescripției), calculat de `DeadlineService::filingInterruptionTermEnd` ca termen de drept material (NCC art. 2552, 2554). Textele nu mai citează CPC art. 181-186. Text provizoriu, în așteptarea avocatului. | F5. Formularea e aliniată cu textele existente (ro 1342, 1640, 3540, 3571): „poți depune și mai târziu, dar prescripția se socotește ca și cum somația nu ar fi existat”. |
+| D13 | Anexele rămase se anulează la înregistrarea dosarului **doar** dacă partea 1 nu a fost acceptată de această depunere (înregistrare pe alt canal). Dacă `filingReference` al dosarului este Message-ID-ul părții 1 acceptate, anexele continuă; `FilingSendGuard::checkForPart` permite `DOSAR_INREGISTRAT` cu număr de dosar în acest caz. | F6 și 2.2 („pe alt canal”). Altfel instanța are o cerere care listează anexe neprimite. |
+| D14 | Secția tribunalului se deduce doar când creditorul și toți debitorii sunt profesioniști prin natură: PJ cu număr ONRC care începe cu `J`. Orice altceva (PF, inclusiv PFA/II/IF, PJ fără ONRC: asociație, fundație, asociație de proprietari, autoritate publică) dă `TRIBUNAL_SECTION_UNKNOWN`. | F8: nu orice PJ e profesionist (NCC art. 3). Varianta conservatoare: PF cu număr ONRC `F` nu se deduce automat, conform constrângerii juridice. |
+| D15 | Excerptul mesajelor primite se calculează și se afișează doar pentru avocatul dosarului. | F10: secret profesional (Legea 51/1995 art. 11), GDPR art. 5 alin. (1) lit. f). |
+
+### 11.2. Pași (în ordinea de implementare)
+
+**P1. Entități și enum-uri**
+- `CourtEmailSource::LAWYER_SUGGESTION` (17 caractere, coloana are 20); `isUnofficial()` true; eticheta în `CourtEmailAddressCrudController::SOURCE_LABELS` și `enum.court_email_source.LAWYER_SUGGESTION`. În `validate()` (ramura `missingSince`) se tratează ca `MANUAL` (nu are sursă externă care să o revadă).
+- Entitate nouă `CourtEmailAddressReport` + `CourtEmailAddressReportRepository`: `address` (FK ON DELETE CASCADE), `kind` (enum nou `CourtEmailReportKind`: `LAWYER`, `DELIVERY_REPORT`), `reason` (`CourtEmailReportReason`, existent), `legalCase`, `reportedBy`, `inboundMail`, `submission` (toate nullable, ON DELETE SET NULL), `enhancedStatus` (nullable, 10), `createdAt`, `resolvedAt`, `resolvedBy` (SET NULL), `resolution` (enum nou `CourtEmailReportResolution`: `DISMISSED`, `INVALIDATED`). Metode `resolve(User, Resolution, now)`, `isOpen()`.
+- `FilingSubmission::openLateReviewWhileActive(string $reasonKey, FilingDeliveryStatus $returnTo)`: cere depunere activă; setează `reviewReturnStatus`, `markNeedsReview`. `endLateReview()` setează `cancelledAt` când revine în `CLOSED_PARTIAL` și `cancelledAt` e null.
+- `InboundMail`: `requeueCount` (int, 0) și `requeuedAt` (nullable) + `markRequeued(now)`.
+- `NotificationType`: `COURT_EMAIL_REPORTED`, `COURT_EMAIL_SUGGESTED`, `INBOUND_UNPROCESSED` (toate pentru admini); `icon()`.
+- `LegalCase::displayStatusLabel(): string`: `CERERE_DEPUSA` + canal `EMAIL` + `filedAt` null -> `filing.status.hero_label`, altfel `status.label()`.
+- `RawInboundMail`: parametru opțional `?string $deliveredTo = null`.
+
+**P2. Migrare** `migrations/Version20261023100000.php` (scrisă de mână, după `Version20261022200000`): `CREATE TABLE court_email_address_report` cu FK-urile de mai sus și index pe (`address_id`, `resolved_at`); `ALTER TABLE inbound_mail ADD requeue_count INT DEFAULT 0 NOT NULL, ADD requeued_at DATETIME DEFAULT NULL`. Se verifică SQL-ul, apoi `doctrine:migrations:migrate --no-interaction` pe dev și `--env=test`, apoi `doctrine:schema:validate`. Fără migrare de date: pe dev adresele sunt sintetice, iar producția nu are încă adrese. În cleanup-ul clonei live, `court_email_address_report` se șterge înainte de `inbound_mail` și `filing_submission`.
+
+**P3. Servicii: starea depunerii (F0, F13, F14, F1, F2, F3, F4, F7, F20, F6)**
+- `FilingRowLocker` (nou) cu ordinea D1; înlocuiește `FilingInboundApplier::lock`, corpul de lock din `inLockedSubmission` și `FilingResumeService::resumeRemaining`; `UncertainPartResolver` primește și refresh pe dosar; `FilingSendFailureSubscriber` trece la ordinea canonică.
+- `SendFilingEmailPartHandler`: `lockFresh()` înlocuit de `FilingRowLocker`. În `prepare()`, `find` pe parte rămâne doar ca să afle id-urile. Tranzacția post-send în buclă de retry (D2), cu `ManagerRegistry` injectat.
+- `FilingCompletion::onPetitionAccepted`: pe dosar deja `DOSAR_INREGISTRAT`, păstrează motivul `REVIEW_ANNEXES_CANCELLED_PENDING` dacă e setat și nu trimite notificarea `needsReview` redundantă.
+- `FilingSendFailureSubscriber` (F14): dacă `!em->isOpen()`, `resetManager()` și lucrează pe managerul nou; tot corpul în `try/catch (\Throwable)` cu log, fără rethrow, ca `Worker::ack()` să ajungă la `reject()`.
+- `FilingInboundApplier::undeliverPetition` (F1): decide întâi „anulare sau revizie tardivă”, apoi modifică părțile. Pe depunere activă: anulează părțile deschise, calculează statusul de revenire și apelează `openLateReviewWhileActive(REVIEW_LATE_BOUNCE, ...)`. `FilingSubmissionService::closeByAdmin` acceptă și `isLateBounceReview` -> `endLateReview` cu motivul adminului.
+- `FilingSubmissionService::isCancellable` (D4).
+- F2: `undeliverPetition` și `FilingPartOutcomeApplier::asyncFailed` tratează partea `UNCERTAIN` conform D5; altfel `markForReview('bounce_part_not_accepted')` + `inboundReview`.
+- F3: în `asyncFailed`, ramura `$reopenable` exclude depunerea cu partea 1 `hasAsyncFailure` sau cu o revizie tardivă confirmată în istoric (audit `late_bounce_acknowledged` pe depunere); cade pe `markForReview('annex_bounce')` + `annexBounced`.
+- F4: în `settle`, ramura `ANNEXES_CANCELLED_PENDING` cu partea 1 eșuată -> `failTerminal(FilingDeliveryStatus::from(part1 status))`.
+- F7: `FilingWorkflowInterlockSubscriber::canUndoFiling(LegalCase, ?FilingSubmission)` conform D6; guard-ul citește ultima depunere.
+- F20: în `permanentBounce`/`asyncFailed`, dacă depunerea e `UNDELIVERED` sau nu e ultima: încercarea asincronă și auditul se înregistrează, fără revizie, fără `annexBounced`, mailul `RESOLVED`. Dacă raportul anexei a venit primul și apoi cererea e anulată, notificarea `FILING_PARTIALLY_SENT` a depunerii se marchează citită (prin `dedupKey`), iar `bouncedPermanent` rămâne singura notificare activă.
+- F6: `cancelRemainingOnRegistration` anulează doar când partea 1 nu e acceptată sau `case.filingReference` diferă de Message-ID-ul părții 1; `FilingSendGuard::checkForPart` permite `DOSAR_INREGISTRAT` + număr de dosar când `isPetitionAccepted()` și referința coincide.
+
+**P4. Servicii: adresele instanțelor (F9, F11, D7, D8)**
+- `CourtEmailAddressService`: `validate` doar pentru admin (verificare de rol în serviciu, nu doar în controller); setarea automată ca implicită rămâne. `addManual` se împarte în `addByAdmin` (sursa `MANUAL`, `PROPOSED`, apoi validare din admin) și `suggestByLawyer` (sursa `LAWYER_SUGGESTION`, `PROPOSED`, contextul dosarului, audit `court_email_suggested`, notificare `COURT_EMAIL_SUGGESTED` către admini). Aceleași verificări de format, adresă nominală și duplicat.
+- `reportWrong` se înlocuiește cu `report(address, reason, case, user)`: creează un `CourtEmailAddressReport` `LAWYER`, nu invalidează și nu respinge, audit `court_email_reported`, notificare `COURT_EMAIL_REPORTED` către admini (`UserRepository::findAdmins`). Un raport deschis al aceluiași avocat pe aceeași adresă nu se dublează.
+- `reportFromDeliveryReport(address, submission, mail, enhancedStatus)` și `resolveReport(report, admin, bool $invalidate)` (invalidarea trece prin `markInvalid`, cu motivul raportului).
+- `markInvalid` rămâne pentru admin și pentru refuzul sincron la `RCPT` (`FilingPartOutcomeApplier::failed`, `smtp_rejected`).
+- `FilingInboundApplier::undeliverPetition`: `markInvalid('async_bounce')` -> `reportFromDeliveryReport`; `addressInvalidated` rămâne false.
+- `FilingSendGuard::checkForSubmit`: blocajul `filing.send.blocker.address_bounce_reported` pentru dosarul cu raport `DELIVERY_REPORT` deschis pe adresa rezolvată.
+- `CourtFilingAddressMissingReason::action()`: `NO_ADDRESS` -> `suggest`, `NOT_VALIDATED`/`VALIDATION_EXPIRED`/`NO_FILING_DEFAULT` -> `none` (așteaptă adminul), `TRIBUNAL_SECTION_UNKNOWN` -> `none`.
+- F11: `InboundMailParser` expune `trustedDeliveryRecipient` (prima apariție de sus a antetului configurat); `InboundMailMatcher` dă `CERTAIN` pentru VERP doar din `trustedDeliveryRecipient` sau `RawInboundMail::$deliveredTo`, altfel `PROBABLE`. Env nou `INBOUND_DELIVERY_HEADER` în `.env` (`Delivered-To`) și `.env.test`, legat în `services.yaml` lângă `$inboundAuthservId`. `CourtReplySimulator::dsn` pune antetul configurat deasupra, ca fluxul dev să rămână `CERTAIN`.
+
+**P5. Servicii: mesaje primite (F15, F16)**
+- `InboundEmailIngestor::ingest`: persist + flush + dispatch în `$em->getConnection()->transactional`; rând existent cu `processedAt` null -> dispatch din nou (contează la `requeueCount`).
+- `InboundMailRepository::findUnprocessedBefore(\DateTimeImmutable, int $maxRequeues)`; `FilingPollInboundCommand` re-dispecerizează după buclă (D10); `InboundHeartbeatCheckCommand` alertează adminii (`INBOUND_UNPROCESSED`, dedup pe zi).
+- `ImapMailbox`/`WebklexImapMailbox::fetch` întorc și `uidvalidity` (`Folder::examine()['uidvalidity']`); `ImapInboundSource::fetch` construiește `sourceId` conform D11 și setează `deliveredTo` din căsuța citită; `acknowledge` extrage uid-ul și verifică `uidvalidity`.
+
+**P6. Servicii: texte juridice, secție, UI context (F5, F8, F10, F19, F22, F23)**
+- F8: `CourtFilingAddressResolver::allDebtorsAreLegalEntities` -> `allPartiesAreProfessionalsByNature` (creditor + toți debitorii, D14).
+- F10: `InboundMailView::rows(submission, bool $withExcerpt)`; `OverviewContextBuilder` injectează `Security` și cere excerptul doar pentru proprietarul dosarului (și cardul de pe `case_filing_submission_card`).
+- F19: `OverviewContextBuilder` adaugă `filing_submission_resplit_done` (pachetul curent diferă de al depunerii și partea 1 e `FAILED_SIZE`).
+- F22: `OverviewContextBuilder` adaugă `filing_state_key` (status dosar, `filedAt`, depunere activă, `deliveryStatus`).
+- F5: `DeadlineConsequenceResolver` nu se schimbă: docblock-ul spune deja că se pierde efectul întreruptiv, nu dreptul (vezi 11.4).
+
+**P7. Controllere (F9, F12, F22, F24)**
+- `CaseCourtAddressController`: se scoate `validate`; `addManual` devine `suggest` (`case_court_address_suggest`); `report` creează raportul. `context()` nu mai trimite `statement`.
+- `CourtEmailAddressAdminController`: acțiune `add` (formular cu instanța, adresa, scopul), legată din detaliul instanței; validarea rămâne cu bifa existentă, iar pagina de confirmare afișează sursa adresei.
+- `CourtEmailAddressReportCrudController` nou (coada), cu acțiunile „Respinge raportul” și „Scoate adresa din uz”; filtru `source=LAWYER_SUGGESTION` + `status=PROPOSED` pe indexul de adrese; contoare în `DashboardController` și intrare de meniu.
+- F12: `receiptUpload` cu `RateLimiterFactory $filingSignedUploadLimiter` după CSRF (modelul din `CaseFilingController`), cheia `filing.receipt.upload.error.rate_limited`.
+- F22: `respondCard` adaugă în stream regiunile `case-hero`, `case-pipeline`, `case-kpi-grid`, `case-detalii-sidebar`; rută nouă GET `case_filing_state_stream` (`/case/{id}/filing/state`) care întoarce aceste regiuni ca turbo-stream.
+
+**P8. Template-uri și JS (F9, F10, F18, F19, F21, F22, F23, F24)**
+- `court/address/_list.html.twig`: fără formularul de validare; raportarea cu textul nou; secțiunea manuală devine sugestie; se listează rapoartele și sugestiile deschise ale avocatului. `index.html.twig`: notele noi.
+- `_package_card.html.twig`: linia „Până la decizia administratorului, cererea se depune pe altă cale.” când nu există adresă utilizabilă; `address_reported` în loc de `address_invalidated` pe cardul depunerii.
+- F10: excerptul din `_inbound_mail_list.html.twig` doar sub `is_owner`.
+- F18: butoanele din `_stamp_duty_card.html.twig` (dovadă, plătită la registratură, înștiințare) sub `is_granted('CASE_STAMP_DUTY_MANAGE', case)`, „Adaugă document” din `_documents_source_list.html.twig` sub `is_granted('CASE_UPLOAD', case)`; când lock-ul de depunere e motivul, nota `filing.lock.actions_paused_note`.
+- F19: `_submission_card.html.twig` (78-80, 117-118) afișează `filing.resplit.after_resplit` când `filing_submission_resplit_done`.
+- F21: `probable_line` doar pentru `reviewReason == 'probable_match'`; altfel `filing.receipt.in_review_line`.
+- F22: `assets/controllers/poll-frame_controller.js` primește `stateKey`; la schimbarea cheii aduce `case_filing_state_stream` și aplică `Turbo.renderStreamMessage`. `_package_turbo_stream.html.twig` include blocul de regiuni.
+- F23: `_hero.html.twig` și `dashboard/index.html.twig` (și `debtors/edit.html.twig:37`) folosesc `case.displayStatusLabel()`.
+- F24: fără `data-turbo="false"` pe încărcarea manuală a confirmării.
+
+**P9. Traduceri RO și EN (în paralel, fără em-dash, texte impersonale)**
+- F5: `filing.undelivered.deadline_warning` și `notification.filing_bounced_permanent.{address,other,size}.message`. Text RO propus (provizoriu): „Aplicația nu prelungește termenul de 6 luni pentru menținerea întreruperii prescripției (NCC art. 2540). Dacă acest termen a trecut, somația nu mai întrerupe prescripția, iar cererea se poate depune în continuare cât timp prescripția nu s-a împlinit. Data de la care curge prescripția se verifică de avocat.”
+- D7/D8: `filing_bounced_permanent.address` și `filing.undelivered.address_invalidated` (redenumită `address_reported`): „adresa a fost raportată administratorului”; mesajul de refuz sincron (ro 3121): „scoasă din uz până la verificarea administratorului”.
+- `court_address.validation.*` (intro, scope_note, read_only_admin, suggest_*, report_*, toast.*), `filing.recipient.action_*`, `enum.court_filing_address_missing_reason.*` (inclusiv `TRIBUNAL_SECTION_UNKNOWN`, F8), `court_address.validation.tribunal_note`, `enum.court_email_source.LAWYER_SUGGESTION`, `enum.court_email_report_kind.*`, `enum.court_email_report_resolution.*`, `filing.send.blocker.address_bounce_reported`, notificările noi, `filing.receipt.upload.error.rate_limited`, `filing.lock.actions_paused_note`, `filing.resplit.after_resplit`, `filing.receipt.in_review_line`, cheile admin.
+- Nicio formulare „oficială”, „validată de instanță”; adminul „a verificat adresa pe sursa indicată”. `lint:yaml translations/`.
+
+**P10. Operare (F17)**: `scripts/demo.sh sync`, după `up -d`: `compose restart php worker worker-filing`.
+
+**P11. Teste** (minimul din 11.3), apoi suita completă și verificarea live.
+
+**P12. Documentare**: T15, decizia 11 din 1.1, notele 3b din 4.1 și tabelul din 7 poartă nota „decizia s-a schimbat la «doar adminul decide» (2026-10-23, 11.1 D7)”.
+
+### 11.3. Teste minime
+
+Fiecare reproduce scenariul constatării; testele existente modificate sunt rescrise, nu șterse (se reverifică lista după rescriere).
+
+- F0: `SendFilingEmailPartHandlerTest`: `RecordingCourtTransport::beforeSend` mută dosarul în `DOSAR_INREGISTRAT` prin DBAL; dosarul rămâne înregistrat, termenul `DEPUNERE_CERERE` nu se închide din nou, motivul `annexes_cancelled_pending` rămâne.
+- F13: un `DeadlockException` la primul flush post-send; partea ajunge `ACCEPTED`, nu `SENDING`/`UNCERTAIN`.
+- F14: EM închis + `WorkerMessageFailedEvent`: fără excepție, contabilitatea retry făcută.
+- F1: 3 e-mailuri, părțile 1-2 acceptate, 3 `RETRY_SCHEDULED`, `filedAt` declarat, DSN pe partea 1 -> `NEEDS_REVIEW` `late_bounce`, partea 3 `CANCELLED`, confirmarea eliberează dosarul; admin close pe aceeași stare; varianta fără anexă acceptată: `isCancellable` false.
+- F2: parte `UNCERTAIN` + DSN -> partea `FAILED`, „CC primit” refuzat.
+- F3: după bounce tardiv confirmat, DSN pe partea 2 -> notificarea anexei, depunerea nu devine `FAILED_PERMANENT`.
+- F4: înregistrare cu partea 1 `SENDING`, apoi 550 -> `FAILED_PERMANENT`, nu `CLOSED_PARTIAL`.
+- F6: `testRegistrationCancelsAnnexesStillWaiting...` rescris (cererea acceptată, înregistrare -> se trimit 3 e-mailuri); test nou cu partea 1 încă `PENDING`/`RETRY_SCHEDULED` -> anexele anulate.
+- F7: confirmare de primire, apoi DSN; încărcare manuală, apoi DSN -> dosarul rămâne `CERERE_DEPUSA`, revizie `late_bounce`.
+- F20: cerere, apoi anexă; anexă, apoi cerere -> o singură notificare activă, fără `annexBounced` pe depunerea anulată.
+- F9: `CaseCourtAddressControllerTest` (validarea nu mai există: 404/405; sugestia intră `PROPOSED`/`LAWYER_SUGGESTION`; raportul lasă adresa `VALIDATED` și creează raportul); `CourtEmailAddressServiceTest` (`report`, `suggestByLawyer`, `validate` refuzat pentru non-admin); `CourtEmailAddressAdminTest` (adăugare, coadă, respingere raport, invalidare din raport); `FilingInboundApplierTest::testPetitionBounceUndoesTheFiling` -> adresa `VALIDATED` + raport deschis + blocajul de retrimitere pe dosar; `SendFilingEmailPartWorkerTest::testUnknownCourtRecipient...` rămâne (RCPT sincron).
+- F11: `InboundMatchingAndIngestionTest`: VERP doar în To -> `PROBABLE`, fără anulare; `Delivered-To` falsificat sub cel de încredere -> ignorat.
+- F15: rând neprocesat re-dispecerizat de ingest și de poll și apoi procesat; plafonul de 3; alertă heartbeat.
+- F16: `InboundSourcesTest`: `sourceId` cu `uidvalidity` și folder; `acknowledge` nu mută la `uidvalidity` diferit.
+- F5: aserția din `FilingInboundApplierTest:191` trece pe „NCC art. 2540”, fără „art. 186 CPC”.
+- F8: `CourtFilingAddressResolverTest`: părți PJ cu ONRC `J` -> secția profesioniști; asociație fără ONRC -> `TRIBUNAL_SECTION_UNKNOWN`; creditor fără ONRC -> `TRIBUNAL_SECTION_UNKNOWN`.
+- F10: admin pe `/case/{id}` și pe `case_filing_submission_card` nu vede `filing-inbound-mail-excerpt`; avocatul îl vede.
+- F12: limiter suprascris cu `InMemoryStorage` -> a doua cerere peste limită primește toast-ul `rate_limited`.
+- F18: depunere `QUEUED` și `NEEDS_REVIEW` -> butoanele lipsesc, nota apare.
+- F19: WebTestCase pe `case_filing_submission_resplit`, apoi cardul afișează `after_resplit`.
+- F21: mail în revizie `annex_bounce` -> fără `probable_line`.
+- F22: submit, filed-date, cancel cu Accept Turbo -> stream-ul conține `target="case-hero"`; `_hero_actions` nu mai arată „Confirmă depunerea”; ruta `case_filing_state_stream` întoarce regiunile.
+- F23: TestCase pe `LegalCase::displayStatusLabel()`; dashboard-ul afișează „Transmisă instanței”.
+- F24: încărcare refuzată cu Accept Turbo -> turbo-stream cu toast, fără redirect.
+- `NotificationTypeTest`: tipurile noi.
+
+### 11.4. DONE
+
+**Stare la 2026-10-23 (implementare):** codul, migrarea `Version20261023100000` (aplicată pe dev și test, `doctrine:schema:validate` curat), traducerile RO/EN și testele pentru F0-F24 sunt făcute; suita completă e verde (3721 teste, 1 sărit preexistent). Verificarea live a acoperit pagina avocatului pentru adrese (fără confirmare, cu sugestie și raportare), dashboard-ul admin (contoarele și meniul noi), coada de rapoarte, filtrul de sugestii și pagina de validare cu sursa. Fluxul live complet pe o clonă `TMP-LIVE` (construire, semnare, trimitere, bounce simulat, confirmare de primire, badge în timpul transmiterii, încărcare `.msg`) **nu a fost rulat** în această sesiune și rămâne de făcut înainte de commit. Ajustări de teste în afara listei: `AdminAccessTest` își șterge acum adminul (adminii rămași în baza de test primeau fiecare notificare către admini), iar `FilingSendGuardTest` folosește un al doilea avocat în loc să recreeze fixture-ul după `clear()`.
+
+- Cele 25 de constatări au fiecare un test verde care reproduce scenariul; suita completă verde (`failOnDeprecation`, `failOnNotice`, `failOnWarning`).
+- Migrarea aplicată pe dev și test, `doctrine:schema:validate` curat, `lint:yaml translations/` curat, chei RO/EN în paralel, niciun em-dash.
+- Verificarea live din 11.5 făcută pe o clonă `TMP-LIVE-*`, apoi clona curățată și adresa sintetică 1 readusă la `VALIDATED`, `filing_default=1`, coloanele de invalidare NULL; abonamentul 37 readus.
+- Nicio trimitere în afara Mailpit, nicio cerere externă.
+
+### 11.5. Verificare live (după `make restart`)
+
+- `/case/{id}/court-address` (avocat): fără buton de confirmare; „Sugerează o adresă” creează o propunere; „Raportează” lasă adresa în uz și spune că raportul a ajuns la administrator.
+- `/admin`: contoarele noi; coada de rapoarte și sugestii; adăugare din detaliul instanței; „Scoate adresa din uz” dintr-un raport.
+- `/case/{id}` pe clona `TMP-LIVE`: trimitere, apoi `app:filing:simulate-court-reply --kind=bounce-permanent` + `app:filing:poll-inbound` -> dosarul revine la cererea generată, cardul spune „raportată administratorului”, textul termenului citează NCC art. 2540, trimiterea din nou e blocată cu motivul nou; adresa rămâne `VALIDATED` în admin.
+- Același flux cu `--kind=receipt` înainte de bounce -> dosarul rămâne `CERERE_DEPUSA`, revizie tardivă cu buton de confirmare care eliberează dosarul.
+- În timpul transmiterii: badge-ul hero, acțiunile hero și acțiunile recomandate se schimbă fără reîncărcare; butoanele taxei de timbru și „Adaugă document” sunt ascunse cu nota.
+- `/dashboard`: dosarul transmis fără dată declarată apare „Transmisă instanței”.
+- Încărcarea manuală a unui `.msg` -> toast, fără reîncărcare.
+- Admin pe `/case/{id}` -> fără excerpt al mesajelor primite.
+
+### 11.6. Amânat și de ce
+
+- **Importul adreselor de pe portal.just.ro**: 403 Cloudflare; rămâne 3b-import.
+- **Reîmpărțirea anexelor după acceptarea părții 1**: întrebarea 3 la avocat.
+- **Textele care așteaptă avocatul** (pct. 6, 9, 12, 13): neschimbate; textul F5 rămâne marcat provizoriu.
+- **Eticheta consecinței `DEPUNERE_CERERE`** („Stingerea dreptului”, comună cu prescripția): nu se schimbă aici. Clasificarea a fost decisă la revizia termenelor (pierderea efectului întreruptiv înseamnă că cererea e întâmpinată cu prescripția) și o schimbare atinge pagina `/termene` și ordonarea severităților; se propune avocatului o etichetă dedicată.
+- **PF cu ONRC `F` (PFA, II, IF) la tribunal**: profesioniști prin lege, dar nu se deduc automat; avocatul confirmă secția (D14).
+- **Domeniul `just.ro` obligatoriu pentru adresele de depunere**: nu se impune; verificarea adminului îl înlocuiește.

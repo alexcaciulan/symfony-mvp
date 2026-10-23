@@ -21,9 +21,14 @@ final class InboundMailParser
         'return-path', 'content-type', 'x-ms-exchange-inbox-rules-loop', 'x-simulated',
     ];
 
+    /**
+     * @param string $inboundDeliveryHeader the delivery header our own MTA prepends
+     *                                      (topmost occurrence only, as for the authserv-id)
+     */
     public function __construct(
         private readonly DsnParser $dsnParser = new DsnParser(),
         private readonly MdnParser $mdnParser = new MdnParser(),
+        private readonly string $inboundDeliveryHeader = 'Delivered-To',
     ) {}
 
     public function parse(string $raw): ParsedInboundMail
@@ -50,6 +55,13 @@ final class InboundMailParser
                     $envelope[] = $email;
                 }
             }
+        }
+
+        // Only the copy our MTA wrote on top is ours; any below came with the message.
+        $trusted = null;
+        if (trim($this->inboundDeliveryHeader) !== '') {
+            $top = $message->getHeader(trim($this->inboundDeliveryHeader));
+            $trusted = $top !== null ? (self::emails($top->getRawValue())[0] ?? null) : null;
         }
 
         $text = $this->text($message);
@@ -82,6 +94,7 @@ final class InboundMailParser
             mdn: $this->mdnParser->parse($disposition),
             embeddedMessageId: $embedded !== null && preg_match('/^Message-ID:\s*(<[^>]+>)/mi', $embedded, $m) === 1 ? $m[1] : null,
             embeddedRef: $embedded !== null && preg_match('/^X-LexRecovery-Ref:\s*([a-z2-7]{26})\s*$/mi', $embedded, $r) === 1 ? strtolower($r[1]) : null,
+            trustedDeliveryRecipient: $trusted,
         );
     }
 

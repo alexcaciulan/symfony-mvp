@@ -102,18 +102,52 @@ final class CourtFilingAddressResolverTest extends KernelTestCase
         $this->assertMissing(CourtFilingAddressMissingReason::NO_FILING_DEFAULT);
     }
 
-    public function testTribunalWithLegalEntityDebtorsReturnsTheProfessionalsSection(): void
+    public function testTribunalWithCompaniesOnBothSidesReturnsTheProfessionalsSection(): void
     {
         $this->makeTribunal(CourtType::TRIBUNAL);
+        $this->registerAllPartiesAsCompanies();
         $this->add('registratura@just.ro', CourtEmailPurpose::REGISTRY, CourtEmailStatus::VALIDATED, '-5 days', default: true);
         $section = $this->add('profesionisti@just.ro', CourtEmailPurpose::SECTION_PROFESSIONALS, CourtEmailStatus::VALIDATED, '-5 days', default: true);
 
         self::assertSame($section, $this->resolver->resolve($this->case)->address);
     }
 
+    public function testTribunalWithALegalPersonThatIsNotACompanyHasNoAddress(): void
+    {
+        // An association, a foundation or a public authority: a PJ with no ONRC number.
+        $this->makeTribunal(CourtType::TRIBUNAL);
+        $this->registerAllPartiesAsCompanies();
+        $this->addDebtor(PersonType::PJ);
+        $this->add('profesionisti@just.ro', CourtEmailPurpose::SECTION_PROFESSIONALS, CourtEmailStatus::VALIDATED, '-5 days', default: true);
+
+        $this->assertMissing(CourtFilingAddressMissingReason::TRIBUNAL_SECTION_UNKNOWN);
+    }
+
+    public function testTribunalWithACreditorWithoutAnOnrcNumberHasNoAddress(): void
+    {
+        $this->makeTribunal(CourtType::TRIBUNAL);
+        $this->registerAllPartiesAsCompanies();
+        $this->case->getCreditor()->setOnrcNumber(null);
+        $this->em->flush();
+        $this->add('profesionisti@just.ro', CourtEmailPurpose::SECTION_PROFESSIONALS, CourtEmailStatus::VALIDATED, '-5 days', default: true);
+
+        $this->assertMissing(CourtFilingAddressMissingReason::TRIBUNAL_SECTION_UNKNOWN);
+    }
+
+    public function testTribunalWithANaturalPersonRegisteredAsPfaIsNotInferred(): void
+    {
+        $this->makeTribunal(CourtType::TRIBUNAL);
+        $this->registerAllPartiesAsCompanies();
+        $this->addDebtor(PersonType::PF, 'F40/123/2019');
+        $this->add('profesionisti@just.ro', CourtEmailPurpose::SECTION_PROFESSIONALS, CourtEmailStatus::VALIDATED, '-5 days', default: true);
+
+        $this->assertMissing(CourtFilingAddressMissingReason::TRIBUNAL_SECTION_UNKNOWN);
+    }
+
     public function testTribunalWithANaturalPersonAmongTheDebtorsHasNoAddress(): void
     {
         $this->makeTribunal(CourtType::TRIBUNAL);
+        $this->registerAllPartiesAsCompanies();
         $this->addDebtor(PersonType::PF);
         $this->add('registratura@just.ro', CourtEmailPurpose::REGISTRY, CourtEmailStatus::VALIDATED, '-5 days', default: true);
         $this->add('profesionisti@just.ro', CourtEmailPurpose::SECTION_PROFESSIONALS, CourtEmailStatus::VALIDATED, '-5 days', default: true);
@@ -158,11 +192,21 @@ final class CourtFilingAddressResolverTest extends KernelTestCase
         $this->em->flush();
     }
 
-    private function addDebtor(PersonType $type): void
+    private function registerAllPartiesAsCompanies(): void
+    {
+        $this->case->getCreditor()->setOnrcNumber('J40/1234/2015');
+        foreach ($this->case->getDebtors() as $i => $debtor) {
+            $debtor->getDebtor()->setOnrcNumber('J2020' . str_pad((string) ($i + 1), 8, '0', STR_PAD_LEFT));
+        }
+        $this->em->flush();
+    }
+
+    private function addDebtor(PersonType $type, ?string $onrcNumber = null): void
     {
         $debtor = new Debtor();
         $debtor->setUser($this->user);
         $debtor->setPersonType($type);
+        $debtor->setOnrcNumber($onrcNumber);
         $debtor->setName('Ion Debitor');
         $debtor->setAddress('Str. Debitor 3, București');
         $this->em->persist($debtor);

@@ -12,7 +12,6 @@ use App\Enum\FilingAttemptOutcome;
 use App\Enum\FilingAttemptSource;
 use App\Enum\FilingPartStatus;
 use App\Service\AuditLogService;
-use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Clock\ClockInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -34,6 +33,7 @@ final class UncertainPartResolver
 
     public function __construct(
         private readonly EntityManagerInterface $em,
+        private readonly FilingRowLocker $locker,
         private readonly FilingPartOutcomeApplier $outcomes,
         private readonly FilingLockQuery $filingLock,
         private readonly AuditLogService $auditLogService,
@@ -153,10 +153,7 @@ final class UncertainPartResolver
         $connection = $this->em->getConnection();
         $connection->beginTransaction();
         try {
-            $this->em->lock($case, LockMode::PESSIMISTIC_WRITE);
-            $this->em->lock($part, LockMode::PESSIMISTIC_WRITE);
-            $this->em->refresh($part);
-            $this->em->refresh($submission);
+            $this->locker->lock($submission);
             if ($part->getStatus() !== FilingPartStatus::UNCERTAIN) {
                 throw new FilingSendBlockedException('filing.uncertain.refused');
             }

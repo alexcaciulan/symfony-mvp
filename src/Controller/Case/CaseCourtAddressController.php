@@ -9,6 +9,7 @@ use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\CourtEmailPurpose;
 use App\Enum\CourtEmailReportReason;
+use App\Repository\CourtEmailAddressReportRepository;
 use App\Repository\CourtEmailAddressRepository;
 use App\Repository\LegalCaseRepository;
 use App\Security\Voter\CaseVoter;
@@ -23,15 +24,18 @@ use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 
 /**
- * The addresses of the case's court, seen from the case: confirming one is the
- * lawyer's own declaration, so every change is owner only (no admin bypass). An
- * admin sees the page read-only. Nominal addresses never appear here.
+ * The addresses of the case's court, seen from the case. An address serves every
+ * lawyer's filings at that court, so only the admin adds, confirms or takes one
+ * out of use (from the admin). The lawyer of the case may only suggest an address
+ * or report one as wrong; both go to the admin and change nothing meanwhile. An
+ * admin sees this page read-only. Nominal addresses never appear here.
  */
 final class CaseCourtAddressController extends AbstractController
 {
     public function __construct(
         private readonly LegalCaseRepository $legalCaseRepository,
         private readonly CourtEmailAddressRepository $addressRepository,
+        private readonly CourtEmailAddressReportRepository $reports,
         private readonly CourtEmailAddressService $addressService,
         private readonly CourtFilingAddressResolver $resolver,
         private readonly ClockInterface $clock,
@@ -46,34 +50,14 @@ final class CaseCourtAddressController extends AbstractController
         return $this->render('court/address/index.html.twig', $this->context($case));
     }
 
-    #[Route('/case/{id}/court-address/{addressId}/validate', name: 'case_court_address_validate', requirements: ['id' => '\d+', 'addressId' => '\d+'], methods: ['POST'])]
-    public function validate(int $id, int $addressId, Request $request, RateLimiterFactory $courtAddressValidationLimiter): Response
-    {
-        $case = $this->findOrThrow($id);
-        $this->denyAccessUnlessGranted(CaseVoter::FILING_CONTENT, $case);
-        $address = $this->findAddress($case, $addressId);
-
-        if ($refusal = $this->guard($request, $case, 'validate', $courtAddressValidationLimiter)) {
-            return $refusal;
-        }
-
-        try {
-            $this->addressService->validate($address, $this->currentUser(), $request->getPayload()->getBoolean('statement_confirmed'), $case);
-        } catch (CourtEmailActionRefusedException $e) {
-            return $this->respond($request, $case, 'error', $e->messageKey);
-        }
-
-        return $this->respond($request, $case, 'success', 'court_address.validation.toast.validated');
-    }
-
-    #[Route('/case/{id}/court-address/manual', name: 'case_court_address_manual', requirements: ['id' => '\d+'], methods: ['POST'])]
-    public function addManual(int $id, Request $request, RateLimiterFactory $courtAddressValidationLimiter): Response
+    #[Route('/case/{id}/court-address/suggest', name: 'case_court_address_suggest', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function suggest(int $id, Request $request, RateLimiterFactory $courtAddressValidationLimiter): Response
     {
         $case = $this->findOrThrow($id);
         $this->denyAccessUnlessGranted(CaseVoter::FILING_CONTENT, $case);
         $court = $case->getCourt() ?? throw $this->createNotFoundException();
 
-        if ($refusal = $this->guard($request, $case, 'manual', $courtAddressValidationLimiter)) {
+        if ($refusal = $this->guard($request, $case, 'suggest', $courtAddressValidationLimiter)) {
             return $refusal;
         }
 
@@ -83,12 +67,12 @@ final class CaseCourtAddressController extends AbstractController
         }
 
         try {
-            $this->addressService->addManual($court, $request->getPayload()->getString('email'), $purpose, $case);
+            $this->addressService->suggestByLawyer($court, $request->getPayload()->getString('email'), $purpose, $case, $this->currentUser());
         } catch (CourtEmailActionRefusedException $e) {
             return $this->respond($request, $case, 'error', $e->messageKey);
         }
 
-        return $this->respond($request, $case, 'success', 'court_address.validation.toast.added');
+        return $this->respond($request, $case, 'success', 'court_address.validation.toast.suggested');
     }
 
     #[Route('/case/{id}/court-address/{addressId}/report', name: 'case_court_address_report', requirements: ['id' => '\d+', 'addressId' => '\d+'], methods: ['POST'])]
@@ -108,7 +92,7 @@ final class CaseCourtAddressController extends AbstractController
         }
 
         try {
-            $this->addressService->reportWrong($address, $reason, $case);
+            $this->addressService->report($address, $reason, $case, $this->currentUser());
         } catch (CourtEmailActionRefusedException $e) {
             return $this->respond($request, $case, 'error', $e->messageKey);
         }
@@ -133,14 +117,17 @@ final class CaseCourtAddressController extends AbstractController
     private function context(LegalCase $case): array
     {
         $court = $case->getCourt();
+        $addresses = $court !== null ? $this->addressRepository->findForCourt($court) : [];
+        $user = $this->getUser();
 
         return [
             'case' => $case,
             'court' => $court,
-            'addresses' => $court !== null ? $this->addressRepository->findForCourt($court) : [],
+            'addresses' => $addresses,
             'recipient' => $this->resolver->resolve($case),
             'is_owner' => $this->isGranted(CaseVoter::FILING_CONTENT, $case),
-            'statement' => $this->addressService->statementText(),
+            // The lawyer's own reports still waiting for the admin, by address id.
+            'my_open_reports' => $user instanceof User ? $this->reports->findOpenByLawyerForAddresses(array_values($addresses), $user) : [],
             'manual_purposes' => CourtEmailPurpose::manualChoices(),
             'report_reasons' => CourtEmailReportReason::cases(),
             'now' => $this->clock->now(),

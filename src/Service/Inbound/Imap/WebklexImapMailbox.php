@@ -25,6 +25,7 @@ final class WebklexImapMailbox implements ImapMailbox
     public function fetch(int $limit): array
     {
         $out = [];
+        $uidValidity = $this->uidValidity();
         $messages = $this->inbox()->query()->all()->leaveUnread()->setFetchOrder('asc')->limit($limit)->get();
         /** @var Message $message */
         foreach ($messages as $message) {
@@ -33,12 +34,18 @@ final class WebklexImapMailbox implements ImapMailbox
             $date = $message->getDate()?->first();
             $out[] = [
                 'uid' => (string) $message->getUid(),
+                'uidvalidity' => $uidValidity,
                 'raw' => $raw,
                 'date' => $date instanceof \DateTimeInterface ? \DateTimeImmutable::createFromInterface($date) : null,
             ];
         }
 
         return $out;
+    }
+
+    public function uidValidity(): string
+    {
+        return (string) ($this->inbox()->examine()['uidvalidity'] ?? '');
     }
 
     public function moveToProcessed(string $uid): void

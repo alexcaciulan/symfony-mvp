@@ -13,8 +13,11 @@ use Psr\Clock\ClockInterface;
 
 /**
  * Ties a message to one of our court emails. CERTAIN only through the secret VERP
- * token of a part, or through a reply on one of our Message-IDs from an
- * authenticated just.ro sender. A report quoting our headers, an unauthenticated
+ * token of a part as our own side recorded the delivery (the delivery header our
+ * MTA prepends, or the mailbox the source read), or through a reply on one of our
+ * Message-IDs from an authenticated just.ro sender. The token found only in To,
+ * Cc or a delivery header that came with the message is PROBABLE: anyone holding
+ * a copy could write it there. A report quoting our headers, an unauthenticated
  * reply and the sender-domain heuristic are PROBABLE at most and always go to
  * review: a wrong attribution could undo a filing or show one client's mail to
  * another lawyer. No side effects beyond the lookups.
@@ -30,16 +33,22 @@ final class InboundMailMatcher
         private readonly string $courtFilingBounceDomain,
     ) {}
 
-    public function match(ParsedInboundMail $mail, InboundAuthVerdict $auth): ?InboundMatch
+    /**
+     * @param ?string $deliveredTo the mailbox the source itself read the message from
+     */
+    public function match(ParsedInboundMail $mail, InboundAuthVerdict $auth, ?string $deliveredTo = null): ?InboundMatch
     {
         $domain = strtolower($this->courtFilingBounceDomain);
 
         $verp = '/^bounces\+([0-9a-f]{24})@' . preg_quote($domain, '/') . '$/';
-        foreach ([...$mail->envelopeRecipients, ...$mail->to, ...$mail->cc] as $recipient) {
-            if (preg_match($verp, strtolower($recipient), $m) === 1) {
-                $part = $this->parts->findOneByVerpToken($m[1]);
-                if ($part !== null) {
-                    return new InboundMatch($part, $part->getSubmission(), InboundMatchMethod::VERP, InboundMatchConfidence::CERTAIN);
+        $trusted = array_values(array_filter([$deliveredTo, $mail->trustedDeliveryRecipient], static fn (?string $r): bool => $r !== null && $r !== ''));
+        foreach ([[$trusted, InboundMatchConfidence::CERTAIN], [[...$mail->envelopeRecipients, ...$mail->to, ...$mail->cc], InboundMatchConfidence::PROBABLE]] as [$recipients, $confidence]) {
+            foreach ($recipients as $recipient) {
+                if (preg_match($verp, strtolower($recipient), $m) === 1) {
+                    $part = $this->parts->findOneByVerpToken($m[1]);
+                    if ($part !== null) {
+                        return new InboundMatch($part, $part->getSubmission(), InboundMatchMethod::VERP, $confidence);
+                    }
                 }
             }
         }

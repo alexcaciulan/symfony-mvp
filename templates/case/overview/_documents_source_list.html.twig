@@ -41,13 +41,17 @@
             </span>
             <h3 class="text-sm font-semibold">{{ 'case_overview.documents.source_title'|trans }}</h3>
         </div>
-        {# A case closed on full payment is read-only: the upload would be refused. #}
-        {% if not case.fullPaymentDate %}
+        {# A case closed on full payment is read-only, and a filing in progress holds the
+           case: the upload would be refused, so it is not offered. #}
+        {% if not case.fullPaymentDate and is_granted('CASE_UPLOAD', case) %}
             <button type="button"
                     data-hs-overlay="#hs-modal-upload-document"
+                    data-testid="documents-source-add"
                     class="text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition">
                 {{ 'case_overview.documents.source_add'|trans }}
             </button>
+        {% elseif not case.fullPaymentDate and filing_submission|default(null) and filing_submission.active %}
+            <span class="text-[11px] text-slate-500 dark:text-slate-400 max-w-[60%] text-right" data-testid="documents-filing-lock-note">{{ 'filing.lock.actions_paused_note'|trans }}</span>
         {% endif %}
     </header>
 

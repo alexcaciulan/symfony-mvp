@@ -1,7 +1,8 @@
 {# The court's addresses (nominal ones never reach this list), the resolved filing
-   address, and the owner's forms. Confirmation is the lawyer's declaration; nothing
-   here says an address is official or that a case is ready to be sent. #}
-{% from 'case/overview/_icons.html.twig' import icon_check, icon_warning, icon_plus %}
+   address, and the owner's two actions: suggest an address, report one as wrong.
+   Only the admin confirms or takes an address out of use; nothing here says an
+   address is official or that a case is ready to be sent. #}
+{% from 'case/overview/_icons.html.twig' import icon_warning, icon_plus %}
 {% set btn = 'py-1.5 px-2.5 inline-flex items-center gap-1 text-xs font-semibold rounded-lg transition' %}
 {% set input = 'block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-100 px-2.5 py-1.5' %}
 
@@ -51,21 +52,15 @@
                         </span>
                     </div>
 
-                    {% if is_owner and (address.status.value == 'PROPOSED' or expired) %}
-                        <form method="post" action="{{ path('case_court_address_validate', {id: case.id, addressId: address.id}) }}" class="mt-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 p-3 space-y-2" data-testid="court-address-validate-form">
-                            <input type="hidden" name="_token" value="{{ csrf_token('court_address_validate_' ~ case.id) }}">
-                            <label class="flex items-start gap-2 text-xs text-slate-800 dark:text-slate-100">
-                                <input type="checkbox" name="statement_confirmed" value="1" required class="mt-0.5 rounded border-slate-300">
-                                <span>{{ statement }}</span>
-                            </label>
-                            <p class="text-xs text-amber-800 dark:text-amber-200" data-testid="court-address-scope-note">{{ 'court_address.validation.scope_note'|trans }}</p>
-                            <button type="submit" class="{{ btn }} bg-lex-navy text-white hover:bg-lex-navy-dark">
-                                {{ icon_check('size-3.5') }}{{ (expired ? 'court_address.validation.revalidate_submit' : 'court_address.validation.validate_submit')|trans }}
-                            </button>
-                        </form>
+                    {% if address.status.value == 'PROPOSED' %}
+                        <p class="mt-2 text-[11px] text-slate-500 dark:text-slate-400" data-testid="court-address-awaiting-admin">{{ 'court_address.validation.awaiting_admin'|trans }}</p>
+                    {% endif %}
+                    {% set my_report = my_open_reports[address.id] ?? null %}
+                    {% if my_report %}
+                        <p class="mt-2 text-[11px] text-amber-800 dark:text-amber-200" data-testid="court-address-reported">{{ 'court_address.validation.report_pending'|trans({'%date%': my_report.createdAt|date('d.m.Y')}) }}</p>
                     {% endif %}
 
-                    {% if is_owner and address.status.value in ['PROPOSED', 'VALIDATED'] %}
+                    {% if is_owner and address.status.value in ['PROPOSED', 'VALIDATED'] and not my_report %}
                         <details class="mt-3">
                             <summary class="cursor-pointer text-xs font-semibold text-slate-600 dark:text-slate-300">{{ 'court_address.validation.report_title'|trans }}</summary>
                             <form method="post" action="{{ path('case_court_address_report', {id: case.id, addressId: address.id}) }}" class="mt-2 flex flex-wrap items-end gap-2" data-testid="court-address-report-form">
@@ -90,10 +85,10 @@
 
     {% if is_owner %}
     <section class="bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 p-5">
-        <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">{{ 'court_address.validation.manual_title'|trans }}</h2>
-        <p class="text-xs text-slate-600 dark:text-slate-300 mb-3">{{ 'court_address.validation.manual_intro'|trans }}</p>
-        <form method="post" action="{{ path('case_court_address_manual', {id: case.id}) }}" class="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end" data-testid="court-address-manual-form">
-            <input type="hidden" name="_token" value="{{ csrf_token('court_address_manual_' ~ case.id) }}">
+        <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">{{ 'court_address.validation.suggest_title'|trans }}</h2>
+        <p class="text-xs text-slate-600 dark:text-slate-300 mb-3">{{ 'court_address.validation.suggest_intro'|trans }}</p>
+        <form method="post" action="{{ path('case_court_address_suggest', {id: case.id}) }}" class="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end" data-testid="court-address-suggest-form">
+            <input type="hidden" name="_token" value="{{ csrf_token('court_address_suggest_' ~ case.id) }}">
             <label class="text-xs text-slate-700 dark:text-slate-200">
                 {{ 'court_address.validation.manual_email'|trans }}
                 <input type="email" name="email" required maxlength="254" autocomplete="off" class="{{ input }} mt-1">
@@ -107,7 +102,7 @@
                 </select>
             </label>
             <button type="submit" class="{{ btn }} py-2 bg-lex-navy text-white hover:bg-lex-navy-dark justify-center">
-                {{ icon_plus('size-3.5') }}{{ 'court_address.validation.manual_submit'|trans }}
+                {{ icon_plus('size-3.5') }}{{ 'court_address.validation.suggest_submit'|trans }}
             </button>
         </form>
     </section>

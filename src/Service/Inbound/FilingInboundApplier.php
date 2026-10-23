@@ -21,18 +21,16 @@ use App\EventSubscriber\FilingWorkflowInterlockSubscriber;
 use App\Repository\FilingSubmissionRepository;
 use App\Service\AuditLogService;
 use App\Service\Case\CaseWorkflowService;
-use App\Service\Court\CourtEmailActionRefusedException;
 use App\Service\Court\CourtEmailAddressService;
 use App\Service\Deadline\DeadlineService;
 use App\Service\Filing\FilingLockQuery;
 use App\Service\Filing\FilingNotifier;
 use App\Service\Filing\FilingPartOutcomeApplier;
+use App\Service\Filing\FilingRowLocker;
 use App\Service\Filing\FilingTransitionPermit;
 use App\Service\Filing\SmtpFailure;
 use App\Service\Filing\SmtpFailureClassifier;
 use App\Service\Filing\SmtpFailureKind;
-use Doctrine\DBAL\LockMode;
-use Doctrine\ORM\EntityManagerInterface;
 
 /**
  * What a classified and matched message changes. Runs inside the caller's
@@ -51,9 +49,10 @@ final class FilingInboundApplier
     public const REVIEW_UNMATCHED = 'unmatched';
     public const REVIEW_LATE_BOUNCE = 'late_bounce_case_advanced';
     public const REVIEW_UNKNOWN_RECIPIENT = 'bounce_unknown_recipient';
+    public const REVIEW_PART_NOT_ACCEPTED = 'bounce_part_not_accepted';
 
     public function __construct(
-        private readonly EntityManagerInterface $em,
+        private readonly FilingRowLocker $locker,
         private readonly FilingSubmissionRepository $submissions,
         private readonly FilingPartOutcomeApplier $outcomes,
         private readonly FilingNotifier $notifier,
@@ -89,7 +88,7 @@ final class FilingInboundApplier
             return;
         }
 
-        $this->lock($submission);
+        $this->locker->lock($submission);
         match ($class) {
             InboundClassification::RECEIPT => $this->receipt($mail, $submission, $parsed),
             InboundClassification::READ_RECEIPT => $this->readReceipt($mail, $submission),
@@ -185,12 +184,37 @@ final class FilingInboundApplier
             $smtp = new SmtpFailure(SmtpFailureKind::PERMANENT, $smtp->smtpCode, $smtp->enhancedStatus, $smtp->stage, false, $smtp->safeMessage);
         }
 
-        if ($part->isFirst()) {
-            $this->undeliverPetition($mail, $submission, $part, $smtp);
+        if (FilingPartOutcomeApplier::hasAsyncFailure($part)) {
+            return;
+        }
+        // An undone or superseded submission: what is recorded stays as evidence,
+        // but nothing is told about a filing the lawyer already has to send again.
+        if ($submission->getDeliveryStatus() === FilingDeliveryStatus::UNDELIVERED
+            || $this->submissions->findLatestForCase($submission->getLegalCase())?->getId() !== $submission->getId()) {
+            $this->recordOnEndedSubmission($mail, $submission, $part, $smtp);
 
             return;
         }
-        if (FilingPartOutcomeApplier::hasAsyncFailure($part)) {
+        if ($part->getStatus() === FilingPartStatus::UNCERTAIN) {
+            // The report settles the doubt: the server took it, then it came back.
+            $this->outcomes->uncertainBounced($part, $smtp, $mail);
+            if ($part->isFirst() && $smtp->invalidatesCourtAddress) {
+                $this->reportAddress($submission, $mail, $smtp);
+            }
+
+            return;
+        }
+        if ($part->getStatus() !== FilingPartStatus::ACCEPTED) {
+            $mail->markForReview(self::REVIEW_PART_NOT_ACCEPTED);
+            $this->notifier->inboundReview($submission, $mail);
+            $this->audit($submission, 'filing_bounce_part_not_accepted', ['inboundMailId' => $mail->getId(), 'sequence' => $part->getSequence(), 'partStatus' => $part->getStatus()->value]);
+
+            return;
+        }
+
+        if ($part->isFirst()) {
+            $this->undeliverPetition($mail, $submission, $part, $smtp);
+
             return;
         }
         $this->outcomes->asyncFailed($part, $smtp, $mail);
@@ -198,52 +222,37 @@ final class FilingInboundApplier
 
     /**
      * The petition email came back for good after the server accepted it. On a case
-     * still at CERERE_DEPUSA with nothing showing the petition arrived, the filing is
-     * undone (T9): the case returns to a generated request, the package can be sent
-     * again, and the platform's own closing of the six-month term is reopened in the
-     * application. Otherwise nothing is undone and the lawyer reviews it.
+     * still at CERERE_DEPUSA with nothing showing the petition arrived (no court
+     * number, no declared date, no confirmed portal match, no receipt from the court
+     * mailbox), the filing is undone (T9): the case returns to a generated request,
+     * the package can be sent again, and the platform's own closing of the six-month
+     * term is reopened in the application. Otherwise nothing is undone and the lawyer
+     * reviews it. The decision is taken before any part changes.
      */
     private function undeliverPetition(InboundMail $mail, FilingSubmission $submission, FilingEmailPart $part, SmtpFailure $smtp): void
     {
-        if ($submission->getDeliveryStatus() === FilingDeliveryStatus::UNDELIVERED || FilingPartOutcomeApplier::hasAsyncFailure($part)
-            || $part->getStatus() !== FilingPartStatus::ACCEPTED) {
-            return;
-        }
         $case = $submission->getLegalCase();
+        $undo = $case->getStatus() === CaseStatus::CERERE_DEPUSA
+            && FilingWorkflowInterlockSubscriber::canUndoFiling($case, $submission);
+
         $failure = $smtp->kind === SmtpFailureKind::SIZE ? FilingPartStatus::FAILED_SIZE : FilingPartStatus::FAILED_PERMANENT;
         $this->outcomes->recordAsyncAttempt($part, $failure === FilingPartStatus::FAILED_SIZE ? FilingAttemptOutcome::SIZE : FilingAttemptOutcome::PERMANENT, $smtp);
         $part->recordAsyncFailure($failure, $smtp->enhancedStatus, $smtp->safeMessage);
-        foreach ($submission->getParts() as $other) {
-            if ($other->getStatus()->isCancellable()) {
-                $other->setStatus(FilingPartStatus::CANCELLED);
-            }
-        }
 
-        $latest = $this->submissions->findLatestForCase($case);
-        if ($case->getStatus() !== CaseStatus::CERERE_DEPUSA || !FilingWorkflowInterlockSubscriber::canUndoFiling($case)
-            || $latest?->getId() !== $submission->getId()) {
+        if (!$undo) {
             $this->lateReview($mail, $submission);
 
             return;
         }
 
-        $previous = $submission->getDeliveryStatus();
-        $submission->markUndelivered();
-        $addressInvalidated = false;
-        $address = $submission->getCourtEmailAddress();
-        if ($smtp->invalidatesCourtAddress && $address !== null) {
-            $details = [
-                'enhancedStatus' => $smtp->enhancedStatus,
-                'source' => 'delivery_report',
-                'recipientOverridden' => $submission->isRecipientOverridden(),
-            ];
-            try {
-                $this->addresses->markInvalid($address, 'async_bounce', null, $submission, $details, $mail);
-                $addressInvalidated = true;
-            } catch (CourtEmailActionRefusedException) {
-                $this->audit($submission, 'filing_court_address_already_invalid', ['courtEmailAddressId' => $address->getId()] + $details);
+        foreach ($submission->getParts() as $other) {
+            if ($other->getStatus()->isCancellable()) {
+                $other->setStatus(FilingPartStatus::CANCELLED);
             }
         }
+        $previous = $submission->getDeliveryStatus();
+        $submission->markUndelivered();
+        $addressReported = $smtp->invalidatesCourtAddress && $this->reportAddress($submission, $mail, $smtp);
 
         $case->setFilingChannel(null);
         $case->setFilingReference(null);
@@ -269,18 +278,68 @@ final class FilingInboundApplier
             'previousStatus' => $previous->value,
             'enhancedStatus' => $smtp->enhancedStatus,
             'partStatus' => $failure->value,
-            'addressInvalidated' => $addressInvalidated,
+            'addressReported' => $addressReported,
             'deadlineReopened' => $reopened,
         ]);
-        $this->notifier->bouncedPermanent($submission, $part, $mail, $addressInvalidated, $reopened);
+        // An annex report that arrived first told the lawyer to resume or close: moot now.
+        $this->notifier->retractPartiallySent($submission);
+        $this->notifier->bouncedPermanent($submission, $part, $mail, $addressReported, $reopened);
     }
 
-    /** The case moved on (or another submission holds it): nothing is undone, the lawyer checks. */
+    /**
+     * A report that the court mailbox does not exist goes to the admin; the address
+     * stays in use until the admin decides, since a report can be forged or come from
+     * an internal redirect. Only the platform's own SMTP refusal takes it out of use.
+     */
+    private function reportAddress(FilingSubmission $submission, InboundMail $mail, SmtpFailure $smtp): bool
+    {
+        $address = $submission->getCourtEmailAddress();
+        if ($address === null) {
+            return false;
+        }
+        $this->addresses->reportFromDeliveryReport($address, $submission, $mail, $smtp->enhancedStatus);
+
+        return true;
+    }
+
+    private function recordOnEndedSubmission(InboundMail $mail, FilingSubmission $submission, FilingEmailPart $part, SmtpFailure $smtp): void
+    {
+        $failure = $smtp->kind === SmtpFailureKind::SIZE ? FilingPartStatus::FAILED_SIZE : FilingPartStatus::FAILED_PERMANENT;
+        $this->outcomes->recordAsyncAttempt($part, $failure === FilingPartStatus::FAILED_SIZE ? FilingAttemptOutcome::SIZE : FilingAttemptOutcome::PERMANENT, $smtp);
+        if ($part->getStatus() === FilingPartStatus::ACCEPTED) {
+            $part->recordAsyncFailure($failure, $smtp->enhancedStatus, $smtp->safeMessage);
+        }
+        $mail->resolveReview();
+        $this->audit($submission, 'filing_bounce_on_ended_submission', [
+            'inboundMailId' => $mail->getId(),
+            'sequence' => $part->getSequence(),
+            'status' => $submission->getDeliveryStatus()->value,
+            'enhancedStatus' => $smtp->enhancedStatus,
+        ]);
+    }
+
+    /**
+     * The case moved on, or something shows the petition arrived: nothing is
+     * undone, the lawyer checks. A submission still holding the case stops its
+     * remaining emails and waits for that check; an ended one holds the case again.
+     */
     private function lateReview(InboundMail $mail, FilingSubmission $submission): void
     {
         $case = $submission->getLegalCase();
         $mail->markForReview(self::REVIEW_LATE_BOUNCE);
-        if (!$submission->isActive() && $submission->getDeliveryStatus()->isTerminal() && !$this->filingLock->isLockedNow($case)) {
+        if ($submission->isActive()) {
+            $cut = false;
+            foreach ($submission->getParts() as $other) {
+                if ($other->getStatus()->isCancellable()) {
+                    $other->setStatus(FilingPartStatus::CANCELLED);
+                    $cut = true;
+                } elseif (!$other->isFirst() && $other->isFailed()) {
+                    $cut = true;
+                }
+            }
+            $submission->openLateReviewWhileActive(FilingPartOutcomeApplier::REVIEW_LATE_BOUNCE, $cut ? FilingDeliveryStatus::CLOSED_PARTIAL : FilingDeliveryStatus::SENT);
+            $this->filingLock->forget($case);
+        } elseif ($submission->getDeliveryStatus()->isTerminal() && !$this->filingLock->isLockedNow($case)) {
             $submission->openLateReview(FilingPartOutcomeApplier::REVIEW_LATE_BOUNCE);
             $this->filingLock->forget($case);
         }
@@ -289,6 +348,7 @@ final class FilingInboundApplier
             'caseStatus' => $case->getStatus()->value,
             'hasCourtCaseNumber' => $case->getCourtCaseNumber() !== null,
             'hasFiledAt' => $case->getFiledAt() !== null,
+            'evidence' => $submission->getEvidenceStatus()->value,
             'locked' => $submission->isActive(),
         ]);
         $this->notifier->lateBounceReview($submission, $mail);
@@ -346,19 +406,6 @@ final class FilingInboundApplier
             mb_strtolower($submission->getCcAddress()),
             mb_strtolower(trim($this->courtFilingFrom)),
         ], true);
-    }
-
-    private function lock(FilingSubmission $submission): void
-    {
-        $case = $submission->getLegalCase();
-        $this->em->lock($case, LockMode::PESSIMISTIC_WRITE);
-        $this->em->refresh($case);
-        $this->em->lock($submission, LockMode::PESSIMISTIC_WRITE);
-        foreach ($submission->getParts() as $part) {
-            $this->em->lock($part, LockMode::PESSIMISTIC_WRITE);
-            $this->em->refresh($part);
-        }
-        $this->em->refresh($submission);
     }
 
     private static function withoutAddresses(string $text): string

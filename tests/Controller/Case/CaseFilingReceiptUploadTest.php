@@ -7,6 +7,8 @@ namespace App\Tests\Controller\Case;
 use App\Entity\FilingSubmission;
 use App\Entity\LegalCase;
 use App\Entity\User;
+use App\Repository\CourtEmailAddressReportRepository;
+use App\Service\Court\CourtEmailAddressService;
 use App\Tests\Support\FilingCaseFixtureTrait;
 use App\Tests\Support\FilingSubmissionTestTrait;
 use App\Tests\Support\InboundTestTrait;
@@ -16,6 +18,8 @@ use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\RequestStack;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
+use Symfony\Component\RateLimiter\Storage\InMemoryStorage;
 
 /**
  * The lawyer's side of the received messages: the receipt upload, the download of
@@ -167,6 +171,76 @@ final class CaseFilingReceiptUploadTest extends WebTestCase
         }
     }
 
+    public function testARefusedUploadAnswersWithAToastInPlace(): void
+    {
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', sprintf('/case/%d/filing/submission/card', $this->case->getId()));
+        self::assertSelectorExists('form[data-testid="filing-receipt-upload-form"]:not([data-turbo="false"])');
+
+        $this->upload($this->file('confirmare.msg', str_pad("\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1", 1536, "\0")));
+
+        $response = $this->client->getResponse();
+        self::assertFalse($response->isRedirect(), 'An error never reloads the page.');
+        self::assertStringContainsString('text/vnd.turbo-stream.html', (string) $response->headers->get('Content-Type'));
+        self::assertStringContainsString('target="toasts"', (string) $response->getContent());
+    }
+
+    public function testUploadsOverTheHourlyLimitAreRefusedAndStoreNothing(): void
+    {
+        $this->client->disableReboot();
+        static::getContainer()->set('limiter.filing_signed_upload', new RateLimiterFactory(
+            ['id' => 'filing_signed_upload', 'policy' => 'fixed_window', 'limit' => 1, 'interval' => '1 hour'],
+            new InMemoryStorage(),
+        ));
+
+        $this->upload($this->file('confirmare.pdf', self::pdfBytes(['Confirmare de primire'])));
+        self::assertSame(1, $this->storedReceipts());
+        $this->upload($this->file('confirmare2.pdf', self::pdfBytes(['A doua confirmare'])));
+
+        self::assertStringContainsString(htmlspecialchars(static::getContainer()->get('translator')->trans('filing.receipt.upload.error.rate_limited'), ENT_QUOTES), (string) $this->client->getResponse()->getContent());
+        self::assertSame(1, $this->storedReceipts(), 'The upload over the limit stored nothing.');
+    }
+
+    public function testTheCourtTextIsShownToTheLawyerOfTheCaseOnly(): void
+    {
+        $part = $this->em->getRepository(FilingSubmission::class)->find($this->submissionId)?->getPart(1);
+        $this->receive($this->rawForPart($part, 'human-reply'));
+        $card = sprintf('/case/%d/filing/submission/card', $this->case->getId());
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', $card);
+        self::assertSelectorExists('[data-testid="filing-inbound-mail-excerpt"]');
+
+        $admin = $this->otherUser(['ROLE_ADMIN']);
+        $this->client->loginUser($admin);
+        $this->client->request('GET', $card);
+        self::assertResponseIsSuccessful();
+        self::assertSelectorExists('[data-testid="filing-inbound-mail"]');
+        self::assertSelectorNotExists('[data-testid="filing-inbound-mail-excerpt"]');
+        $this->client->request('GET', '/case/' . $this->case->getId());
+        self::assertResponseIsSuccessful();
+        self::assertSelectorNotExists('[data-testid="filing-inbound-mail-excerpt"]');
+    }
+
+    public function testOnlyAnUncertainAttributionIsLabelledAPossibleMatch(): void
+    {
+        $part = $this->em->getRepository(FilingSubmission::class)->find($this->submissionId)?->getPart(1);
+        $certain = $this->receive($this->rawForPart($part, 'human-reply'));
+        $this->em->getConnection()->executeStatement("UPDATE inbound_mail SET review_status = 'PENDING', review_reason = 'annex_bounce' WHERE id = ?", [$certain->getId()]);
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', sprintf('/case/%d/filing/submission/card', $this->case->getId()));
+
+        $translator = static::getContainer()->get('translator');
+        self::assertSelectorTextContains('[data-testid="filing-inbound-mail-review"]', $translator->trans('filing.receipt.in_review_line'));
+        self::assertStringNotContainsString($translator->trans('filing.receipt.probable_line'), (string) $this->client->getResponse()->getContent());
+
+        $this->em->getConnection()->executeStatement("UPDATE inbound_mail SET review_reason = 'probable_match' WHERE id = ?", [$certain->getId()]);
+        $this->client->request('GET', sprintf('/case/%d/filing/submission/card', $this->case->getId()));
+        self::assertSelectorTextContains('[data-testid="filing-inbound-mail-review"]', $translator->trans('filing.receipt.probable_line'));
+    }
+
     public function testUploadNeedsAValidCsrfToken(): void
     {
         $this->client->loginUser($this->user);
@@ -238,9 +312,18 @@ final class CaseFilingReceiptUploadTest extends WebTestCase
         self::assertResponseIsSuccessful();
         self::assertSelectorExists('[data-testid="filing-submission-card"][data-status="UNDELIVERED"]');
         self::assertSelectorTextContains('[data-testid="filing-submission-undelivered"]', 'Nu este o respingere a instanței');
-        self::assertSelectorTextContains('[data-testid="filing-submission-undelivered-deadline"]', 'art. 186 CPC');
+        self::assertSelectorTextContains('[data-testid="filing-submission-undelivered-deadline"]', 'NCC art. 2540');
+        self::assertStringNotContainsString('art. 186', (string) $this->client->getResponse()->getContent());
+        self::assertSelectorTextContains('[data-testid="filing-submission-address-reported"]', 'raportată administratorului');
         self::assertSelectorTextContains('[data-testid="filing-submission-undelivered-diagnostic"]', '5.1.1');
         self::assertSelectorNotExists('[data-testid="filing-receipt-upload-form"]');
+
+        $report = static::getContainer()->get(CourtEmailAddressReportRepository::class)->findOneBy(['submission' => $this->submissionId]);
+        self::assertNotNull($report);
+        static::getContainer()->get(CourtEmailAddressService::class)->resolveReport($report, $this->otherUser(['ROLE_ADMIN']), false);
+        $this->client->request('GET', sprintf('/case/%d/filing/submission/card', $this->case->getId()));
+        self::assertSelectorTextContains('[data-testid="filing-submission-address-reported"]', 'verificat de administrator');
+        self::assertStringNotContainsString('blocată până atunci', (string) $this->client->getResponse()->getContent());
     }
 
     public function testLawyerAcknowledgesALateBounceFromTheCard(): void
@@ -307,6 +390,11 @@ final class CaseFilingReceiptUploadTest extends WebTestCase
         $this->client->loginUser($this->user);
         $token = $this->csrfToken('filing_receipt_upload_' . $this->submissionId);
         $this->client->request('POST', $this->uploadUrl(), ['_token' => $token], ['receipt' => $file], self::TURBO);
+    }
+
+    private function storedReceipts(): int
+    {
+        return (int) $this->em->getConnection()->fetchOne("SELECT COUNT(*) FROM inbound_mail WHERE matched_submission_id = ? AND source = 'manual'", [$this->submissionId]);
     }
 
     private function uploadUrl(): string

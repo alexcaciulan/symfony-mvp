@@ -12,6 +12,7 @@ use App\Entity\User;
 use App\Enum\InboundClassification;
 use App\Enum\NotificationType;
 use App\Command\InboundHeartbeatCheckCommand;
+use App\Repository\InboundMailRepository;
 use App\Repository\InboundPollHeartbeatRepository;
 use App\Repository\UserRepository;
 use App\Service\Filing\RecipientOverrideGuard;
@@ -116,6 +117,7 @@ final class InboundCommandsTest extends KernelTestCase
         $container = static::getContainer();
         $command = new InboundHeartbeatCheckCommand(
             $container->get(InboundPollHeartbeatRepository::class),
+            $container->get(InboundMailRepository::class),
             $users,
             $container->get(NotificationDispatcherInterface::class),
             $container->get(TranslatorInterface::class),
@@ -135,6 +137,42 @@ final class InboundCommandsTest extends KernelTestCase
         self::assertSame(0, $tester->execute([]));
     }
 
+    public function testHeartbeatAlertsAdminsAboutMessagesLeftUnprocessed(): void
+    {
+        $this->admin = new User();
+        $this->admin->setEmail('inbound-admin-' . uniqid() . '@test.com');
+        $this->admin->setPassword('not-used');
+        $this->admin->setRoles(['ROLE_ADMIN']);
+        $this->em->persist($this->admin);
+        $heartbeat = $this->em->getRepository(InboundPollHeartbeat::class)->findOneBy([], ['id' => 'ASC']) ?? new InboundPollHeartbeat();
+        $this->em->persist($heartbeat);
+        $heartbeat->succeeded(new \DateTimeImmutable('-5 minutes'), 1);
+        $mail = $this->mail(InboundClassification::UNKNOWN, new \DateTimeImmutable('+5 days'));
+        $this->em->getConnection()->executeStatement('UPDATE inbound_mail SET processed_at = NULL, created_at = ? WHERE id = ?', [(new \DateTimeImmutable('-40 minutes'))->format('Y-m-d H:i:s'), $mail->getId()]);
+        $this->em->flush();
+        $users = $this->createStub(UserRepository::class);
+        $users->method('findAdmins')->willReturn([$this->admin]);
+        $container = static::getContainer();
+        $tester = new CommandTester(new InboundHeartbeatCheckCommand(
+            $container->get(InboundPollHeartbeatRepository::class),
+            $container->get(InboundMailRepository::class),
+            $users,
+            $container->get(NotificationDispatcherInterface::class),
+            $container->get(TranslatorInterface::class),
+            $container->get(ClockInterface::class),
+            new NullLogger(),
+            120,
+        ));
+
+        self::assertSame(1, $tester->execute([]), 'A fresh poll does not hide a message nobody processed.');
+        self::assertSame(1, $tester->execute([]));
+        $alerts = $this->em->getRepository(Notification::class)->findBy(['user' => $this->admin->getId(), 'type' => NotificationType::INBOUND_UNPROCESSED->value]);
+        self::assertCount(1, $alerts, 'Once a day per admin.');
+
+        $this->em->getConnection()->executeStatement('UPDATE inbound_mail SET processed_at = NOW() WHERE id = ?', [$mail->getId()]);
+        self::assertSame(0, $tester->execute([]));
+    }
+
     public function testSimulatorRefusesWhenDisabled(): void
     {
         $tester = new CommandTester((new Application(self::$kernel))->find('app:filing:simulate-court-reply'));
@@ -145,7 +183,7 @@ final class InboundCommandsTest extends KernelTestCase
 
     public function testSimulatorRefusesInProdOrWithoutTheRecipientOverride(): void
     {
-        $simulator = static fn (bool $live, string $override, string $env): CourtReplySimulator => new CourtReplySimulator(new NullTransport(), new RecipientOverrideGuard($live, $override), true, $env, 'mx.lexrecovery.test', 'depuneri@lexrecovery.test');
+        $simulator = static fn (bool $live, string $override, string $env): CourtReplySimulator => new CourtReplySimulator(new NullTransport(), new RecipientOverrideGuard($live, $override), true, $env, 'mx.lexrecovery.test', 'depuneri@lexrecovery.test', 'Delivered-To');
 
         self::assertNull($simulator(false, 'instanta-simulata@example.test', 'dev')->refusal());
         self::assertNotNull($simulator(false, 'instanta-simulata@example.test', 'prod')->refusal());

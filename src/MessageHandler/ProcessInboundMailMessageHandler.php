@@ -21,8 +21,9 @@ use Symfony\Component\Messenger\Attribute\AsMessageHandler;
 /**
  * Classifies, authenticates, matches and applies one stored message, all in one
  * transaction. Idempotent: a processed message is left alone. Exceptions (a
- * deadlock against the filing worker, which locks in another order) roll the
- * whole step back and propagate, so the `async` retry runs it again from scratch.
+ * deadlock or a lock timeout) roll the whole step back and propagate, so the
+ * `async` retry runs it again from scratch; a row whose processing never
+ * completes is queued again by the inbound poll and reported by the heartbeat.
  */
 #[AsMessageHandler]
 final class ProcessInboundMailMessageHandler
@@ -64,7 +65,7 @@ final class ProcessInboundMailMessageHandler
             $parsed = $this->parser->parse($raw);
             $classification = $this->classifier->classify($parsed);
             $auth = $this->authVerifier->verify($parsed);
-            $match = $this->matcher->match($parsed, $auth);
+            $match = $this->matcher->match($parsed, $auth, $mail->getDeliveredTo());
 
             $mail->setClassification($classification);
             $mail->setAuthVerdict($auth);

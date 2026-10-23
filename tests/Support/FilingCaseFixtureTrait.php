@@ -384,6 +384,9 @@ trait FilingCaseFixtureTrait
                 }
             }
         }
+        // Reports keep pointing at a deleted case as NULL; they go with the case here.
+        $conn->executeStatement('DELETE FROM court_email_address_report WHERE legal_case_id IN (' . $cases . ') OR reported_by_id = ? OR resolved_by_id = ?', [$userId, $userId, $userId]);
+        $conn->executeStatement("DELETE FROM notification WHERE type IN ('court_email_reported', 'court_email_suggested') AND legal_case_id IS NULL");
         // Submissions next: their emails reference package parts, and a submission the package.
         $conn->executeStatement('DELETE FROM filing_submission WHERE legal_case_id IN (' . $cases . ')', [$userId]);
         $conn->executeStatement('DELETE FROM filing_package_part WHERE package_id IN (SELECT id FROM filing_package WHERE legal_case_id IN (' . $cases . '))', [$userId]);

@@ -10,6 +10,7 @@ use App\Entity\InboundMail;
 use App\Entity\LegalCase;
 use App\Enum\FilingPartStatus;
 use App\Enum\NotificationType;
+use App\Repository\NotificationRepository;
 use App\Service\Notification\NotificationDispatch;
 use App\Service\Notification\NotificationDispatcherInterface;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -28,6 +29,7 @@ final class FilingNotifier
 {
     public function __construct(
         private readonly NotificationDispatcherInterface $dispatcher,
+        private readonly NotificationRepository $notifications,
         private readonly TranslatorInterface $translator,
         private readonly UrlGeneratorInterface $urlGenerator,
         #[Autowire('%app.base_url%')]
@@ -118,6 +120,15 @@ final class FilingNotifier
         ], sprintf('filing:%d:needs_review:%s:a%d', (int) $submission->getId(), $short, $attempts), 'email.filing_needs_review.subject');
     }
 
+    /**
+     * The petition of a submission that had partially left came back afterwards:
+     * the earlier "resume or close" notices no longer apply.
+     */
+    public function retractPartiallySent(FilingSubmission $submission): void
+    {
+        $this->notifications->markReadByDedupKeyPrefix(sprintf('filing:%d:p', (int) $submission->getId()), ':partially_sent:');
+    }
+
     /** The petition left and an annex email failed with nothing left on its way. */
     public function partiallySent(FilingSubmission $submission, FilingEmailPart $failed): void
     {
@@ -157,11 +168,13 @@ final class FilingNotifier
      * The mail server returned the petition email for good after accepting it. Says
      * where the report comes from (a mail server, not the court) and that the
      * deadline is not extended by the application.
+     *
+     * @param bool $addressReported the report says the mailbox does not exist and went to the admin
      */
-    public function bouncedPermanent(FilingSubmission $submission, FilingEmailPart $part, InboundMail $mail, bool $addressInvalidated, bool $deadlineReopened): void
+    public function bouncedPermanent(FilingSubmission $submission, FilingEmailPart $part, InboundMail $mail, bool $addressReported, bool $deadlineReopened): void
     {
         $case = $submission->getLegalCase();
-        $variant = $part->getStatus() === FilingPartStatus::FAILED_SIZE ? 'size' : ($addressInvalidated ? 'address' : 'other');
+        $variant = $part->getStatus() === FilingPartStatus::FAILED_SIZE ? 'size' : ($addressReported ? 'address' : 'other');
         $this->dispatch($case, NotificationType::FILING_BOUNCED_PERMANENT, 'filing_bounced_permanent.' . $variant, 'error', [
             '%case%' => $this->caseLabel($case),
             '%code%' => (string) ($mail->getDsnStatus() ?? '-'),

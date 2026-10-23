@@ -2477,16 +2477,17 @@ enum:
         REJECTED: 'Rejected'
         INVALID: 'Invalid'
     court_email_source:
-        MANUAL: 'Entered manually'
+        MANUAL: 'Added by the administrator'
         PORTAL_IMPORT: 'Portal (unofficial)'
         SAVED_PAGE: 'Saved page (unofficial)'
+        LAWYER_SUGGESTION: 'Lawyer suggestion, not checked'
     court_filing_address_missing_reason:
         NO_COURT: 'The court of the case is not set.'
-        NO_ADDRESS: 'No address for this court. One can be added manually.'
-        NOT_VALIDATED: 'No confirmed address for this court.'
-        VALIDATION_EXPIRED: 'The confirmation has expired (older than 180 days or the address no longer appears in its source). The address must be confirmed again.'
-        NO_FILING_DEFAULT: 'No confirmed default filing address.'
-        TRIBUNAL_SECTION_UNKNOWN: 'The tribunal has sections; the section is not confirmed for the parties of this case.'
+        NO_ADDRESS: 'No address for this court. An address can be suggested to the administrator.'
+        NOT_VALIDATED: 'No checked address for this court; the proposed addresses wait for the administrator''s check.'
+        VALIDATION_EXPIRED: 'The address check has expired (older than 180 days or the address no longer appears in its source) and waits for the administrator to check it again.'
+        NO_FILING_DEFAULT: 'No checked default filing address; the choice is the administrator''s.'
+        TRIBUNAL_SECTION_UNKNOWN: 'The tribunal has sections, and the section cannot be derived automatically for the parties of this case.'
     court_email_report_reason:
         WRONG_COURT: 'The address belongs to another court'
         BOUNCED: 'Messages sent to this address come back undelivered'
@@ -2715,6 +2716,9 @@ enum:
         payment_succeeded: 'Payment received'
         invoice_issued: 'Invoice issued'
         slot_overage: 'Extra case billed'
+        inbound_unprocessed: 'Unprocessed received messages'
+        court_email_reported: 'Court address reported'
+        court_email_suggested: 'Court address suggested'
     person_type:
         PF: 'Individual'
         PJ: 'Legal entity'
@@ -2786,6 +2790,12 @@ enum:
 # =============================================================================
 # Homepage (public-facing)
 # =============================================================================
+    court_email_report_kind:
+        LAWYER: 'Report by a lawyer'
+        DELIVERY_REPORT: 'Delivery report'
+    court_email_report_resolution:
+        DISMISSED: 'Dismissed, the address stays in use'
+        INVALIDATED: 'Address taken out of use'
 home:
     hero:
         eyebrow: 'For lawyers and debt recovery firms'
@@ -3072,13 +3082,13 @@ notification:
     filing_bounced_permanent:
         address:
             title: 'The email with the petition was returned: %case%'
-            message: 'The recipient''s mail server permanently returned the email with the petition (code %code%), reporting the address as unknown. This is not a rejection by the court. The case went back to the generated petition, and the address was taken out of use until it is confirmed again. %deadline% The filing deadline is NOT extended by the application. Check whether the legal term has expired (CPC art. 181-185) and, if so, consider a request for reinstatement (CPC art. 186).'
+            message: 'The recipient''s mail server permanently returned the email with the petition (code %code%), reporting the address as unknown. This is not a rejection by the court. The case went back to the generated petition, and the address was reported to the administrator; it stays in use until they decide, and for this case a new transmission to the same address is blocked until then. %deadline% The application does not extend the six-month term that keeps the limitation period interrupted (NCC art. 2540). If that term has passed, the summons no longer interrupts the limitation period, and the petition can still be filed while the limitation period has not run out. The date from which the limitation period runs is checked by the lawyer. Provisional wording, pending legal review.'
         other:
             title: 'The email with the petition was returned: %case%'
-            message: 'The recipient''s mail server permanently returned the email with the petition (code %code%). This is not a rejection by the court; the cause may be a full mailbox or a server rule. The case went back to the generated petition, and the address stays in use. %deadline% The filing deadline is NOT extended by the application. Check whether the legal term has expired (CPC art. 181-185) and, if so, consider a request for reinstatement (CPC art. 186).'
+            message: 'The recipient''s mail server permanently returned the email with the petition (code %code%). This is not a rejection by the court; the cause may be a full mailbox or a server rule. The case went back to the generated petition, and the address stays in use. %deadline% The application does not extend the six-month term that keeps the limitation period interrupted (NCC art. 2540). If that term has passed, the summons no longer interrupts the limitation period, and the petition can still be filed while the limitation period has not run out. The date from which the limitation period runs is checked by the lawyer. Provisional wording, pending legal review.'
         size:
             title: 'The email with the petition was returned for its size: %case%'
-            message: 'The recipient''s mail server returned the email with the petition because of its size (code %code%). This is not a rejection by the court. The case went back to the generated petition; the annexes can be split into smaller volumes where possible. %deadline% The filing deadline is NOT extended by the application. Check whether the legal term has expired (CPC art. 181-185) and, if so, consider a request for reinstatement (CPC art. 186).'
+            message: 'The recipient''s mail server returned the email with the petition because of its size (code %code%). This is not a rejection by the court. The case went back to the generated petition; the annexes can be split into smaller volumes where possible. %deadline% The application does not extend the six-month term that keeps the limitation period interrupted (NCC art. 2540). If that term has passed, the summons no longer interrupts the limitation period, and the petition can still be filed while the limitation period has not run out. The date from which the limitation period runs is checked by the lawyer. Provisional wording, pending legal review.'
         annex:
             title: 'Annex email returned: %case%'
             message: 'The recipient''s mail server returned email %k% of %n% (code %code%) after accepting it. The annexes in this email may not have reached the court. The transmission can no longer be resumed automatically; check the situation and, if needed, file the annexes another way.'
@@ -3097,7 +3107,7 @@ notification:
             message: 'A message received on the platform address (%date%) already has the lawyer among its recipients, so it was not forwarded. The platform address is not a procedural address: the platform does not receive procedural communications and no term runs from receipt on the platform. Check the case on portal.just.ro and with the registry.'
     filing_late_bounce_review:
         title: 'Delivery report after the case moved on: %case%'
-        message: 'A delivery report arrived for the email with the petition (code %code%), but the case already shows that the petition reached the court. Nothing was undone automatically. Check the situation with the court and confirm on the case card.'
+        message: 'A delivery report arrived for the email with the petition (code %code%), but the case already shows that the petition may have reached the court. Nothing was undone automatically, and the remaining emails are no longer sent. The situation is checked with the court, then confirmed on the case card.'
     filing_inbound_review:
         title: 'Received message to review: %case%'
         message: 'A message received on the platform address (%date%) seems to concern this transmission, but the link is not certain. Possible match, needs confirmation; nothing was applied. The message can be downloaded from the case card.'
@@ -3120,7 +3130,7 @@ notification:
     filing_failed_permanent:
         address:
             title: 'Sending was refused: %case%'
-            message: 'The recipient''s server rejected the address (code %code%). Check the address with the court registry. The address is out of use until it is confirmed again. Nothing was resent.'
+            message: 'The recipient''s server rejected the address (code %code%). The address is out of use until the administrator checks it. Nothing was resent. Meanwhile, the petition can be filed another way.'
         other:
             title: 'Sending was refused: %case%'
             message: 'The recipient''s server refused email %k% of %n% for good (code %code%). Nothing was resent. Check the situation and, if needed, file through another channel.'
@@ -3242,6 +3252,15 @@ notification:
 # =============================================================================
 # Notifications page (notifications/index.html.twig)
 # =============================================================================
+    court_email_reported:
+        title: 'Court address reported: %court%'
+        message: 'The address %email% of %court% was reported as wrong (by a lawyer or by a delivery report). The address stays in use until a decision is made. The report is checked in the "Court address reports" queue.'
+    court_email_suggested:
+        title: 'Court address suggested: %court%'
+        message: 'A lawyer suggested the address %email% for %court%. The address is proposed and is not used until it is checked on its source and validated.'
+    inbound_unprocessed:
+        title: 'Unprocessed received messages'
+        message: '%count% messages received more than %minutes% minutes ago have not been processed. The courts'' receipts and delivery reports are not applied until this is fixed.'
 notifications:
     title: 'Notifications'
     heading: 'Notifications'
@@ -3637,22 +3656,25 @@ filing:
                 active_content: 'The PDF has active content (JavaScript or XFA forms).'
                 timeout: 'Checking the file took too long.'
                 tool_missing: 'Checking the file is not available right now.'
+                rate_limited: 'The hourly upload limit was reached. Try again later.'
+        in_review_line: 'under review'
     undelivered:
         not_platform: 'Only the platform undoes an undelivered filing.'
         case_advanced: 'The case already shows that the petition reached the court.'
         explain: 'The mail server returned the message with the petition after accepting it. This is not a rejection by the court.'
         diagnostic: 'Server report: %code% %text%'
-        address_invalidated: 'The address was reported as unknown and was taken out of use until it is confirmed again.'
-        deadline_warning: 'The filing deadline is NOT extended by the application. Check whether the legal term has expired (CPC art. 181-185) and, if so, consider a request for reinstatement (CPC art. 186).'
+        deadline_warning: 'The application does not extend the six-month term that keeps the limitation period interrupted (NCC art. 2540). If that term has passed, the summons no longer interrupts the limitation period, and the petition can still be filed while the limitation period has not run out. The date from which the limitation period runs is checked by the lawyer. Provisional wording, pending legal review.'
         deadline_reopened: 'The deadline in the application was reopened; check the legal term.'
         deadline_unchanged: 'The deadline in the application was not changed.'
         next_step: 'The case went back to the generated petition. The signed package can be sent again after the address is checked, or the petition can be filed another way. Check the signed files before a new transmission.'
         late_headline: 'Delivery report after the case moved on'
-        late_explain: 'The case already shows that the petition reached the court (number, declared filing date or case confirmed on the portal), so nothing was undone. Check the situation and confirm.'
+        late_explain: 'The case already shows that the petition may have reached the court (number, declared filing date, case confirmed on the portal or a receipt), so nothing was undone. The remaining emails are no longer sent. The situation is checked with the court, then confirmed here.'
         ack_cta: 'Checked'
         ack_saved: 'The check was recorded.'
         ack_refused: 'There is no delivery report to check.'
         ack_statement: 'I checked the delivery report received after the case moved on.'
+        address_reported: 'The delivery report shows the address as unknown. The address was reported to the administrator and stays in use until they decide; for this case, a new transmission to the same address is blocked until then. Meanwhile, the petition can be filed another way.'
+        address_report_resolved: 'The delivery report was reviewed by the administrator. A new submission to the filing address shown is possible again.'
     send:
         cta: 'Send to the court'
         title: 'Transmitting the petition to the court by email'
@@ -3699,6 +3721,7 @@ filing:
             first_email_layout: 'The first email of the package does not carry the petition and the power of attorney. The package must be rebuilt.'
             email_too_large: 'An email of the package exceeds the size limit after signing.'
             configuration: 'The platform''s sending configuration does not allow transmitting. The platform administrator was informed through the log.'
+            address_bounce_reported: 'This case''s email was returned from the filing address, and the address was reported to the administrator. A new transmission to the same address is possible after their decision; meanwhile, the petition can be filed another way.'
         warning:
             cn_differs: 'The name in the signing certificate differs from the account name.'
             interest_date_old: 'The interest in the petition is calculated up to %date%, more than 30 days ago.'
@@ -3880,12 +3903,11 @@ filing:
         package_signed: 'signatures detected on every file; the other requirements are checked before sending'
     recipient:
         title: 'Filing address'
-        confirmed_by: 'confirmed on %date%'
+        confirmed_by: 'checked by the administrator on %date%'
         source: 'source'
-        action_add: 'Add the court address'
-        action_validate: 'Confirm the court address'
-        action_revalidate: 'Confirm the court address again'
         open_page: 'Court address'
+        admin_decides_other_channel: 'Until the administrator decides, the petition is filed another way.'
+        action_suggest: 'Suggest an address to the administrator'
     failure:
         kind:
             temporary: 'temporary error'
@@ -3938,6 +3960,7 @@ filing:
         done: 'The annexes were split into smaller volumes. The new volumes must be signed before a new transmission.'
         error:
             not_allowed: 'A new split of the annexes is not available for this transmission.'
+        after_resplit: 'The annexes were split again. The new volumes are signed and transmitted again.'
     override:
         failed: 'Marked as not sent by an administrator.'
         error:
@@ -3948,35 +3971,31 @@ filing:
             saved: 'The email status was updated.'
             closed: 'The transmission was closed.'
             csrf: 'The form session expired. Reload the page and try again.'
+    lock:
+        actions_paused_note: 'While the case is being transmitted to the court, the documents and the stamp duty cannot be changed. The actions return once the transmission ends or is checked.'
 court_address:
     validation:
         page_title: 'Court address'
-        intro: 'Confirming an address is the lawyer''s declaration and is separate from any sending. The responsibility for choosing the address lies with the lawyer.'
+        intro: 'Filing addresses are checked and validated only by the administrator, on the source shown. From the case, an address can be suggested or a wrong one reported.'
         unofficial_source: 'The address sources (the courts portal, saved pages, manual entry) are unofficial.'
         expiry_note: 'A confirmation expires after %days% days (a platform prudence rule, not a legal deadline) or when the address no longer appears in its source.'
-        tribunal_note: 'At a tribunal, the section depends on the parties. If one of the debtors is a natural person, no address is chosen automatically.'
-        read_only_admin: 'View only: only the lawyer of the case can confirm, add or report addresses.'
+        tribunal_note: 'At a tribunal, the section depends on the parties. The professionals'' section is chosen automatically only when the creditor and every debtor are companies registered with the trade register; otherwise no address is chosen automatically.'
+        read_only_admin: 'View only: only the lawyer of the case can suggest or report addresses here. Addresses are managed in the admin.'
         list_title: 'Court addresses'
         empty: 'No address recorded for this court.'
         default_badge: 'default for filing'
         expired_badge: 'Confirmation expired'
-        confirmed_meta: 'Confirmed on %date% by %name%'
-        scope_note: 'The confirmation applies to every case of this court on the platform, including those of other lawyers, until it expires or is invalidated.'
-        statement: 'I confirm that the court receives initiating applications at this address, including payment order applications, electronically.'
-        validate_submit: 'Confirm the address'
-        revalidate_submit: 'Confirm the address again'
-        report_title: 'Report a wrong address'
+        confirmed_meta: 'Checked by the administrator on the source shown on %date%'
+        scope_note: 'A validated address is used for every case of this court on the platform, including other lawyers'' cases. That is why only the administrator adds, validates or takes it out of use.'
+        statement: 'I confirm that I checked the address on the source shown and that, according to that source, the court receives initiating applications at this address, including payment order applications, electronically.'
+        report_title: 'Report the address as wrong'
         report_submit: 'Report'
-        report_warning: 'Only the chosen reason is sent, with no data about the case or about people.'
-        manual_title: 'Add an address'
-        manual_intro: 'An added address stays proposed until confirmed. Nominal addresses (like firstname.lastname@just.ro) are not accepted.'
+        report_warning: 'The report goes to the administrator. The address stays in use until they decide. Only the chosen reason is sent, with no data about the case or about people.'
         manual_email: 'Email address'
         manual_purpose: 'Address purpose'
-        manual_submit: 'Add the address'
         toast:
-            validated: 'The address was confirmed.'
-            reported: 'The report was recorded.'
-            added: 'The address was added as proposed, not confirmed.'
+            reported: 'The report reached the administrator. The address stays in use until they decide.'
+            suggested: 'The suggestion reached the administrator. The address stays proposed until it is checked.'
         error:
             statement_required: 'Confirming requires ticking the statement.'
             personal_refused: 'The address looks nominal (a person''s) and is not recorded. Only institutional addresses are accepted.'
@@ -3989,6 +4008,13 @@ court_address:
             csrf: 'The session has expired. Reload the page and try again.'
             rate_limited: 'Too many actions in a short time. Try again later.'
 # Maintenance copy only: the court email is always rendered from the ro locale.
+            admin_only: 'Only the administrator validates court addresses.'
+        other_channel_note: 'Until the administrator decides, the petition is filed another way.'
+        report_pending: 'Reported to the administrator on %date%. The address stays in use until they decide.'
+        awaiting_admin: 'Proposed, waiting for the administrator''s check. Not used for filing.'
+        suggest_title: 'Suggest an address'
+        suggest_intro: 'The suggested address goes to the administrator and stays proposed, unused for filing, until it is checked on a source of the court. Nominal addresses (like firstname.lastname@just.ro) are not accepted.'
+        suggest_submit: 'Send the suggestion'
 court_email:
     from_name: 'Av. %name% via LexRecovery'
     subject: 'Request for a payment order: %creditor% v. %debtor%'

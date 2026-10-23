@@ -34,7 +34,7 @@
                 {% for case in cases %}
                     <li class="py-2 flex items-center justify-between gap-3 text-sm">
                         <a href="{{ path('case_overview', {id: case.id}) }}" class="font-medium text-lex-navy dark:text-blue-400 no-underline hover:underline">{{ case.caseNumber }}</a>
-                        <span class="text-slate-500">{{ case.status.label|trans }}</span>
+                        <span class="text-slate-500">{{ case.displayStatusLabel|trans }}</span>
                     </li>
                 {% endfor %}
             </ul>

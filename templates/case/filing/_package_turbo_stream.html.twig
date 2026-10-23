@@ -4,6 +4,9 @@
     <turbo-stream action="replace" target="filing-package-card">
         <template>{{ include('case/filing/_package_card.html.twig') }}</template>
     </turbo-stream>
+    {% if filing_state_key is defined %}
+        {{ include('case/filing/_state_regions.html.twig') }}
+    {% endif %}
 {% endif %}
 <turbo-stream action="append" target="toasts">
     <template>

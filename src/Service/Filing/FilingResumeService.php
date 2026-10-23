@@ -11,7 +11,6 @@ use App\Enum\FilingDeliveryStatus;
 use App\Enum\FilingPartStatus;
 use App\Message\SendFilingEmailPartMessage;
 use App\Service\AuditLogService;
-use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Clock\ClockInterface;
 use Symfony\Component\Messenger\MessageBusInterface;
@@ -31,6 +30,7 @@ final class FilingResumeService
 
     public function __construct(
         private readonly EntityManagerInterface $em,
+        private readonly FilingRowLocker $locker,
         private readonly FilingSendGuard $guard,
         private readonly FilingLockQuery $filingLock,
         private readonly AuditLogService $auditLogService,
@@ -85,13 +85,7 @@ final class FilingResumeService
         $connection = $this->em->getConnection();
         $connection->beginTransaction();
         try {
-            $this->em->lock($case, LockMode::PESSIMISTIC_WRITE);
-            $this->em->lock($submission, LockMode::PESSIMISTIC_WRITE);
-            foreach ($submission->getParts() as $part) {
-                $this->em->lock($part, LockMode::PESSIMISTIC_WRITE);
-                $this->em->refresh($part);
-            }
-            $this->em->refresh($submission);
+            $this->locker->lock($submission);
 
             if (!$this->isResumable($submission)) {
                 throw new FilingSendBlockedException('filing.resume.refused');

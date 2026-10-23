@@ -1,5 +1,6 @@
 /* stimulusFetch: 'lazy' */
 import { Controller } from '@hotwired/stimulus';
+import * as Turbo from '@hotwired/turbo';
 
 /**
  * Self-perpetuating poller attached to a turbo-frame element. While the
@@ -31,12 +32,20 @@ import { Controller } from '@hotwired/stimulus';
  *
  * `url-value`, when set, is fetched instead of the current page: a small
  * endpoint that renders only the frame (the court filing status card).
+ *
+ * `state-key-value` / `state-url-value`, when set: the server renders a key that
+ * changes whenever regions outside the frame would (the case status badge, the
+ * hero actions, the recommended actions). When a refreshed frame carries another
+ * key, the Turbo Stream at `state-url-value` is applied so those regions never
+ * offer an action the server would now refuse.
  */
 export default class extends Controller {
     static values = {
         pending: Boolean,
         intervalMs: { type: Number, default: 3000 },
         url: String,
+        stateKey: String,
+        stateUrl: String,
     };
 
     initialize() {
@@ -89,6 +98,10 @@ export default class extends Controller {
             const doc = parser.parseFromString(html, 'text/html');
             const newFrame = doc.getElementById(this.element.id);
             if (newFrame) {
+                const newKey = newFrame.getAttribute('data-poll-frame-state-key-value') || '';
+                if (this.hasStateUrlValue && this.stateUrlValue && newKey !== this.stateKeyValue) {
+                    this._refreshRegions();
+                }
                 // replaceWith disconnects the current controller and Stimulus
                 // re-attaches on the freshly inserted frame. If that new frame
                 // still carries pending-value="true", its connect() arms the
@@ -105,6 +118,20 @@ export default class extends Controller {
             if (this.pendingValue) this._scheduleNext();
         } finally {
             this._fetching = false;
+        }
+    }
+
+    async _refreshRegions() {
+        try {
+            const response = await fetch(this.stateUrlValue, {
+                headers: { 'Accept': 'text/vnd.turbo-stream.html' },
+                credentials: 'same-origin',
+            });
+            if (response.ok) {
+                Turbo.renderStreamMessage(await response.text());
+            }
+        } catch (_) {
+            // The next state change, or a reload, brings the regions up to date.
         }
     }
 }

@@ -105,6 +105,9 @@
                     <a href="{{ path('case_court_address', {id: case.id}) }}" class="mt-1 inline-block underline hover:no-underline">{{ 'filing.recipient.open_page'|trans }}</a>
                 {% else %}
                     <p class="mt-0.5" data-testid="filing-recipient-reason">{{ recipient.reason.label|trans }}</p>
+                    {% if recipient.reason.value != 'NO_COURT' %}
+                        <p class="mt-0.5" data-testid="filing-recipient-other-channel">{{ 'filing.recipient.admin_decides_other_channel'|trans }}</p>
+                    {% endif %}
                     {% set action = recipient.reason.action %}
                     {% if action != 'none' %}
                         {% if is_owner %}

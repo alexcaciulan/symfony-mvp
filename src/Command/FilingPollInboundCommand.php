@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Command;
 
+use App\Repository\InboundMailRepository;
 use App\Repository\InboundPollHeartbeatRepository;
 use App\Service\Inbound\InboundEmailIngestor;
 use App\Service\Inbound\InboundMailSourceInterface;
@@ -26,16 +27,20 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * A message that cannot be stored stays unacknowledged for the next run and does
  * not stop the ones after it; the run fails only when the source cannot be read
  * or no message could be stored. Overlapping runs are kept apart by a database
- * lock shared by every container.
+ * lock shared by every container. After reading, a message stored long ago whose
+ * processing never completed (its queue message lost or failed) is queued again,
+ * a few times at most.
  */
 #[AsCommand(name: 'app:filing:poll-inbound', description: 'Read court receipts, delivery reports and replies from the inbound mailbox')]
 final class FilingPollInboundCommand extends Command
 {
     private const LOCK_NAME = 'lexrecovery_inbound_poll';
+    private const REQUEUE_AFTER_MINUTES = 10;
 
     public function __construct(
         private readonly InboundMailSourceInterface $source,
         private readonly InboundEmailIngestor $ingestor,
+        private readonly InboundMailRepository $mails,
         private readonly InboundPollHeartbeatRepository $heartbeats,
         private readonly EntityManagerInterface $em,
         private readonly ManagerRegistry $registry,
@@ -87,6 +92,8 @@ final class FilingPollInboundCommand extends Command
                 $this->source->acknowledge($raw);
             }
 
+            $requeued = $this->requeueStale();
+
             $heartbeat = $this->heartbeats->current();
             if ($failed > 0 && $failed === $fetched) {
                 $heartbeat->failed(sprintf('%d of %d messages could not be stored; last: %s', $failed, $fetched, $lastFailure));
@@ -105,7 +112,7 @@ final class FilingPollInboundCommand extends Command
                 }
             }
             $this->em->flush();
-            $io->success(sprintf('Inbound poll (%s): %d fetched, %d new, %d failed.', $this->source->name(), $fetched, $stored, $failed));
+            $io->success(sprintf('Inbound poll (%s): %d fetched, %d new, %d failed, %d requeued.', $this->source->name(), $fetched, $stored, $failed, $requeued));
 
             return Command::SUCCESS;
         } catch (\Throwable $e) {
@@ -120,6 +127,24 @@ final class FilingPollInboundCommand extends Command
         } finally {
             $connection->fetchOne('SELECT RELEASE_LOCK(?)', [self::LOCK_NAME]);
         }
+    }
+
+    private function requeueStale(): int
+    {
+        $cutoff = $this->clock->now()->modify('-' . self::REQUEUE_AFTER_MINUTES . ' minutes');
+        $requeued = 0;
+        foreach ($this->mails->findUnprocessedBefore($cutoff, InboundEmailIngestor::MAX_REQUEUES) as $mail) {
+            try {
+                if ($this->ingestor->requeueIfUnprocessed($mail)) {
+                    ++$requeued;
+                }
+            } catch (\Throwable $e) {
+                $this->logger->error('inbound.poll.requeue_failed', ['inboundMailId' => $mail->getId(), 'exceptionClass' => $e::class, 'message' => $e->getMessage()]);
+                $this->recoverEntityManager();
+            }
+        }
+
+        return $requeued;
     }
 
     /**

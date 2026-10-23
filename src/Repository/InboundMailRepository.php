@@ -50,6 +50,39 @@ class InboundMailRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+    /**
+     * Stored before the cutoff and never processed, not queued again since the
+     * cutoff and below the requeue cap: their processing message was lost or failed.
+     *
+     * @return list<InboundMail>
+     */
+    public function findUnprocessedBefore(\DateTimeImmutable $cutoff, int $maxRequeues, int $limit = 100): array
+    {
+        return $this->createQueryBuilder('m')
+            ->andWhere('m.processedAt IS NULL')
+            ->andWhere('m.createdAt < :cutoff')
+            ->andWhere('m.requeuedAt IS NULL OR m.requeuedAt < :cutoff')
+            ->andWhere('m.requeueCount < :max')
+            ->setParameter('cutoff', $cutoff)
+            ->setParameter('max', $maxRequeues)
+            ->orderBy('m.id', 'ASC')
+            ->setMaxResults($limit)
+            ->getQuery()
+            ->getResult();
+    }
+
+    /** Messages stored before the cutoff whose processing has still not completed, requeued or not. */
+    public function countUnprocessedBefore(\DateTimeImmutable $cutoff): int
+    {
+        return (int) $this->createQueryBuilder('m')
+            ->select('COUNT(m.id)')
+            ->andWhere('m.processedAt IS NULL')
+            ->andWhere('m.createdAt < :cutoff')
+            ->setParameter('cutoff', $cutoff)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
     /** @return list<InboundMail> */
     public function findForSubmission(FilingSubmission $submission): array
     {
