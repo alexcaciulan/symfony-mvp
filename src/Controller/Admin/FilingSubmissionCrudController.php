@@ -14,6 +14,7 @@ use EasyCorp\Bundle\EasyAdminBundle\Field\DateTimeField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\IdField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\IntegerField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\TextField;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Court filings sent by email, read-only and metadata only: states, times, sizes,
@@ -23,6 +24,11 @@ use EasyCorp\Bundle\EasyAdminBundle\Field\TextField;
  */
 class FilingSubmissionCrudController extends AbstractCrudController
 {
+    public function __construct(
+        private readonly TranslatorInterface $translator,
+    ) {
+    }
+
     public static function getEntityFqcn(): string
     {
         return FilingSubmission::class;
@@ -56,11 +62,11 @@ class FilingSubmissionCrudController extends AbstractCrudController
         yield IntegerField::new('legalCase.id', 'ID dosar');
         yield TextField::new('court.name', 'Instanța');
         yield TextField::new('deliveryStatus', 'Stare transmitere')
-            ->formatValue(static fn ($value): string => $value?->value ?? '')
+            ->formatValue($this->enumLabel(...))
             // The text template prints the raw value as a title, which an enum cannot be.
             ->setTemplateName('crud/field/generic');
         yield TextField::new('evidenceStatus', 'Dovada primirii')
-            ->formatValue(static fn ($value): string => $value?->value ?? '')
+            ->formatValue($this->enumLabel(...))
             // The text template prints the raw value as a title, which an enum cannot be.
             ->setTemplateName('crud/field/generic');
         yield DateTimeField::new('initiatedAt', 'Cerută la');
@@ -75,11 +81,11 @@ class FilingSubmissionCrudController extends AbstractCrudController
             ->formatValue(static fn ($value, FilingSubmission $submission): int => $submission->getParts()->count());
         yield TextField::new('parts', 'Părți')
             ->onlyOnDetail()
-            ->formatValue(static fn ($value, FilingSubmission $submission): string => implode(' | ', array_map(
-                static fn (FilingEmailPart $p): string => sprintf(
+            ->formatValue(fn ($value, FilingSubmission $submission): string => implode(' | ', array_map(
+                fn (FilingEmailPart $p): string => sprintf(
                     '#%d %s, %s B, sha256 %s, SMTP %s %s',
                     $p->getSequence(),
-                    $p->getStatus()->value,
+                    $this->translator->trans($p->getStatus()->label()),
                     $p->getEncodedBytes() ?? '-',
                     $p->getEmlSha256() ?? '-',
                     $p->getLastSmtpCode() ?? '-',
@@ -87,5 +93,10 @@ class FilingSubmissionCrudController extends AbstractCrudController
                 ),
                 $submission->getParts()->toArray(),
             )));
+    }
+
+    private function enumLabel(mixed $value): string
+    {
+        return $value instanceof \BackedEnum && method_exists($value, 'label') ? $this->translator->trans($value->label()) : '';
     }
 }

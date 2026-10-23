@@ -723,11 +723,7 @@ final class CaseStampDutyControllerTest extends WebTestCase
     }
 
     /**
-     * The 10-day term runs from the court's notice (OUG 80/2013 art. 33 alin. 2), a
-     * date the platform cannot observe, so the lawyer supplies it and we compute the term.
-     */
-    /**
-     * CPC art. 200 grants "cel mult 10 zile", so a court that gives fewer must be
+     * OUG 80/2013 art. 33 alin. 2, through CPC art. 200, grants "cel mult 10 zile", so a court that gives fewer must be
      * recordable. The lawyer supplies the number off the notice; the free-day count
      * and the prorogation stay with the application, which is the whole point of
      * asking for days rather than for a date.

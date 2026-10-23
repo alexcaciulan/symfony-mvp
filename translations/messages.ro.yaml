@@ -1268,7 +1268,7 @@ case_overview:
             field_date_label: 'Data primirii înștiințării'
             field_days_label: 'Termenul acordat de instanță'
             days_option: '%count% zile'
-            field_days_hint: 'Instanța acordă cel mult 10 zile de la primirea comunicării (CPC art. 200). Dacă în înștiințare scrie mai puțin, alege cât scrie acolo. Data exactă o calculează aplicația.'
+            field_days_hint: 'Instanța acordă cel mult 10 zile de la primirea comunicării (OUG 80/2013 art. 33 alin. 2 și CPC art. 200). Dacă în înștiințare scrie mai puțin, alege cât scrie acolo. Data exactă o calculează aplicația.'
             cancel: 'Renunță'
             submit: 'Calculează termenul'
         flash_success_paid: 'Dovada plății a fost salvată. Taxa de timbru figurează ca achitată.'
@@ -1285,7 +1285,7 @@ case_overview:
         flash_error_registry_needs_case_number: 'Plata prin registratură se face în dosarul existent. Confirmarea devine disponibilă după ce instanța alocă numărul de dosar.'
         flash_error_consent_required: 'Bifați asumarea riscului pentru a depune fără dovadă de plată.'
         flash_error_notice_date_invalid: 'Data înștiințării nu este validă.'
-        flash_error_granted_days_invalid: 'Termenul acordat de instanță trebuie să fie între 1 și 10 zile (CPC art. 200).'
+        flash_error_granted_days_invalid: 'Termenul acordat de instanță trebuie să fie între 1 și 10 zile (OUG 80/2013 art. 33 alin. 2 și CPC art. 200).'
         flash_error_notice_date_future: 'Data înștiințării nu poate fi în viitor.'
         flash_error_notice_when_paid: 'Taxa figurează achitată pe acest dosar, deci nu mai curge niciun termen de timbrare. Dacă instanța a cerut totuși o completare, tratați-o ca termen separat.'
         error:
@@ -1468,7 +1468,7 @@ case_overview:
         generate_op_item_cerere_hint: 'va fi generată'
         generate_op_item_opis: 'Opis documente (PDF)'
         generate_op_item_opis_hint: 'va fi generat'
-        generate_op_item_evidence: 'somație + contract + factură'
+        generate_op_item_evidence: 'somația și înscrisurile care dovedesc creanța'
         generate_op_item_evidence_hint: '%count% fișiere existente'
         generate_op_disclaimer_warning: 'Atenție:'
         generate_op_disclaimer_body: 'Vei depune cererea la %court%. Întoarce-te aici după depunere pentru a introduce nr. dosar instanță.'
@@ -3598,7 +3598,8 @@ deadlines:
 filing:
     receipt:
         inbound_title: 'Mesaje primite despre această transmitere'
-        manual_line: 'încărcat de avocat'
+        manual_title: 'Confirmare de primire'
+        manual_line: 'încărcată de avocat'
         from_line: 'de la %from%'
         auth_note: 'verificare tehnică a expeditorului, nu atestare a instanței'
         probable_line: 'posibilă potrivire, necesită confirmare'

@@ -1271,7 +1271,7 @@ case_overview:
             field_date_label: 'Date the notice was received'
             field_days_label: 'Term granted by the court'
             days_option: '%count% days'
-            field_days_hint: 'The court grants at most 10 days from receipt of the notice (Code of Civil Procedure art. 200). If the notice says fewer, pick what it says. The application works out the exact date.'
+            field_days_hint: 'The court grants at most 10 days from receipt of the notice (OUG 80/2013 art. 33 para. 2 and Code of Civil Procedure art. 200). If the notice says fewer, pick what it says. The application works out the exact date.'
             cancel: 'Cancel'
             submit: 'Compute the term'
         flash_success_paid: 'The proof of payment was saved. The stamp duty is recorded as paid.'
@@ -1288,7 +1288,7 @@ case_overview:
         flash_error_registry_needs_case_number: 'Payment through the registry is made in the existing case. Confirmation becomes available once the court assigns a case number.'
         flash_error_consent_required: 'Tick the risk acknowledgement to file without proof of payment.'
         flash_error_notice_date_invalid: 'The notice date is not valid.'
-        flash_error_granted_days_invalid: 'The term granted by the court must be between 1 and 10 days (Code of Civil Procedure art. 200).'
+        flash_error_granted_days_invalid: 'The term granted by the court must be between 1 and 10 days (OUG 80/2013 art. 33 para. 2 and Code of Civil Procedure art. 200).'
         flash_error_notice_date_future: 'The notice date cannot be in the future.'
         flash_error_notice_when_paid: 'The duty is recorded as paid on this case, so no stamping term runs any more. If the court still asked for something, treat it as a separate deadline.'
         error:
@@ -1471,7 +1471,7 @@ case_overview:
         generate_op_item_cerere_hint: 'to be generated'
         generate_op_item_opis: 'Documents index (PDF)'
         generate_op_item_opis_hint: 'to be generated'
-        generate_op_item_evidence: 'notice + contract + invoice'
+        generate_op_item_evidence: 'the payment notice and the documents proving the claim'
         generate_op_item_evidence_hint: '%count% existing files'
         generate_op_disclaimer_warning: 'Heads up:'
         generate_op_disclaimer_body: 'You will file the petition with %court%. Return here after filing to enter the court case number.'
@@ -3601,6 +3601,7 @@ deadlines:
 filing:
     receipt:
         inbound_title: 'Messages received about this transmission'
+        manual_title: 'Receipt confirmation'
         manual_line: 'uploaded by the lawyer'
         from_line: 'from %from%'
         auth_note: 'technical check of the sender, not an attestation by the court'

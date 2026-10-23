@@ -10,7 +10,7 @@
             {% for row in rows %}
                 {% set mail = row.mail %}
                 <li class="text-[11px]" data-testid="filing-inbound-mail" data-classification="{{ mail.classification ? mail.classification.value : '' }}">
-                    <span class="font-medium">{{ mail.classification ? mail.classification.label|trans : '' }}</span>
+                    <span class="font-medium">{{ mail.manual ? 'filing.receipt.manual_title'|trans : (mail.classification ? mail.classification.label|trans : '') }}</span>
                     <span class="text-slate-500 dark:text-slate-400">{{ mail.receivedAt|date('d.m.Y H:i', 'Europe/Bucharest') }}</span>
                     {% if mail.manual %}
                         <span>{{ 'filing.receipt.manual_line'|trans }}</span>
