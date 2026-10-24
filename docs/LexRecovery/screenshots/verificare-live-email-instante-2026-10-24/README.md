@@ -94,11 +94,13 @@ Capturile sunt grupate în subfoldere, în ordinea fluxului.
 | `09-notificare-admin-casuta-necitita.png` | Notificarea adminului: căsuța de mesaje nu a mai fost citită (comanda `inbound-heartbeat-check`) | ✅ |
 | `10-admin-lista-mesaje-primite.png`, `11-admin-detaliu-raspuns-fara-continutul-mesajului.png` | Mesajele primite în admin; adminul nu vede conținutul răspunsului instanței | ✅ (vezi observația 5) |
 
-## Observații (nereparate, de decis)
+## 07-reparatii-observatii: observații găsite la test și reparate (24.10.2026)
 
-1. **După F1, cardul spune lucruri contradictorii.** Titlul este „Cererea a fost trimisă, dar transmiterea s-a închis fără toate anexele”, deși cererea a revenit nelivrată. Tot acolo scrie „Refuzul nu privește neapărat adresa instanței”, deși raportul (5.1.1) spune că adresa nu există.
-2. **Codul raportului de nelivrare apare ca „Cod SMTP: - 5.1.1”.** Când există doar codul extins, liniuța din față e în plus.
-3. **Text greșit la `.eml` cu dată dinaintea trimiterii.** Cardul spune „Din PDF sau imagine nu se citește nicio dată”, deși fișierul e `.eml`.
-4. **Pagina de deblocare din admin afișează valori netraduse.** Apar stările (NEEDS_REVIEW, UNCERTAIN, FAILED_INTERNAL), cheia motivului (`filing.status.review.part_uncertain`) și „ADMIN_OVERRIDE INTERNAL”.
-5. **Eticheta greșită în lista de mesaje primite din admin.** Confirmările încărcate de avocat apar ca „Confirmare automată de primire”. Pe cardul avocatului eticheta e deja corectă.
-6. **Lista de adrese din admin afișează valori netraduse.** Apar REGISTRY, VALIDATED, MANUAL și LAWYER_SUGGESTION. Problema exista dinainte și ține de tot admin-ul (de exemplu, datele în format englezesc).
+| # | Observație | Reparație | Captură | Rezultat |
+|---|---|---|---|---|
+| 1 | După F1, cardul spunea „Cererea a fost trimisă...” și „Refuzul nu privește neapărat adresa instanței”, deși cererea revenise nelivrată cu adresa inexistentă | Titlu nou: „E-mailul cu cererea a fost returnat după avansarea dosarului; transmiterea s-a închis”. Pentru codurile 5.1.1-5.1.3 și 5.4.4 textul spune că raportul indică o adresă inexistentă, care se verifică cu registratura (sau că a fost raportată adminului, dacă s-a creat un raport) | `01-dupa-F1-titlu-cererea-returnata-cod-si-adresa-inexistenta.png` | ✅ |
+| 2 | „Cod SMTP: - 5.1.1” | Se afișează doar codurile existente: „Cod SMTP: 5.1.1” | aceeași captură | ✅ |
+| 3 | `.eml` cu data dinaintea trimiterii: textul vorbea de „PDF sau imagine” | Text propriu: data din antetul `.eml` nu corespunde transmiterii, deci nu a fost preluată | `02-eml-cu-data-dinainte-de-trimitere-text-corect.png` | ✅ |
+| 4 | Pagina de deblocare din admin afișa valori netraduse | Starea, motivul, starea e-mailului, sursa și rezultatul încercărilor apar traduse | `03-admin-deblocare-stari-traduse.png` | ✅ |
+| 5 | În lista de mesaje primite din admin, confirmarea încărcată de avocat apărea ca „Confirmare automată de primire” | Apare „Confirmare de primire” | `04-admin-mesaje-primite-confirmare-incarcata-de-avocat.png` | ✅ |
+| 6 | Lista de adrese din admin afișa REGISTRY, VALIDATED, MANUAL | Scopul, statusul și sursa apar traduse („Registratură”, „Confirmată”, „Introdusă manual (admin)”). Datele în format englezesc rămân, ca în tot admin-ul | `05-admin-lista-adrese-traduse.png` | ✅ |
