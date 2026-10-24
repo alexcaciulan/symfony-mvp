@@ -74,6 +74,22 @@ final class CourtEmailAddressAdminTest extends WebTestCase
         self::assertStringNotContainsString('registratura-filtru@just.ro', (string) $this->client->getResponse()->getContent());
     }
 
+    /** Purpose, status and source read as words in the list, not as stored values. */
+    public function testTheListShowsTranslatedPurposeStatusAndSource(): void
+    {
+        $this->createCourtEmailAddress($this->em, $this->court, 'registratura-eticheta@just.ro', CourtEmailPurpose::REGISTRY);
+        $this->client->loginUser($this->admin);
+
+        $crawler = $this->client->request('GET', '/admin/court-email-address');
+        self::assertResponseIsSuccessful();
+        $row = $crawler->filter('tbody tr')->reduce(static fn ($tr): bool => str_contains($tr->text(), 'registratura-eticheta@just.ro'));
+        self::assertCount(1, $row);
+        self::assertStringContainsString('Registratură', $row->text());
+        self::assertStringContainsString('Propusă, neconfirmată', $row->text());
+        self::assertStringNotContainsString('REGISTRY', $row->text());
+        self::assertStringNotContainsString('PROPOSED', $row->text());
+    }
+
     public function testCourtDetailListsItsAddressesReadOnly(): void
     {
         $this->createCourtEmailAddress($this->em, $this->court, 'registratura-detaliu@just.ro', CourtEmailPurpose::REGISTRY);

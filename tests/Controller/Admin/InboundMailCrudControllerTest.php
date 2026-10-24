@@ -5,8 +5,12 @@ declare(strict_types=1);
 namespace App\Tests\Controller\Admin;
 
 use App\Entity\FilingSubmission;
+use App\Entity\InboundMail;
 use App\Entity\LegalCase;
 use App\Entity\User;
+use App\Enum\InboundClassification;
+use App\Enum\InboundMatchConfidence;
+use App\Enum\InboundMatchMethod;
 use App\Tests\Support\FilingCaseFixtureTrait;
 use App\Tests\Support\FilingSubmissionTestTrait;
 use App\Tests\Support\InboundTestTrait;
@@ -72,6 +76,30 @@ final class InboundMailCrudControllerTest extends WebTestCase
 
         $this->client->request('GET', '/admin/inbound-mail/' . $mail->getId() . '/edit');
         self::assertResponseStatusCodeSame(403);
+    }
+
+    /** A receipt the lawyer uploaded is listed as such, not as an automatic court reply. */
+    public function testAnUploadedReceiptIsNotListedAsAnAutomaticOne(): void
+    {
+        $submission = $this->submitFiling($this->case, $this->user);
+        $now = new \DateTimeImmutable();
+        $mail = new InboundMail(InboundMail::SOURCE_MANUAL, bin2hex(random_bytes(16)), 'inbound/test-manual.pdf', str_repeat('a', 64), 10, $now, $now);
+        $mail->setRawMime(InboundMail::MIME_PDF);
+        $mail->setClassification(InboundClassification::RECEIPT);
+        $mail->match(null, $submission, InboundMatchMethod::MANUAL, InboundMatchConfidence::CERTAIN);
+        $mail->markProcessed($now, null);
+        $this->em->persist($mail);
+        $this->em->flush();
+
+        $this->client->loginUser($this->admin);
+        $crawler = $this->client->request('GET', '/admin/inbound-mail');
+        self::assertResponseIsSuccessful();
+        $row = $crawler->filter('tr[data-id="' . $mail->getId() . '"]');
+        $text = $row->count() > 0 ? $row->text() : (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('Confirmare de primire', $text);
+        self::assertStringNotContainsString('Confirmare automată de primire', $text);
+
+        $this->em->getConnection()->executeStatement('DELETE FROM inbound_mail WHERE id = ?', [$mail->getId()]);
     }
 
     public function testReviewIsClosedOnlyWithAValidToken(): void

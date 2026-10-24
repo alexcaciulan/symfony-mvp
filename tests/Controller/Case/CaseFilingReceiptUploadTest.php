@@ -142,6 +142,9 @@ final class CaseFilingReceiptUploadTest extends WebTestCase
 
         self::assertSame('RECEIPT_MANUAL', $this->evidence());
         self::assertNull($this->em->getConnection()->fetchOne('SELECT court_receipt_at FROM filing_submission WHERE id = ?', [$this->submissionId]));
+        $this->client->request('GET', sprintf('/case/%d/filing/submission/card', $this->case->getId()));
+        self::assertSelectorTextContains('[data-testid="filing-receipt-manual-no-date"]', 'antetul mesajului .eml');
+        self::assertSelectorTextNotContains('[data-testid="filing-receipt-manual-no-date"]', 'PDF sau imagine');
     }
 
     /** @return iterable<string, array{string, string}> */
@@ -339,6 +342,12 @@ final class CaseFilingReceiptUploadTest extends WebTestCase
         self::assertStringContainsString('Verificarea a fost înregistrată.', (string) $this->client->getResponse()->getContent());
         self::assertSame('SENT', $this->delivery());
         self::assertSame(1, (int) $this->em->getConnection()->fetchOne("SELECT COUNT(*) FROM audit_log WHERE action = 'filing_late_bounce_acknowledged' AND entity_id = ?", [(string) $this->case->getId()]));
+        // Once acknowledged, the card says the petition came back instead of calling it sent.
+        $this->client->request('GET', sprintf('/case/%d/filing/submission/card', $this->case->getId()));
+        self::assertSelectorTextContains('[data-testid="filing-submission-headline"]', 'cererea a fost returnat');
+        self::assertSelectorTextContains('[data-testid="filing-submission-failure-code"]', 'Cod SMTP: 5.1.1');
+        self::assertSelectorTextNotContains('[data-testid="filing-submission-failure-code"]', '- 5.1.1');
+        self::assertSelectorTextContains('[data-testid="filing-submission-address-rejected"]', 'adresă inexistentă');
     }
 
     public function testLateBounceAckNeedsAValidCsrfToken(): void

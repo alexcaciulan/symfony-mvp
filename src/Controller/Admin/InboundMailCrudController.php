@@ -82,7 +82,10 @@ class InboundMailCrudController extends AbstractCrudController
         yield TextField::new('fromAddress', 'De la');
         yield TextField::new('toAddress', 'Către')->onlyOnDetail();
         yield TextField::new('subject', 'Subiect');
-        yield TextField::new('classification', 'Clasificare')->formatValue($this->enumLabel(...))->setTemplateName('crud/field/generic');
+        // A receipt the lawyer uploaded is classified as one, but it is not an automatic reply.
+        yield TextField::new('classification', 'Clasificare')
+            ->formatValue(fn ($value, InboundMail $mail): string => $mail->isManual() ? $this->translator->trans('filing.receipt.manual_title') : $this->enumLabel($value))
+            ->setTemplateName('crud/field/generic');
         yield TextField::new('authVerdict', 'Verificare tehnică expeditor')->formatValue($this->enumLabel(...))->setTemplateName('crud/field/generic');
         yield TextField::new('dsnStatus', 'Cod raport livrare');
         yield TextField::new('matchMethod', 'Potrivire')->formatValue($this->enumLabel(...))->setTemplateName('crud/field/generic');

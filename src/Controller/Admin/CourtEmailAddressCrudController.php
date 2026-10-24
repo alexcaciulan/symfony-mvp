@@ -17,7 +17,6 @@ use EasyCorp\Bundle\EasyAdminBundle\Config\Filters;
 use EasyCorp\Bundle\EasyAdminBundle\Controller\AbstractCrudController;
 use EasyCorp\Bundle\EasyAdminBundle\Field\AssociationField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\BooleanField;
-use EasyCorp\Bundle\EasyAdminBundle\Field\ChoiceField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\DateTimeField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\IdField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\TextareaField;
@@ -88,11 +87,20 @@ class CourtEmailAddressCrudController extends AbstractCrudController
         yield IdField::new('id')->onlyOnIndex();
         yield AssociationField::new('court', 'Instanță');
         yield TextField::new('email', 'E-mail');
-        yield ChoiceField::new('purpose', 'Scop')->setChoices(self::PURPOSE_LABELS);
+        yield TextField::new('purpose', 'Scop')
+            ->formatValue(self::labelOf(self::PURPOSE_LABELS))
+            // The text template prints the raw value as a title, which an enum cannot be.
+            ->setTemplateName('crud/field/generic');
         yield TextField::new('sectionLabel', 'Secția (din sursă)')->onlyOnDetail();
-        yield ChoiceField::new('status', 'Status')->setChoices(self::STATUS_LABELS);
+        yield TextField::new('status', 'Status')
+            ->formatValue(self::labelOf(self::STATUS_LABELS))
+            // The text template prints the raw value as a title, which an enum cannot be.
+            ->setTemplateName('crud/field/generic');
         yield BooleanField::new('filingDefault', 'Implicită')->renderAsSwitch(false);
-        yield ChoiceField::new('source', 'Sursă')->setChoices(self::SOURCE_LABELS);
+        yield TextField::new('source', 'Sursă')
+            ->formatValue(self::labelOf(self::SOURCE_LABELS))
+            // The text template prints the raw value as a title, which an enum cannot be.
+            ->setTemplateName('crud/field/generic');
         yield DateTimeField::new('validatedAt', 'Confirmată la');
         yield AssociationField::new('validatedBy', 'Confirmată de');
         yield DateTimeField::new('missingSince', 'Dispărută din sursă din');
@@ -113,6 +121,16 @@ class CourtEmailAddressCrudController extends AbstractCrudController
             ->add(EntityFilter::new('court', 'Instanță'))
             ->add(CourtCountyFilter::new())
             ->add(CourtTypeFilter::new());
+    }
+
+    /**
+     * @param array<string, \BackedEnum> $labels
+     *
+     * @return \Closure(mixed): string
+     */
+    private static function labelOf(array $labels): \Closure
+    {
+        return static fn (mixed $value): string => (string) (array_search($value, $labels, true) ?: '');
     }
 
     /** @return list<Action> */

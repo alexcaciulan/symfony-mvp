@@ -6,6 +6,7 @@ namespace App\Tests\Controller\Admin;
 
 use App\Entity\LegalCase;
 use App\Entity\User;
+use App\Enum\FilingDeliveryStatus;
 use App\Tests\Support\FilingCaseFixtureTrait;
 use App\Tests\Support\FilingSubmissionTestTrait;
 use App\Tests\Support\RecordingCourtTransport;
@@ -65,7 +66,9 @@ final class FilingSubmissionOverrideControllerTest extends WebTestCase
         $this->client->request('GET', sprintf('/admin/filing-submission/%d/override', $this->submissionId));
 
         self::assertResponseIsSuccessful();
-        self::assertSelectorTextContains('[data-testid="admin-submission-status"]', 'NEEDS_REVIEW');
+        $translator = static::getContainer()->get('translator');
+        self::assertSelectorTextContains('[data-testid="admin-submission-status"]', $translator->trans(FilingDeliveryStatus::NEEDS_REVIEW->label()));
+        self::assertSelectorTextNotContains('[data-testid="admin-submission-status"]', 'NEEDS_REVIEW');
         self::assertSelectorExists('[data-testid="admin-override-form-1"]');
         // Only "not sent" for the petition: its acceptance is the lawyer's declaration.
         self::assertSelectorNotExists('[data-testid="admin-override-form-1"] option[value="accepted"]');
