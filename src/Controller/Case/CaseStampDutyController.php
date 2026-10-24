@@ -202,6 +202,55 @@ final class CaseStampDutyController extends AbstractController
         );
     }
 
+    /**
+     * The registry confirmation obtained after a registry payment was declared without
+     * it. Only the file is taken; the payment data stays as declared.
+     */
+    #[Route('/case/{id}/stamp-duty/registry-confirmation', name: 'case_stamp_duty_registry_confirmation', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function registryConfirmation(
+        int $id,
+        Request $request,
+        RateLimiterFactory $documentUploadLimiter,
+        ValidatorInterface $validator,
+    ): Response {
+        $case = $this->findOrThrow($id);
+        $this->denyAccessUnlessGranted(CaseVoter::STAMP_DUTY_MANAGE, $case);
+
+        if (!$this->isCsrfTokenValid('stamp_duty_registry_confirmation_' . $id, $request->getPayload()->getString('_token'))) {
+            return $this->respond($request, $case, false, 'error', 'case_overview.stamp_duty.flash_error_csrf');
+        }
+
+        if ($case->getStampDutyStatus() !== StampDutyStatus::ACHITATA || !$case->isStampDutyPaidThroughRegistry() || $case->hasStampDutyProof()) {
+            return $this->respond($request, $case, false, 'warning', 'case_overview.stamp_duty.flash_error_registry_confirmation_not_expected');
+        }
+
+        $file = $request->files->get('file');
+        if (!$file instanceof UploadedFile) {
+            return $this->respond($request, $case, false, 'error', 'case_overview.stamp_duty.flash_error_registry_confirmation_missing');
+        }
+
+        $user = $this->getUser();
+        if ($user !== null && !$documentUploadLimiter->create($user->getUserIdentifier())->consume()->isAccepted()) {
+            return $this->respond($request, $case, false, 'warning', 'rate_limit.document_upload');
+        }
+
+        $violations = $validator->validate($file, StampDutyProofType::fileConstraint());
+        if (\count($violations) > 0) {
+            return $this->respond($request, $case, false, 'error', (string) $violations->get(0)->getMessage());
+        }
+
+        $this->stampDutyService->attachRegistryConfirmation($case, $file, $user);
+
+        return $this->respond(
+            $request,
+            $case,
+            true,
+            'success',
+            'case_overview.stamp_duty.flash_success_registry_confirmation_attached',
+            'hs-modal-stamp-duty-registry-confirmation',
+        );
+    }
+
     #[Route('/case/{id}/stamp-duty/defer', name: 'case_stamp_duty_defer', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function defer(int $id, Request $request): Response
     {

@@ -498,7 +498,9 @@ final class CaseStampDutyControllerTest extends WebTestCase
         $cardLink = $crawler->filter(sprintf('a[href$="/document/%d/download"]', $documents[0]->getId()))
             ->reduce(static fn ($node): bool => str_contains($node->text(), $viewProof));
         self::assertCount(1, $cardLink, 'The card links the attached confirmation as the proof.');
-        self::assertCount(0, $crawler->filter('button:contains("' . $this->trans('case_overview.stamp_duty.cta_attach_registry_confirmation') . '")'));
+        self::assertTrue($refreshed->isStampDutyPaidThroughRegistry());
+        self::assertStringContainsString($this->trans('case_overview.stamp_duty.paid_through_registry_with_confirmation'), $crawler->text());
+        self::assertCount(0, $crawler->filter('#case-stamp-duty-card button:contains("' . $this->trans('case_overview.stamp_duty.cta_attach_registry_confirmation') . '")'));
     }
 
     /** A wrong file type is a message, not a half-recorded payment. */
@@ -537,16 +539,98 @@ final class CaseStampDutyControllerTest extends WebTestCase
         $this->case->setCourtCaseNumber('4524/211/2026');
         $this->case->setStampDutyStatus(StampDutyStatus::ACHITATA);
         $this->case->setStampDutyPaidAt(new \DateTimeImmutable('2026-07-15'));
+        $this->case->setStampDutyPaidThroughRegistry(true);
         $this->em->flush();
 
         $this->client->loginUser($this->user);
         $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
 
         $label = $this->trans('case_overview.stamp_duty.cta_attach_registry_confirmation');
-        $attach = $crawler->filter('button[data-hs-overlay="#hs-modal-stamp-duty-proof"]')
+        $attach = $crawler->filter('#case-stamp-duty-card button[data-hs-overlay="#hs-modal-stamp-duty-registry-confirmation"]')
             ->reduce(static fn ($node): bool => str_contains($node->text(), $label));
-        self::assertCount(1, $attach, 'The attach link opens the proof upload.');
+        self::assertCount(1, $attach, 'The attach link opens the registry confirmation upload, not the generic proof form.');
+        $modal = $crawler->filter('#hs-modal-stamp-duty-registry-confirmation');
+        self::assertCount(0, $modal->filter('input[name="paidAt"]'), 'The declared payment date is not asked again.');
+        self::assertStringContainsString('15.07.2026', $modal->text());
         self::assertStringContainsString($this->trans('case_overview.stamp_duty.paid_through_registry'), $crawler->text());
+    }
+
+    /** The confirmation obtained later is attached alone: the declared payment does not change. */
+    public function testAttachingTheRegistryConfirmationLaterKeepsTheDeclaredPayment(): void
+    {
+        $this->case->setStatus(CaseStatus::DOSAR_INREGISTRAT);
+        $this->case->setCourtCaseNumber('4525/211/2026');
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/registry-paid', [
+            '_token' => $this->csrfToken('/stamp-duty/registry-paid', '_token'),
+            'paidAt' => '2026-07-15',
+            'paymentReference' => 'GH-7001',
+        ]);
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/registry-confirmation', [
+            '_token' => $this->csrfToken('/stamp-duty/registry-confirmation', '_token'),
+        ], [
+            'file' => $this->proofFile(),
+        ]);
+
+        $flashes = $this->client->getRequest()->getSession()->getFlashBag()->peekAll();
+        self::assertContains('case_overview.stamp_duty.flash_success_registry_confirmation_attached', array_merge(...array_values($flashes)));
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertTrue($refreshed->hasStampDutyProof());
+        self::assertTrue($refreshed->isStampDutyPaidThroughRegistry());
+        self::assertSame('2026-07-15', $refreshed->getStampDutyPaidAt()->format('Y-m-d'));
+        self::assertSame('GH-7001', $refreshed->getStampDutyPaymentReference());
+        self::assertSame(1, (int) $this->em->getConnection()->fetchOne(
+            "SELECT COUNT(*) FROM audit_log WHERE action = 'stamp_duty_registry_confirmation_attached' AND entity_id = ?",
+            [(string) $this->case->getId()],
+        ));
+
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+        self::assertStringContainsString($this->trans('case_overview.stamp_duty.paid_through_registry_with_confirmation'), $crawler->text());
+        self::assertCount(0, $crawler->filter('#case-stamp-duty-card button[data-hs-overlay="#hs-modal-stamp-duty-registry-confirmation"]'));
+    }
+
+    /** A payment proven by an uploaded receipt has nothing to receive through this route. */
+    public function testTheRegistryConfirmationIsRefusedForAPaymentNotMadeThroughTheRegistry(): void
+    {
+        $this->case->setStampDutyStatus(StampDutyStatus::ACHITATA);
+        $this->case->setStampDutyPaidAt(new \DateTimeImmutable('2026-07-15'));
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+        $token = (string) $this->client->getCrawler()->filter('#hs-modal-stamp-duty-registry-confirmation input[name="_token"]')->attr('value');
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/registry-confirmation', [
+            '_token' => $token,
+        ], [
+            'file' => $this->proofFile(),
+        ]);
+
+        $flashes = $this->client->getRequest()->getSession()->getFlashBag()->peekAll();
+        self::assertContains('case_overview.stamp_duty.flash_error_registry_confirmation_not_expected', array_merge(...array_values($flashes)));
+        self::assertCount(0, $this->em->getRepository(Document::class)->findBy(['legalCase' => $this->case->getId()]));
+    }
+
+    public function testTheRegistryConfirmationWithoutAFileIsRefused(): void
+    {
+        $this->case->setStampDutyStatus(StampDutyStatus::ACHITATA);
+        $this->case->setStampDutyPaidAt(new \DateTimeImmutable('2026-07-15'));
+        $this->case->setStampDutyPaidThroughRegistry(true);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/registry-confirmation', [
+            '_token' => $this->csrfToken('/stamp-duty/registry-confirmation', '_token'),
+        ]);
+
+        $flashes = $this->client->getRequest()->getSession()->getFlashBag()->peekAll();
+        self::assertContains('case_overview.stamp_duty.flash_error_registry_confirmation_missing', array_merge(...array_values($flashes)));
+        self::assertCount(0, $this->em->getRepository(Document::class)->findBy(['legalCase' => $this->case->getId()]));
     }
 
     private function trans(string $key): string

@@ -139,6 +139,14 @@ class LegalCase
     #[ORM\Column(length: 100, nullable: true)]
     private ?string $stampDutyPaymentReference = null;
 
+    /**
+     * The payment was individualized on the court file through the electronic registry.
+     * Kept apart from the proof: the registry confirmation is optional and may be
+     * attached later, and the card must still say which channel the money took.
+     */
+    #[ORM\Column(options: ['default' => false])]
+    private bool $stampDutyPaidThroughRegistry = false;
+
     /** Statutory basis for the amount, frozen at payment time for retroactive justification. */
     #[ORM\Column(length: 120, nullable: true)]
     private ?string $stampDutyLawVersion = null;
@@ -767,6 +775,18 @@ class LegalCase
     public function setStampDutyPaymentReference(?string $stampDutyPaymentReference): static
     {
         $this->stampDutyPaymentReference = $stampDutyPaymentReference;
+
+        return $this;
+    }
+
+    public function isStampDutyPaidThroughRegistry(): bool
+    {
+        return $this->stampDutyPaidThroughRegistry;
+    }
+
+    public function setStampDutyPaidThroughRegistry(bool $stampDutyPaidThroughRegistry): static
+    {
+        $this->stampDutyPaidThroughRegistry = $stampDutyPaidThroughRegistry;
 
         return $this;
     }

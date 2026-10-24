@@ -50,18 +50,19 @@
                         {% elseif case.stampDutyUat %}
                             <p class="mt-0.5">{{ 'case_overview.stamp_duty.paid_to'|trans({'%uat%': case.stampDutyUat}) }}</p>
                         {% endif %}
+                        {% if case.stampDutyPaidThroughRegistry %}
+                            <p class="mt-0.5">{{ (proof ? 'case_overview.stamp_duty.paid_through_registry_with_confirmation' : 'case_overview.stamp_duty.paid_through_registry')|trans }}</p>
+                        {% endif %}
                         {% if proof %}
                             <a href="{{ path('case_document_download', {caseId: case.id, documentId: proof.id}) }}"
                                class="mt-1 inline-flex items-center gap-1 font-semibold underline">
                                 {{ icon_document('size-3.5') }}
                                 {{ 'case_overview.stamp_duty.view_proof'|trans }}
                             </a>
-                        {% elseif case.stampDutyPaidAt %}
-                            {# Registry payment declared without a file. The portal may have
-                               sent the confirmation only to the payer, so the lawyer can still
-                               attach it later through the proof upload. #}
-                            <p class="mt-0.5">{{ 'case_overview.stamp_duty.paid_through_registry'|trans }}</p>
-                            <button type="button" data-hs-overlay="#hs-modal-stamp-duty-proof"
+                        {% elseif case.stampDutyPaidThroughRegistry %}
+                            {# The portal may have sent the confirmation only to the payer, so
+                               the lawyer can attach it later, without restating the payment. #}
+                            <button type="button" data-hs-overlay="#hs-modal-stamp-duty-registry-confirmation"
                                     class="mt-1 inline-flex items-center gap-1 font-semibold underline">
                                 {{ icon_document('size-3.5') }}
                                 {{ 'case_overview.stamp_duty.cta_attach_registry_confirmation'|trans }}

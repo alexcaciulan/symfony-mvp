@@ -54,9 +54,12 @@ final class StampDutyService
         $document = $this->documentUploadService->upload($case, $file, DocumentType::DOVADA_TAXA_TIMBRU, $user);
 
         $target = $this->uatResolver->resolve($case);
+        // A receipt filed on a duty already paid through the registry documents that
+        // payment; only a payment proven from scratch drops the registry channel.
+        $provenFromScratch = $case->getStampDutyStatus() !== StampDutyStatus::ACHITATA;
 
         try {
-            $this->em->wrapInTransaction(function () use ($case, $document, $paidAt, $paidAmount, $payerName, $paymentReference, $lawVersion, $target): void {
+            $this->em->wrapInTransaction(function () use ($case, $document, $paidAt, $paidAmount, $payerName, $paymentReference, $lawVersion, $target, $provenFromScratch): void {
                 $case->setStampDutyStatus(StampDutyStatus::ACHITATA);
                 $case->setStampDutyPaidAt($paidAt);
                 $case->setStampDutyPaidAmount($paidAmount);
@@ -64,6 +67,9 @@ final class StampDutyService
                 $case->setStampDutyPaymentReference($paymentReference);
                 $case->setStampDutyUat($target->uatName());
                 $case->setStampDutyLawVersion($lawVersion);
+                if ($provenFromScratch) {
+                    $case->setStampDutyPaidThroughRegistry(false);
+                }
                 $this->em->flush();
 
                 $this->auditLogService->log(
@@ -156,6 +162,7 @@ final class StampDutyService
                 $case->setStampDutyPaymentReference($paymentReference);
                 $case->setStampDutyUat($target->uatName());
                 $case->setStampDutyLawVersion($lawVersion);
+                $case->setStampDutyPaidThroughRegistry(true);
                 $this->em->flush();
 
                 $this->auditLogService->log(
@@ -180,6 +187,38 @@ final class StampDutyService
                 $case->getDocuments()->removeElement($document);
                 $this->documentUploadService->delete($document);
             }
+
+            throw $e;
+        }
+
+        return $document;
+    }
+
+    /**
+     * Attaches the registry confirmation the lawyer obtained after declaring the
+     * payment. Only the file is added: the date, reference and UAT stay as declared,
+     * since the payment itself did not change.
+     */
+    public function attachRegistryConfirmation(LegalCase $case, UploadedFile $file, UserInterface $user): Document
+    {
+        $document = $this->documentUploadService->upload($case, $file, DocumentType::DOVADA_TAXA_TIMBRU, $user);
+
+        try {
+            $this->auditLogService->log(
+                action: 'stamp_duty_registry_confirmation_attached',
+                entityType: LegalCase::class,
+                entityId: (string) $case->getId(),
+                newData: [
+                    'caseNumber' => $case->getCaseNumber(),
+                    'documentId' => $document->getId(),
+                    'attachedBy' => $user->getUserIdentifier(),
+                ],
+                category: AuditLogService::CATEGORY_STAMP_DUTY,
+            );
+            $this->em->flush();
+        } catch (\Throwable $e) {
+            $case->getDocuments()->removeElement($document);
+            $this->documentUploadService->delete($document);
 
             throw $e;
         }

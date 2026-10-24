@@ -21,6 +21,10 @@
     <turbo-stream action="replace" target="hs-modal-cerere-op">
         <template>{{ include('case/overview/_modal_generate_op.html.twig') }}</template>
     </turbo-stream>
+    {# Page-level too: it shows the declared payment date, set by the registry payment. #}
+    <turbo-stream action="replace" target="hs-modal-stamp-duty-registry-confirmation">
+        <template>{{ include('case/overview/_modal_stamp_duty_registry_confirmation.html.twig') }}</template>
+    </turbo-stream>
 {% endif %}
 
 {% if close_modal_id is defined and close_modal_id %}
