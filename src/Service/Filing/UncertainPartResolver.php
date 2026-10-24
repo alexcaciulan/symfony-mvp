@@ -29,6 +29,10 @@ final class UncertainPartResolver
     public const CONFIRM_NOT_RECEIVED = 'cc_not_received';
     public const OVERRIDE_ACCEPTED = 'accepted';
     public const OVERRIDE_FAILED = 'failed';
+    /** The last error a part keeps after the lawyer declared the CC copy not received. */
+    public const NOT_RECEIVED_ERROR = 'filing.uncertain.not_received';
+    /** The last error a part keeps after an admin marked it as not sent. */
+    public const OVERRIDE_FAILED_ERROR = 'filing.override.failed';
     private const MIN_REASON_LENGTH = 10;
 
     public function __construct(
@@ -76,7 +80,7 @@ final class UncertainPartResolver
     {
         $this->resolveAsLawyer($part, $lawyer, $confirmed, self::CONFIRM_NOT_RECEIVED, function (FilingEmailPart $part, User $lawyer): void {
             $this->addAttempt($part, FilingAttemptSource::LAWYER_CC_CHECK, FilingAttemptOutcome::INTERNAL, 'Lawyer declared the CC copy not received');
-            $this->outcomes->failed($part, FilingPartStatus::FAILED_INTERNAL, null, 'filing.uncertain.not_received', $lawyer);
+            $this->outcomes->failed($part, FilingPartStatus::FAILED_INTERNAL, null, self::NOT_RECEIVED_ERROR, $lawyer);
         });
     }
 
@@ -107,7 +111,7 @@ final class UncertainPartResolver
                 $this->outcomes->accepted($part, $part->latestSmtpAttempt()?->getStartedAt() ?? $this->clock->now(), FilingAttemptSource::ADMIN_OVERRIDE, $admin);
             } else {
                 $this->addAttempt($part, FilingAttemptSource::ADMIN_OVERRIDE, FilingAttemptOutcome::INTERNAL, $message);
-                $this->outcomes->failed($part, FilingPartStatus::FAILED_INTERNAL, null, 'filing.override.failed', $admin);
+                $this->outcomes->failed($part, FilingPartStatus::FAILED_INTERNAL, null, self::OVERRIDE_FAILED_ERROR, $admin);
             }
             $this->audit($part, 'filing_part_admin_override', $admin, [
                 'sequence' => $part->getSequence(),

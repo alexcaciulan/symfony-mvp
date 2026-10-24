@@ -20,6 +20,11 @@
 <turbo-stream action="update" target="panel-documente">
     <template>{{ include('case/overview/_tab_documente.html.twig') }}</template>
 </turbo-stream>
+{# The filing tab closes with the case: its panel empties and its button goes. #}
+<turbo-stream action="update" target="panel-depunere">
+    <template>{{ include('case/filing/_tab.html.twig') }}</template>
+</turbo-stream>
+<turbo-stream action="remove" target="tab-depunere"></turbo-stream>
 <turbo-stream action="update" target="panel-termene">
     <template>{{ include('case/overview/_tab_termene.html.twig') }}</template>
 </turbo-stream>

@@ -123,13 +123,15 @@ final class CaseFilingSubmissionControllerTest extends WebTestCase
         $this->client->loginUser($this->user);
         $token = $this->csrfToken('filing_submit_' . $this->case->getId());
 
+        // The confirmation page has no card to replace: both clicks land on the filing tab.
         foreach ([1, 2] as $_) {
             $this->client->request('POST', $this->submitUrl(), ['_token' => $token, 'confirm_documents_checked' => '1'], [], self::TURBO);
-            self::assertResponseIsSuccessful();
-            self::assertSelectorExists('turbo-stream[target="filing-package-card"]');
+            self::assertResponseStatusCodeSame(303);
+            self::assertResponseRedirects(sprintf('/case/%d?tab=depunere', $this->case->getId()));
         }
 
         self::assertSame(1, $this->submissionCount());
+        $this->client->request('GET', sprintf('/case/%d?tab=depunere', $this->case->getId()));
         self::assertSelectorExists('[data-testid="filing-submission-card"][data-status="QUEUED"]');
     }
 
@@ -181,7 +183,7 @@ final class CaseFilingSubmissionControllerTest extends WebTestCase
         $this->client->loginUser($this->user);
         $this->client->request('GET', '/case/' . $this->case->getId());
         self::assertResponseIsSuccessful();
-        self::assertSelectorExists('[data-testid="filing-send-open"]');
+        self::assertSelectorExists('[data-testid="filing-send-open"][data-turbo-frame="_top"]');
 
         $partId = (int) $this->submitFiling($this->case, $this->user)->getPart(1)?->getId();
         $this->client->request('GET', '/case/' . $this->case->getId());
@@ -196,7 +198,7 @@ final class CaseFilingSubmissionControllerTest extends WebTestCase
         $this->client->request('GET', '/case/' . $this->case->getId());
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('#case-status-badge', 'Transmisă instanței');
-        self::assertSelectorTextContains('[data-testid="filing-submission-headline"]', 'Transmisă instanței, fără confirmare de primire');
+        self::assertSelectorTextContains('[data-testid="filing-submission-headline"]', 'Cererea a fost trimisă. Se așteaptă confirmarea de primire');
         self::assertSelectorExists('[data-testid="filing-filed-date-form"]');
     }
 
@@ -206,15 +208,14 @@ final class CaseFilingSubmissionControllerTest extends WebTestCase
         $token = $this->csrfToken('filing_submit_' . $this->case->getId());
 
         $this->client->request('POST', $this->submitUrl(), ['_token' => $token, 'confirm_documents_checked' => '1'], [], self::TURBO);
+        self::assertResponseRedirects(sprintf('/case/%d?tab=depunere', $this->case->getId()));
 
-        $content = (string) $this->client->getResponse()->getContent();
-        self::assertStringContainsString('target="case-hero"', $content);
-        self::assertStringContainsString('target="case-detalii-sidebar"', $content);
-        self::assertStringContainsString('target="case-pipeline"', $content);
-        $hero = $this->templateHtml($content, 'case-hero');
-        self::assertNotSame('', $hero);
-        self::assertStringNotContainsString('#hs-modal-confirm-filing', $hero, 'The hero no longer offers to confirm a manual filing.');
-        self::assertStringNotContainsString('#hs-modal-confirm-filing', $this->templateHtml($content, 'case-detalii-sidebar'), 'Nor do the recommended actions.');
+        // The page the lawyer lands on already shows the regions the filing changed.
+        $crawler = $this->client->followRedirect();
+        self::assertSelectorNotExists('#case-hero-actions [data-hs-overlay="#hs-modal-confirm-filing"]', 'The hero no longer offers to confirm a manual filing.');
+        self::assertSelectorExists('#case-hero-actions a[data-testid="hero-filing-link"][href$="?tab=depunere#depunere-status"]');
+        self::assertCount(0, $crawler->filter('#case-hero-actions form'));
+        self::assertSelectorNotExists('#case-recommended-actions [data-hs-overlay="#hs-modal-confirm-filing"]', 'Nor do the recommended actions.');
 
         $submissionId = (int) $this->em->getConnection()->fetchOne('SELECT id FROM filing_submission WHERE legal_case_id = ?', [$this->case->getId()]);
         $cancelToken = $this->csrfToken('filing_cancel_' . $submissionId);

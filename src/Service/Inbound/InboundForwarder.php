@@ -67,7 +67,7 @@ final class InboundForwarder
             return false;
         }
 
-        $link = $this->urlGenerator->generate('case_overview', ['id' => $case->getId()]);
+        $link = $this->urlGenerator->generate('case_overview', ['id' => $case->getId(), 'tab' => 'depunere']);
         $caseLabel = $case->getCourtCaseNumber() ?? $case->getCaseNumber();
         $context = [
             'caseLabel' => $caseLabel,

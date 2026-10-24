@@ -1,0 +1,131 @@
+{# The files of the package, one row each: download unsigned, upload signed, confirm a
+   text-only match, rebuild the annexes after an over-budget upload. A detected
+   signature is never presented as valid or qualified, and the package is never
+   "ready to file": the signature, the content and the rest stay the lawyer's.
+   filing_over_budget comes from a refused signed upload. #}
+{% from 'case/overview/_icons.html.twig' import icon_check, icon_download, icon_warning, icon_refresh %}
+{% set package = filing_package %}
+{% set submission = filing_submission|default(null) %}
+{% set is_owner = app.user and app.user.id == case.user.id %}
+{% set filing_locked = submission and submission.active %}
+{% set over_budget = filing_over_budget|default(null) %}
+{% set uploads_open = is_owner and not filing_locked and case.status.value == 'CERERE_GENERATA' and package.status.value in ['BUILT', 'AWAITING_SIGNATURES', 'SIGNED'] %}
+{% set ready = package.parts|filter(p => p.signatureAccepted)|length %}
+{% set small_btn = 'py-1.5 px-3 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition' %}
+
+<section id="filing-parts" class="scroll-mt-24 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft">
+    <header class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between gap-4">
+        <div class="min-w-0">
+            <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">{{ 'filing.panel.parts.title'|trans }}</h3>
+            <p class="text-sm text-slate-500 dark:text-slate-400">{{ 'filing.panel.parts.intro'|trans }}</p>
+        </div>
+        <span class="shrink-0 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold tnum {{ package.status.value == 'STALE' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200' }}" data-testid="filing-package-status">
+            {{ package.status.value == 'STALE' ? package.status.label|trans ~ ' · v' ~ package.version : 'filing.panel.parts.count'|trans({'%ready%': ready, '%total%': package.parts|length}) }}
+        </span>
+    </header>
+    <ul class="divide-y divide-slate-100 dark:divide-slate-800" data-testid="filing-package-parts">
+        {% for part in package.parts %}
+            {% set chip_key = part.signatureStatus.value == 'PRESENT_PROBABLE'
+                ? (part.signatureAccepted ? 'PRESENT_PROBABLE_confirmed' : 'PRESENT_PROBABLE_unconfirmed')
+                : (part.signatureStatus.value == 'PRESENT_MATCHED' ? 'PRESENT_MATCHED' : 'MISSING') %}
+            {% set needs_confirmation = chip_key == 'PRESENT_PROBABLE_unconfirmed' %}
+            <li id="filing-part-{{ part.id }}" class="scroll-mt-24 px-6 py-4 {{ needs_confirmation ? 'bg-amber-50/60 dark:bg-amber-950/20' : '' }}" data-testid="filing-part-{{ part.id }}">
+                <div class="flex flex-col sm:flex-row sm:items-start gap-4">
+                    <div class="flex items-start gap-4 flex-1 min-w-0">
+                        {% if needs_confirmation %}
+                            <span class="shrink-0 inline-flex items-center justify-center size-9 rounded-lg bg-amber-100 text-amber-800 font-bold" aria-hidden="true">!</span>
+                        {% elseif part.signatureAccepted %}
+                            <span class="shrink-0 inline-flex items-center justify-center size-9 rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" aria-hidden="true">{{ icon_check('size-4') }}</span>
+                        {% else %}
+                            <span class="shrink-0 inline-flex items-center justify-center size-9 rounded-lg bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 text-xs font-bold" aria-hidden="true">PDF</span>
+                        {% endif %}
+                        <div class="min-w-0">
+                            <p class="font-medium text-slate-900 dark:text-slate-100">{{ part.title }}</p>
+                            <p class="text-sm text-slate-500 dark:text-slate-400">
+                                {{ 'filing.package.part_meta'|trans({'%count%': part.pageCount, '%pages%': part.pageCount, '%size%': (part.unsignedBytes / 1048576)|number_format(2, ',', '.')}) }}
+                                {% if part.annexPageFrom %} · {{ part.annexPageFrom == part.annexPageTo ? 'filing.package.part_annex_page'|trans({'%page%': part.annexPageFrom}) : 'filing.package.part_annex_range'|trans({'%from%': part.annexPageFrom, '%to%': part.annexPageTo}) }}{% endif %}
+                                {% if part.compressionApplied %} · <span data-testid="filing-part-compressed">{{ 'filing.package.compressed_badge'|trans }}</span>{% endif %}
+                            </p>
+                            <p class="mt-1 text-sm {{ chip_key == 'MISSING' ? 'text-slate-600 dark:text-slate-300' : (needs_confirmation ? 'text-amber-900 dark:text-amber-100' : 'text-emerald-700 dark:text-emerald-300') }}" data-testid="filing-part-signature-chip">
+                                {{ ('filing.signature.chip.' ~ chip_key)|trans }}{% if chip_key != 'MISSING' and part.signatureReport.signerCn|default(null) %}. {{ 'filing.signature.signer'|trans({'%name%': part.signatureReport.signerCn}) }}{% endif %}
+                            </p>
+                            {% if chip_key != 'MISSING' %}
+                                {# Shown with every detected signature and never dismissable. #}
+                                <p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400" data-testid="filing-part-validity-notice">{{ 'filing.signature.notice.validity'|trans }}</p>
+                                {% for warning in part.signatureWarnings %}
+                                    <p class="mt-1 flex gap-1 text-sm text-amber-900 dark:text-amber-100" data-testid="filing-part-warning">
+                                        {{ icon_warning('size-4 shrink-0 mt-0.5') }}<span>{{ warning|trans }}</span>
+                                    </p>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    {% if is_owner %}
+                        <div class="shrink-0 flex flex-wrap sm:flex-col sm:items-end gap-2">
+                            {% if uploads_open and part.awaitingProbableConfirmation %}
+                                <form method="post" action="{{ path('case_filing_part_confirm_signed', {id: case.id, packageId: package.id, partId: part.id}) }}" data-turbo-frame="_top" data-testid="filing-part-confirm-form">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('filing_signed_confirm_' ~ part.id) }}">
+                                    <input type="hidden" name="sha256" value="{{ part.signedSha256 }}">
+                                    <button type="submit" class="py-1.5 px-3 inline-flex items-center gap-1.5 rounded-lg bg-lex-navy text-white text-sm font-semibold hover:bg-lex-navy-dark transition">
+                                        {{ icon_check('size-4') }}{{ 'filing.upload.confirm_button'|trans }}
+                                    </button>
+                                </form>
+                            {% endif %}
+                            <a href="{{ path('case_filing_part_download', {id: case.id, packageId: package.id, partId: part.id}) }}" data-turbo="false" class="{{ small_btn }}">
+                                {{ icon_download('size-4') }}{{ 'filing.package.download_unsigned'|trans }}
+                            </a>
+                            {% if part.hasSignedFile %}
+                                <a href="{{ path('case_filing_part_download_signed', {id: case.id, packageId: package.id, partId: part.id}) }}" data-turbo="false" data-testid="filing-part-download-signed" class="{{ small_btn }}">
+                                    {{ icon_download('size-4') }}{{ 'filing.upload.download_signed'|trans }}
+                                </a>
+                            {% endif %}
+                        </div>
+                    {% endif %}
+                </div>
+
+                {% if uploads_open %}
+                    <form method="post" enctype="multipart/form-data"
+                          action="{{ path('case_filing_part_upload_signed', {id: case.id, packageId: package.id, partId: part.id}) }}"
+                          data-turbo-frame="_top"
+                          class="mt-3 sm:ms-13 flex flex-wrap items-center gap-2" data-testid="filing-part-upload-form">
+                        <input type="hidden" name="_token" value="{{ csrf_token('filing_signed_upload_' ~ part.id) }}">
+                        {% if part.signatureAccepted %}<input type="hidden" name="replace" value="1">{% endif %}
+                        <label class="sr-only" for="filing-signed-{{ part.id }}">{{ 'filing.upload.label'|trans }}</label>
+                        <input id="filing-signed-{{ part.id }}" type="file" name="signed_file" accept="application/pdf" required title="{{ 'filing.upload.label'|trans }}"
+                               class="block max-w-full text-sm text-slate-700 dark:text-slate-200 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-slate-100 file:text-slate-700 dark:file:bg-slate-800 dark:file:text-slate-200">
+                        <button type="submit" class="py-1.5 px-3 inline-flex items-center gap-1.5 rounded-lg border border-lex-navy text-lex-navy dark:border-blue-300 dark:text-blue-200 text-sm font-semibold hover:bg-blue-50 dark:hover:bg-slate-800 transition">
+                            {{ (part.signatureAccepted ? 'filing.upload.replace' : 'filing.upload.button')|trans }}
+                        </button>
+                    </form>
+                {% endif %}
+
+                {% if over_budget and over_budget.partId == part.id %}
+                    <div class="mt-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 p-3 text-sm text-amber-900 dark:text-amber-100" data-testid="filing-part-over-budget">
+                        <p>{{ 'filing.upload.over_budget.text'|trans({'%excess%': (over_budget.excess / 1048576)|number_format(2, ',', '.')}) }}</p>
+                        <form method="post" action="{{ path('case_filing_package_rebuild_annexes', {id: case.id, packageId: package.id}) }}" class="mt-2" data-turbo-frame="_top">
+                            <input type="hidden" name="_token" value="{{ csrf_token('filing_annex_rebuild_' ~ package.id) }}">
+                            <input type="hidden" name="excess" value="{{ over_budget.excess }}">
+                            <button type="submit" data-testid="filing-rebuild-annexes" class="py-1.5 px-3 inline-flex items-center gap-1.5 rounded-lg bg-white border border-amber-300 text-amber-900 text-sm font-semibold hover:bg-amber-100 transition">
+                                {{ icon_refresh('size-4') }}{{ 'filing.upload.over_budget.rebuild_button'|trans }}
+                            </button>
+                        </form>
+                    </div>
+                {% endif %}
+            </li>
+        {% endfor %}
+    </ul>
+    {% if package.skippedDocuments is not empty or not is_owner or package.status.value == 'SIGNED' %}
+        <footer class="px-6 py-3 border-t border-slate-100 dark:border-slate-800 space-y-1 text-sm">
+            {% if package.status.value == 'SIGNED' %}
+                <p class="text-slate-600 dark:text-slate-300" data-testid="filing-package-signed">{{ 'filing.signature.package_signed'|trans }}</p>
+            {% endif %}
+            {% if package.skippedDocuments is not empty %}
+                <p class="text-amber-800 dark:text-amber-200">{{ 'filing.package.skipped_documents'|trans({'%documents%': package.skippedDocuments|join(', ')}) }}</p>
+            {% endif %}
+            {% if not is_owner %}
+                <p class="text-slate-500">{{ 'filing.package.owner_only'|trans }}</p>
+            {% endif %}
+        </footer>
+    {% endif %}
+</section>

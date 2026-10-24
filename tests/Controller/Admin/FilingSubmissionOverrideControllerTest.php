@@ -71,7 +71,12 @@ final class FilingSubmissionOverrideControllerTest extends WebTestCase
         self::assertSelectorTextNotContains('[data-testid="admin-submission-status"]', 'NEEDS_REVIEW');
         self::assertSelectorExists('[data-testid="admin-override-form-1"]');
         // Only "not sent" for the petition: its acceptance is the lawyer's declaration.
-        self::assertSelectorNotExists('[data-testid="admin-override-form-1"] option[value="accepted"]');
+        self::assertSelectorNotExists('[data-testid="admin-override-form-1"] button[value="accepted"]');
+        self::assertSelectorTextContains('[data-testid="admin-override-form-1"] button[name="outcome"][value="failed"]', 'Marchează ca netrimis');
+        // The effect is written before the button: the case stays generated, nothing is declared received.
+        self::assertSelectorTextContains('[data-testid="admin-override-effect-failed"]', 'Dosarul rămâne la „Cerere generată”');
+        self::assertSelectorTextContains('body', 'Deblocarea nu declară primirea și nu schimbă data depunerii.');
+        self::assertSelectorNotExists('[data-testid="admin-close-form"]');
         $html = (string) $this->client->getResponse()->getContent();
         self::assertStringNotContainsString('.eml', $html);
         self::assertStringNotContainsString('/eml', $html);
@@ -115,6 +120,40 @@ final class FilingSubmissionOverrideControllerTest extends WebTestCase
         self::assertSame('UNCERTAIN', $this->partStatus());
         $this->client->followRedirect();
         self::assertSelectorTextContains('body', 'Sesiunea formularului a expirat');
+    }
+
+    public function testAfterTheOverrideTheLawyerSeesWhoUnblockedTheSendAndWhy(): void
+    {
+        $this->client->loginUser($this->admin);
+        $token = $this->csrfToken('filing_override_' . $this->submissionId . '_1');
+        $this->client->request('POST', sprintf('/admin/filing-submission/%d/part/1/override', $this->submissionId), ['_token' => $token, 'outcome' => 'failed', 'reason' => 'Avocatul a confirmat telefonic situația']);
+        self::assertSame('FAILED_INTERNAL', $this->partStatus());
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', sprintf('/case/%d?tab=depunere', $this->case->getId()));
+
+        self::assertSelectorExists('#depunere-status[data-code="admin_failed"]');
+        self::assertSelectorTextContains('[data-testid="filing-admin-override-reason"]', 'Avocatul a confirmat telefonic situația');
+        self::assertSelectorTextNotContains('[data-testid="filing-admin-override-reason"]', 'Admin override');
+        self::assertSelectorTextContains('#depunere-status', 'nu schimbă data depunerii');
+    }
+
+    public function testACancellableSendStatesTheCancelBeforeTheButton(): void
+    {
+        $lawyer = $this->createFilingUser($this->em, 'filing-override-queued');
+        $case = $this->createSendableFilingCase($this->em, $lawyer);
+        $queued = $this->submitFiling($case, $lawyer);
+        try {
+            $this->client->loginUser($this->admin);
+            $this->client->request('GET', sprintf('/admin/filing-submission/%d/override', $queued->getId()));
+
+            self::assertResponseIsSuccessful();
+            self::assertSelectorTextContains('[data-testid="admin-close-effect"]', 'Anulează transmiterea');
+            self::assertSelectorTextContains('[data-testid="admin-close-effect"]', 'Dosarul rămâne la „Cerere generată”');
+            self::assertSelectorTextContains('[data-testid="admin-close-submit"]', 'Anulează transmiterea');
+        } finally {
+            $this->removeFilingFixtures($this->em, $lawyer, $case);
+        }
     }
 
     public function testLawyerHasNoAccessToTheAdminOverride(): void

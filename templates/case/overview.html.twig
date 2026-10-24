@@ -34,7 +34,7 @@
   {# Server-side active tab from `?tab=`, so portal actions (which redirect back)
      keep the user on the tab they acted from instead of resetting to Detalii. #}
   {% set active_tab = app.request.query.get('tab')|default('detalii') %}
-  {% if active_tab not in ['detalii', 'documente', 'termene', 'portal', 'audit'] %}
+  {% if active_tab not in ['detalii', 'documente', 'depunere', 'termene', 'portal', 'audit'] or (active_tab == 'depunere' and not filing_tab_visible|default(false)) %}
     {% set active_tab = 'detalii' %}
   {% endif %}
 
@@ -48,6 +48,9 @@
     </div>
     <div id="panel-documente" class="{{ active_tab == 'documente' ? '' : 'hidden' }}" role="tabpanel" aria-labelledby="tab-documente">
       {{ include('case/overview/_tab_documente.html.twig') }}
+    </div>
+    <div id="panel-depunere" class="{{ active_tab == 'depunere' ? '' : 'hidden' }}" role="tabpanel" aria-labelledby="tab-depunere">
+      {{ include('case/filing/_tab.html.twig') }}
     </div>
     <div id="panel-termene" class="{{ active_tab == 'termene' ? '' : 'hidden' }}" role="tabpanel" aria-labelledby="tab-termene">
       {{ include('case/overview/_tab_termene.html.twig') }}

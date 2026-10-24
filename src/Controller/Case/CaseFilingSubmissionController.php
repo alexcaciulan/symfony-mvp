@@ -45,7 +45,7 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Transmitting the signed package to the court by email, on the lawyer's
- * request: the confirmation panel, the request itself, cancelling before
+ * request: the confirmation page, the request itself, cancelling before
  * anything left, what follows a failure (resuming the emails that did not leave,
  * closing them, splitting the annexes again, declaring the copy in CC received or
  * not), the copy of each sent email, and the filing date the lawyer declares
@@ -82,7 +82,7 @@ final class CaseFilingSubmissionController extends AbstractController
         $case = $this->findOrThrow($id);
         $this->denyAccessUnlessGranted(CaseVoter::FILING_CONTENT, $case);
 
-        return $this->render('case/filing/_send_modal.html.twig', $this->confirmContext($case));
+        return $this->render('case/filing/confirm.html.twig', $this->confirmContext($case));
     }
 
     #[Route('/case/{id}/filing/submission', name: 'case_filing_submission_submit', requirements: ['id' => '\d+'], methods: ['POST'])]
@@ -114,7 +114,10 @@ final class CaseFilingSubmissionController extends AbstractController
             return $this->panelError($request, $case, $e->messageKey);
         }
 
-        return $this->respondCard($request, $case, 'success', 'filing.send.flash_queued');
+        // The confirmation page has no card to replace: the lawyer lands on the filing tab, which polls the send.
+        $this->addFlash('success', $this->translator->trans('filing.send.flash_queued'));
+
+        return $this->redirectToRoute('case_overview', ['id' => $case->getId(), 'tab' => 'depunere'], Response::HTTP_SEE_OTHER);
     }
 
     #[Route('/case/{id}/filing/submission/{submissionId}/cancel', name: 'case_filing_submission_cancel', requirements: ['id' => '\d+', 'submissionId' => '\d+'], methods: ['POST'])]
@@ -236,14 +239,14 @@ final class CaseFilingSubmissionController extends AbstractController
         );
     }
 
-    /** The card alone, refreshed by the page while the emails are on their way. */
+    /** The filing tab's frame alone, refreshed by the page while the emails are on their way. */
     #[Route('/case/{id}/filing/submission/card', name: 'case_filing_submission_card', requirements: ['id' => '\d+'], methods: ['GET'])]
     public function card(int $id): Response
     {
         $case = $this->findOrThrow($id);
         $this->denyAccessUnlessGranted(CaseVoter::VIEW, $case);
 
-        return $this->render('case/filing/_submission_card.html.twig', $this->contextBuilder->build($case));
+        return $this->render('case/filing/_tab_frame.html.twig', $this->contextBuilder->build($case));
     }
 
     #[Route('/case/{id}/filing/submission/{submissionId}/part/{sequence}/eml', name: 'case_filing_submission_eml', requirements: ['id' => '\d+', 'submissionId' => '\d+', 'sequence' => '\d+'], methods: ['GET'])]
@@ -386,7 +389,13 @@ final class CaseFilingSubmissionController extends AbstractController
             $attachments = [];
             foreach ($emails as $i => $parts) {
                 foreach ($parts as $part) {
-                    $attachments[] = ['email' => $i + 1, 'name' => $this->emailFactory->attachmentName($package, $part), 'bytes' => $part->getSignedBytes()];
+                    $attachments[] = [
+                        'email' => $i + 1,
+                        'name' => $this->emailFactory->attachmentName($package, $part),
+                        'title' => $part->getTitle(),
+                        'bytes' => $part->getSignedBytes(),
+                        'signature_detected' => $part->isSignatureAccepted(),
+                    ];
                 }
             }
             $preview = [
@@ -423,7 +432,7 @@ final class CaseFilingSubmissionController extends AbstractController
 
         $this->addFlash('error', $key);
 
-        return $this->redirectToRoute('case_overview', ['id' => $case->getId(), 'tab' => 'documente']);
+        return $this->redirectToRoute('case_overview', ['id' => $case->getId(), 'tab' => 'depunere']);
     }
 
     private function respondCard(Request $request, LegalCase $case, string $variant, string $key, bool $replaceCard = true): Response
@@ -444,7 +453,7 @@ final class CaseFilingSubmissionController extends AbstractController
 
         $this->addFlash($variant, $this->translator->trans($key));
 
-        return $this->redirectToRoute('case_overview', ['id' => $case->getId(), 'tab' => 'documente']);
+        return $this->redirectToRoute('case_overview', ['id' => $case->getId(), 'tab' => 'depunere']);
     }
 
     private function resolveUncertain(int $id, int $submissionId, int $sequence, Request $request, string $kind): Response

@@ -44,7 +44,7 @@ class FilingSubmissionOverrideController extends AbstractController
 
         return $this->render('admin/filing_submission/override.html.twig', [
             'submission' => $submission,
-            'closable' => $this->submissionService->isClosable($submission) || $this->submissionService->isCancellable($submission),
+            'close_path' => $this->closePath($submission),
             'back_url' => $this->crudUrl($id),
         ]);
     }
@@ -82,6 +82,20 @@ class FilingSubmissionOverrideController extends AbstractController
         }
 
         return $this->back($id, 'success', 'filing.override.flash.closed');
+    }
+
+    /**
+     * Which branch of FilingSubmissionService::closeByAdmin a close would take, in
+     * the same order, so the page states its effect before the admin applies it.
+     */
+    private function closePath(FilingSubmission $submission): ?string
+    {
+        return match (true) {
+            $this->submissionService->isLateBounceReview($submission) => 'late_review',
+            $this->submissionService->isCancellable($submission) => 'cancel',
+            $this->submissionService->isClosable($submission) => 'close',
+            default => null,
+        };
     }
 
     private function back(int $id, string $type, string $messageKey): Response

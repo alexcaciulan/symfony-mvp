@@ -8,8 +8,8 @@ use App\Entity\FilingPackage;
 use App\Entity\FilingPackagePart;
 use App\Entity\LegalCase;
 use App\Entity\User;
-use App\Enum\FilingPackageStatus;
 use App\Repository\FilingPackagePartRepository;
+use App\Repository\FilingPackageRepository;
 use App\Repository\LegalCaseRepository;
 use App\Security\Voter\CaseVoter;
 use App\Service\AuditLogService;
@@ -17,9 +17,12 @@ use App\Service\Case\OverviewContextBuilder;
 use App\Service\Document\MissingDocumentFileException;
 use App\Service\Filing\FilingPackageBlockedException;
 use App\Service\Filing\FilingPackageBuilder;
+use App\Service\Filing\FilingPartDownloadName;
 use App\Service\Filing\SignedPartOverBudgetException;
 use App\Service\Filing\SignedPartUploadService;
 use App\Service\Filing\SignedUploadRefusedException;
+use App\Service\Filing\UnsignedArchiveUnavailableException;
+use App\Service\Filing\UnsignedPackageArchiveBuilder;
 use App\Service\Pdf\PdfToolException;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -46,6 +49,8 @@ final class CaseFilingController extends AbstractController
         private readonly FilingPackagePartRepository $partRepository,
         private readonly FilingPackageBuilder $builder,
         private readonly SignedPartUploadService $signedUploads,
+        private readonly FilingPackageRepository $packageRepository,
+        private readonly UnsignedPackageArchiveBuilder $archiveBuilder,
         private readonly OverviewContextBuilder $contextBuilder,
         private readonly AuditLogService $auditLogService,
         private readonly EntityManagerInterface $em,
@@ -111,13 +116,10 @@ final class CaseFilingController extends AbstractController
             ],
             category: AuditLogService::CATEGORY_FILING_PACKAGE,
         );
-        // A downloaded file may be on its way to the signing tool.
-        if ($package->getStatus() === FilingPackageStatus::BUILT) {
-            $package->setStatus(FilingPackageStatus::AWAITING_SIGNATURES);
-        }
+        $package->markDownloadedForSigning();
         $this->em->flush();
 
-        return $this->pdfResponse($path, $this->downloadName($case, $package, $part, 'nesemnat'));
+        return $this->pdfResponse($path, FilingPartDownloadName::of($case, $package, $part, FilingPartDownloadName::UNSIGNED));
     }
 
     #[Route('/case/{id}/filing/package/{packageId}/part/{partId}/signed', name: 'case_filing_part_upload_signed', requirements: ['id' => '\d+', 'packageId' => '\d+', 'partId' => '\d+'], methods: ['POST'])]
@@ -216,7 +218,35 @@ final class CaseFilingController extends AbstractController
         );
         $this->em->flush();
 
-        return $this->pdfResponse($path, $this->downloadName($case, $package, $part, 'semnat'));
+        return $this->pdfResponse($path, FilingPartDownloadName::of($case, $package, $part, FilingPartDownloadName::SIGNED));
+    }
+
+    /**
+     * Every unsigned file of the current package in one archive. Lawyer of the case
+     * only, like the single downloads (an admin is refused by FILING_CONTENT).
+     */
+    #[Route('/case/{id}/filing/package/{packageId}/unsigned.zip', name: 'case_filing_package_unsigned_zip', requirements: ['id' => '\d+', 'packageId' => '\d+'], methods: ['GET'])]
+    public function unsignedZip(int $id, int $packageId): Response
+    {
+        $case = $this->findOrThrow($id);
+        $this->denyAccessUnlessGranted(CaseVoter::FILING_CONTENT, $case);
+        $package = $this->packageRepository->findCurrentForCase($case);
+        if ($package === null || $package->getId() !== $packageId || !UnsignedPackageArchiveBuilder::isArchivable($package)) {
+            throw $this->createNotFoundException();
+        }
+
+        try {
+            $path = $this->archiveBuilder->build($package, $this->currentUser());
+        } catch (UnsignedArchiveUnavailableException) {
+            throw $this->createNotFoundException();
+        }
+
+        $response = new BinaryFileResponse($path);
+        $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_ATTACHMENT, FilingPartDownloadName::archive($case, $package));
+        $response->headers->set('Content-Type', 'application/zip');
+        $response->deleteFileAfterSend(true);
+
+        return $response;
     }
 
     /**
@@ -288,14 +318,6 @@ final class CaseFilingController extends AbstractController
         return $response;
     }
 
-    private function downloadName(LegalCase $case, FilingPackage $package, FilingPackagePart $part, string $suffix): string
-    {
-        $caseNumber = (string) preg_replace('/[^A-Za-z0-9_-]+/', '_', $case->getCaseNumber());
-        $volume = $part->getVolumeCount() !== null && $part->getVolumeCount() > 1 ? '_vol' . $part->getVolume() : '';
-
-        return sprintf('%s_%s_v%d%s_%s.pdf', ucfirst($part->getRole()->fileStem()), $caseNumber, $package->getVersion(), $volume, $suffix);
-    }
-
     /**
      * Turbo Stream for Turbo clients (the card is replaced in place, errors stay on
      * the page as a toast); redirect with flash otherwise.
@@ -322,7 +344,7 @@ final class CaseFilingController extends AbstractController
 
         $this->addFlash($toastVariant, $toastParams === [] ? $toastKey : $this->translator->trans($toastKey, $toastParams));
 
-        return $this->redirectToRoute('case_overview', ['id' => $case->getId()]);
+        return $this->redirectToRoute('case_overview', ['id' => $case->getId(), 'tab' => 'depunere']);
     }
 
     private function findOrThrow(int $id): LegalCase

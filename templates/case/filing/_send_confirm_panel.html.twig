@@ -1,0 +1,42 @@
+{# The decision part of the confirmation page: what still blocks the send, or the
+   lawyer's statements (never pre-ticked, never ticked by script) and the send
+   button, disabled until each statement is ticked. Inside its own frame so a
+   refused send answers here, in place. Context from
+   CaseFilingSubmissionController::confirmContext. #}
+<turbo-frame id="filing-send-panel" class="block" target="_top">
+    <div class="space-y-4" data-testid="filing-send-panel">
+        {% if error_key %}
+            <div class="rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/60 p-3 text-sm text-red-900 dark:text-red-100" role="alert" data-testid="filing-send-error">
+                {{ error_key|trans }}
+            </div>
+        {% endif %}
+
+        {% if not verdict.allowed %}
+            <div class="text-sm text-slate-700 dark:text-slate-200" data-testid="filing-send-blockers">
+                <p class="font-semibold">{{ 'filing.send.blocked_title'|trans }}</p>
+                <ul class="mt-1 list-disc ps-5 space-y-0.5">
+                    {% for blocker in verdict.blockers %}
+                        <li>{{ blocker|trans }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <a href="{{ path('case_overview', {id: case.id, tab: 'depunere'}) }}" data-turbo-frame="_top" class="block text-center text-sm text-slate-600 dark:text-slate-300 underline hover:no-underline">{{ 'filing.panel.confirm.back'|trans }}</a>
+        {% else %}
+            <form method="post" action="{{ path('case_filing_submission_submit', {id: case.id}) }}" class="space-y-3" data-controller="require-checks" data-testid="filing-send-form">
+                <input type="hidden" name="_token" value="{{ csrf_token('filing_submit_' ~ case.id) }}">
+                {% for key, text in confirmations %}
+                    <label class="flex items-start gap-2 text-sm text-slate-800 dark:text-slate-100">
+                        <input type="checkbox" name="confirm_{{ key }}" value="1" class="mt-0.5" data-require-checks-target="check" data-action="require-checks#refresh" data-testid="filing-send-confirm-{{ key }}">
+                        <span>{{ text }}</span>
+                    </label>
+                {% endfor %}
+                <button type="submit" data-require-checks-target="submit" data-testid="filing-send-submit"
+                        class="w-full py-2.5 px-4 inline-flex items-center justify-center gap-2 text-sm font-semibold rounded-lg bg-lex-navy text-white hover:bg-lex-navy-dark transition shadow-sm">
+                    {{ 'filing.send.submit'|trans }}
+                </button>
+                <p class="text-center text-xs text-slate-500 dark:text-slate-400" data-require-checks-target="hint">{{ 'filing.send.confirm_hint'|trans }}</p>
+                <a href="{{ path('case_overview', {id: case.id, tab: 'depunere'}) }}" data-turbo-frame="_top" data-testid="filing-send-dismiss" class="block text-center text-sm text-slate-600 dark:text-slate-300 hover:underline">{{ 'filing.send.dismiss'|trans }}</a>
+            </form>
+        {% endif %}
+    </div>
+</turbo-frame>

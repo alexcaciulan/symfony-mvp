@@ -1,8 +1,9 @@
-{# Turbo Stream answer of the filing package build: the card is replaced in place on
-   success, and every outcome, errors included, is a toast on the same page. #}
+{# Turbo Stream answer of the filing actions: the filing tab is replaced in place on
+   success together with the regions that follow the filing, and every outcome,
+   errors included, is a toast on the same page. #}
 {% if replace_card %}
     <turbo-stream action="replace" target="filing-package-card">
-        <template>{{ include('case/filing/_package_card.html.twig') }}</template>
+        <template>{{ include('case/filing/_tab.html.twig') }}</template>
     </turbo-stream>
     {% if filing_state_key is defined %}
         {{ include('case/filing/_state_regions.html.twig') }}

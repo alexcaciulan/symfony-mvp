@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verifică și trimite</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="shell.js"></script>
+</head>
+<body class="font-sans antialiased bg-slate-50 text-slate-900">
+<main data-shell data-no-case
+      data-crumbs='<li>Dosare</li><li class="text-slate-300">/</li><li class="font-mono">TMP-LIVE-EA</li><li class="text-slate-300">/</li><li class="text-slate-800 font-medium">Trimite la instanță</li>'>
+
+<a href="c-trimisa-confirmare.html" class="text-sm text-slate-500">Înapoi la dosar</a>
+<div class="mt-2 mb-6">
+  <h1 class="text-2xl font-bold tracking-tight">Verifică și trimite la instanță</h1>
+  <p class="mt-1 text-slate-600">Așa arată e-mailul care pleacă spre Judecătoria Sectorului 3 București. După ce serverul instanței îl acceptă, trimiterea nu mai poate fi anulată.</p>
+</div>
+
+<div class="grid grid-cols-3 gap-6 items-start">
+  <!-- Email preview -->
+  <section class="col-span-2 bg-white rounded-2xl border border-slate-200 shadow-soft overflow-hidden">
+    <div class="px-6 py-3 bg-sky-50 border-b border-sky-100 text-sm text-sky-900">
+      Mediu de test: e-mailul ajunge la <span class="font-mono">instanta-simulata@example.test</span>, nu la registratura instanței.
+    </div>
+    <dl class="px-6 py-4 grid grid-cols-[150px_1fr] gap-y-2 text-sm border-b border-slate-100">
+      <dt class="text-slate-500">Către</dt>
+      <dd><span class="font-mono">registratura-test@example.test</span> <span class="text-slate-500">(registratura Judecătoriei Sectorului 3 București)</span></dd>
+      <dt class="text-slate-500">De la</dt>
+      <dd>Av. Andrei Georgescu prin LexRecovery <span class="text-slate-500 font-mono">&lt;depuneri@lexrecovery.test&gt;</span></dd>
+      <dt class="text-slate-500">Copie și răspuns</dt>
+      <dd class="font-mono">avocat@test.com</dd>
+      <dt class="text-slate-500">Subiect</dt>
+      <dd class="font-semibold">Cerere de emitere a ordonanței de plată: SC Live Manual Test SRL contra SC Debitor Live SRL</dd>
+    </dl>
+    <div class="px-6 py-5 text-sm leading-relaxed text-slate-800 space-y-3 max-w-[72ch]">
+      <p>Către Judecătoria Sectorului 3 București,</p>
+      <p>Subscrisa SC Live Manual Test SRL, cu sediul în Str. Live Test nr. 5, București, CUI RO14186770, prin avocat Andrei Georgescu, transmite cererea de emitere a ordonanței de plată, semnată electronic de avocat, împreună cu documentele care o însoțesc.</p>
+      <p>Taxa judiciară de timbru va fi achitată prin registratura electronică după comunicarea numărului unic de dosar, dovada urmând a fi depusă la dosar.</p>
+      <p>Vă rugăm să confirmați primirea acestui mesaj și să comunicați numărul dosarului la adresa avocatului, aflată în copie.</p>
+      <p>Cu stimă,<br>Av. Andrei Georgescu<br>Împuternicire avocațială seria B nr. 654321 din 05.01.2026</p>
+    </div>
+    <div class="px-6 py-4 border-t border-slate-100">
+      <h3 class="text-sm font-semibold">Atașamente, un singur e-mail</h3>
+      <ul class="mt-2 grid grid-cols-3 gap-3">
+        <li class="rounded-xl border border-slate-200 p-3"><div class="text-sm font-medium">01-cerere-si-opis.pdf</div><div class="text-xs text-slate-500">Cererea, cu opisul, 0,08 MB</div><div class="mt-1 text-xs text-emerald-700">Semnătură detectată</div></li>
+        <li class="rounded-xl border border-slate-200 p-3"><div class="text-sm font-medium">02-imputernicire.pdf</div><div class="text-xs text-slate-500">Împuternicirea, 0,07 MB</div><div class="mt-1 text-xs text-emerald-700">Semnătură detectată</div></li>
+        <li class="rounded-xl border border-slate-200 p-3"><div class="text-sm font-medium">03-anexe.pdf</div><div class="text-xs text-slate-500">Anexe, 0,12 MB</div><div class="mt-1 text-xs text-emerald-700">Semnătură detectată</div></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- Confirm panel -->
+  <aside class="sticky top-24 space-y-4">
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-soft p-5">
+      <h2 class="text-base font-semibold">Înainte de trimitere</h2>
+      <dl class="mt-3 text-sm space-y-2">
+        <div class="flex justify-between gap-3"><dt class="text-slate-500">Instanța</dt><dd class="text-right">Judecătoria Sectorului 3 București</dd></div>
+        <div class="flex justify-between gap-3"><dt class="text-slate-500">Adresa</dt><dd class="text-right">confirmată de administrator la 22.10.2026</dd></div>
+        <div class="flex justify-between gap-3"><dt class="text-slate-500">Dobânda calculată până la</dt><dd class="text-right tnum">29.09.2026</dd></div>
+      </dl>
+      <p class="mt-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-900">Numele din certificatul de semnătură diferă de numele contului.</p>
+
+      <fieldset class="mt-4 space-y-3 text-sm">
+        <legend class="sr-only">Declarații</legend>
+        <label class="flex items-start gap-2.5"><input type="checkbox" checked class="mt-0.5 size-4 rounded border-slate-300 accent-[#1E3A5F]"><span>Am verificat documentele semnate, textul e-mailului și adresa instanței.</span></label>
+        <label class="flex items-start gap-2.5"><input type="checkbox" class="mt-0.5 size-4 rounded border-slate-300 accent-[#1E3A5F]"><span>Cererea nu a fost depusă pe alt canal (registratură, REJUST, poștă sau curier).</span></label>
+      </fieldset>
+
+      <button type="button" disabled class="mt-5 w-full py-2.5 rounded-lg bg-lex-navy text-white text-sm font-semibold opacity-50 cursor-not-allowed">Trimite la instanță</button>
+      <p class="mt-2 text-xs text-slate-500 text-center">Butonul devine activ după bifarea ambelor declarații.</p>
+      <a href="#" class="mt-3 block text-center text-sm text-slate-600">Renunță</a>
+    </section>
+    <p class="text-xs text-slate-500 px-1">Instanța a fost calculată automat pe datele din dosar; verificarea competenței aparține avocatului.</p>
+  </aside>
+</div>
+</main>
+</body>
+</html>

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Adresa instanței</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="shell.js"></script>
+</head>
+<body class="font-sans antialiased bg-slate-50 text-slate-900">
+<main data-shell data-no-case
+      data-crumbs='<li>Dosare</li><li class="text-slate-300">/</li><li class="font-mono">TMP-LIVE-EA</li><li class="text-slate-300">/</li><li class="text-slate-800 font-medium">Adresa instanței</li>'>
+
+<div class="max-w-4xl">
+  <a href="c-trimisa-confirmare.html" class="text-sm text-slate-500">Înapoi la dosar</a>
+  <h1 class="mt-2 text-2xl font-bold tracking-tight">Judecătoria Sectorului 3 București</h1>
+  <p class="mt-1 text-slate-600">Adresele de e-mail ale instanței. Le verifică și le confirmă doar administratorul platformei; din dosar se poate raporta o adresă greșită sau sugera una nouă.</p>
+
+  <!-- The address used for filing -->
+  <section class="mt-6 bg-white rounded-2xl border border-slate-200 shadow-soft p-6">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <h2 class="text-sm font-semibold text-slate-500">Adresa folosită la depunere</h2>
+        <p class="mt-2 text-xl font-mono">registratura-test@example.test</p>
+        <p class="mt-1 text-sm text-slate-600">Registratură. Confirmată de administrator la 22.10.2026, pe baza sursei indicate.</p>
+      </div>
+      <span class="shrink-0 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 bg-emerald-50 text-emerald-700 ring-emerald-200"><span class="size-1.5 rounded-full bg-emerald-500"></span>Confirmată</span>
+    </div>
+    <div class="mt-5 pt-4 border-t border-slate-100 flex items-center gap-3">
+      <a href="#raport" class="py-2 px-3.5 rounded-lg border border-slate-300 text-sm font-semibold">Raportează adresa ca greșită</a>
+      <span class="text-sm text-slate-500">Adresa rămâne în uz până la decizia administratorului.</span>
+    </div>
+  </section>
+
+  <!-- All addresses -->
+  <section class="mt-6 bg-white rounded-2xl border border-slate-200 shadow-soft">
+    <header class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+      <h2 class="text-base font-semibold">Toate adresele instanței</h2>
+      <a href="#sugestie" class="text-sm font-medium text-lex-navy">+ Sugerează o adresă</a>
+    </header>
+    <table class="w-full text-sm">
+      <thead class="text-xs text-slate-500 border-b border-slate-100">
+        <tr><th class="text-left font-medium px-6 py-2">Adresa</th><th class="text-left font-medium py-2">Scop</th><th class="text-left font-medium py-2">Sursa</th><th class="text-left font-medium py-2 pr-6">Stare</th></tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        <tr>
+          <td class="px-6 py-3 font-mono">registratura-test@example.test</td>
+          <td>Registratură</td>
+          <td class="text-slate-600">Introdusă de administrator</td>
+          <td class="pr-6"><span class="rounded-md bg-emerald-50 text-emerald-700 text-xs font-semibold px-2 py-0.5">Confirmată, folosită la depunere</span></td>
+        </tr>
+        <tr>
+          <td class="px-6 py-3 font-mono">registratura-veche@example.test</td>
+          <td>Registratură</td>
+          <td class="text-slate-600">Sugestie avocat</td>
+          <td class="pr-6"><span class="rounded-md bg-slate-100 text-slate-700 text-xs font-semibold px-2 py-0.5">Neverificată, nefolosită</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- Suggest form, opened from the header link -->
+  <section id="sugestie" class="mt-6 bg-white rounded-2xl border border-slate-200 shadow-soft p-6">
+    <h2 class="text-base font-semibold">Sugerează o adresă</h2>
+    <p class="mt-1 text-sm text-slate-600">Sugestia ajunge la administrator și nu se folosește la depunere până la verificarea ei pe o sursă a instanței. Adresele nominale (de tipul prenume.nume@just.ro) nu se acceptă.</p>
+    <div class="mt-4 grid grid-cols-[1fr_200px_auto] gap-3 items-end">
+      <label class="block"><span class="text-sm font-medium text-slate-700">Adresa de e-mail</span><input class="mt-1 w-full py-2 px-3 rounded-lg border border-slate-300 text-sm"></label>
+      <label class="block"><span class="text-sm font-medium text-slate-700">Scopul adresei</span><select class="mt-1 w-full py-2 px-3 rounded-lg border border-slate-300 text-sm bg-white"><option>Registratură</option></select></label>
+      <button type="button" class="py-2 px-4 rounded-lg bg-lex-navy text-white text-sm font-semibold">Trimite sugestia</button>
+    </div>
+  </section>
+
+  <details class="mt-6 bg-white rounded-2xl border border-slate-200 shadow-soft">
+    <summary class="px-6 py-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+      <svg class="chev size-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+      Cum se validează adresele
+    </summary>
+    <ul class="px-6 pb-5 ps-11 text-sm text-slate-600 space-y-2 list-disc">
+      <li>O adresă confirmată se folosește pentru toate dosarele acestei instanțe din platformă, inclusiv ale altor avocați. De aceea doar administratorul o adaugă, o confirmă sau o scoate din uz.</li>
+      <li>Până la decizia administratorului, cererea se depune pe altă cale.</li>
+      <li>Sursele adreselor (portalul instanțelor, pagini salvate, introducere manuală) sunt neoficiale.</li>
+      <li>O confirmare expiră după 180 de zile (regulă de prudență a platformei, nu termen legal) sau când adresa nu mai apare în sursă.</li>
+      <li>La tribunal, secția depinde de părți. Secția pentru profesioniști se alege automat doar când creditorul și toți debitorii sunt societăți înregistrate la registrul comerțului.</li>
+    </ul>
+  </details>
+</div>
+</main>
+</body>
+</html>

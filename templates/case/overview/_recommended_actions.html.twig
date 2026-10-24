@@ -103,6 +103,23 @@
 
         {# Status-driven transitions exposed inline as secondary CTAs. Each opens the matching
            Preline modal; the controller validates and applies the workflow transition. #}
+        {% set filing_state = filing_panel|default(null) %}
+        {% if filing_state and filing_tab_visible|default(false) and (filing_package|default(null) or filing_submission|default(null)) and filing_state.code not in ['filed', 'inactive'] %}
+            {# One line with where the email filing stands; the flow itself is in the filing tab. #}
+            <a href="{{ path('case_overview', {id: case.id, tab: 'depunere'}) }}#depunere-status"
+               data-turbo-frame="_top"
+               data-testid="recommended-filing-link"
+               class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg bg-gradient-to-r from-blue-50 to-blue-50/50 dark:from-blue-950/40 dark:to-blue-950/20 border border-blue-200/60 dark:border-blue-900/40 hover:from-blue-100 dark:hover:from-blue-950/60 transition group">
+                <div class="size-9 rounded-lg bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 flex items-center justify-center shrink-0">
+                    {{ icon_document('size-4') }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-semibold text-blue-900 dark:text-blue-100">{{ filing_state.titleKey|trans(filing_state.titleParams) }}</div>
+                    <div class="text-[11px] text-blue-700/80 dark:text-blue-300/80 mt-0.5">{{ 'filing.panel.action.open_tab'|trans }}</div>
+                </div>
+                {{ icon_chevron_right('size-4 text-blue-600 dark:text-blue-400 shrink-0') }}
+            </a>
+        {% endif %}
         {% if case.status.value == 'CERERE_GENERATA' and not (filing_submission|default(null) and filing_submission.active) %}
             <button type="button"
                     data-hs-overlay="#hs-modal-confirm-filing"

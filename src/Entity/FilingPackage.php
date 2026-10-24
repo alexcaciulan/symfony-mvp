@@ -127,6 +127,16 @@ class FilingPackage
         return $this;
     }
 
+    /** A downloaded unsigned file may be on its way to the signing tool. */
+    public function markDownloadedForSigning(): static
+    {
+        if ($this->status === FilingPackageStatus::BUILT) {
+            $this->status = FilingPackageStatus::AWAITING_SIGNATURES;
+        }
+
+        return $this;
+    }
+
     public function getOpisPlacement(): OpisPlacement
     {
         return $this->opisPlacement;

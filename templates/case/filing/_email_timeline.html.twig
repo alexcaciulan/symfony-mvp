@@ -1,0 +1,50 @@
+{# One row per email of the transmission: what it carries and where it stands, in
+   words. "Accepted by the court's server" is the furthest an email goes here; the
+   attempts, the codes and the copies are in "Detalii tehnice". Times are the mail
+   server's, in Romanian time. #}
+{% from 'case/overview/_icons.html.twig' import icon_check, icon_warning, icon_clock %}
+{% set submission = filing_submission %}
+{% set package_parts = submission.package.parts %}
+<section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft" data-testid="filing-email-timeline">
+    <header class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4">
+        <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">{{ 'filing.panel.timeline.title'|trans }}</h3>
+        <span class="text-sm text-slate-500 dark:text-slate-400">{{ submission.deliveryStatus.label|trans }}</span>
+    </header>
+    <ol class="divide-y divide-slate-100 dark:divide-slate-800" data-testid="filing-submission-parts">
+        {% for part in submission.parts %}
+            {% set st = part.status.value %}
+            {% set returned = part.attempts|filter(a => a.source.value == 'ASYNC_BOUNCE' and a.outcome and a.outcome.value != 'TEMPORARY')|length > 0 %}
+            {# A part the lawyer declared not received in CC (or an admin marked) is not called "not sent" as a fact. #}
+            {% set state_key = returned and part.failed ? 'returned'
+                : (part.lastError == 'filing.uncertain.not_received' ? 'cc_not_received'
+                : (part.lastError == 'filing.override.failed' ? 'admin_failed' : st)) %}
+            {% set bad = part.failed or returned %}
+            {% set unknown = st == 'UNCERTAIN' %}
+            <li class="px-6 py-4 flex items-start gap-4 {{ bad ? 'bg-red-50/50 dark:bg-red-950/10' : (unknown ? 'bg-amber-50/50 dark:bg-amber-950/10' : '') }}" data-testid="filing-timeline-part-{{ part.sequence }}">
+                {% if st == 'ACCEPTED' %}
+                    <span class="shrink-0 inline-flex items-center justify-center size-9 rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300" aria-hidden="true">{{ icon_check('size-4') }}</span>
+                {% elseif bad %}
+                    <span class="shrink-0 inline-flex items-center justify-center size-9 rounded-lg bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200" aria-hidden="true">{{ icon_warning('size-4') }}</span>
+                {% elseif unknown %}
+                    <span class="shrink-0 inline-flex items-center justify-center size-9 rounded-lg bg-amber-100 text-amber-800 font-bold" aria-hidden="true">?</span>
+                {% elseif st in ['SENDING', 'RETRY_SCHEDULED', 'PENDING'] %}
+                    <span class="shrink-0 inline-flex items-center justify-center size-9 rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300" aria-hidden="true">{{ icon_clock('size-4') }}</span>
+                {% else %}
+                    <span class="shrink-0 inline-flex items-center justify-center size-9 rounded-lg bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 font-bold" aria-hidden="true">&minus;</span>
+                {% endif %}
+                <div class="flex-1 min-w-0">
+                    <p class="font-medium text-slate-900 dark:text-slate-100">{{ 'filing.status.part'|trans({'%k%': part.sequence, '%n%': part.total}) }}</p>
+                    <p class="text-sm text-slate-500 dark:text-slate-400">{{ part.orderedPackageParts|map(p => p.title)|join(', ') }}</p>
+                </div>
+                <div class="shrink-0 text-right">
+                    <p class="text-sm font-medium {{ st == 'ACCEPTED' ? 'text-emerald-700 dark:text-emerald-300' : (bad ? 'text-red-700 dark:text-red-300' : (unknown ? 'text-amber-800 dark:text-amber-200' : 'text-slate-600 dark:text-slate-300')) }}" data-testid="filing-submission-part-status-{{ part.sequence }}">{{ ('filing.panel.timeline.state.' ~ state_key)|trans }}</p>
+                    {% if part.sentAt %}
+                        <p class="text-xs text-slate-500 dark:text-slate-400 tnum">{{ part.sentAt|date('d.m.Y, H:i', 'Europe/Bucharest') }}</p>
+                    {% elseif part.latestAttempt and st not in ['PENDING', 'CANCELLED'] %}
+                        <p class="text-xs text-slate-500 dark:text-slate-400 tnum">{{ part.latestAttempt.startedAt|date('d.m.Y, H:i', 'Europe/Bucharest') }}</p>
+                    {% endif %}
+                </div>
+            </li>
+        {% endfor %}
+    </ol>
+</section>

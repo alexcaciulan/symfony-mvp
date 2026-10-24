@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Depunere: rezultat necunoscut</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="shell.js"></script>
+</head>
+<body class="font-sans antialiased bg-slate-50 text-slate-900">
+<main data-shell data-badge="Transmitere de verificat" data-tone="amber" data-cta="Verifică copia din CC" data-tab-dot="amber"
+      data-stepper="3" data-stepper-state="warn" data-stepper-notes="Versiunea 2|Toate fișierele semnate|Rezultat necunoscut|După înregistrare">
+
+<div class="grid grid-cols-3 gap-6">
+  <div class="col-span-2 space-y-6">
+
+    <section id="depunere-status" class="rounded-2xl border border-amber-200 bg-amber-50/50 shadow-soft p-6">
+      <div class="flex gap-4">
+        <span class="shrink-0 inline-flex items-center justify-center size-10 rounded-xl bg-amber-100 text-amber-800 text-lg font-bold">?</span>
+        <div class="min-w-0 flex-1">
+          <h2 class="text-lg font-semibold">Nu se știe dacă e-mailul a ajuns. Verifică copia din CC</h2>
+          <p class="mt-1 text-sm text-slate-700 max-w-prose">Conexiunea s-a întrerupt în timpul trimiterii, iar serverul instanței nu a răspuns. Nimic nu a fost retrimis. Copia în CC a fost trimisă la <span class="font-mono">avocat@test.com</span>; ea arată doar dacă mesajul a plecat, nu că instanța l-a primit.</p>
+
+          <fieldset class="mt-4 grid grid-cols-2 gap-3">
+            <legend class="sr-only">Copia din CC a e-mailului 1 din 1</legend>
+            <label class="block rounded-xl border-2 border-lex-navy bg-white p-4 cursor-pointer">
+              <span class="flex items-center gap-2 font-semibold"><input type="radio" name="cc" checked class="size-4 accent-[#1E3A5F]">Am primit copia în CC</span>
+              <span class="mt-1 block text-sm text-slate-600">Cererea se consideră trimisă, cu ora aproximată la ultima încercare (24.10.2026, 16:30). Data depunerii se declară separat.</span>
+            </label>
+            <label class="block rounded-xl border border-slate-300 bg-white p-4 cursor-pointer">
+              <span class="flex items-center gap-2 font-semibold"><input type="radio" name="cc" class="size-4 accent-[#1E3A5F]">Nu am primit copia în CC</span>
+              <span class="mt-1 block text-sm text-slate-600">E-mailul se consideră netrimis. Cererea se poate trimite din nou sau depune pe altă cale.</span>
+            </label>
+          </fieldset>
+          <label class="mt-4 flex items-start gap-2.5 text-sm"><input type="checkbox" class="mt-0.5 size-4 accent-[#1E3A5F]"><span>Declar că am verificat căsuța de e-mail și că alegerea de mai sus îmi aparține.</span></label>
+          <div class="mt-4 flex flex-wrap items-center gap-2">
+            <button type="button" class="py-2.5 px-4 rounded-lg bg-lex-navy text-white text-sm font-semibold shadow-sm">Înregistrează declarația</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-soft">
+      <header class="px-6 py-4 border-b border-slate-100"><h3 class="text-base font-semibold">E-mailuri către instanță</h3></header>
+      <ul>
+        <li class="px-6 py-4 flex items-center gap-4">
+          <span class="shrink-0 inline-flex items-center justify-center size-9 rounded-lg bg-amber-100 text-amber-800 font-bold">?</span>
+          <div class="flex-1 min-w-0">
+            <div class="font-medium">E-mailul 1 din 1</div>
+            <div class="text-sm text-slate-500">Cererea cu opisul, împuternicirea și anexele, 0,27 MB</div>
+          </div>
+          <div class="text-right">
+            <div class="text-sm font-medium text-amber-800">Rezultat necunoscut</div>
+            <div class="text-xs text-slate-500 tnum">întrerupt la 24.10.2026, 16:30</div>
+          </div>
+        </li>
+      </ul>
+    </section>
+
+    <details class="bg-white rounded-2xl border border-slate-200 shadow-soft">
+      <summary class="px-6 py-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+        <svg class="chev size-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+        Detalii tehnice
+        <span class="font-normal text-slate-500">ultima încercare SMTP, copia .eml</span>
+      </summary>
+      <div class="px-6 pb-5 text-sm text-slate-600">Încercarea 1, 24.10.2026 16:30: server SMTP, conexiune întreruptă după trimiterea conținutului.</div>
+    </details>
+  </div>
+
+  <aside class="space-y-6">
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-soft p-5">
+      <h3 class="text-sm font-semibold">Unde se caută copia</h3>
+      <ul class="mt-2 text-sm text-slate-600 space-y-1.5 list-disc ps-5">
+        <li>căsuța <span class="font-mono">avocat@test.com</span>, inclusiv dosarul Spam</li>
+        <li>subiectul începe cu „Cerere de emitere a ordonanței de plată”</li>
+        <li>expeditor: Av. Andrei Georgescu prin LexRecovery</li>
+      </ul>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-soft p-5">
+      <h3 class="text-sm font-semibold">Instanța și adresa de depunere</h3>
+      <p class="mt-2 text-sm">Judecătoria Sectorului 3 București</p>
+      <p class="mt-3 font-mono text-sm break-all">registratura-test@example.test</p>
+      <p class="text-xs text-slate-500">Registratură, confirmată de administrator la 22.10.2026</p>
+    </section>
+
+    <details class="bg-white rounded-2xl border border-slate-200 shadow-soft">
+      <summary class="px-5 py-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+        <svg class="chev size-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+        Note juridice
+      </summary>
+      <ul class="px-5 pb-5 text-sm text-slate-600 space-y-2 list-disc ps-9">
+        <li>Declarația privind copia din CC aparține avocatului.</li>
+        <li>Copia din CC nu dovedește primirea de către instanță.</li>
+        <li>Verificarea depunerii și a termenelor rămâne în sarcina avocatului.</li>
+      </ul>
+    </details>
+  </aside>
+</div>
+</main>
+</body>
+</html>

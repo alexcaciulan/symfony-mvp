@@ -1,7 +1,8 @@
 {# Turbo Stream response for document generation (summons / payment order), so the
    generation updates the page in place (no full reload, tab preserved). These
-   actions change the case status, so they refresh the hero, pipeline, tabs nav,
-   the documents panel and the summons-communication alert. `update_regions` is
+   actions change the case status, so they refresh the hero, pipeline, tabs nav
+   (the filing tab appears with the petition), the documents and filing panels and
+   the summons-communication alert. `update_regions` is
    false for pure error/warning toasts (nothing changed). `close_modal_id` dismisses
    the originating Preline modal; `open_modal_id` surfaces a follow-up modal
    (e.g. the C4 communication memento after the summons). #}
@@ -23,6 +24,7 @@
     <turbo-stream action="update" target="panel-documente">
         <template>{{ include('case/overview/_tab_documente.html.twig') }}</template>
     </turbo-stream>
+    {{ include('case/filing/_tab_regions_turbo_stream.html.twig') }}
     <turbo-stream action="update" target="summons-communication-alert">
         <template>{{ include('case/overview/_summons_communication_alert.html.twig') }}</template>
     </turbo-stream>

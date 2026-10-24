@@ -93,6 +93,12 @@ final class SmtpFailureClassifier
         return SmtpFailureKind::PERMANENT;
     }
 
+    /** Enhanced statuses (RFC 3463) that name the recipient mailbox or its domain as unknown. */
+    public static function isUnknownMailboxStatus(?string $enhanced): bool
+    {
+        return in_array($enhanced, ['5.1.1', '5.1.2', '5.1.3', '5.4.4'], true);
+    }
+
     /**
      * "Unknown or invalid recipient": enhanced 5.1.1 to 5.1.3, 5.4.4 (no route to the
      * domain), or a bare 550/551/553 without an enhanced status.
@@ -100,7 +106,7 @@ final class SmtpFailureClassifier
     private static function rejectsRecipient(?int $code, ?string $enhanced): bool
     {
         if ($enhanced !== null) {
-            return in_array($enhanced, ['5.1.1', '5.1.2', '5.1.3', '5.4.4'], true);
+            return self::isUnknownMailboxStatus($enhanced);
         }
 
         return in_array($code, [550, 551, 553], true);

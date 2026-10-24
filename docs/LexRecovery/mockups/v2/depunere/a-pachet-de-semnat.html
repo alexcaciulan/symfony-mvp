@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Depunere: pachet de semnat</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="shell.js"></script>
+</head>
+<body class="font-sans antialiased bg-slate-50 text-slate-900">
+<main data-shell data-badge="Cerere generată" data-tone="slate" data-cta="Continuă semnarea" data-tab-dot="amber"
+      data-stepper="2" data-stepper-state="ok" data-stepper-notes="Construit, versiunea 2|1 din 3 fișiere gata|După semnare|După înregistrare">
+
+<div class="grid grid-cols-3 gap-6">
+  <div class="col-span-2 space-y-6">
+
+    <!-- Status panel -->
+    <section id="depunere-status" class="bg-white rounded-2xl border border-slate-200 shadow-soft p-6">
+      <div class="flex gap-4">
+        <span class="shrink-0 inline-flex items-center justify-center size-10 rounded-xl bg-blue-50 text-blue-700">
+          <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15 4l5 5L9 20H4v-5z"/></svg>
+        </span>
+        <div class="min-w-0">
+          <h2 class="text-lg font-semibold">Semnează fișierele pachetului</h2>
+          <p class="mt-1 text-sm text-slate-600 max-w-prose">Un fișier din 3 este gata. Împuternicirea semnată așteaptă confirmarea documentului, iar anexele nu au fost încă încărcate semnate.</p>
+          <div class="mt-4 flex flex-wrap items-center gap-2">
+            <a href="#imputernicire" class="py-2.5 px-4 rounded-lg bg-lex-navy text-white text-sm font-semibold shadow-sm">Confirmă împuternicirea</a>
+            <a href="#" class="py-2.5 px-4 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-800">Descarcă fișierele nesemnate (.zip)</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Files to sign -->
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-soft">
+      <header class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h3 class="text-base font-semibold">Fișiere de semnat</h3>
+          <p class="text-sm text-slate-500">Se descarcă, se semnează local cu semnătura calificată și se încarcă înapoi. PDF, maximum 20 MB.</p>
+        </div>
+        <span class="text-sm text-slate-500 tnum whitespace-nowrap">1 din 3 gata</span>
+      </header>
+      <ul class="divide-y divide-slate-100">
+        <li class="px-6 py-4 flex items-start gap-4">
+          <span class="shrink-0 inline-flex items-center justify-center size-9 rounded-lg bg-emerald-50 text-emerald-700">
+            <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+          </span>
+          <div class="flex-1 min-w-0">
+            <div class="font-medium">Cererea de ordonanță de plată, cu opisul</div>
+            <div class="text-sm text-slate-500">4 pagini, 0,05 MB</div>
+            <div class="mt-1 text-sm text-emerald-700">Semnătură detectată. Numele din certificat: Test Avocat</div>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <a href="#" class="py-1.5 px-3 rounded-lg border border-slate-200 text-sm text-slate-700">Descarcă semnat</a>
+            <a href="#" class="py-1.5 px-3 rounded-lg text-sm text-slate-500">Înlocuiește</a>
+          </div>
+        </li>
+        <li id="imputernicire" class="px-6 py-4 flex items-start gap-4 bg-amber-50/50">
+          <span class="shrink-0 inline-flex items-center justify-center size-9 rounded-lg bg-amber-100 text-amber-800 font-bold">!</span>
+          <div class="flex-1 min-w-0">
+            <div class="font-medium">Împuternicirea avocațială</div>
+            <div class="text-sm text-slate-500">5 pagini, 0,04 MB</div>
+            <div class="mt-1 text-sm text-amber-900">Semnătură detectată, dar fișierul a fost rescris înainte de semnare. Documentul a fost recunoscut după text; este necesară confirmarea că este documentul generat.</div>
+            <div class="mt-1 text-sm text-amber-900">Numele din certificat (Test Avocat) diferă de numele contului.</div>
+          </div>
+          <div class="flex flex-col items-end gap-2 shrink-0">
+            <a href="#" class="py-1.5 px-3 rounded-lg bg-lex-navy text-white text-sm font-semibold">Confirmă documentul</a>
+            <a href="#" class="py-1.5 px-3 rounded-lg text-sm text-slate-500">Înlocuiește</a>
+          </div>
+        </li>
+        <li class="px-6 py-4 flex items-start gap-4">
+          <span class="shrink-0 inline-flex items-center justify-center size-9 rounded-lg bg-slate-100 text-slate-500 text-xs font-bold">PDF</span>
+          <div class="flex-1 min-w-0">
+            <div class="font-medium">Anexe</div>
+            <div class="text-sm text-slate-500">12 pagini, 0,09 MB, paginile 1-11 cu pagină de gardă</div>
+            <div class="mt-1 text-sm text-slate-600">Nesemnat</div>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <a href="#" class="py-1.5 px-3 rounded-lg border border-slate-200 text-sm text-slate-700">Descarcă</a>
+            <a href="#" class="py-1.5 px-3 rounded-lg border border-lex-navy text-lex-navy text-sm font-semibold">Încarcă semnat</a>
+          </div>
+        </li>
+      </ul>
+    </section>
+
+    <!-- Technical details, collapsed -->
+    <details class="bg-white rounded-2xl border border-slate-200 shadow-soft">
+      <summary class="px-6 py-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+        <svg class="chev size-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+        Detalii tehnice
+        <span class="font-normal text-slate-500">versiunea pachetului, împărțirea pe e-mailuri</span>
+      </summary>
+      <div class="px-6 pb-5 text-sm text-slate-600 space-y-1">
+        <p>Pachetul versiunea 2, construit la 24.10.2026 16:06, după modificarea împuternicirii.</p>
+        <p>Pachetul se trimite într-un singur e-mail.</p>
+      </div>
+    </details>
+  </div>
+
+  <aside class="space-y-6">
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-soft p-5">
+      <h3 class="text-sm font-semibold">Instanța și adresa de depunere</h3>
+      <p class="mt-2 text-sm">Judecătoria Sectorului 3 București</p>
+      <p class="mt-3 font-mono text-sm break-all">registratura-test@example.test</p>
+      <p class="text-xs text-slate-500">Registratură, confirmată de administrator la 22.10.2026</p>
+      <a href="i-adresa-instantei.html" class="mt-3 inline-block text-sm font-medium text-lex-navy underline underline-offset-2">Adresele instanței</a>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-soft p-5">
+      <h3 class="text-sm font-semibold">După semnare</h3>
+      <p class="mt-1 text-sm text-slate-600">Butonul „Verifică și trimite” apare când toate fișierele au semnătura detectată și confirmată.</p>
+    </section>
+
+    <details class="bg-white rounded-2xl border border-slate-200 shadow-soft">
+      <summary class="px-5 py-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+        <svg class="chev size-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+        Note juridice
+      </summary>
+      <ul class="px-5 pb-5 text-sm text-slate-600 space-y-2 list-disc ps-9">
+        <li>Prezența unei semnături nu garantează validitatea calificată; verificarea revine avocatului și instanței.</li>
+        <li>Validatorul public al Comisiei Europene (DSS) se folosește doar cu acordul avocatului, fișierul conține date ale clientului.</li>
+        <li>Textul de pe pagina de gardă („conform cu originalul”) este provizoriu. Mențiunea este a avocatului semnatar.</li>
+        <li>Comprimarea anexelor se face local. Serviciile externe de compresie pot încălca secretul profesional (art. 11 din Legea nr. 51/1995) și GDPR.</li>
+        <li>Răspunderea pentru semnătură și pentru conținutul depus aparține avocatului.</li>
+      </ul>
+    </details>
+  </aside>
+</div>
+</main>
+</body>
+</html>

@@ -1,99 +1,118 @@
-{# The court's addresses (nominal ones never reach this list), the resolved filing
-   address, and the owner's two actions: suggest an address, report one as wrong.
+{# The address used for filing, every address of the court (nominal ones never reach
+   this list) and the owner's two actions: report an address as wrong, suggest one.
    Only the admin confirms or takes an address out of use; nothing here says an
    address is official or that a case is ready to be sent. #}
 {% from 'case/overview/_icons.html.twig' import icon_warning, icon_plus %}
-{% set btn = 'py-1.5 px-2.5 inline-flex items-center gap-1 text-xs font-semibold rounded-lg transition' %}
-{% set input = 'block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-100 px-2.5 py-1.5' %}
+{% set btn = 'py-2 px-3.5 inline-flex items-center gap-1.5 text-sm font-semibold rounded-lg transition' %}
+{% set input = 'block w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-100 px-3 py-2' %}
+{% set used = recipient.address %}
+
+{% macro report_form(case, address, report_reasons, input, btn) %}
+    {% from 'case/overview/_icons.html.twig' import icon_warning %}
+    <details class="mt-1">
+        <summary class="cursor-pointer list-none inline-flex {{ btn }} border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800">{{ 'court_address.validation.report_title'|trans }}</summary>
+        <form method="post" action="{{ path('case_court_address_report', {id: case.id, addressId: address.id}) }}" class="mt-3 flex flex-wrap items-end gap-2" data-testid="court-address-report-form">
+            <input type="hidden" name="_token" value="{{ csrf_token('court_address_report_' ~ case.id) }}">
+            <select name="reason" required class="{{ input }} w-auto">
+                {% for reason in report_reasons %}
+                    <option value="{{ reason.value }}">{{ reason.label|trans }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="{{ btn }} border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
+                {{ icon_warning('size-4') }}{{ 'court_address.validation.report_submit'|trans }}
+            </button>
+            <p class="w-full text-xs text-slate-500 dark:text-slate-400">{{ 'court_address.validation.report_warning'|trans }}</p>
+        </form>
+    </details>
+{% endmacro %}
 
 <div id="court-address-list" class="space-y-6">
-    <section class="bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 p-5" data-testid="court-address-recipient">
-        <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">{{ 'filing.recipient.title'|trans }}</h2>
-        {% if recipient.address %}
-            <p class="text-sm font-mono text-slate-900 dark:text-slate-100">{{ recipient.address.email }}</p>
-            <p class="text-xs text-slate-600 dark:text-slate-300">
-                {{ recipient.address.purpose.label|trans }} ·
-                {{ 'filing.recipient.confirmed_by'|trans({'%date%': recipient.address.validatedAt|date('d.m.Y')}) }}
-            </p>
+    <section class="bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 p-6" data-testid="court-address-recipient">
+        <div class="flex items-start justify-between gap-3">
+            <h2 class="text-sm font-medium text-slate-500 dark:text-slate-400">{{ 'court_address.page.used_title'|trans }}</h2>
+            {% if used %}
+                <span class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">{{ used.status.label|trans }}</span>
+            {% endif %}
+        </div>
+        {% if used %}
+            <p class="mt-1 text-xl font-mono text-slate-900 dark:text-slate-100 break-all">{{ used.email }}</p>
+            <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">{{ 'court_address.page.used_meta'|trans({'%purpose%': used.purpose.label|trans, '%date%': used.validatedAt|date('d.m.Y')}) }}</p>
+            {% set used_report = my_open_reports[used.id] ?? null %}
+            {% if used_report %}
+                <p class="mt-3 text-sm text-amber-800 dark:text-amber-200" data-testid="court-address-reported">{{ 'court_address.validation.report_pending'|trans({'%date%': used_report.createdAt|date('d.m.Y')}) }}</p>
+            {% elseif is_owner %}
+                <div class="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-start gap-3">
+                    {{ _self.report_form(case, used, report_reasons, input, btn) }}
+                    <p class="text-sm text-slate-500 dark:text-slate-400 pt-2">{{ 'court_address.page.used_report_note'|trans }}</p>
+                </div>
+            {% endif %}
         {% else %}
-            <p class="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 p-3 text-xs text-amber-900 dark:text-amber-100">{{ recipient.reason.label|trans }}</p>
+            <p class="mt-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 p-3 text-sm text-amber-900 dark:text-amber-100">{{ recipient.reason.label|trans }}</p>
         {% endif %}
     </section>
 
     {% if court %}
     <section class="bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 overflow-hidden">
-        <h2 class="px-5 pt-5 text-sm font-semibold text-slate-900 dark:text-slate-100">{{ 'court_address.validation.list_title'|trans }}</h2>
+        <header class="px-6 py-4 flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800">
+            <h2 class="text-base font-semibold text-slate-900 dark:text-slate-100">{{ 'court_address.validation.list_title'|trans }}</h2>
+            {% if is_owner %}
+                <a href="#court-address-suggest" data-turbo="false" class="inline-flex items-center gap-1 text-sm font-medium text-slate-700 dark:text-slate-200 hover:underline">{{ icon_plus('size-4') }}{{ 'court_address.validation.suggest_title'|trans }}</a>
+            {% endif %}
+        </header>
         {% if addresses is empty %}
-            <p class="px-5 py-4 text-sm text-slate-600 dark:text-slate-300" data-testid="court-address-empty">{{ 'court_address.validation.empty'|trans }}</p>
+            <p class="px-6 py-4 text-sm text-slate-600 dark:text-slate-300" data-testid="court-address-empty">{{ 'court_address.validation.empty'|trans }}</p>
         {% else %}
-        <ul class="mt-3 divide-y divide-slate-100 dark:divide-slate-800 border-t border-slate-100 dark:border-slate-800">
-            {% for address in addresses %}
-                {% set expired = address.status.value == 'VALIDATED' and address.isValidationExpired(now) %}
-                <li class="p-5" data-testid="court-address-{{ address.id }}">
-                    <div class="flex flex-wrap items-start justify-between gap-2">
-                        <div class="min-w-0">
-                            <p class="text-sm font-mono text-slate-900 dark:text-slate-100 break-all">{{ address.email }}</p>
-                            <p class="mt-0.5 text-xs text-slate-600 dark:text-slate-300">
-                                {{ address.purpose.label|trans }}{% if address.sectionLabel %} ({{ address.sectionLabel }}){% endif %}
-                                · {{ 'filing.recipient.source'|trans }}: {{ address.source.label|trans }}
-                                {% if address.filingDefault and address.status.value == 'VALIDATED' %} · {{ 'court_address.validation.default_badge'|trans }}{% endif %}
-                            </p>
-                            {% if address.context %}
-                                <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{{ address.context }}</p>
-                            {% endif %}
-                            {% if address.status.value == 'VALIDATED' %}
-                                <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                                    {{ 'court_address.validation.confirmed_meta'|trans({'%date%': address.validatedAt|date('d.m.Y'), '%name%': address.validatedBy ? address.validatedBy.fullName : '-'}) }}
-                                </p>
-                            {% endif %}
-                        </div>
-                        <span class="shrink-0 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold {{ address.status.value == 'VALIDATED' and not expired ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : (address.status.value in ['REJECTED', 'INVALID'] or expired ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200') }}" data-testid="court-address-status">
-                            {{ (expired ? 'court_address.validation.expired_badge' : address.status.label)|trans }}
-                        </span>
-                    </div>
-
-                    {% if address.status.value == 'PROPOSED' %}
-                        <p class="mt-2 text-[11px] text-slate-500 dark:text-slate-400" data-testid="court-address-awaiting-admin">{{ 'court_address.validation.awaiting_admin'|trans }}</p>
-                    {% endif %}
+            <div class="hidden md:grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1.4fr)] gap-3 px-6 py-2 text-xs font-medium text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                <span>{{ 'court_address.page.col_address'|trans }}</span><span>{{ 'court_address.page.col_purpose'|trans }}</span><span>{{ 'court_address.page.col_source'|trans }}</span><span>{{ 'court_address.page.col_status'|trans }}</span>
+            </div>
+            <ul class="divide-y divide-slate-100 dark:divide-slate-800">
+                {% for address in addresses %}
+                    {% set expired = address.status.value == 'VALIDATED' and address.isValidationExpired(now) %}
+                    {% set is_used = used and used.id == address.id %}
                     {% set my_report = my_open_reports[address.id] ?? null %}
-                    {% if my_report %}
-                        <p class="mt-2 text-[11px] text-amber-800 dark:text-amber-200" data-testid="court-address-reported">{{ 'court_address.validation.report_pending'|trans({'%date%': my_report.createdAt|date('d.m.Y')}) }}</p>
-                    {% endif %}
-
-                    {% if is_owner and address.status.value in ['PROPOSED', 'VALIDATED'] and not my_report %}
-                        <details class="mt-3">
-                            <summary class="cursor-pointer text-xs font-semibold text-slate-600 dark:text-slate-300">{{ 'court_address.validation.report_title'|trans }}</summary>
-                            <form method="post" action="{{ path('case_court_address_report', {id: case.id, addressId: address.id}) }}" class="mt-2 flex flex-wrap items-end gap-2" data-testid="court-address-report-form">
-                                <input type="hidden" name="_token" value="{{ csrf_token('court_address_report_' ~ case.id) }}">
-                                <select name="reason" required class="{{ input }} w-auto">
-                                    {% for reason in report_reasons %}
-                                        <option value="{{ reason.value }}">{{ reason.label|trans }}</option>
-                                    {% endfor %}
-                                </select>
-                                <button type="submit" class="{{ btn }} border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">
-                                    {{ icon_warning('size-3.5') }}{{ 'court_address.validation.report_submit'|trans }}
-                                </button>
-                                <p class="w-full text-[11px] text-slate-500 dark:text-slate-400">{{ 'court_address.validation.report_warning'|trans }}</p>
-                            </form>
-                        </details>
-                    {% endif %}
-                </li>
-            {% endfor %}
-        </ul>
+                    <li class="px-6 py-3" data-testid="court-address-{{ address.id }}">
+                        <div class="grid gap-1 md:gap-3 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.3fr)_minmax(0,1.4fr)] md:items-center">
+                            <span class="font-mono text-sm text-slate-900 dark:text-slate-100 break-all">{{ address.email }}</span>
+                            <span class="text-sm text-slate-700 dark:text-slate-200">{{ address.purpose.label|trans }}{% if address.sectionLabel %} ({{ address.sectionLabel }}){% endif %}</span>
+                            <span class="text-sm text-slate-600 dark:text-slate-300">{{ address.source.label|trans }}</span>
+                            <span>
+                                <span class="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold {{ address.status.value == 'VALIDATED' and not expired ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : (address.status.value in ['REJECTED', 'INVALID'] or expired ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200') }}" data-testid="court-address-status">
+                                    {{ (expired ? 'court_address.validation.expired_badge' : address.status.label)|trans }}{% if is_used %}, {{ 'court_address.page.used_suffix'|trans }}{% elseif address.filingDefault and address.status.value == 'VALIDATED' %} · {{ 'court_address.validation.default_badge'|trans }}{% endif %}
+                                </span>
+                            </span>
+                        </div>
+                        {% if address.context %}
+                            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ address.context }}</p>
+                        {% endif %}
+                        {% if address.status.value == 'VALIDATED' %}
+                            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">{{ 'court_address.validation.confirmed_meta'|trans({'%date%': address.validatedAt|date('d.m.Y'), '%name%': address.validatedBy ? address.validatedBy.fullName : '-'}) }}</p>
+                        {% endif %}
+                        {% if address.status.value == 'PROPOSED' %}
+                            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400" data-testid="court-address-awaiting-admin">{{ 'court_address.validation.awaiting_admin'|trans }}</p>
+                        {% endif %}
+                        {% if my_report and not is_used %}
+                            <p class="mt-1 text-xs text-amber-800 dark:text-amber-200" data-testid="court-address-reported">{{ 'court_address.validation.report_pending'|trans({'%date%': my_report.createdAt|date('d.m.Y')}) }}</p>
+                        {% endif %}
+                        {% if is_owner and not is_used and address.status.value in ['PROPOSED', 'VALIDATED'] and not my_report %}
+                            <div class="mt-2">{{ _self.report_form(case, address, report_reasons, input, btn) }}</div>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
         {% endif %}
     </section>
 
     {% if is_owner %}
-    <section class="bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 p-5">
-        <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">{{ 'court_address.validation.suggest_title'|trans }}</h2>
-        <p class="text-xs text-slate-600 dark:text-slate-300 mb-3">{{ 'court_address.validation.suggest_intro'|trans }}</p>
+    <section id="court-address-suggest" class="scroll-mt-24 bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 p-6">
+        <h2 class="text-base font-semibold text-slate-900 dark:text-slate-100">{{ 'court_address.validation.suggest_title'|trans }}</h2>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-300 mb-4">{{ 'court_address.validation.suggest_intro'|trans }}</p>
         <form method="post" action="{{ path('case_court_address_suggest', {id: case.id}) }}" class="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end" data-testid="court-address-suggest-form">
             <input type="hidden" name="_token" value="{{ csrf_token('court_address_suggest_' ~ case.id) }}">
-            <label class="text-xs text-slate-700 dark:text-slate-200">
+            <label class="text-sm text-slate-700 dark:text-slate-200">
                 {{ 'court_address.validation.manual_email'|trans }}
                 <input type="email" name="email" required maxlength="254" autocomplete="off" class="{{ input }} mt-1">
             </label>
-            <label class="text-xs text-slate-700 dark:text-slate-200">
+            <label class="text-sm text-slate-700 dark:text-slate-200">
                 {{ 'court_address.validation.manual_purpose'|trans }}
                 <select name="purpose" required class="{{ input }} mt-1">
                     {% for purpose in manual_purposes %}
@@ -101,8 +120,8 @@
                     {% endfor %}
                 </select>
             </label>
-            <button type="submit" class="{{ btn }} py-2 bg-lex-navy text-white hover:bg-lex-navy-dark justify-center">
-                {{ icon_plus('size-3.5') }}{{ 'court_address.validation.suggest_submit'|trans }}
+            <button type="submit" class="{{ btn }} bg-lex-navy text-white hover:bg-lex-navy-dark justify-center">
+                {{ 'court_address.validation.suggest_submit'|trans }}
             </button>
         </form>
     </section>

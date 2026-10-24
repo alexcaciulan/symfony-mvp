@@ -72,6 +72,29 @@ final class CaseCourtAddressControllerTest extends WebTestCase
         self::assertSelectorExists('form[data-testid="court-address-report-form"]');
     }
 
+    public function testThePageLeadsWithTheCourtAndTheAddressUsedForFiling(): void
+    {
+        $used = $this->createCourtEmailAddress($this->em, $this->court, 'registratura-folosita@just.ro', CourtEmailPurpose::REGISTRY, CourtEmailStatus::VALIDATED, new \DateTimeImmutable('-3 days'), $this->user, true);
+        $this->createCourtEmailAddress($this->em, $this->court, 'registratura-veche@just.ro', CourtEmailPurpose::REGISTRY);
+        $this->client->loginUser($this->user);
+
+        $crawler = $this->client->request('GET', $this->pageUrl());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('h1[data-testid="court-address-court"]', $this->court->getName());
+        self::assertSelectorTextContains('[data-testid="court-address-recipient"]', 'Adresa folosită la depunere');
+        self::assertSelectorTextContains('[data-testid="court-address-recipient"]', 'registratura-folosita@just.ro');
+        self::assertSelectorExists('[data-testid="court-address-recipient"] form[data-testid="court-address-report-form"]');
+        // The used address is reported from its own card, not again in the list.
+        self::assertSelectorNotExists(sprintf('[data-testid="court-address-%d"] form', $used->getId()));
+        self::assertSelectorTextContains(sprintf('[data-testid="court-address-%d"] [data-testid="court-address-status"]', $used->getId()), 'folosită la depunere');
+        self::assertSelectorExists('details[data-testid="court-address-rules"]:not([open])');
+        $html = (string) $this->client->getResponse()->getContent();
+        self::assertLessThan(strpos($html, 'data-testid="court-address-rules"'), strpos($html, 'data-testid="court-address-recipient"'));
+        self::assertSelectorExists(sprintf('a[href="/case/%d?tab=depunere"]', $this->case->getId()));
+        self::assertCount(1, $crawler->filter('form[data-testid="court-address-suggest-form"]'));
+    }
+
     public function testTheLawyerValidationAndManualRoutesAreGone(): void
     {
         $address = $this->createCourtEmailAddress($this->em, $this->court, 'registratura@just.ro', CourtEmailPurpose::REGISTRY);

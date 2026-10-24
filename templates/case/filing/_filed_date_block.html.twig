@@ -1,0 +1,36 @@
+{# The filing date as the lawyer declared it, or a short note for the step the
+   filing is at (after signing, where to look for the CC copy, the signed package
+   that stays valid). #}
+{% set panel = filing_panel %}
+{% set submission = filing_submission|default(null) %}
+{% set card = 'bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft p-5' %}
+{% if case.filedAt or (submission and submission.sentAt and panel.code != 'undelivered') %}
+    <section class="{{ card }}" data-testid="filing-filed-date">
+        <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ 'filing.panel.filed_date.label'|trans }}</h3>
+        {% if case.filedAt %}
+            <p class="mt-1 text-sm text-slate-800 dark:text-slate-100" data-testid="filing-submission-filed-at">{{ 'filing.status.filed_at'|trans({'%date%': case.filedAt|date('d.m.Y')}) }}</p>
+        {% else %}
+            <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">{{ 'filing.panel.filed_date.not_declared'|trans }}</p>
+            <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">{{ 'filing.status.filed_at_pending'|trans }}</p>
+        {% endif %}
+    </section>
+{% elseif panel.code in ['to_sign', 'stale'] %}
+    <section class="{{ card }}">
+        <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ 'filing.panel.aside.after_signing_title'|trans }}</h3>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">{{ 'filing.panel.aside.after_signing_text'|trans }}</p>
+    </section>
+{% elseif panel.code == 'uncertain' %}
+    <section class="{{ card }}" data-testid="filing-cc-where">
+        <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ 'filing.panel.aside.cc_where_title'|trans }}</h3>
+        <ul class="mt-2 space-y-1 text-sm text-slate-600 dark:text-slate-300 list-disc ps-5">
+            <li>{{ 'filing.panel.aside.cc_where_mailbox'|trans({'%cc%': submission.ccAddress}) }}</li>
+            <li>{{ 'filing.panel.aside.cc_where_subject'|trans({'%subject%': submission.part(1) ? submission.part(1).subject : ''}) }}</li>
+            <li>{{ 'filing.panel.aside.cc_where_from'|trans({'%from%': submission.fromAddress}) }}</li>
+        </ul>
+    </section>
+{% elseif panel.code in ['undelivered', 'cc_not_received_petition', 'exhausted', 'permanent_address', 'permanent_other', 'internal', 'cancelled', 'admin_failed'] %}
+    <section class="{{ card }}">
+        <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ 'filing.panel.aside.signed_package_title'|trans }}</h3>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-300">{{ 'filing.panel.aside.signed_package_text'|trans }}</p>
+    </section>
+{% endif %}

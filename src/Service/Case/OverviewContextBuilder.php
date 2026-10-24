@@ -9,6 +9,7 @@ use App\DTO\Calculation\PenaltyBreakdownRow;
 use App\Entity\ClaimItem;
 use App\Entity\Document;
 use App\Entity\FilingEmailPart;
+use App\Entity\FilingPackage;
 use App\Entity\FilingSubmission;
 use App\Entity\InboundMail;
 use App\Entity\LegalCase;
@@ -20,6 +21,7 @@ use App\Enum\DocumentType;
 use App\Enum\FilingChannel;
 use App\Enum\FilingDeliveryStatus;
 use App\Enum\FilingEvidenceStatus;
+use App\Enum\FilingAttemptSource;
 use App\Enum\FilingPackageStatus;
 use App\Enum\FilingPartStatus;
 use App\Enum\PenaltyType;
@@ -28,6 +30,7 @@ use App\Repository\CourtEmailAddressReportRepository;
 use App\Repository\CourtPortalEventRepository;
 use App\Repository\FilingSubmissionRepository;
 use App\Repository\LegalDeadlineRepository;
+use App\Security\Voter\CaseVoter;
 use App\Service\Calculation\InterestCalculatorService;
 use App\Service\Calculation\StampDutyCalculator;
 use App\Service\Court\CourtFilingAddressResolver;
@@ -35,11 +38,15 @@ use App\Service\Deadline\DeadlineService;
 use App\Service\Filing\FilingDateService;
 use App\Service\Filing\FilingGate;
 use App\Service\Filing\FilingNotifier;
+use App\Service\Filing\FilingPanelInput;
+use App\Service\Filing\FilingPanelState;
+use App\Service\Filing\FilingPanelStateResolver;
 use App\Service\Filing\FilingPackageStalenessChecker;
 use App\Service\Filing\FilingResplitService;
 use App\Service\Filing\FilingResumeService;
 use App\Service\Filing\FilingSendGuard;
 use App\Service\Filing\FilingSubmissionService;
+use App\Service\Filing\RecipientOverrideGuard;
 use App\Service\Inbound\InboundMailView;
 use App\Service\Inbound\ManualReceiptUploadService;
 use App\Service\Portal\RulingProposalResolver;
@@ -78,6 +85,8 @@ final class OverviewContextBuilder
         private readonly ManualReceiptUploadService $receiptUploads,
         private readonly Security $security,
         private readonly CourtEmailAddressReportRepository $addressReports,
+        private readonly FilingPanelStateResolver $filingPanelResolver,
+        private readonly RecipientOverrideGuard $recipientGuard,
     ) {}
 
     /**
@@ -175,8 +184,9 @@ final class OverviewContextBuilder
         $filingSubmission = $this->filingSubmissions->findActiveForCase($case) ?? $this->filingSubmissions->findLatestForCase($case);
         $countingItems = $case->getCountingClaimItems();
         $accessories = $this->caseAccessories->aggregate($case);
+        $filing = $this->filingContext($case, $filingPackage, $filingSubmission, $deadlines);
 
-        return array_merge([
+        return array_merge($filing, [
             'case' => $case,
             'deadlines' => $deadlines,
             'deadline_counters' => $this->countDeadlines($deadlines),
@@ -212,6 +222,22 @@ final class OverviewContextBuilder
             'can_close_full_payment' => $this->fullPaymentClosure->canClose($case),
             'closed_from_status' => $this->closedFromStatus($case),
             'debtor_count' => $case->getDebtors()->count(),
+            'just_created' => false,
+        ], $extra);
+    }
+
+    /**
+     * The filing package, the transmission and the state of the filing tab. The
+     * panel state is resolved from the same flags the tab renders, so the title,
+     * the actions and the dot on the tab never disagree with what the server allows.
+     *
+     * @param iterable<LegalDeadline> $deadlines
+     *
+     * @return array<string, mixed>
+     */
+    private function filingContext(LegalCase $case, ?FilingPackage $filingPackage, ?FilingSubmission $filingSubmission, iterable $deadlines): array
+    {
+        $context = [
             // Looked at, so re-checked: a package whose sources changed is marked stale here.
             'filing_package' => $filingPackage,
             'filing_submission' => $filingSubmission,
@@ -242,20 +268,73 @@ final class OverviewContextBuilder
                 && $this->hasOpenFilingDeadline($deadlines),
             'filing_gate_blocker' => $this->filingGate->firstBlocker($case),
             'filing_recipient' => $this->courtFilingAddressResolver->resolve($case),
-            // Changes whenever the hero, the pipeline or the recommended actions would; the
-            // polling card compares it and refreshes those regions in place.
-            'filing_state_key' => self::filingStateKey($case, $filingSubmission),
-            'just_created' => false,
-        ], $extra);
+        ];
+
+        $locked = $filingSubmission?->isActive() ?? false;
+        $panel = $this->filingPanelResolver->resolve(new FilingPanelInput(
+            caseStatus: $case->getStatus(),
+            filedAt: $case->getFiledAt(),
+            package: $filingPackage,
+            submission: $filingSubmission,
+            gateBlocker: $context['filing_gate_blocker'],
+            canBuild: $context['filing_gate_blocker'] === null && !$locked && $this->security->isGranted(CaseVoter::TRANSITION, $case),
+            verdict: $context['filing_send_verdict'],
+            stalled: $context['filing_submission_stalled'],
+            uncertainPart: $context['filing_submission_uncertain_part'],
+            failure: $context['filing_submission_failure'],
+            lateReview: $context['filing_late_bounce_review'],
+            resumable: $context['filing_submission_resumable'],
+            closable: $context['filing_submission_closable'],
+            cancellable: $context['filing_submission_cancellable'],
+            resplittable: $context['filing_submission_resplittable'],
+            resplitDone: $context['filing_submission_resplit_done'],
+            canSetFiledDate: $context['filing_can_set_filed_date'],
+            receiptUploadable: $context['filing_receipt_uploadable'],
+            isOwner: $this->isCaseOwner($case),
+        ));
+
+        $context['filing_panel'] = $panel;
+        // Same rule the Documents card always had, widened to a case whose transmission outlived the package.
+        $context['filing_tab_visible'] = $case->getFullPaymentDate() === null
+            && ($case->getStatus() === CaseStatus::CERERE_GENERATA || $filingPackage !== null || $filingSubmission !== null);
+        $context['filing_court_live'] = $this->recipientGuard->isLive();
+        $context['filing_recipient_override'] = $this->recipientGuard->override();
+        $context['filing_admin_override_reason'] = $filingSubmission !== null ? $this->adminOverrideReason($filingSubmission) : null;
+        // Changes whenever the hero, the pipeline, the recommended actions or the tab dot would; the
+        // polling frame compares it and refreshes those regions in place.
+        $context['filing_state_key'] = self::filingStateKey($case, $filingSubmission, $panel);
+
+        return $context;
     }
 
-    public static function filingStateKey(LegalCase $case, ?FilingSubmission $submission): string
+    /** The reason of the latest admin override, as the admin wrote it. */
+    private function adminOverrideReason(FilingSubmission $submission): ?string
+    {
+        $latest = null;
+        foreach ($submission->getParts() as $part) {
+            foreach ($part->getAttempts() as $attempt) {
+                if ($attempt->getSource() === FilingAttemptSource::ADMIN_OVERRIDE
+                    && ($latest === null || $attempt->getStartedAt() >= $latest->getStartedAt())) {
+                    $latest = $attempt;
+                }
+            }
+        }
+        if ($latest === null || $latest->getMessage() === null) {
+            return null;
+        }
+
+        return trim((string) preg_replace('/^Admin override:\s*/', '', $latest->getMessage()));
+    }
+
+    public static function filingStateKey(LegalCase $case, ?FilingSubmission $submission, ?FilingPanelState $panel = null): string
     {
         return implode('|', [
             $case->getStatus()->value,
             $case->getFiledAt()?->format('Y-m-d') ?? '-',
             $submission?->isActive() ? 'active' : 'idle',
             $submission?->getDeliveryStatus()->value ?? '-',
+            $panel?->code ?? '-',
+            $panel?->tabDot ?? '-',
         ]);
     }
 

@@ -271,7 +271,7 @@ final class FilingNotifier
     /** @param array<string, string> $params */
     private function dispatch(LegalCase $case, NotificationType $type, string $key, string $variant, array $params, string $dedupKey, ?string $subjectKey = null): void
     {
-        $link = $this->urlGenerator->generate('case_overview', ['id' => $case->getId()]);
+        $link = $this->urlGenerator->generate('case_overview', ['id' => $case->getId(), 'tab' => 'depunere']);
         $title = $this->translator->trans("notification.$key.title", $params);
         $message = $this->translator->trans("notification.$key.message", $params);
 

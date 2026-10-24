@@ -1,41 +1,89 @@
-{# Messages received about this submission (receipts, read notices, delivery
-   reports, answers) and the lawyer's uploaded receipts. Metadata and a short
+{# Messages received about this submission (receipts, read notices, delivery reports,
+   answers) and the lawyer's uploaded receipts, one row each. Metadata and a short
    plain-text excerpt only: the excerpt is escaped by Twig and HTML is never
    rendered. The excerpt and the stored copy are for the lawyer of the case only
-   (professional secrecy): anyone else, an admin included, sees metadata.
-   Context: rows (list of {mail, excerpt}), case, is_owner. #}
-{% if rows is not empty %}
-    <div class="mt-3" data-testid="filing-inbound-mails">
-        <p class="font-semibold">{{ 'filing.receipt.inbound_title'|trans }}</p>
-        <ul class="mt-1 space-y-1">
+   (professional secrecy): anyone else, an admin included, sees metadata. The note
+   that a sender check is technical, not the court's attestation, is in "Note
+   juridice". Context: rows (list of {mail, excerpt}), case, is_owner, submission,
+   receipt_uploadable. #}
+{% set evidence = submission.evidenceStatus.value %}
+{% set delayed = submission.parts|filter(p => p.attempts|filter(a => a.source.value == 'ASYNC_BOUNCE' and a.outcome and a.outcome.value == 'TEMPORARY')|length > 0)|length > 0 %}
+{% set can_upload = is_owner and receipt_uploadable and evidence != 'RECEIPT_RECEIVED' %}
+<section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft" data-testid="filing-inbound-mails">
+    <header class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+        <h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">{{ 'filing.panel.inbound.title'|trans }}</h3>
+        {% if can_upload %}
+            <a href="#filing-receipt-upload" data-turbo="false" class="text-sm font-medium text-lex-navy dark:text-blue-300 hover:underline">{{ 'filing.panel.inbound.upload_link'|trans }}</a>
+        {% endif %}
+    </header>
+
+    {% if rows is empty %}
+        <div class="px-6 py-8 text-center" data-testid="filing-inbound-empty">
+            <p class="text-sm font-medium text-slate-800 dark:text-slate-100">{{ 'filing.panel.inbound.empty_title'|trans }}</p>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ 'filing.panel.inbound.empty_text'|trans }}</p>
+        </div>
+    {% else %}
+        <ul class="divide-y divide-slate-100 dark:divide-slate-800">
             {% for row in rows %}
                 {% set mail = row.mail %}
-                <li class="text-[11px]" data-testid="filing-inbound-mail" data-classification="{{ mail.classification ? mail.classification.value : '' }}">
-                    <span class="font-medium">{{ mail.manual ? 'filing.receipt.manual_title'|trans : (mail.classification ? mail.classification.label|trans : '') }}</span>
-                    <span class="text-slate-500 dark:text-slate-400">{{ mail.receivedAt|date('d.m.Y H:i', 'Europe/Bucharest') }}</span>
-                    {% if mail.manual %}
-                        <span>{{ 'filing.receipt.manual_line'|trans }}</span>
-                    {% else %}
-                        <span class="text-slate-500 dark:text-slate-400">{{ 'filing.receipt.from_line'|trans({'%from%': mail.fromAddress ?? '-'}) }}</span>
-                        {% if mail.authVerdict and mail.authVerdict.value == 'TRUSTED_PASS' %}
-                            <span class="text-slate-500 dark:text-slate-400">({{ 'filing.receipt.auth_note'|trans }})</span>
+                {% set kind = mail.classification ? mail.classification.value : '' %}
+                <li class="px-6 py-3" data-testid="filing-inbound-mail" data-classification="{{ kind }}">
+                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span class="inline-flex rounded px-2 py-0.5 text-xs font-semibold {{ kind in ['BOUNCE_PERMANENT', 'BOUNCE_SIZE'] ? 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-200' : (kind in ['BOUNCE_TEMPORARY', 'DELAYED'] ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200') }}">
+                            {{ mail.manual ? 'filing.receipt.manual_title'|trans : (mail.classification ? mail.classification.label|trans : '') }}
+                        </span>
+                        <span class="text-sm text-slate-600 dark:text-slate-300">
+                            {%- if mail.manual -%}
+                                {{ 'filing.receipt.manual_line'|trans }}
+                            {%- elseif mail.classification and mail.classification.bounce or kind == 'DELAYED' -%}
+                                {{ 'filing.panel.inbound.from_mail_server'|trans }}
+                            {%- elseif mail.authVerdict and mail.authVerdict.value == 'TRUSTED_PASS' -%}
+                                {{ 'filing.panel.inbound.from_court_address'|trans }}
+                            {%- else -%}
+                                {{ 'filing.receipt.from_line'|trans({'%from%': mail.fromAddress ?? '-'}) }}
+                            {%- endif -%}
+                        </span>
+                        {% if mail.reviewStatus.value == 'PENDING' %}
+                            {# Only an uncertain attribution is "possible"; a certain one parked for review is just under review. #}
+                            <span class="text-sm text-amber-700 dark:text-amber-300" data-testid="filing-inbound-mail-review">{{ (mail.reviewReason == 'probable_match' ? 'filing.receipt.probable_line' : 'filing.receipt.in_review_line')|trans }}</span>
                         {% endif %}
-                    {% endif %}
-                    {% if mail.reviewStatus.value == 'PENDING' %}
-                        {# Only an uncertain attribution is "possible"; a certain one parked for review is just under review. #}
-                        <span class="text-amber-700 dark:text-amber-300" data-testid="filing-inbound-mail-review">{{ (mail.reviewReason == 'probable_match' ? 'filing.receipt.probable_line' : 'filing.receipt.in_review_line')|trans }}</span>
-                    {% endif %}
-                    {% if mail.dsnStatus %}
-                        <span class="text-slate-500 dark:text-slate-400">{{ 'filing.receipt.dsn_line'|trans({'%status%': mail.dsnStatus}) }}</span>
-                    {% endif %}
-                    {% if is_owner %}
-                        <a href="{{ path('case_filing_inbound_download', {id: case.id, mailId: mail.id}) }}" data-turbo="false" class="underline hover:no-underline" data-testid="filing-inbound-mail-download">{{ 'filing.receipt.download'|trans }}</a>
-                    {% endif %}
+                        <span class="ms-auto flex items-center gap-3">
+                            <span class="text-sm text-slate-500 dark:text-slate-400 tnum">{{ mail.receivedAt|date('d.m.Y, H:i', 'Europe/Bucharest') }}</span>
+                            {% if is_owner %}
+                                <a href="{{ path('case_filing_inbound_download', {id: case.id, mailId: mail.id}) }}" data-turbo="false" class="text-sm font-medium text-lex-navy dark:text-blue-300 hover:underline" data-testid="filing-inbound-mail-download">{{ 'filing.receipt.download'|trans }}</a>
+                            {% endif %}
+                        </span>
+                    </div>
                     {% if is_owner and row.excerpt %}
-                        <p class="mt-0.5 ms-2 text-slate-600 dark:text-slate-300 break-words" data-testid="filing-inbound-mail-excerpt">{{ row.excerpt }}</p>
+                        <p class="mt-2 border-s-2 border-slate-200 dark:border-slate-700 ps-3 text-sm text-slate-600 dark:text-slate-300 break-words" data-testid="filing-inbound-mail-excerpt">{{ row.excerpt }}</p>
                     {% endif %}
                 </li>
             {% endfor %}
         </ul>
-    </div>
-{% endif %}
+    {% endif %}
+
+    {% if submission.readReceiptAt or (delayed and submission.deliveryStatus.value != 'UNDELIVERED') %}
+        <div class="px-6 py-3 border-t border-slate-100 dark:border-slate-800 space-y-1 text-xs text-slate-500 dark:text-slate-400">
+            {% if submission.readReceiptAt %}
+                <p data-testid="filing-read-receipt">{{ 'filing.receipt.read'|trans({'%date%': submission.readReceiptAt|date('d.m.Y H:i', 'Europe/Bucharest')}) }}</p>
+            {% endif %}
+            {% if delayed and submission.deliveryStatus.value != 'UNDELIVERED' %}
+                <p data-testid="filing-delivery-delayed">{{ 'filing.receipt.delayed'|trans }}</p>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    {% if can_upload %}
+        <form id="filing-receipt-upload" method="post" enctype="multipart/form-data" action="{{ path('case_filing_submission_receipt_upload', {id: case.id, submissionId: submission.id}) }}"
+              class="scroll-mt-24 px-6 py-4 border-t border-slate-100 dark:border-slate-800 space-y-2" data-turbo-frame="_top" data-testid="filing-receipt-upload-form">
+            <input type="hidden" name="_token" value="{{ csrf_token('filing_receipt_upload_' ~ submission.id) }}">
+            <label class="block text-sm font-medium text-slate-800 dark:text-slate-100" for="filing-receipt-file">{{ 'filing.receipt.upload.title'|trans }}</label>
+            <p class="text-xs text-slate-500 dark:text-slate-400">{{ 'filing.receipt.upload.help'|trans }}</p>
+            <div class="flex flex-wrap items-center gap-2">
+                <input id="filing-receipt-file" type="file" name="receipt" required accept=".eml,.pdf,.png,.jpg,.jpeg"
+                       class="block max-w-full text-sm text-slate-700 dark:text-slate-200 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-slate-100 file:text-slate-700 dark:file:bg-slate-800 dark:file:text-slate-200">
+                <button type="submit" data-testid="filing-receipt-upload" class="py-1.5 px-3 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-semibold text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition">{{ 'filing.receipt.upload.cta'|trans }}</button>
+            </div>
+        </form>
+    {% endif %}
+</section>
