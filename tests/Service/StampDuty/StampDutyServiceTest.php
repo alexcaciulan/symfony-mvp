@@ -6,6 +6,7 @@ namespace App\Tests\Service\StampDuty;
 
 use App\Entity\Document;
 use App\Entity\LegalCase;
+use App\Enum\DocumentType;
 use App\Enum\StampDutyStatus;
 use App\Repository\CityRepository;
 use App\Repository\LegalDeadlineRepository;
@@ -139,10 +140,15 @@ final class StampDutyServiceTest extends TestCase
         $case->setStampDutyStatus(StampDutyStatus::ACHITATA);
         $case->setStampDutyPaidThroughRegistry(true);
         $document = new Document();
-        $case->addDocument($document);
+        $document->setDocumentType(DocumentType::DOVADA_TAXA_TIMBRU);
 
+        // Like the real upload, the stub puts the new document on the case.
         $uploads = $this->createMock(DocumentUploadService::class);
-        $uploads->method('upload')->willReturn($document);
+        $uploads->method('upload')->willReturnCallback(static function () use ($case, $document): Document {
+            $case->addDocument($document);
+
+            return $document;
+        });
         $uploads->expects(self::once())
             ->method('delete')
             ->with($document);

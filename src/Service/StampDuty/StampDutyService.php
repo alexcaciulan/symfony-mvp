@@ -199,6 +199,10 @@ final class StampDutyService
      */
     public function attachRegistryConfirmation(LegalCase $case, UploadedFile $file, UserInterface $user): Document
     {
+        if ($case->getStampDutyStatus() !== StampDutyStatus::ACHITATA || !$case->isStampDutyPaidThroughRegistry() || $case->hasStampDutyProof()) {
+            throw new \LogicException('A registry confirmation is attached only to a registry payment without a proof.');
+        }
+
         $document = $this->documentUploadService->upload($case, $file, DocumentType::DOVADA_TAXA_TIMBRU, $user);
 
         try {
