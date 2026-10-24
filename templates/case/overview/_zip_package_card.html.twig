@@ -81,12 +81,12 @@
                                 class="mt-2 py-1.5 px-3 inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg bg-white text-lex-navy hover:bg-blue-50 transition">
                             {{ 'case_overview.modal.generate_op_power_of_attorney_cta_complete'|trans }}
                         </button>
-                    {% elseif issue.code.value in ['power_of_attorney_missing', 'claim_document_missing', 'contract_missing'] and not case.fullPaymentDate %}
+                    {% elseif issue.code.value in ['power_of_attorney_missing', 'claim_document_missing'] and not case.fullPaymentDate %}
                         <button type="button"
                                 data-hs-overlay="#hs-modal-upload-document"
-                                data-upload-preset-type="{{ {'power_of_attorney_missing': 'imputernicire_avocatiala', 'claim_document_missing': 'factura', 'contract_missing': 'contract'}[issue.code.value] }}"
+                                data-upload-preset-type="{{ {'power_of_attorney_missing': 'imputernicire_avocatiala', 'claim_document_missing': 'factura'}[issue.code.value] }}"
                                 class="mt-2 py-1.5 px-3 inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg bg-white text-lex-navy hover:bg-blue-50 transition">
-                            {{ ('case_overview.modal.generate_op_' ~ {'power_of_attorney_missing': 'power_of_attorney', 'claim_document_missing': 'claim_document', 'contract_missing': 'contract'}[issue.code.value] ~ '_cta_upload')|trans }}
+                            {{ ('case_overview.modal.generate_op_' ~ {'power_of_attorney_missing': 'power_of_attorney', 'claim_document_missing': 'claim_document'}[issue.code.value] ~ '_cta_upload')|trans }}
                         </button>
                     {% endif %}
                 </div>

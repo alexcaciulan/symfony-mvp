@@ -1370,7 +1370,8 @@ final class CaseOverviewControllerTest extends WebTestCase
         self::assertTrue($this->submitDisabled($crawler));
     }
 
-    public function testAMissingContractWarnsWithoutDisablingGeneration(): void
+    /** Invoices without a contract are enough: the dialog shows no contract warning. */
+    public function testAMissingContractNeitherWarnsNorDisablesGeneration(): void
     {
         $this->readyForGenerationExceptFilingPieces();
         $this->attachDocument(DocumentType::FACTURA);
@@ -1380,7 +1381,7 @@ final class CaseOverviewControllerTest extends WebTestCase
         $this->client->loginUser($this->user);
         $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
 
-        self::assertCount(1, $crawler->filter('#hs-modal-cerere-op [data-testid="filing-warning-contract_missing"]'));
+        self::assertCount(0, $crawler->filter('#hs-modal-cerere-op [data-testid^="filing-warning-"]'));
         self::assertCount(0, $crawler->filter('#hs-modal-cerere-op [data-testid^="filing-blocker-"]'));
         self::assertFalse($this->submitDisabled($crawler));
     }

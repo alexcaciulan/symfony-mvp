@@ -176,6 +176,7 @@ final class PaymentOrderRequestGeneratorServiceTest extends KernelTestCase
 
         self::assertStringNotContainsString('achitată conform dovezii anexate', $html);
         self::assertStringContainsString('registratura electronică', $html);
+        self::assertStringContainsString('dovada plății fiind transmisă de registratură la dosarul instanței', $html);
         self::assertStringNotContainsString('transmisă instanței', $html);
     }
 
@@ -322,9 +323,9 @@ final class PaymentOrderRequestGeneratorServiceTest extends KernelTestCase
         // sentence a review happened to flag: the first fix patched the costs section
         // while the amounts table went on labelling the duty "(anexată)" a line above.
         self::assertStringNotContainsString('achitată conform dovezii anexate', $html);
+        self::assertStringContainsString('va fi achitată prin registratura electronică după comunicarea numărului unic de dosar, dovada urmând a fi depusă la dosar', $html);
         self::assertStringNotContainsString('Taxă timbru (anexată)', $html, 'The amounts table must not claim a proof either.');
         self::assertStringNotContainsString('(anexată)', $html, 'No label may assert an attachment that is not in the package.');
-        self::assertStringContainsString('urmând a fi achitată', $html);
         // The amount is still claimed: it will be owed either way.
         self::assertMatchesRegularExpression('/200,00\s+RON/', $html);
     }

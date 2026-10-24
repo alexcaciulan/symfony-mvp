@@ -130,7 +130,7 @@ final class CourtFilingEmailFactoryTest extends KernelTestCase
         self::assertStringContainsString('plată prin registratura electronică a instanțelor', $this->factory()->body($this->case, $package, 1));
 
         $this->case->setStampDutyStatus(StampDutyStatus::AMANATA_REGULARIZARE);
-        self::assertStringContainsString('Taxa judiciară de timbru se va achita la indicarea instanței.', $this->factory()->body($this->case, $package, 1));
+        self::assertStringContainsString('Taxa judiciară de timbru va fi achitată prin registratura electronică după comunicarea numărului unic de dosar, dovada urmând a fi depusă la dosar.', $this->factory()->body($this->case, $package, 1));
 
         // Only the first email speaks of the duty.
         self::assertStringNotContainsString('taxei judiciare', $this->factory()->body($this->case, $package, 2));

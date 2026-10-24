@@ -15,5 +15,4 @@ enum FilingIssueCode: string
     case POWER_OF_ATTORNEY_EXTRA_DATE_MISSING = 'power_of_attorney_extra_date_missing';
     case POWER_OF_ATTORNEY_AFTER_SUMMONS = 'power_of_attorney_after_summons';
     case CLAIM_DOCUMENT_MISSING = 'claim_document_missing';
-    case CONTRACT_MISSING = 'contract_missing';
 }

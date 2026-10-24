@@ -557,14 +557,15 @@ Decizii luate implicit în 3b-core:
 
 ## 6. Întrebări deschise pentru avocat
 
-1. **Plasarea opisului (pct. 9)**: în PDF-ul cererii (implicit) sau separat, cu semnătură proprie?
-2. **Contractul (pct. 12)**: blocant (`CONTRACT_BLOCKS_FILING`) sau doar avertisment când creanța rezultă din facturi acceptate?
-3. **Textul emailului**: aprobarea corpului final, cu două variante pentru taxa de timbru: amânată („Taxa judiciară de timbru se va achita la indicarea instanței.”) și deja achitată („Dovada achitării taxei judiciare de timbru este inclusă în anexe.”), plus mențiunea că anexele urmează în emailuri separate.
+1. **Plasarea opisului (pct. 9)**: RĂSPUNS 2026-10-24: opisul poate fi în același PDF cu cererea sau la sfârșitul ei, înainte de semnătura avocatului. Rămâne implicit în PDF-ul cererii (3 semnături).
+2. **Contractul (pct. 12)**: RĂSPUNS 2026-10-24: fără contract încărcat nu există ce trimite; relația contractuală se prezumă în formă simplificată, pe baza facturilor. Avertismentul pentru contract lipsă a fost scos (rămâne blocant doar lipsa oricărui înscris care dovedește creanța).
+3. **Textul emailului**: aprobarea corpului final, cu două variante pentru taxa de timbru: amânată (RĂSPUNS pct. 6, 2026-10-24: „Taxa judiciară de timbru va fi achitată prin registratura electronică după comunicarea numărului unic de dosar, dovada urmând a fi depusă la dosar.”, formulare acceptată, neobligatorie; contează ca dovada să ajungă la dosar) și deja achitată („Dovada achitării taxei judiciare de timbru este inclusă în anexe.”), plus mențiunea că anexele urmează în emailuri separate.
 4. **Registratura**: instanțele-țintă înregistrează o cerere nouă primită pe email și netimbrată? Confirmarea automată de primire e suficientă sau trebuie și confirmarea înregistrării? Au limită de dimensiune per căsuță?
 5. **Admisibilitatea canalului**: acceptă fiecare instanță-țintă depunerea cererii pe email și pe ce adresă (art. 148-149 CPC [V])?
 6. **Semnături**: cele 3 semnături (cerere, anexe, împuternicire) sunt suficiente? Împuternicirea necesită și semnătura clientului?
 7. **Mențiunea „conform cu originalul”** pe pagina de gardă a volumelor de anexe: textul exact (art. 150 CPC [V]).
 8. **Retenție**: termenul de arhivare al avocatului pentru `.eml`-uri, confirmări și pachetul semnat (minimum până la prescripția executării, art. 706 CPC [V]).
+9. **Plata prin registratură ca „alt plătitor” (pct. 13)**: RĂSPUNS 2026-10-24: indiferent cine plătește, registratura trimite automat dovada la dosarul instanței; adresa de e-mail din formularul de plată primește o confirmare automată. Textele spun acum că dovada ajunge automat la dosar; confirmarea primită pe e-mail se poate atașa opțional, pentru evidența dosarului.
 
 ## 7. Confirmări cerute utilizatorului
 
@@ -787,7 +788,7 @@ Fiecare reproduce scenariul constatării; testele existente modificate sunt resc
 
 - **Importul adreselor de pe portal.just.ro**: 403 Cloudflare; rămâne 3b-import.
 - **Reîmpărțirea anexelor după acceptarea părții 1**: întrebarea 3 la avocat.
-- **Textele care așteaptă avocatul** (pct. 6, 9, 12, 13): neschimbate; textul F5 rămâne marcat provizoriu.
+- **Textele care așteaptă avocatul** (pct. 6, 9, 12, 13): rezolvate 2026-10-24 (vezi secțiunea 6); textul F5 rămâne marcat provizoriu.
 - **Eticheta consecinței `DEPUNERE_CERERE`** („Stingerea dreptului”, comună cu prescripția): nu se schimbă aici. Clasificarea a fost decisă la revizia termenelor (pierderea efectului întreruptiv înseamnă că cererea e întâmpinată cu prescripția) și o schimbare atinge pagina `/termene` și ordonarea severităților; se propune avocatului o etichetă dedicată.
 - **PF cu ONRC `F` (PFA, II, IF) la tribunal**: profesioniști prin lege, dar nu se deduc automat; avocatul confirmă secția (D14).
 - **Domeniul `just.ro` obligatoriu pentru adresele de depunere**: nu se impune; verificarea adminului îl înlocuiește.

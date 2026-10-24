@@ -240,10 +240,10 @@
     <li>
         {% if case.stampDutyStatus.value == 'ACHITATA' %}
             {# "Conform dovezii anexate" only when the proof is actually in the package,
-               whichever path recorded it. A registry payment without a file stays a
-               declaration of the payment: citing a missing annex would be contradicted
-               by the package itself. The filing package annexes the proof on the same
-               predicate. #}
+               whichever path recorded it. A registry payment without a file cites the
+               proof the registry sent to the court file instead: citing a missing annex
+               would be contradicted by the package itself. The filing package annexes
+               the proof on the same predicate. #}
             {% if case.stampDutyProofAnnexed %}
                 {{ 'pdf.payment_order.costs_stamp_duty_paid'|trans({'%amount%': stampDuty|number_format(2, ',', '.')}) }}
             {% else %}

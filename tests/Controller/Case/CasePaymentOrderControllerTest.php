@@ -1146,10 +1146,10 @@ final class CasePaymentOrderControllerTest extends WebTestCase
     }
 
     /**
-     * The contract only warns: the claim may rest on accepted invoices alone. The
-     * warning travels with the generation audit so it can be traced afterwards.
+     * Without a written contract the claim rests on the invoices alone, so the petition
+     * is generated with no warning recorded in the generation audit.
      */
-    public function testGenerateGoesThroughWithoutTheContractAndRecordsTheWarning(): void
+    public function testGenerateGoesThroughWithoutTheContractAndRecordsNoWarning(): void
     {
         $this->attachCommunicationProof();
         $this->attachSomatieFile();
@@ -1166,7 +1166,7 @@ final class CasePaymentOrderControllerTest extends WebTestCase
             'entityId' => (string) $this->case->getId(),
         ]);
         self::assertNotNull($audit);
-        self::assertSame(['contract_missing'], $audit->getNewData()['filingWarnings']);
+        self::assertSame([], $audit->getNewData()['filingWarnings']);
     }
 
     /**

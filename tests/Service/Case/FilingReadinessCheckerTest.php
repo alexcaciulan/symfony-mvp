@@ -269,7 +269,8 @@ final class FilingReadinessCheckerTest extends KernelTestCase
         self::assertTrue($this->check()->hasBlocker(FilingIssueCode::CLAIM_DOCUMENT_MISSING));
     }
 
-    public function testAMissingContractOnlyWarns(): void
+    /** Without a written contract the relationship rests on the invoices alone: nothing to warn about. */
+    public function testInvoicesWithoutAContractAreReadyWithoutWarnings(): void
     {
         $this->document(DocumentType::FACTURA);
         $this->powerOfAttorney();
@@ -277,16 +278,7 @@ final class FilingReadinessCheckerTest extends KernelTestCase
         $readiness = $this->check();
 
         self::assertTrue($readiness->isReady());
-        self::assertSame(['contract_missing'], self::codes($readiness->warnings));
-    }
-
-    public function testAnUploadedContractClearsTheContractWarning(): void
-    {
-        $this->document(DocumentType::FACTURA);
-        $this->document(DocumentType::CONTRACT);
-        $this->powerOfAttorney();
-
-        self::assertSame([], $this->check()->warnings);
+        self::assertSame([], $readiness->warnings);
     }
 
     public function testAPowerOfAttorneyDatedTheSummonsDayDoesNotWarn(): void

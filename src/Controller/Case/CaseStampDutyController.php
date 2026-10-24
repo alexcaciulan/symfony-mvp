@@ -116,10 +116,10 @@ final class CaseStampDutyController extends AbstractController
 
     /**
      * Payment was individualized on the existing case through the electronic registry.
-     * The portal sends its confirmation to the debtor of the duty and/or the court
-     * (OUG 80/2013 art. 40 alin. 3), so the platform cannot know the court has it; the
-     * lawyer may attach the confirmation they received, but does not have to. The
-     * registry takes the duty only in an existing case, hence the file-number guard.
+     * The registry sends the proof of payment to the court file itself, whoever paid,
+     * so the confirmation the lawyer received by email is optional and kept only for
+     * the case record. The registry takes the duty only in an existing case, hence the
+     * file-number guard.
      */
     #[Route('/case/{id}/stamp-duty/registry-paid', name: 'case_stamp_duty_registry_paid', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function registryPaid(

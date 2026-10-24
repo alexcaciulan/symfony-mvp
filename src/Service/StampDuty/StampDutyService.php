@@ -131,11 +131,9 @@ final class StampDutyService
 
     /**
      * Payment was individualized on the existing case through the electronic registry.
-     * Under OUG 80/2013 art. 40 alin. 3 the portal sends the confirmation to the debtor
-     * of the duty and/or the court, so the platform cannot know the court has it. The
-     * confirmation file is therefore optional and only recorded when the lawyer has it;
-     * with it the petition can cite an attached proof, without it the payment stays a
-     * declaration.
+     * The registry sends the proof of payment to the court file itself, whoever paid,
+     * so the email confirmation the lawyer received is optional and only recorded when
+     * the lawyer attaches it; with it the petition can cite an attached proof.
      *
      * The UAT snapshot is still taken, because what matters in a dispute is which
      * town hall we pointed at when the money moved.

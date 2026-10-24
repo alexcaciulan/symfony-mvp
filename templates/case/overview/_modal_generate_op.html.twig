@@ -185,12 +185,6 @@
                                         class="py-1.5 px-3 inline-flex items-center text-xs font-semibold rounded-lg bg-green-600 text-white hover:bg-green-700 transition">
                                     {{ 'case_overview.modal.generate_op_claim_document_cta_upload'|trans }}
                                 </button>
-                            {% elseif issue.code.value == 'contract_missing' %}
-                                <button type="button" data-hs-overlay="#hs-modal-upload-document"
-                                        data-upload-preset-type="contract"
-                                        class="py-1.5 px-3 inline-flex items-center text-xs font-semibold rounded-lg bg-green-600 text-white hover:bg-green-700 transition">
-                                    {{ 'case_overview.modal.generate_op_contract_cta_upload'|trans }}
-                                </button>
                             {% endif %}
                         </div>
                     </div>
@@ -202,13 +196,7 @@
                         {{ icon_warning('size-4 text-amber-600 shrink-0 mt-0.5') }}
                         <div>
                             <p>{{ ('case_overview.modal.generate_op_' ~ issue.code.value ~ '_warning')|trans(issue.params) }}</p>
-                            {% if issue.code.value == 'contract_missing' %}
-                                <button type="button" data-hs-overlay="#hs-modal-upload-document"
-                                        data-upload-preset-type="contract"
-                                        class="mt-2 py-1 px-2.5 inline-flex items-center text-xs font-semibold rounded-lg border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-950/40 transition">
-                                    {{ 'case_overview.modal.generate_op_contract_cta_upload'|trans }}
-                                </button>
-                            {% elseif poa_doc and poa_editable %}
+                            {% if poa_doc and poa_editable %}
                                 <button type="button" {{ poa.edit_trigger_attrs(case, poa_doc) }}
                                         class="mt-2 py-1 px-2.5 inline-flex items-center text-xs font-semibold rounded-lg border border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-950/40 transition">
                                     {{ 'case_overview.modal.generate_op_power_of_attorney_cta_edit'|trans }}

@@ -25,13 +25,6 @@ use App\Service\Document\PowerOfAttorneyService;
 final class FilingReadinessChecker
 {
     /**
-     * Whether a case without a contract is refused. Reflects an open question to the
-     * consulting lawyer (accepted invoices may prove the claim on their own), not a
-     * legal requirement; true moves the missing contract from warnings to blockers.
-     */
-    private const CONTRACT_BLOCKS_FILING = false;
-
-    /**
      * Whether an uploaded contract proves the claim once the case claims any counting
      * position, even one not linked to it. Art. 1014 CPC admits a claim stated by a
      * contract (a fixed monthly price never invoiced), so refusing such a case would be
@@ -84,17 +77,10 @@ final class FilingReadinessChecker
             }
         }
 
+        // No contract check: without a written contract the relationship is taken in its
+        // simplified form, resting on the invoices alone, so there is nothing to ask for.
         if (!$this->hasClaimDocument($case, $documents)) {
             $blockers[] = new FilingIssue(FilingIssueCode::CLAIM_DOCUMENT_MISSING);
-        }
-
-        if (!$case->hasDocumentOfType(DocumentType::CONTRACT)) {
-            $issue = new FilingIssue(FilingIssueCode::CONTRACT_MISSING);
-            if (self::CONTRACT_BLOCKS_FILING) {
-                $blockers[] = $issue;
-            } else {
-                $warnings[] = $issue;
-            }
         }
 
         return new FilingReadiness($blockers, $warnings);

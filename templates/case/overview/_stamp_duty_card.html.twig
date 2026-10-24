@@ -149,8 +149,8 @@
                 {% endif %}
             {% endif %}
 
-            {# The registry takes the duty only in an existing case; its confirmation
-               file is optional in the modal, since the platform cannot know who got it. #}
+            {# The registry takes the duty only in an existing case and sends the proof to
+               the court file itself; the email confirmation is optional in the modal. #}
             {% if status.outstanding and rejust_form.value == 'EXISTING_CASE' and can_manage_duty %}
                 <button type="button" data-hs-overlay="#hs-modal-stamp-duty-registry-paid"
                         class="w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-semibold rounded-lg bg-lex-navy text-white hover:bg-lex-navy-dark transition">
