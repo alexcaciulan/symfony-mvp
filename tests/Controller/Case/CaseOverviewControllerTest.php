@@ -1370,6 +1370,34 @@ final class CaseOverviewControllerTest extends WebTestCase
         self::assertTrue($this->submitDisabled($crawler));
     }
 
+    /** The package card lists the power of attorney and the claim documents, flagged until they are on the case. */
+    public function testTheZipCardFlagsTheMissingPowerOfAttorneyAndClaimDocuments(): void
+    {
+        $this->readyForGenerationExceptFilingPieces();
+        $this->em->clear();
+        $this->client->loginUser($this->user);
+
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+        self::assertStringContainsString('!', $crawler->filter('[data-testid="zip-item-power-of-attorney"]')->text());
+        self::assertStringContainsString('!', $crawler->filter('[data-testid="zip-item-evidence"]')->text());
+        self::assertStringNotContainsString('Contract + factură', $crawler->text());
+    }
+
+    public function testTheZipCardTicksThePowerOfAttorneyAndClaimDocumentsOnceAttached(): void
+    {
+        $this->readyForGenerationExceptFilingPieces();
+        $this->attachDocument(DocumentType::FACTURA);
+        $this->attachPowerOfAttorney('2026-01-15');
+        $this->em->clear();
+        $this->client->loginUser($this->user);
+
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+        $poa = $crawler->filter('[data-testid="zip-item-power-of-attorney"]')->text();
+        self::assertStringNotContainsString('!', $poa);
+        self::assertStringContainsString(static::getContainer()->get('translator')->trans('case_overview.zip_package.item_power_of_attorney'), $poa);
+        self::assertStringNotContainsString('!', $crawler->filter('[data-testid="zip-item-evidence"]')->text());
+    }
+
     /** Invoices without a contract are enough: the dialog shows no contract warning. */
     public function testAMissingContractNeitherWarnsNorDisablesGeneration(): void
     {

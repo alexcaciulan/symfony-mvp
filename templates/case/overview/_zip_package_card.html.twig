@@ -51,8 +51,22 @@
                 {% endif %}
                 {{ 'case_overview.zip_package.item_stamp_duty'|trans }}
             </li>
-            <li class="flex items-center gap-2">
-                {{ icon_check('size-3.5 text-green-300') }}
+            {# Ticked from the same check the generation and the download run. #}
+            {% set readiness_codes = filing_readiness(case).blockers|map(i => i.code.value) %}
+            <li class="flex items-center gap-2" data-testid="zip-item-power-of-attorney">
+                {% if 'power_of_attorney_missing' in readiness_codes or 'power_of_attorney_date_missing' in readiness_codes %}
+                    <span class="size-3.5 inline-flex items-center justify-center text-amber-300" aria-hidden="true">!</span>
+                {% else %}
+                    {{ icon_check('size-3.5 text-green-300') }}
+                {% endif %}
+                {{ 'case_overview.zip_package.item_power_of_attorney'|trans }}
+            </li>
+            <li class="flex items-center gap-2" data-testid="zip-item-evidence">
+                {% if 'claim_document_missing' in readiness_codes %}
+                    <span class="size-3.5 inline-flex items-center justify-center text-amber-300" aria-hidden="true">!</span>
+                {% else %}
+                    {{ icon_check('size-3.5 text-green-300') }}
+                {% endif %}
                 {{ 'case_overview.zip_package.item_evidence'|trans }}
             </li>
         </ul>

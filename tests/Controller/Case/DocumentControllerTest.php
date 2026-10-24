@@ -770,6 +770,28 @@ final class DocumentControllerTest extends WebTestCase
         self::assertSame('2026-04-01', $doc->getPowerOfAttorneyDate()?->format('Y-m-d'));
     }
 
+    /** Editing brings no new act onto the case, so the warning does not say one was uploaded. */
+    public function testEditingADateAfterTheSummonsWarnsWithoutClaimingAnUpload(): void
+    {
+        $this->case->setPaymentNoticeDate(new \DateTime('2026-02-01'));
+        $this->em->flush();
+        $docId = $this->persistDocument(DocumentType::IMPUTERNICIRE_AVOCATIALA);
+        $this->em->clear();
+        $this->client->loginUser($this->user);
+
+        $this->postEdit($docId, ['powerOfAttorneyDate' => '2026-02-02']);
+
+        $body = $this->body();
+        self::assertStringContainsString($this->trans('document.power_of_attorney.after_summons', [
+            '%poa_date%' => '02.02.2026',
+            '%summons_date%' => '01.02.2026',
+        ]), $body);
+        self::assertStringNotContainsString($this->trans('document.upload.power_of_attorney_after_summons', [
+            '%poa_date%' => '02.02.2026',
+            '%summons_date%' => '01.02.2026',
+        ]), $body);
+    }
+
     public function testPowerOfAttorneyEditWithoutADateIsRefused(): void
     {
         $docId = $this->persistDocument(DocumentType::IMPUTERNICIRE_AVOCATIALA);

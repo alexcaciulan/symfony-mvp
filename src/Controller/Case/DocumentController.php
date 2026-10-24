@@ -125,7 +125,7 @@ final class DocumentController extends AbstractController
             'success',
             'document.upload.success',
             'hs-modal-upload-document',
-            $this->afterSummonsWarnings($document, $legalCase),
+            $this->afterSummonsWarnings($document, $legalCase, 'document.upload.power_of_attorney_after_summons'),
         );
     }
 
@@ -165,7 +165,7 @@ final class DocumentController extends AbstractController
 
         $this->powerOfAttorneyService->updateDetails($document, $this->powerOfAttorneyDetailsFrom($form->getData()));
 
-        $extraToasts = $this->afterSummonsWarnings($document, $legalCase);
+        $extraToasts = $this->afterSummonsWarnings($document, $legalCase, 'document.power_of_attorney.after_summons');
         // The index already generated lists the old values; the package download
         // rebuilds it, so say when that happens rather than leave it stale silently.
         if ($legalCase->getStatus() === CaseStatus::CERERE_GENERATA) {
@@ -246,16 +246,19 @@ final class DocumentController extends AbstractController
     }
 
     /**
+     * @param string $key the upload and the edit word the warning differently: only the
+     *                    upload brought a new act onto the case
+     *
      * @return list<array{key: string, params: array<string, string>, variant: string}>
      */
-    private function afterSummonsWarnings(Document $document, LegalCase $case): array
+    private function afterSummonsWarnings(Document $document, LegalCase $case, string $key): array
     {
         if (!$this->powerOfAttorneyService->dateIsAfterSummons($document, $case)) {
             return [];
         }
 
         return [[
-            'key' => 'document.upload.power_of_attorney_after_summons',
+            'key' => $key,
             'params' => [
                 '%poa_date%' => $document->getPowerOfAttorneyDate()?->format('d.m.Y') ?? '',
                 '%summons_date%' => $case->getPaymentNoticeDate()?->format('d.m.Y') ?? '',
