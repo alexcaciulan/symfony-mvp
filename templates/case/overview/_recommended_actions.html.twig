@@ -108,7 +108,7 @@
             {# One line with where the email filing stands; the flow itself is in the filing tab. #}
             <a href="{{ path('case_overview', {id: case.id, tab: 'depunere'}) }}#depunere-status"
                data-turbo-frame="_top"
-               data-testid="recommended-filing-link"
+               data-testid="recommended-filing-link" data-controller="open-tab" data-open-tab-tab-value="depunere" data-action="open-tab#open"
                class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg bg-gradient-to-r from-blue-50 to-blue-50/50 dark:from-blue-950/40 dark:to-blue-950/20 border border-blue-200/60 dark:border-blue-900/40 hover:from-blue-100 dark:hover:from-blue-950/60 transition group">
                 <div class="size-9 rounded-lg bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 flex items-center justify-center shrink-0">
                     {{ icon_document('size-4') }}

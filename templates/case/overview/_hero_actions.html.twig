@@ -45,7 +45,7 @@
     {% if filing_link %}
         <a href="{{ path('case_overview', {id: case.id, tab: 'depunere'}) }}#depunere-status"
            data-turbo-frame="_top"
-           data-testid="hero-filing-link"
+           data-testid="hero-filing-link" data-controller="open-tab" data-open-tab-tab-value="depunere" data-action="open-tab#open"
            class="{{ base_cta_class }} bg-lex-navy text-white hover:bg-lex-navy-dark">
             {{ _self.cta_icon('building') }}
             {{ ('filing.panel.hero.' ~ (filing_panel_state.primaryAction ?? 'open'))|trans }}

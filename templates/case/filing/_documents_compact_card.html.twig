@@ -11,7 +11,7 @@
         </div>
         <p class="mt-2 text-sm font-medium {{ {'red': 'text-red-700 dark:text-red-300', 'amber': 'text-amber-800 dark:text-amber-200', 'green': 'text-emerald-700 dark:text-emerald-300'}[panel.tone] ?? 'text-slate-800 dark:text-slate-100' }}" data-testid="filing-documents-card-title">{{ panel.titleKey|trans(panel.titleParams) }}</p>
         <p class="mt-0.5 text-sm text-slate-600 dark:text-slate-300">{{ ('filing.panel.compact.' ~ (panel.tabDot ?? 'none'))|trans }}</p>
-        <a href="{{ path('case_overview', {id: case.id, tab: 'depunere'}) }}" data-turbo-frame="_top" data-testid="filing-documents-card-open"
+        <a href="{{ path('case_overview', {id: case.id, tab: 'depunere'}) }}" data-turbo-frame="_top" data-testid="filing-documents-card-open" data-controller="open-tab" data-open-tab-tab-value="depunere" data-action="open-tab#open"
            class="mt-3 py-2 px-3.5 inline-flex items-center gap-2 rounded-lg bg-lex-navy text-white text-sm font-semibold hover:bg-lex-navy-dark transition">{{ 'filing.panel.action.open_tab'|trans }}</a>
     {% endif %}
 </section>
