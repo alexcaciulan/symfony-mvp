@@ -3858,7 +3858,7 @@ filing:
         refused:
             mismatch: 'The file differs from the one the platform generated. For filing by email, the file has to be generated and signed again; filing through another channel remains available.'
             not_signed: 'No signature was detected in the file.'
-            unsupported_format: 'The signature in the file has a format the platform cannot check (PAdES and detached PKCS#7 signatures are accepted).'
+            unsupported_format: 'The signature in the file has a format the platform cannot check (PAdES, detached PKCS#7 and adbe.pkcs7.sha1 signatures are accepted).'
             damaged: 'The content of the file changed after signing; its integrity could not be confirmed.'
         warning:
             cn_differs: 'The name in the certificate differs from the account name. Checking the certificate used for signing is recommended.'
@@ -3866,6 +3866,12 @@ filing:
             timestamp_appended: 'A document timestamp was added after the signature.'
             trailing_update: 'Validation data was added after the signature (for example by the signing tool).'
             textless_pages: 'Some pages have no text, so they were compared by count only.'
+            legacy_sub_filter: 'The signature uses the outdated adbe.pkcs7.sha1 format. Checking the validity of the signature is up to the lawyer.'
+        note:
+            text_added: '{1} Additional text on page %page% (one word more than the generated document).|[0,Inf[ Additional text on page %page% (%count% words more than the generated document).'
+            text_added_with_digits: 'The additional text on page %page% contains digits. Amounts and dates should be checked before confirming.'
+            pages_appended: '{1} One page added after the last generated page. Its content reaches the court.|[0,Inf[ %count% pages added after the last generated page. Their content reaches the court.'
+            part_id_missing: 'The internal identifier of the document is missing from the file; the text of the generated pages is present.'
         notice:
             validity: 'The presence of a signature does not guarantee qualified validity; checking it is up to the lawyer and the court.'
             validator_link: 'The European Commission''s public validator (DSS)'

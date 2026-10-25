@@ -14,6 +14,7 @@ final class QpdfRunner
     public const PART_ID_KEY = 'LexRecoveryPartId';
     /** Virtual memory cap for qpdf parsing an untrusted file. */
     public const MEMORY_LIMIT_KB = 524_288;
+    private const XMP_MAX_BYTES = 1_048_576;
 
     public function __construct(
         private readonly ProcessSandbox $sandbox,
@@ -62,14 +63,15 @@ final class QpdfRunner
     }
 
     /**
-     * The form fields and the pages of a file, as qpdf describes them.
+     * Form fields, pages and the whole object table (stream dictionaries only) in
+     * one call, for comparing structures.
      *
      * @return array<string, mixed>
      */
-    public function json(string $path): array
+    public function dump(string $path): array
     {
         $data = json_decode($this->sandbox->run(
-            ['qpdf', '--json=2', '--json-key=acroform', '--json-key=pages', $path],
+            ['qpdf', '--json=2', '--json-key=acroform', '--json-key=pages', '--json-key=qpdf', '--json-stream-data=none', $path],
             60.0,
             [0, 3],
             self::MEMORY_LIMIT_KB,
@@ -79,21 +81,6 @@ final class QpdfRunner
         }
 
         return $data;
-    }
-
-    /**
-     * One object's value (dictionary, array or scalar) in qpdf's JSON v2 notation.
-     */
-    public function object(string $path, string $ref): mixed
-    {
-        $data = json_decode($this->sandbox->run(
-            ['qpdf', '--json=2', '--json-key=qpdf', '--json-object=' . $ref, '--json-stream-data=none', $path],
-            60.0,
-            [0, 3],
-            self::MEMORY_LIMIT_KB,
-        )->getOutput(), true);
-
-        return $data['qpdf'][1]['obj:' . $ref]['value'] ?? null;
     }
 
     public function pageCount(string $path): int
@@ -179,60 +166,168 @@ final class QpdfRunner
     }
 
     /**
-     * Writes a copy without the page annotations. A visible signature is drawn in a
-     * widget annotation that a text extractor reads in among the page words, so the
-     * page content is compared on this copy. Returns false when there was nothing to drop.
+     * Writes a copy without the signature widgets. A visible signature is drawn in
+     * a widget annotation that a text extractor reads in among the page words, so
+     * the page content is compared on this copy. Every other annotation stays, so
+     * a stamp or a comment still counts as text the signed file added. Returns
+     * false when the file has no signature widget on any page.
      */
-    public function withoutAnnotations(string $input, string $output): bool
+    public function withoutSignatureWidgets(string $input, string $output): bool
     {
-        $pages = $this->json($input)['pages'] ?? [];
-        $objects = [];
-        foreach ($pages as $page) {
-            $ref = $page['object'] ?? null;
-            if (!is_string($ref)) {
-                continue;
-            }
-            $value = $this->object($input, $ref);
-            if (!is_array($value) || !array_key_exists('/Annots', $value)) {
-                continue;
-            }
-            unset($value['/Annots']);
-            $objects['obj:' . $ref] = ['value' => $value];
+        $dump = json_decode($this->sandbox->run(
+            ['qpdf', '--json=2', '--json-key=qpdf', '--json-key=pages', '--json-stream-data=none', $input],
+            60.0,
+            [0, 3],
+            self::MEMORY_LIMIT_KB,
+        )->getOutput());
+        if (!$dump instanceof \stdClass || !isset($dump->qpdf[1])) {
+            throw new PdfToolException('Unreadable qpdf JSON', 'filing.package.error.corrupt');
         }
-        if ($objects === []) {
+        $objects = $dump->qpdf[1];
+        $resolve = static fn (mixed $value): mixed => is_string($value) && preg_match('/^\d+ \d+ R$/', $value) === 1
+            ? ($objects->{'obj:' . $value}->value ?? null)
+            : $value;
+
+        $updates = [];
+        foreach ($dump->pages ?? [] as $page) {
+            $ref = $page->object ?? null;
+            $value = is_string($ref) ? ($objects->{'obj:' . $ref}->value ?? null) : null;
+            if (!$value instanceof \stdClass || !isset($value->{'/Annots'})) {
+                continue;
+            }
+            $annots = $resolve($value->{'/Annots'});
+            if (!is_array($annots)) {
+                continue;
+            }
+            $kept = array_values(array_filter($annots, static fn (mixed $annot): bool => !self::isSignatureWidget($resolve($annot), $resolve)));
+            if (count($kept) === count($annots)) {
+                continue;
+            }
+            if ($kept === []) {
+                unset($value->{'/Annots'});
+            } else {
+                $value->{'/Annots'} = $kept;
+            }
+            $updates['obj:' . $ref] = ['value' => $value];
+        }
+        if ($updates === []) {
             return false;
         }
 
         $update = $this->sandbox->tempPath('json');
         file_put_contents($update, json_encode([
-            'qpdf' => [['jsonversion' => 2, 'pushedinheritedpageresources' => false, 'calledgetallpages' => false, 'maxobjectid' => 0], $objects],
+            'qpdf' => [['jsonversion' => 2, 'pushedinheritedpageresources' => false, 'calledgetallpages' => false, 'maxobjectid' => 0], $updates],
         ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
         $this->sandbox->run(['qpdf', $input, '--update-from-json=' . $update, $output], 60.0, [0, 3], self::MEMORY_LIMIT_KB);
 
         return true;
     }
 
+    /**
+     * The part token as the signed file carries it: in the Info dictionary, or,
+     * when a tool dropped Info, in the XMP metadata, where Adobe products copy
+     * custom Info keys as pdfx properties.
+     *
+     * @return array{info: ?string, xmp: ?string}
+     */
+    public function readPartToken(string $path): array
+    {
+        $trailer = $this->objects($path, ['trailer'])['trailer'] ?? null;
+        $infoRef = is_string($trailer['/Info'] ?? null) ? $trailer['/Info'] : null;
+        $rootRef = is_string($trailer['/Root'] ?? null) ? $trailer['/Root'] : null;
+        $objects = $this->objects($path, array_values(array_filter([$infoRef, $rootRef], is_string(...))));
+
+        $info = $infoRef !== null ? self::stringValue($objects['obj:' . $infoRef]['/' . self::PART_ID_KEY] ?? null) : null;
+        if ($info !== null) {
+            return ['info' => $info, 'xmp' => null];
+        }
+
+        $metadataRef = $rootRef !== null ? ($objects['obj:' . $rootRef]['/Metadata'] ?? null) : null;
+        if (!is_string($metadataRef) || preg_match('/^(\d+) (\d+) R$/', $metadataRef, $m) !== 1) {
+            return ['info' => null, 'xmp' => null];
+        }
+        // Capped: the packet is a few kilobytes, an untrusted stream may not be.
+        $xmp = $this->sandbox->run(
+            ['sh', '-c', 'qpdf --show-object="$1" --filtered-stream-data "$2" | head -c ' . self::XMP_MAX_BYTES, 'sh', $m[1] . ',' . $m[2], $path],
+            60.0,
+            [0],
+            self::MEMORY_LIMIT_KB,
+        )->getOutput();
+
+        return ['info' => null, 'xmp' => self::xmpPartToken($xmp)];
+    }
+
+    public static function xmpPartToken(string $xmp): ?string
+    {
+        $key = 'pdfx:' . self::PART_ID_KEY;
+        if (preg_match('#<' . $key . '>([^<]*)</' . $key . '>#', $xmp, $m) !== 1
+            && preg_match('#' . $key . '\s*=\s*(?:"([^"]*)"|\'([^\']*)\')#', $xmp, $m) !== 1) {
+            return null;
+        }
+        $value = trim(html_entity_decode(($m[1] ?? '') !== '' ? $m[1] : ($m[2] ?? ''), ENT_QUOTES | ENT_XML1, 'UTF-8'));
+
+        return $value === '' ? null : $value;
+    }
+
+    /**
+     * A widget belongs to a signature field when its own field type, or an
+     * ancestor's (the type is inherited), is /Sig.
+     *
+     * @param callable(mixed): mixed $resolve
+     */
+    private static function isSignatureWidget(mixed $annot, callable $resolve): bool
+    {
+        if (!$annot instanceof \stdClass || ($annot->{'/Subtype'} ?? null) !== '/Widget') {
+            return false;
+        }
+        $node = $annot;
+        for ($depth = 0; $depth < 32 && $node instanceof \stdClass; ++$depth) {
+            if (isset($node->{'/FT'})) {
+                return $node->{'/FT'} === '/Sig';
+            }
+            $node = $resolve($node->{'/Parent'} ?? null);
+        }
+
+        return false;
+    }
+
     public function readInfoKey(string $path, string $key): ?string
     {
-        $dump = json_decode($this->sandbox->run(
-            ['qpdf', '--json=2', '--json-key=qpdf', '--json-object=trailer', '--json-stream-data=none', $path],
-            60.0,
-            [0, 3],
-        )->getOutput(), true);
-        $infoRef = $dump['qpdf'][1]['trailer']['value']['/Info'] ?? null;
+        $trailer = $this->objects($path, ['trailer'])['trailer'] ?? null;
+        $infoRef = $trailer['/Info'] ?? null;
         if (!is_string($infoRef)) {
             return null;
         }
-        $infoDump = json_decode($this->sandbox->run(
-            ['qpdf', '--json=2', '--json-key=qpdf', '--json-object=' . $infoRef, '--json-stream-data=none', $path],
+
+        return self::stringValue($this->objects($path, [$infoRef])['obj:' . $infoRef]['/' . $key] ?? null);
+    }
+
+    /**
+     * Several objects' values in one qpdf call, keyed as qpdf keys them
+     * ("trailer", "obj:12 0 R").
+     *
+     * @param list<string> $refs
+     *
+     * @return array<string, mixed>
+     */
+    private function objects(string $path, array $refs): array
+    {
+        if ($refs === []) {
+            return [];
+        }
+        $args = array_map(static fn (string $ref): string => '--json-object=' . $ref, $refs);
+        $dump = json_decode($this->sandbox->run(
+            ['qpdf', '--json=2', '--json-key=qpdf', ...$args, '--json-stream-data=none', $path],
             60.0,
             [0, 3],
+            self::MEMORY_LIMIT_KB,
         )->getOutput(), true);
-        $value = $infoDump['qpdf'][1]['obj:' . $infoRef]['value']['/' . $key] ?? null;
-        if (!is_string($value)) {
-            return null;
-        }
 
-        return preg_replace('/^[ub]:/', '', $value);
+        return array_map(static fn (mixed $entry): mixed => is_array($entry) ? ($entry['value'] ?? null) : null, $dump['qpdf'][1] ?? []);
+    }
+
+    private static function stringValue(mixed $value): ?string
+    {
+        return is_string($value) ? (string) preg_replace('/^[ub]:/', '', $value) : null;
     }
 }

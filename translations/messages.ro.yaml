@@ -3855,7 +3855,7 @@ filing:
         refused:
             mismatch: 'Fișierul diferă de cel generat de platformă. Pentru depunerea prin e-mail, fișierul trebuie generat și semnat din nou; depunerea pe alt canal rămâne disponibilă.'
             not_signed: 'Nu a fost detectată nicio semnătură în fișier.'
-            unsupported_format: 'Semnătura din fișier are un format pe care platforma nu îl poate verifica (sunt acceptate semnăturile PAdES și PKCS#7 detașate).'
+            unsupported_format: 'Semnătura din fișier are un format pe care platforma nu îl poate verifica (sunt acceptate semnăturile PAdES, PKCS#7 detașate și adbe.pkcs7.sha1).'
             damaged: 'Conținutul fișierului s-a modificat după semnare; integritatea nu a putut fi confirmată.'
         warning:
             cn_differs: 'Numele din certificat diferă de numele contului. Este recomandată verificarea certificatului folosit la semnare.'
@@ -3863,6 +3863,12 @@ filing:
             timestamp_appended: 'După semnătură a fost adăugată o marcă temporală a documentului.'
             trailing_update: 'După semnătură au fost adăugate date de validare (de exemplu, de instrumentul de semnare).'
             textless_pages: 'Unele pagini nu au text, deci au fost comparate doar ca număr.'
+            legacy_sub_filter: 'Semnătura folosește formatul adbe.pkcs7.sha1, depășit. Validitatea semnăturii o verifică avocatul.'
+        note:
+            text_added: '{1} Text suplimentar în pagina %page% (un cuvânt în plus față de documentul generat).|[0,Inf[ Text suplimentar în pagina %page% (%count% cuvinte în plus față de documentul generat).'
+            text_added_with_digits: 'Textul suplimentar din pagina %page% conține cifre. Sumele și datele trebuie verificate înainte de confirmare.'
+            pages_appended: '{1} O pagină adăugată după ultima pagină generată. Conținutul ei ajunge la instanță.|[0,Inf[ %count% pagini adăugate după ultima pagină generată. Conținutul lor ajunge la instanță.'
+            part_id_missing: 'Identificatorul intern al documentului lipsește din fișier; textul paginilor generate se regăsește.'
         notice:
             validity: 'Prezența unei semnături nu garantează validitatea calificată; verificarea revine avocatului și instanței.'
             validator_link: 'Validatorul public al Comisiei Europene (DSS)'

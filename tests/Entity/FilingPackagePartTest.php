@@ -37,6 +37,21 @@ final class FilingPackagePartTest extends TestCase
         self::assertTrue($part->isSignatureAccepted());
     }
 
+    public function testMatchNotesComeFromTheReportAndOldReportsHaveNone(): void
+    {
+        $lawyer = new User();
+        $part = self::part(FilingPartRole::PETITION, 'tok-a', 1000);
+        $notes = [['key' => 'filing.signature.note.pages_appended', 'params' => ['%count%' => 1]]];
+
+        $part->recordSignedUpload('signed/a.pdf', str_repeat('a', 64), 1200, $lawyer, SignatureStatus::PRESENT_PROBABLE, ['warnings' => ['w'], 'matchNotes' => $notes]);
+        self::assertSame($notes, $part->getSignatureMatchNotes());
+        self::assertSame(['w'], $part->getSignatureWarnings());
+
+        $part->recordSignedUpload('signed/b.pdf', str_repeat('b', 64), 1200, $lawyer, SignatureStatus::PRESENT_PROBABLE, ['warnings' => ['w']]);
+        self::assertSame([], $part->getSignatureMatchNotes());
+        self::assertSame(['w'], $part->getSignatureWarnings());
+    }
+
     public function testAConfirmationNeverCarriesOverToANewFile(): void
     {
         $lawyer = new User();

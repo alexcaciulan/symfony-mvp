@@ -68,7 +68,6 @@ TestPdfSigner::appendCatalogEntry($unsigned, $dir . '/javascript.pdf', '/OpenAct
 
 TestPdfSigner::sign($unsigned, $dir . '/cades.pdf', ['subFilter' => 'ETSI.CAdES.detached']);
 TestPdfSigner::sign($unsigned, $dir . '/expired-cert.pdf', ['certificate' => $dir . '/test-signer-expired.crt']);
-TestPdfSigner::sign($unsigned, $dir . '/unsupported-subfilter.pdf', ['subFilter' => 'adbe.pkcs7.sha1']);
 
 // Long-term validation data appended after signing, as Adobe and DSS do.
 $certDer = base64_decode((string) preg_replace('/-----[^-]+-----|\s+/', '', (string) file_get_contents($dir . '/test-signer.crt')), true);

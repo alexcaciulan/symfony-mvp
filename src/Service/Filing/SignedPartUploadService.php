@@ -92,6 +92,7 @@ final class SignedPartUploadService
                 ...$inspection->toReport(),
                 'matchMethod' => $match->method,
                 'warnings' => [...$inspection->warnings, ...$match->warnings, ...$this->nameWarnings($inspection, $user)],
+                'matchNotes' => $match->notes,
             ];
 
             return $this->commit($part, $validated, $user, $match->status, $report, $replace, $snapshotSha);
@@ -134,6 +135,9 @@ final class SignedPartUploadService
                     'role' => $part->getRole()->value,
                     'volume' => $part->getVolume(),
                     'sha256' => $part->getSignedSha256(),
+                    // What the lawyer was shown when confirming.
+                    'warnings' => $part->getSignatureWarnings(),
+                    'matchNotes' => $part->getSignatureMatchNotes(),
                     'packageStatus' => $package->getStatus()->value,
                 ],
                 category: AuditLogService::CATEGORY_FILING_PACKAGE,
@@ -255,6 +259,7 @@ final class SignedPartUploadService
                     'sha256' => $file->sha256,
                     'bytes' => $file->bytes,
                     'warnings' => $report['warnings'],
+                    'matchNotes' => $report['matchNotes'],
                     'replaced' => $replaced,
                     'packageStatus' => $package->getStatus()->value,
                 ],

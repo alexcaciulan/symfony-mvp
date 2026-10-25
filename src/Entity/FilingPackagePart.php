@@ -304,6 +304,17 @@ class FilingPackagePart
     }
 
     /**
+     * What a probable match tolerated, as translation keys with their parameters.
+     * Reports stored before these notes existed have none.
+     *
+     * @return list<array{key: string, params: array<string, string|int>}>
+     */
+    public function getSignatureMatchNotes(): array
+    {
+        return array_values($this->signatureReport['matchNotes'] ?? []);
+    }
+
+    /**
      * Records an accepted signed file. Refused outcomes never reach the part, so
      * the previous accepted file stays in place. A text-only match carries the
      * lawyer's confirmation only when given for this very file.

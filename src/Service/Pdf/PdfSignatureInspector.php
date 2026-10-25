@@ -11,10 +11,22 @@ namespace App\Service\Pdf;
  * read only for its common names and its validity dates, both reported as
  * warnings. No chain, no trust list, no revocation, no network: the platform
  * reports a detected signature, never a valid qualified one.
+ *
+ * Signatures are found through the form fields, then through any object holding
+ * a /ByteRange and /Contents (including objects in object streams), then by a
+ * raw byte scan. A document timestamp is never counted as the signer's
+ * signature. The appended updates after a signature are compared structurally
+ * (PdfRevisionDiff) and also scanned as bytes when uncompressed.
+ *
+ * A CMS that does not carry the signer's certificate (kept only in the /DSS) is
+ * reported as damaged, since the digest cannot be checked without it; signing
+ * tools embed the certificate, so this is rare.
  */
 final class PdfSignatureInspector
 {
-    private const SUPPORTED_SUB_FILTERS = ['adbe.pkcs7.detached', 'ETSI.CAdES.detached'];
+    private const SUPPORTED_SUB_FILTERS = ['adbe.pkcs7.detached', 'ETSI.CAdES.detached', self::LEGACY_SUB_FILTER];
+    /** Outdated: the CMS encapsulates the SHA-1 digest of the signed bytes. Accepted with a warning. */
+    private const LEGACY_SUB_FILTER = 'adbe.pkcs7.sha1';
     private const TIMESTAMP_SUB_FILTER = 'ETSI.RFC3161';
 
     /** Anything in an unsigned tail that could change what a page shows or does. */
@@ -31,7 +43,8 @@ final class PdfSignatureInspector
     {
         $bytes = (string) file_get_contents($path);
         $size = strlen($bytes);
-        $signatures = $this->findSignatures($path, $bytes);
+        $dump = $this->qpdf->dump($path);
+        $signatures = $this->findSignatures($dump, $bytes);
         if ($signatures === []) {
             return new SignatureInspection(SignatureInspection::NONE);
         }
@@ -49,19 +62,26 @@ final class PdfSignatureInspector
 
         if ($last['type'] === 'DocTimeStamp') {
             $contentSignatures = array_values(array_filter($signatures, static fn (array $s): bool => $s['type'] !== 'DocTimeStamp'));
-            if ($contentSignatures === [] || $last['subFilter'] !== self::TIMESTAMP_SUB_FILTER || $last['end'] !== $size) {
+            if ($contentSignatures === [] || $last['subFilter'] !== self::TIMESTAMP_SUB_FILTER) {
                 return new SignatureInspection(SignatureInspection::UNSUPPORTED, count($signatures), $last['subFilter']);
             }
             if (!$this->timestampImprintMatches($last, $bytes)) {
                 return $this->damaged(count($signatures));
             }
+            // Validation data for the timestamp itself (PAdES LTV) may follow it.
+            if ($last['end'] < $size && !$this->tailAcceptable($dump, $bytes, $last['end'], self::FORBIDDEN_IN_DSS_TAIL, requireDss: true, allowSignatureFields: false)) {
+                return $this->damaged(count($signatures));
+            }
             $content = $contentSignatures[array_key_last($contentSignatures)];
-            if ($content['end'] < $size && !$this->tailAcceptable($path, $bytes, $content['end'], self::FORBIDDEN_IN_TIMESTAMP_TAIL, requireDss: false)) {
+            if ($content['end'] < $size && !$this->tailAcceptable($dump, $bytes, $content['end'], self::FORBIDDEN_IN_TIMESTAMP_TAIL, requireDss: false, allowSignatureFields: true)) {
                 return $this->damaged(count($signatures));
             }
             $warnings[] = 'filing.signature.warning.timestamp_appended';
+            if ($last['end'] < $size) {
+                $warnings[] = 'filing.signature.warning.trailing_update';
+            }
         } elseif ($last['end'] < $size) {
-            if (!$this->tailAcceptable($path, $bytes, $last['end'], self::FORBIDDEN_IN_DSS_TAIL, requireDss: true)) {
+            if (!$this->tailAcceptable($dump, $bytes, $last['end'], self::FORBIDDEN_IN_DSS_TAIL, requireDss: true, allowSignatureFields: false)) {
                 return $this->damaged(count($signatures));
             }
             $warnings[] = 'filing.signature.warning.trailing_update';
@@ -76,13 +96,17 @@ final class PdfSignatureInspector
             if ($signature['type'] === 'DocTimeStamp' || !in_array($signature['subFilter'], self::SUPPORTED_SUB_FILTERS, true)) {
                 continue;
             }
-            $signerPem = $this->verifyDigest($signature, $bytes);
+            $signerPem = $this->verifyDigest($signature, $bytes, $signature['subFilter'] === self::LEGACY_SUB_FILTER);
             if ($signerPem === null) {
                 return $this->damaged(count($signatures));
             }
             if ($signature['range'] === $content['range']) {
                 $certificate = $signerPem;
             }
+        }
+
+        if ($content['subFilter'] === self::LEGACY_SUB_FILTER) {
+            $warnings[] = 'filing.signature.warning.legacy_sub_filter';
         }
 
         $cert = $certificate !== null ? openssl_x509_parse($certificate) : false;
@@ -115,30 +139,37 @@ final class PdfSignatureInspector
     }
 
     /**
-     * Signature dictionaries from the form fields; a raw scan of /ByteRange catches
-     * a signature that is not linked into the form.
+     * Signature dictionaries from the form fields (referenced or inline), then from
+     * any object holding a /ByteRange and /Contents, which covers a signature not
+     * linked into the form even inside an object stream; a raw byte scan is the
+     * last resort for a file whose objects qpdf could not tie together.
+     *
+     * @param array<string, mixed> $dump
      *
      * @return list<array{range: list<int>, end: int, subFilter: ?string, type: string, m: ?string, contentsHex: ?string, cms: string}>
      */
-    private function findSignatures(string $path, string $bytes): array
+    private function findSignatures(array $dump, string $bytes): array
     {
         $found = [];
-        $json = $this->qpdf->json($path);
-        foreach ($json['acroform']['fields'] ?? [] as $field) {
-            if (($field['fieldtype'] ?? null) !== '/Sig' || !is_string($field['value'] ?? null) || preg_match('/^\d+ \d+ R$/', $field['value']) !== 1) {
+        $objects = is_array($dump['qpdf'][1] ?? null) ? $dump['qpdf'][1] : [];
+        foreach ($dump['acroform']['fields'] ?? [] as $field) {
+            if (($field['fieldtype'] ?? null) !== '/Sig') {
                 continue;
             }
-            $dict = $this->qpdf->object($path, $field['value']);
-            if (!is_array($dict) || !is_array($dict['/ByteRange'] ?? null)) {
-                continue;
+            $value = $field['value'] ?? null;
+            $dict = is_string($value) && preg_match('/^\d+ \d+ R$/', $value) === 1 ? ($objects['obj:' . $value]['value'] ?? null) : $value;
+            if (is_array($dict) && is_array($dict['/ByteRange'] ?? null)) {
+                $found[] = self::signatureFromDictionary($dict);
             }
-            $found[] = self::signature(
-                $dict['/ByteRange'],
-                self::nameValue($dict['/SubFilter'] ?? null),
-                self::nameValue($dict['/Type'] ?? null) ?? 'Sig',
-                self::stringValue($dict['/M'] ?? null),
-                is_string($dict['/Contents'] ?? null) && str_starts_with($dict['/Contents'], 'b:') ? substr($dict['/Contents'], 2) : null,
-            );
+        }
+
+        if ($found === []) {
+            foreach ($objects as $entry) {
+                $dict = is_array($entry) ? ($entry['value'] ?? null) : null;
+                if (is_array($dict) && is_array($dict['/ByteRange'] ?? null) && array_key_exists('/Contents', $dict)) {
+                    $found[] = self::signatureFromDictionary($dict);
+                }
+            }
         }
 
         if ($found === []) {
@@ -164,6 +195,18 @@ final class PdfSignatureInspector
         }
 
         return array_values($unique);
+    }
+
+    /** @param array<string, mixed> $dict */
+    private static function signatureFromDictionary(array $dict): array
+    {
+        return self::signature(
+            $dict['/ByteRange'],
+            self::nameValue($dict['/SubFilter'] ?? null),
+            self::nameValue($dict['/Type'] ?? null) ?? 'Sig',
+            self::stringValue($dict['/M'] ?? null),
+            is_string($dict['/Contents'] ?? null) && str_starts_with($dict['/Contents'], 'b:') ? substr($dict['/Contents'], 2) : null,
+        );
     }
 
     /**
@@ -222,12 +265,17 @@ final class PdfSignatureInspector
 
     /**
      * Digest and signature over the ByteRange, without the chain. Returns the
-     * signer's certificate (PEM) when the signed bytes are unchanged.
+     * signer's certificate (PEM) when the signed bytes are unchanged. A legacy
+     * adbe.pkcs7.sha1 signature signs its own content, the SHA-1 of the bytes.
      *
      * @param array{range: list<int>, cms: string} $signature
      */
-    private function verifyDigest(array $signature, string $bytes): ?string
+    private function verifyDigest(array $signature, string $bytes, bool $legacySha1): ?string
     {
+        if ($legacySha1) {
+            return $this->verifyLegacySha1($signature, $bytes);
+        }
+
         [, $b, $c, $d] = $signature['range'];
         $data = $this->sandbox->tempPath('bin');
         $sig = $this->sandbox->tempPath('der');
@@ -248,6 +296,28 @@ final class PdfSignatureInspector
         self::removeFiles($signers);
 
         return $ok ? ($pem ?? '') : null;
+    }
+
+    /** @param array{range: list<int>, cms: string} $signature */
+    private function verifyLegacySha1(array $signature, string $bytes): ?string
+    {
+        [, $b, $c, $d] = $signature['range'];
+        $sig = $this->sandbox->tempPath('der');
+        $content = $this->sandbox->tempPath('bin');
+        $signers = $this->sandbox->tempPath('pem');
+        file_put_contents($sig, $signature['cms']);
+        try {
+            $ok = openssl_cms_verify($sig, OPENSSL_CMS_NOVERIFY | OPENSSL_CMS_BINARY, $signers, [], null, $content, null, null, OPENSSL_ENCODING_DER);
+            $digest = $ok && is_file($content) ? (string) file_get_contents($content) : '';
+            $pem = $ok && is_file($signers) ? (string) file_get_contents($signers) : '';
+        } finally {
+            while (openssl_error_string() !== false) {
+                // Drain the error queue.
+            }
+            self::removeFiles($sig, $content, $signers);
+        }
+
+        return $ok && $digest !== '' && hash_equals($digest, hash('sha1', substr($bytes, 0, $b) . substr($bytes, $c, $d), true)) ? $pem : null;
     }
 
     /**
@@ -285,37 +355,27 @@ final class PdfSignatureInspector
 
     /**
      * Bytes after a signature are accepted only when they add validation data and
-     * leave the pages as they were signed.
+     * leave the pages, the form and the catalog as they were signed. The byte scan
+     * catches an uncompressed update quickly; the structural comparison also sees
+     * objects compressed in object streams.
+     *
+     * @param array<string, mixed> $dump the whole file
      */
-    private function tailAcceptable(string $path, string $bytes, int $signedEnd, string $forbidden, bool $requireDss): bool
+    private function tailAcceptable(array $dump, string $bytes, int $signedEnd, string $forbidden, bool $requireDss, bool $allowSignatureFields): bool
     {
-        $tail = substr($bytes, $signedEnd);
-        if ($requireDss && preg_match('#/DSS(?![A-Za-z])#', $tail) !== 1) {
-            return false;
-        }
-        if (preg_match($forbidden, $tail) === 1) {
+        if (preg_match($forbidden, substr($bytes, $signedEnd)) === 1) {
             return false;
         }
 
         $revision = $this->sandbox->tempPath();
         file_put_contents($revision, substr($bytes, 0, $signedEnd));
         try {
-            return self::pageLayout($this->qpdf->json($revision)) === self::pageLayout($this->qpdf->json($path));
+            return PdfRevisionDiff::onlyValidationDataAdded($this->qpdf->dump($revision), $dump, $requireDss, $allowSignatureFields);
         } catch (PdfToolException) {
             return false;
         } finally {
             self::removeFiles($revision);
         }
-    }
-
-    /**
-     * @param array<string, mixed> $json
-     *
-     * @return list<array{0: mixed, 1: mixed}>
-     */
-    private static function pageLayout(array $json): array
-    {
-        return array_map(static fn (array $p): array => [$p['object'] ?? null, $p['contents'] ?? null], $json['pages'] ?? []);
     }
 
     private static function removeFiles(string ...$paths): void

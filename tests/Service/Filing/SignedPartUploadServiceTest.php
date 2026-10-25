@@ -6,6 +6,7 @@ namespace App\Tests\Service\Filing;
 
 use App\Entity\AppSetting;
 use App\Entity\AuditLog;
+use App\Entity\Document;
 use App\Entity\FilingPackage;
 use App\Entity\FilingPackagePart;
 use App\Entity\LegalCase;
@@ -22,6 +23,7 @@ use App\Service\Filing\FilingLockQuery;
 use App\Service\Filing\FilingPackageStalenessChecker;
 use App\Service\Filing\FilingPartWriter;
 use App\Service\Filing\FilingSizePlanner;
+use App\Service\Filing\SignedPartMatch;
 use App\Service\Filing\SignedPartMatcher;
 use App\Service\Filing\SignedPartOverBudgetException;
 use App\Service\Filing\SignedPartUploadService;
@@ -33,6 +35,7 @@ use App\Service\Pdf\QpdfRunner;
 use App\Service\Pdf\UploadedPdfValidator;
 use App\Tests\Support\FilingCaseFixtureTrait;
 use App\Tests\Support\TestPdfSigner;
+use App\Tests\Support\TestPdfVariants;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
@@ -97,6 +100,7 @@ final class SignedPartUploadServiceTest extends KernelTestCase
         self::assertSame('Test Avocat', $part->getSignatureReport()['signerCn']);
         // The account is "Ana Avocat": the certificate's name differs, which is only a warning.
         self::assertSame(['filing.signature.warning.cn_differs'], $part->getSignatureWarnings());
+        self::assertSame([], $part->getSignatureMatchNotes());
 
         $this->em->clear();
         $package = $this->em->find(FilingPackage::class, $this->package->getId());
@@ -130,6 +134,7 @@ final class SignedPartUploadServiceTest extends KernelTestCase
         self::assertFalse($part->isSignatureAccepted());
         self::assertTrue($part->isAwaitingProbableConfirmation());
         self::assertSame('text', $part->getSignatureReport()['matchMethod']);
+        self::assertSame([], $part->getSignatureMatchNotes());
         self::assertSame(FilingPackageStatus::AWAITING_SIGNATURES, $part->getPackage()->getStatus());
 
         try {
@@ -158,6 +163,7 @@ final class SignedPartUploadServiceTest extends KernelTestCase
 
         self::assertSame(SignatureStatus::PRESENT_MATCHED, $part->getSignatureStatus());
         self::assertTrue($part->isSignatureAccepted());
+        self::assertSame([], $part->getSignatureMatchNotes());
     }
 
     /** The same visible signature from a tool that rewrites the file: a probable match to confirm. */
@@ -170,6 +176,305 @@ final class SignedPartUploadServiceTest extends KernelTestCase
 
         self::assertSame(SignatureStatus::PRESENT_PROBABLE, $part->getSignatureStatus());
         self::assertTrue($part->isAwaitingProbableConfirmation());
+        self::assertSame([], $part->getSignatureMatchNotes());
+    }
+
+    public function testAVisibleSignatureOnTheLastPageIsMatched(): void
+    {
+        $part = $this->part(FilingPartRole::PETITION);
+
+        $this->upload($part, $this->signedVariant($part, null, ['page' => -1, 'visibleRect' => [34, 60, 300, 100]]));
+
+        self::assertSame(SignatureStatus::PRESENT_MATCHED, $part->getSignatureStatus());
+        self::assertSame([], $part->getSignatureMatchNotes());
+    }
+
+    /**
+     * Tools that linearize or compress the file before signing keep its text and
+     * its part token, but not its bytes.
+     */
+    public function testLinearizedOrCompressedInputSignedAfterwardsIsProbableWithoutNotes(): void
+    {
+        foreach (['linearize', 'objectStreams'] as $variant) {
+            $part = $this->part(FilingPartRole::PETITION);
+
+            $this->upload($part, $this->signedVariant($part, TestPdfVariants::$variant(...)), replace: $part->hasSignedFile());
+
+            self::assertSame(SignatureStatus::PRESENT_PROBABLE, $part->getSignatureStatus(), $variant);
+            self::assertSame('text', $part->getSignatureReport()['matchMethod'], $variant);
+            self::assertSame([], $part->getSignatureMatchNotes(), $variant);
+        }
+    }
+
+    /** Ghostscript re-distils the pages and keeps only the standard Info keys. */
+    public function testARedistilledOrPdfAFileIsProbableWithTheMissingTokenNoted(): void
+    {
+        foreach (['gsPdfwrite', 'gsPdfA'] as $variant) {
+            $part = $this->part(FilingPartRole::PETITION);
+
+            $this->upload($part, $this->signedVariant($part, TestPdfVariants::$variant(...)), replace: $part->hasSignedFile());
+
+            self::assertSame(SignatureStatus::PRESENT_PROBABLE, $part->getSignatureStatus(), $variant);
+            self::assertSame([['key' => 'filing.signature.note.part_id_missing', 'params' => []]], $part->getSignatureMatchNotes(), $variant);
+        }
+    }
+
+    public function testAPartTokenKeptOnlyInTheXmpMetadataCountsAsPresent(): void
+    {
+        foreach ([false, true] as $asAttribute) {
+            $part = $this->part(FilingPartRole::PETITION);
+            $token = (string) static::getContainer()->get(QpdfRunner::class)->readInfoKey($this->abs($part), QpdfRunner::PART_ID_KEY);
+            $file = $this->signedVariant($part, static function (string $in, string $out) use ($token, $asAttribute): void {
+                TestPdfVariants::removeInfo($in, $out . '.noinfo.pdf');
+                TestPdfVariants::withXmpToken($out . '.noinfo.pdf', $out, $token, $asAttribute);
+                @unlink($out . '.noinfo.pdf');
+            });
+
+            $this->upload($part, $file, replace: $part->hasSignedFile());
+
+            self::assertSame(SignatureStatus::PRESENT_PROBABLE, $part->getSignatureStatus());
+            self::assertSame([], $part->getSignatureMatchNotes());
+        }
+    }
+
+    public function testAFileWithoutInfoAndMetadataIsProbableWithTheMissingTokenNoted(): void
+    {
+        $part = $this->part(FilingPartRole::PETITION);
+
+        $this->upload($part, $this->signedVariant($part, TestPdfVariants::removeInfoAndMetadata(...)));
+
+        self::assertSame(SignatureStatus::PRESENT_PROBABLE, $part->getSignatureStatus());
+        self::assertSame([['key' => 'filing.signature.note.part_id_missing', 'params' => []]], $part->getSignatureMatchNotes());
+    }
+
+    public function testTextDrawnIntoThePageIsProbableWithTheAddedTextNoted(): void
+    {
+        $part = $this->part(FilingPartRole::PETITION);
+
+        $this->upload($part, $this->signedVariant($part, static fn (string $in, string $out) => TestPdfVariants::stampIntoContent($in, $out, 'Semnat electronic de TEST SIGNER')));
+
+        self::assertSame(SignatureStatus::PRESENT_PROBABLE, $part->getSignatureStatus());
+        self::assertSame([['key' => 'filing.signature.note.text_added', 'params' => ['%page%' => 1, '%count%' => 5]]], $part->getSignatureMatchNotes());
+    }
+
+    public function testAddedTextWithDigitsGetsTheStrongerNote(): void
+    {
+        $part = $this->part(FilingPartRole::PETITION);
+
+        $this->upload($part, $this->signedVariant($part, static fn (string $in, string $out) => TestPdfVariants::stampIntoContent($in, $out, 'Semnat la 2026-10-25 12:00', 2)));
+
+        self::assertSame([
+            ['key' => 'filing.signature.note.text_added', 'params' => ['%page%' => 2, '%count%' => 4]],
+            ['key' => 'filing.signature.note.text_added_with_digits', 'params' => ['%page%' => 2]],
+        ], $part->getSignatureMatchNotes());
+    }
+
+    public function testAFreeTextCommentIsProbableWithTheAddedTextNoted(): void
+    {
+        $part = $this->part(FilingPartRole::PETITION);
+
+        $this->upload($part, $this->signedVariant($part, static fn (string $in, string $out) => TestPdfSigner::addFreeText($in, $out, 'Vazut avocat', [40, 60, 200, 80])));
+
+        self::assertSame(SignatureStatus::PRESENT_PROBABLE, $part->getSignatureStatus());
+        self::assertSame('prefix', $part->getSignatureReport()['matchMethod']);
+        self::assertSame([['key' => 'filing.signature.note.text_added', 'params' => ['%page%' => 1, '%count%' => 2]]], $part->getSignatureMatchNotes());
+    }
+
+    public function testASignaturePageAppendedIncrementallyIsProbableWithTheAppendedPageNoted(): void
+    {
+        $part = $this->part(FilingPartRole::PETITION);
+
+        $this->upload($part, $this->signedVariant($part, static fn (string $in, string $out) => TestPdfSigner::appendPage($in, $out, 'Pagina de semnaturi'), ['page' => -1]));
+
+        self::assertSame(SignatureStatus::PRESENT_PROBABLE, $part->getSignatureStatus());
+        self::assertSame('prefix', $part->getSignatureReport()['matchMethod']);
+        self::assertSame([['key' => 'filing.signature.note.pages_appended', 'params' => ['%count%' => 1]]], $part->getSignatureMatchNotes());
+    }
+
+    public function testASignaturePageAppendedByARewriteIsProbableWithTheAppendedPageNoted(): void
+    {
+        $part = $this->part(FilingPartRole::PETITION);
+
+        $this->upload($part, $this->signedVariant($part, TestPdfVariants::appendPageRewrite(...)));
+
+        self::assertSame(SignatureStatus::PRESENT_PROBABLE, $part->getSignatureStatus());
+        self::assertSame([['key' => 'filing.signature.note.pages_appended', 'params' => ['%count%' => 1]]], $part->getSignatureMatchNotes());
+    }
+
+    public function testTwoSignaturesATimestampAndValidationDataKeepTheMatch(): void
+    {
+        $part = $this->part(FilingPartRole::PETITION);
+        $once = $this->signed($part);
+        $twice = $this->scratch . '/twice.pdf';
+        TestPdfSigner::sign($once, $twice);
+        $timestamped = $this->scratch . '/timestamped.pdf';
+        TestPdfSigner::timestamp($once, $timestamped);
+        $withDss = $this->scratch . '/timestamped-dss.pdf';
+        $this->appendDss($timestamped, $withDss);
+
+        foreach (['two signatures' => $twice, 'timestamp' => $timestamped, 'timestamp and DSS' => $withDss] as $label => $file) {
+            $this->upload($part, $file, replace: $part->hasSignedFile());
+
+            self::assertSame(SignatureStatus::PRESENT_MATCHED, $part->getSignatureStatus(), $label);
+            self::assertSame([], $part->getSignatureMatchNotes(), $label);
+        }
+        self::assertSame(2, $part->getSignatureReport()['signatureCount']);
+        self::assertContains('filing.signature.warning.timestamp_appended', $part->getSignatureWarnings());
+        self::assertContains('filing.signature.warning.trailing_update', $part->getSignatureWarnings());
+    }
+
+    public function testAChangedAmountIsAMismatch(): void
+    {
+        $part = $this->part(FilingPartRole::PETITION);
+
+        $this->assertRefusedWith('filing.signature.refused.mismatch', SignatureStatus::MISMATCH, $part, $this->signedVariant(
+            $part,
+            static fn (string $in, string $out) => TestPdfVariants::changeText($in, $out, '200,00', '100,00'),
+        ));
+    }
+
+    /** Added words never stand in for deleted ones: every generated word has to be there. */
+    public function testADeletedLineIsAMismatchEvenWithTextAddedOnTheSamePage(): void
+    {
+        $part = $this->part(FilingPartRole::PETITION);
+
+        $this->assertRefusedWith('filing.signature.refused.mismatch', SignatureStatus::MISMATCH, $part, $this->signedVariant(
+            $part,
+            static function (string $in, string $out): void {
+                TestPdfVariants::deleteLineContaining($in, $out . '.deleted.pdf', 'CERERE');
+                TestPdfVariants::stampIntoContent($out . '.deleted.pdf', $out, 'CERERE DE ORDONANTA DE PLATA');
+                @unlink($out . '.deleted.pdf');
+            },
+        ));
+    }
+
+    public function testReversedOrMissingAnnexPagesAreAMismatch(): void
+    {
+        $annex = $this->part(FilingPartRole::ANNEX_BUNDLE);
+        self::assertGreaterThan(2, $annex->getPageCount());
+
+        $this->assertRefusedWith('filing.signature.refused.mismatch', SignatureStatus::MISMATCH, $annex, $this->signedVariant($annex, TestPdfVariants::reversePages(...)));
+        $this->assertRefusedWith('filing.signature.refused.mismatch', SignatureStatus::MISMATCH, $annex, $this->signedVariant(
+            $annex,
+            static fn (string $in, string $out) => TestPdfVariants::dropPage($in, $out, 2),
+        ));
+        $this->assertRefusedWith('filing.signature.refused.mismatch', SignatureStatus::MISMATCH, $annex, $this->signedVariant(
+            $annex,
+            static fn (string $in, string $out) => TestPdfVariants::dropPage($in, $out, $annex->getPageCount()),
+        ));
+    }
+
+    public function testAForeignTokenInTheXmpMetadataIsAMismatch(): void
+    {
+        $part = $this->part(FilingPartRole::PETITION);
+
+        $this->assertRefusedWith('filing.signature.refused.mismatch', SignatureStatus::MISMATCH, $part, $this->signedVariant(
+            $part,
+            static function (string $in, string $out): void {
+                TestPdfVariants::removeInfo($in, $out . '.noinfo.pdf');
+                TestPdfVariants::withXmpToken($out . '.noinfo.pdf', $out, str_repeat('cd', 16));
+                @unlink($out . '.noinfo.pdf');
+            },
+        ));
+    }
+
+    /**
+     * A page without text is compared only by position: without the token the
+     * text cannot identify the part. The builder numbers every annex page, so the
+     * tokened part with a scanned page is made here and matched directly.
+     */
+    public function testAMissingTokenOnATokenedPartWithATextlessPageIsAMismatch(): void
+    {
+        $relative = 'cases/' . $this->case->getId() . '/filing/matcher/anexe-scan.pdf';
+        $absolute = $this->filingUploadsDir . '/' . $relative;
+        mkdir(dirname($absolute), 0o777, true);
+        $plain = $this->scratch . '/scan.pdf';
+        file_put_contents($plain, self::pdfBytes(['Anexa 1', '']));
+        $token = str_repeat('ef', 16);
+        $sandbox = static::getContainer()->get(ProcessSandbox::class);
+        $sandbox->begin();
+        try {
+            static::getContainer()->get(QpdfRunner::class)->setInfoKey($plain, $absolute, QpdfRunner::PART_ID_KEY, $token);
+        } finally {
+            $sandbox->end();
+        }
+        $part = new FilingPackagePart(FilingPartRole::ANNEX_BUNDLE, 9, 'Anexe', 2, $relative, (string) hash_file('sha256', $absolute), (int) filesize($absolute), $token, []);
+
+        self::assertSame(SignatureStatus::MISMATCH, $this->match($part, $this->signedVariant($part, TestPdfVariants::removeInfoAndMetadata(...)))->status);
+
+        $kept = $this->match($part, $this->signedVariant($part, TestPdfVariants::qpdfRewrite(...)));
+        self::assertSame(SignatureStatus::PRESENT_PROBABLE, $kept->status);
+        self::assertSame(['filing.signature.warning.textless_pages'], $kept->warnings);
+        self::assertSame([], $kept->notes);
+    }
+
+    /** A copied part (here a scanned power of attorney) never carried a token, so none can be missing. */
+    public function testACopiedTextlessPartWithoutInfoIsProbableWithoutAMissingTokenNote(): void
+    {
+        $this->attachPdf($this->em, $this->case, $this->user, DocumentType::IMPUTERNICIRE_AVOCATIALA, 'Imputernicire_scan.pdf', [''], static function (Document $d): void {
+            $d->setPowerOfAttorneySeries('B');
+            $d->setPowerOfAttorneyNumber('5678');
+            $d->setPowerOfAttorneyDate(new \DateTimeImmutable('2026-02-01'));
+        });
+        $this->package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $poa = $this->part(FilingPartRole::POWER_OF_ATTORNEY);
+
+        $this->upload($poa, $this->signedVariant($poa, TestPdfVariants::removeInfoAndMetadata(...)));
+
+        self::assertSame(SignatureStatus::PRESENT_PROBABLE, $poa->getSignatureStatus());
+        self::assertSame(['filing.signature.warning.textless_pages'], array_values(array_diff($poa->getSignatureWarnings(), ['filing.signature.warning.cn_differs'])));
+        self::assertSame([], $poa->getSignatureMatchNotes());
+    }
+
+    public function testTheNotesReachTheReportAndBothAuditsWithoutAnyExtractedText(): void
+    {
+        $this->signAllExcept(FilingPartRole::PETITION);
+        $part = $this->part(FilingPartRole::PETITION);
+        $this->upload($part, $this->signedVariant($part, static function (string $in, string $out): void {
+            TestPdfVariants::removeInfoAndMetadata($in, $out . '.bare.pdf');
+            TestPdfVariants::stampIntoContent($out . '.bare.pdf', $out, 'Semnat de Ionescu Maria 2026');
+            @unlink($out . '.bare.pdf');
+        }));
+        $expected = [
+            ['key' => 'filing.signature.note.text_added', 'params' => ['%page%' => 1, '%count%' => 5]],
+            ['key' => 'filing.signature.note.text_added_with_digits', 'params' => ['%page%' => 1]],
+            ['key' => 'filing.signature.note.part_id_missing', 'params' => []],
+        ];
+        self::assertSame($expected, $part->getSignatureReport()['matchNotes']);
+
+        $this->service()->confirmProbable($part, $this->user, (string) $part->getSignedSha256());
+
+        $uploads = $this->audit('filing_signed_part_uploaded');
+        $upload = $uploads[array_key_last($uploads)]->getNewData();
+        $confirmation = $this->audit('filing_signed_part_probable_confirmed')[0]->getNewData();
+        self::assertSame($expected, $upload['matchNotes']);
+        self::assertSame($expected, $confirmation['matchNotes']);
+        self::assertSame($part->getSignatureWarnings(), $confirmation['warnings']);
+        foreach ([$upload, $confirmation] as $data) {
+            self::assertArrayNotHasKey('signerCn', $data);
+            $json = json_encode($data, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+            self::assertStringNotContainsString('Ionescu', $json);
+            self::assertStringNotContainsString('Semnat', $json);
+        }
+    }
+
+    public function testAnAppendedPageThatPushesTheEmailOverItsLimitTakesTheOverBudgetPath(): void
+    {
+        $unsignedTotal = 0;
+        foreach ($this->package->getParts() as $each) {
+            $unsignedTotal += $each->getUnsignedBytes();
+        }
+        $service = $this->service((int) ceil($unsignedTotal * FilingSizePlanner::ENCODING_FACTOR) + 1000);
+        $annex = $this->part(FilingPartRole::ANNEX_BUNDLE);
+
+        try {
+            $service->upload($annex, $this->uploaded($this->signedVariant($annex, TestPdfVariants::appendPageRewrite(...))), $this->user, false);
+            self::fail('Expected an over-budget refusal.');
+        } catch (SignedPartOverBudgetException $e) {
+            self::assertTrue($e->rebuildable);
+        }
+        self::assertSame(SignatureStatus::MISSING, $annex->getSignatureStatus());
+        self::assertSame([], $this->signedFiles());
     }
 
     public function testSignedFileOfAnotherPartIsAMismatchAndLeavesThePartUntouched(): void
@@ -402,6 +707,54 @@ final class SignedPartUploadServiceTest extends KernelTestCase
         TestPdfSigner::sign($source, $out, $visibleRect !== null ? ['visibleRect' => $visibleRect] : []);
 
         return $out;
+    }
+
+    /**
+     * The generated part passed through a tool, then signed.
+     *
+     * @param (callable(string, string): void)|null $transform
+     * @param array<string, mixed>                  $signOptions
+     */
+    private function signedVariant(FilingPackagePart $part, ?callable $transform, array $signOptions = []): string
+    {
+        $source = $this->abs($part);
+        if ($transform !== null) {
+            $variant = $this->scratch . '/' . bin2hex(random_bytes(4)) . '-variant.pdf';
+            $transform($source, $variant);
+            $source = $variant;
+        }
+        $out = $this->scratch . '/' . bin2hex(random_bytes(4)) . '-signed.pdf';
+        TestPdfSigner::sign($source, $out, $signOptions);
+
+        return $out;
+    }
+
+    private function match(FilingPackagePart $part, string $signed): SignedPartMatch
+    {
+        $container = static::getContainer();
+        $sandbox = $container->get(ProcessSandbox::class);
+        $matcher = new SignedPartMatcher($container->get(QpdfRunner::class), $container->get(PdfTextProbe::class), $container->get(FilingPartWriter::class), $sandbox);
+        $sandbox->begin();
+        try {
+            return $matcher->match($part, $signed, static::getContainer()->get(QpdfRunner::class)->pageCount($signed));
+        } finally {
+            $sandbox->end();
+        }
+    }
+
+    private function upload(FilingPackagePart $part, string $file, bool $replace = false): void
+    {
+        $this->service()->upload($part, $this->uploaded($file), $this->user, $replace);
+    }
+
+    /** Long-term validation data appended after the last signature, as Adobe and DSS do. */
+    private function appendDss(string $in, string $out): void
+    {
+        $certDer = base64_decode((string) preg_replace('/-----[^-]+-----|\s+/', '', (string) file_get_contents(TestPdfSigner::FIXTURE_DIR . '/test-signer.crt')), true);
+        TestPdfSigner::appendCatalogEntry($in, $out, '/DSS', '{1} 0 R', [
+            '<< /Type /DSS /Certs [{2} 0 R] >>',
+            '<< /Length ' . strlen((string) $certDer) . " >>\nstream\n" . $certDer . "\nendstream",
+        ]);
     }
 
     private function uploaded(string $path): UploadedFile

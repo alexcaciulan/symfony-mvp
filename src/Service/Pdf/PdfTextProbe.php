@@ -7,6 +7,16 @@ namespace App\Service\Pdf;
 /** Text layer of a PDF, through poppler's pdftotext. */
 final class PdfTextProbe
 {
+    private const FOLDED_CHARACTERS = [
+        "\u{015F}" => "\u{0219}", "\u{015E}" => "\u{0218}",
+        "\u{0163}" => "\u{021B}", "\u{0162}" => "\u{021A}",
+        "\u{201E}" => '"', "\u{201D}" => '"', "\u{201C}" => '"', "\u{00AB}" => '"', "\u{00BB}" => '"',
+        // NFKC turns a double prime into two primes.
+        "\u{2032}\u{2032}" => '"',
+        "\u{2018}" => "'", "\u{2019}" => "'", "\u{201A}" => "'", "\u{2032}" => "'",
+        "\u{2010}" => '-', "\u{2011}" => '-', "\u{2013}" => '-',
+    ];
+
     public function __construct(
         private readonly ProcessSandbox $sandbox,
     ) {}
@@ -61,30 +71,21 @@ final class PdfTextProbe
     }
 
     /**
-     * Whether every page of the generated file still reads the same in the signed
-     * one. Containment, not equality: a visible signature adds its own words to a
-     * page. A page without text matches only a page without text.
-     *
-     * @param list<string> $unsigned
-     * @param list<string> $signed
+     * Folds the differences text extractors and signing tools introduce without
+     * changing a word: soft and line-end hyphens, compatibility forms (ligatures),
+     * cedilla against comma below in ș and ț, typographic quotes and dashes, and
+     * whitespace. Digits, dots, commas and diacritics stay, so a changed amount,
+     * code or name stays a different word.
      */
-    public static function pageTextsContained(array $unsigned, array $signed): bool
-    {
-        if (count($unsigned) !== count($signed)) {
-            return false;
-        }
-        foreach ($unsigned as $i => $text) {
-            $other = $signed[$i];
-            if ($text === '' ? $other !== '' : !str_contains($other, $text)) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     public static function normalize(string $text): string
     {
+        $text = str_replace("\u{00AD}", '', $text);
+        // Only across a real line break: a hyphen inside a line ("S.C.-urile") is a word's own.
+        $text = (string) preg_replace('/(\p{L})[-\x{2010}]\n\s*(\p{Ll})/u', '$1$2', $text);
+        $normalized = \Normalizer::normalize($text, \Normalizer::FORM_KC);
+        $text = is_string($normalized) ? $normalized : $text;
+        $text = strtr($text, self::FOLDED_CHARACTERS);
+
         return trim((string) preg_replace('/\s+/u', ' ', $text));
     }
 }

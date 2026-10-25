@@ -19,26 +19,39 @@ final class TestPdfSigner
     private const BYTE_RANGE_PLACEHOLDER = '/ByteRange [0 0000000000 0000000000 0000000000]';
 
     /**
-     * visibleRect draws the signature text in that rectangle of the first page, as
-     * a visible signature does.
+     * The widget sits on the first page unless page (0-based, -1 for the last) says
+     * otherwise. Without visibleRect it is invisible (a zero rectangle); with it the
+     * signature text is drawn in that rectangle, as a visible signature does.
+     * subFilter adbe.pkcs7.sha1 signs the SHA-1 of the bytes as encapsulated
+     * content, as legacy tools do.
      *
-     * @param array{subFilter?: string, certificate?: string, key?: string, visibleRect?: list<int>} $options
+     * @param array{subFilter?: string, certificate?: string, key?: string, visibleRect?: list<int>, page?: int} $options
      */
     public static function sign(string $input, string $output, array $options = []): void
     {
         $certificate = $options['certificate'] ?? self::FIXTURE_DIR . '/test-signer.crt';
         $key = $options['key'] ?? self::FIXTURE_DIR . '/test-signer.key';
+        $subFilter = $options['subFilter'] ?? 'adbe.pkcs7.detached';
+        $legacy = $subFilter === 'adbe.pkcs7.sha1';
 
-        self::addSignature($input, $output, 'Sig', $options['subFilter'] ?? 'adbe.pkcs7.detached', $options['visibleRect'] ?? null, static function (string $data, string $sig) use ($certificate, $key): void {
+        self::addSignature($input, $output, 'Sig', $subFilter, $options['visibleRect'] ?? null, $options['page'] ?? 0, static function (string $data, string $sig) use ($certificate, $key, $legacy): void {
+            $content = $data;
+            if ($legacy) {
+                $content = $data . '.sha1';
+                file_put_contents($content, sha1_file($data, true));
+            }
             $ok = openssl_cms_sign(
-                $data,
+                $content,
                 $sig,
                 'file://' . realpath($certificate),
                 'file://' . realpath($key),
                 null,
-                OPENSSL_CMS_DETACHED | OPENSSL_CMS_BINARY,
+                $legacy ? OPENSSL_CMS_BINARY : OPENSSL_CMS_DETACHED | OPENSSL_CMS_BINARY,
                 OPENSSL_ENCODING_DER,
             );
+            if ($legacy) {
+                @unlink($content);
+            }
             if (!$ok) {
                 throw new \RuntimeException('openssl_cms_sign failed: ' . openssl_error_string());
             }
@@ -48,7 +61,7 @@ final class TestPdfSigner
     /** An RFC 3161 document timestamp from the committed test TSA, as LTV tools add one. */
     public static function timestamp(string $input, string $output): void
     {
-        self::addSignature($input, $output, 'DocTimeStamp', 'ETSI.RFC3161', null, static function (string $data, string $sig): void {
+        self::addSignature($input, $output, 'DocTimeStamp', 'ETSI.RFC3161', null, 0, static function (string $data, string $sig): void {
             $dir = realpath(self::FIXTURE_DIR);
             $query = $sig . '.tsq';
             $reply = $sig . '.tsr';
@@ -63,6 +76,158 @@ final class TestPdfSigner
                 @unlink($file);
             }
         });
+    }
+
+    /**
+     * Appends a page with one line of text in an incremental update, as a tool
+     * that adds a signature page before signing does. The earlier bytes stay a prefix.
+     */
+    public static function appendPage(string $input, string $output, string $text): void
+    {
+        $max = self::maxObjectId($input);
+        $rootRef = (string) self::jsonObject($input, 'trailer')->{'/Root'};
+        $pagesRef = (string) self::jsonObject($input, $rootRef)->{'/Pages'};
+        $pages = self::jsonObject($input, $pagesRef);
+        $pageRef = ($max + 2) . ' 0 R';
+        $pages->{'/Kids'} = [...$pages->{'/Kids'}, $pageRef];
+        $pages->{'/Count'} = (int) $pages->{'/Count'} + 1;
+        $content = sprintf('BT /F1 12 Tf 72 760 Td (%s) Tj ET', $text);
+
+        file_put_contents($output, self::appendUpdate((string) file_get_contents($input), [
+            self::objectNumber($pagesRef) => self::serialize($pages),
+            $max + 1 => sprintf("<< /Length %d >>\nstream\n%s\nendstream", strlen($content), $content),
+            $max + 2 => sprintf('<< /Type /Page /Parent %s /MediaBox [0 0 595 842] /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> /Contents %d 0 R >>', $pagesRef, $max + 1),
+        ], $max + 3));
+    }
+
+    /**
+     * Appends a free text annotation, with an appearance that draws the text, to
+     * the first page: a comment a reader adds before signing.
+     *
+     * @param list<int> $rect
+     */
+    public static function addFreeText(string $input, string $output, string $text, array $rect): void
+    {
+        $max = self::maxObjectId($input);
+        $pageRef = self::pageRef($input, 0);
+        $page = self::jsonObject($input, $pageRef);
+        [$x1, $y1, $x2, $y2] = $rect;
+        $content = sprintf('BT /F1 10 Tf 2 4 Td (%s) Tj ET', $text);
+        $annotRef = ($max + 2) . ' 0 R';
+        $objects = [
+            $max + 1 => sprintf("<< /Type /XObject /Subtype /Form /BBox [0 0 %d %d] /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> /Length %d >>\nstream\n%s\nendstream", $x2 - $x1, $y2 - $y1, strlen($content), $content),
+            $max + 2 => sprintf('<< /Type /Annot /Subtype /FreeText /Rect [%d %d %d %d] /Contents (%s) /DA (/Helv 10 Tf 0 g) /AP << /N %d 0 R >> /P %s >>', $x1, $y1, $x2, $y2, $text, $max + 1, $pageRef),
+        ];
+        $annots = $page->{'/Annots'} ?? [];
+        if (is_string($annots)) {
+            $objects[self::objectNumber($annots)] = self::serialize([...self::jsonObject($input, $annots), $annotRef]);
+        } else {
+            $page->{'/Annots'} = [...$annots, $annotRef];
+            $objects[self::objectNumber($pageRef)] = self::serialize($page);
+        }
+
+        file_put_contents($output, self::appendUpdate((string) file_get_contents($input), $objects, $max + 3));
+    }
+
+    /**
+     * Appends a signature dictionary compressed in an object stream, linked to no
+     * field. It can never be a valid signature (the /Contents hole is not in the
+     * file's bytes), but it has to be found rather than read as "no signature".
+     */
+    public static function appendSignatureInObjectStream(string $input, string $output): void
+    {
+        $max = self::maxObjectId($input);
+        file_put_contents($output, self::appendCompressedUpdate((string) file_get_contents($input), [
+            $max + 1 => sprintf('<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /ByteRange [0 100 200 50] /Contents <%s> >>', str_repeat('00', 64)),
+        ]));
+    }
+
+    /**
+     * Appends validation data in an update whose objects are all compressed in a
+     * Flate object stream, as tools writing PDF 1.5+ updates do. $extraObjects use
+     * "{1}" for the first object number after the file's last one; $annotation, when
+     * given, is added to the first page in the same update.
+     */
+    public static function appendCompressedDss(string $input, string $output, ?string $annotation = null): void
+    {
+        $max = self::maxObjectId($input);
+        $rootRef = (string) self::jsonObject($input, 'trailer')->{'/Root'};
+        $root = self::jsonObject($input, $rootRef);
+        $root->{'/DSS'} = ($max + 1) . ' 0 R';
+        $objects = [
+            self::objectNumber($rootRef) => self::serialize($root),
+            $max + 1 => '<< /Type /DSS /Certs [] /OCSPs [] /CRLs [] >>',
+        ];
+        if ($annotation !== null) {
+            $pageRef = self::pageRef($input, 0);
+            $page = self::jsonObject($input, $pageRef);
+            $annots = $page->{'/Annots'} ?? [];
+            if (is_string($annots)) {
+                throw new \RuntimeException('Indirect /Annots is not supported here.');
+            }
+            $page->{'/Annots'} = [...$annots, ($max + 2) . ' 0 R'];
+            $objects[self::objectNumber($pageRef)] = self::serialize($page);
+            $objects[$max + 2] = $annotation;
+        }
+
+        file_put_contents($output, self::appendCompressedUpdate((string) file_get_contents($input), $objects));
+    }
+
+    /**
+     * One incremental update: the objects (no streams) in a Flate object stream,
+     * indexed by an xref stream.
+     *
+     * @param array<int, string> $objects
+     */
+    private static function appendCompressedUpdate(string $bytes, array $objects): string
+    {
+        if (preg_match_all('/startxref\s+(\d+)/', $bytes, $m) < 1) {
+            throw new \RuntimeException('No startxref');
+        }
+        $prev = (int) end($m[1]);
+        ksort($objects);
+        $streamNum = max(array_keys($objects)) + 1;
+        $xrefNum = $streamNum + 1;
+
+        $header = '';
+        $body = '';
+        foreach ($objects as $num => $source) {
+            $header .= $num . ' ' . strlen($body) . ' ';
+            $body .= $source . "\n";
+        }
+        $data = (string) gzcompress($header . $body);
+
+        $out = str_ends_with($bytes, "\n") ? $bytes : $bytes . "\n";
+        $streamOffset = strlen($out);
+        $out .= sprintf("%d 0 obj\n<< /Type /ObjStm /N %d /First %d /Filter /FlateDecode /Length %d >>\nstream\n%s\nendstream\nendobj\n", $streamNum, count($objects), strlen($header), strlen($data), $data);
+        $xrefOffset = strlen($out);
+
+        $index = [];
+        $rows = '';
+        $i = 0;
+        foreach (array_keys($objects) as $num) {
+            $index[] = $num . ' 1';
+            $rows .= chr(2) . pack('N', $streamNum) . pack('n', $i++);
+        }
+        $index[] = $streamNum . ' 2';
+        $rows .= chr(1) . pack('N', $streamOffset) . pack('n', 0) . chr(1) . pack('N', $xrefOffset) . pack('n', 0);
+
+        $entries = '';
+        foreach (self::trailerFromBytes($bytes) as $name => $value) {
+            $entries .= ' ' . $name . ' ' . $value;
+        }
+
+        return $out . sprintf(
+            "%d 0 obj\n<< /Type /XRef /Size %d /Prev %d /W [1 4 2] /Index [%s] /Length %d%s >>\nstream\n%s\nendstream\nendobj\nstartxref\n%d\n%%%%EOF\n",
+            $xrefNum,
+            $xrefNum + 1,
+            $prev,
+            implode(' ', $index),
+            strlen($rows),
+            $entries,
+            $rows,
+            $xrefOffset,
+        );
     }
 
     /**
@@ -92,14 +257,14 @@ final class TestPdfSigner
      * @param list<int>|null                $visibleRect
      * @param callable(string, string): void $signer writes the DER signature of the data file
      */
-    private static function addSignature(string $input, string $output, string $type, string $subFilter, ?array $visibleRect, callable $signer): void
+    private static function addSignature(string $input, string $output, string $type, string $subFilter, ?array $visibleRect, int $pageIndex, callable $signer): void
     {
         $bytes = (string) file_get_contents($input);
         $trailer = self::jsonObject($input, 'trailer');
         $max = self::maxObjectId($input);
         $rootRef = (string) $trailer->{'/Root'};
         $root = self::jsonObject($input, $rootRef);
-        $pageRef = self::firstPageRef($input);
+        $pageRef = self::pageRef($input, $pageIndex);
         $page = self::jsonObject($input, $pageRef);
 
         $sigNum = $max + 1;
@@ -292,11 +457,12 @@ final class TestPdfSigner
         return (int) $dump->qpdf[0]->maxobjectid;
     }
 
-    private static function firstPageRef(string $path): string
+    /** 0-based; negative counts from the end. */
+    private static function pageRef(string $path, int $index): string
     {
-        $dump = json_decode(self::qpdf(['--json=2', '--json-key=pages', $path]));
+        $pages = json_decode(self::qpdf(['--json=2', '--json-key=pages', $path]))->pages;
 
-        return (string) $dump->pages[0]->object;
+        return (string) $pages[$index < 0 ? count($pages) + $index : $index]->object;
     }
 
     private static function jsonObject(string $path, string $ref): mixed

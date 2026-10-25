@@ -93,9 +93,115 @@ final class PdfSignatureInspectorTest extends KernelTestCase
         self::assertSame('ETSI.CAdES.detached', $result->subFilter);
     }
 
-    public function testLegacySubFilterIsUnsupported(): void
+    public function testASubFilterOutsideTheSupportedOnesIsUnsupported(): void
     {
-        self::assertSame(SignatureInspection::UNSUPPORTED, $this->inspect('unsupported-subfilter.pdf')->outcome);
+        $path = $this->sandbox->tempPath();
+        TestPdfSigner::sign($this->fixture('unsigned.pdf'), $path, ['subFilter' => 'adbe.x509.rsa_sha1']);
+
+        $result = $this->inspector->inspect($path);
+
+        self::assertSame(SignatureInspection::UNSUPPORTED, $result->outcome);
+        self::assertSame('adbe.x509.rsa_sha1', $result->subFilter);
+    }
+
+    /** The outdated SHA-1 format is a technical finding with a warning, never declared invalid. */
+    public function testALegacySha1SignatureIsIntactWithAWarning(): void
+    {
+        $path = $this->sandbox->tempPath();
+        TestPdfSigner::sign($this->fixture('unsigned.pdf'), $path, ['subFilter' => 'adbe.pkcs7.sha1']);
+
+        $result = $this->inspector->inspect($path);
+
+        self::assertSame(SignatureInspection::INTACT, $result->outcome);
+        self::assertSame('adbe.pkcs7.sha1', $result->subFilter);
+        self::assertSame('Test Avocat', $result->signerCn);
+        self::assertSame(['filing.signature.warning.legacy_sub_filter'], $result->warnings);
+    }
+
+    public function testALegacySha1SignatureOverChangedBytesIsDamaged(): void
+    {
+        $path = $this->sandbox->tempPath();
+        TestPdfSigner::sign($this->fixture('unsigned.pdf'), $path, ['subFilter' => 'adbe.pkcs7.sha1']);
+        $bytes = (string) file_get_contents($path);
+        $bytes[7] = $bytes[7] === '4' ? '5' : '4';
+        file_put_contents($path, $bytes);
+
+        self::assertSame(SignatureInspection::DAMAGED, $this->inspector->inspect($path)->outcome);
+    }
+
+    public function testASignatureOnTheLastPageOrWithoutAVisibleWidgetIsFound(): void
+    {
+        foreach ([['page' => -1, 'visibleRect' => [40, 60, 300, 100]], ['page' => -1], []] as $options) {
+            $path = $this->sandbox->tempPath();
+            TestPdfSigner::sign($this->fixture('unsigned.pdf'), $path, $options);
+
+            $result = $this->inspector->inspect($path);
+
+            self::assertSame(SignatureInspection::INTACT, $result->outcome, json_encode($options, JSON_THROW_ON_ERROR));
+            self::assertSame(1, $result->signatureCount);
+        }
+    }
+
+    /** It cannot be a valid signature, but it must never pass for an unsigned file. */
+    public function testASignatureDictionaryInsideAnObjectStreamIsFound(): void
+    {
+        $path = $this->sandbox->tempPath();
+        TestPdfSigner::appendSignatureInObjectStream($this->fixture('unsigned.pdf'), $path);
+
+        $result = $this->inspector->inspect($path);
+
+        self::assertSame(SignatureInspection::DAMAGED, $result->outcome);
+        self::assertSame(1, $result->signatureCount);
+    }
+
+    public function testValidationDataAfterADocumentTimestampIsAccepted(): void
+    {
+        $path = $this->sandbox->tempPath();
+        $this->appendDss($this->fixture('timestamped.pdf'), $path);
+
+        $result = $this->inspector->inspect($path);
+
+        self::assertSame(SignatureInspection::INTACT, $result->outcome);
+        self::assertSame(2, $result->signatureCount);
+        self::assertSame('Test Avocat', $result->signerCn);
+        self::assertSame(['filing.signature.warning.timestamp_appended', 'filing.signature.warning.trailing_update'], $result->warnings);
+    }
+
+    public function testValidationDataCompressedInAnObjectStreamIsAccepted(): void
+    {
+        foreach (['signed-incremental.pdf', 'timestamped.pdf'] as $fixture) {
+            $path = $this->sandbox->tempPath();
+            TestPdfSigner::appendCompressedDss($this->fixture($fixture), $path);
+
+            $result = $this->inspector->inspect($path);
+
+            self::assertSame(SignatureInspection::INTACT, $result->outcome, $fixture);
+            self::assertContains('filing.signature.warning.trailing_update', $result->warnings, $fixture);
+        }
+    }
+
+    /** The byte scan cannot see inside a Flate object stream; the structural comparison does. */
+    public function testAnAnnotationHiddenInACompressedUpdateAfterTheSignatureIsDamaged(): void
+    {
+        $annotation = '<< /Type /Annot /Subtype /FreeText /Rect [100 100 300 140] /Contents (Suma 99999 lei) /DA (/Helv 12 Tf 0 g) >>';
+        foreach (['signed-incremental.pdf', 'timestamped.pdf'] as $fixture) {
+            $path = $this->sandbox->tempPath();
+            TestPdfSigner::appendCompressedDss($this->fixture($fixture), $path, $annotation);
+
+            self::assertSame(SignatureInspection::DAMAGED, $this->inspector->inspect($path)->outcome, $fixture);
+        }
+    }
+
+    /** A document timestamp is not a signer's signature. */
+    public function testAFileWithOnlyADocumentTimestampIsNotAcceptedAsSigned(): void
+    {
+        $path = $this->sandbox->tempPath();
+        TestPdfSigner::timestamp($this->fixture('unsigned.pdf'), $path);
+
+        $result = $this->inspector->inspect($path);
+
+        self::assertSame(SignatureInspection::UNSUPPORTED, $result->outcome);
+        self::assertNull($result->signerCn);
     }
 
     public function testValidationDataAppendedAfterSigningIsAcceptedWithANeutralWarning(): void
@@ -156,6 +262,15 @@ final class PdfSignatureInspectorTest extends KernelTestCase
         TestPdfSigner::sign($this->fixture('unsigned.pdf'), $path);
 
         self::assertSame(SignatureInspection::INTACT, $this->inspector->inspect($path)->outcome);
+    }
+
+    private function appendDss(string $in, string $out): void
+    {
+        $certDer = base64_decode((string) preg_replace('/-----[^-]+-----|\s+/', '', (string) file_get_contents($this->fixture('test-signer.crt'))), true);
+        TestPdfSigner::appendCatalogEntry($in, $out, '/DSS', '{1} 0 R', [
+            '<< /Type /DSS /Certs [{2} 0 R] >>',
+            '<< /Length ' . strlen((string) $certDer) . " >>\nstream\n" . $certDer . "\nendstream",
+        ]);
     }
 
     private function inspect(string $name): SignatureInspection

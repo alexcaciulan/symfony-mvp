@@ -202,6 +202,35 @@ final class CaseFilingControllerTest extends WebTestCase
         self::assertSame(SignatureStatus::PRESENT_MATCHED, $this->em->find(FilingPackagePart::class, $part->getId())?->getSignatureStatus());
     }
 
+    public function testAProbableUploadWithAnAppendedPageShowsTheNoteAboveTheConfirmation(): void
+    {
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $part = $package->getParts()->first();
+        $this->client->loginUser($this->user);
+        $token = $this->uploadTokenFromCard($part);
+        $withPage = tempnam(sys_get_temp_dir(), 'ctrlpage');
+        TestPdfSigner::appendPage($this->filingUploadsDir . '/' . $part->getUnsignedPath(), $withPage, 'Pagina de semnaturi');
+        $signed = tempnam(sys_get_temp_dir(), 'ctrlsig');
+        TestPdfSigner::sign($withPage, $signed, ['page' => -1]);
+        @unlink($withPage);
+
+        $this->client->request('POST', $this->partUrl($package, $part) . '/signed', ['_token' => $token], ['signed_file' => new UploadedFile($signed, 'semnat.pdf', 'application/pdf', null, true)], self::TURBO);
+        self::assertResponseIsSuccessful();
+
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId() . '?tab=depunere');
+        self::assertResponseIsSuccessful();
+        $card = $crawler->filter(sprintf('#filing-package-card [data-testid="filing-part-%d"]', $part->getId()));
+        $note = $card->filter('[data-testid="filing-part-warning"][data-note="pages_appended"]');
+        self::assertCount(1, $note);
+        self::assertSame(
+            static::getContainer()->get('translator')->trans('filing.signature.note.pages_appended', ['%count%' => 1]),
+            trim($note->text()),
+        );
+        $html = $card->html();
+        self::assertCount(1, $card->filter('[data-testid="filing-part-confirm-form"]'));
+        self::assertLessThan(strpos($html, 'filing-part-confirm-form'), strpos($html, 'data-note="pages_appended"'));
+    }
+
     public function testUploadWithAnInvalidCsrfTokenIsRefusedAndStoresNothing(): void
     {
         $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
