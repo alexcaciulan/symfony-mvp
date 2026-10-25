@@ -81,6 +81,50 @@ final class FilingPackagePartTest extends TestCase
         }
     }
 
+    public function testARefusalKeepsOnlyItsReasonAndLeavesTheAcceptedFileInPlace(): void
+    {
+        $part = self::part(FilingPartRole::PETITION, 'tok-a', 1000);
+        $part->recordSignedUpload('signed/a.pdf', str_repeat('a', 64), 1200, new User(), SignatureStatus::PRESENT_MATCHED, []);
+
+        $part->recordRefusal('filing.upload.over_budget.text', ['excessBytes' => 4096, 'rebuildable' => true]);
+
+        self::assertSame('filing.upload.over_budget.text', $part->getLastRefusalKey());
+        self::assertSame(['excessBytes' => 4096, 'rebuildable' => true], $part->getLastRefusalParams());
+        self::assertNotNull($part->getLastRefusalAt());
+        self::assertSame(SignatureStatus::PRESENT_MATCHED, $part->getSignatureStatus());
+        self::assertSame('signed/a.pdf', $part->getSignedPath());
+        self::assertTrue($part->isSignatureAccepted());
+
+        $part->recordRefusal('filing.signature.refused.not_signed');
+        self::assertSame([], $part->getLastRefusalParams());
+    }
+
+    public function testTheNextAcceptedUploadClearsTheRefusal(): void
+    {
+        $part = self::part(FilingPartRole::PETITION, 'tok-a', 1000);
+        $part->recordRefusal('filing.signature.refused.mismatch');
+
+        $part->recordSignedUpload('signed/a.pdf', str_repeat('a', 64), 1200, new User(), SignatureStatus::PRESENT_PROBABLE, []);
+
+        self::assertNull($part->getLastRefusalKey());
+        self::assertSame([], $part->getLastRefusalParams());
+        self::assertNull($part->getLastRefusalAt());
+    }
+
+    public function testACopyForANewPackageDoesNotCarryTheRefusal(): void
+    {
+        $part = self::part(FilingPartRole::POWER_OF_ATTORNEY, 'tok-a', 1000);
+        $part->recordSignedUpload('signed/a.pdf', str_repeat('a', 64), 1200, new User(), SignatureStatus::PRESENT_MATCHED, []);
+        $part->recordRefusal('filing.signature.refused.damaged');
+
+        $copy = $part->copyForPackage('tok-b', 2);
+
+        self::assertNull($copy->getLastRefusalKey());
+        self::assertNull($copy->getLastRefusalAt());
+        self::assertSame('signed/a.pdf', $copy->getSignedPath());
+        self::assertSame('filing.signature.refused.damaged', $part->getLastRefusalKey());
+    }
+
     public function testOnlyAnUnconfirmedProbableMatchCanBeConfirmed(): void
     {
         $part = self::part(FilingPartRole::PETITION, 'tok-a', 1000);

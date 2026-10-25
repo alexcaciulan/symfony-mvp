@@ -132,7 +132,9 @@ final class CaseFilingController extends AbstractController
         // PHP drops the whole body of a POST over post_max_size: without this the
         // lawyer would read "session expired" for a file that is simply too large.
         if ($request->request->count() === 0 && $request->files->count() === 0 && (int) $request->server->get('CONTENT_LENGTH') > 0) {
-            return $this->respond($request, $case, false, 'error', 'filing.upload.error.too_large');
+            $this->signedUploads->recordTooLarge($part);
+
+            return $this->respond($request, $case, true, 'error', 'filing.upload.error.too_large');
         }
         if (!$this->isCsrfTokenValid('filing_signed_upload_' . $part->getId(), $request->getPayload()->getString('_token'))) {
             return $this->respond($request, $case, false, 'error', 'filing.upload.error.csrf');
@@ -156,11 +158,13 @@ final class CaseFilingController extends AbstractController
                 $request->getPayload()->getBoolean('replace'),
             );
         } catch (SignedUploadRefusedException $e) {
-            return $this->respond($request, $case, false, 'error', $e->messageKey);
+            // The card is replaced so the refused row explains itself; it also shows
+            // the current state after a concurrent upload.
+            return $this->respond($request, $case, true, 'error', $e->messageKey);
         } catch (SignedPartOverBudgetException $e) {
-            return $this->respond($request, $case, $e->rebuildable, 'error', $e->messageKey(), [
+            return $this->respond($request, $case, true, 'error', $e->messageKey(), [
                 '%excess%' => number_format($e->excessBytes / 1048576, 2, ',', '.'),
-            ], $e->rebuildable ? ['partId' => $part->getId(), 'excess' => $e->excessBytes] : null);
+            ]);
         }
 
         $key = match (true) {
@@ -322,15 +326,13 @@ final class CaseFilingController extends AbstractController
      * Turbo Stream for Turbo clients (the card is replaced in place, errors stay on
      * the page as a toast); redirect with flash otherwise.
      *
-     * @param array<string, string>                  $toastParams
-     * @param array{partId: ?int, excess: int}|null  $overBudget the rebuild proposal shown on the card
+     * @param array<string, string> $toastParams
      */
-    private function respond(Request $request, LegalCase $case, bool $replaceCard, string $toastVariant, string $toastKey, array $toastParams = [], ?array $overBudget = null): Response
+    private function respond(Request $request, LegalCase $case, bool $replaceCard, string $toastVariant, string $toastKey, array $toastParams = []): Response
     {
         if (str_contains((string) $request->headers->get('Accept', ''), 'text/vnd.turbo-stream.html')) {
             $context = $replaceCard ? $this->contextBuilder->build($case) : ['case' => $case];
             $context['replace_card'] = $replaceCard;
-            $context['filing_over_budget'] = $overBudget;
             $context['toast_variant'] = $toastVariant;
             $context['toast_key'] = $toastKey;
             $context['toast_params'] = $toastParams;

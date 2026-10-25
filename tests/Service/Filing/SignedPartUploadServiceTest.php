@@ -543,6 +543,107 @@ final class SignedPartUploadServiceTest extends KernelTestCase
         $reloaded = $this->em->find(FilingPackagePart::class, $part->getId());
         self::assertSame($acceptedSha, $reloaded->getSignedSha256());
         self::assertSame(SignatureStatus::PRESENT_MATCHED, $reloaded->getSignatureStatus());
+        self::assertTrue($reloaded->isSignatureAccepted());
+        self::assertSame('filing.signature.refused.not_signed', $reloaded->getLastRefusalKey());
+    }
+
+    public function testFileRefusalsStayOnThePartUntilTheNextUploadAndAreAudited(): void
+    {
+        $part = $this->part(FilingPartRole::PETITION);
+        $unsigned = $this->scratch . '/unsigned.pdf';
+        copy($this->abs($part), $unsigned);
+        $notPdf = $this->scratch . '/note.pdf';
+        file_put_contents($notPdf, 'plain text, not a PDF');
+        $foreign = $this->signed($this->part(FilingPartRole::POWER_OF_ATTORNEY));
+
+        foreach ([
+            'filing.signature.refused.not_signed' => [$unsigned, SignatureStatus::NOT_SIGNED],
+            'filing.upload.error.not_pdf' => [$notPdf, null],
+            'filing.signature.refused.mismatch' => [$foreign, SignatureStatus::MISMATCH],
+        ] as $key => [$file, $status]) {
+            $this->assertRefusedWith($key, $status, $part, $file);
+            $this->em->clear();
+            $reloaded = $this->em->find(FilingPackagePart::class, $part->getId());
+            self::assertSame($key, $reloaded->getLastRefusalKey());
+            self::assertSame([], $reloaded->getLastRefusalParams());
+            self::assertNotNull($reloaded->getLastRefusalAt());
+            self::assertSame(SignatureStatus::MISSING, $reloaded->getSignatureStatus());
+            $part = $reloaded;
+        }
+        self::assertSame(
+            ['filing.signature.refused.not_signed', 'filing.upload.error.not_pdf', 'filing.signature.refused.mismatch'],
+            array_map(static fn (AuditLog $a): string => $a->getNewData()['reason'], $this->audit('filing_signed_upload_refused')),
+        );
+
+        $this->user = $this->em->find(User::class, $this->user->getId());
+        $this->service()->upload($part, $this->uploaded($this->signed($part)), $this->user, false);
+        $this->em->clear();
+        $accepted = $this->em->find(FilingPackagePart::class, $part->getId());
+        self::assertNull($accepted->getLastRefusalKey());
+        self::assertNull($accepted->getLastRefusalAt());
+    }
+
+    public function testAToolFailureWhileInspectingIsKeptOnThePartAndAudited(): void
+    {
+        $part = $this->part(FilingPartRole::PETITION);
+        $signed = $this->signed($part);
+        // The generated file can no longer be read, so the comparison fails in the PDF tools.
+        file_put_contents($this->abs($part), "%PDF-1.7\nnot really a PDF");
+
+        try {
+            $this->upload($part, $signed);
+            self::fail('Expected a refusal.');
+        } catch (SignedUploadRefusedException $e) {
+            self::assertContains($e->messageKey, ['filing.upload.error.unreadable', 'filing.upload.error.timeout']);
+            $key = $e->messageKey;
+        }
+
+        $this->em->clear();
+        self::assertSame($key, $this->em->find(FilingPackagePart::class, $part->getId())->getLastRefusalKey());
+        self::assertSame($key, $this->audit('filing_signed_upload_refused')[0]->getNewData()['reason']);
+    }
+
+    public function testStateAndConcurrencyRefusalsDescribeNoFileAndLeaveNoReasonOnThePart(): void
+    {
+        $part = $this->part(FilingPartRole::PETITION);
+        $signed = $this->signed($part);
+        $this->upload($part, $signed);
+
+        $this->assertRefusedWith('filing.upload.error.already_signed', null, $part, $signed);
+
+        $this->package->setStatus(FilingPackageStatus::SENT);
+        $this->em->flush();
+        $this->assertRefusedWith('filing.upload.error.not_uploadable', null, $part, $signed, replace: true);
+        $this->package->setStatus(FilingPackageStatus::SIGNED);
+        $this->em->flush();
+
+        $poa = $this->part(FilingPartRole::POWER_OF_ATTORNEY);
+        $poaSigned = $this->signed($poa);
+        $this->em->getConnection()->executeStatement(
+            "UPDATE filing_package_part SET signed_sha256 = ?, signed_path = 'cases/x/other.pdf', signed_bytes = 1, signature_status = 'PRESENT_MATCHED' WHERE id = ?",
+            [str_repeat('c', 64), $poa->getId()],
+        );
+        $this->assertRefusedWith('filing.upload.error.concurrent', null, $poa, $poaSigned);
+
+        $this->em->clear();
+        foreach ([$part->getId(), $poa->getId()] as $id) {
+            self::assertNull($this->em->find(FilingPackagePart::class, $id)->getLastRefusalKey());
+        }
+        self::assertSame([], $this->audit('filing_signed_upload_refused'));
+    }
+
+    public function testAnEmptiedOversizedPostIsAuditedAndKeptOnThePart(): void
+    {
+        $part = $this->part(FilingPartRole::ANNEX_BUNDLE);
+
+        $this->service()->recordTooLarge($part);
+
+        $this->em->clear();
+        self::assertSame('filing.upload.error.too_large', $this->em->find(FilingPackagePart::class, $part->getId())->getLastRefusalKey());
+        $refusals = $this->audit('filing_signed_upload_refused');
+        self::assertCount(1, $refusals);
+        self::assertSame('filing.upload.error.too_large', $refusals[0]->getNewData()['reason']);
+        self::assertNull($refusals[0]->getNewData()['sha256']);
     }
 
     public function testEveryPartSignedMakesThePackageSignedAndAReplaceOrAnUnconfirmedMatchMovesItBack(): void
@@ -582,10 +683,17 @@ final class SignedPartUploadServiceTest extends KernelTestCase
         } catch (SignedPartOverBudgetException $e) {
             self::assertTrue($e->rebuildable);
             self::assertGreaterThan(0, $e->excessBytes);
+            $excess = $e->excessBytes;
         }
 
         self::assertSame(SignatureStatus::MISSING, $annex->getSignatureStatus());
         self::assertSame([], $this->signedFiles());
+        // The row keeps what its rebuild proposal needs, nothing about the file itself.
+        $this->em->clear();
+        $reloaded = $this->em->find(FilingPackagePart::class, $annex->getId());
+        self::assertSame('filing.upload.over_budget.text', $reloaded->getLastRefusalKey());
+        self::assertSame(['excessBytes' => $excess, 'rebuildable' => true], $reloaded->getLastRefusalParams());
+        self::assertSame('filing.upload.over_budget.text', $this->audit('filing_signed_upload_refused')[0]->getNewData()['reason']);
     }
 
     public function testOversizedPetitionInAnEmailWithoutAnnexesCannotBeRebuilt(): void
@@ -607,6 +715,10 @@ final class SignedPartUploadServiceTest extends KernelTestCase
             self::assertSame('filing.upload.error.first_email_too_large', $e->messageKey());
         }
         self::assertSame([], $this->signedFiles());
+        $this->em->clear();
+        $reloaded = $this->em->find(FilingPackagePart::class, $petition->getId());
+        self::assertSame('filing.upload.error.first_email_too_large', $reloaded->getLastRefusalKey());
+        self::assertFalse($reloaded->getLastRefusalParams()['rebuildable']);
     }
 
     public function testStaleSupersededOrSentPackagesAndAFiledCaseAreRefused(): void

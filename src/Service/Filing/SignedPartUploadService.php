@@ -28,7 +28,8 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
  * Accepts the lawyer's signed file for one part of a filing package: validates
  * the upload, checks that a signature is present and the signed bytes unchanged,
  * ties the file to the generated part, and re-checks the email size on the real
- * signed bytes. A refused upload leaves the part as it was. The package becomes
+ * signed bytes. A refused upload leaves the part's file and signature state as
+ * they were and notes only the reason on the part. The package becomes
  * SIGNED when every part has an accepted signature, which is a technical state:
  * the qualified status of the signatures and the rest of the filing requirements
  * stay with the lawyer.
@@ -97,7 +98,10 @@ final class SignedPartUploadService
 
             return $this->commit($part, $validated, $user, $match->status, $report, $replace, $snapshotSha);
         } catch (PdfToolException $e) {
-            throw new SignedUploadRefusedException($e->messageKey === 'filing.package.error.timeout' ? 'filing.upload.error.timeout' : 'filing.upload.error.unreadable', null, $e);
+            $key = $e->messageKey === 'filing.package.error.timeout' ? 'filing.upload.error.timeout' : 'filing.upload.error.unreadable';
+            $this->auditRefusal($part, $key, null, null);
+
+            throw new SignedUploadRefusedException($key, null, $e);
         } finally {
             $this->sandbox->end();
         }
@@ -153,6 +157,15 @@ final class SignedPartUploadService
         }
     }
 
+    /**
+     * The request body was dropped by PHP for exceeding post_max_size, so no file
+     * reached the service; the refusal is still the part's.
+     */
+    public function recordTooLarge(FilingPackagePart $part): void
+    {
+        $this->auditRefusal($part, 'filing.upload.error.too_large', null, null);
+    }
+
     private function validate(FilingPackagePart $part, UploadedFile $file): ValidatedPdf
     {
         try {
@@ -200,9 +213,13 @@ final class SignedPartUploadService
             return;
         }
 
-        $this->auditRefusal($part, 'filing.upload.error.over_budget', null, $file);
+        $refusal = new SignedPartOverBudgetException($encoded - $this->filingMaxEmailBytes, $carriesAnnexes);
+        $this->auditRefusal($part, $refusal->messageKey(), null, $file, [
+            'excessBytes' => $refusal->excessBytes,
+            'rebuildable' => $refusal->rebuildable,
+        ]);
 
-        throw new SignedPartOverBudgetException($encoded - $this->filingMaxEmailBytes, $carriesAnnexes);
+        throw $refusal;
     }
 
     /**
@@ -345,9 +362,14 @@ final class SignedPartUploadService
 
     /**
      * Hash, size and outcome only: no PDF content and nothing from the certificate.
+     * The part keeps the reason for its row, in the same flush as the audit entry;
+     * concurrency and session refusals never get here, as they describe no file.
+     *
+     * @param array<string, int|bool> $params
      */
-    private function auditRefusal(FilingPackagePart $part, string $key, ?SignatureStatus $status, ?ValidatedPdf $file): void
+    private function auditRefusal(FilingPackagePart $part, string $key, ?SignatureStatus $status, ?ValidatedPdf $file, array $params = []): void
     {
+        $part->recordRefusal($key, $params);
         $package = $part->getPackage();
         $this->auditLogService->log(
             action: 'filing_signed_upload_refused',

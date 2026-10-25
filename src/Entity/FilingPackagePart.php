@@ -102,6 +102,21 @@ class FilingPackagePart
     private ?array $signatureReport = null;
 
     /**
+     * The last refused upload of this part, kept until the next upload so the row
+     * can still explain it after a reload. Reason and non-personal parameters only:
+     * no file name, hash or content.
+     */
+    #[ORM\Column(length: 80, nullable: true)]
+    private ?string $lastRefusalKey = null;
+
+    /** @var array<string, int|bool>|null */
+    #[ORM\Column(type: Types::JSON, nullable: true)]
+    private ?array $lastRefusalParams = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $lastRefusalAt = null;
+
+    /**
      * @param list<int> $sourceDocumentIds
      */
     public function __construct(
@@ -136,6 +151,8 @@ class FilingPackagePart
         $copy->id = null;
         $copy->partToken = $partToken;
         $copy->position = $position;
+        // A refusal belongs to the row it was shown on, not to the next version.
+        $copy->clearRefusal();
 
         return $copy;
     }
@@ -315,9 +332,10 @@ class FilingPackagePart
     }
 
     /**
-     * Records an accepted signed file. Refused outcomes never reach the part, so
-     * the previous accepted file stays in place. A text-only match carries the
-     * lawyer's confirmation only when given for this very file.
+     * Records an accepted signed file and clears the last refusal. A refused upload
+     * leaves only its reason (recordRefusal), so the previous accepted file stays in
+     * place. A text-only match carries the lawyer's confirmation only when given for
+     * this very file.
      *
      * @param array<string, mixed> $report
      */
@@ -340,6 +358,7 @@ class FilingPackagePart
         $this->signedUploadedBy = $uploadedBy;
         $this->signatureStatus = $status;
         $this->signatureReport = $report;
+        $this->clearRefusal();
 
         // A text-only match is confirmed afterwards, once the lawyer has seen its warnings.
         $this->probableMatchConfirmedBy = null;
@@ -374,5 +393,45 @@ class FilingPackagePart
     public function hasSignedFile(): bool
     {
         return $this->signedPath !== null;
+    }
+
+    /**
+     * Notes why the last upload was refused. The signature state and any accepted
+     * file are left untouched.
+     *
+     * @param array<string, int|bool> $params
+     */
+    public function recordRefusal(string $key, array $params = []): static
+    {
+        $this->lastRefusalKey = $key;
+        $this->lastRefusalParams = $params === [] ? null : $params;
+        $this->lastRefusalAt = new \DateTimeImmutable();
+
+        return $this;
+    }
+
+    public function clearRefusal(): static
+    {
+        $this->lastRefusalKey = null;
+        $this->lastRefusalParams = null;
+        $this->lastRefusalAt = null;
+
+        return $this;
+    }
+
+    public function getLastRefusalKey(): ?string
+    {
+        return $this->lastRefusalKey;
+    }
+
+    /** @return array<string, int|bool> */
+    public function getLastRefusalParams(): array
+    {
+        return $this->lastRefusalParams ?? [];
+    }
+
+    public function getLastRefusalAt(): ?\DateTimeImmutable
+    {
+        return $this->lastRefusalAt;
     }
 }

@@ -72,7 +72,7 @@ final class FilingPanelStateResolverTest extends TestCase
         self::assertSame('problem', $this->stepStates($state)['package']);
     }
 
-    public function testFilesToSignCountTheDetectedSignaturesAndOfferTheArchive(): void
+    public function testFilesToSignCountTheDetectedSignaturesAndOfferTheOtherChannel(): void
     {
         $package = $this->package(FilingPackageStatus::AWAITING_SIGNATURES, signed: 1, total: 3);
 
@@ -80,7 +80,8 @@ final class FilingPanelStateResolverTest extends TestCase
 
         self::assertSame('to_sign', $state->code);
         self::assertSame(R::ACTION_UPLOAD_PARTS, $state->primaryAction);
-        self::assertSame([R::ACTION_UNSIGNED_ZIP], $state->secondaryActions);
+        // The unsigned .zip is in the header of the signing card; the panel keeps the other channel.
+        self::assertSame([R::ACTION_OTHER_CHANNEL_ARCHIVE], $state->secondaryActions);
         self::assertSame(['%ready%' => 1, '%total%' => 3], $state->explanationParams);
         self::assertSame('current', $this->stepStates($state)['signing']);
     }

@@ -41,6 +41,7 @@ use App\Service\Filing\FilingNotifier;
 use App\Service\Filing\FilingPanelInput;
 use App\Service\Filing\FilingPanelState;
 use App\Service\Filing\FilingPanelStateResolver;
+use App\Service\Filing\FilingPartRowPresenter;
 use App\Service\Filing\FilingPackageStalenessChecker;
 use App\Service\Filing\FilingResplitService;
 use App\Service\Filing\FilingResumeService;
@@ -86,6 +87,7 @@ final class OverviewContextBuilder
         private readonly Security $security,
         private readonly CourtEmailAddressReportRepository $addressReports,
         private readonly FilingPanelStateResolver $filingPanelResolver,
+        private readonly FilingPartRowPresenter $filingPartRows,
         private readonly RecipientOverrideGuard $recipientGuard,
     ) {}
 
@@ -294,6 +296,14 @@ final class OverviewContextBuilder
         ));
 
         $context['filing_panel'] = $panel;
+        // Uploads follow the same rule as SignedPartUploadService; the card hides refusals once they are closed.
+        $context['filing_part_rows'] = $filingPackage !== null ? $this->filingPartRows->present(
+            $filingPackage,
+            $this->isCaseOwner($case)
+                && !$locked
+                && $case->getStatus() === CaseStatus::CERERE_GENERATA
+                && in_array($filingPackage->getStatus(), [FilingPackageStatus::BUILT, FilingPackageStatus::AWAITING_SIGNATURES, FilingPackageStatus::SIGNED], true),
+        ) : null;
         // Same rule the Documents card always had, widened to a case whose transmission outlived the package.
         $context['filing_tab_visible'] = $case->getFullPaymentDate() === null
             && ($case->getStatus() === CaseStatus::CERERE_GENERATA || $filingPackage !== null || $filingSubmission !== null);

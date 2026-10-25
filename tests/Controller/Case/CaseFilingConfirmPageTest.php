@@ -64,7 +64,7 @@ final class CaseFilingConfirmPageTest extends WebTestCase
         self::assertStringContainsString('Cu stimă', $body->text());
         $attachments = $crawler->filter('[data-testid="filing-confirm-attachment"]');
         self::assertCount(3, $attachments);
-        $attachments->each(static fn ($a) => self::assertStringContainsString('semnătură detectată', $a->text()));
+        $attachments->each(static fn ($a) => self::assertStringContainsString('Semnătură detectată', $a->text()));
         self::assertStringNotContainsString('semnătură validă', (string) $this->client->getResponse()->getContent());
         // Test environment: the effective recipient is named next to the court's own address.
         self::assertSelectorTextContains('[data-testid="filing-send-dev-banner"]', 'Mediu de test');

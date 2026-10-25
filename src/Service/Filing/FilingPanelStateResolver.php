@@ -24,7 +24,6 @@ final class FilingPanelStateResolver
 {
     public const ACTION_BUILD = 'build';
     public const ACTION_REBUILD = 'rebuild';
-    public const ACTION_UNSIGNED_ZIP = 'unsigned_zip';
     public const ACTION_CONFIRM_PART = 'confirm_part';
     public const ACTION_UPLOAD_PARTS = 'upload_parts';
     public const ACTION_VERIFY_SEND = 'verify_send';
@@ -45,7 +44,6 @@ final class FilingPanelStateResolver
 
     /** Files of the case leave the platform: offered to the lawyer of the case only. */
     private const OWNER_ONLY_ACTIONS = [
-        self::ACTION_UNSIGNED_ZIP,
         self::ACTION_OTHER_CHANNEL_ARCHIVE,
         self::ACTION_EML_DOWNLOAD,
         self::ACTION_CONFIRM_PART,
@@ -326,7 +324,9 @@ final class FilingPanelStateResolver
         if (in_array($package->getStatus(), [FilingPackageStatus::BUILT, FilingPackageStatus::AWAITING_SIGNATURES], true)) {
             [$ready, $total] = $this->signedCount($package);
 
-            return $this->state('to_sign', FilingPanelState::TONE_BLUE, $this->signingAction($package), [self::ACTION_UNSIGNED_ZIP], self::SIGNING_NOTES, explanationParams: ['%ready%' => $ready, '%total%' => $total]);
+            // The unsigned .zip sits in the header of the signing card, always shown in this
+            // state; the panel keeps the other channel, which the refusal texts point to.
+            return $this->state('to_sign', FilingPanelState::TONE_BLUE, $this->signingAction($package), [self::ACTION_OTHER_CHANNEL_ARCHIVE], self::SIGNING_NOTES, explanationParams: ['%ready%' => $ready, '%total%' => $total]);
         }
 
         $verdict = $in->verdict;

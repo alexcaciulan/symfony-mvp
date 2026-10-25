@@ -118,7 +118,7 @@ final class CaseFilingUnsignedZipTest extends WebTestCase
     {
         $this->client->loginUser($this->user);
         $this->client->request('GET', sprintf('/case/%d?tab=depunere', $this->case->getId()));
-        self::assertSelectorExists(sprintf('#depunere-status a[data-testid="filing-unsigned-zip"][href="%s"]', $this->zipUrl($this->package)));
+        self::assertSelectorExists(sprintf('#filing-parts a[data-testid="filing-unsigned-zip"][href="%s"]', $this->zipUrl($this->package)));
 
         $admin = $this->createFilingUser($this->em, 'filing-zip-admin-view');
         $admin->setRoles(['ROLE_ADMIN']);

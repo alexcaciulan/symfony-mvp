@@ -14,8 +14,6 @@
         <input type="hidden" name="_token" value="{{ csrf_token('filing_package_build_' ~ case.id) }}">
         <button type="submit" data-testid="filing-package-build" class="{{ cls }}">{{ icon_refresh('size-4') }}{{ label }}</button>
     </form>
-{% elseif action == 'unsigned_zip' and package %}
-    <a href="{{ path('case_filing_package_unsigned_zip', {id: case.id, packageId: package.id}) }}" data-turbo="false" data-testid="filing-unsigned-zip" class="{{ cls }}">{{ icon_download('size-4') }}{{ label }}</a>
 {% elseif action == 'confirm_part' and package %}
     {% set awaiting = package.parts|filter(p => p.awaitingProbableConfirmation)|first %}
     <a href="#filing-part-{{ awaiting ? awaiting.id : '' }}" data-turbo="false" class="{{ cls }}">{{ label }}</a>
