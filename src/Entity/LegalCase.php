@@ -11,6 +11,7 @@ use App\Enum\FilingChannel;
 use App\Enum\PaymentNoticeCommunicationMethod;
 use App\Enum\PenaltyType;
 use App\Enum\PortalCaseMatchSource;
+use App\Enum\PortalCaseMatchStatus;
 use App\Enum\RejustStampDutyForm;
 use App\Enum\RelationshipType;
 use App\Enum\StampDutyStatus;
@@ -137,6 +138,14 @@ class LegalCase
 
     #[ORM\Column(length: 100, nullable: true)]
     private ?string $stampDutyPaymentReference = null;
+
+    /**
+     * The payment was individualized on the court file through the electronic registry.
+     * Kept apart from the proof: the registry confirmation is optional and may be
+     * attached later, and the card must still say which channel the money took.
+     */
+    #[ORM\Column(options: ['default' => false])]
+    private bool $stampDutyPaidThroughRegistry = false;
 
     /** Statutory basis for the amount, frozen at payment time for retroactive justification. */
     #[ORM\Column(length: 120, nullable: true)]
@@ -552,6 +561,19 @@ class LegalCase
         return $this->status;
     }
 
+    /**
+     * The status label shown for the case. Transmitted by the platform with no
+     * filing date declared yet, the case is never shown as filed.
+     */
+    public function displayStatusLabel(): string
+    {
+        if ($this->status === CaseStatus::CERERE_DEPUSA && $this->filingChannel === FilingChannel::EMAIL && $this->filedAt === null) {
+            return 'filing.status.hero_label';
+        }
+
+        return $this->status->label();
+    }
+
     public function setStatus(CaseStatus $status): static
     {
         $this->status = $status;
@@ -753,6 +775,18 @@ class LegalCase
     public function setStampDutyPaymentReference(?string $stampDutyPaymentReference): static
     {
         $this->stampDutyPaymentReference = $stampDutyPaymentReference;
+
+        return $this;
+    }
+
+    public function isStampDutyPaidThroughRegistry(): bool
+    {
+        return $this->stampDutyPaidThroughRegistry;
+    }
+
+    public function setStampDutyPaidThroughRegistry(bool $stampDutyPaidThroughRegistry): static
+    {
+        $this->stampDutyPaidThroughRegistry = $stampDutyPaidThroughRegistry;
 
         return $this;
     }
@@ -1081,6 +1115,18 @@ class LegalCase
         return $this->portalCaseMatches;
     }
 
+    /** Whether a court case found on the portal was confirmed as this one. */
+    public function hasAcceptedPortalMatch(): bool
+    {
+        foreach ($this->portalCaseMatches as $match) {
+            if ($match->getStatus() === PortalCaseMatchStatus::ACCEPTED) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     /** The court case number found on the portal and still waiting for the lawyer, if any. */
     public function getPortalProposedNumber(): ?string
     {
@@ -1182,6 +1228,16 @@ class LegalCase
     public function hasStampDutyProof(): bool
     {
         return $this->hasDocumentOfType(DocumentType::DOVADA_TAXA_TIMBRU);
+    }
+
+    /**
+     * Whether the stamp-duty proof goes to the court with the petition. One
+     * predicate for the petition wording ("conform dovezii anexate") and for the
+     * filing package, so the package never contradicts what the petition says.
+     */
+    public function stampDutyProofAnnexed(): bool
+    {
+        return $this->stampDutyStatus === StampDutyStatus::ACHITATA && $this->hasStampDutyProof();
     }
 
     /**

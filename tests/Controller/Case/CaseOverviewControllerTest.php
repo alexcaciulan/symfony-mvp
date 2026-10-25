@@ -1293,4 +1293,167 @@ final class CaseOverviewControllerTest extends WebTestCase
     }
 
 
+
+    // ===== filing readiness in the generation dialog and the package card =====
+
+    private function submitDisabled(\Symfony\Component\DomCrawler\Crawler $crawler): bool
+    {
+        return $crawler->filter('#hs-modal-cerere-op button[type="submit"]')->attr('disabled') !== null;
+    }
+
+    /** Everything the dialog checks besides the filing pieces, so only those can disable it. */
+    private function readyForGenerationExceptFilingPieces(): void
+    {
+        $this->enrichCase(CaseStatus::SOMATIE_TRIMISA);
+        $this->case->setStampDutyStatus(StampDutyStatus::ACHITATA);
+        $this->case->setPaymentNoticeDate(new \DateTime('2026-02-01'));
+        $this->em->flush();
+        $this->attachDocument(DocumentType::DOVADA_COMUNICARE);
+    }
+
+    private function attachPowerOfAttorney(?string $date): Document
+    {
+        $doc = $this->attachDocument(DocumentType::IMPUTERNICIRE_AVOCATIALA, filename: 'imputernicire.pdf');
+        $doc->setPowerOfAttorneyDate($date !== null ? new \DateTimeImmutable($date) : null);
+        $this->em->flush();
+
+        return $doc;
+    }
+
+    public function testGenerationDialogBlocksWithoutThePowerOfAttorneyAndOffersTheUpload(): void
+    {
+        $this->readyForGenerationExceptFilingPieces();
+        $this->attachDocument(DocumentType::FACTURA);
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        $blocker = $crawler->filter('#hs-modal-cerere-op [data-testid="filing-blocker-power_of_attorney_missing"]');
+        self::assertCount(1, $blocker);
+        self::assertCount(1, $blocker->filter('button[data-upload-preset-type="imputernicire_avocatiala"]'));
+        self::assertStringNotContainsString('Puteți continua', $crawler->filter('#hs-modal-cerere-op')->text());
+        self::assertTrue($this->submitDisabled($crawler));
+    }
+
+    public function testGenerationDialogOffersToCompleteAnUndatedPowerOfAttorney(): void
+    {
+        $this->readyForGenerationExceptFilingPieces();
+        $this->attachDocument(DocumentType::FACTURA);
+        $poa = $this->attachPowerOfAttorney(null);
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        $blocker = $crawler->filter('#hs-modal-cerere-op [data-testid="filing-blocker-power_of_attorney_date_missing"]');
+        self::assertCount(1, $blocker);
+        $cta = $blocker->filter('button[data-hs-overlay="#hs-modal-power-of-attorney"]');
+        self::assertCount(1, $cta);
+        self::assertStringEndsWith('/document/' . $poa->getId() . '/power-of-attorney', (string) $cta->attr('data-poa-edit-url'));
+        self::assertTrue($this->submitDisabled($crawler));
+        self::assertSelectorExists('#hs-modal-power-of-attorney form');
+    }
+
+    public function testGenerationDialogBlocksWithoutADocumentTheClaimRestsOn(): void
+    {
+        $this->readyForGenerationExceptFilingPieces();
+        $this->attachPowerOfAttorney('2026-01-15');
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        $blocker = $crawler->filter('#hs-modal-cerere-op [data-testid="filing-blocker-claim_document_missing"]');
+        self::assertCount(1, $blocker);
+        self::assertCount(1, $blocker->filter('button[data-upload-preset-type="factura"]'));
+        self::assertTrue($this->submitDisabled($crawler));
+    }
+
+    /** The package card lists the power of attorney and the claim documents, flagged until they are on the case. */
+    public function testTheZipCardFlagsTheMissingPowerOfAttorneyAndClaimDocuments(): void
+    {
+        $this->readyForGenerationExceptFilingPieces();
+        $this->em->clear();
+        $this->client->loginUser($this->user);
+
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+        self::assertStringContainsString('!', $crawler->filter('[data-testid="zip-item-power-of-attorney"]')->text());
+        self::assertStringContainsString('!', $crawler->filter('[data-testid="zip-item-evidence"]')->text());
+        self::assertStringNotContainsString('Contract + factură', $crawler->text());
+    }
+
+    public function testTheZipCardTicksThePowerOfAttorneyAndClaimDocumentsOnceAttached(): void
+    {
+        $this->readyForGenerationExceptFilingPieces();
+        $this->attachDocument(DocumentType::FACTURA);
+        $this->attachPowerOfAttorney('2026-01-15');
+        $this->em->clear();
+        $this->client->loginUser($this->user);
+
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+        $poa = $crawler->filter('[data-testid="zip-item-power-of-attorney"]')->text();
+        self::assertStringNotContainsString('!', $poa);
+        self::assertStringContainsString(static::getContainer()->get('translator')->trans('case_overview.zip_package.item_power_of_attorney'), $poa);
+        self::assertStringNotContainsString('!', $crawler->filter('[data-testid="zip-item-evidence"]')->text());
+    }
+
+    /** Invoices without a contract are enough: the dialog shows no contract warning. */
+    public function testAMissingContractNeitherWarnsNorDisablesGeneration(): void
+    {
+        $this->readyForGenerationExceptFilingPieces();
+        $this->attachDocument(DocumentType::FACTURA);
+        $this->attachPowerOfAttorney('2026-01-15');
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertCount(0, $crawler->filter('#hs-modal-cerere-op [data-testid^="filing-warning-"]'));
+        self::assertCount(0, $crawler->filter('#hs-modal-cerere-op [data-testid^="filing-blocker-"]'));
+        self::assertFalse($this->submitDisabled($crawler));
+    }
+
+    public function testAPowerOfAttorneyDatedAfterTheSummonsWarnsWithBothDates(): void
+    {
+        $this->readyForGenerationExceptFilingPieces();
+        $this->attachDocument(DocumentType::FACTURA);
+        $this->attachDocument(DocumentType::CONTRACT);
+        $this->attachPowerOfAttorney('2026-02-03');
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        $warning = $crawler->filter('#hs-modal-cerere-op [data-testid="filing-warning-power_of_attorney_after_summons"]');
+        self::assertCount(1, $warning);
+        self::assertStringContainsString('03.02.2026', $warning->text());
+        self::assertStringContainsString('01.02.2026', $warning->text());
+        self::assertStringContainsString('generării somației', $warning->text());
+        self::assertFalse($this->submitDisabled($crawler));
+    }
+
+    /**
+     * A case set to CERERE_GENERATA by the admin override, without the power of
+     * attorney: the package card shows the way forward instead of a download the
+     * server would refuse.
+     */
+    public function testThePackageCardOffersThePowerOfAttorneyInsteadOfARefusedDownload(): void
+    {
+        $this->readyForGenerationExceptFilingPieces();
+        $this->case->setStatus(CaseStatus::CERERE_GENERATA);
+        $this->em->flush();
+        $this->attachDocument(DocumentType::FACTURA);
+        $this->attachDocument(DocumentType::SOMATIE);
+        $this->attachDocument(DocumentType::CERERE_OP);
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        $blocker = $crawler->filter('#panel-documente [data-testid="zip-blocker-power_of_attorney_missing"]');
+        self::assertCount(1, $blocker);
+        self::assertCount(1, $blocker->filter('button[data-upload-preset-type="imputernicire_avocatiala"]'));
+        self::assertCount(0, $crawler->filter('#panel-documente a[href$="/zip-package/download"]'));
+    }
 }

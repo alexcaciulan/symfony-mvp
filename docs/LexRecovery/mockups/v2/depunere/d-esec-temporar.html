@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Depunere: trimitere nereușită</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="shell.js"></script>
+</head>
+<body class="font-sans antialiased bg-slate-50 text-slate-900">
+<main data-shell data-badge="Trimitere nereușită" data-tone="amber" data-cta="Trimite din nou" data-tab-dot="amber"
+      data-stepper="3" data-stepper-state="warn" data-stepper-notes="Versiunea 2|3 din 3 semnate|4 încercări nereușite|După înregistrare">
+
+<div class="grid grid-cols-3 gap-6">
+  <div class="col-span-2 space-y-6">
+
+    <!-- Retrying variant, shown small for comparison -->
+    <section class="rounded-2xl border border-blue-200 bg-blue-50/60 p-5">
+      <p class="text-xs font-medium text-blue-800">Varianta anterioară, cât timp reîncercările rulează</p>
+      <div class="mt-2 flex gap-3">
+        <svg class="shrink-0 size-5 mt-0.5 text-blue-700 motion-safe:animate-spin" style="animation-duration:3s" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M4 12a8 8 0 0114-5.3M20 12a8 8 0 01-14 5.3M18 3v4h-4M6 21v-4h4"/></svg>
+        <div>
+          <h3 class="font-semibold text-slate-900">Serverul instanței nu a primit încă e-mailul. Se reîncearcă automat</h3>
+          <p class="mt-1 text-sm text-slate-700">Încercarea 2 din 4 a primit o eroare temporară. Următoarea încercare: 24.10.2026, 16:17. Nu este necesară nicio acțiune.</p>
+          <p class="mt-1 text-sm text-slate-700">Dacă un termen expiră curând, depunerea pe altă cale nu trebuie amânată. <a href="#" class="font-medium text-lex-navy underline underline-offset-2">Arhiva pentru altă cale</a></p>
+        </div>
+      </div>
+    </section>
+
+    <section id="depunere-status" class="rounded-2xl border border-amber-200 bg-amber-50/50 shadow-soft p-6">
+      <div class="flex gap-4">
+        <span class="shrink-0 inline-flex items-center justify-center size-10 rounded-xl bg-amber-100 text-amber-800 text-lg font-bold">!</span>
+        <div class="min-w-0">
+          <h2 class="text-lg font-semibold">E-mailul nu a putut fi trimis după 4 încercări</h2>
+          <p class="mt-1 text-sm text-slate-700 max-w-prose">Serverul instanței a amânat de fiecare dată primirea (eroare temporară). Cererea nu a ajuns la instanță. Pachetul semnat rămâne valabil și poate fi trimis din nou, fără o nouă semnare.</p>
+          <div class="mt-4 flex flex-wrap items-center gap-2">
+            <a href="#" class="py-2.5 px-4 rounded-lg bg-lex-navy text-white text-sm font-semibold shadow-sm">Trimite din nou</a>
+            <a href="#" class="py-2.5 px-4 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-800">Descarcă arhiva pentru altă cale</a>
+          </div>
+          <p class="mt-3 text-sm text-amber-900">Dacă un termen este aproape de expirare, depunerea pe altă cale este mai sigură decât o nouă încercare.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-soft">
+      <header class="px-6 py-4 border-b border-slate-100">
+        <h3 class="text-base font-semibold">E-mailuri către instanță</h3>
+      </header>
+      <ul>
+        <li class="px-6 py-4 flex items-center gap-4">
+          <span class="shrink-0 inline-flex items-center justify-center size-9 rounded-lg bg-amber-100 text-amber-800 font-bold">!</span>
+          <div class="flex-1 min-w-0">
+            <div class="font-medium">E-mailul 1 din 1</div>
+            <div class="text-sm text-slate-500">Cererea cu opisul, împuternicirea și anexele, 0,27 MB</div>
+          </div>
+          <div class="text-right">
+            <div class="text-sm font-medium text-amber-800">Netrimis, 4 încercări</div>
+            <div class="text-xs text-slate-500 tnum">ultima la 24.10.2026, 16:18</div>
+          </div>
+        </li>
+      </ul>
+    </section>
+
+    <!-- Technical details, expanded example -->
+    <details open class="bg-white rounded-2xl border border-slate-200 shadow-soft">
+      <summary class="px-6 py-4 flex items-center gap-2 text-sm font-semibold text-slate-700 border-b border-slate-100">
+        <svg class="chev size-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+        Detalii tehnice
+        <span class="font-normal text-slate-500">încercări, coduri SMTP, copia e-mailului</span>
+      </summary>
+      <div class="px-6 py-5 space-y-5 text-sm">
+        <dl class="grid grid-cols-[160px_1fr] gap-y-1.5">
+          <dt class="text-slate-500">Destinatar efectiv</dt><dd class="font-mono">instanta-simulata@example.test</dd>
+          <dt class="text-slate-500">Destinatar în producție</dt><dd class="font-mono">registratura-test@example.test</dd>
+          <dt class="text-slate-500">Copia e-mailului</dt><dd><a href="#" class="text-lex-navy font-medium underline underline-offset-2">Descarcă .eml (e-mailul 1)</a></dd>
+        </dl>
+        <table class="w-full text-left">
+          <caption class="text-left font-semibold text-slate-700 mb-2">E-mailul 1 din 1</caption>
+          <thead class="text-xs text-slate-500 border-b border-slate-200">
+            <tr><th class="py-2 font-medium">Încercarea</th><th class="py-2 font-medium">Ora</th><th class="py-2 font-medium">Sursa</th><th class="py-2 font-medium">Rezultat</th><th class="py-2 font-medium">Cod</th></tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 tnum">
+            <tr><td class="py-2">1</td><td>24.10.2026 16:17</td><td>Server SMTP</td><td>Eroare temporară</td><td class="font-mono">451</td></tr>
+            <tr><td class="py-2">2</td><td>24.10.2026 16:17</td><td>Server SMTP</td><td>Eroare temporară</td><td class="font-mono">451</td></tr>
+            <tr><td class="py-2">3</td><td>24.10.2026 16:17</td><td>Server SMTP</td><td>Eroare temporară</td><td class="font-mono">451</td></tr>
+            <tr><td class="py-2">4</td><td>24.10.2026 16:18</td><td>Server SMTP</td><td>Eroare temporară</td><td class="font-mono">451</td></tr>
+          </tbody>
+        </table>
+        <p class="text-xs text-slate-500">Orele sunt ora României și reprezintă răspunsul serverului de e-mail, nu data depunerii.</p>
+      </div>
+    </details>
+  </div>
+
+  <aside class="space-y-6">
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-soft p-5">
+      <h3 class="text-sm font-semibold">Instanța și adresa de depunere</h3>
+      <p class="mt-2 text-sm">Judecătoria Sectorului 3 București</p>
+      <p class="mt-3 font-mono text-sm break-all">registratura-test@example.test</p>
+      <p class="text-xs text-slate-500">Registratură, confirmată de administrator la 22.10.2026</p>
+      <p class="mt-2 text-sm text-slate-600">O eroare temporară nu privește adresa; adresa rămâne în uz.</p>
+      <a href="i-adresa-instantei.html" class="mt-3 inline-block text-sm font-medium text-lex-navy underline underline-offset-2">Adresele instanței</a>
+    </section>
+
+    <details class="bg-white rounded-2xl border border-slate-200 shadow-soft">
+      <summary class="px-5 py-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+        <svg class="chev size-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+        Note juridice
+      </summary>
+      <ul class="px-5 pb-5 text-sm text-slate-600 space-y-2 list-disc ps-9">
+        <li>Retrimiterea automată nu garantează livrarea.</li>
+        <li>Platforma raportează doar răspunsul serverului de e-mail. Verificarea depunerii și a termenelor rămâne în sarcina avocatului.</li>
+      </ul>
+    </details>
+  </aside>
+</div>
+</main>
+</body>
+</html>

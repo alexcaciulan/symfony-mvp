@@ -309,7 +309,7 @@ final class DeadlinesControllerTest extends WebTestCase
     /**
      * An expired term of the debtor is rendered under its own heading and left out of
      * the arrears counter: its expiry is the event that opens the filing of the
-     * request (CPC art. 1015-1016), so counting it as a delay of the lawyer would
+     * request (CPC art. 1015-1017), so counting it as a delay of the lawyer would
      * inflate the one number the morning triage is read from.
      */
     public function testExpiredDebtorTermGetsItsOwnSectionAndNoArrearsCount(): void

@@ -54,9 +54,12 @@ final class StampDutyService
         $document = $this->documentUploadService->upload($case, $file, DocumentType::DOVADA_TAXA_TIMBRU, $user);
 
         $target = $this->uatResolver->resolve($case);
+        // A receipt filed on a duty already paid through the registry documents that
+        // payment; only a payment proven from scratch drops the registry channel.
+        $provenFromScratch = $case->getStampDutyStatus() !== StampDutyStatus::ACHITATA;
 
         try {
-            $this->em->wrapInTransaction(function () use ($case, $document, $paidAt, $paidAmount, $payerName, $paymentReference, $lawVersion, $target): void {
+            $this->em->wrapInTransaction(function () use ($case, $document, $paidAt, $paidAmount, $payerName, $paymentReference, $lawVersion, $target, $provenFromScratch): void {
                 $case->setStampDutyStatus(StampDutyStatus::ACHITATA);
                 $case->setStampDutyPaidAt($paidAt);
                 $case->setStampDutyPaidAmount($paidAmount);
@@ -64,6 +67,9 @@ final class StampDutyService
                 $case->setStampDutyPaymentReference($paymentReference);
                 $case->setStampDutyUat($target->uatName());
                 $case->setStampDutyLawVersion($lawVersion);
+                if ($provenFromScratch) {
+                    $case->setStampDutyPaidThroughRegistry(false);
+                }
                 $this->em->flush();
 
                 $this->auditLogService->log(
@@ -124,10 +130,10 @@ final class StampDutyService
     }
 
     /**
-     * Payment went through the electronic registry, which transmits the confirmation
-     * to the court in the existing case (OUG 80/2013 art. 40 alin. 3, as added
-     * by Legea 268/2024). There is no file to attach here: the proof is already where
-     * it needs to be, and asking for it a second time would be asking for nothing.
+     * Payment was individualized on the existing case through the electronic registry.
+     * The registry sends the proof of payment to the court file itself, whoever paid,
+     * so the email confirmation the lawyer received is optional and only recorded when
+     * the lawyer attaches it; with it the petition can cite an attached proof.
      *
      * The UAT snapshot is still taken, because what matters in a dispute is which
      * town hall we pointed at when the money moved.
@@ -138,33 +144,88 @@ final class StampDutyService
         \DateTimeImmutable $paidAt,
         ?string $paymentReference,
         string $lawVersion,
-    ): void {
+        ?UploadedFile $file = null,
+    ): ?Document {
         $target = $this->uatResolver->resolve($case);
 
-        $this->em->wrapInTransaction(function () use ($case, $user, $paidAt, $paymentReference, $lawVersion, $target): void {
-            $case->setStampDutyStatus(StampDutyStatus::ACHITATA);
-            $case->setStampDutyPaidAt($paidAt);
-            $case->setStampDutyPaymentReference($paymentReference);
-            $case->setStampDutyUat($target->uatName());
-            $case->setStampDutyLawVersion($lawVersion);
-            $this->em->flush();
+        // Same compensation as recordPayment: the upload commits on its own flush.
+        $document = null !== $file
+            ? $this->documentUploadService->upload($case, $file, DocumentType::DOVADA_TAXA_TIMBRU, $user)
+            : null;
 
+        try {
+            $this->em->wrapInTransaction(function () use ($case, $user, $document, $paidAt, $paymentReference, $lawVersion, $target): void {
+                $case->setStampDutyStatus(StampDutyStatus::ACHITATA);
+                $case->setStampDutyPaidAt($paidAt);
+                $case->setStampDutyPaymentReference($paymentReference);
+                $case->setStampDutyUat($target->uatName());
+                $case->setStampDutyLawVersion($lawVersion);
+                $case->setStampDutyPaidThroughRegistry(true);
+                $this->em->flush();
+
+                $this->auditLogService->log(
+                    action: 'stamp_duty_paid_through_registry',
+                    entityType: LegalCase::class,
+                    entityId: (string) $case->getId(),
+                    newData: [
+                        'caseNumber' => $case->getCaseNumber(),
+                        'documentId' => $document?->getId(),
+                        'paidAt' => $paidAt->format('Y-m-d'),
+                        'paymentReference' => $paymentReference,
+                        'uat' => $target->uatName(),
+                        'confirmedBy' => $user->getUserIdentifier(),
+                        'lawVersion' => $lawVersion,
+                    ],
+                    category: AuditLogService::CATEGORY_STAMP_DUTY,
+                );
+                $this->em->flush();
+            });
+        } catch (\Throwable $e) {
+            if (null !== $document) {
+                $case->getDocuments()->removeElement($document);
+                $this->documentUploadService->delete($document);
+            }
+
+            throw $e;
+        }
+
+        return $document;
+    }
+
+    /**
+     * Attaches the registry confirmation the lawyer obtained after declaring the
+     * payment. Only the file is added: the date, reference and UAT stay as declared,
+     * since the payment itself did not change.
+     */
+    public function attachRegistryConfirmation(LegalCase $case, UploadedFile $file, UserInterface $user): Document
+    {
+        if ($case->getStampDutyStatus() !== StampDutyStatus::ACHITATA || !$case->isStampDutyPaidThroughRegistry() || $case->hasStampDutyProof()) {
+            throw new \LogicException('A registry confirmation is attached only to a registry payment without a proof.');
+        }
+
+        $document = $this->documentUploadService->upload($case, $file, DocumentType::DOVADA_TAXA_TIMBRU, $user);
+
+        try {
             $this->auditLogService->log(
-                action: 'stamp_duty_paid_through_registry',
+                action: 'stamp_duty_registry_confirmation_attached',
                 entityType: LegalCase::class,
                 entityId: (string) $case->getId(),
                 newData: [
                     'caseNumber' => $case->getCaseNumber(),
-                    'paidAt' => $paidAt->format('Y-m-d'),
-                    'paymentReference' => $paymentReference,
-                    'uat' => $target->uatName(),
-                    'confirmedBy' => $user->getUserIdentifier(),
-                    'lawVersion' => $lawVersion,
+                    'documentId' => $document->getId(),
+                    'attachedBy' => $user->getUserIdentifier(),
                 ],
                 category: AuditLogService::CATEGORY_STAMP_DUTY,
             );
             $this->em->flush();
-        });
+        } catch (\Throwable $e) {
+            $case->getDocuments()->removeElement($document);
+            $this->documentUploadService->delete($document);
+
+            throw $e;
+        }
+
+        return $document;
     }
 
     /**

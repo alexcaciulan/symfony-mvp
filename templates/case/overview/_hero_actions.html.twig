@@ -29,9 +29,28 @@
     'EXECUTARE': {target: '#hs-modal-close-case', label: 'case_overview.cta.close_case_executare', color: 'bg-emerald-600 text-white hover:bg-emerald-700', icon: 'money'},
 } %}
 {% set primary = primary_modal[case.status.value] ?? null %}
+{# Once the case has an email filing (a package or a transmission), the hero only leads
+   to the filing tab and never runs an action itself; a manual filing there would also
+   file the petition twice. Without one, the manual confirmation stays. After the
+   transmission, the tab stays the next step until the lawyer declares the filing date
+   or while a late bounce waits for review. #}
+{% set filing_panel_state = filing_panel|default(null) %}
+{% set has_email_filing = filing_package|default(null) or filing_submission|default(null) %}
+{% set filing_link = filing_panel_state and filing_tab_visible|default(false) and (
+    (case.status.value == 'CERERE_GENERATA' and has_email_filing)
+    or (case.status.value == 'CERERE_DEPUSA' and case.filingChannel and case.filingChannel.value == 'EMAIL' and (case.filedAt is null or filing_late_bounce_review|default(false)))
+) %}
 
 <div id="case-hero-actions" class="flex items-center gap-2 self-start">
-    {% if case.status.value == 'AMIABIL' or case.status.value == 'CERERE_DEPUSA' or primary %}
+    {% if filing_link %}
+        <a href="{{ path('case_overview', {id: case.id, tab: 'depunere'}) }}#depunere-status"
+           data-turbo-frame="_top"
+           data-testid="hero-filing-link" data-controller="open-tab" data-open-tab-tab-value="depunere" data-action="open-tab#open"
+           class="{{ base_cta_class }} bg-lex-navy text-white hover:bg-lex-navy-dark">
+            {{ _self.cta_icon('building') }}
+            {{ ('filing.panel.hero.' ~ (filing_panel_state.primaryAction ?? 'open'))|trans }}
+        </a>
+    {% elseif case.status.value == 'AMIABIL' or case.status.value == 'CERERE_DEPUSA' or primary %}
         <div class="relative">
             {% if case.status.value == 'AMIABIL' %}
                 <form method="post" action="{{ path('case_summons_generate', {id: case.id}) }}" data-turbo-frame="_top">

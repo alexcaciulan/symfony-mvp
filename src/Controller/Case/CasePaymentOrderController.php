@@ -16,6 +16,7 @@ use App\Security\Voter\CaseVoter;
 use App\Service\Case\DebtorSeatCourtCheck;
 use App\Service\AuditLogService;
 use App\Service\Case\CaseWorkflowService;
+use App\Service\Case\FilingReadinessChecker;
 use App\Service\Case\OverviewContextBuilder;
 use App\Service\Deadline\DeadlineService;
 use App\Service\Document\CaseFilesPackager;
@@ -35,8 +36,9 @@ use Symfony\Component\Routing\Attribute\Route;
 /**
  * Builds the payment-order petition, the index of annexes and the downloadable
  * package. Applies `genereaza_cerere` (SOMATIE_TRIMISA to CERERE_GENERATA): the
- * documents now exist, but nothing has been filed. Filing is confirmed separately
- * by the lawyer, on a channel this platform does not operate.
+ * documents now exist, but nothing has been filed. What follows is a separate
+ * request of the lawyer: a filing on another channel they confirm, or a
+ * transmission by the platform to the court address they validated.
  * Strictly idempotent: one petition per case.
  */
 final class CasePaymentOrderController extends AbstractController
@@ -54,6 +56,7 @@ final class CasePaymentOrderController extends AbstractController
         private readonly EntityManagerInterface $em,
         private readonly OpAdmissibilityValidator $admissibility,
         private readonly DebtorSeatCourtCheck $seatCheck,
+        private readonly FilingReadinessChecker $filingReadiness,
     ) {}
 
     #[Route('/case/{id}/payment-order/generate', name: 'case_payment_order_generate', requirements: ['id' => '\d+'], methods: ['POST'])]
@@ -90,7 +93,7 @@ final class CasePaymentOrderController extends AbstractController
             return $this->respond($request, $case, false, 'error', 'case_overview.payment_order.flash_error_debtor_changed');
         }
 
-        // Procedural prerequisite (CPC art. 1015-1016): the 15-day payment term
+        // Procedural prerequisite (CPC art. 1015-1017): the 15-day payment term
         // must have expired. When the real communication date is known we block if
         // it has not; otherwise the explicit consent below stands in for it.
         $payload = $request->getPayload();
@@ -116,7 +119,7 @@ final class CasePaymentOrderController extends AbstractController
             return $this->respond($request, $case, false, 'error', 'case_overview.payment_order.flash_error_stamp_duty_missing');
         }
 
-        // Proof that the summons reached the debtor. CPC art. 1016 para. 2 requires it to
+        // Proof that the summons reached the debtor. CPC art. 1017 para. 2 requires it to
         // be attached to the petition, under sanction of the petition being dismissed as
         // inadmissible, so the court is shown the bailiff record or the postal
         // acknowledgement rather than the lawyer's statement of the date. The date is
@@ -144,6 +147,15 @@ final class CasePaymentOrderController extends AbstractController
             }
         }
 
+        // Pieces the package must carry: the power of attorney with its date and a
+        // document the claim rests on. Product rules rather than admissibility
+        // conditions, repeated here because the dialog only mirrors them.
+        $readiness = $this->filingReadiness->check($case);
+        $blocker = $readiness->firstBlocker();
+        if ($blocker !== null) {
+            return $this->respond($request, $case, false, 'error', 'case_overview.payment_order.flash_error_' . $blocker->code->value);
+        }
+
         $user = $this->getUser();
         if ($user !== null) {
             $limiter = $paymentOrderGenerationLimiter->create($user->getUserIdentifier());
@@ -152,7 +164,7 @@ final class CasePaymentOrderController extends AbstractController
             }
         }
 
-        $this->em->wrapInTransaction(function () use ($case, $debitStatus, $courtNowPointedTo, $changesSinceSummons, $creditorChangesSinceSummons): void {
+        $this->em->wrapInTransaction(function () use ($case, $debitStatus, $courtNowPointedTo, $changesSinceSummons, $creditorChangesSinceSummons, $readiness): void {
             $case->setDebitAcknowledgedStatus($debitStatus);
             $case->setOpGenerationConsent(true);
 
@@ -172,6 +184,7 @@ final class CasePaymentOrderController extends AbstractController
                     'opisDocumentId' => $opis->getId(),
                     'debitAcknowledgedStatus' => $debitStatus->value,
                     'opGenerationConsent' => true,
+                    'filingWarnings' => $readiness->warningCodes(),
                     'debtorChangesAcknowledged' => $courtNowPointedTo === null && $changesSinceSummons === [] && $creditorChangesSinceSummons === [] ? null : [
                         'caseCourt' => $case->getCourt()?->getName(),
                         'courtPointedToBySeat' => $courtNowPointedTo?->getName(),
@@ -253,6 +266,18 @@ final class CasePaymentOrderController extends AbstractController
             return $this->redirectToRoute('case_overview', ['id' => $id]);
         }
 
+        // Same pieces as at generation, while the package has not gone out yet. The
+        // admin status override reaches this point without passing generation. Once
+        // filed, the package is the record of what was sent and stays downloadable.
+        if ($case->getStatus() === CaseStatus::CERERE_GENERATA) {
+            $blocker = $this->filingReadiness->check($case)->firstBlocker();
+            if ($blocker !== null) {
+                $this->addFlash('error', 'case_overview.zip_package.flash_error_' . $blocker->code->value);
+
+                return $this->redirectToRoute('case_overview', ['id' => $id]);
+            }
+        }
+
         // The index lists the annexes, and annexes can still be added while the case
         // is generated but not filed. Rebuilt here so the package cannot go out with
         // a document the index does not mention, which is exactly what the petition
@@ -272,6 +297,17 @@ final class CasePaymentOrderController extends AbstractController
             return $this->redirectToRoute('case_overview', ['id' => $id]);
         }
 
+        // The ZIP carries the debtor's personal data and files under professional
+        // secrecy, so every download is on record with its user and IP.
+        $this->auditLogService->log(
+            action: 'zip_package_downloaded',
+            entityType: LegalCase::class,
+            entityId: (string) $case->getId(),
+            newData: ['fileCount' => $this->zipFileCount($zipPath)],
+            category: AuditLogService::CATEGORY_FILING_PACKAGE,
+        );
+        $this->em->flush();
+
         $response = new BinaryFileResponse($zipPath);
         $response->setContentDisposition(
             ResponseHeaderBag::DISPOSITION_ATTACHMENT,
@@ -280,6 +316,18 @@ final class CasePaymentOrderController extends AbstractController
         $response->headers->set('Content-Type', 'application/zip');
 
         return $response;
+    }
+
+    private function zipFileCount(string $zipPath): int
+    {
+        $zip = new \ZipArchive();
+        if ($zip->open($zipPath, \ZipArchive::RDONLY) !== true) {
+            return 0;
+        }
+        $count = $zip->numFiles;
+        $zip->close();
+
+        return $count;
     }
 
     private function findOrThrow(int $id): LegalCase

@@ -1,0 +1,114 @@
+{% extends 'base.html.twig' %}
+
+{# "Verifică și trimite la instanță": the email shown in full, as the lawyer attests
+   it, before the irreversible send. The court is the one the platform calculated
+   from the case data and the address is the one the admin validated: neither is
+   presented as the competent court or an official address. A detected signature is
+   never a valid or qualified one. Context from
+   CaseFilingSubmissionController::confirmContext. #}
+
+{% block title %}{{ 'filing.panel.confirm.title'|trans }} · {{ case.caseNumber }}{% endblock %}
+
+{% from 'case/overview/_icons.html.twig' import icon_chevron_right, icon_warning %}
+
+{% block breadcrumb %}
+  <li class="inline-flex items-center">
+    <a href="{{ path('app_cases') }}" class="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300">{{ 'case_overview.breadcrumb.cases'|trans }}</a>
+    <span class="shrink-0 mx-1.5 text-slate-300 dark:text-slate-700">{{ icon_chevron_right('size-3') }}</span>
+  </li>
+  <li class="inline-flex items-center">
+    <a href="{{ path('case_overview', {id: case.id, tab: 'depunere'}) }}" class="font-mono text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300" data-testid="filing-confirm-breadcrumb-case">{{ case.caseNumber }}</a>
+    <span class="shrink-0 mx-1.5 text-slate-300 dark:text-slate-700">{{ icon_chevron_right('size-3') }}</span>
+  </li>
+  <li class="inline-flex items-center font-medium text-slate-700 dark:text-slate-300 truncate" aria-current="page">{{ 'filing.panel.confirm.breadcrumb'|trans }}</li>
+{% endblock %}
+
+{% block body %}
+{% set address = verdict.address %}
+<div class="space-y-6" data-testid="filing-confirm-page">
+    <div>
+        <a href="{{ path('case_overview', {id: case.id, tab: 'depunere'}) }}" class="text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">{{ 'filing.panel.confirm.back'|trans }}</a>
+        <h1 class="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{{ 'filing.panel.confirm.title'|trans }}</h1>
+        <p class="mt-1 text-slate-600 dark:text-slate-300 max-w-3xl" data-testid="filing-confirm-subtitle">{{ 'filing.panel.confirm.subtitle'|trans({'%court%': case.court ? case.court.name : '-'}) }}</p>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        <div class="lg:col-span-2 min-w-0">
+            {% if preview %}
+                <article class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft overflow-hidden" data-testid="filing-confirm-email">
+                    {% if not court_live %}
+                        <div class="px-6 py-3 bg-sky-50 dark:bg-sky-950/30 border-b border-sky-100 dark:border-sky-900/60 text-sm text-sky-900 dark:text-sky-100" data-testid="filing-send-dev-banner">
+                            {{ 'filing.send.dev_banner'|trans({'%override%': recipient_override, '%address%': address.email}) }}
+                        </div>
+                    {% endif %}
+                    <dl class="px-6 py-4 grid grid-cols-[8rem_1fr] gap-x-4 gap-y-2 text-sm border-b border-slate-100 dark:border-slate-800">
+                        <dt class="text-slate-500 dark:text-slate-400">{{ 'filing.panel.confirm.to'|trans }}</dt>
+                        <dd class="min-w-0 break-words"><span class="font-mono">{{ address.email }}</span> <span class="text-slate-500 dark:text-slate-400">({{ case.court.name }})</span></dd>
+                        <dt class="text-slate-500 dark:text-slate-400">{{ 'filing.send.from'|trans }}</dt>
+                        <dd class="min-w-0 break-words">{{ preview.from }}</dd>
+                        <dt class="text-slate-500 dark:text-slate-400">{{ 'filing.panel.confirm.cc_reply'|trans }}</dt>
+                        <dd class="min-w-0 break-words font-mono">{{ preview.cc }}</dd>
+                        <dt class="text-slate-500 dark:text-slate-400">{{ 'filing.send.subject'|trans }}</dt>
+                        <dd class="min-w-0 break-words font-semibold" data-testid="filing-send-subject">{{ preview.subject }}</dd>
+                    </dl>
+                    {# The whole text, without a scroll box of its own: it is what the lawyer attests. #}
+                    <div class="px-6 py-5 border-b border-slate-100 dark:border-slate-800">
+                        <pre class="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-slate-800 dark:text-slate-100" data-testid="filing-send-body">{{ preview.body }}</pre>
+                    </div>
+                    <div class="px-6 py-5">
+                        <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ 'filing.send.attachments'|trans({'%count%': preview.email_count}) }}</h2>
+                        <ul class="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="filing-confirm-attachments">
+                            {% for attachment in preview.attachments %}
+                                <li class="rounded-xl border border-slate-200 dark:border-slate-700 p-3 min-w-0" data-testid="filing-confirm-attachment">
+                                    <p class="text-sm font-medium text-slate-900 dark:text-slate-100 break-all">{{ attachment.name }}</p>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400">
+                                        {{ attachment.title }}, {{ (attachment.bytes / 1048576)|number_format(2, ',', '.') }} MB{% if preview.email_count > 1 %} · {{ 'filing.status.part'|trans({'%k%': attachment.email, '%n%': preview.email_count}) }}{% endif %}
+                                    </p>
+                                    <p class="mt-1 text-xs {{ attachment.signature_detected ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-600 dark:text-slate-300' }}">{{ (attachment.signature_detected ? 'filing.signature.chip.PRESENT_MATCHED' : 'filing.signature.chip.MISSING')|trans }}</p>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </article>
+            {% else %}
+                <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft p-6 text-sm text-slate-600 dark:text-slate-300">
+                    {{ 'filing.panel.confirm.no_preview'|trans }}
+                </div>
+            {% endif %}
+        </div>
+
+        <aside class="lg:sticky lg:top-6 space-y-3 min-w-0">
+            <section class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft p-5 space-y-4">
+                <h2 class="text-base font-semibold text-slate-900 dark:text-slate-100">{{ 'filing.panel.confirm.before_sending'|trans }}</h2>
+                <dl class="space-y-2 text-sm">
+                    <div>
+                        <dt class="text-slate-500 dark:text-slate-400">{{ 'filing.send.court'|trans }}</dt>
+                        <dd class="text-slate-900 dark:text-slate-100">{{ case.court ? case.court.name : '-' }}</dd>
+                    </div>
+                    {% if address %}
+                        <div>
+                            <dt class="text-slate-500 dark:text-slate-400">{{ 'filing.send.address'|trans }}</dt>
+                            <dd class="font-mono text-slate-900 dark:text-slate-100 break-all">{{ address.email }}</dd>
+                            <dd class="text-xs text-slate-500 dark:text-slate-400" data-testid="filing-send-address-meta">{{ 'filing.send.address_meta'|trans({'%date%': address.validatedAt|date('d.m.Y'), '%source%': address.source.label|trans}) }}</dd>
+                        </div>
+                    {% endif %}
+                    {% if preview and preview.interest_date %}
+                        <div>
+                            <dt class="text-slate-500 dark:text-slate-400">{{ 'filing.send.interest_date'|trans }}</dt>
+                            <dd class="text-slate-900 dark:text-slate-100">{{ preview.interest_date|date('d.m.Y') }}</dd>
+                        </div>
+                    {% endif %}
+                </dl>
+                {% for warning in verdict.warnings %}
+                    <p class="flex gap-2 rounded-lg border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/30 p-3 text-sm text-amber-900 dark:text-amber-100" data-testid="filing-send-warning">
+                        {{ icon_warning('size-4 shrink-0 mt-0.5') }}<span>{{ warning.key|trans(warning.params) }}</span>
+                    </p>
+                {% endfor %}
+                {{ include('case/filing/_send_confirm_panel.html.twig') }}
+            </section>
+            <p class="px-1 text-xs text-slate-500 dark:text-slate-400" data-testid="filing-send-competence">{{ 'filing.send.competence_line'|trans }}</p>
+            <p class="px-1 text-xs text-slate-500 dark:text-slate-400">{{ 'filing.send.irreversible_note'|trans }}</p>
+        </aside>
+    </div>
+</div>
+{% endblock %}

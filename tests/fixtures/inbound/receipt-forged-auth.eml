@@ -1,0 +1,12 @@
+Authentication-Results: mx.attacker.example.test; dkim=pass header.d=just.ro; dmarc=pass header.from=just.ro
+Authentication-Results: mx.lexrecovery.test; dmarc=pass header.from=instanta-test.just.ro
+From: Registratura <registratura@instanta-test.example.test>
+To: depuneri@lexrecovery.test
+Date: Thu, 22 Oct 2026 10:16:00 +0000
+Subject: Confirmare de primire: Cerere de ordonanta de plata
+Message-ID: <forged-0001@instanta-test.example.test>
+In-Reply-To: {{MSGID}}
+Auto-Submitted: auto-replied
+Content-Type: text/plain; charset=utf-8
+
+Confirmăm primirea mesajului dumneavoastră.

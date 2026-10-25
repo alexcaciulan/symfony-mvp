@@ -28,6 +28,25 @@ enum NotificationType: string
     case PAYMENT_SUCCEEDED = 'payment_succeeded';
     case INVOICE_ISSUED = 'invoice_issued';
     case SLOT_OVERAGE = 'slot_overage';
+    case FILING_SENT = 'filing_sent';
+    case FILING_ANNEXES_CANCELLED = 'filing_annexes_cancelled';
+    case FILING_FAILED_TEMPORARY = 'filing_failed_temporary';
+    case FILING_FAILED_PERMANENT = 'filing_failed_permanent';
+    case FILING_FAILED_SIZE = 'filing_failed_size';
+    case FILING_FAILED_INTERNAL = 'filing_failed_internal';
+    case FILING_NEEDS_REVIEW = 'filing_needs_review';
+    case FILING_PARTIALLY_SENT = 'filing_partially_sent';
+    case FILING_RECEIPT_RECEIVED = 'filing_receipt_received';
+    case FILING_RECEIPT_OVERDUE = 'filing_receipt_overdue';
+    case FILING_BOUNCED_PERMANENT = 'filing_bounced_permanent';
+    case FILING_COURT_MESSAGE = 'filing_court_message';
+    case FILING_CC_BOUNCED = 'filing_cc_bounced';
+    case FILING_DELIVERY_DELAYED = 'filing_delivery_delayed';
+    case FILING_INBOUND_REVIEW = 'filing_inbound_review';
+    case INBOUND_POLL_STALE = 'inbound_poll_stale';
+    case INBOUND_UNPROCESSED = 'inbound_unprocessed';
+    case COURT_EMAIL_REPORTED = 'court_email_reported';
+    case COURT_EMAIL_SUGGESTED = 'court_email_suggested';
 
     public function label(): string
     {
@@ -51,6 +70,25 @@ enum NotificationType: string
             self::PAYMENT_SUCCEEDED => 'card',
             self::INVOICE_ISSUED => 'document',
             self::SLOT_OVERAGE => 'card',
+            self::FILING_SENT => 'document',
+            self::FILING_ANNEXES_CANCELLED => 'document',
+            self::FILING_FAILED_TEMPORARY => 'document',
+            self::FILING_FAILED_PERMANENT => 'document',
+            self::FILING_FAILED_SIZE => 'document',
+            self::FILING_FAILED_INTERNAL => 'document',
+            self::FILING_NEEDS_REVIEW => 'document',
+            self::FILING_PARTIALLY_SENT => 'document',
+            self::FILING_RECEIPT_RECEIVED => 'document',
+            self::FILING_RECEIPT_OVERDUE => 'document',
+            self::FILING_BOUNCED_PERMANENT => 'document',
+            self::FILING_COURT_MESSAGE => 'document',
+            self::FILING_CC_BOUNCED => 'document',
+            self::FILING_DELIVERY_DELAYED => 'document',
+            self::FILING_INBOUND_REVIEW => 'document',
+            self::INBOUND_POLL_STALE => 'document',
+            self::INBOUND_UNPROCESSED => 'document',
+            self::COURT_EMAIL_REPORTED => 'document',
+            self::COURT_EMAIL_SUGGESTED => 'document',
         };
     }
 

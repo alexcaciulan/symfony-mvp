@@ -52,6 +52,8 @@ final class PaymentOrderRequestGeneratorService extends AbstractPdfGenerator
         $items = $case->getCountingClaimItems();
         $rate = $case->getContractualPenaltyRate();
 
+        $accessories = $this->accessories($case, $items, $rate);
+
         return [
             ...parent::templateContext($case),
             'stamp_duty_amount' => (float) ($case->getStampDuty() ?? $this->stampDutyCalculator->calculate()->amount),
@@ -59,7 +61,11 @@ final class PaymentOrderRequestGeneratorService extends AbstractPdfGenerator
             // file with several invoices states each of them, with its own
             // interest, instead of one merged figure the debtor cannot check.
             'claim_items' => $items,
-            'claim_item_accessories' => $this->accessories($case, $items, $rate),
+            'claim_item_accessories' => $accessories,
+            // The date the interest is computed to, printed so the court can check the
+            // figure and does not read it as final. Only when the aggregator produced
+            // the figure: the stored fallback was computed at a date nobody recorded.
+            'accessory_reference_date' => $accessories !== null && !$accessories->isEmpty() ? $this->accessoryReferenceDate($case) : null,
             // The art. 99 note declares the object value as the sum of heads on
             // the premise of one legal relationship. The same grouping that
             // routes the file to its court decides this, so the justification on

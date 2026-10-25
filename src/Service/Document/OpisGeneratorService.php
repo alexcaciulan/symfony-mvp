@@ -38,13 +38,27 @@ final class OpisGeneratorService extends AbstractPdfGenerator
     }
 
     /**
-     * Listă sortată SOMATIE → DOVADA_COMUNICARE → restul. Opisul + cererea OP
-     * sunt excluse: opisul listează ANEXELE cererii (CPC art. 1.017),
-     * iar cererea însăși NU este o anexă a propriei cereri.
-     *
      * @return array<string, mixed>
      */
     protected function templateContext(LegalCase $case): array
+    {
+        return [
+            ...parent::templateContext($case),
+            'documents' => $this->orderedDocuments($case),
+            'claim_items_by_document' => $this->claimItemsByDocument($case),
+        ];
+    }
+
+    /**
+     * The annexes in the order the index lists them: summons, proof of service,
+     * stamp-duty proof, power of attorney, contract, invoices, then the rest by
+     * upload time. The index and the petition are left out: the index lists the
+     * annexes of the petition (CPC art. 1.017), and the petition is not one.
+     * Shared with the filing package so its bundle and its ranges follow the same order.
+     *
+     * @return list<Document>
+     */
+    public function orderedDocuments(LegalCase $case): array
     {
         $documents = $case->getDocuments()->toArray();
         $documents = array_filter($documents, static fn (Document $d): bool =>
@@ -71,11 +85,7 @@ final class OpisGeneratorService extends AbstractPdfGenerator
             return $a->getCreatedAt() <=> $b->getCreatedAt();
         });
 
-        return [
-            ...parent::templateContext($case),
-            'documents' => array_values($documents),
-            'claim_items_by_document' => $this->claimItemsByDocument($case),
-        ];
+        return array_values($documents);
     }
 
     /**
@@ -85,7 +95,7 @@ final class OpisGeneratorService extends AbstractPdfGenerator
      *
      * @return array<int, list<ClaimItem>>
      */
-    private function claimItemsByDocument(LegalCase $case): array
+    public function claimItemsByDocument(LegalCase $case): array
     {
         $byDocument = [];
         foreach ($case->getCountingClaimItems() as $item) {

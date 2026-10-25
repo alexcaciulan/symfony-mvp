@@ -1,9 +1,13 @@
 {# Sidebar ZIP package. CTA: dacă cerere OP încă negenerată → deschide modal generate; dacă există → link direct la GET download. #}
 {% from 'case/overview/_icons.html.twig' import icon_check, icon_download, icon_document %}
+{% import 'case/overview/_power_of_attorney_macros.html.twig' as poa %}
 
 {% set intro_key = case.court ? 'case_overview.zip_package.intro' : 'case_overview.zip_package.intro_no_court' %}
 {% set intro_params = case.court ? {'%court%': case.court.name} : {} %}
 {% set payment_order_doc = case.documents|filter(d => d.documentType.value == 'cerere_op')|first %}
+{# The download repeats the filing check while the package has not gone out. #}
+{% set zip_blockers = payment_order_doc and case.status.value == 'CERERE_GENERATA' ? filing_readiness(case).blockers : [] %}
+{% set poa_editable = power_of_attorney_editable(case) and is_granted('CASE_UPLOAD', case) %}
 
 <section class="bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white rounded-2xl shadow-card overflow-hidden">
     <div class="p-5">
@@ -11,6 +15,14 @@
             {{ icon_document('size-5') }}
             <h3 class="text-sm font-semibold">{{ 'case_overview.zip_package.title'|trans }}</h3>
         </div>
+        {# The signable files for an email filing are in the filing package card; this archive is for the other channels. #}
+        {# Once the platform transmitted the petition, the archive is the case's record, not a package to file. #}
+        {% set transmitted = filing_submission|default(null) and filing_submission.petitionAccepted %}
+        {% if transmitted %}
+            <p class="text-[11px] text-blue-100/70 mb-2" data-testid="zip-archive-note">{{ 'case_overview.zip_package.archive_note'|trans }}</p>
+        {% else %}
+            <p class="text-[11px] text-blue-100/70 mb-2" data-testid="zip-other-channel-note">{{ 'case_overview.zip_package.other_channel_note'|trans }}</p>
+        {% endif %}
         <p class="text-xs text-blue-100/80 mb-4">{{ intro_key|trans(intro_params) }}</p>
         <ul class="space-y-1.5 text-xs">
             <li class="flex items-center gap-2">
@@ -39,8 +51,22 @@
                 {% endif %}
                 {{ 'case_overview.zip_package.item_stamp_duty'|trans }}
             </li>
-            <li class="flex items-center gap-2">
-                {{ icon_check('size-3.5 text-green-300') }}
+            {# Ticked from the same check the generation and the download run. #}
+            {% set readiness_codes = filing_readiness(case).blockers|map(i => i.code.value) %}
+            <li class="flex items-center gap-2" data-testid="zip-item-power-of-attorney">
+                {% if 'power_of_attorney_missing' in readiness_codes or 'power_of_attorney_date_missing' in readiness_codes %}
+                    <span class="size-3.5 inline-flex items-center justify-center text-amber-300" aria-hidden="true">!</span>
+                {% else %}
+                    {{ icon_check('size-3.5 text-green-300') }}
+                {% endif %}
+                {{ 'case_overview.zip_package.item_power_of_attorney'|trans }}
+            </li>
+            <li class="flex items-center gap-2" data-testid="zip-item-evidence">
+                {% if 'claim_document_missing' in readiness_codes %}
+                    <span class="size-3.5 inline-flex items-center justify-center text-amber-300" aria-hidden="true">!</span>
+                {% else %}
+                    {{ icon_check('size-3.5 text-green-300') }}
+                {% endif %}
                 {{ 'case_overview.zip_package.item_evidence'|trans }}
             </li>
         </ul>
@@ -57,6 +83,28 @@
                     {{ 'case_overview.zip_package.blocked_proof_cta'|trans }}
                 </button>
             </div>
+        {% elseif zip_blockers is not empty %}
+            {# Same reasons the download would give, each with the way forward. #}
+            {% for issue in zip_blockers %}
+                {% set poa_doc = issue.documentId ? case.documents|filter(d => d.id == issue.documentId)|first : null %}
+                <div class="mt-4 rounded-lg bg-white/10 ring-1 ring-white/25 p-3 text-xs" data-testid="zip-blocker-{{ issue.code.value }}">
+                    <p class="font-semibold">{{ ('case_overview.modal.generate_op_' ~ issue.code.value ~ '_title')|trans }}</p>
+                    <p class="mt-0.5 text-white/80">{{ ('case_overview.zip_package.blocked_' ~ issue.code.value ~ '_body')|trans }}</p>
+                    {% if issue.code.value == 'power_of_attorney_date_missing' and poa_doc and poa_editable %}
+                        <button type="button" {{ poa.edit_trigger_attrs(case, poa_doc) }}
+                                class="mt-2 py-1.5 px-3 inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg bg-white text-lex-navy hover:bg-blue-50 transition">
+                            {{ 'case_overview.modal.generate_op_power_of_attorney_cta_complete'|trans }}
+                        </button>
+                    {% elseif issue.code.value in ['power_of_attorney_missing', 'claim_document_missing'] and not case.fullPaymentDate %}
+                        <button type="button"
+                                data-hs-overlay="#hs-modal-upload-document"
+                                data-upload-preset-type="{{ {'power_of_attorney_missing': 'imputernicire_avocatiala', 'claim_document_missing': 'factura'}[issue.code.value] }}"
+                                class="mt-2 py-1.5 px-3 inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg bg-white text-lex-navy hover:bg-blue-50 transition">
+                            {{ ('case_overview.modal.generate_op_' ~ {'power_of_attorney_missing': 'power_of_attorney', 'claim_document_missing': 'claim_document'}[issue.code.value] ~ '_cta_upload')|trans }}
+                        </button>
+                    {% endif %}
+                </div>
+            {% endfor %}
         {% elseif payment_order_doc %}
             <a href="{{ path('case_zip_package_download', {id: case.id}) }}"
                class="mt-4 w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-bold rounded-lg bg-white text-lex-navy hover:bg-blue-50 transition shadow-lg">

@@ -1,0 +1,8 @@
+{# The filing tab and its dot, for the answers of actions elsewhere on the page
+   (documents, stamp duty, deadlines, full payment) that change what can be filed. #}
+<turbo-stream action="update" target="panel-depunere">
+    <template>{{ include('case/filing/_tab.html.twig') }}</template>
+</turbo-stream>
+<turbo-stream action="replace" target="filing-tab-dot">
+    <template>{{ include('case/filing/_tab_dot.html.twig') }}</template>
+</turbo-stream>

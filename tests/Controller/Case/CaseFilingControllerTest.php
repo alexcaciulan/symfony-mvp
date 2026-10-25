@@ -1,0 +1,681 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Tests\Controller\Case;
+
+use App\Entity\AppSetting;
+use App\Entity\AuditLog;
+use App\Entity\FilingPackage;
+use App\Entity\FilingPackagePart;
+use App\Entity\LegalCase;
+use App\Entity\User;
+use App\Enum\CaseStatus;
+use App\Enum\CourtEmailPurpose;
+use App\Enum\CourtEmailStatus;
+use App\Enum\FilingPackageStatus;
+use App\Enum\FilingPartRole;
+use App\Enum\SignatureStatus;
+use App\Repository\AppSettingRepository;
+use App\Service\Filing\FilingPackageBuilder;
+use App\Service\Filing\SignedPartUploadService;
+use App\Service\Pdf\ProcessSandbox;
+use App\Tests\Support\FilingCaseFixtureTrait;
+use App\Tests\Support\TestPdfSigner;
+use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Bundle\FrameworkBundle\KernelBrowser;
+use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\HttpFoundation\RequestStack;
+
+final class CaseFilingControllerTest extends WebTestCase
+{
+    use FilingCaseFixtureTrait;
+
+    private const TURBO = ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html, text/html'];
+
+    private KernelBrowser $client;
+    private EntityManagerInterface $em;
+    private User $user;
+    private LegalCase $case;
+    /** @var list<User> */
+    private array $otherUsers = [];
+
+    protected function setUp(): void
+    {
+        if (!ProcessSandbox::binariesAvailable(['qpdf', 'gs', 'magick', 'pdftotext', 'pdfinfo'])) {
+            self::markTestSkipped('qpdf, gs, magick and poppler are required.');
+        }
+
+        $this->client = static::createClient();
+        $this->em = static::getContainer()->get(EntityManagerInterface::class);
+        $this->filingUploadsDir = static::getContainer()->getParameter('kernel.project_dir') . '/var/uploads';
+        $this->user = $this->createFilingUser($this->em, 'filing-ctrl');
+        $this->case = $this->createFilingCase($this->em, $this->user);
+        $this->attachFilingDocuments($this->em, $this->case, $this->user);
+    }
+
+    protected function tearDown(): void
+    {
+        if (isset($this->em)) {
+            static::getContainer()->get(AppSettingRepository::class)->set(AppSetting::KEY_FILING_OPIS_PLACEMENT, null);
+            if (isset($this->case)) {
+                $this->em->getConnection()->executeStatement('DELETE FROM audit_log WHERE entity_type = ? AND entity_id = ?', [LegalCase::class, (string) $this->case->getId()]);
+            }
+            $this->removeFilingFixtures($this->em, $this->user ?? null, $this->case ?? null);
+            foreach ($this->otherUsers as $other) {
+                $this->removeFilingFixtures($this->em, $other, null);
+            }
+        }
+        parent::tearDown();
+    }
+
+    public function testBuildRefusesAnInvalidCsrfTokenWithATurboStreamError(): void
+    {
+        $this->client->loginUser($this->user);
+
+        $this->client->request('POST', $this->buildUrl(), ['_token' => 'forged'], [], self::TURBO);
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('text/vnd.turbo-stream.html', (string) $this->client->getResponse()->headers->get('Content-Type'));
+        self::assertStringContainsString($this->trans('filing.package.flash.csrf'), (string) $this->client->getResponse()->getContent());
+        self::assertSame(0, $this->packageCount());
+    }
+
+    public function testAnotherLawyerCannotBuildOrDownload(): void
+    {
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $other = $this->createFilingUser($this->em, 'filing-other');
+        $this->em->flush();
+        $this->otherUsers[] = $other;
+        $this->client->loginUser($other);
+
+        $this->client->request('POST', $this->buildUrl(), ['_token' => 'irrelevant'], [], self::TURBO);
+        self::assertResponseStatusCodeSame(403);
+
+        $this->client->request('GET', $this->partUrl($package, $package->getParts()->first()));
+        self::assertResponseStatusCodeSame(403);
+    }
+
+    public function testAdminCannotDownloadAFileButStillOpensTheCase(): void
+    {
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $admin = $this->createFilingUser($this->em, 'filing-admin');
+        $admin->setRoles(['ROLE_ADMIN']);
+        $this->em->flush();
+        $this->otherUsers[] = $admin;
+        $this->client->loginUser($admin);
+
+        $this->client->request('GET', $this->partUrl($package, $package->getParts()->first()));
+        self::assertResponseStatusCodeSame(403);
+
+        $this->client->request('GET', '/case/' . $this->case->getId());
+        self::assertResponseIsSuccessful();
+        self::assertSelectorExists('#filing-package-card');
+        self::assertSelectorNotExists('#filing-package-card a[href*="/filing/package/"]');
+    }
+
+    public function testBuildOnACaseWithoutAGeneratedPetitionAnswersWithTheWrongStatusError(): void
+    {
+        $this->client->loginUser($this->user);
+        // The card hides the form outside CERERE_GENERATA: take the token first, then
+        // move the case back, the state a stale tab or a replayed POST would hit.
+        $token = $this->tokenFromCard();
+        $this->em->getConnection()->executeStatement('UPDATE legal_case SET status = ? WHERE id = ?', [CaseStatus::SOMATIE_TRIMISA->value, $this->case->getId()]);
+
+        $this->client->request('POST', $this->buildUrl(), ['_token' => $token], [], self::TURBO);
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString($this->trans('filing.package.blocked_wrong_status'), (string) $this->client->getResponse()->getContent());
+        self::assertSame(0, $this->packageCount());
+    }
+
+    public function testTwoBuildsWithUnchangedSourcesLeaveOnePackage(): void
+    {
+        $this->client->loginUser($this->user);
+        $token = $this->tokenFromCard();
+
+        $this->client->request('POST', $this->buildUrl(), ['_token' => $token], [], self::TURBO);
+        self::assertResponseIsSuccessful();
+        $content = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('target="filing-package-card"', $content);
+        self::assertStringContainsString($this->trans('filing.package.flash.built'), $content);
+
+        $this->client->request('POST', $this->buildUrl(), ['_token' => $token], [], self::TURBO);
+        self::assertResponseIsSuccessful();
+
+        self::assertSame(1, $this->packageCount());
+    }
+
+    public function testDownloadServesThePdfAuditsItAndMovesThePackageToAwaitingSignatures(): void
+    {
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $part = $package->getParts()->first();
+        self::assertInstanceOf(FilingPackagePart::class, $part);
+        $this->client->loginUser($this->user);
+
+        $this->client->request('GET', $this->partUrl($package, $part));
+
+        self::assertResponseIsSuccessful();
+        $response = $this->client->getResponse();
+        self::assertSame('application/pdf', $response->headers->get('Content-Type'));
+        self::assertStringContainsString('attachment', (string) $response->headers->get('Content-Disposition'));
+        self::assertStringContainsString('nesemnat.pdf', (string) $response->headers->get('Content-Disposition'));
+
+        $this->em->clear();
+        self::assertSame(FilingPackageStatus::AWAITING_SIGNATURES, $this->em->find(FilingPackage::class, $package->getId())?->getStatus());
+        $audit = $this->em->getRepository(AuditLog::class)->findOneBy(['action' => 'filing_package_part_downloaded', 'entityId' => (string) $this->case->getId()]);
+        self::assertNotNull($audit);
+        self::assertSame('FILING_PACKAGE', $audit->getCategory());
+        self::assertSame($this->user->getId(), $audit->getUser()?->getId());
+    }
+
+    public function testDownloadOfAPartFromAnotherPackageIsNotFound(): void
+    {
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $part = $package->getParts()->first();
+        $this->client->loginUser($this->user);
+
+        $this->client->request('GET', sprintf('/case/%d/filing/package/%d/part/%d', $this->case->getId(), $package->getId() + 1000, $part->getId()));
+
+        self::assertResponseStatusCodeSame(404);
+    }
+
+    public function testOwnerUploadsASignedPartAndTheCardShowsTheDetectedSignature(): void
+    {
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $part = $package->getParts()->first();
+        $this->client->loginUser($this->user);
+        $token = $this->uploadTokenFromCard($part);
+
+        $this->client->request('POST', $this->partUrl($package, $part) . '/signed', ['_token' => $token], ['signed_file' => $this->signedUpload($part)], self::TURBO);
+
+        self::assertResponseIsSuccessful();
+        $content = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('target="filing-package-card"', $content);
+        self::assertStringContainsString($this->trans('filing.upload.success.matched'), $content);
+        self::assertStringContainsString($this->trans('filing.signature.chip.PRESENT_MATCHED'), $content);
+        self::assertStringContainsString($this->trans('filing.signature.notice.validity'), $content);
+        self::assertStringContainsString('rel="noopener noreferrer"', $content);
+
+        $this->em->clear();
+        self::assertSame(SignatureStatus::PRESENT_MATCHED, $this->em->find(FilingPackagePart::class, $part->getId())?->getSignatureStatus());
+    }
+
+    public function testAProbableUploadWithAnAppendedPageShowsTheNoteAboveTheConfirmation(): void
+    {
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $part = $package->getParts()->first();
+        $this->client->loginUser($this->user);
+        $token = $this->uploadTokenFromCard($part);
+        $withPage = tempnam(sys_get_temp_dir(), 'ctrlpage');
+        TestPdfSigner::appendPage($this->filingUploadsDir . '/' . $part->getUnsignedPath(), $withPage, 'Pagina de semnaturi');
+        $signed = tempnam(sys_get_temp_dir(), 'ctrlsig');
+        TestPdfSigner::sign($withPage, $signed, ['page' => -1]);
+        @unlink($withPage);
+
+        $this->client->request('POST', $this->partUrl($package, $part) . '/signed', ['_token' => $token], ['signed_file' => new UploadedFile($signed, 'semnat.pdf', 'application/pdf', null, true)], self::TURBO);
+        self::assertResponseIsSuccessful();
+
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId() . '?tab=depunere');
+        self::assertResponseIsSuccessful();
+        $card = $crawler->filter(sprintf('#filing-package-card [data-testid="filing-part-%d"]', $part->getId()));
+        $note = $card->filter('[data-testid="filing-part-warning"][data-note="pages_appended"]');
+        self::assertCount(1, $note);
+        self::assertSame(
+            static::getContainer()->get('translator')->trans('filing.signature.note.pages_appended', ['%count%' => 1]),
+            trim($note->text()),
+        );
+        $html = $card->html();
+        self::assertCount(1, $card->filter('[data-testid="filing-part-confirm-form"]'));
+        self::assertLessThan(strpos($html, 'filing-part-confirm-form'), strpos($html, 'data-note="pages_appended"'));
+    }
+
+    public function testUploadWithAnInvalidCsrfTokenIsRefusedAndStoresNothing(): void
+    {
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $part = $package->getParts()->first();
+        $this->client->loginUser($this->user);
+
+        $this->client->request('POST', $this->partUrl($package, $part) . '/signed', ['_token' => 'forged'], ['signed_file' => $this->signedUpload($part)], self::TURBO);
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString($this->trans('filing.upload.error.csrf'), (string) $this->client->getResponse()->getContent());
+        $this->em->clear();
+        self::assertSame(SignatureStatus::MISSING, $this->em->find(FilingPackagePart::class, $part->getId())?->getSignatureStatus());
+    }
+
+    public function testAnEmptiedOversizedPostReadsAsTooLargeNotAsAnExpiredSession(): void
+    {
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $this->client->loginUser($this->user);
+
+        $this->client->request('POST', $this->partUrl($package, $package->getParts()->first()) . '/signed', [], [], [...self::TURBO, 'CONTENT_LENGTH' => '25000000']);
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString($this->trans('filing.upload.error.too_large'), (string) $this->client->getResponse()->getContent());
+        $this->em->clear();
+        self::assertSame('filing.upload.error.too_large', $this->em->find(FilingPackagePart::class, $package->getParts()->first()->getId())?->getLastRefusalKey());
+    }
+
+    public function testARefusedUploadStaysOnItsRowAfterAReloadWithoutTheFileNameUntilTheNextUpload(): void
+    {
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $part = $package->getParts()->first();
+        $this->client->loginUser($this->user);
+        $token = $this->uploadTokenFromCard($part);
+        $unsigned = tempnam(sys_get_temp_dir(), 'ctrlunsig');
+        copy($this->filingUploadsDir . '/' . $part->getUnsignedPath(), $unsigned);
+
+        $this->client->request('POST', $this->partUrl($package, $part) . '/signed', ['_token' => $token], ['signed_file' => new UploadedFile($unsigned, 'Popescu-Ion-cerere.pdf', 'application/pdf', null, true)], self::TURBO);
+        self::assertResponseIsSuccessful();
+        $stream = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('target="filing-package-card"', $stream);
+        self::assertStringContainsString('role="alert"', $stream);
+
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId() . '?tab=depunere');
+        $row = $crawler->filter(sprintf('#filing-package-card [data-testid="filing-part-%d"]', $part->getId()));
+        $alert = $row->filter('[role="alert"][data-testid="filing-part-refusal"]');
+        self::assertCount(1, $alert);
+        self::assertSame('not_signed', $alert->attr('data-refusal'));
+        self::assertStringContainsString($this->rawTrans('filing.upload.refusal.not_signed.title'), $alert->text());
+        self::assertStringContainsString($this->rawTrans('filing.upload.refusal.not_signed.fix'), $alert->text());
+        self::assertStringContainsString($this->rawTrans('filing.upload.refused_row_unsigned'), $alert->text());
+        self::assertMatchesRegularExpression('/\d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}/', $alert->text());
+        self::assertSame($this->rawTrans('filing.upload.refused_status'), trim($row->filter('[data-testid="filing-part-signature-chip"]')->text()));
+        self::assertStringNotContainsString('Popescu-Ion', (string) $this->client->getResponse()->getContent());
+        // The row offers the upload again in its own action column.
+        self::assertCount(1, $row->filter('form[data-testid="filing-part-upload-form"]'));
+
+        $this->client->request('POST', $this->partUrl($package, $part) . '/signed', ['_token' => $token], ['signed_file' => $this->signedUpload($part)], self::TURBO);
+        self::assertResponseIsSuccessful();
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId() . '?tab=depunere');
+        self::assertCount(0, $crawler->filter(sprintf('#filing-package-card [data-testid="filing-part-%d"] [role="alert"]', $part->getId())));
+    }
+
+    public function testWithoutTurboAnUploadRedirectsToTheFilingTabAndTheRowShowsTheResult(): void
+    {
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $part = $package->getParts()->first();
+        $this->client->loginUser($this->user);
+        $token = $this->uploadTokenFromCard($part);
+
+        $this->client->request('POST', $this->partUrl($package, $part) . '/signed', ['_token' => $token], ['signed_file' => $this->signedUpload($part)]);
+
+        self::assertResponseRedirects(sprintf('/case/%d?tab=depunere', $this->case->getId()));
+        $crawler = $this->client->followRedirect();
+        $chip = $crawler->filter(sprintf('#filing-package-card [data-testid="filing-part-%d"] [data-testid="filing-part-signature-chip"]', $part->getId()));
+        self::assertSame($this->rawTrans('filing.signature.chip.PRESENT_MATCHED'), trim($chip->text()));
+        // The signed and the unsigned file are both offered from the row's download menu.
+        $row = $crawler->filter(sprintf('#filing-package-card [data-testid="filing-part-%d"]', $part->getId()));
+        self::assertCount(1, $row->filter('details [role="menu"] a[data-testid="filing-part-download-signed"]'));
+        self::assertCount(1, $row->filter(sprintf('details [role="menu"] a[href="%s"]', $this->partUrl($package, $part))));
+        self::assertCount(1, $row->filter('form[data-testid="filing-part-upload-form"] input[name="replace"][value="1"]'));
+    }
+
+    public function testAnOverBudgetRefusalOffersTheRebuildForAnnexesOnlyAndSurvivesAReload(): void
+    {
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $annex = null;
+        $petition = null;
+        foreach ($package->getParts() as $each) {
+            $annex = $each->getRole() === FilingPartRole::ANNEX_BUNDLE ? $each : $annex;
+            $petition = $each->getRole() === FilingPartRole::PETITION ? $each : $petition;
+        }
+        $annex->recordRefusal('filing.upload.over_budget.text', ['excessBytes' => 3 * 1048576, 'rebuildable' => true]);
+        $petition->recordRefusal('filing.upload.error.first_email_too_large', ['excessBytes' => 1048576, 'rebuildable' => false]);
+        $this->em->flush();
+        $this->client->loginUser($this->user);
+
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId() . '?tab=depunere');
+
+        $annexBox = $crawler->filter(sprintf('[data-testid="filing-part-%d"] [data-testid="filing-part-over-budget"]', $annex->getId()));
+        self::assertCount(1, $annexBox);
+        self::assertSame('alert', $annexBox->attr('role'));
+        self::assertStringContainsString('3,00', $annexBox->text());
+        self::assertCount(1, $annexBox->filter('button[data-testid="filing-rebuild-annexes"]'));
+        self::assertSame((string) (3 * 1048576), $annexBox->filter('input[name="excess"]')->attr('value'));
+        self::assertCount(1, $annexBox->filter('form[data-testid="filing-part-upload-form"]'), 'A smaller file can still be uploaded.');
+
+        $petitionBox = $crawler->filter(sprintf('[data-testid="filing-part-%d"] [data-testid="filing-part-over-budget"]', $petition->getId()));
+        self::assertCount(1, $petitionBox);
+        self::assertSame('first_email_too_large', $petitionBox->attr('data-refusal'));
+        self::assertCount(0, $petitionBox->filter('[data-testid="filing-rebuild-annexes"]'));
+    }
+
+    public function testEveryObservationReadsInFullInTheRowPanelBeforeTheConfirmation(): void
+    {
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $part = $package->getParts()->first();
+        $warnings = [
+            'filing.signature.warning.cn_differs',
+            'filing.signature.warning.cert_not_valid_at_indicated_date',
+            'filing.signature.warning.timestamp_appended',
+            'filing.signature.warning.trailing_update',
+            'filing.signature.warning.textless_pages',
+            'filing.signature.warning.legacy_sub_filter',
+        ];
+        $notes = [
+            ['key' => 'filing.signature.note.text_added', 'params' => ['%page%' => 2, '%count%' => 3]],
+            ['key' => 'filing.signature.note.text_added_with_digits', 'params' => ['%page%' => 2]],
+            ['key' => 'filing.signature.note.pages_appended', 'params' => ['%count%' => 2]],
+            ['key' => 'filing.signature.note.part_id_missing', 'params' => []],
+        ];
+        $part->recordSignedUpload('cases/x/signed.pdf', str_repeat('d', 64), 1000, $this->user, SignatureStatus::PRESENT_PROBABLE, ['signerCn' => 'Test Semnatar', 'warnings' => $warnings, 'matchNotes' => $notes]);
+        $package->setStatus(FilingPackageStatus::AWAITING_SIGNATURES);
+        $this->em->flush();
+        $this->client->loginUser($this->user);
+
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId() . '?tab=depunere');
+
+        $row = $crawler->filter(sprintf('#filing-package-card [data-testid="filing-part-%d"]', $part->getId()));
+        $panel = $row->filter(sprintf('details#filing-part-panel-%d', $part->getId()));
+        self::assertCount(1, $panel);
+        self::assertNotNull($panel->attr('open'), 'The panel of a row awaiting confirmation is open.');
+        $translator = static::getContainer()->get('translator');
+        foreach ($notes as $note) {
+            $slug = substr($note['key'], strrpos($note['key'], '.') + 1);
+            self::assertSame($translator->trans($note['key'], $note['params']), trim($panel->filter(sprintf('[data-testid="filing-part-warning"][data-note="%s"]', $slug))->text()));
+        }
+        foreach ($warnings as $warning) {
+            $slug = substr($warning, strrpos($warning, '.') + 1);
+            self::assertSame($translator->trans($warning), trim($panel->filter(sprintf('[data-testid="filing-part-warning"][data-warning="%s"]', $slug))->text()));
+        }
+        self::assertCount(1, $panel->filter('li.font-semibold [data-note="text_added_with_digits"]'));
+        self::assertStringContainsString('Test Semnatar', $panel->text());
+        $html = $panel->html();
+        self::assertCount(1, $panel->filter('form[data-testid="filing-part-confirm-form"] input[name="sha256"][value="' . str_repeat('d', 64) . '"]'));
+        foreach (['data-note="part_id_missing"', 'data-warning="legacy_sub_filter"'] as $marker) {
+            self::assertLessThan(strpos($html, 'filing-part-confirm-form'), strpos($html, $marker));
+        }
+        self::assertSame($this->rawTrans('filing.signature.chip.PRESENT_PROBABLE_unconfirmed'), trim($row->filter('[data-testid="filing-part-signature-chip"]')->text()));
+        // The column button only opens the panel; the confirmation is the form under the observations.
+        self::assertCount(1, $row->filter(sprintf('a[href="#filing-part-panel-%d"]', $part->getId())));
+        self::assertCount(1, $row->filter('form[data-testid="filing-part-confirm-form"]'));
+    }
+
+    public function testASignedPackageFoldsToItsSummaryWithTheValidityNoticeAndTheArchiveOutsideTheList(): void
+    {
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId() . '?tab=depunere');
+        self::assertCount(0, $crawler->filter('[data-testid="filing-part-validity-notice"]'), 'No signature, no notice.');
+        self::assertCount(0, $crawler->filter('[data-testid="filing-parts-collapsed"]'));
+
+        foreach ($package->getParts() as $part) {
+            $this->uploadDirectly($part);
+        }
+        self::assertSame(FilingPackageStatus::SIGNED, $package->getStatus());
+
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId() . '?tab=depunere');
+        $card = $crawler->filter('#filing-parts');
+        $list = $card->filter('details[data-testid="filing-parts-collapsed"]');
+        self::assertCount(1, $list);
+        self::assertNull($list->attr('open'));
+        self::assertSame($this->rawTrans('filing.panel.parts.signed_summary'), trim($card->filter('[data-testid="filing-package-signed"]')->text()));
+        self::assertCount(1, $card->filter('[data-testid="filing-part-validity-notice"]'));
+        self::assertCount(0, $list->filter('[data-testid="filing-part-validity-notice"]'));
+        self::assertCount(1, $card->filter('a[data-testid="filing-unsigned-zip"]'));
+        self::assertCount(0, $list->filter('a[data-testid="filing-unsigned-zip"]'));
+        self::assertCount($package->getParts()->count(), $list->filter('[data-testid="filing-package-parts"] > li'));
+        // One primary action: the status panel keeps "Verifică și trimite", the card does not repeat it.
+        self::assertCount(0, $card->filter('[data-testid="filing-send-open"]'));
+
+        // The client rebooted the kernel, so the row is changed in the database directly.
+        $part = $package->getParts()->first();
+        $this->sql("UPDATE filing_package_part SET last_refusal_key = 'filing.signature.refused.not_signed', last_refusal_at = NOW() WHERE id = ?", [$part->getId()]);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId() . '?tab=depunere');
+        self::assertCount(0, $crawler->filter('[data-testid="filing-parts-collapsed"]'), 'A refused replacement keeps the list open.');
+        $alert = $crawler->filter(sprintf('[data-testid="filing-part-%d"] [role="alert"]', $part->getId()));
+        self::assertStringContainsString($this->rawTrans('filing.upload.refused_kept_previous'), $alert->text());
+        self::assertSame($this->rawTrans('filing.signature.chip.PRESENT_MATCHED'), trim($crawler->filter(sprintf('[data-testid="filing-part-%d"] [data-testid="filing-part-signature-chip"]', $part->getId()))->text()));
+    }
+
+    public function testAnnexesInSeveralVolumesGetAGroupRowAndKeepTheirRangesAndCompressedLabel(): void
+    {
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId() . '?tab=depunere');
+        self::assertCount(0, $crawler->filter('[data-testid="filing-annex-volumes-group"]'), 'One volume, no group row.');
+
+        $annex = null;
+        foreach ($package->getParts() as $each) {
+            $annex = $each->getRole() === FilingPartRole::ANNEX_BUNDLE ? $each : $annex;
+        }
+        $second = $annex->copyForPackage(bin2hex(random_bytes(16)), $package->getParts()->count() + 1);
+        $annex->setVolume(1, 2)->setAnnexPageRange(1, 11);
+        $second->setVolume(2, 2)->setAnnexPageRange(12, 20)->setCompressionApplied(true);
+        $package->addPart($second);
+        $this->em->flush();
+
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId() . '?tab=depunere');
+
+        $group = $crawler->filter('[data-testid="filing-package-parts"] > li[data-testid="filing-annex-volumes-group"]');
+        self::assertCount(1, $group);
+        self::assertSame(sprintf('filing-part-%d', $annex->getId()), $group->nextAll()->first()->attr('id'), 'The group row comes right before the first volume.');
+        $translator = static::getContainer()->get('translator');
+        self::assertStringContainsString($translator->trans('filing.package.part_annex_range', ['%from%' => 1, '%to%' => 11]), $crawler->filter(sprintf('[data-testid="filing-part-%d"]', $annex->getId()))->text());
+        $secondRow = $crawler->filter(sprintf('[data-testid="filing-part-%d"]', $second->getId()));
+        self::assertStringContainsString($translator->trans('filing.package.part_annex_range', ['%from%' => 12, '%to%' => 20]), $secondRow->text());
+        self::assertCount(1, $secondRow->filter('[data-testid="filing-part-compressed"]'));
+        self::assertStringContainsString($this->rawTrans('filing.package.compressed_explain'), $secondRow->filter('[role="tooltip"]')->text());
+        self::assertCount(1, $crawler->filter('[data-testid="filing-package-volumes"]'), 'The technical details keep the volumes line.');
+    }
+
+    public function testAStaleOrFiledPackageOnlyOffersDownloadsAndHidesTheRefusal(): void
+    {
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $part = $package->getParts()->first();
+        $this->uploadDirectly($part);
+        $part->recordRefusal('filing.signature.refused.mismatch');
+        $package->markStale('annexes');
+        $this->em->flush();
+        $this->client->loginUser($this->user);
+
+        foreach (['stale', 'filed'] as $situation) {
+            if ($situation === 'filed') {
+                // The client rebooted the kernel, so the state is changed in the database directly.
+                $this->sql("UPDATE filing_package SET status = 'AWAITING_SIGNATURES', stale_reason = NULL WHERE id = ?", [$package->getId()]);
+                $this->sql("UPDATE legal_case SET status = 'CERERE_DEPUSA' WHERE id = ?", [$this->case->getId()]);
+            }
+            $crawler = $this->client->request('GET', '/case/' . $this->case->getId() . '?tab=depunere');
+            $card = $crawler->filter('#filing-parts');
+            self::assertCount(1, $card, $situation);
+            self::assertCount(0, $card->filter('form[data-testid="filing-part-upload-form"]'), $situation);
+            self::assertCount(0, $card->filter('form[data-testid="filing-part-confirm-form"]'), $situation);
+            self::assertCount(0, $card->filter('[role="alert"]'), $situation);
+            self::assertStringNotContainsString($this->rawTrans('filing.upload.replace'), $card->text(), $situation);
+            self::assertCount(1, $card->filter('a[data-testid="filing-part-download-signed"]'), $situation);
+            self::assertGreaterThanOrEqual(1, $card->filter(sprintf('a[href^="/case/%d/filing/package/%d/part/"]', $this->case->getId(), $package->getId()))->count(), $situation);
+        }
+        // The archive route answers 404 for a stale package, so the link is not offered then.
+        $this->sql("UPDATE filing_package SET status = 'STALE', stale_reason = 'annexes' WHERE id = ?", [$package->getId()]);
+        $this->sql("UPDATE legal_case SET status = 'CERERE_GENERATA' WHERE id = ?", [$this->case->getId()]);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId() . '?tab=depunere');
+        self::assertCount(0, $crawler->filter('[data-testid="filing-unsigned-zip"]'));
+        self::assertStringContainsString('v' . $package->getVersion(), $crawler->filter('[data-testid="filing-package-status"]')->text());
+    }
+
+    public function testAdminAndAnotherLawyerCannotUploadOrDownloadASignedFile(): void
+    {
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $part = $package->getParts()->first();
+        $this->uploadDirectly($part);
+        $admin = $this->createFilingUser($this->em, 'filing-admin');
+        $admin->setRoles(['ROLE_ADMIN']);
+        $other = $this->createFilingUser($this->em, 'filing-other');
+        $this->em->flush();
+        $this->otherUsers[] = $admin;
+        $this->otherUsers[] = $other;
+
+        foreach ([$admin, $other] as $intruder) {
+            $this->client->loginUser($intruder);
+            $this->client->request('GET', $this->partUrl($package, $part) . '/signed');
+            self::assertResponseStatusCodeSame(403);
+            $this->client->request('POST', $this->partUrl($package, $part) . '/signed', ['_token' => 'irrelevant'], ['signed_file' => $this->signedUpload($part)], self::TURBO);
+            self::assertResponseStatusCodeSame(403);
+            $this->client->request('POST', $this->partUrl($package, $part) . '/signed/confirm', ['_token' => 'irrelevant'], [], self::TURBO);
+            self::assertResponseStatusCodeSame(403);
+        }
+    }
+
+    public function testSignedDownloadReturnsTheUploadedBytesToTheOwnerAndIsAudited(): void
+    {
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $part = $package->getParts()->first();
+        $sha = $this->uploadDirectly($part);
+        $this->client->loginUser($this->user);
+
+        $this->client->request('GET', $this->partUrl($package, $part) . '/signed');
+
+        self::assertResponseIsSuccessful();
+        $response = $this->client->getResponse();
+        self::assertStringContainsString('_semnat.pdf', (string) $response->headers->get('Content-Disposition'));
+        self::assertInstanceOf(BinaryFileResponse::class, $response);
+        self::assertSame($sha, hash_file('sha256', $response->getFile()->getPathname()));
+        self::assertNotNull($this->em->getRepository(AuditLog::class)->findOneBy(['action' => 'filing_signed_part_downloaded', 'entityId' => (string) $this->case->getId()]));
+    }
+
+    public function testInSeparateModeThePackageIsSignedOnlyAfterTheFourthSignature(): void
+    {
+        static::getContainer()->get(AppSettingRepository::class)->set(AppSetting::KEY_FILING_OPIS_PLACEMENT, 'separate');
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $parts = $package->getParts()->toArray();
+        self::assertCount(4, $parts);
+        $this->client->loginUser($this->user);
+
+        foreach ($parts as $i => $part) {
+            $token = $this->uploadTokenFromCard($part);
+            $this->client->request('POST', $this->partUrl($package, $part) . '/signed', ['_token' => $token], ['signed_file' => $this->signedUpload($part)], self::TURBO);
+            self::assertResponseIsSuccessful();
+            $this->em->clear();
+            $status = $this->em->find(FilingPackage::class, $package->getId())?->getStatus();
+            self::assertSame($i < 3 ? FilingPackageStatus::AWAITING_SIGNATURES : FilingPackageStatus::SIGNED, $status);
+        }
+        self::assertStringContainsString($this->trans('filing.panel.parts.signed_summary'), (string) $this->client->getResponse()->getContent());
+    }
+
+    public function testRebuildRouteClampsTheExcessAndCreatesANewVersion(): void
+    {
+        $package = static::getContainer()->get(FilingPackageBuilder::class)->build($this->case, $this->user);
+        $this->client->loginUser($this->user);
+        $token = $this->csrfToken('filing_annex_rebuild_' . $package->getId());
+
+        // An excess larger than the whole mailbox is clamped, so the volumes stay plannable.
+        $this->client->request('POST', sprintf('/case/%d/filing/package/%d/rebuild-annexes', $this->case->getId(), $package->getId()), ['_token' => $token, 'excess' => '999999999'], [], self::TURBO);
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString($this->trans('filing.upload.over_budget.rebuilt'), (string) $this->client->getResponse()->getContent());
+        self::assertSame(2, $this->packageCount());
+    }
+    public function testCardShowsWhyThereIsNoFilingAddressAndWhereToAddOne(): void
+    {
+        $this->client->loginUser($this->user);
+
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('#filing-package-card [data-testid="filing-recipient-reason"]', $this->rawTrans('enum.court_filing_address_missing_reason.NO_ADDRESS'));
+        self::assertSelectorExists(sprintf('#filing-package-card [data-testid="filing-recipient-action"][href="/case/%d/court-address"]', $this->case->getId()));
+        self::assertSelectorNotExists('#filing-package-card [data-testid="filing-recipient-email"]');
+    }
+
+    public function testCardShowsTheConfirmedFilingAddressWithItsConfirmationDate(): void
+    {
+        $this->createCourtEmailAddress($this->em, $this->case->getCourt(), 'registratura@just.ro', CourtEmailPurpose::REGISTRY, CourtEmailStatus::VALIDATED, new \DateTimeImmutable('2026-10-01'), $this->user, true);
+        $this->client->loginUser($this->user);
+
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorTextContains('#filing-package-card [data-testid="filing-recipient-email"]', 'registratura@just.ro');
+        self::assertSelectorTextContains('#filing-package-card [data-testid="filing-recipient"]', '01.10.2026');
+        self::assertSelectorNotExists('#filing-package-card [data-testid="filing-recipient-reason"]');
+    }
+
+    private function buildUrl(): string
+    {
+        return '/case/' . $this->case->getId() . '/filing/package/build';
+    }
+
+    private function partUrl(FilingPackage $package, FilingPackagePart $part): string
+    {
+        return sprintf('/case/%d/filing/package/%d/part/%d', $this->case->getId(), $package->getId(), $part->getId());
+    }
+
+    private function tokenFromCard(): string
+    {
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+        self::assertResponseIsSuccessful();
+
+        return (string) $crawler->filter('#filing-package-card form[action$="/filing/package/build"] input[name="_token"]')->attr('value');
+    }
+
+    private function uploadTokenFromCard(FilingPackagePart $part): string
+    {
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+        self::assertResponseIsSuccessful();
+        $form = $crawler->filter(sprintf('#filing-package-card [data-testid="filing-part-%d"] form[data-testid="filing-part-upload-form"]', $part->getId()));
+        self::assertCount(1, $form);
+        // A text-only match is confirmed only after upload, once its warnings are shown.
+        self::assertCount(0, $form->filter('input[name="probable_confirmed"]'));
+
+        return (string) $form->filter('input[name="_token"]')->attr('value');
+    }
+
+    private function signedUpload(FilingPackagePart $part): UploadedFile
+    {
+        $path = tempnam(sys_get_temp_dir(), 'ctrlsig');
+        TestPdfSigner::sign($this->filingUploadsDir . '/' . $part->getUnsignedPath(), $path);
+
+        return new UploadedFile($path, 'semnat.pdf', 'application/pdf', null, true);
+    }
+
+    private function uploadDirectly(FilingPackagePart $part): string
+    {
+        $file = $this->signedUpload($part);
+        $sha = (string) hash_file('sha256', $file->getPathname());
+        static::getContainer()->get(SignedPartUploadService::class)->upload($part, $file, $this->user, false);
+
+        return $sha;
+    }
+
+    /** A stateful CSRF token bound to the test client's session (see DeadlineAgendaAuthorizationTest). */
+    private function csrfToken(string $tokenId): string
+    {
+        $this->client->request('GET', '/case/' . $this->case->getId());
+        $request = $this->client->getRequest();
+        $stack = static::getContainer()->get(RequestStack::class);
+        $stack->push($request);
+        try {
+            $token = static::getContainer()->get('security.csrf.token_manager')->getToken($tokenId)->getValue();
+        } finally {
+            $stack->pop();
+        }
+        $request->getSession()->save();
+
+        return $token;
+    }
+
+    /** @param list<int|string> $params */
+    private function sql(string $statement, array $params): void
+    {
+        static::getContainer()->get(EntityManagerInterface::class)->getConnection()->executeStatement($statement, $params);
+    }
+
+    private function packageCount(): int
+    {
+        return (int) $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM filing_package WHERE legal_case_id = ?', [$this->case->getId()]);
+    }
+
+    private function rawTrans(string $key): string
+    {
+        return static::getContainer()->get('translator')->trans($key);
+    }
+
+    private function trans(string $key): string
+    {
+        return htmlspecialchars(static::getContainer()->get('translator')->trans($key), ENT_QUOTES);
+    }
+}

@@ -1,0 +1,18 @@
+{# Closing a transmission without its remaining annexes cannot be undone: asked in a
+   modal, with the lawyer's statement ticked by hand and a red button. #}
+{% set submission = filing_submission %}
+<dialog id="filing-close-dialog" class="w-full max-w-lg rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-0 shadow-xl backdrop:bg-slate-900/50" aria-labelledby="filing-close-dialog-title">
+    <form method="post" action="{{ path('case_filing_submission_close', {id: case.id, submissionId: submission.id}) }}" class="p-6 space-y-4" data-turbo-frame="_top" data-controller="require-checks" data-testid="filing-submission-close-form">
+        <input type="hidden" name="_token" value="{{ csrf_token('filing_close_' ~ submission.id) }}">
+        <h3 id="filing-close-dialog-title" class="text-lg font-semibold text-slate-900 dark:text-white">{{ 'filing.panel.close_dialog.title'|trans }}</h3>
+        <p class="text-sm text-slate-700 dark:text-slate-200">{{ 'filing.close.warning'|trans }}</p>
+        <label class="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200">
+            <input type="checkbox" name="confirm_incomplete" value="1" required class="mt-0.5" data-require-checks-target="check" data-action="require-checks#refresh">
+            <span>{{ 'filing.close.confirm.incomplete'|trans }}</span>
+        </label>
+        <div class="flex flex-wrap items-center justify-end gap-2 pt-2">
+            <button type="button" data-action="modal-dialog#close" class="py-2.5 px-4 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-semibold text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition">{{ 'filing.send.dismiss'|trans }}</button>
+            <button type="submit" data-require-checks-target="submit" data-testid="filing-submission-close" class="py-2.5 px-4 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition">{{ 'filing.close.cta'|trans }}</button>
+        </div>
+    </form>
+</dialog>

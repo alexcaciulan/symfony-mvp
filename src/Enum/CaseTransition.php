@@ -20,6 +20,7 @@ enum CaseTransition: string
     case INCHIDE_SUCCES = 'inchide_succes';
     case INCHIDE_FARA_RECUPERARE = 'inchide_fara_recuperare';
     case INCHIDE_PLATA_INTEGRALA = 'inchide_plata_integrala';
+    case ANULEAZA_DEPUNERE_NELIVRATA = 'anuleaza_depunere_nelivrata';
 
     public function label(): string
     {

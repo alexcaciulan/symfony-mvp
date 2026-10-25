@@ -1,0 +1,21 @@
+{# The four steps of the filing, for orientation only (not clickable). #}
+{% from 'case/overview/_icons.html.twig' import icon_check %}
+<ol class="mb-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft px-5 py-4 grid grid-cols-2 lg:grid-cols-4 gap-4" data-testid="filing-stepper">
+    {% for step in filing_panel.steps %}
+        <li class="flex items-start gap-3 min-w-0" data-testid="filing-step-{{ step.key }}" data-state="{{ step.state }}">
+            {% if step.state == 'done' %}
+                <span class="shrink-0 inline-flex items-center justify-center size-7 rounded-full bg-emerald-600 text-white">{{ icon_check('size-3.5') }}</span>
+            {% elseif step.state == 'problem' %}
+                <span class="shrink-0 inline-flex items-center justify-center size-7 rounded-full {{ filing_panel.tone == 'red' ? 'bg-red-600' : 'bg-amber-500' }} text-white text-sm font-bold">!</span>
+            {% elseif step.state == 'current' %}
+                <span class="shrink-0 inline-flex items-center justify-center size-7 rounded-full bg-lex-navy text-white text-xs font-semibold">{{ loop.index }}</span>
+            {% else %}
+                <span class="shrink-0 inline-flex items-center justify-center size-7 rounded-full border border-slate-300 dark:border-slate-700 text-slate-400 text-xs font-semibold">{{ loop.index }}</span>
+            {% endif %}
+            <span class="min-w-0">
+                <span class="block text-sm {{ step.state == 'todo' ? 'text-slate-500 dark:text-slate-400' : 'font-semibold text-slate-900 dark:text-slate-100' }}">{{ ('filing.panel.step.' ~ step.key)|trans }}</span>
+                <span class="block text-xs text-slate-500 dark:text-slate-400">{{ step.summaryKey|trans(step.summaryParams) }}</span>
+            </span>
+        </li>
+    {% endfor %}
+</ol>

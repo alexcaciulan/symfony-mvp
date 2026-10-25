@@ -1,0 +1,48 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ title }} · raport #{{ report.id }}{% endblock %}
+
+{% block body %}
+{% set address = report.address %}
+<div style="max-width: 640px; margin: 40px auto; padding: 0 16px;">
+    <div style="margin-bottom: 20px;">
+        <a href="{{ back_url }}" style="color: #2563eb; text-decoration: none; font-size: 14px;">Înapoi la raport</a>
+    </div>
+
+    <h2 style="font-size: 20px; font-weight: 600; color: #111827; margin: 0 0 20px 0;">{{ title }}</h2>
+
+    <div style="background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 24px; margin-bottom: 20px; font-size: 14px;">
+        <table style="width: 100%;">
+            <tr><td style="padding: 4px 8px; color: #6b7280; width: 160px;">Instanță:</td><td style="padding: 4px 8px; font-weight: 600;">{{ address.court.name }}</td></tr>
+            <tr><td style="padding: 4px 8px; color: #6b7280;">E-mail:</td><td style="padding: 4px 8px; font-family: monospace;">{{ address }}</td></tr>
+            <tr><td style="padding: 4px 8px; color: #6b7280;">Status adresă:</td><td style="padding: 4px 8px;">{{ address.status.label|trans }}</td></tr>
+            <tr><td style="padding: 4px 8px; color: #6b7280;">Sursă:</td><td style="padding: 4px 8px;">{{ address.source.label|trans }}</td></tr>
+            <tr><td style="padding: 4px 8px; color: #6b7280;">Tip raport:</td><td style="padding: 4px 8px;">{{ kinds[report.kind.value] ?? report.kind.value }}</td></tr>
+            <tr><td style="padding: 4px 8px; color: #6b7280;">Motiv:</td><td style="padding: 4px 8px;">{{ report.reason.label|trans }}</td></tr>
+            {% if report.enhancedStatus %}
+                <tr><td style="padding: 4px 8px; color: #6b7280;">Cod raport:</td><td style="padding: 4px 8px;">{{ report.enhancedStatus }}</td></tr>
+            {% endif %}
+        </table>
+        {% if report.kind.value == 'DELIVERY_REPORT' %}
+            <p style="margin: 12px 8px 0; color: #374151;">Un raport de nelivrare poate fi falsificat sau poate proveni dintr-o redirecționare internă. Adresa se verifică pe sursa ei înainte de a fi scoasă din uz.</p>
+        {% endif %}
+    </div>
+
+    <div style="background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 24px;">
+        <form method="post" action="{{ path('admin_court_email_report_action', {id: report.id, action: action}) }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('court_email_report_' ~ action ~ '_' ~ report.id) }}">
+            <p style="font-size: 14px; color: #374151; margin: 0 0 20px 0;">
+                {% if action == 'invalidate' %}
+                    Adresa nu se mai folosește la depunere pentru niciun dosar al acestei instanțe, iar celelalte rapoarte deschise pe ea se închid.
+                {% else %}
+                    Adresa rămâne în uz. Raportul se închide fără altă schimbare.
+                {% endif %}
+            </p>
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" style="padding: 8px 20px; background: #2563eb; color: #fff; border: none; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer;">Confirmă</button>
+                <a href="{{ back_url }}" style="padding: 8px 20px; background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-weight: 500; text-decoration: none;">Anulează</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

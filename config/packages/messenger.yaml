@@ -19,6 +19,26 @@ framework:
                     multiplier: 2
             failed: 'doctrine://default?queue_name=failed'
             sync: 'sync://'
+            # Court filing emails, consumed by their own worker so a long extraction
+            # on `async` never delays a filing nor triggers a false redelivery. The
+            # handler marks a part it finds mid-send as uncertain instead of sending
+            # it twice, and failures go to their own queue: a global
+            # `messenger:failed:retry` on `failed` must never resend a court email.
+            # Temporary SMTP failures are retried after 5 min, 30 min and 2 h; the
+            # delays come from env only so a live check can shorten them in dev.
+            # The redelivery window stays well above the 60 s socket timeout.
+            court_filing:
+                dsn: 'doctrine://default?auto_setup=0&queue_name=court_filing'
+                options:
+                    redeliver_timeout: '%env(int:COURT_FILING_REDELIVER_TIMEOUT)%'
+                failure_transport: court_filing_failed
+                retry_strategy:
+                    max_retries: 3
+                    delay: '%env(int:COURT_FILING_RETRY_DELAY_MS)%'
+                    multiplier: 6
+                    max_delay: '%env(int:COURT_FILING_RETRY_MAX_DELAY_MS)%'
+                    jitter: 0
+            court_filing_failed: 'doctrine://default?auto_setup=0&queue_name=court_filing_failed'
 
         default_bus: messenger.bus.default
 
@@ -52,3 +72,11 @@ framework:
             # handler (only settles a PENDING invoice), so the retry_strategy
             # retries transient DB failures safely without double-settling.
             App\Message\ProcessPaymentWebhookMessage: async
+
+            # One email of a court filing; parts are dispatched one at a time, in order.
+            App\Message\SendFilingEmailPartMessage: court_filing
+
+            # Processing of one received mail (court receipt, bounce, reply). On
+            # `async`, not `court_filing`: the handler is idempotent and must not
+            # inherit the outgoing SMTP retry schedule or its failure queue.
+            App\Message\ProcessInboundMailMessage: async

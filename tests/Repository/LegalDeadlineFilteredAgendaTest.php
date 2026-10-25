@@ -62,7 +62,7 @@ final class LegalDeadlineFilteredAgendaTest extends KernelTestCase
 
     /**
      * The arrears pill lists what the arrears counter counts, including the exclusion
-     * of the debtor's own expired term (CPC art. 1015-1016): a pill that listed
+     * of the debtor's own expired term (CPC art. 1015-1017): a pill that listed
      * something other than its own number would make the bar unreadable.
      */
     public function testTheArrearsPillListsExactlyWhatTheArrearsCounterCounts(): void

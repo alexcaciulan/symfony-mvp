@@ -103,6 +103,34 @@ services:
             $mercurePublicUrl: '%env(MERCURE_PUBLIC_URL)%'
             # Absolute session lifetime, injected into AbsoluteSessionTimeoutSubscriber.
             $absoluteSessionTtl: '%app.session.absolute_ttl%'
+            # Court filing size budget, injected into the filing package services.
+            $filingMaxEmailBytes: '%lexrecovery.filing.max_email_bytes%'
+            $filingSignatureReserveBytes: '%lexrecovery.filing.signature_reserve_bytes%'
+            $filingSignedUploadMaxBytes: '%lexrecovery.filing.signed_upload_max_bytes%'
+            # Court filing by email: the dedicated SMTP transport (never the
+            # notification mailer), the platform sender and bounce domain, and the
+            # opt-in that alone lets a message reach a real court address.
+            $courtFilingTransport: '@app.court_filing_transport'
+            $courtFilingFrom: '%env(COURT_FILING_FROM)%'
+            $courtFilingBounceDomain: '%env(COURT_FILING_BOUNCE_DOMAIN)%'
+            $courtFilingLive: '%env(bool:COURT_FILING_LIVE)%'
+            $courtFilingRecipientOverride: '%env(default::COURT_FILING_RECIPIENT_OVERRIDE)%'
+            $courtFilingMailerDsn: '%env(COURT_FILING_MAILER_DSN)%'
+            $filingEmailChannelSince: '%lexrecovery.filing.email_channel_since%'
+            $sendingStaleSeconds: '%env(int:COURT_FILING_SENDING_STALE_SECONDS)%'
+            # Inbound court mail: the source DSN, the authserv-id and the delivery
+            # header our own MTA writes,
+            # the receipt-overdue delay, the purge and heartbeat limits, and the
+            # dev-only simulator switch.
+            $inboundMailDsn: '%env(default::INBOUND_MAIL_DSN)%'
+            $inboundAuthservId: '%env(default::INBOUND_AUTHSERV_ID)%'
+            $inboundDeliveryHeader: '%env(default::INBOUND_DELIVERY_HEADER)%'
+            $receiptOverdueWorkingDays: '%lexrecovery.filing.receipt_overdue_working_days%'
+            $inboundPurgeDays: '%lexrecovery.filing.inbound_purge_days%'
+            $inboundHeartbeatMaxAgeMinutes: '%lexrecovery.filing.inbound_heartbeat_max_age_minutes%'
+            $inboundSimulatorEnabled: '%env(bool:default::INBOUND_SIMULATOR_ENABLED)%'
+            $receiptPhrases: '%lexrecovery.inbound.receipt_phrases%'
+            $receiptGeneralPhrases: '%lexrecovery.inbound.receipt_general_phrases%'
 
     # interface-based auto-tagging (Strategy + Tagged Iterator pattern)
     _instanceof:
@@ -135,6 +163,11 @@ services:
     App\Service\Billing\PaymentGatewayInterface:
         alias: App\Service\Billing\PaymentGatewayResolver
 
+    # The inbound mailbox the poll reads, chosen once from INBOUND_MAIL_DSN:
+    # Mailpit in dev, the fixture directory in tests, IMAP in prod.
+    App\Service\Inbound\InboundMailSourceInterface:
+        factory: ['@App\Service\Inbound\InboundMailSourceResolver', 'resolve']
+
     App\Service\Extraction\DataExtractionService:
         arguments:
             $strategies: !tagged_iterator app.extraction_strategy
@@ -160,6 +193,13 @@ services:
         arguments:
             $fixedAmount: '%app.taxa_timbru_op.fixed%'
             $lawVersion: '%app.taxa_timbru_op.law_version%'
+
+    # SMTP transport for court filings only, built from its own DSN with a socket
+    # timeout well under the messenger redelivery window.
+    app.court_filing_transport:
+        class: Symfony\Component\Mailer\Transport\TransportInterface
+        factory: ['App\Service\Filing\CourtFilingTransportFactory', 'create']
+        arguments: ['%env(COURT_FILING_MAILER_DSN)%']
 
     App\Service\Deadline\WorkingDayResolver:
         arguments:

@@ -206,7 +206,7 @@ class DeadlineAgendaServiceTest extends KernelTestCase
 
     /**
      * The debtor's term running out is the event that opens the filing of the request
-     * (CPC art. 1015-1016), not a delay of the lawyer, so it leaves the red section
+     * (CPC art. 1015-1017), not a delay of the lawyer, so it leaves the red section
      * for one of its own while every other past-due type stays behind.
      */
     public function testExpiredDebtorTermsLeaveTheOverdueGroupForTheirOwn(): void

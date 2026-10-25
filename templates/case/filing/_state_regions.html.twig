@@ -1,0 +1,23 @@
+{# The regions of the case page that follow the filing: status badge and actions in
+   the hero, the pipeline, the figures, the recommended actions, the filing card of
+   the Documents tab and the dot on the filing tab. Sent with every filing answer
+   and when the polling frame sees the filing state change, so no action the server
+   would refuse stays on offer. #}
+<turbo-stream action="replace" target="case-hero">
+    <template>{{ include('case/overview/_hero.html.twig') }}</template>
+</turbo-stream>
+<turbo-stream action="replace" target="case-pipeline">
+    <template>{{ include('case/overview/_pipeline.html.twig') }}</template>
+</turbo-stream>
+<turbo-stream action="replace" target="case-kpi-grid">
+    <template>{{ include('case/overview/_kpi_grid.html.twig') }}</template>
+</turbo-stream>
+<turbo-stream action="update" target="case-detalii-sidebar">
+    <template>{{ include('case/overview/_detalii_sidebar.html.twig') }}</template>
+</turbo-stream>
+<turbo-stream action="replace" target="filing-documents-card">
+    <template>{{ include('case/filing/_documents_compact_card.html.twig') }}</template>
+</turbo-stream>
+<turbo-stream action="replace" target="filing-tab-dot">
+    <template>{{ include('case/filing/_tab_dot.html.twig') }}</template>
+</turbo-stream>

@@ -18,6 +18,8 @@ framework:
     messenger:
         transports:
             async: 'in-memory://'
+            court_filing: 'in-memory://'
+            court_filing_failed: 'in-memory://'
 
         # Keep email sending synchronous in tests: MailerAssertionsTrait observes
         # messages at send time, and the in-memory `async` transport would otherwise

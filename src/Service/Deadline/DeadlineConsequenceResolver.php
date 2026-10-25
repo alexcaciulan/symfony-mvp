@@ -85,7 +85,7 @@ final class DeadlineConsequenceResolver
      * Every type whose expiry carries no sanction for the creditor, derived from the
      * same mapping. Today this is the debtor's own term: its expiry is not a delay of
      * the lawyer but the event that opens the filing of the request (CPC art.
-     * 1015-1016), which is why the agenda keeps these rows out of the overdue section
+     * 1015-1017), which is why the agenda keeps these rows out of the overdue section
      * and out of the overdue counters and shows them in a section of their own.
      *
      * @return list<DeadlineType>

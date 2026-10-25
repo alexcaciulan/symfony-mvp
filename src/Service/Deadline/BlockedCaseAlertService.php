@@ -41,7 +41,7 @@ final class BlockedCaseAlertService
     public function process(\DateTimeImmutable $now): BlockedCaseAlertReport
     {
         $stampDutyDue = $this->dispatchAll(
-            $this->caseRepository->findStampDutyDueAfterCaseNumber(),
+            $this->caseRepository->findStampDutyDueAfterCaseNumber($now),
             BlockedCaseAlert::STAMP_DUTY_DUE,
             static fn (int $caseId): string => AlertCadence::weekly('blocked_case:' . BlockedCaseAlert::STAMP_DUTY_DUE->value, $caseId, $now),
         );

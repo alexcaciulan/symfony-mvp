@@ -13,6 +13,12 @@ require dirname(__DIR__).'/vendor/autoload.php';
 // intentionally left untouched.
 putenv('MAILER_DSN');
 unset($_ENV['MAILER_DSN'], $_SERVER['MAILER_DSN']);
+// Same for the court filing transport and the inbound mailbox: a value injected by
+// the container must never let the suite send to, or read from, a real server.
+foreach (['COURT_FILING_MAILER_DSN', 'INBOUND_MAIL_DSN', 'COURT_FILING_LIVE', 'COURT_FILING_RECIPIENT_OVERRIDE'] as $name) {
+    putenv($name);
+    unset($_ENV[$name], $_SERVER[$name]);
+}
 
 if (method_exists(Dotenv::class, 'bootEnv')) {
     (new Dotenv())->bootEnv(dirname(__DIR__).'/.env');

@@ -1,0 +1,10 @@
+{# Answer to an address action on the case page: the list is replaced in place and
+   every outcome, errors included, is a toast. #}
+<turbo-stream action="replace" target="court-address-list">
+    <template>{{ include('court/address/_list.html.twig') }}</template>
+</turbo-stream>
+<turbo-stream action="append" target="toasts">
+    <template>
+        {% include 'components/Toast.html.twig' with { message: toast_key|trans, variant: toast_variant, details: [] } only %}
+    </template>
+</turbo-stream>

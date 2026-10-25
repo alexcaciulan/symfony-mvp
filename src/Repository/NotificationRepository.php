@@ -57,6 +57,25 @@ class NotificationRepository extends ServiceEntityRepository
             ->getOneOrNullResult();
     }
 
+    /**
+     * Marks read every unread notice whose dedup key starts with the prefix and,
+     * after it, contains the fragment (notices made moot by a later event).
+     */
+    public function markReadByDedupKeyPrefix(string $prefix, string $contains = ''): int
+    {
+        return $this->createQueryBuilder('n')
+            ->update()
+            ->set('n.isRead', ':read')
+            ->set('n.readAt', ':now')
+            ->where('n.dedupKey LIKE :prefix')
+            ->andWhere('n.isRead = false')
+            ->setParameter('read', true)
+            ->setParameter('now', new \DateTimeImmutable())
+            ->setParameter('prefix', addcslashes($prefix, '%_') . '%' . ($contains !== '' ? addcslashes($contains, '%_') . '%' : ''))
+            ->getQuery()
+            ->execute();
+    }
+
     /** Bulk mark-all-read in one statement; returns the number of rows affected. */
     public function markAllReadByUser(User $user): int
     {

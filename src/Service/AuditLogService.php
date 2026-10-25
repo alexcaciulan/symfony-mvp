@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Entity\AuditLog;
+use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -82,6 +83,21 @@ class AuditLogService
     /** Notification center read actions (single mark-read, bulk mark-all-read). */
     public const CATEGORY_NOTIFICATION = 'NOTIFICATION';
 
+    /** Filing package built, one of its files downloaded, or the alternative-channel ZIP downloaded. */
+    public const CATEGORY_FILING_PACKAGE = 'FILING_PACKAGE';
+
+    /**
+     * Court email addresses: added, confirmed, rejected, reported, invalidated,
+     * reopened or erased. A nominal (personal) address is never written here in clear.
+     */
+    public const CATEGORY_COURT_EMAIL = 'COURT_EMAIL';
+
+    /**
+     * Court filing by email: queued, transmitted part by part, cancelled, stopped
+     * for review, and the filing date the lawyer declares afterwards.
+     */
+    public const CATEGORY_FILING_SUBMISSION = 'FILING_SUBMISSION';
+
     public function __construct(
         private EntityManagerInterface $em,
         private Security $security,
@@ -92,7 +108,8 @@ class AuditLogService
      * Persists an audit-log entry. `$oldData` and `$newData` are stored verbatim
      * in the JSON column. Callers are responsible for masking Romanian PII (CNP
      * especially) with {@see \App\Util\PiiMasker::maskCnpInArray()} before
-     * invoking this method.
+     * invoking this method. `$actor` names the user when there is no session
+     * (a worker acting on a lawyer's request); otherwise the session user is used.
      */
     public function log(
         string $action,
@@ -101,9 +118,11 @@ class AuditLogService
         ?array $oldData = null,
         ?array $newData = null,
         ?string $category = null,
+        ?User $actor = null,
     ): AuditLog {
+        $sessionUser = $this->security->getUser();
         $auditLog = new AuditLog();
-        $auditLog->setUser($this->security->getUser());
+        $auditLog->setUser($actor ?? ($sessionUser instanceof User ? $sessionUser : null));
         $auditLog->setAction($action);
         $auditLog->setEntityType($entityType);
         $auditLog->setEntityId($entityId);

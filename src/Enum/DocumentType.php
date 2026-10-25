@@ -83,7 +83,7 @@ enum DocumentType: string
 
     /**
      * Pieces the procedure itself imposes, as opposed to evidence the lawyer chooses
-     * to annex: the proof that the summons was communicated (CPC art. 1016 para. 2)
+     * to annex: the proof that the summons was communicated (CPC art. 1017 para. 2)
      * and the proof that the stamp duty was paid (CPC art. 197). Both gate the filing
      * of the petition, so they must never compete with the contracts and invoices for
      * the per-case attachment cap: a case that reached the cap on evidence would
@@ -98,6 +98,22 @@ enum DocumentType: string
     {
         return match ($this) {
             self::DOVADA_COMUNICARE, self::DOVADA_TAXA_TIMBRU, self::IMPUTERNICIRE_AVOCATIALA => true,
+            default => false,
+        };
+    }
+
+    /**
+     * Types that state a debt of their own: each such document contributes a claim
+     * position at extraction, and the presence of one lets the petition be generated.
+     * A contract states a price that may never have been invoiced and a bank statement
+     * states payments, so neither is in the set; a contract counts toward filing only
+     * next to a counting claim position (FilingReadinessChecker). Generic attachments, proofs,
+     * the power of attorney and the summons documents never count.
+     */
+    public function isClaimBearing(): bool
+    {
+        return match ($this) {
+            self::FACTURA, self::CONFIRMARE_SOLD, self::TITLU_VALOARE => true,
             default => false,
         };
     }

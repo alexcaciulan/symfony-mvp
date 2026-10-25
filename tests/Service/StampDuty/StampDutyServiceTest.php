@@ -6,6 +6,7 @@ namespace App\Tests\Service\StampDuty;
 
 use App\Entity\Document;
 use App\Entity\LegalCase;
+use App\Enum\DocumentType;
 use App\Enum\StampDutyStatus;
 use App\Repository\CityRepository;
 use App\Repository\LegalDeadlineRepository;
@@ -82,5 +83,100 @@ final class StampDutyServiceTest extends TestCase
             $case->getStampDutyStatus(),
             'A case whose payment failed must not read as paid.',
         );
+    }
+
+    /** The optional confirmation attached on the registry path is compensated the same way. */
+    public function testRegistryConfirmationWithAFileRemovesTheUploadWhenThePaymentStateFailsToPersist(): void
+    {
+        $case = new LegalCase();
+        $document = new Document();
+        $case->addDocument($document);
+
+        $uploads = $this->createMock(DocumentUploadService::class);
+        $uploads->method('upload')->willReturn($document);
+        $uploads->expects(self::once())
+            ->method('delete')
+            ->with($document);
+
+        $em = $this->createStub(EntityManagerInterface::class);
+        $em->method('wrapInTransaction')->willThrowException(new \RuntimeException('flush failed'));
+
+        $service = new StampDutyService(
+            $em,
+            $uploads,
+            new DeadlineService(
+                $em,
+                new WorkingDayResolver(),
+                $this->createStub(AuditLogService::class),
+                $this->createStub(LegalDeadlineRepository::class),
+                $this->createStub(TranslatorInterface::class),
+            ),
+            $this->createStub(AuditLogService::class),
+            new StampDutyUatResolver($this->createStub(CityRepository::class)),
+        );
+
+        try {
+            $service->confirmPaymentThroughRegistry(
+                case: $case,
+                user: $this->createStub(UserInterface::class),
+                paidAt: new \DateTimeImmutable('2026-07-10'),
+                paymentReference: 'GH-1',
+                lawVersion: 'OUG 80/2013 art. 6 alin. 2',
+                file: $this->createStub(UploadedFile::class),
+            );
+            self::fail('The failure must surface to the caller, not be swallowed.');
+        } catch (\RuntimeException) {
+            // expected
+        }
+
+        self::assertFalse($case->getDocuments()->contains($document), 'The compensated upload must leave the case.');
+        self::assertSame(StampDutyStatus::NEACHITATA, $case->getStampDutyStatus());
+    }
+
+    /** A confirmation attached later is removed again when its audit entry cannot be saved. */
+    public function testALaterRegistryConfirmationIsRemovedWhenItCannotBeRecorded(): void
+    {
+        $case = new LegalCase();
+        $case->setStampDutyStatus(StampDutyStatus::ACHITATA);
+        $case->setStampDutyPaidThroughRegistry(true);
+        $document = new Document();
+        $document->setDocumentType(DocumentType::DOVADA_TAXA_TIMBRU);
+
+        // Like the real upload, the stub puts the new document on the case.
+        $uploads = $this->createMock(DocumentUploadService::class);
+        $uploads->method('upload')->willReturnCallback(static function () use ($case, $document): Document {
+            $case->addDocument($document);
+
+            return $document;
+        });
+        $uploads->expects(self::once())
+            ->method('delete')
+            ->with($document);
+
+        $em = $this->createStub(EntityManagerInterface::class);
+        $em->method('flush')->willThrowException(new \RuntimeException('flush failed'));
+
+        $service = new StampDutyService(
+            $em,
+            $uploads,
+            new DeadlineService(
+                $em,
+                new WorkingDayResolver(),
+                $this->createStub(AuditLogService::class),
+                $this->createStub(LegalDeadlineRepository::class),
+                $this->createStub(TranslatorInterface::class),
+            ),
+            $this->createStub(AuditLogService::class),
+            new StampDutyUatResolver($this->createStub(CityRepository::class)),
+        );
+
+        try {
+            $service->attachRegistryConfirmation($case, $this->createStub(UploadedFile::class), $this->createStub(UserInterface::class));
+            self::fail('The failure must surface to the caller, not be swallowed.');
+        } catch (\RuntimeException) {
+            // expected
+        }
+
+        self::assertFalse($case->getDocuments()->contains($document));
     }
 }

@@ -1,0 +1,4 @@
+{# A refused transmission: the decision panel of the confirmation page stays with the reason, nothing else changes. #}
+<turbo-stream action="replace" target="filing-send-panel">
+    <template>{{ include('case/filing/_send_confirm_panel.html.twig') }}</template>
+</turbo-stream>

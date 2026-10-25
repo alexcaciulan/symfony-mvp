@@ -1,0 +1,80 @@
+{# Folded technical details: package version and email split, the effective recipient
+   in a test environment, the SMTP codes and every attempt per email, the copies
+   (.eml) and the raw report of the mail server. #}
+{% set submission = filing_submission|default(null) %}
+{% set package = filing_package|default(null) %}
+{% set failure = filing_submission_failure|default(null) %}
+{% set is_owner = app.user and app.user.id == case.user.id %}
+{% if package or submission %}
+<details class="group bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft" data-testid="filing-technical-details">
+    <summary class="cursor-pointer list-none px-6 py-4 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+        <svg class="size-4 text-slate-400 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+        {{ 'filing.panel.technical.title'|trans }}
+        <span class="font-normal text-slate-500 dark:text-slate-400">{{ (submission ? 'filing.panel.technical.summary_submission' : 'filing.panel.technical.summary_package')|trans }}</span>
+    </summary>
+    <div class="px-6 pb-5 space-y-4 text-sm text-slate-600 dark:text-slate-300">
+        {% if package %}
+            <div class="space-y-1">
+                <p>{{ 'filing.panel.technical.package_version'|trans({'%version%': package.version, '%date%': package.builtAt|date('d.m.Y H:i', 'Europe/Bucharest'), '%status%': package.status.label|trans}) }}</p>
+                <p data-testid="filing-package-emails">{{ 'filing.package.emails_info'|trans({'%count%': package.emailCount}) }}</p>
+                {% if package.annexVolumeCount > 1 %}
+                    <p data-testid="filing-package-volumes">{{ 'filing.package.volumes_banner'|trans({'%count%': package.annexVolumeCount}) }}</p>
+                {% endif %}
+            </div>
+        {% endif %}
+
+        {% if submission %}
+            <div class="space-y-1">
+                <p>{{ 'filing.status.recipient'|trans({'%address%': submission.toAddress}) }}</p>
+                {% if submission.recipientOverridden %}
+                    <p data-testid="filing-submission-override">{{ 'filing.status.override_note'|trans({'%address%': submission.intendedToAddress}) }}</p>
+                {% endif %}
+                {% if failure and failure.code or failure and failure.enhanced %}
+                    <p data-testid="filing-submission-failure-code">{{ 'filing.failure.code'|trans({'%code%': [failure.code, failure.enhanced]|filter(v => v)|join(' ')}) }}</p>
+                {% endif %}
+                {% if failure and submission.deliveryStatus.value not in ['CANCELLED', 'UNDELIVERED'] %}
+                    <p>{{ ('filing.failure.reason.' ~ failure.kind)|trans({'%k%': failure.part.sequence, '%n%': failure.part.total}) }}</p>
+                {% endif %}
+                {% set bounced = submission.part(1) %}
+                {% if (submission.deliveryStatus.value == 'UNDELIVERED' or filing_late_bounce_review|default(false)) and bounced and (bounced.lastEnhancedStatus or bounced.lastError) %}
+                    <p class="font-mono text-xs break-words" data-testid="filing-submission-undelivered-diagnostic">{{ 'filing.undelivered.diagnostic'|trans({'%code%': bounced.lastEnhancedStatus ?? '-', '%text%': bounced.lastError ?? ''}) }}</p>
+                {% endif %}
+            </div>
+
+            <ul class="space-y-3">
+                {% for part in submission.parts %}
+                    <li>
+                        <p class="flex flex-wrap items-center gap-x-2 font-medium text-slate-800 dark:text-slate-100">
+                            {{ 'filing.status.part'|trans({'%k%': part.sequence, '%n%': part.total}) }}
+                            <span class="font-normal text-slate-500 dark:text-slate-400">{{ part.status.label|trans }}</span>
+                            {% if part.sentAt %}
+                                <span class="font-normal text-xs text-slate-500 dark:text-slate-400">{{ 'filing.status.accepted_at'|trans({'%date%': part.sentAt|date('d.m.Y H:i', 'Europe/Bucharest')}) }}</span>
+                            {% endif %}
+                            {% if is_owner and part.emlPath %}
+                                <a href="{{ path('case_filing_submission_eml', {id: case.id, submissionId: submission.id, sequence: part.sequence}) }}" data-turbo="false" class="font-normal text-xs underline hover:no-underline">{{ 'filing.status.download_eml'|trans }}</a>
+                            {% endif %}
+                        </p>
+                        {% if part.attempts is not empty %}
+                            <ul class="mt-1 ms-3 space-y-0.5 text-xs text-slate-500 dark:text-slate-400" data-testid="filing-submission-attempts-{{ part.sequence }}">
+                                {% for attempt in part.attempts %}
+                                    <li>{{ 'filing.status.attempt_line'|trans({
+                                        '%no%': attempt.attemptNo,
+                                        '%date%': attempt.startedAt|date('d.m.Y H:i', 'Europe/Bucharest'),
+                                        '%source%': attempt.source.label|trans,
+                                        '%outcome%': attempt.outcome ? attempt.outcome.label|trans : 'filing.status.attempt_running'|trans,
+                                        '%code%': attempt.smtpCode ? ' (SMTP ' ~ attempt.smtpCode ~ (attempt.enhancedStatus ? ' ' ~ attempt.enhancedStatus : '') ~ ')' : (attempt.enhancedStatus ? ' (' ~ attempt.enhancedStatus ~ ')' : ''),
+                                    }) }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+
+            {% if submission.sentAt or submission.parts|filter(p => p.attempts is not empty)|length > 0 %}
+                <p class="text-xs text-slate-500 dark:text-slate-400">{{ 'filing.status.sent_at_note'|trans }}</p>
+            {% endif %}
+        {% endif %}
+    </div>
+</details>
+{% endif %}

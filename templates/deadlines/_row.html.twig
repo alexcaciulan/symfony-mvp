@@ -26,7 +26,7 @@
 {% set closed = deadline.completed %}
 
 {# A debtor term that has expired is not a failure of the lawyer: it is the event
-   that opens the filing of the request (CPC art. 1015-1016). #}
+   that opens the filing of the request (CPC art. 1015-1017). #}
 {% set unblocks_filing = consequence == 'NO_SANCTION' and days < 0 %}
 {% set neutral = consequence in ['NO_SANCTION', 'RECORD_KEEPING'] %}
 {% set irreversible = item.isIrreversible() %}

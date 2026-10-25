@@ -7,7 +7,7 @@ namespace App\Enum;
 /**
  * What a claim position actually is. Drives nothing in the arithmetic (every
  * kind accrues interest from its own due date) but it is what the petition
- * must state as the basis of each sum (CPC art. 1016 alin. 1 lit. c).
+ * must state as the basis of each sum (CPC art. 1017 alin. 1 lit. c).
  */
 enum ClaimItemKind: string
 {

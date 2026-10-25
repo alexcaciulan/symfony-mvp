@@ -2,6 +2,7 @@
 
 namespace App\Service\Document;
 
+use App\DTO\Document\PowerOfAttorneyDetails;
 use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Enum\DocumentType;
@@ -43,9 +44,16 @@ class DocumentUploadService
      * and Document.legal_case_id stays NULL until submit Step 4 attaches them
      * to the freshly created case (Pas 3.2 will also move the files to the
      * final cases/{caseId}/ directory).
+     *
+     * $powerOfAttorney is applied only to a power of attorney and ignored otherwise.
      */
-    public function upload(?LegalCase $case, UploadedFile $file, DocumentType $type, UserInterface $user): Document
-    {
+    public function upload(
+        ?LegalCase $case,
+        UploadedFile $file,
+        DocumentType $type,
+        UserInterface $user,
+        ?PowerOfAttorneyDetails $powerOfAttorney = null,
+    ): Document {
         $fileSize = $file->getSize();
         $clientOriginalName = $file->getClientOriginalName();
         $extension = $file->guessExtension() ?? 'bin';
@@ -97,16 +105,29 @@ class DocumentUploadService
         $document->setFileSize($fileSize);
         $document->setMimeType($sniffedMimeType);
         $document->setUploadedBy($user);
+        $withPowerOfAttorney = $powerOfAttorney !== null && $type === DocumentType::IMPUTERNICIRE_AVOCATIALA;
+        if ($withPowerOfAttorney) {
+            $document->setPowerOfAttorneySeries($powerOfAttorney->series);
+            $document->setPowerOfAttorneyNumber($powerOfAttorney->number);
+            $document->setPowerOfAttorneyDate($powerOfAttorney->date);
+        }
         $this->em->persist($document);
+        // Keeps the inverse side in sync, so a readiness check later in the same
+        // request sees the new document without a reload.
+        $case?->addDocument($document);
 
         $this->em->flush();
 
-        $this->auditLogService->log('document_upload', 'Document', (string) $document->getId(), null, [
+        $auditData = [
             'originalFilename' => $clientOriginalName,
             'documentType' => $type->value,
             'fileSize' => $fileSize,
             'mimeType' => $sniffedMimeType,
-        ]);
+        ];
+        if ($withPowerOfAttorney) {
+            $auditData += PowerOfAttorneyService::snapshot($document);
+        }
+        $this->auditLogService->log('document_upload', 'Document', (string) $document->getId(), null, $auditData);
         $this->em->flush();
 
         return $document;

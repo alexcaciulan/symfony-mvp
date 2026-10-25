@@ -11,9 +11,14 @@ class CaseWorkflowService
         private WorkflowInterface $legalCaseStateMachine,
     ) {}
 
-    public function apply(LegalCase $case, string $transition): void
+    /**
+     * @param array<string, mixed> $context reaches the workflow listeners; `actor`
+     *                                      names the user behind a transition applied
+     *                                      without a session (a worker)
+     */
+    public function apply(LegalCase $case, string $transition, array $context = []): void
     {
-        $this->legalCaseStateMachine->apply($case, $transition);
+        $this->legalCaseStateMachine->apply($case, $transition, $context);
     }
 
     public function can(LegalCase $case, string $transition): bool

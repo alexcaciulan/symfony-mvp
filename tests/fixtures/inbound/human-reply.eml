@@ -1,0 +1,22 @@
+Authentication-Results: mx.lexrecovery.test; dkim=pass header.d=instanta-test.just.ro; dmarc=pass header.from=instanta-test.just.ro
+From: Grefier <grefier@instanta-test.example.test>
+To: depuneri@lexrecovery.test
+Date: Thu, 23 Oct 2026 09:00:00 +0000
+Subject: Re: Cerere de ordonanta de plata
+Message-ID: <human-0001@instanta-test.example.test>
+In-Reply-To: {{MSGID}}
+References: {{MSGID}}
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="hr"
+
+--hr
+Content-Type: text/plain; charset=utf-8
+
+Vă rugăm să transmiteți dovada achitării taxei <script>alert(1)</script> în original.
+
+--hr
+Content-Type: text/html; charset=utf-8
+
+<html><body><p>Vă rugăm să transmiteți dovada achitării taxei <b>în original</b>.</p><script>alert(1)</script></body></html>
+
+--hr--

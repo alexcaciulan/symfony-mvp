@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Semnare b: stare mixtă</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>window.PAGE = {
+ "title": "Semnare b: stare mixtă",
+ "tabDot": "bg-amber-500",
+ "stepNotes": [
+  "Versiunea 1",
+  "1 din 3 fișiere gata",
+  "După semnare",
+  "După trimitere"
+ ],
+ "status": {
+  "title": "Semnează fișierele pachetului",
+  "text": "Un fișier din 3 este gata. Împuternicirea semnată așteaptă confirmarea documentului, iar anexele nu au fost încărcate semnate.",
+  "cta": "Confirmă împuternicirea",
+  "ctaHref": "#row-poa"
+ },
+ "card": {
+  "ready": 1,
+  "total": 3,
+  "rows": [
+   {
+    "id": "pet",
+    "title": "Cererea de ordonanță de plată, cu opisul",
+    "meta": "4 pagini, 0,05 MB",
+    "state": "matched",
+    "signed": true,
+    "cert": "Test Avocat"
+   },
+   {
+    "id": "poa",
+    "title": "Împuternicirea avocațială",
+    "meta": "5 pagini, 0,04 MB",
+    "state": "awaiting",
+    "fileName": "imputernicire-semnat.pdf",
+    "warnings": [
+     {
+      "key": "cn_differs"
+     }
+    ],
+    "notes": [
+     {
+      "key": "text_added",
+      "page": 4,
+      "words": 3
+     },
+     {
+      "key": "pages_appended",
+      "count": 1
+     }
+    ],
+    "signed": true,
+    "cert": "Test Avocat"
+   },
+   {
+    "id": "anx",
+    "title": "Anexe",
+    "meta": "12 pagini, 0,09 MB",
+    "annex": "anexele, paginile 1-11",
+    "state": "missing"
+   }
+  ]
+ }
+};</script>
+  <script src="kit.js"></script>
+</head>
+<body class="bg-slate-50"></body>
+</html>

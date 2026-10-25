@@ -94,8 +94,12 @@ case "${1:-}" in
     # so entrypoint changes are invisible to a plain restart. `up -d` then
     # recreates only what the new config or image actually changed, which a
     # `restart` would not do either.
-    compose build php worker
-    compose up -d php worker
+    compose build php worker worker-filing
+    compose up -d php worker worker-filing
+    # The bind-mounted code leaves the image unchanged, so `up -d` keeps the
+    # running containers: the long-lived consumers would keep the DI container
+    # cache:clear just removed. Restart them (and php-fpm) on the new one.
+    compose restart php worker worker-filing
     wait_until_up
     ;;
 

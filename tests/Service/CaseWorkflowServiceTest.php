@@ -68,6 +68,15 @@ class CaseWorkflowServiceTest extends KernelTestCase
         ];
     }
 
+    public function testUndeliveredFilingUndoIsNeverOfferedOutsideThePlatform(): void
+    {
+        $case = new LegalCase();
+        $case->setStatus(CaseStatus::CERERE_DEPUSA);
+
+        $this->assertFalse($this->service->can($case, 'anuleaza_depunere_nelivrata'));
+        $this->assertNotContains('anuleaza_depunere_nelivrata', $this->service->getAvailableTransitions($case));
+    }
+
     public function testInitialMarkingIsAmiabil(): void
     {
         $case = new LegalCase();

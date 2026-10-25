@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Semnare d: încărcări refuzate</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>window.PAGE = {
+ "title": "Semnare d: încărcări refuzate",
+ "tabDot": "bg-amber-500",
+ "stepNotes": [
+  "Versiunea 1",
+  "1 din 3 fișiere gata",
+  "După semnare",
+  "După trimitere"
+ ],
+ "status": {
+  "title": "Semnează fișierele pachetului",
+  "text": "Un fișier din 3 este gata. Două încărcări au fost refuzate; motivul și remedierea sunt pe rândul fiecărui fișier.",
+  "cta": "Continuă semnarea"
+ },
+ "card": {
+  "ready": 1,
+  "total": 3,
+  "rows": [
+   {
+    "id": "pet",
+    "title": "Cererea de ordonanță de plată, cu opisul",
+    "meta": "4 pagini, 0,05 MB",
+    "state": "matched",
+    "signed": true,
+    "cert": "Test Avocat"
+   },
+   {
+    "id": "poa",
+    "title": "Împuternicirea avocațială",
+    "meta": "5 pagini, 0,04 MB",
+    "state": "refused",
+    "refusal": {
+     "kind": "mismatch",
+     "title": "Fișierul încărcat diferă de cel generat de platformă",
+     "text": "Fișierul nu a fost acceptat. Pentru depunerea prin e-mail se folosește fișierul generat de platformă, semnat fără alte modificări.",
+     "fix": "se descarcă din nou fișierul nesemnat, se semnează fără editare, conversie sau tipărire în PDF și se încarcă. Depunerea pe altă cale rămâne disponibilă.",
+     "fileName": "imputernicire-modificata-semnat.pdf",
+     "at": "25.10.2026, 10:51"
+    }
+   },
+   {
+    "id": "anx",
+    "title": "Anexe",
+    "meta": "12 pagini, 0,09 MB",
+    "annex": "anexele, paginile 1-11",
+    "state": "refused",
+    "prevNote": "Rândul rămâne nesemnat.",
+    "refusal": {
+     "kind": "over_budget",
+     "excess": "1,40",
+     "fileName": "anexe-semnat.pdf"
+    }
+   }
+  ]
+ }
+};</script>
+  <script src="kit.js"></script>
+</head>
+<body class="bg-slate-50"></body>
+</html>

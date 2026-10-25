@@ -1,0 +1,14 @@
+Authentication-Results: mx.lexrecovery.test; dkim=pass header.d=instanta-test.just.ro; spf=pass smtp.mailfrom=instanta-test.just.ro; dmarc=pass (p=quarantine) header.from=instanta-test.just.ro
+Authentication-Results: relay.instanta-test.example.test; spf=pass
+From: Registratura <registratura@instanta-test.example.test>
+To: depuneri@lexrecovery.test
+Date: Thu, 22 Oct 2026 10:15:30 +0000
+Subject: Confirmare de primire: Cerere de ordonanta de plata
+Message-ID: <receipt-0001@instanta-test.example.test>
+In-Reply-To: {{MSGID}}
+References: {{MSGID}}
+Auto-Submitted: auto-replied
+Content-Type: text/plain; charset=utf-8
+
+Confirmăm primirea mesajului dumneavoastră la registratura instanței.
+Acest mesaj este generat automat.

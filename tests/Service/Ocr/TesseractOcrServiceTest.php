@@ -219,7 +219,7 @@ class TesseractOcrServiceTest extends TestCase
         $compact = str_replace(' ', '', $result->text);
 
         // Both parties identified by CUI (the bedrock for any payment-order
-        // request — CPC art. 1016 requires unambiguous identification of debtor).
+        // request; CPC art. 1017 requires unambiguous identification of debtor).
         $this->assertStringContainsString('15193236', $compact, 'Furnizor CUI not extracted from scanned contract');
         $this->assertStringContainsString('14186770', $compact, 'Beneficiar CUI not extracted from scanned contract');
 

@@ -1,6 +1,7 @@
-{# Confirmarea depunerii (workflow depune_cerere: CERERE_GENERATA la CERERE_DEPUSA).
-   Platforma nu depune nimic, deci acesta e singurul semnal că cererea a plecat.
-   CSRF automat prin ConfirmFilingType (csrf_token_id: confirm_filing). #}
+{# The lawyer's declaration of a filing made on another channel (registry, REJUST, post,
+   courier), applying depune_cerere (CERERE_GENERATA to CERERE_DEPUSA). A transmission by
+   email through the platform has its own flow; this one is refused while it holds the case.
+   CSRF through ConfirmFilingType (csrf_token_id: confirm_filing). #}
 {% from 'case/overview/_icons.html.twig' import icon_building %}
 
 <div id="hs-modal-confirm-filing"

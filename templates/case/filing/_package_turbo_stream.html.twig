@@ -1,0 +1,16 @@
+{# Turbo Stream answer of the filing actions: the filing tab is replaced in place on
+   success together with the regions that follow the filing, and every outcome,
+   errors included, is a toast on the same page. #}
+{% if replace_card %}
+    <turbo-stream action="replace" target="filing-package-card">
+        <template>{{ include('case/filing/_tab.html.twig') }}</template>
+    </turbo-stream>
+    {% if filing_state_key is defined %}
+        {{ include('case/filing/_state_regions.html.twig') }}
+    {% endif %}
+{% endif %}
+<turbo-stream action="append" target="toasts">
+    <template>
+        {% include 'components/Toast.html.twig' with { message: toast_key|trans(toast_params|default({})), variant: toast_variant, details: [] } only %}
+    </template>
+</turbo-stream>

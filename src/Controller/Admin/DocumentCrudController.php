@@ -15,6 +15,7 @@ use EasyCorp\Bundle\EasyAdminBundle\Config\Filters;
 use EasyCorp\Bundle\EasyAdminBundle\Controller\AbstractCrudController;
 use EasyCorp\Bundle\EasyAdminBundle\Field\AssociationField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\ChoiceField;
+use EasyCorp\Bundle\EasyAdminBundle\Field\DateField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\DateTimeField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\IdField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\IntegerField;
@@ -77,6 +78,9 @@ class DocumentCrudController extends AbstractCrudController
         yield TextField::new('mimeType', 'MIME')->onlyOnDetail();
         yield IntegerField::new('fileSize', 'Mărime (octeți)')->onlyOnDetail();
         yield TextField::new('contentHash', 'Hash conținut')->onlyOnDetail();
+        yield TextField::new('powerOfAttorneySeries', 'Împuternicire: seria')->onlyOnDetail();
+        yield TextField::new('powerOfAttorneyNumber', 'Împuternicire: nr.')->onlyOnDetail();
+        yield DateField::new('powerOfAttorneyDate', 'Împuternicire: data')->onlyOnDetail();
         yield AssociationField::new('uploadedBy', 'Încărcat de')->onlyOnDetail();
         yield DateTimeField::new('createdAt', 'Creat la');
     }

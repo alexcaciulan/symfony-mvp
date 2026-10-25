@@ -14,12 +14,16 @@ use App\Enum\ExtractionFailureReason;
 use App\Enum\ExtractionMode;
 use App\Enum\ExtractionPipeline;
 use App\Enum\ExtractionStatus;
+use App\Enum\FilingPackageStatus;
+use App\Enum\FilingPartRole;
 use App\Enum\InterestKind;
 use App\Enum\NotificationChannel;
 use App\Enum\NotificationType;
+use App\Enum\OpisPlacement;
 use App\Enum\PersonType;
 use App\Enum\PortalEventType;
 use App\Enum\RelationshipType;
+use App\Enum\SignatureStatus;
 use App\Enum\UserType;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -175,12 +179,16 @@ class EnumLabelKeysExistTest extends KernelTestCase
             'ExtractionMode'      => [ExtractionMode::class],
             'ExtractionPipeline'  => [ExtractionPipeline::class],
             'ExtractionStatus'    => [ExtractionStatus::class],
+            'FilingPackageStatus' => [FilingPackageStatus::class],
+            'FilingPartRole'      => [FilingPartRole::class],
             'InterestKind'        => [InterestKind::class],
             'NotificationChannel' => [NotificationChannel::class],
             'NotificationType'    => [NotificationType::class],
+            'OpisPlacement'       => [OpisPlacement::class],
             'PersonType'          => [PersonType::class],
             'PortalEventType'     => [PortalEventType::class],
             'RelationshipType'    => [RelationshipType::class],
+            'SignatureStatus'     => [SignatureStatus::class],
             'UserType'            => [UserType::class],
         ];
     }

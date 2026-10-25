@@ -4,13 +4,19 @@ declare(strict_types=1);
 
 namespace App\Controller\Case;
 
+use App\DTO\Document\PowerOfAttorneyDetails;
+use App\Entity\Document;
 use App\Entity\LegalCase;
+use App\Enum\CaseStatus;
 use App\Enum\DocumentType;
 use App\Form\Case\DocumentUploadType;
+use App\Form\Case\PowerOfAttorneyDetailsType;
 use App\Repository\DocumentRepository;
 use App\Repository\LegalCaseRepository;
 use App\Service\Case\OverviewContextBuilder;
 use App\Service\Document\DocumentUploadService;
+use App\Service\Document\PowerOfAttorneyService;
+use Symfony\Component\Form\FormInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -27,6 +33,7 @@ final class DocumentController extends AbstractController
         private readonly DocumentRepository $documentRepository,
         private readonly DocumentUploadService $documentUploadService,
         private readonly OverviewContextBuilder $contextBuilder,
+        private readonly PowerOfAttorneyService $powerOfAttorneyService,
         private readonly string $uploadsDir,
     ) {}
 
@@ -84,14 +91,7 @@ final class DocumentController extends AbstractController
         $form->handleRequest($request);
 
         if (!$form->isSubmitted() || !$form->isValid()) {
-            $firstError = null;
-            foreach ($form->getErrors(true) as $error) {
-                $firstError = $error;
-                break;
-            }
-            $toastKey = $firstError?->getMessage() ?? 'document.upload.error';
-
-            return $this->respondDocument($request, $legalCase, false, 'error', $toastKey, null);
+            return $this->respondDocument($request, $legalCase, false, 'error', $this->firstErrorKey($form, 'document.upload.error'), null);
         }
 
         $data = $form->getData();
@@ -106,9 +106,81 @@ final class DocumentController extends AbstractController
             return $this->respondDocument($request, $legalCase, false, 'error', 'document.upload.max_files_reached', null);
         }
 
-        $this->documentUploadService->upload($legalCase, $data['file'], $documentType, $this->getUser());
+        $powerOfAttorney = $documentType === DocumentType::IMPUTERNICIRE_AVOCATIALA
+            ? $this->powerOfAttorneyDetailsFrom($data)
+            : null;
 
-        return $this->respondDocument($request, $legalCase, true, 'success', 'document.upload.success', 'hs-modal-upload-document');
+        $document = $this->documentUploadService->upload(
+            $legalCase,
+            $data['file'],
+            $documentType,
+            $this->getUser(),
+            powerOfAttorney: $powerOfAttorney,
+        );
+
+        return $this->respondDocument(
+            $request,
+            $legalCase,
+            true,
+            'success',
+            'document.upload.success',
+            'hs-modal-upload-document',
+            $this->afterSummonsWarnings($document, $legalCase, 'document.upload.power_of_attorney_after_summons'),
+        );
+    }
+
+    /**
+     * Completes or corrects the series, number and date of a power of attorney
+     * already on the case, for acts uploaded before these were asked for.
+     */
+    #[Route('/{caseId}/document/{documentId}/power-of-attorney', name: 'case_document_power_of_attorney', requirements: ['caseId' => '\d+', 'documentId' => '\d+'], methods: ['POST'])]
+    public function updatePowerOfAttorney(Request $request, int $caseId, int $documentId): Response
+    {
+        $legalCase = $this->legalCaseRepository->find($caseId);
+
+        if (!$legalCase || $legalCase->isDeleted()) {
+            throw $this->createNotFoundException();
+        }
+
+        $this->denyAccessUnlessGranted('CASE_UPLOAD', $legalCase);
+
+        $document = $this->documentRepository->find($documentId);
+
+        if (!$document
+            || $document->getLegalCase()?->getId() !== $legalCase->getId()
+            || $document->getDocumentType() !== DocumentType::IMPUTERNICIRE_AVOCATIALA) {
+            throw $this->createNotFoundException();
+        }
+
+        if (!$this->powerOfAttorneyService->canEditDetails($legalCase)) {
+            return $this->respondDocument($request, $legalCase, false, 'error', 'document.power_of_attorney.locked', null);
+        }
+
+        $form = $this->createForm(PowerOfAttorneyDetailsType::class);
+        $form->handleRequest($request);
+
+        if (!$form->isSubmitted() || !$form->isValid()) {
+            return $this->respondDocument($request, $legalCase, false, 'error', $this->firstErrorKey($form, 'document.power_of_attorney.error'), null);
+        }
+
+        $this->powerOfAttorneyService->updateDetails($document, $this->powerOfAttorneyDetailsFrom($form->getData()));
+
+        $extraToasts = $this->afterSummonsWarnings($document, $legalCase, 'document.power_of_attorney.after_summons');
+        // The index already generated lists the old values; the package download
+        // rebuilds it, so say when that happens rather than leave it stale silently.
+        if ($legalCase->getStatus() === CaseStatus::CERERE_GENERATA) {
+            $extraToasts[] = ['key' => 'document.power_of_attorney.opis_rebuilt_on_download', 'params' => [], 'variant' => 'info'];
+        }
+
+        return $this->respondDocument(
+            $request,
+            $legalCase,
+            true,
+            'success',
+            'document.power_of_attorney.updated',
+            'hs-modal-power-of-attorney',
+            $extraToasts,
+        );
     }
 
     #[Route('/{caseId}/document/{documentId}/delete', name: 'case_document_delete', requirements: ['caseId' => '\d+', 'documentId' => '\d+'], methods: ['POST'])]
@@ -156,8 +228,59 @@ final class DocumentController extends AbstractController
     }
 
     /**
+     * @param array<string, mixed> $data
+     */
+    private function powerOfAttorneyDetailsFrom(array $data): PowerOfAttorneyDetails
+    {
+        // Both forms refuse a power of attorney without a date before reaching here.
+        $date = $data['powerOfAttorneyDate'] ?? null;
+        if (!$date instanceof \DateTimeImmutable) {
+            throw new \LogicException('The power of attorney date is validated by the form.');
+        }
+
+        return new PowerOfAttorneyDetails(
+            $data['powerOfAttorneySeries'] ?? null,
+            $data['powerOfAttorneyNumber'] ?? null,
+            $date,
+        );
+    }
+
+    /**
+     * @param string $key the upload and the edit word the warning differently: only the
+     *                    upload brought a new act onto the case
+     *
+     * @return list<array{key: string, params: array<string, string>, variant: string}>
+     */
+    private function afterSummonsWarnings(Document $document, LegalCase $case, string $key): array
+    {
+        if (!$this->powerOfAttorneyService->dateIsAfterSummons($document, $case)) {
+            return [];
+        }
+
+        return [[
+            'key' => $key,
+            'params' => [
+                '%poa_date%' => $document->getPowerOfAttorneyDate()?->format('d.m.Y') ?? '',
+                '%summons_date%' => $case->getPaymentNoticeDate()?->format('d.m.Y') ?? '',
+            ],
+            'variant' => 'warning',
+        ]];
+    }
+
+    private function firstErrorKey(FormInterface $form, string $fallback): string
+    {
+        foreach ($form->getErrors(true) as $error) {
+            return $error->getMessage();
+        }
+
+        return $fallback;
+    }
+
+    /**
      * Turbo Stream (in-place, tab preserved) for Turbo clients, redirect + flash
      * otherwise. `$closeModalId` dismisses the originating modal on success.
+     *
+     * @param list<array{key: string, params: array<string, string>, variant: string}> $extraToasts
      */
     private function respondDocument(
         Request $request,
@@ -166,6 +289,7 @@ final class DocumentController extends AbstractController
         string $toastVariant,
         string $toastKey,
         ?string $closeModalId,
+        array $extraToasts = [],
     ): Response {
         if (str_contains((string) $request->headers->get('Accept', ''), 'text/vnd.turbo-stream.html')) {
             $context = $updateRegions ? $this->contextBuilder->build($case) : ['case' => $case];
@@ -173,6 +297,7 @@ final class DocumentController extends AbstractController
             $context['toast_variant'] = $toastVariant;
             $context['toast_key'] = $toastKey;
             $context['close_modal_id'] = $closeModalId;
+            $context['extra_toasts'] = $extraToasts;
 
             return new Response(
                 $this->renderView('case/overview/_documents_actions_turbo_stream.html.twig', $context),
@@ -182,6 +307,9 @@ final class DocumentController extends AbstractController
         }
 
         $this->addFlash($toastVariant, $toastKey);
+        foreach ($extraToasts as $toast) {
+            $this->addFlash('toast.' . $toast['variant'], ['key' => $toast['key'], 'params' => $toast['params']]);
+        }
 
         return $this->redirectToRoute('case_overview', ['id' => $case->getId(), 'tab' => 'documente']);
     }

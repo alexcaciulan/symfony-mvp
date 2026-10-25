@@ -192,7 +192,9 @@
         {% endif %}
         {% if interest and interest != '0' and interest != '0.00' %}
         <tr>
-            <td>{{ 'pdf.payment_order.amount_interest'|trans }}</td>
+            {# The calculation date is printed only when the figure was computed here at a
+               known date; the stored fallback carries none and must not be dated. #}
+            <td>{% if items_accessory is not null and accessory_reference_date|default(null) %}{{ 'pdf.payment_order.amount_interest_as_of'|trans({'%date%': accessory_reference_date|date('d.m.Y')}) }}{% else %}{{ 'pdf.payment_order.amount_interest'|trans }}{% endif %}</td>
             <td class="amount">{{ interest|number_format(2, ',', '.') }} {{ currency }}</td>
         </tr>
         {% endif %}
@@ -212,6 +214,11 @@
         {% endif %}
     </tbody>
 </table>
+{% if interest and interest != '0' and interest != '0.00' and items_accessory is not null and accessory_reference_date|default(null) %}
+    {# Interest keeps running until payment (art. 1535 C.civ.): the figure above is a
+       snapshot at a stated date, not the final sum, and the claim says so. #}
+    <p>{{ 'pdf.payment_order.interest_continuing'|trans({'%date%': accessory_reference_date|date('d.m.Y')}) }}</p>
+{% endif %}
 {% if itemized and single_cause %}
     {# Art. 99: the cumulative total is valued as one head only on a single cause.
        Distinct causes are separate heads, so claiming otherwise misstates the object value. #}
@@ -232,11 +239,12 @@
     {% if stampDuty and stampDuty != '0' and stampDuty != '0.00' %}
     <li>
         {% if case.stampDutyStatus.value == 'ACHITATA' %}
-            {# „Conform dovezii anexate" se afirmă doar dacă dovada chiar e în pachet.
-               Plata prin registratura electronică ajunge la instanță pe canalul ei,
-               fără fișier la noi, iar a invoca o anexă inexistentă ar fi contrazis
-               chiar de pachetul depus. #}
-            {% if case.hasStampDutyProof %}
+            {# "Conform dovezii anexate" only when the proof is actually in the package,
+               whichever path recorded it. A registry payment without a file cites the
+               proof the registry sent to the court file instead: citing a missing annex
+               would be contradicted by the package itself. The filing package annexes
+               the proof on the same predicate. #}
+            {% if case.stampDutyProofAnnexed %}
                 {{ 'pdf.payment_order.costs_stamp_duty_paid'|trans({'%amount%': stampDuty|number_format(2, ',', '.')}) }}
             {% else %}
                 {{ 'pdf.payment_order.costs_stamp_duty_paid_registry'|trans({'%amount%': stampDuty|number_format(2, ',', '.')}) }}

@@ -63,7 +63,7 @@ final class RulingProposalResolver
         }
 
         // EXECUTARE: enforcement was started while the annulment was still pending
-        // (CPC art. 1021). Resolving it must stay reachable: ADMIS dissolves the
+        // (CPC art. 1024 para. 5). Resolving it must stay reachable: ADMIS dissolves the
         // title (-> RESPINSA), RESPINS leaves the title standing and enforcement
         // continues (self-loop on EXECUTARE).
         if ($case->getStatus() === CaseStatus::EXECUTARE) {

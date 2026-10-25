@@ -38,10 +38,12 @@ class CaseStatusController extends AbstractController
         }
 
         // The full-payment closing needs a payment date and closes the case's deadlines:
-        // it only goes through the case overview, never as a bare status change.
+        // it only goes through the case overview, never as a bare status change. Undoing
+        // an undelivered filing belongs to the inbound processing alone (its guard
+        // already hides it without the platform's permit).
         $availableTransitions = array_values(array_diff(
             $this->workflowService->getAvailableTransitions($case),
-            [CaseTransition::INCHIDE_PLATA_INTEGRALA->value],
+            [CaseTransition::INCHIDE_PLATA_INTEGRALA->value, CaseTransition::ANULEAZA_DEPUNERE_NELIVRATA->value],
         ));
 
         if ($request->isMethod('POST')) {

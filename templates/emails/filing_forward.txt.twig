@@ -1,0 +1,12 @@
+{% autoescape false %}{{ 'inbound.forward.heading'|trans({'%case%': caseLabel}) }}
+
+{{ 'inbound.forward.disclaimer'|trans }}
+
+{{ 'inbound.forward.meta'|trans({'%from%': from, '%date%': receivedAt, '%subject%': subject}) }}
+{{ (authTrusted ? 'inbound.forward.auth_trusted' : 'inbound.forward.auth_unverified')|trans }}
+
+{{ excerpt }}
+
+{{ 'inbound.forward.attachment_note'|trans }}
+{{ caseUrl }}
+{% endautoescape %}
