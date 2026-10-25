@@ -148,6 +148,30 @@ final class SignedPartUploadServiceTest extends KernelTestCase
         self::assertCount(1, $this->audit('filing_signed_part_probable_confirmed'));
     }
 
+    /** A visible signature drawn over the text interleaves its words with the page words. */
+    public function testAVisibleSignatureOverTheTextIsStillMatched(): void
+    {
+        $this->signAllExcept(FilingPartRole::PETITION);
+        $part = $this->part(FilingPartRole::PETITION);
+
+        $this->service()->upload($part, $this->uploaded($this->signed($part, visibleRect: [34, 752, 300, 790])), $this->user, false);
+
+        self::assertSame(SignatureStatus::PRESENT_MATCHED, $part->getSignatureStatus());
+        self::assertTrue($part->isSignatureAccepted());
+    }
+
+    /** The same visible signature from a tool that rewrites the file: a probable match to confirm. */
+    public function testARewrittenFileWithAVisibleSignatureOverTheTextIsAProbableMatch(): void
+    {
+        $this->signAllExcept(FilingPartRole::PETITION);
+        $part = $this->part(FilingPartRole::PETITION);
+
+        $this->service()->upload($part, $this->uploaded($this->signed($part, rewrite: true, visibleRect: [34, 752, 300, 790])), $this->user, false);
+
+        self::assertSame(SignatureStatus::PRESENT_PROBABLE, $part->getSignatureStatus());
+        self::assertTrue($part->isAwaitingProbableConfirmation());
+    }
+
     public function testSignedFileOfAnotherPartIsAMismatchAndLeavesThePartUntouched(): void
     {
         $part = $this->part(FilingPartRole::PETITION);
@@ -363,7 +387,10 @@ final class SignedPartUploadServiceTest extends KernelTestCase
         return $this->package->partsWithRole($role)[0];
     }
 
-    private function signed(FilingPackagePart $part, bool $rewrite = false): string
+    /**
+     * @param list<int>|null $visibleRect
+     */
+    private function signed(FilingPackagePart $part, bool $rewrite = false, ?array $visibleRect = null): string
     {
         $source = $this->abs($part);
         if ($rewrite) {
@@ -372,7 +399,7 @@ final class SignedPartUploadServiceTest extends KernelTestCase
             $source = $rewritten;
         }
         $out = $this->scratch . '/' . bin2hex(random_bytes(4)) . '-signed.pdf';
-        TestPdfSigner::sign($source, $out);
+        TestPdfSigner::sign($source, $out, $visibleRect !== null ? ['visibleRect' => $visibleRect] : []);
 
         return $out;
     }
@@ -418,7 +445,7 @@ final class SignedPartUploadServiceTest extends KernelTestCase
             $container->get(FilingPackageStalenessChecker::class),
             new UploadedPdfValidator($sandbox, $qpdf),
             new PdfSignatureInspector($sandbox, $qpdf),
-            new SignedPartMatcher($qpdf, $container->get(PdfTextProbe::class), $writer),
+            new SignedPartMatcher($qpdf, $container->get(PdfTextProbe::class), $writer, $sandbox),
             $writer,
             $sandbox,
             $container->get(AuditLogService::class),

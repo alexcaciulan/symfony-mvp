@@ -19,14 +19,17 @@ final class TestPdfSigner
     private const BYTE_RANGE_PLACEHOLDER = '/ByteRange [0 0000000000 0000000000 0000000000]';
 
     /**
-     * @param array{subFilter?: string, certificate?: string, key?: string} $options
+     * visibleRect draws the signature text in that rectangle of the first page, as
+     * a visible signature does.
+     *
+     * @param array{subFilter?: string, certificate?: string, key?: string, visibleRect?: list<int>} $options
      */
     public static function sign(string $input, string $output, array $options = []): void
     {
         $certificate = $options['certificate'] ?? self::FIXTURE_DIR . '/test-signer.crt';
         $key = $options['key'] ?? self::FIXTURE_DIR . '/test-signer.key';
 
-        self::addSignature($input, $output, 'Sig', $options['subFilter'] ?? 'adbe.pkcs7.detached', static function (string $data, string $sig) use ($certificate, $key): void {
+        self::addSignature($input, $output, 'Sig', $options['subFilter'] ?? 'adbe.pkcs7.detached', $options['visibleRect'] ?? null, static function (string $data, string $sig) use ($certificate, $key): void {
             $ok = openssl_cms_sign(
                 $data,
                 $sig,
@@ -45,7 +48,7 @@ final class TestPdfSigner
     /** An RFC 3161 document timestamp from the committed test TSA, as LTV tools add one. */
     public static function timestamp(string $input, string $output): void
     {
-        self::addSignature($input, $output, 'DocTimeStamp', 'ETSI.RFC3161', static function (string $data, string $sig): void {
+        self::addSignature($input, $output, 'DocTimeStamp', 'ETSI.RFC3161', null, static function (string $data, string $sig): void {
             $dir = realpath(self::FIXTURE_DIR);
             $query = $sig . '.tsq';
             $reply = $sig . '.tsr';
@@ -86,9 +89,10 @@ final class TestPdfSigner
     }
 
     /**
+     * @param list<int>|null                $visibleRect
      * @param callable(string, string): void $signer writes the DER signature of the data file
      */
-    private static function addSignature(string $input, string $output, string $type, string $subFilter, callable $signer): void
+    private static function addSignature(string $input, string $output, string $type, string $subFilter, ?array $visibleRect, callable $signer): void
     {
         $bytes = (string) file_get_contents($input);
         $trailer = self::jsonObject($input, 'trailer');
@@ -117,6 +121,31 @@ final class TestPdfSigner
             $sigNum,
             $pageRef,
         );
+        $size = $max + 3;
+        if ($visibleRect !== null) {
+            [$x1, $y1, $x2, $y2] = $visibleRect;
+            $appearanceNum = $max + 3;
+            $size = $max + 4;
+            $content = "BT /F1 9 Tf 4 22 Td (Digitally signed by Test Signer) Tj 0 -11 Td (Date: 2026.10.25 11:46:32 +02'00') Tj ET";
+            $objects[$appearanceNum] = sprintf(
+                "<< /Type /XObject /Subtype /Form /BBox [0 0 %d %d] /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> /Length %d >>\nstream\n%s\nendstream",
+                $x2 - $x1,
+                $y2 - $y1,
+                strlen($content),
+                $content,
+            );
+            $objects[$fieldNum] = sprintf(
+                '<< /Type /Annot /Subtype /Widget /FT /Sig /T (Signature%d) /V %d 0 R /Rect [%d %d %d %d] /F 4 /AP << /N %d 0 R >> /P %s >>',
+                $sigNum,
+                $sigNum,
+                $x1,
+                $y1,
+                $x2,
+                $y2,
+                $appearanceNum,
+                $pageRef,
+            );
+        }
 
         // Field list: in the AcroForm dictionary, inline or referenced.
         $fieldRef = $fieldNum . ' 0 R';
@@ -146,7 +175,7 @@ final class TestPdfSigner
         if (isset($trailer->{'/Info'})) {
             $extraTrailer['/Info'] = (string) $trailer->{'/Info'};
         }
-        $signed = self::appendUpdate($bytes, $objects, $max + 3, $extraTrailer);
+        $signed = self::appendUpdate($bytes, $objects, $size, $extraTrailer);
 
         // ByteRange: everything except the hex string, delimiters included in the hole.
         $holeStart = strpos($signed, $placeholder, strlen($bytes));

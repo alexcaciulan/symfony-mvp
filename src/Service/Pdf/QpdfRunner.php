@@ -178,6 +178,40 @@ final class QpdfRunner
         $this->sandbox->run(['qpdf', $input, '--update-from-json=' . $update, $output], 60.0, [0, 3]);
     }
 
+    /**
+     * Writes a copy without the page annotations. A visible signature is drawn in a
+     * widget annotation that a text extractor reads in among the page words, so the
+     * page content is compared on this copy. Returns false when there was nothing to drop.
+     */
+    public function withoutAnnotations(string $input, string $output): bool
+    {
+        $pages = $this->json($input)['pages'] ?? [];
+        $objects = [];
+        foreach ($pages as $page) {
+            $ref = $page['object'] ?? null;
+            if (!is_string($ref)) {
+                continue;
+            }
+            $value = $this->object($input, $ref);
+            if (!is_array($value) || !array_key_exists('/Annots', $value)) {
+                continue;
+            }
+            unset($value['/Annots']);
+            $objects['obj:' . $ref] = ['value' => $value];
+        }
+        if ($objects === []) {
+            return false;
+        }
+
+        $update = $this->sandbox->tempPath('json');
+        file_put_contents($update, json_encode([
+            'qpdf' => [['jsonversion' => 2, 'pushedinheritedpageresources' => false, 'calledgetallpages' => false, 'maxobjectid' => 0], $objects],
+        ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        $this->sandbox->run(['qpdf', $input, '--update-from-json=' . $update, $output], 60.0, [0, 3], self::MEMORY_LIMIT_KB);
+
+        return true;
+    }
+
     public function readInfoKey(string $path, string $key): ?string
     {
         $dump = json_decode($this->sandbox->run(

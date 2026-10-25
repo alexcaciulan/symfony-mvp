@@ -7,6 +7,7 @@ namespace App\Service\Filing;
 use App\Entity\FilingPackagePart;
 use App\Enum\SignatureStatus;
 use App\Service\Pdf\PdfTextProbe;
+use App\Service\Pdf\ProcessSandbox;
 use App\Service\Pdf\QpdfRunner;
 
 /**
@@ -22,6 +23,7 @@ final class SignedPartMatcher
         private readonly QpdfRunner $qpdf,
         private readonly PdfTextProbe $textProbe,
         private readonly FilingPartWriter $writer,
+        private readonly ProcessSandbox $sandbox,
     ) {}
 
     public function match(FilingPackagePart $part, string $signedPath, int $signedPageCount): SignedPartMatch
@@ -32,7 +34,8 @@ final class SignedPartMatcher
         }
 
         $unsignedTexts = $this->textProbe->pageTexts($unsignedPath);
-        if (!PdfTextProbe::pageTextsContained($unsignedTexts, $this->textProbe->pageTexts($signedPath))) {
+        if (!PdfTextProbe::pageTextsContained($unsignedTexts, $this->textProbe->pageTexts($signedPath))
+            && !$this->containedWithoutAnnotations($unsignedTexts, $signedPath)) {
             return new SignedPartMatch(SignatureStatus::MISMATCH);
         }
 
@@ -51,6 +54,23 @@ final class SignedPartMatcher
         $warnings = in_array('', $unsignedTexts, true) ? ['filing.signature.warning.textless_pages'] : [];
 
         return new SignedPartMatch(SignatureStatus::PRESENT_PROBABLE, SignedPartMatch::METHOD_TEXT, $warnings);
+    }
+
+    /**
+     * A visible signature placed over the text interleaves its own words with the
+     * page words. The generated file has no annotations, so its text has to read the
+     * same once they are dropped; text an annotation covers is still missing then.
+     *
+     * @param list<string> $unsignedTexts
+     */
+    private function containedWithoutAnnotations(array $unsignedTexts, string $signedPath): bool
+    {
+        $copy = $this->sandbox->tempPath('pdf');
+        if (!$this->qpdf->withoutAnnotations($signedPath, $copy)) {
+            return false;
+        }
+
+        return PdfTextProbe::pageTextsContained($unsignedTexts, $this->textProbe->pageTexts($copy));
     }
 
     private function startsWithGeneratedBytes(FilingPackagePart $part, string $signedPath): bool
