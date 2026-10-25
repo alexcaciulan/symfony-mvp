@@ -452,13 +452,14 @@ final class CaseOverviewControllerTest extends WebTestCase
         self::assertStringContainsString('Cerere depusă', $html);
     }
 
-    public function testTabsNavRenders5ButtonsWithDataHsTab(): void
+    public function testTabsNavRendersAllSixTabsWithDataHsTab(): void
     {
         $this->client->loginUser($this->user);
         $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
-        self::assertCount(5, $crawler->filter('button[data-hs-tab]'));
+        self::assertCount(6, $crawler->filter('button[data-hs-tab]'));
+        self::assertCount(1, $crawler->filter('#tab-depunere[data-hs-tab="#panel-depunere"]'));
     }
 
     public function testHeroNoCreditorFallbackUsesCreditorSpecificLabel(): void

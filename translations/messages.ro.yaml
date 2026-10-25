@@ -3729,7 +3729,7 @@ filing:
         accepted_at: 'acceptat la %date%'
         sent_at_note: 'Ora indicată este momentul acceptării de serverul de e-mail (ora României), nu data depunerii.'
         download_eml: 'Copia e-mailului (.eml)'
-        filed_at: 'Data depunerii declarată: %date%'
+        filed_at: 'Data declarată a depunerii: %date%'
         filed_at_pending: 'Data depunerii se declară de avocat, după înregistrarea pe portal sau după confirmarea instanței.'
         cancelled: 'Transmiterea a fost anulată. Nimic nu a plecat spre instanță.'
         cancel_refused: 'Transmiterea nu mai poate fi anulată: cel puțin un e-mail a plecat sau este în curs de trimitere.'
@@ -4026,6 +4026,21 @@ filing:
             csrf: 'Sesiunea formularului a expirat. Reîncărcați pagina și reîncercați.'
     lock:
         actions_paused_note: 'În timpul transmiterii la instanță, documentele și taxa de timbru nu se pot modifica. Acțiunile revin după încheierea sau verificarea transmiterii.'
+    tab_empty:
+        before_petition_title: 'Depunerea devine disponibilă după generarea cererii'
+        before_petition_body: 'Cererea de ordonanță de plată se generează din fila Documente, după expirarea termenului din somație. Din acel moment, depunerea la instanță se face aici, în patru pași:'
+        step_package: 'cererea, opisul și anexele, puse într-un pachet pentru instanță'
+        step_signing: 'fișierele se descarcă, se semnează electronic și se încarcă înapoi'
+        step_sending: 'pachetul semnat pleacă prin e-mail la adresa instanței, cu urmărirea confirmărilor'
+        step_filed_date: 'se înregistrează în dosar după depunere'
+        other_channel_note: 'Cererea poate fi depusă și pe alt canal (registratura electronică, poștă, ghișeu), cu declararea depunerii în dosar.'
+        full_payment_title: 'Plata integrală a fost înregistrată'
+        full_payment_body: 'Debitorul a achitat integral la data de %date%. Dosarul nu mai are pași de depunere la instanță.'
+        closed_title: 'Dosarul este finalizat'
+        closed_body: 'Dosarul nu mai are pași de depunere la instanță.'
+        other_channel_title: 'Cererea nu a fost transmisă prin platformă'
+        other_channel_body: 'Pe acest dosar nu există o transmitere prin e-mail din platformă.'
+        other_channel_filed_body: 'Pe acest dosar nu există o transmitere prin e-mail din platformă. Data declarată a depunerii: %date%.'
     panel:
         step:
             package: 'Pachet'

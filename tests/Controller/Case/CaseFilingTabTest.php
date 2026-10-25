@@ -70,7 +70,7 @@ final class CaseFilingTabTest extends WebTestCase
         self::assertSelectorTextContains('#tab-depunere', 'Depunere la instanță');
     }
 
-    public function testTheTabIsAbsentBeforeThePetitionAndAfterTheFullPayment(): void
+    public function testTheTabExplainsItselfBeforeThePetitionAndAfterTheFullPayment(): void
     {
         $lawyer = $this->createFilingUser($this->em, 'filing-tab-early');
         $this->otherUsers[] = $lawyer;
@@ -79,16 +79,50 @@ final class CaseFilingTabTest extends WebTestCase
         $this->client->loginUser($lawyer);
         $this->client->request('GET', sprintf('/case/%d?tab=depunere', $early->getId()));
         self::assertResponseIsSuccessful();
-        self::assertSelectorNotExists('#tab-depunere');
-        self::assertSelectorExists('#tab-detalii.active');
+        self::assertSelectorExists('#tab-depunere.active');
+        self::assertSelectorNotExists('#tab-depunere [data-testid="filing-tab-dot"] span');
+        self::assertSelectorExists('#panel-depunere:not(.hidden) [data-testid="filing-tab-empty"][data-reason="before_petition"]');
+        self::assertSelectorTextContains('[data-testid="filing-tab-empty"]', 'Depunerea devine disponibilă după generarea cererii');
         self::assertSelectorNotExists('#filing-package-card [data-testid="filing-stepper"]');
+        self::assertSelectorNotExists('[data-testid="filing-documents-card"]');
 
-        $this->case->setFullPaymentDate(new \DateTimeImmutable('-1 day'));
+        $this->case->setFullPaymentDate(new \DateTimeImmutable('2026-10-20'));
         $this->em->flush();
         $this->client->loginUser($this->user);
         $this->client->request('GET', $this->tabUrl());
-        self::assertSelectorNotExists('#tab-depunere');
+        self::assertSelectorExists('#tab-depunere.active');
+        self::assertSelectorNotExists('#tab-depunere [data-testid="filing-tab-dot"] span');
+        self::assertSelectorExists('[data-testid="filing-tab-empty"][data-reason="full_payment"]');
+        self::assertSelectorTextContains('[data-testid="filing-tab-empty"]', 'Debitorul a achitat integral la data de 20.10.2026.');
         self::assertSelectorNotExists('[data-testid="filing-documents-card"]');
+    }
+
+    public function testTheTabSaysWhenThePetitionWasFiledOutsideThePlatform(): void
+    {
+        $lawyer = $this->createFilingUser($this->em, 'filing-tab-other');
+        $this->otherUsers[] = $lawyer;
+        $filed = $this->createFilingCase($this->em, $lawyer, CaseStatus::DOSAR_INREGISTRAT);
+        $filed->setFiledAt(new \DateTimeImmutable('2026-10-15'));
+        $this->em->flush();
+        $closedLawyer = $this->createFilingUser($this->em, 'filing-tab-closed');
+        $this->otherUsers[] = $closedLawyer;
+        $closed = $this->createFilingCase($this->em, $closedLawyer, CaseStatus::INCHIS_FARA_RECUPERARE);
+        $this->client->loginUser($lawyer);
+
+        $this->client->request('GET', sprintf('/case/%d?tab=depunere', $filed->getId()));
+        self::assertSelectorExists('[data-testid="filing-tab-empty"][data-reason="other_channel"]');
+        self::assertSelectorTextContains('[data-testid="filing-tab-empty"]', 'Data declarată a depunerii: 15.10.2026.');
+
+        $filed->setFiledAt(null);
+        $this->em->flush();
+        $this->client->request('GET', sprintf('/case/%d?tab=depunere', $filed->getId()));
+        self::assertSelectorTextContains('[data-testid="filing-tab-empty"]', 'Pe acest dosar nu există o transmitere prin e-mail din platformă.');
+        self::assertSelectorTextNotContains('[data-testid="filing-tab-empty"]', 'Data declarată');
+
+        $this->client->loginUser($closedLawyer);
+        $this->client->request('GET', sprintf('/case/%d?tab=depunere', $closed->getId()));
+        self::assertSelectorExists('[data-testid="filing-tab-empty"][data-reason="closed"]');
+        self::assertSelectorTextContains('[data-testid="filing-tab-empty"]', 'Dosarul este finalizat');
     }
 
     public function testDocumentsKeepOnlyTheCompactCardAndTheHeroLeadsToTheTab(): void

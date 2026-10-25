@@ -34,7 +34,7 @@
   {# Server-side active tab from `?tab=`, so portal actions (which redirect back)
      keep the user on the tab they acted from instead of resetting to Detalii. #}
   {% set active_tab = app.request.query.get('tab')|default('detalii') %}
-  {% if active_tab not in ['detalii', 'documente', 'depunere', 'termene', 'portal', 'audit'] or (active_tab == 'depunere' and not filing_tab_visible|default(false)) %}
+  {% if active_tab not in ['detalii', 'documente', 'depunere', 'termene', 'portal', 'audit'] %}
     {% set active_tab = 'detalii' %}
   {% endif %}
 

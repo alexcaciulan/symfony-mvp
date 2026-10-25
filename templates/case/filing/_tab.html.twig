@@ -1,8 +1,11 @@
 {# The "Depunere la instanță" tab: the whole email filing flow, from the package to
-   the declared filing date. The section is always rendered so the Turbo Streams of
-   every filing action have a target; its content only while the tab is offered. #}
+   the declared filing date. The tab is always offered; the section is always rendered
+   so the Turbo Streams of every filing action have a target. While the case has
+   nothing to file by email, it explains why instead. #}
 <section id="filing-package-card" data-testid="filing-tab">
     {% if filing_tab_visible|default(false) %}
         {{ include('case/filing/_tab_frame.html.twig') }}
+    {% else %}
+        {{ include('case/filing/_tab_empty.html.twig') }}
     {% endif %}
 </section>

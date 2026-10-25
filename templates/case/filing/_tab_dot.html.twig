@@ -1,5 +1,5 @@
 {# The dot next to the filing tab: blue for the next normal step, amber for a decision, red when the petition did not reach the court. #}
-{% set dot = filing_panel|default(null) ? filing_panel.tabDot : null %}
+{% set dot = filing_tab_visible|default(false) and filing_panel|default(null) ? filing_panel.tabDot : null %}
 <span id="filing-tab-dot" class="inline-flex" data-testid="filing-tab-dot" data-tone="{{ dot ?? '' }}">
     {%- if dot -%}
         <span class="size-2 rounded-full {{ {'red': 'bg-red-500', 'amber': 'bg-amber-500'}[dot] ?? 'bg-blue-500' }}"></span>

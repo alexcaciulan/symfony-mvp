@@ -4029,6 +4029,21 @@ filing:
             csrf: 'The form session expired. Reload the page and try again.'
     lock:
         actions_paused_note: 'While the case is being transmitted to the court, the documents and the stamp duty cannot be changed. The actions return once the transmission ends or is checked.'
+    tab_empty:
+        before_petition_title: 'Filing becomes available once the petition is generated'
+        before_petition_body: 'The payment order petition is generated from the Documents tab, after the summons term has expired. From then on, the court filing happens here, in four steps:'
+        step_package: 'the petition, the index and the annexes, bundled into a package for the court'
+        step_signing: 'the files are downloaded, signed electronically and uploaded back'
+        step_sending: 'the signed package is emailed to the court address, with the confirmations tracked'
+        step_filed_date: 'recorded on the case once filed'
+        other_channel_note: 'The petition can also be filed through another channel (electronic registry, post, front desk), with the filing declared on the case.'
+        full_payment_title: 'Full payment has been recorded'
+        full_payment_body: 'The debtor paid in full on %date%. The case has no court filing steps left.'
+        closed_title: 'The case is finished'
+        closed_body: 'The case has no court filing steps left.'
+        other_channel_title: 'The petition was not sent through the platform'
+        other_channel_body: 'This case has no email transmission from the platform.'
+        other_channel_filed_body: 'This case has no email transmission from the platform. Declared filing date: %date%.'
     panel:
         step:
             package: 'Package'

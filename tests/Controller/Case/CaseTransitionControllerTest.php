@@ -1072,6 +1072,9 @@ final class CaseTransitionControllerTest extends WebTestCase
         }
         self::assertStringContainsString('data-close-modal-target-id-value="hs-modal-full-payment"', $body);
         self::assertStringContainsString('data-testid="action-full-payment-done"', $body);
+        self::assertStringContainsString('<turbo-stream action="replace" target="filing-tab-dot">', $body);
+        self::assertStringContainsString('data-reason="full_payment"', $body);
+        self::assertStringNotContainsString('target="tab-depunere"', $body);
 
         $this->em->clear();
         self::assertSame(CaseStatus::INCHIS_SUCCES, $this->em->getRepository(LegalCase::class)->find($case->getId())->getStatus());
