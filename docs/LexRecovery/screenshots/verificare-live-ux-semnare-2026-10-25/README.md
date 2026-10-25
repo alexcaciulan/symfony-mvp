@@ -23,3 +23,20 @@ Macheta de referință: `docs/LexRecovery/mockups/v2/depunere/semnare/`.
 | `fara-js/fara-js-meniu-si-buton-desktop.png` | (fără JS) | JavaScript dezactivat: butonul „Trimite fișierul” vizibil, meniul „Descarcă” se deschide ca listă cu ambele linkuri | butonul de rezervă vizibil, 2 linkuri în meniu |
 | `fara-js/fara-js-dupa-trimitere-desktop.png` | (fără JS) | După trimiterea clasică: redirect la `?tab=depunere`, rândul arată refuzul | URL final `/case/175?tab=depunere`, `role="alert"` pe rând |
 | `dark/dark-refuz-volume-desktop.png` | (temă închisă) | Culorile noi în tema închisă: pastile, chenar de refuz, rând de grup | lizibil |
+
+## Verificarea orchestratorului (25.10.2026, subfolderul `verificarea-mea/`)
+
+Parcurs complet prin interfață, pe o clonă separată (ștearsă după test), cu fișiere semnate cu certificatul de test.
+
+| Captură | Ce am verificat | Rezultat |
+|---|---|---|
+| `01-cerere-incarcata-prin-buton.png` | „Încarcă semnat” deschide alegerea fișierului; încărcarea pornește singură; cererea semnată peste original: „Semnătură detectată” | ✅ |
+| `02-anexe-nesemnate-refuz-dupa-reincarcare.png` | Fișier nesemnat: refuz pe rând cu „Cum se rezolvă” și ora; rămâne după reîncărcarea paginii | ✅ |
+| `03-imputernicire-semnatura-vizibila-confirmare-necesara.png` | Fișier rescris, cu semnătură vizibilă peste text (ca fișierul real al proprietarului): „Confirmarea documentului este necesară”, panoul cu observațiile deschis, butonul de confirmare la final | ✅ |
+| (fără captură) | Confirmarea: rândul trece în „Semnătură detectată, document confirmat” | ✅ |
+| (fără captură) | Anexele semnate încărcate cu „Încarcă din nou”: refuzul dispare | ✅ |
+| `04-toate-semnate-card-restrans.png`, `05-lista-afisata.png` | Toate semnate: card restrâns, „Afișează fișierele (3)”, arhiva .zip, panoul de stare cu „Verifică și trimite” | ✅ |
+| `06-meniu-descarca-deschis.png` | Meniul „Descarcă” cu fișierul semnat și cel nesemnat; Escape îl închide și readuce focusul | ✅ |
+| (fără captură) | Toate descărcările răspund corect: arhiva .zip, fișierele semnate și nesemnate (200) | ✅ |
+| `07-telefon-lista.png` | La 390 px nimic nu iese din ecran | ✅ |
+| (fără captură) | „Verifică și trimite” duce la pagina „Verifică și trimite la instanță” | ✅ |
