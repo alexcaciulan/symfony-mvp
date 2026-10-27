@@ -57,6 +57,27 @@ class FilingSubmissionRepository extends ServiceEntityRepository
     }
 
     /**
+     * Submissions whose petition the court server accepted within the window and
+     * that still wait for a receipt: the ones a simulated court answers on the demo.
+     *
+     * @return list<FilingSubmission>
+     */
+    public function findAwaitingReceiptSentBetween(\DateTimeImmutable $from, \DateTimeImmutable $to): array
+    {
+        return $this->createQueryBuilder('s')
+            ->andWhere('s.sentAt BETWEEN :from AND :to')
+            ->andWhere('s.evidenceStatus = :awaiting')
+            ->andWhere('s.deliveryStatus IN (:statuses)')
+            ->setParameter('from', $from)
+            ->setParameter('to', $to)
+            ->setParameter('awaiting', FilingEvidenceStatus::AWAITING_RECEIPT)
+            ->setParameter('statuses', [FilingDeliveryStatus::SENT, FilingDeliveryStatus::PARTIALLY_SENT, FilingDeliveryStatus::CLOSED_PARTIAL])
+            ->orderBy('s.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
      * Submissions transmitted since a date to an address of the given domain, the
      * court one or the override actually used.
      *

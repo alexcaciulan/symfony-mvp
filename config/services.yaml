@@ -129,6 +129,7 @@ services:
             $inboundPurgeDays: '%lexrecovery.filing.inbound_purge_days%'
             $inboundHeartbeatMaxAgeMinutes: '%lexrecovery.filing.inbound_heartbeat_max_age_minutes%'
             $inboundSimulatorEnabled: '%env(bool:default::INBOUND_SIMULATOR_ENABLED)%'
+            $inboundAutoReceipt: '%env(bool:default::INBOUND_AUTO_RECEIPT)%'
             $receiptPhrases: '%lexrecovery.inbound.receipt_phrases%'
             $receiptGeneralPhrases: '%lexrecovery.inbound.receipt_general_phrases%'
 

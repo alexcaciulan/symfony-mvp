@@ -56,6 +56,8 @@ services:
       # it every two minutes.
       INBOUND_MAIL_DSN: mailpit://${DEMO_MAIL_AUTH:-}@mailer:8025
       INBOUND_SIMULATOR_ENABLED: '1'
+      # Every transmitted petition gets a simulated court receipt a minute later.
+      INBOUND_AUTO_RECEIPT: '1'
 
   worker:
     container_name: lexdemo-worker

@@ -147,6 +147,8 @@ services:
         done
         echo "inbound-poll: reading the inbound mailbox every 120s"
         while true; do
+          # Writes nothing unless INBOUND_AUTO_RECEIPT is on (the demo).
+          php bin/console app:filing:simulate-auto-receipts || echo "inbound-poll: auto receipts failed"
           php bin/console app:filing:poll-inbound || echo "inbound-poll: run failed, retrying next round"
           sleep 120
         done
