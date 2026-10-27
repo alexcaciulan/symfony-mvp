@@ -1,14 +1,12 @@
-{% extends 'base.html.twig' %}
+{% extends '@EasyAdmin/page/content.html.twig' %}
 
-{% block title %}Schimbă status — Dosar #{{ case.id }}{% endblock %}
+{% block page_title %}Schimbă status · Dosar #{{ case.id }}{% endblock %}
 
-{% block body %}
-<div style="max-width: 600px; margin: 40px auto; padding: 0 16px;">
+{% block main %}
+<div style="max-width: 600px;">
     <div style="margin-bottom: 20px;">
         <a href="{{ path('admin') }}" style="color: #2563eb; text-decoration: none; font-size: 14px;">← Înapoi la admin</a>
     </div>
-
-    <h2 style="font-size: 20px; font-weight: 600; color: #111827; margin: 0 0 20px 0;">Schimbă status — Dosar #{{ case.id }}</h2>
 
     <div style="background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 24px; margin-bottom: 20px;">
         <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #374151;">Informații dosar</h3>

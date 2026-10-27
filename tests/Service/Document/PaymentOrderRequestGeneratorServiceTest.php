@@ -54,7 +54,6 @@ final class PaymentOrderRequestGeneratorServiceTest extends KernelTestCase
         $this->user->setIsVerified(true);
         $this->user->setFirstName('Avocat');
         $this->user->setLastName('Test');
-        $this->user->setBarNumber('B-77777');
         $this->em->persist($this->user);
 
         $creditor = new Creditor();
@@ -163,34 +162,35 @@ final class PaymentOrderRequestGeneratorServiceTest extends KernelTestCase
     }
 
     /**
-     * Payment through the electronic registry reaches the court on its own channel,
-     * so the case reads as paid while no proof sits in our package. Invoking an annex
-     * that is not there would be contradicted by the very package filed.
+     * A registry payment declared without a file reads as paid while no proof sits in
+     * the package. Invoking an annex that is not there would be contradicted by the
+     * package itself, and the platform cannot know the portal's confirmation reached
+     * the court (OUG 80/2013 art. 40 alin. 3), so the text may not claim that either.
      */
     public function testRenderHtmlDoesNotInvokeAnAnnexWhenThePaymentWentThroughTheRegistry(): void
     {
         $this->case->setStampDutyStatus(StampDutyStatus::ACHITATA);
+        $this->case->setStampDutyPaidAt(new \DateTimeImmutable('2026-07-15'));
 
         $html = $this->service->renderHtml($this->case);
 
         self::assertStringNotContainsString('achitată conform dovezii anexate', $html);
         self::assertStringContainsString('registratura electronică', $html);
+        self::assertStringContainsString('dovada plății fiind transmisă de registratură la dosarul instanței', $html);
+        self::assertStringNotContainsString('transmisă instanței', $html);
     }
 
-    /**
-     * The recommended channel takes the duty and the petition in one step, so payment
-     * lands after the package is built. Saying the duty will be paid during
-     * regularization there would misstate what the lawyer is actually doing.
-     */
-    public function testRenderHtmlStatesThatTheDutyIsPaidAtFilingWhenThatWasChosen(): void
+    /** With the confirmation attached on the registry path, the proof is in the package and is cited. */
+    public function testRenderHtmlCitesTheAttachedConfirmationOfARegistryPayment(): void
     {
-        $this->case->setStampDutyStatus(StampDutyStatus::ACHITARE_LA_DEPUNERE);
+        $this->case->setStampDutyStatus(StampDutyStatus::ACHITATA);
+        $this->case->setStampDutyPaidAt(new \DateTimeImmutable('2026-07-15'));
+        $this->attachStampDutyProof();
 
         $html = $this->service->renderHtml($this->case);
 
-        self::assertStringNotContainsString('achitată conform dovezii anexate', $html);
-        self::assertStringNotContainsString('art. 33 alin. 2', $html);
-        self::assertStringContainsString('se achită odată cu înregistrarea', $html);
+        self::assertStringContainsString('achitată conform dovezii anexate', $html);
+        self::assertStringNotContainsString('registratura electronică', $html);
     }
 
     public function testRenderHtmlGivesTheLawyerContactAsCounselsNotTheCreditors(): void
@@ -273,12 +273,8 @@ final class PaymentOrderRequestGeneratorServiceTest extends KernelTestCase
         self::assertStringNotContainsString('domiciliul procedural ales', $html);
     }
 
-    /**
-     * On the petition counsel is identified by name alone: no bar roll number, in the
-     * representation clause or in the signature block. The summons and the documents
-     * index still carry it.
-     */
-    public function testRenderHtmlIdentifiesCounselWithoutTheBarRollNumber(): void
+    /** Counsel is identified by name alone, in the representation clause and in the signature block. */
+    public function testRenderHtmlIdentifiesCounselByNameAlone(): void
     {
         $this->user->setFirstName('Ion');
         $this->user->setLastName('Popescu');
@@ -292,7 +288,6 @@ final class PaymentOrderRequestGeneratorServiceTest extends KernelTestCase
 
         self::assertStringContainsString('Reprezentată convențional prin av. Ion Popescu.', $html);
         self::assertStringContainsString('Ion Popescu', $html);
-        self::assertStringNotContainsString('B-77777', $html);
         self::assertStringNotContainsString('Tabloul Baroului', $html);
         self::assertStringNotContainsString('Nr. Barou', $html);
     }
@@ -328,9 +323,9 @@ final class PaymentOrderRequestGeneratorServiceTest extends KernelTestCase
         // sentence a review happened to flag: the first fix patched the costs section
         // while the amounts table went on labelling the duty "(anexată)" a line above.
         self::assertStringNotContainsString('achitată conform dovezii anexate', $html);
+        self::assertStringContainsString('va fi achitată prin registratura electronică după comunicarea numărului unic de dosar, dovada urmând a fi depusă la dosar', $html);
         self::assertStringNotContainsString('Taxă timbru (anexată)', $html, 'The amounts table must not claim a proof either.');
         self::assertStringNotContainsString('(anexată)', $html, 'No label may assert an attachment that is not in the package.');
-        self::assertStringContainsString('urmând a fi achitată', $html);
         // The amount is still claimed: it will be owed either way.
         self::assertMatchesRegularExpression('/200,00\s+RON/', $html);
     }
@@ -438,6 +433,33 @@ final class PaymentOrderRequestGeneratorServiceTest extends KernelTestCase
 
         self::assertStringNotContainsString('77.777,00', $html, 'The frozen calculatedInterest must not drive the petition once a position exists.');
         self::assertStringContainsString('Dobândă acumulată', $html, 'The recalculated interest row is still shown.');
+    }
+
+    /**
+     * Interest runs until payment (art. 1535 C.civ.), so a bare figure reads as the
+     * final sum and cannot be checked. The petition states the date it is computed to
+     * and claims it further.
+     */
+    public function testRenderHtmlStatesTheInterestCalculationDateAndClaimsItFurther(): void
+    {
+        $this->addClaimItem('FACT-1', '10000.00', 'Contract 10/2024');
+        $this->em->flush();
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString('Dobândă acumulată, calculată până la 01.02.2026', $html);
+        self::assertStringContainsString('Dobânda este calculată până la data de 01.02.2026 și se solicită în continuare, până la data plății efective.', $html);
+    }
+
+    /** The stored fallback figure was computed at a date nobody recorded: no date is printed for it. */
+    public function testRenderHtmlPrintsNoCalculationDateForTheStoredFallbackInterest(): void
+    {
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString('850,00', $html);
+        self::assertStringContainsString('Dobândă acumulată', $html);
+        self::assertStringNotContainsString('calculată până la', $html);
+        self::assertStringNotContainsString('se solicită în continuare', $html);
     }
 
     private function addClaimItem(string $documentNumber, string $amountRon, ?string $causeReference): ClaimItem

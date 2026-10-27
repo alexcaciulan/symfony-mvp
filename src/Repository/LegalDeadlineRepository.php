@@ -306,7 +306,7 @@ class LegalDeadlineRepository extends ServiceEntityRepository
     /**
      * The counterpart of {@see self::findOverdueForUser()}: past-due terms belonging
      * to the debtor, whose expiry is favourable to the client because it unblocks
-     * filing the payment order (CPC art. 1015-1016).
+     * filing the payment order (CPC art. 1015-1017).
      *
      * @return LegalDeadline[] ascending by deadline date
      */

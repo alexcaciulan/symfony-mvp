@@ -27,7 +27,7 @@ enum DeadlineBlockageReason: string
     /**
      * Receipt date recorded, the document proving it never attached. Unlike its siblings
      * this blocks no calculation: the 15-day term of CPC art. 1015 para. 1 is already
-     * running from the date. What it blocks is the filing: CPC art. 1016 para. 2 requires
+     * running from the date. What it blocks is the filing: CPC art. 1017 para. 2 requires
      * the proof of the communication made under art. 1015 para. 1 to be attached to the
      * petition, under sanction of the petition being dismissed as inadmissible, so the
      * court is shown the bailiff record or the postal acknowledgement rather than the

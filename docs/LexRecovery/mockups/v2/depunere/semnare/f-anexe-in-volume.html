@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Semnare f: anexe în 3 volume</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>window.PAGE = {
+ "title": "Semnare f: anexe în 3 volume",
+ "tabDot": "bg-amber-500",
+ "stepNotes": [
+  "Versiunea 1",
+  "3 din 5 fișiere gata",
+  "După semnare",
+  "După trimitere"
+ ],
+ "status": {
+  "title": "Semnează fișierele pachetului",
+  "text": "3 fișiere din 5 sunt gata. Mai sunt de semnat volumele 2 și 3 ale anexelor.",
+  "cta": "Continuă semnarea"
+ },
+ "card": {
+  "ready": 3,
+  "total": 5,
+  "skipped": "Nu sunt incluse în pachet (fișier lipsă din stocare sau împuternicire fără dată): Contract-cadru-2025.pdf.",
+  "rows": [
+   {
+    "id": "pet",
+    "title": "Cererea de ordonanță de plată, cu opisul",
+    "meta": "4 pagini, 0,05 MB",
+    "state": "matched",
+    "signed": true,
+    "cert": "Test Avocat"
+   },
+   {
+    "id": "poa",
+    "title": "Împuternicirea avocațială",
+    "meta": "5 pagini, 0,04 MB",
+    "state": "matched",
+    "signed": true,
+    "cert": "Test Avocat"
+   },
+   {
+    "group": true,
+    "title": "Anexe în 3 volume",
+    "text": "Împărțirea vine din limita de dimensiune a unui e-mail. Fiecare volum are pagina lui de gardă, iar numerotarea paginilor continuă de la un volum la altul."
+   },
+   {
+    "id": "v1",
+    "title": "Anexe, volumul 1 din 3",
+    "meta": "41 de pagini, 6,80 MB",
+    "annex": "anexele, paginile 1-40",
+    "state": "matched",
+    "signed": true,
+    "cert": "Test Avocat",
+    "warnings": [
+     {
+      "key": "legacy_sub_filter"
+     },
+     {
+      "key": "trailing_update"
+     }
+    ]
+   },
+   {
+    "id": "v2",
+    "title": "Anexe, volumul 2 din 3",
+    "meta": "39 de pagini, 7,15 MB",
+    "annex": "anexele, paginile 41-78",
+    "compressed": true,
+    "state": "missing"
+   },
+   {
+    "id": "v3",
+    "title": "Anexe, volumul 3 din 3",
+    "meta": "35 de pagini, 5,90 MB",
+    "annex": "anexele, paginile 79-112",
+    "state": "missing"
+   }
+  ]
+ }
+};</script>
+  <script src="kit.js"></script>
+</head>
+<body class="bg-slate-50"></body>
+</html>

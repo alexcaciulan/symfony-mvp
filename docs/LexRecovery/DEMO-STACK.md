@@ -13,7 +13,7 @@ o conexiune de ieșire spre Cloudflare, iar Cloudflare rutează traficul public
 
 | | Dev (munca ta) | Demo (avocatul) |
 |---|---|---|
-| Cod | `~/Downloads/myprojects/symfony-mvp`, orice branch | `~/Downloads/myprojects/symfony-mvp-demo`, git worktree detached pe `lexrecovery` |
+| Cod | `~/projects/myprojects/symfony-mvp`, orice branch | `~/projects/myprojects/symfony-mvp-demo`, git worktree detached pe `lexrecovery` |
 | Proiect compose | `symfony-mvp` | `lexdemo` |
 | Containere | `symfony-mvp-*` | `lexdemo-*` |
 | Bază de date | volum `symfony-mvp_database_data` | volum `lexdemo_database_data` |

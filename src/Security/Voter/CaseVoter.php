@@ -7,6 +7,7 @@ namespace App\Security\Voter;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\CaseStatus;
+use App\Service\Filing\FilingLockQuery;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\Voter\Voter;
 
@@ -35,6 +36,16 @@ class CaseVoter extends Voter
      */
     public const STAMP_DUTY_MANAGE = 'CASE_STAMP_DUTY_MANAGE';
 
+    /**
+     * The files of a filing package, signed or not: uploading, confirming and
+     * downloading them. Owner only, with no admin bypass, because their content is
+     * covered by professional secrecy.
+     */
+    public const FILING_CONTENT = 'CASE_FILING_CONTENT';
+
+    /** What would change the content of a filing the platform is transmitting. */
+    private const LOCKED_BY_FILING = [self::EDIT, self::UPLOAD, self::STAMP_DUTY_MANAGE];
+
     private const EDITABLE_STATUSES = [
         CaseStatus::AMIABIL,
         CaseStatus::SOMATIE_TRIMISA,
@@ -44,9 +55,13 @@ class CaseVoter extends Voter
         CaseStatus::CERERE_DEPUSA,
     ];
 
+    public function __construct(
+        private readonly FilingLockQuery $filingLock,
+    ) {}
+
     protected function supports(string $attribute, mixed $subject): bool
     {
-        return in_array($attribute, [self::VIEW, self::EDIT, self::UPLOAD, self::TRANSITION, self::DEADLINE_MANAGE, self::STAMP_DUTY_MANAGE], true)
+        return in_array($attribute, [self::VIEW, self::EDIT, self::UPLOAD, self::TRANSITION, self::DEADLINE_MANAGE, self::STAMP_DUTY_MANAGE, self::FILING_CONTENT], true)
             && $subject instanceof LegalCase;
     }
 
@@ -60,6 +75,18 @@ class CaseVoter extends Voter
 
         /** @var LegalCase $legalCase */
         $legalCase = $subject;
+
+        // Before the admin bypass: what was signed is on its way to the court, so
+        // nobody changes its sources until the transmission ends.
+        if (in_array($attribute, self::LOCKED_BY_FILING, true) && $this->filingLock->isLocked($legalCase)) {
+            return false;
+        }
+
+        // Evaluated before the admin bypass on purpose: an admin sees the package
+        // metadata on the case page, never the files themselves.
+        if ($attribute === self::FILING_CONTENT) {
+            return $this->canView($legalCase, $user);
+        }
 
         if (in_array('ROLE_ADMIN', $user->getRoles(), true)) {
             return true;

@@ -1,0 +1,46 @@
+{# The filing tab of a case with nothing to file by email: before the petition it
+   previews the steps, after a full payment, a closing or a filing outside the
+   platform it says why the tab is empty. Same conditions as filing_tab_visible. #}
+{% if case.fullPaymentDate %}
+    {% set reason = 'full_payment' %}
+{% elseif case.status.terminal %}
+    {% set reason = 'closed' %}
+{% elseif case.status.value in ['AMIABIL', 'SOMATIE_TRIMISA'] %}
+    {% set reason = 'before_petition' %}
+{% else %}
+    {% set reason = 'other_channel' %}
+{% endif %}
+
+<div class="bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-8" data-testid="filing-tab-empty" data-reason="{{ reason }}">
+    {% if reason == 'before_petition' %}
+        <div class="max-w-2xl">
+            <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300">{{ 'filing.tab_empty.before_petition_title'|trans }}</h3>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{{ 'filing.tab_empty.before_petition_body'|trans }}</p>
+            <ol class="mt-4 space-y-3">
+                {% for step in ['package', 'signing', 'sending', 'filed_date'] %}
+                    <li class="flex gap-3">
+                        <span class="shrink-0 inline-flex items-center justify-center size-6 rounded-full bg-slate-100 dark:bg-slate-800 text-xs font-semibold text-slate-500 dark:text-slate-400 tnum">{{ loop.index }}</span>
+                        <span class="text-sm text-slate-600 dark:text-slate-300">
+                            <span class="font-medium text-slate-700 dark:text-slate-200">{{ ('filing.panel.step.' ~ step)|trans }}:</span>
+                            {{ ('filing.tab_empty.step_' ~ step)|trans }}
+                        </span>
+                    </li>
+                {% endfor %}
+            </ol>
+            <p class="mt-4 text-xs text-slate-500 dark:text-slate-400">{{ 'filing.tab_empty.other_channel_note'|trans }}</p>
+        </div>
+    {% else %}
+        <div class="text-center">
+            <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300">{{ ('filing.tab_empty.' ~ reason ~ '_title')|trans }}</h3>
+            <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                {% if reason == 'full_payment' %}
+                    {{ 'filing.tab_empty.full_payment_body'|trans({'%date%': case.fullPaymentDate|date('d.m.Y')}) }}
+                {% elseif reason == 'other_channel' and case.filedAt %}
+                    {{ 'filing.tab_empty.other_channel_filed_body'|trans({'%date%': case.filedAt|date('d.m.Y')}) }}
+                {% else %}
+                    {{ ('filing.tab_empty.' ~ reason ~ '_body')|trans }}
+                {% endif %}
+            </p>
+        </div>
+    {% endif %}
+</div>

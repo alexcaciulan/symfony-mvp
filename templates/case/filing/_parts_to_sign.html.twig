@@ -1,0 +1,351 @@
+{# The files of the package, one row each: the state icon, the title and its data,
+   the status line, then the row's single action and "Descarcă". Observations,
+   confirmation and refusals open under the row. Row states and observations come
+   from FilingPartRowPresenter (filing_part_rows). A detected signature is never
+   presented as valid or qualified, and the package is never "ready to file": the
+   signature, the content and the rest stay the lawyer's. Downloads, uploads and the
+   archive are for the lawyer of the case only. #}
+{% from 'case/filing/_signing_icons.html.twig' import sicon, observation_icon %}
+{% import _self as card %}
+{% set package = filing_package %}
+{% set view = filing_part_rows %}
+{% set is_owner = app.user and app.user.id == case.user.id %}
+{% set uploads_open = view.uploadsOpen %}
+{% set ready = package.parts|filter(p => p.signatureAccepted)|length %}
+{% set total = package.parts|length %}
+{% set all_ready = total > 0 and ready == total %}
+{% set zip_offered = is_owner and package.status.value in ['BUILT', 'AWAITING_SIGNATURES', 'SIGNED'] %}
+{% set first_annex = package.parts|filter(p => p.role.value == 'ANNEX_BUNDLE')|first %}
+{% set btn_base = 'h-9 inline-flex items-center justify-center gap-1.5 rounded-lg px-3 text-sm whitespace-nowrap transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lex-navy-light' %}
+{% set btn_neutral = btn_base ~ ' border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 font-medium hover:bg-slate-50 dark:hover:bg-slate-800' %}
+
+{% macro tooltip(id, text, trigger_html, label) %}
+    <span class="relative inline-flex group/tt" data-controller="disclosure-menu" data-disclosure-menu-mode-value="tooltip" data-action="keydown->disclosure-menu#keydown">
+        <button type="button" class="inline-flex items-center rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lex-navy-light" aria-describedby="{{ id }}"{% if label %} aria-label="{{ label }}"{% endif %} data-disclosure-menu-target="trigger" data-action="disclosure-menu#toggle">{{ trigger_html|raw }}</button>
+        <span role="tooltip" id="{{ id }}" data-disclosure-menu-target="popup"
+              class="hidden group-hover/tt:block group-focus-within/tt:block group-data-[open]/tt:block group-data-[closed]/tt:!hidden absolute z-40 bottom-[calc(100%+8px)] -left-2 sm:left-1/2 sm:-translate-x-1/2 w-max max-w-[min(18rem,calc(100vw-4rem))] rounded-lg bg-slate-900 dark:bg-slate-700 px-2.5 py-2 text-[12.5px] leading-snug font-normal text-slate-50 text-left whitespace-normal shadow-lg">{{ text }}</span>
+    </span>
+{% endmacro %}
+
+{% macro upload_form(case, package, part, label, aria, style, replace, icon) %}
+    {% from 'case/filing/_signing_icons.html.twig' import sicon %}
+    <form method="post" enctype="multipart/form-data"
+          action="{{ path('case_filing_part_upload_signed', {id: case.id, packageId: package.id, partId: part.id}) }}"
+          data-turbo-frame="_top" data-testid="filing-part-upload-form" data-signed-upload-target="form"
+          data-action="turbo:submit-start->signed-upload#started turbo:submit-end->signed-upload#ended"
+          class="contents sm:block">
+        <input type="hidden" name="_token" value="{{ csrf_token('filing_signed_upload_' ~ part.id) }}">
+        {% if replace %}<input type="hidden" name="replace" value="1">{% endif %}
+        <label class="{{ style }} w-full sm:w-[11rem] cursor-pointer has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-lex-navy-light" data-signed-upload-target="label">
+            <input type="file" name="signed_file" accept="application/pdf" required class="sr-only"
+                   aria-label="{{ aria|trans({'%title%': part.title}) }}"
+                   data-signed-upload-target="input" data-action="change->signed-upload#submit">
+            {{ sicon(icon, 'size-4') }}<span data-signed-upload-target="labelText">{{ label|trans }}</span>
+        </label>
+        {# Without JavaScript the choice is sent with this button; the controller hides it. #}
+        <button type="submit" data-signed-upload-target="fallback" class="mt-2 h-9 w-full sm:w-[11rem] inline-flex items-center justify-center rounded-lg border border-slate-300 dark:border-slate-600 px-3 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800">{{ 'filing.upload.submit_fallback'|trans }}</button>
+    </form>
+{% endmacro %}
+
+{% macro status_icon(state) %}
+    {% from 'case/filing/_signing_icons.html.twig' import sicon %}
+    {% set base = 'shrink-0 inline-flex items-center justify-center size-9 rounded-lg' %}
+    {% if state in ['matched', 'confirmed', 'refused_kept_previous'] %}
+        <span class="{{ base }} bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 dark:ring-emerald-900">{{ sicon('check', 'size-4', 2.4) }}</span>
+    {% elseif state == 'awaiting' %}
+        <span class="{{ base }} bg-amber-100 text-amber-800 ring-1 ring-amber-200 dark:bg-amber-900/40 dark:text-amber-200 dark:ring-amber-800">{{ sicon('warn', 'size-[18px]', 2) }}</span>
+    {% elseif state == 'refused' %}
+        <span class="{{ base }} bg-red-50 text-red-700 ring-1 ring-red-100 dark:bg-red-950/50 dark:text-red-300 dark:ring-red-900">{{ sicon('x', 'size-[18px]', 2) }}</span>
+    {% else %}
+        <span class="{{ base }} bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400">{{ sicon('doc', 'size-[18px]') }}</span>
+    {% endif %}
+{% endmacro %}
+
+{% macro observation_list(row) %}
+    {% from 'case/filing/_signing_icons.html.twig' import observation_icon %}
+    <ul class="space-y-2">
+        {% for o in row.observations %}
+            <li class="flex gap-2.5 text-sm {{ o.strong ? 'font-semibold text-amber-950 dark:text-amber-100' : 'text-slate-700 dark:text-slate-200' }}">
+                <span class="shrink-0 mt-0.5 inline-flex items-center justify-center size-6 rounded-md {{ o.strong ? 'bg-amber-200 text-amber-900 dark:bg-amber-800 dark:text-amber-100' : 'bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900' }}">{{ observation_icon(o.slug) }}</span>
+                <span class="min-w-0 break-words pt-0.5{{ o.strong ? ' rounded bg-amber-100 px-1 dark:bg-amber-900/50' : '' }}" data-testid="filing-part-warning"{% if o.kind == 'note' %} data-note="{{ o.slug }}"{% else %} data-warning="{{ o.slug }}"{% endif %}>{{ o.key|trans(o.params) }}</span>
+            </li>
+        {% endfor %}
+    </ul>
+{% endmacro %}
+
+<section id="filing-parts" class="scroll-mt-24 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft">
+    {% set count_pill %}
+        {% if package.status.value == 'STALE' %}
+            <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold tnum bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200" data-testid="filing-package-status">{{ package.status.label|trans ~ ' · v' ~ package.version }}</span>
+        {% else %}
+            <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold tnum {{ all_ready ? 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-200 dark:ring-emerald-900' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200' }}" data-testid="filing-package-status">{{ 'filing.panel.parts.count'|trans({'%ready%': ready, '%total%': total}) }}</span>
+        {% endif %}
+    {% endset %}
+    {% set zip_link %}
+        {% if zip_offered %}
+            <a href="{{ path('case_filing_package_unsigned_zip', {id: case.id, packageId: package.id}) }}" data-turbo="false" data-testid="filing-unsigned-zip" class="{{ btn_neutral }} shrink-0 self-start">{{ sicon('download', 'size-4') }}{{ 'filing.package.download_all'|trans }}</a>
+        {% endif %}
+    {% endset %}
+
+    {% set rows_html %}
+        <ul class="divide-y divide-slate-100 dark:divide-slate-800" data-testid="filing-package-parts">
+            {% for row in view.rows %}
+                {% set part = row.part %}
+                {% if first_annex and part.id == first_annex.id and package.annexVolumeCount > 1 %}
+                    <li class="px-4 sm:px-6 py-2.5 bg-slate-50/80 dark:bg-slate-800/40 flex items-start gap-3 text-sm" data-testid="filing-annex-volumes-group">
+                        <span class="shrink-0 inline-flex items-center justify-center w-9 text-slate-400">{{ sicon('layers', 'size-4') }}</span>
+                        <span class="text-slate-600 dark:text-slate-300"><span class="font-medium text-slate-800 dark:text-slate-100">{{ 'filing.panel.parts.annex_volumes_group'|trans({'%count%': package.annexVolumeCount}) }}</span> {{ 'filing.package.volumes_banner'|trans({'%count%': package.annexVolumeCount}) }}</span>
+                    </li>
+                {% endif %}
+                {{ card.row(row, case, package, is_owner, uploads_open, btn_base, btn_neutral) }}
+            {% endfor %}
+        </ul>
+    {% endset %}
+
+    {% if view.collapsed %}
+        <div class="px-4 sm:px-6 py-5 flex flex-col sm:flex-row sm:items-center gap-4">
+            <span class="hidden sm:inline-flex shrink-0 items-center justify-center size-10 rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 dark:ring-emerald-900">{{ sicon('check', 'size-5', 2.4) }}</span>
+            <div class="flex-1 min-w-0">
+                <div class="flex flex-wrap items-center gap-2"><h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">{{ 'filing.panel.parts.title'|trans }}</h3>{{ count_pill }}</div>
+                <p class="mt-0.5 text-sm text-slate-600 dark:text-slate-300" data-testid="filing-package-signed">{{ 'filing.panel.parts.signed_summary'|trans }}</p>
+            </div>
+            {{ zip_link }}
+        </div>
+        <details class="group/list border-t border-slate-100 dark:border-slate-800" data-testid="filing-parts-collapsed">
+            <summary class="cursor-pointer list-none px-4 sm:px-6 py-3 flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-lex-navy-light">
+                {{ 'filing.panel.parts.show_files'|trans({'%count%': total}) }}
+                {{ sicon('chevron', 'size-3.5 text-slate-400 transition-transform group-open/list:rotate-180 motion-reduce:transition-none', 2) }}
+            </summary>
+            <div class="border-t border-slate-100 dark:border-slate-800">{{ rows_html }}</div>
+        </details>
+    {% else %}
+        <header class="px-4 sm:px-6 pt-5 pb-4 border-b border-slate-100 dark:border-slate-800">
+            <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2"><h3 class="text-base font-semibold text-slate-900 dark:text-slate-100">{{ 'filing.panel.parts.title'|trans }}</h3>{{ count_pill }}</div>
+                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400 max-w-[34rem]">{{ 'filing.panel.parts.intro'|trans }}</p>
+                </div>
+                {{ zip_link }}
+            </div>
+            {% if package.status.value != 'STALE' and total > 0 %}
+                <div class="mt-3 h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden" aria-hidden="true">
+                    <div class="h-full rounded-full {{ all_ready ? 'bg-emerald-500' : 'bg-lex-navy-light dark:bg-blue-400' }}" style="width: {{ (ready * 100 / total)|round }}%"></div>
+                </div>
+            {% endif %}
+        </header>
+        {{ rows_html }}
+    {% endif %}
+
+    {% if view.anySignature or package.skippedDocuments is not empty or not is_owner %}
+        <footer class="px-4 sm:px-6 py-3 border-t border-slate-100 dark:border-slate-800 space-y-1.5 text-sm">
+            {% if view.anySignature %}
+                {# Once per card and never dismissable, also when the list is folded. #}
+                <p class="flex gap-2 text-slate-600 dark:text-slate-300" id="filing-part-validity-notice" data-testid="filing-part-validity-notice">{{ sicon('info', 'size-4 shrink-0 mt-0.5 text-slate-400') }}<span>{{ 'filing.signature.notice.validity'|trans }}</span></p>
+            {% endif %}
+            {% if package.skippedDocuments is not empty %}
+                <p class="flex gap-2 text-amber-900 dark:text-amber-200">{{ sicon('warn', 'size-4 shrink-0 mt-0.5', 2) }}<span>{{ 'filing.package.skipped_documents'|trans({'%documents%': package.skippedDocuments|join(', ')}) }}</span></p>
+            {% endif %}
+            {% if not is_owner %}
+                <p class="text-slate-500 dark:text-slate-400">{{ 'filing.package.owner_only'|trans }}</p>
+            {% endif %}
+        </footer>
+    {% endif %}
+</section>
+
+{% macro row(row, case, package, is_owner, uploads_open, btn_base, btn_neutral) %}
+    {% from 'case/filing/_signing_icons.html.twig' import sicon %}
+    {% import _self as card %}
+    {% set part = row.part %}
+    {% set refusal = row.refusal %}
+    {% set btn_primary = btn_base ~ ' bg-lex-navy text-white font-semibold hover:bg-lex-navy-dark shadow-sm' %}
+    {% set btn_outline = btn_base ~ ' border border-lex-navy/70 text-lex-navy font-semibold bg-white hover:bg-blue-50 dark:bg-slate-900 dark:border-blue-300/70 dark:text-blue-200 dark:hover:bg-slate-800' %}
+    {% set btn_ghost = btn_base ~ ' text-slate-600 dark:text-slate-300 font-medium hover:bg-slate-100 dark:hover:bg-slate-800' %}
+    {% set tone = row.state == 'awaiting' ? 'bg-amber-50/50 dark:bg-amber-950/20' : (row.state == 'refused' ? 'bg-red-50/30 dark:bg-red-950/10' : '') %}
+    {% set pill = 'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold' %}
+    {% set over_budget_box = refusal and refusal.overBudget and refusal.rebuildable %}
+    <li id="filing-part-{{ part.id }}" class="relative scroll-mt-24 px-4 sm:px-6 py-4 {{ tone }}" data-testid="filing-part-{{ part.id }}"
+        data-controller="signed-upload"
+        data-signed-upload-panel-id-value="filing-part-panel-{{ part.id }}"
+        data-signed-upload-checking-value="{{ 'filing.upload.checking'|trans }}"
+        {% if uploads_open %}data-action="dragenter->signed-upload#dragEnter dragover->signed-upload#dragOver dragleave->signed-upload#dragLeave drop->signed-upload#drop"{% endif %}>
+        {% if uploads_open %}
+            <div hidden data-signed-upload-target="overlay" class="pointer-events-none absolute inset-1.5 z-10 rounded-xl border-2 border-dashed border-lex-navy-light bg-blue-50/90 dark:bg-slate-900/90 dark:border-blue-300 flex items-center justify-center gap-2 px-4 text-center text-sm font-semibold text-lex-navy dark:text-blue-200">
+                {{ sicon('upload', 'size-5 shrink-0') }}{{ 'filing.upload.drop_here'|trans({'%title%': part.title}) }}
+            </div>
+        {% endif %}
+        <div class="grid grid-cols-[2.25rem_minmax(0,1fr)] sm:grid-cols-[2.25rem_minmax(0,1fr)_auto] gap-x-4">
+            <div class="row-span-3">
+                <span data-signed-upload-target="icon">{{ card.status_icon(row.state) }}</span>
+                <span hidden data-signed-upload-target="busyIcon" class="shrink-0 inline-flex items-center justify-center size-9 rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">{{ sicon('refresh', 'size-4 animate-spin motion-reduce:animate-none', 2) }}</span>
+            </div>
+            <div class="min-w-0 self-center">
+                <p class="font-medium text-slate-900 dark:text-slate-100 leading-snug">{{ part.title }}</p>
+                <p class="mt-0.5 text-sm text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span class="tnum"><span class="whitespace-nowrap">{{ 'filing.package.part_meta'|trans({'%count%': part.pageCount, '%pages%': part.pageCount, '%size%': (part.unsignedBytes / 1048576)|number_format(2, ',', '.')}) }}</span>{% if part.annexPageFrom %}, <span class="whitespace-nowrap">{{ part.annexPageFrom == part.annexPageTo ? 'filing.package.part_annex_page'|trans({'%page%': part.annexPageFrom}) : 'filing.package.part_annex_range'|trans({'%from%': part.annexPageFrom, '%to%': part.annexPageTo}) }}</span>{% endif %}</span>
+                    {% if part.compressionApplied %}
+                        {{ card.tooltip('filing-part-compressed-tip-' ~ part.id, 'filing.package.compressed_explain'|trans,
+                            '<span class="inline-flex items-center gap-1 rounded-md bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300" data-testid="filing-part-compressed">' ~ sicon('layers', 'size-3') ~ ('filing.package.compressed_badge'|trans|e) ~ '</span>', null) }}
+                    {% endif %}
+                </p>
+            </div>
+
+            {# Status line: the pill never says "signed" or "valid", only what was detected. #}
+            <div class="col-start-2 sm:col-span-2 mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                <span hidden data-signed-upload-target="busyPill" class="{{ pill }} bg-blue-50 text-blue-800 dark:bg-blue-950/50 dark:text-blue-200">{{ 'filing.upload.uploading'|trans }}</span>
+                <span class="contents" data-signed-upload-target="statusPills">
+                    {% if row.state == 'refused' %}
+                        <span class="{{ pill }} bg-red-50 text-red-800 ring-1 ring-red-200 dark:bg-red-950/50 dark:text-red-200 dark:ring-red-900" data-testid="filing-part-signature-chip">{{ 'filing.upload.refused_status'|trans }}</span>
+                        <span class="text-slate-500 dark:text-slate-400">{{ 'filing.upload.refused_row_unsigned'|trans }}</span>
+                    {% elseif row.state == 'awaiting' %}
+                        <span class="{{ pill }} bg-amber-100 text-amber-900 ring-1 ring-amber-200 dark:bg-amber-900/40 dark:text-amber-100 dark:ring-amber-800" data-testid="filing-part-signature-chip">{{ 'filing.signature.chip.PRESENT_PROBABLE_unconfirmed'|trans }}</span>
+                        {{ card.tooltip('filing-part-awaiting-tip-' ~ part.id, 'filing.signature.awaiting_explain'|trans, sicon('info', 'size-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'), 'filing.signature.awaiting_explain_label'|trans) }}
+                    {% elseif row.state in ['matched', 'confirmed', 'refused_kept_previous'] %}
+                        {% set chip_key = part.signatureStatus.value == 'PRESENT_PROBABLE' ? 'PRESENT_PROBABLE_confirmed' : 'PRESENT_MATCHED' %}
+                        <span class="{{ pill }} bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-200 dark:ring-emerald-900" data-testid="filing-part-signature-chip">{{ ('filing.signature.chip.' ~ chip_key)|trans }}</span>
+                    {% else %}
+                        <span class="{{ pill }} bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200" data-testid="filing-part-signature-chip">{{ 'filing.signature.chip.MISSING'|trans }}</span>
+                    {% endif %}
+                    {% if part.hasSignedFile %}
+                        {% if part.signatureReport.signerCn|default(null) %}
+                            <span class="text-slate-500 dark:text-slate-400" data-testid="filing-part-signer">{{ 'filing.signature.signer'|trans({'%name%': part.signatureReport.signerCn}) }}</span>
+                        {% endif %}
+                        {{ card.tooltip('filing-part-validity-tip-' ~ part.id, 'filing.signature.notice.validity'|trans, sicon('info', 'size-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'), 'filing.signature.validity_label'|trans) }}
+                    {% endif %}
+                </span>
+            </div>
+
+            {# Actions: the row's single action, then "Descarcă", each in a fixed-width column. #}
+            <div class="col-span-2 sm:col-span-1 sm:col-start-3 sm:row-start-1 mt-3 sm:mt-0 grid grid-cols-2 sm:flex sm:items-start sm:justify-end gap-2">
+                {% if uploads_open and row.state == 'awaiting' %}
+                    <a href="#filing-part-panel-{{ part.id }}" class="{{ btn_primary }} w-full sm:w-[11rem]" aria-controls="filing-part-panel-{{ part.id }}" data-action="signed-upload#openPanel">
+                        {{ 'filing.upload.review_confirm'|trans }}{{ sicon('chevron', 'size-3.5', 2) }}
+                    </a>
+                {% elseif uploads_open and not over_budget_box %}
+                    {% if row.state == 'refused' %}
+                        {{ card.upload_form(case, package, part, 'filing.upload.upload_again', 'filing.upload.upload_again_aria', btn_outline, false, 'upload') }}
+                    {% elseif part.signatureAccepted %}
+                        {{ card.upload_form(case, package, part, 'filing.upload.replace', 'filing.upload.replace_aria', btn_ghost, true, 'refresh') }}
+                    {% else %}
+                        {{ card.upload_form(case, package, part, 'filing.upload.button', 'filing.upload.upload_aria', btn_outline, false, 'upload') }}
+                    {% endif %}
+                {% elseif is_owner %}
+                    <span class="hidden sm:block sm:w-[11rem]"></span>
+                {% endif %}
+
+                {% if is_owner %}
+                    {% set unsigned_url = path('case_filing_part_download', {id: case.id, packageId: package.id, partId: part.id}) %}
+                    {% if not part.hasSignedFile %}
+                        <a href="{{ unsigned_url }}" data-turbo="false" class="{{ btn_neutral }} w-full sm:w-[8.25rem]" aria-label="{{ 'filing.package.download_unsigned_aria'|trans({'%title%': part.title}) }}">{{ sicon('download', 'size-4') }}{{ 'filing.package.download'|trans }}</a>
+                    {% else %}
+                        <details class="relative w-full sm:w-[8.25rem] group/menu" data-controller="disclosure-menu" data-action="keydown->disclosure-menu#keydown toggle->disclosure-menu#toggled">
+                            <summary class="{{ btn_neutral }} w-full list-none cursor-pointer [&::-webkit-details-marker]:hidden" aria-haspopup="menu" aria-expanded="false" aria-controls="filing-part-menu-{{ part.id }}" data-disclosure-menu-target="trigger">
+                                {{ sicon('download', 'size-4') }}{{ 'filing.package.download'|trans }}{{ sicon('chevron', 'size-3.5 text-slate-400 transition-transform group-open/menu:rotate-180 motion-reduce:transition-none', 2) }}
+                            </summary>
+                            <div id="filing-part-menu-{{ part.id }}" role="menu" aria-label="{{ 'filing.package.download_menu'|trans({'%title%': part.title}) }}" data-disclosure-menu-target="popup"
+                                 class="absolute left-0 sm:left-auto sm:right-0 top-full mt-1.5 z-30 w-64 max-w-[calc(100vw-2rem)] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-1.5 shadow-lg">
+                                <a role="menuitem" href="{{ path('case_filing_part_download_signed', {id: case.id, packageId: package.id, partId: part.id}) }}" data-turbo="false" data-testid="filing-part-download-signed" data-disclosure-menu-target="item"
+                                   class="flex items-start gap-2.5 rounded-lg px-2.5 py-2 hover:bg-slate-50 focus:bg-slate-50 dark:hover:bg-slate-800 dark:focus:bg-slate-800 focus-visible:outline-2 focus-visible:outline-lex-navy-light">
+                                    {{ sicon('check', 'size-4 mt-0.5 text-emerald-600 dark:text-emerald-400', 2.2) }}
+                                    <span><span class="block text-sm font-medium text-slate-900 dark:text-slate-100">{{ 'filing.package.download_signed_option'|trans }}</span><span class="block text-xs text-slate-500 dark:text-slate-400">{{ 'filing.signature.uploaded_at'|trans({'%date%': part.signedUploadedAt|date('d.m.Y, H:i', 'Europe/Bucharest')}) }}</span></span>
+                                </a>
+                                <a role="menuitem" href="{{ unsigned_url }}" data-turbo="false" data-disclosure-menu-target="item"
+                                   class="flex items-start gap-2.5 rounded-lg px-2.5 py-2 hover:bg-slate-50 focus:bg-slate-50 dark:hover:bg-slate-800 dark:focus:bg-slate-800 focus-visible:outline-2 focus-visible:outline-lex-navy-light">
+                                    {{ sicon('doc', 'size-4 mt-0.5 text-slate-400') }}
+                                    <span><span class="block text-sm font-medium text-slate-900 dark:text-slate-100">{{ 'filing.package.download_unsigned_option'|trans }}</span><span class="block text-xs text-slate-500 dark:text-slate-400">{{ 'filing.package.download_unsigned_hint'|trans }}</span></span>
+                                </a>
+                            </div>
+                        </details>
+                    {% endif %}
+                {% endif %}
+            </div>
+
+            <div class="col-span-2 sm:col-start-2 sm:col-span-2 min-w-0">
+                {% if refusal %}
+                    {% if over_budget_box %}
+                        <div role="alert" class="mt-3 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-4 py-3.5" data-testid="filing-part-over-budget" data-rebuildable="1">
+                            <p class="text-sm font-semibold text-amber-950 dark:text-amber-100">{{ 'filing.upload.refusal.over_budget.title'|trans }}</p>
+                            <p class="mt-1 text-sm text-amber-950 dark:text-amber-100">{{ refusal.key|trans(refusal.params) }}</p>
+                            <div class="mt-3 grid grid-cols-1 sm:flex sm:flex-wrap sm:items-start gap-2">
+                                <form method="post" action="{{ path('case_filing_package_rebuild_annexes', {id: case.id, packageId: package.id}) }}" data-turbo-frame="_top">
+                                    <input type="hidden" name="_token" value="{{ csrf_token('filing_annex_rebuild_' ~ package.id) }}">
+                                    <input type="hidden" name="excess" value="{{ refusal.excessBytes }}">
+                                    <button type="submit" data-testid="filing-rebuild-annexes" class="{{ btn_base }} w-full sm:w-auto border border-amber-300 bg-white text-amber-900 font-semibold hover:bg-amber-100 dark:bg-slate-900 dark:border-amber-700 dark:text-amber-100 dark:hover:bg-slate-800">{{ sicon('refresh', 'size-4') }}{{ 'filing.upload.over_budget.rebuild_button'|trans }}</button>
+                                </form>
+                                {% if part.signatureAccepted %}
+                                    {{ card.upload_form(case, package, part, 'filing.upload.replace', 'filing.upload.replace_aria', btn_ghost, true, 'refresh') }}
+                                {% else %}
+                                    {{ card.upload_form(case, package, part, 'filing.upload.upload_again', 'filing.upload.upload_again_aria', btn_ghost, false, 'upload') }}
+                                {% endif %}
+                            </div>
+                            <p class="mt-2 text-xs text-amber-900/80 dark:text-amber-200/80">{{ 'filing.upload.refused_at'|trans({'%date%': refusal.at|date('d.m.Y, H:i', 'Europe/Bucharest')}) }}. {{ (refusal.keptPrevious ? 'filing.upload.refused_kept_previous' : 'filing.upload.refused_row_unsigned')|trans }}</p>
+                        </div>
+                    {% else %}
+                        <div role="alert" class="mt-3 rounded-xl border border-red-200 bg-red-50/70 dark:bg-red-950/30 dark:border-red-900 px-4 py-3.5" data-testid="{{ refusal.overBudget ? 'filing-part-over-budget' : 'filing-part-refusal' }}" data-refusal="{{ refusal.slug }}">
+                            <p class="text-sm font-semibold text-red-900 dark:text-red-100">{{ ('filing.upload.refusal.' ~ refusal.slug ~ '.title')|trans }}</p>
+                            <p class="mt-1 text-sm text-red-900 dark:text-red-100">{{ refusal.key|trans(refusal.params) }}</p>
+                            <p class="mt-2 text-sm text-slate-800 dark:text-slate-200"><span class="font-semibold">{{ 'filing.upload.fix_label'|trans }}</span> {{ ('filing.upload.refusal.' ~ refusal.slug ~ '.fix')|trans }}</p>
+                            <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">{{ 'filing.upload.refused_at'|trans({'%date%': refusal.at|date('d.m.Y, H:i', 'Europe/Bucharest')}) }}. {{ (refusal.keptPrevious ? 'filing.upload.refused_kept_previous' : 'filing.upload.refused_row_unsigned')|trans }}</p>
+                        </div>
+                    {% endif %}
+                {% endif %}
+
+                {% if row.observationCount > 0 %}
+                    {% set awaiting = row.state == 'awaiting' %}
+                    <details id="filing-part-panel-{{ part.id }}" class="group/panel mt-2" data-signed-upload-target="panel"{% if row.panelOpen %} open{% endif %}>
+                        <summary class="list-none cursor-pointer [&::-webkit-details-marker]:hidden inline rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-lex-navy-light">
+                            {% if awaiting %}
+                                <span class="text-sm text-amber-950 dark:text-amber-100"><span class="font-medium">{{ 'filing.signature.observations'|trans({'%count%': row.observationCount}) }}:</span>
+                                    {% for o in row.observations %}{{ o.shortKey|trans(o.params) }}{{ loop.last ? '.' : ', ' }}{% endfor %}</span>
+                                <span class="ms-1 inline-flex items-center gap-0.5 text-sm font-semibold text-lex-navy dark:text-blue-200 underline underline-offset-4">{{ 'filing.signature.details'|trans }}{{ sicon('chevron', 'size-3.5 transition-transform group-open/panel:rotate-180 motion-reduce:transition-none', 2) }}</span>
+                            {% else %}
+                                <span class="inline-flex items-center gap-1 text-sm font-medium text-amber-800 hover:text-amber-950 dark:text-amber-200 dark:hover:text-amber-100 underline decoration-amber-300 underline-offset-4">{{ sicon('warn', 'size-3.5', 2) }}{{ 'filing.signature.observations'|trans({'%count%': row.observationCount}) }}{{ sicon('chevron', 'size-3.5 transition-transform group-open/panel:rotate-180 motion-reduce:transition-none', 2) }}</span>
+                            {% endif %}
+                        </summary>
+                        {% if awaiting %}
+                            <div class="mt-3 rounded-xl border border-amber-200 dark:border-amber-900 bg-white dark:bg-slate-900">
+                                <div class="px-4 pt-3.5 pb-3 border-b border-amber-100 dark:border-amber-900/60">
+                                    <p class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ 'filing.signature.compare_title'|trans }}</p>
+                                    <p class="mt-0.5 text-sm text-slate-600 dark:text-slate-300">{{ 'filing.signature.compare_intro'|trans }}</p>
+                                </div>
+                                <div class="px-4 py-3.5">{{ card.observation_list(row) }}</div>
+                                <dl class="px-4 py-3 border-t border-amber-100 dark:border-amber-900/60 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+                                    {% if part.signatureReport.signerCn|default(null) %}
+                                        <dt class="text-slate-500 dark:text-slate-400">{{ 'filing.signature.certificate_name_label'|trans }}</dt><dd class="text-slate-900 dark:text-slate-100 font-medium break-words">{{ part.signatureReport.signerCn }}</dd>
+                                    {% endif %}
+                                    <dt class="text-slate-500 dark:text-slate-400">{{ 'filing.signature.uploaded_label'|trans }}</dt><dd class="text-slate-700 dark:text-slate-200 tnum">{{ part.signedUploadedAt|date('d.m.Y, H:i', 'Europe/Bucharest') }}</dd>
+                                </dl>
+                                {% if uploads_open %}
+                                    {# Under the observations it confirms: they are read before the button. #}
+                                    <div class="px-4 py-3.5 border-t border-amber-100 dark:border-amber-900/60 bg-amber-50/60 dark:bg-amber-950/20 rounded-b-xl flex flex-col sm:flex-row sm:items-center gap-3">
+                                        <form method="post" action="{{ path('case_filing_part_confirm_signed', {id: case.id, packageId: package.id, partId: part.id}) }}" data-turbo-frame="_top" data-testid="filing-part-confirm-form">
+                                            <input type="hidden" name="_token" value="{{ csrf_token('filing_signed_confirm_' ~ part.id) }}">
+                                            <input type="hidden" name="sha256" value="{{ part.signedSha256 }}">
+                                            <button type="submit" class="{{ btn_primary }} !h-auto min-h-9 py-2 !whitespace-normal text-left w-full sm:w-auto">{{ sicon('check', 'size-4 shrink-0', 2.2) }}{{ 'filing.upload.confirm_button'|trans }}</button>
+                                        </form>
+                                        {% if not over_budget_box %}
+                                            {{ card.upload_form(case, package, part, 'filing.upload.replace', 'filing.upload.replace_aria', btn_ghost, false, 'refresh') }}
+                                        {% endif %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% else %}
+                            <div class="mt-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 px-4 py-3.5">{{ card.observation_list(row) }}</div>
+                        {% endif %}
+                    </details>
+                {% elseif uploads_open and row.state == 'awaiting' %}
+                    {# An unconfirmed match without observations still confirms in a panel. #}
+                    <div id="filing-part-panel-{{ part.id }}" class="mt-3 rounded-xl border border-amber-200 dark:border-amber-900 bg-amber-50/60 dark:bg-amber-950/20 px-4 py-3.5 flex flex-col sm:flex-row sm:items-center gap-3">
+                        <form method="post" action="{{ path('case_filing_part_confirm_signed', {id: case.id, packageId: package.id, partId: part.id}) }}" data-turbo-frame="_top" data-testid="filing-part-confirm-form">
+                            <input type="hidden" name="_token" value="{{ csrf_token('filing_signed_confirm_' ~ part.id) }}">
+                            <input type="hidden" name="sha256" value="{{ part.signedSha256 }}">
+                            <button type="submit" class="{{ btn_primary }} !h-auto min-h-9 py-2 !whitespace-normal text-left w-full sm:w-auto">{{ sicon('check', 'size-4 shrink-0', 2.2) }}{{ 'filing.upload.confirm_button'|trans }}</button>
+                        </form>
+                        {% if not over_budget_box %}
+                            {{ card.upload_form(case, package, part, 'filing.upload.replace', 'filing.upload.replace_aria', btn_ghost, false, 'refresh') }}
+                        {% endif %}
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </li>
+{% endmacro %}

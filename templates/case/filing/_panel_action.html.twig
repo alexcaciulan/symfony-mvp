@@ -1,0 +1,52 @@
+{# One button of the status panel, by action code (FilingPanelStateResolver::ACTION_*).
+   Context: action, primary (bool), plus the overview context. Downloads skip Turbo;
+   every other link and form leaves the frame. #}
+{% from 'case/overview/_icons.html.twig' import icon_download, icon_refresh %}
+{% set cls = primary
+    ? 'py-2.5 px-4 inline-flex items-center gap-2 rounded-lg bg-lex-navy text-white text-sm font-semibold hover:bg-lex-navy-dark transition shadow-sm'
+    : 'py-2.5 px-4 inline-flex items-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition' %}
+{% set label = ('filing.panel.action.' ~ action)|trans %}
+{% set package = filing_package|default(null) %}
+{% set submission = filing_submission|default(null) %}
+
+{% if action in ['build', 'rebuild'] %}
+    <form method="post" action="{{ path('case_filing_package_build', {id: case.id}) }}" data-turbo-frame="_top">
+        <input type="hidden" name="_token" value="{{ csrf_token('filing_package_build_' ~ case.id) }}">
+        <button type="submit" data-testid="filing-package-build" class="{{ cls }}">{{ icon_refresh('size-4') }}{{ label }}</button>
+    </form>
+{% elseif action == 'confirm_part' and package %}
+    {% set awaiting = package.parts|filter(p => p.awaitingProbableConfirmation)|first %}
+    <a href="#filing-part-{{ awaiting ? awaiting.id : '' }}" data-turbo="false" class="{{ cls }}">{{ label }}</a>
+{% elseif action == 'upload_parts' %}
+    <a href="#filing-parts" data-turbo="false" class="{{ cls }}">{{ label }}</a>
+{% elseif action == 'verify_send' %}
+    <a href="{{ path('case_filing_submission_confirm', {id: case.id}) }}" data-turbo-frame="_top" data-testid="filing-send-open" class="{{ cls }}">{{ label }}</a>
+{% elseif action == 'other_channel_archive' %}
+    {% if case.documents|filter(d => d.documentType.value == 'cerere_op')|length > 0 %}
+        <a href="{{ path('case_zip_package_download', {id: case.id}) }}" data-turbo="false" data-testid="filing-other-channel-archive" class="{{ cls }}">{{ icon_download('size-4') }}{{ label }}</a>
+    {% endif %}
+{% elseif action == 'declare_other_channel' %}
+    {% if is_granted('CASE_TRANSITION', case) %}
+        <button type="button" data-hs-overlay="#hs-modal-confirm-filing" data-testid="filing-declare-other-channel" class="{{ cls }}">{{ label }}</button>
+    {% endif %}
+{% elseif action == 'close_remaining' and submission %}
+    <button type="button" data-action="modal-dialog#open" data-modal-dialog-id-param="filing-close-dialog" data-testid="filing-submission-close-open" class="{{ cls }}">{{ label }}</button>
+{% elseif action == 'resplit' and submission %}
+    <form method="post" action="{{ path('case_filing_submission_resplit', {id: case.id, submissionId: submission.id}) }}" data-turbo-frame="_top">
+        <input type="hidden" name="_token" value="{{ csrf_token('filing_resplit_' ~ submission.id) }}">
+        <button type="submit" data-testid="filing-submission-resplit" class="{{ cls }}">{{ label }}</button>
+    </form>
+{% elseif action == 'cancel' and submission %}
+    <form method="post" action="{{ path('case_filing_submission_cancel', {id: case.id, submissionId: submission.id}) }}" data-turbo-frame="_top">
+        <input type="hidden" name="_token" value="{{ csrf_token('filing_cancel_' ~ submission.id) }}">
+        <button type="submit" data-testid="filing-submission-cancel" class="{{ cls }}">{{ label }}</button>
+    </form>
+{% elseif action == 'upload_receipt' %}
+    <a href="#filing-receipt-upload" data-turbo="false" class="{{ cls }}">{{ label }}</a>
+{% elseif action == 'portal_check' %}
+    <a href="{{ path('case_overview', {id: case.id, tab: 'portal'}) }}" data-turbo-frame="_top" class="{{ cls }}">{{ label }}</a>
+{% elseif action == 'court_addresses' %}
+    <a href="{{ path('case_court_address', {id: case.id}) }}" data-turbo-frame="_top" class="{{ cls }}">{{ label }}</a>
+{% elseif action == 'eml_download' and submission and submission.part(1) and submission.part(1).emlPath %}
+    <a href="{{ path('case_filing_submission_eml', {id: case.id, submissionId: submission.id, sequence: 1}) }}" data-turbo="false" class="{{ cls }}">{{ icon_download('size-4') }}{{ label }}</a>
+{% endif %}

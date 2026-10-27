@@ -1,0 +1,116 @@
+{# Index filed with the court package: the files that make up the filing and the annexes
+   with their pages in the continuous annex numbering. No volumes, no emails: those are
+   transport. Copies are described as copies. Context: PackageOpisRenderer. #}
+{% import 'pdf/document_index.html.twig' as index %}
+{% set creditor = case.creditor %}
+{% set debtor = case.primaryDebtor %}
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ 'pdf.opis_package.heading'|trans }} {{ case.caseNumber }}</title>
+    <style>
+        @page { margin: 2cm 2.2cm; }
+        body { font-family: 'DejaVu Sans', sans-serif; font-size: 11pt; color: #111827; line-height: 1.45; }
+        h1 { font-size: 16pt; text-align: center; margin: 0 0 4pt 0; letter-spacing: 1pt; }
+        h2 { font-size: 10.5pt; margin: 14pt 0 4pt 0; text-transform: uppercase; letter-spacing: 0.4pt; color: #1f2937; }
+        .subheading { text-align: center; font-size: 10pt; color: #4b5563; margin: 0 0 14pt 0; }
+        .meta { font-size: 9pt; color: #6b7280; }
+        .caseref { text-align: right; font-size: 9pt; color: #6b7280; margin-bottom: 6pt; }
+        .header-info { margin-bottom: 10pt; font-size: 10pt; }
+        .header-info .row { margin: 3pt 0; }
+        .header-info .label { font-weight: bold; display: inline-block; min-width: 100pt; color: #374151; }
+        table.opis { width: 100%; border-collapse: collapse; margin: 6pt 0; }
+        table.opis th, table.opis td { border: 1px solid #d1d5db; padding: 5pt 8pt; font-size: 10pt; text-align: left; vertical-align: top; }
+        table.opis th { background: #f3f4f6; font-weight: bold; text-transform: uppercase; font-size: 9pt; letter-spacing: 0.3pt; color: #374151; }
+        table.opis td.nr { text-align: center; width: 32pt; font-weight: bold; }
+        table.opis td.type { font-size: 9pt; color: #6b7280; text-transform: uppercase; }
+        table.opis td.pages { font-size: 9.5pt; white-space: nowrap; width: 70pt; }
+        .signature { margin-top: 28pt; text-align: right; font-size: 10pt; }
+        .signature .line { display: block; border-top: 1px solid #9ca3af; width: 180pt; margin: 24pt 0 4pt auto; }
+    </style>
+</head>
+<body>
+
+<div class="caseref">{{ 'pdf.document_index.case_reference'|trans }}: <strong>{{ case.caseNumber }}</strong></div>
+
+<h1>{{ 'pdf.opis_package.heading'|trans }}</h1>
+<p class="subheading">{{ 'pdf.opis_package.subheading'|trans }}</p>
+
+<div class="header-info">
+    {% if case.court %}
+        <div class="row"><span class="label">{{ 'pdf.opis_package.court_label'|trans }}:</span> {{ case.court.name }}</div>
+    {% endif %}
+    {% if creditor %}
+        <div class="row"><span class="label">{{ 'pdf.opis_package.creditor_label'|trans }}:</span> {{ creditor.name }}</div>
+    {% endif %}
+    {% if debtor %}
+        <div class="row"><span class="label">{{ 'pdf.opis_package.debtor_label'|trans }}:</span> {{ debtor.name }}</div>
+    {% endif %}
+    <div class="row"><span class="label">{{ 'pdf.document_index.issued_label'|trans }}:</span> {{ today|date('d.m.Y') }}</div>
+</div>
+
+<h2>{{ 'pdf.opis_package.files_title'|trans }}</h2>
+<table class="opis">
+    <thead>
+        <tr>
+            <th>{{ 'pdf.document_index.column_nr'|trans }}</th>
+            <th>{{ 'pdf.opis_package.column_file'|trans }}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% set n = 1 %}
+        <tr><td class="nr">{{ n }}</td><td>{{ (opis_separate ? 'pdf.opis_package.file_petition' : 'pdf.opis_package.file_petition_with_opis')|trans }}</td></tr>
+        {% if opis_separate %}
+            {% set n = n + 1 %}
+            <tr><td class="nr">{{ n }}</td><td>{{ 'pdf.opis_package.file_opis'|trans }}</td></tr>
+        {% endif %}
+        {% set n = n + 1 %}
+        <tr><td class="nr">{{ n }}</td><td>{{ annex_rows is empty ? 'pdf.opis_package.file_annexes_none'|trans : 'pdf.opis_package.file_annexes'|trans({'%from%': 1, '%to%': annex_page_count}) }}</td></tr>
+        {% set n = n + 1 %}
+        <tr><td class="nr">{{ n }}</td><td>{{ index.power_of_attorney_label(power_of_attorney) }} <span class="meta">({{ 'pdf.opis_package.file_power_of_attorney_note'|trans }})</span></td></tr>
+    </tbody>
+</table>
+
+<h2>{{ 'pdf.opis_package.annexes_title'|trans }}</h2>
+<table class="opis">
+    <thead>
+        <tr>
+            <th>{{ 'pdf.document_index.column_nr'|trans }}</th>
+            <th>{{ 'pdf.document_index.column_name'|trans }}</th>
+            <th>{{ 'pdf.document_index.column_type'|trans }}</th>
+            <th>{{ 'pdf.opis_package.column_pages'|trans }}</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in annex_rows %}
+            {% set doc = row.document %}
+            <tr>
+                <td class="nr">{{ loop.index }}</td>
+                <td>{{ doc.originalFilename }}
+                    {% set docItems = claim_items_by_document[doc.id]|default([]) %}
+                    {% if docItems|length > 0 %}
+                        {% set labels = [] %}
+                        {% for item in docItems %}
+                            {% set labels = labels|merge([(item.documentNumber|default('—')) ~ ' · ' ~ (item.signedAmountRon ?? 0)|number_format(2, ',', '.') ~ ' RON']) %}
+                        {% endfor %}
+                        <div class="meta">{{ 'pdf.document_index.claim_items'|trans({'%items%': labels|join('; ')}) }}</div>
+                    {% endif %}
+                </td>
+                <td class="type">{{ doc.documentType.label()|trans }}</td>
+                <td class="pages">{{ row.from == row.to ? 'pdf.opis_package.page_single'|trans({'%page%': row.from}) : 'pdf.opis_package.page_range'|trans({'%from%': row.from, '%to%': row.to}) }}</td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<div class="signature">
+    <span class="line"></span>
+    {% if user and user.fullName %}
+        <div><strong>{{ user.fullName }}</strong></div>
+    {% endif %}
+    <div class="meta">{{ 'pdf.document_index.signature_label'|trans }}</div>
+</div>
+
+</body>
+</html>

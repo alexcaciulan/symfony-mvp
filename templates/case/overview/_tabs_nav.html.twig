@@ -1,11 +1,13 @@
 {# Preline tabs nav. Preline JS comută clasele `hidden` pe panels.
    Tab-ul activ inițial e dat server-side prin `active_tab` (vezi overview.html.twig),
-   ca acțiunile care redirectează să păstreze tab-ul curent. #}
+   ca acțiunile care redirectează să păstreze tab-ul curent. The filing tab is always
+   shown; its dot is replaced on its own by the filing streams. #}
 {% set active_tab = active_tab|default('detalii') %}
 
 {% set tabs = [
     { key: 'detalii',   label: 'case_overview.tab.details',   count: null },
     { key: 'documente', label: 'case_overview.tab.documents', count: case.documents|length, badge: 'slate' },
+    { key: 'depunere',  label: 'case_overview.tab.filing',    count: null, filing: true },
     { key: 'termene',   label: 'case_overview.tab.deadlines', count: deadlines|length,       badge: 'amber' },
     { key: 'portal',    label: 'case_overview.tab.portal',    count: null },
     { key: 'audit',     label: 'case_overview.tab.audit',     count: auditLogs|length,       badge: 'slate' },
@@ -24,6 +26,9 @@
                     data-hs-tab="#panel-{{ t.key }}"
                     class="{{ tab_class }}{{ active_tab == t.key ? ' active' : '' }}">
                 {{ t.label|trans }}
+                {% if t.filing ?? false %}
+                    {{ include('case/filing/_tab_dot.html.twig') }}
+                {% endif %}
                 {% if t.count is not null and t.count > 0 %}
                     <span class="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-md text-[10px] font-semibold tnum {{ t.badge == 'amber' ? 'bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300' : 'bg-slate-100 dark:bg-slate-800' }}">{{ t.count }}</span>
                 {% endif %}

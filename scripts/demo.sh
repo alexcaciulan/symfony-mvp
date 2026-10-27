@@ -26,15 +26,34 @@ if [ ! -f "${ENV_FILE}" ]; then
   exit 1
 fi
 
+# The nginx password file for /mockups/, rebuilt from .env.demo on every compose
+# call so a changed password applies on the next up/restart. Kept under var/
+# (gitignored) in the worktree; the bind mount needs the file to exist.
+write_mockups_htpasswd() {
+  local auth file
+  auth="$(grep -E '^DEMO_MOCKUPS_AUTH=' "${ENV_FILE}" | cut -d= -f2- || true)"
+  [ -z "${auth}" ] && auth="$(grep -E '^DEMO_MAIL_AUTH=' "${ENV_FILE}" | cut -d= -f2- || true)"
+  file="${WORKTREE}/var/mockups.htpasswd"
+  mkdir -p "${WORKTREE}/var"
+  if [ -n "${auth}" ] && [ "${auth#*:}" != "${auth}" ]; then
+    printf '%s:%s\n' "${auth%%:*}" "$(openssl passwd -apr1 "${auth#*:}")" > "${file}"
+  else
+    : > "${file}"
+  fi
+}
+
 # The demo worktree has no .env.local (gitignored), so secrets are read from the
 # main checkout. Later --env-file entries win, hence .env.demo comes last.
 compose() {
+  if [ -d "${WORKTREE}" ]; then write_mockups_htpasswd; fi
   local env_args=(--env-file .env)
   [ -f "${ROOT}/.env.local" ] && env_args+=(--env-file "${ROOT}/.env.local")
   env_args+=(--env-file "${ENV_FILE}")
 
+  # The inbound-poll profile adds the loop that reads the demo Mailpit for
+  # simulated court answers (production uses a cron instead).
   ( cd "${WORKTREE}" && docker compose -p "${PROJECT}" \
-      -f compose.yaml -f compose.demo.yaml "${env_args[@]}" "$@" )
+      -f compose.yaml -f compose.demo.yaml --profile inbound-poll "${env_args[@]}" "$@" )
 }
 
 ensure_worktree() {
@@ -94,8 +113,14 @@ case "${1:-}" in
     # so entrypoint changes are invisible to a plain restart. `up -d` then
     # recreates only what the new config or image actually changed, which a
     # `restart` would not do either.
-    compose build php worker
-    compose up -d php worker
+    compose build php worker worker-filing
+    compose up -d php worker worker-filing inbound-poll nginx
+    # The bind-mounted code leaves the image unchanged, so `up -d` keeps the
+    # running containers: the long-lived consumers would keep the DI container
+    # cache:clear just removed. Restart them (and php-fpm) on the new one, and
+    # nginx too: a recreated php container gets a new IP that nginx keeps
+    # resolving to the old one (502 until restarted).
+    compose restart php worker worker-filing inbound-poll nginx
     wait_until_up
     ;;
 

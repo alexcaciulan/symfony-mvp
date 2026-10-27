@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Depunere: cerere nelivrată</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="shell.js"></script>
+</head>
+<body class="font-sans antialiased bg-slate-50 text-slate-900">
+<main data-shell data-badge="Cerere generată" data-tone="slate" data-cta="Depune pe altă cale" data-tab-dot="red"
+      data-stepper="3" data-stepper-state="error" data-stepper-notes="Versiunea 2, anexe în 3 volume|Toate fișierele semnate|Returnat: adresa nu există|Nedeclarată">
+
+<div class="grid grid-cols-3 gap-6">
+  <div class="col-span-2 space-y-6">
+
+    <section id="depunere-status" class="rounded-2xl border border-red-200 bg-red-50/40 shadow-soft p-6">
+      <div class="flex gap-4">
+        <span class="shrink-0 inline-flex items-center justify-center size-10 rounded-xl bg-red-100 text-red-700">
+          <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 14L4 9l5-5M4 9h11a5 5 0 010 10h-3"/></svg>
+        </span>
+        <div class="min-w-0">
+          <h2 class="text-lg font-semibold">Cererea nu a ajuns la instanță: adresa nu există</h2>
+          <p class="mt-1 text-sm text-slate-700 max-w-prose">Serverul de e-mail a returnat e-mailul cu cererea, cu mențiunea că adresa de destinație nu există. Nu este o respingere a instanței. Transmiterea a fost anulată, iar dosarul a revenit la „Cerere generată”.</p>
+          <p class="mt-2 text-sm text-slate-700 max-w-prose">Adresa a fost raportată administratorului. Până la decizia lui, o nouă trimitere la aceeași adresă nu este posibilă, iar cererea se depune pe altă cale.</p>
+          <div class="mt-4 flex flex-wrap items-center gap-2">
+            <a href="#" class="py-2.5 px-4 rounded-lg bg-lex-navy text-white text-sm font-semibold shadow-sm">Descarcă arhiva pentru registratură</a>
+            <a href="i-adresa-instantei.html" class="py-2.5 px-4 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-800">Vezi adresele instanței</a>
+          </div>
+        </div>
+      </div>
+      <div class="mt-5 ml-14 rounded-lg border border-red-200 bg-white px-4 py-3 text-sm text-red-900 flex items-start gap-3">
+        <svg class="shrink-0 size-4 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path stroke-linecap="round" d="M12 7v5l3 2"/></svg>
+        <p>Aplicația nu prelungește termenul de 6 luni pentru menținerea întreruperii prescripției (NCC art. 2540). Termenul se verifică înainte de noua depunere. <a href="#note-juridice" class="font-medium underline underline-offset-2">Detalii</a></p>
+      </div>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-soft">
+      <header class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <h3 class="text-base font-semibold">E-mailuri către instanță</h3>
+        <span class="text-sm text-slate-500">Transmitere anulată</span>
+      </header>
+      <ol class="divide-y divide-slate-100">
+        <li class="px-6 py-4 flex items-center gap-4 bg-red-50/40">
+          <span class="shrink-0 inline-flex items-center justify-center size-9 rounded-lg bg-red-100 text-red-700">
+            <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 14L4 9l5-5M4 9h11a5 5 0 010 10h-3"/></svg>
+          </span>
+          <div class="flex-1 min-w-0">
+            <div class="font-medium">E-mailul 1 din 3</div>
+            <div class="text-sm text-slate-500">Cererea cu opisul, împuternicirea, anexe volumul 1</div>
+          </div>
+          <div class="text-right">
+            <div class="text-sm font-medium text-red-700">Returnat: adresa nu există</div>
+            <div class="text-xs text-slate-500 tnum">acceptat 16:21, returnat 16:21</div>
+          </div>
+        </li>
+        <li class="px-6 py-3 flex items-center gap-4 text-slate-500">
+          <span class="shrink-0 inline-flex items-center justify-center size-9 rounded-lg bg-slate-100">
+            <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 12h12"/></svg>
+          </span>
+          <div class="flex-1"><span class="font-medium text-slate-700">E-mailul 2 din 3</span> <span class="text-sm">Anexe, volumul 2 din 3</span></div>
+          <span class="text-sm">Anulat, netrimis</span>
+        </li>
+        <li class="px-6 py-3 flex items-center gap-4 text-slate-500">
+          <span class="shrink-0 inline-flex items-center justify-center size-9 rounded-lg bg-slate-100">
+            <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" d="M6 12h12"/></svg>
+          </span>
+          <div class="flex-1"><span class="font-medium text-slate-700">E-mailul 3 din 3</span> <span class="text-sm">Anexe, volumul 3 din 3</span></div>
+          <span class="text-sm">Anulat, netrimis</span>
+        </li>
+      </ol>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-soft">
+      <header class="px-6 py-4 border-b border-slate-100"><h3 class="text-base font-semibold">Mesaje primite</h3></header>
+      <ul>
+        <li class="px-6 py-4 flex items-center gap-3">
+          <span class="rounded-md bg-red-50 text-red-700 text-xs font-semibold px-2 py-0.5">Raport de nelivrare</span>
+          <span class="text-sm text-slate-500">de la serverul de e-mail al instanței</span>
+          <span class="ms-auto text-sm text-slate-500 tnum">24.10.2026, 16:21</span>
+          <a href="#" class="text-sm text-lex-navy font-medium">Descarcă</a>
+        </li>
+      </ul>
+    </section>
+
+    <details class="bg-white rounded-2xl border border-slate-200 shadow-soft">
+      <summary class="px-6 py-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+        <svg class="chev size-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+        Detalii tehnice
+        <span class="font-normal text-slate-500">raportul serverului 550 5.1.1, încercări, copia .eml</span>
+      </summary>
+      <div class="px-6 pb-5 text-sm text-slate-600 space-y-1">
+        <p class="font-mono text-xs bg-slate-50 rounded p-2">Delivery report: 550 5.1.1 Recipient address rejected: User unknown</p>
+      </div>
+    </details>
+  </div>
+
+  <aside class="space-y-6">
+    <section class="bg-white rounded-2xl border border-amber-200 shadow-soft p-5">
+      <h3 class="text-sm font-semibold">Instanța și adresa de depunere</h3>
+      <p class="mt-2 text-sm">Judecătoria Sectorului 3 București</p>
+      <p class="mt-3 font-mono text-sm break-all">registratura-test@example.test</p>
+      <p class="mt-1 inline-block rounded-md bg-amber-50 text-amber-800 text-xs font-semibold px-2 py-0.5">Raportată ca inexistentă, în verificare</p>
+      <p class="mt-2 text-sm text-slate-600">Adresa rămâne în uz pentru alte dosare până la decizia administratorului. Pentru acest dosar, trimiterea la ea este blocată până atunci.</p>
+      <a href="i-adresa-instantei.html" class="mt-3 inline-block text-sm font-medium text-lex-navy underline underline-offset-2">Adresele instanței</a>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-soft p-5">
+      <h3 class="text-sm font-semibold">Pachetul semnat</h3>
+      <p class="mt-1 text-sm text-slate-600">Rămâne valabil. Se poate trimite din nou după decizia administratorului, cu verificarea fișierelor semnate înainte.</p>
+    </section>
+
+    <details id="note-juridice" open class="bg-white rounded-2xl border border-slate-200 shadow-soft">
+      <summary class="px-5 py-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+        <svg class="chev size-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+        Note juridice
+      </summary>
+      <ul class="px-5 pb-5 text-sm text-slate-600 space-y-2 list-disc ps-9">
+        <li>Dacă termenul de 6 luni a trecut, somația nu mai întrerupe prescripția, iar cererea se poate depune în continuare cât timp prescripția nu s-a împlinit. Data de la care curge prescripția se verifică de avocat. <span class="text-slate-400">(Text provizoriu, în curs de validare juridică.)</span></li>
+        <li>Termenul din aplicație a fost redeschis; termenul legal se verifică separat.</li>
+        <li>Platforma raportează doar răspunsul serverului de e-mail. Verificarea depunerii și a termenelor rămâne în sarcina avocatului.</li>
+      </ul>
+    </details>
+  </aside>
+</div>
+</main>
+</body>
+</html>

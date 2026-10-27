@@ -2,7 +2,7 @@
 {% set current_route = app.request.attributes.get('_route') %}
 <header class="sticky top-0 z-20 h-14 bg-white/85 dark:bg-slate-900/85 backdrop-blur-md border-b border-slate-200 dark:border-slate-800"
         data-controller="mobile-menu">
-    <div class="h-full px-4 lg:px-8 flex items-center gap-4">
+    <div class="h-full px-4 lg:px-8 flex items-center gap-2 sm:gap-4">
 
         {# Mobile menu trigger (sidebar is hidden < lg, drawer below is shown when toggled). #}
         <button type="button"
@@ -13,8 +13,9 @@
         </button>
 
         {# Breadcrumb — tunneled from extending pages via `breadcrumb` include var (base.html.twig wraps the overridable {% block breadcrumb %}).
-           Falls back to the default "Dashboard" entry when the include is rendered outside the authenticated shell. #}
-        <ol class="flex items-center gap-1.5 text-xs flex-1" aria-label="Breadcrumb">
+           Falls back to the default "Dashboard" entry when the include is rendered outside the authenticated shell.
+           On phones only the current page is kept and clipped, so the trail never pushes the actions off screen. #}
+        <ol class="flex items-center gap-1.5 text-xs flex-1 min-w-0 overflow-hidden whitespace-nowrap max-sm:[&>li:not(:last-child)]:hidden [&>li:last-child]:min-w-0 [&>li:last-child]:truncate" aria-label="Breadcrumb">
             {%- if breadcrumb is defined and breadcrumb -%}
                 {{ breadcrumb|raw }}
             {%- else -%}

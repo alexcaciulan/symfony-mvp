@@ -15,18 +15,6 @@ enum StampDutyStatus: string
     case ACHITATA = 'ACHITATA';
 
     /**
-     * The lawyer will pay when filing, in the electronic registry form itself,
-     * which takes the payment and the petition in one step. Anticipated payment
-     * in the sense of OUG 80/2013 art. 33 alin. 1, not a deferral: it simply
-     * happens after we build the package, because the package is what gets filed.
-     *
-     * Like AMANATA_REGULARIZARE this records an intention rather than an observed
-     * payment. The enum carries both because what the petition may claim in front
-     * of the court depends on the lawyer's plan, not only on money already moved.
-     */
-    case ACHITARE_LA_DEPUNERE = 'ACHITARE_LA_DEPUNERE';
-
-    /**
      * Filed without proof; the duty is paid on the registry in the existing case once
      * the court allocates the number. A stamping notice sent by the court before that
      * starts the term of OUG 80/2013 art. 33 alin. 2, under penalty of annulment.
@@ -46,10 +34,9 @@ enum StampDutyStatus: string
         return match ($this) {
             self::NEACHITATA => 'amber',
             self::ACHITATA => 'green',
-            // Both are a chosen payment plan, not a problem: filing without proof
-            // and paying in the existing case is the normal path once the
-            // platform files by email.
-            self::ACHITARE_LA_DEPUNERE, self::AMANATA_REGULARIZARE => 'blue',
+            // A chosen payment plan, not a problem: filing without proof and paying
+            // in the existing case is the normal path once the platform files by email.
+            self::AMANATA_REGULARIZARE => 'blue',
             self::RESTITUITA => 'slate',
         };
     }
@@ -58,19 +45,19 @@ enum StampDutyStatus: string
     public function allowsFiling(): bool
     {
         return match ($this) {
-            self::ACHITATA, self::ACHITARE_LA_DEPUNERE, self::AMANATA_REGULARIZARE => true,
+            self::ACHITATA, self::AMANATA_REGULARIZARE => true,
             self::NEACHITATA, self::RESTITUITA => false,
         };
     }
 
     /**
      * Whether the duty is still owed at this point, so the follow-up has something
-     * to chase. Both intentions qualify: money has not moved yet in either.
+     * to chase. A deferral qualifies: money has not moved yet.
      */
     public function isOutstanding(): bool
     {
         return match ($this) {
-            self::NEACHITATA, self::ACHITARE_LA_DEPUNERE, self::AMANATA_REGULARIZARE => true,
+            self::NEACHITATA, self::AMANATA_REGULARIZARE => true,
             self::ACHITATA, self::RESTITUITA => false,
         };
     }

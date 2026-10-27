@@ -13,3 +13,37 @@ parameters:
     # Absolute session lifetime in seconds (12h): forced re-login regardless of activity,
     # on top of the 30-min idle expiry. Injected into AbsoluteSessionTimeoutSubscriber.
     app.session.absolute_ttl: 43200
+    # Court filing by email. The court mailbox limit applies to the encoded message
+    # (base64 + MIME, about 1.37x the raw bytes); the reserve leaves room for the
+    # lawyer's qualified signature, added after the build.
+    lexrecovery.filing.max_email_bytes: 9500000
+    lexrecovery.filing.signature_reserve_bytes: 300000
+    lexrecovery.filing.signed_upload_max_bytes: 20971520
+    # The day the platform started sending filings by email. A case whose petition
+    # was generated before it may already have been filed on another channel, so
+    # sending it asks the lawyer to state that it was not.
+    lexrecovery.filing.email_channel_since: '2026-10-22'
+    # Inbound mail: a transmitted petition with no court receipt after this many
+    # working days (Romanian calendar) is flagged; unattributed and spam messages
+    # are deleted after the purge delay; the heartbeat alerts when the last good
+    # poll is older than its limit.
+    lexrecovery.filing.receipt_overdue_working_days: '%env(int:FILING_RECEIPT_OVERDUE_WORKING_DAYS)%'
+    lexrecovery.filing.inbound_purge_days: 30
+    lexrecovery.filing.inbound_heartbeat_max_age_minutes: '%env(int:INBOUND_HEARTBEAT_MAX_AGE_MINUTES)%'
+    # Words of an automatic court answer that acknowledges receipt, compared without
+    # diacritics and case. A match only marks a receipt of the message, never a
+    # registration of the petition. The explicit phrases name the confirmation
+    # itself and are enough on any automatic answer; the general ones also occur in
+    # out-of-office replies ("your message has been received, I am away"), so they
+    # count only on an automatic answer that is not marked as an auto-reply.
+    lexrecovery.inbound.receipt_phrases:
+        - 'confirmam primirea'
+        - 'confirmare de primire'
+        - 'confirmare primire'
+        - 'confirmarea primirii'
+        - 'confirm receipt'
+        - 'acknowledge receipt'
+    lexrecovery.inbound.receipt_general_phrases:
+        - 'a fost primit'
+        - 'a fost receptionat'
+        - 'has been received'

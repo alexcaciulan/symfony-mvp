@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Depunere: anexă refuzată</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="shell.js"></script>
+</head>
+<body class="font-sans antialiased bg-slate-50 text-slate-900">
+<main data-shell data-badge="Transmisă parțial" data-tone="amber" data-cta="Trimite anexele rămase" data-tab-dot="amber"
+      data-stepper="3" data-stepper-state="warn" data-stepper-notes="Versiunea 2, anexe în 3 volume|Toate fișierele semnate|1 din 3 e-mailuri acceptate|După înregistrare">
+
+<div class="grid grid-cols-3 gap-6">
+  <div class="col-span-2 space-y-6">
+
+    <section id="depunere-status" class="rounded-2xl border border-amber-200 bg-amber-50/50 shadow-soft p-6">
+      <div class="flex gap-4">
+        <span class="shrink-0 inline-flex items-center justify-center size-10 rounded-xl bg-amber-100 text-amber-800 text-lg font-bold">!</span>
+        <div class="min-w-0">
+          <h2 class="text-lg font-semibold">Cererea a ajuns, dar nu și toate anexele</h2>
+          <p class="mt-1 text-sm text-slate-700 max-w-prose">Serverul instanței a acceptat e-mailul cu cererea, împuternicirea și primul volum de anexe. E-mailul 2 (anexe, volumul 2) a fost refuzat definitiv, iar e-mailul 3 nu a mai plecat. Refuzul nu privește neapărat adresa instanței.</p>
+          <div class="mt-4 flex flex-wrap items-center gap-2">
+            <a href="#trimite" class="py-2.5 px-4 rounded-lg bg-lex-navy text-white text-sm font-semibold shadow-sm">Trimite anexele rămase</a>
+            <a href="#inchide" class="py-2.5 px-4 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-800">Închide fără anexele rămase</a>
+          </div>
+          <p class="mt-3 text-sm text-slate-600">Se retrimit doar e-mailurile 2 și 3, în același fir de discuție. Cererea nu se retrimite.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-soft">
+      <header class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <h3 class="text-base font-semibold">E-mailuri către instanță</h3>
+        <span class="text-sm text-slate-500 tnum">1 din 3 acceptate</span>
+      </header>
+      <ol class="divide-y divide-slate-100">
+        <li class="px-6 py-4 flex items-center gap-4">
+          <span class="shrink-0 inline-flex items-center justify-center size-9 rounded-lg bg-emerald-50 text-emerald-700">
+            <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+          </span>
+          <div class="flex-1 min-w-0">
+            <div class="font-medium">E-mailul 1 din 3</div>
+            <div class="text-sm text-slate-500">Cererea cu opisul, împuternicirea, anexe volumul 1</div>
+          </div>
+          <div class="text-right">
+            <div class="text-sm font-medium text-emerald-700">Acceptat de serverul instanței</div>
+            <div class="text-xs text-slate-500 tnum">24.10.2026, 16:20</div>
+          </div>
+        </li>
+        <li class="px-6 py-4 flex items-center gap-4 bg-red-50/40">
+          <span class="shrink-0 inline-flex items-center justify-center size-9 rounded-lg bg-red-100 text-red-700">
+            <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+          </span>
+          <div class="flex-1 min-w-0">
+            <div class="font-medium">E-mailul 2 din 3</div>
+            <div class="text-sm text-slate-500">Anexe, volumul 2 din 3</div>
+          </div>
+          <div class="text-right">
+            <div class="text-sm font-medium text-red-700">Refuzat definitiv</div>
+            <div class="text-xs text-slate-500 tnum">24.10.2026, 16:20</div>
+          </div>
+        </li>
+        <li class="px-6 py-4 flex items-center gap-4">
+          <span class="shrink-0 inline-flex items-center justify-center size-9 rounded-lg bg-slate-100 text-slate-500">
+            <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path stroke-linecap="round" d="M12 8v4l2 2"/></svg>
+          </span>
+          <div class="flex-1 min-w-0">
+            <div class="font-medium">E-mailul 3 din 3</div>
+            <div class="text-sm text-slate-500">Anexe, volumul 3 din 3</div>
+          </div>
+          <div class="text-right">
+            <div class="text-sm font-medium text-slate-700">Oprit, nu a plecat</div>
+            <div class="text-xs text-slate-500">așteaptă decizia</div>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <details class="bg-white rounded-2xl border border-slate-200 shadow-soft">
+      <summary class="px-6 py-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+        <svg class="chev size-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+        Detalii tehnice
+        <span class="font-normal text-slate-500">cod SMTP 554, 3 încercări, copii .eml</span>
+      </summary>
+      <div class="px-6 pb-5 text-sm text-slate-600">Conținut ca în exemplul deschis din ecranul „Reîncercare și eșec”.</div>
+    </details>
+  </div>
+
+  <aside class="space-y-6">
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-soft p-5">
+      <h3 class="text-sm font-semibold">Instanța și adresa de depunere</h3>
+      <p class="mt-2 text-sm">Judecătoria Sectorului 3 București</p>
+      <p class="mt-3 font-mono text-sm break-all">registratura-test@example.test</p>
+      <p class="text-xs text-slate-500">Registratură, confirmată de administrator la 22.10.2026</p>
+      <p class="mt-2 text-sm text-slate-600">Adresa rămâne în uz.</p>
+      <a href="i-adresa-instantei.html" class="mt-3 inline-block text-sm font-medium text-lex-navy underline underline-offset-2">Adresele instanței</a>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-soft p-5">
+      <h3 class="text-sm font-semibold">Data depunerii</h3>
+      <p class="mt-1 text-sm text-slate-600">Nedeclarată. Se poate declara după verificarea pe portal, independent de anexe.</p>
+      <a href="#" class="mt-3 inline-block py-1.5 px-3 rounded-lg border border-slate-300 text-sm font-semibold">Declară data depunerii</a>
+    </section>
+
+    <details class="bg-white rounded-2xl border border-slate-200 shadow-soft">
+      <summary class="px-5 py-4 flex items-center gap-2 text-sm font-semibold text-slate-700">
+        <svg class="chev size-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+        Note juridice
+      </summary>
+      <ul class="px-5 pb-5 text-sm text-slate-600 space-y-2 list-disc ps-9">
+        <li>După închidere, anexele rămase se depun pe altă cale (registratură, poștă sau curier); platforma nu le mai trimite.</li>
+        <li>Platforma raportează doar răspunsul serverului de e-mail. Verificarea depunerii și a termenelor rămâne în sarcina avocatului.</li>
+      </ul>
+    </details>
+  </aside>
+</div>
+
+<!-- Close confirmation dialog, opened with #inchide -->
+<div id="dialog-inchide" class="hidden fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="dlg-title">
+  <div class="bg-white rounded-2xl shadow-card w-full max-w-lg">
+    <div class="p-6">
+      <h2 id="dlg-title" class="text-lg font-semibold">Închizi transmiterea fără anexele rămase?</h2>
+      <p class="mt-2 text-sm text-slate-600">E-mailurile 2 și 3 nu se mai trimit. Anexele din volumele 2 și 3 se depun pe altă cale (registratură, poștă sau curier).</p>
+      <label class="mt-4 flex items-start gap-2.5 text-sm"><input type="checkbox" class="mt-0.5 size-4 accent-[#1E3A5F]"><span>Cererea a fost trimisă fără toate anexele; anexele rămase se depun pe altă cale.</span></label>
+    </div>
+    <div class="px-6 py-4 bg-slate-50 rounded-b-2xl flex justify-end gap-2">
+      <a href="#" class="py-2 px-4 rounded-lg border border-slate-300 bg-white text-sm font-semibold">Renunță</a>
+      <button type="button" class="py-2 px-4 rounded-lg bg-red-600 text-white text-sm font-semibold">Închide transmiterea</button>
+    </div>
+  </div>
+</div>
+<script>
+  const syncDialog = () => { const d = document.getElementById('dialog-inchide'); if (d) d.classList.toggle('hidden', location.hash !== '#inchide'); };
+  document.addEventListener('DOMContentLoaded', () => setTimeout(syncDialog, 0));
+  window.addEventListener('hashchange', syncDialog);
+</script>
+</main>
+</body>
+</html>

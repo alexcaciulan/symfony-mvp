@@ -11,6 +11,7 @@ use App\Enum\CaseTransition;
 use App\Enum\PortalCaseMatchSource;
 use App\Enum\StampDutyStatus;
 use App\Form\Case\PortalActivateType;
+use App\Repository\FilingSubmissionRepository;
 use App\Repository\LegalCaseRepository;
 use App\Security\Voter\CaseVoter;
 use App\Service\AuditLogService;
@@ -46,6 +47,7 @@ final class CasePortalController extends AbstractController
         private readonly OverviewContextBuilder $contextBuilder,
         private readonly EntityManagerInterface $em,
         private readonly LoggerInterface $logger,
+        private readonly FilingSubmissionRepository $filingSubmissions,
     ) {}
 
     #[Route('/case/{id}/portal/activate', name: 'case_portal_activate', requirements: ['id' => '\d+'], methods: ['POST'])]
@@ -137,6 +139,8 @@ final class CasePortalController extends AbstractController
                     'courtCaseNumber' => $courtCaseNumber,
                     'status' => $case->getStatus()->value,
                     'filingWasConfirmed' => $filingWasConfirmed,
+                    // A transmission by email may have been under way: registering stopped its remaining emails.
+                    'filingSubmissionId' => $this->filingSubmissions->findLatestForCase($case)?->getId(),
                 ],
                 category: AuditLogService::CATEGORY_PORTAL_MONITORING,
             );

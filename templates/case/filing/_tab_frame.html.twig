@@ -1,0 +1,55 @@
+{# Content of the filing tab, inside the frame the page refreshes by itself while
+   emails are on their way (case_filing_submission_card). The panel state comes from
+   FilingPanelStateResolver via OverviewContextBuilder; nothing here decides a state
+   on its own. filing_state_key changes with what the hero, the pipeline, the
+   recommended actions and the tab dot show: when a refreshed frame carries another
+   key, the poller fetches case_filing_state_stream. Every link and form leaves the
+   frame (target _top). #}
+{% set panel = filing_panel %}
+{% set submission = filing_submission|default(null) %}
+{% set package = filing_package|default(null) %}
+{% set is_owner = app.user and app.user.id == case.user.id %}
+{% set stalled = filing_submission_stalled|default(false) %}
+{% set failure = filing_submission_failure|default(null) %}
+{% set retry_pending = failure and failure.part.status.value == 'RETRY_SCHEDULED' %}
+{% set polling = submission and ((submission.deliveryStatus.inFlight and not stalled) or retry_pending) %}
+{% set show_parts = package and package.status.value in ['BUILT', 'AWAITING_SIGNATURES', 'SIGNED', 'STALE']
+    and (submission is null or submission.package.id != package.id or submission.deliveryStatus.value == 'CANCELLED') %}
+<turbo-frame id="filing-submission-card"
+             target="_top"
+             data-controller="poll-frame modal-dialog"
+             data-poll-frame-pending-value="{{ polling ? 'true' : 'false' }}"
+             data-poll-frame-interval-ms-value="5000"
+             data-poll-frame-url-value="{{ path('case_filing_submission_card', {id: case.id}) }}"
+             data-poll-frame-state-key-value="{{ filing_state_key|default('') }}"
+             data-poll-frame-state-url-value="{{ path('case_filing_state_stream', {id: case.id}) }}"
+             class="block">
+    {{ include('case/filing/_stepper.html.twig') }}
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6"
+         {% if submission %}data-testid="filing-submission-card" data-status="{{ submission.deliveryStatus.value }}" data-stalled="{{ stalled ? '1' : '0' }}"{% endif %}>
+        <div class="lg:col-span-2 space-y-6 min-w-0">
+            {{ include('case/filing/_status_panel.html.twig') }}
+            {% if show_parts %}
+                {{ include('case/filing/_parts_to_sign.html.twig') }}
+            {% endif %}
+            {% if submission %}
+                {{ include('case/filing/_email_timeline.html.twig') }}
+                {% if submission.sentAt or filing_inbound_mails|default([]) is not empty %}
+                    {% include 'case/filing/_inbound_mail_list.html.twig' with {rows: filing_inbound_mails|default([]), case: case, is_owner: is_owner, submission: submission, receipt_uploadable: filing_receipt_uploadable|default(false)} only %}
+                {% endif %}
+            {% endif %}
+            {{ include('case/filing/_technical_details.html.twig') }}
+        </div>
+
+        <aside class="space-y-6 min-w-0">
+            {{ include('case/filing/_court_block.html.twig') }}
+            {{ include('case/filing/_filed_date_block.html.twig') }}
+            {{ include('case/filing/_legal_notes.html.twig') }}
+        </aside>
+    </div>
+
+    {% if is_owner and submission and filing_submission_closable|default(false) %}
+        {{ include('case/filing/_close_dialog.html.twig') }}
+    {% endif %}
+</turbo-frame>

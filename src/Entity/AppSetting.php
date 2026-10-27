@@ -19,6 +19,9 @@ class AppSetting
 {
     public const KEY_EINVOICE_PROVIDER = 'einvoice_provider';
 
+    /** `merged` or `separate`; an absent row means merged. */
+    public const KEY_FILING_OPIS_PLACEMENT = 'filing.opis_placement';
+
     #[ORM\Id]
     #[ORM\Column(length: 64)]
     private string $name;

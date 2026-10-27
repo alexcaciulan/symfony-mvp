@@ -99,4 +99,21 @@ class DocumentTypeTest extends TestCase
             $this->assertSame($expected, $type->isDeletable(), $type->value);
         }
     }
+
+    /**
+     * One set drives both the claim positions read at extraction and the filing
+     * check: a contract, a bank statement or a generic attachment never count alone.
+     */
+    public function testOnlyDocumentsStatingADebtAreClaimBearing(): void
+    {
+        $claimBearing = array_values(array_filter(
+            DocumentType::cases(),
+            static fn (DocumentType $type): bool => $type->isClaimBearing(),
+        ));
+
+        $this->assertSame(
+            [DocumentType::FACTURA, DocumentType::CONFIRMARE_SOLD, DocumentType::TITLU_VALOARE],
+            $claimBearing,
+        );
+    }
 }

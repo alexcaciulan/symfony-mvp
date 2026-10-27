@@ -11,6 +11,7 @@ use Symfony\Component\Form\Extension\Core\Type\FileType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints as Assert;
+use Symfony\Component\Validator\Context\ExecutionContextInterface;
 
 class DocumentUploadType extends AbstractType
 {
@@ -41,6 +42,10 @@ class DocumentUploadType extends AbstractType
                 'choices' => $choices,
             ])
         ;
+
+        // Only a power of attorney carries these; the date is required for it alone,
+        // checked below, so every other type uploads without them.
+        PowerOfAttorneyDetailsType::addFields($builder, dateRequired: false);
     }
 
     public function configureOptions(OptionsResolver $resolver): void
@@ -51,6 +56,18 @@ class DocumentUploadType extends AbstractType
             'csrf_protection' => true,
             'csrf_field_name' => '_token',
             'csrf_token_id' => 'document_upload',
+            'constraints' => [
+                new Assert\Callback(callback: static function (mixed $data, ExecutionContextInterface $context): void {
+                    if (!is_array($data)
+                        || ($data['documentType'] ?? null) !== DocumentType::IMPUTERNICIRE_AVOCATIALA->value
+                        || ($data['powerOfAttorneyDate'] ?? null) !== null) {
+                        return;
+                    }
+                    $context->buildViolation('document.power_of_attorney.date_required')
+                        ->atPath('[powerOfAttorneyDate]')
+                        ->addViolation();
+                }),
+            ],
         ]);
     }
 }

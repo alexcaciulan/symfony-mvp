@@ -2,6 +2,7 @@
 
 namespace App\Entity;
 
+use App\DTO\Extraction\DocumentClassification;
 use App\Enum\DocumentType;
 use App\Enum\ExtractionFailureReason;
 use App\Enum\ExtractionStatus;
@@ -78,6 +79,19 @@ class Document
 
     #[ORM\Column(length: 30, nullable: true, enumType: ExtractionFailureReason::class)]
     private ?ExtractionFailureReason $extractionFailureReason = null;
+
+    // The act's own identifiers as declared by the lawyer, meaningful only for
+    // IMPUTERNICIRE_AVOCATIALA. Kept on the file row so each index row carries its
+    // own data, a case holding two acts keeps both, and deleting the file removes
+    // them. Never derived from the upload, summons or case dates.
+    #[ORM\Column(length: 20, nullable: true)]
+    private ?string $powerOfAttorneySeries = null;
+
+    #[ORM\Column(length: 30, nullable: true)]
+    private ?string $powerOfAttorneyNumber = null;
+
+    #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $powerOfAttorneyDate = null;
 
     public function __construct()
     {
@@ -272,5 +286,76 @@ class Document
         $this->extractionFailureReason = $extractionFailureReason;
 
         return $this;
+    }
+
+    /**
+     * What the lawyer declared, or what the extraction detected when they declared
+     * nothing and the detection was confident enough to be adopted. Null when a
+     * generic upload carries no usable detection.
+     */
+    public function getEffectiveType(): ?DocumentType
+    {
+        if ($this->documentType !== DocumentType::ALT_DOCUMENT) {
+            return $this->documentType;
+        }
+
+        if ($this->detectedType === null || $this->detectedTypeConfidence === null) {
+            return null;
+        }
+
+        return (float) $this->detectedTypeConfidence > DocumentClassification::ADOPTION_THRESHOLD
+            ? $this->detectedType
+            : null;
+    }
+
+    public function getPowerOfAttorneySeries(): ?string
+    {
+        return $this->powerOfAttorneySeries;
+    }
+
+    public function setPowerOfAttorneySeries(?string $powerOfAttorneySeries): static
+    {
+        $this->powerOfAttorneySeries = self::blankToNull($powerOfAttorneySeries);
+
+        return $this;
+    }
+
+    public function getPowerOfAttorneyNumber(): ?string
+    {
+        return $this->powerOfAttorneyNumber;
+    }
+
+    public function setPowerOfAttorneyNumber(?string $powerOfAttorneyNumber): static
+    {
+        $this->powerOfAttorneyNumber = self::blankToNull($powerOfAttorneyNumber);
+
+        return $this;
+    }
+
+    public function getPowerOfAttorneyDate(): ?\DateTimeImmutable
+    {
+        return $this->powerOfAttorneyDate;
+    }
+
+    public function setPowerOfAttorneyDate(?\DateTimeImmutable $powerOfAttorneyDate): static
+    {
+        $this->powerOfAttorneyDate = $powerOfAttorneyDate?->setTime(0, 0);
+
+        return $this;
+    }
+
+    public function hasPowerOfAttorneyDate(): bool
+    {
+        return $this->powerOfAttorneyDate !== null;
+    }
+
+    private static function blankToNull(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        $trimmed = trim($value);
+
+        return $trimmed === '' ? null : $trimmed;
     }
 }

@@ -46,6 +46,7 @@ final class ConflictValueEquivalence
         'APARTAMENTUL' => 'AP', 'APARTAMENT' => 'AP', 'AP' => 'AP', 'APT' => 'AP',
         'CLADIREA' => 'CLADIRE', 'CLADIRE' => 'CLADIRE', 'CORP' => 'CLADIRE',
         'BIROUL' => 'BIROU', 'BIROU' => 'BIROU',
+        'SECTORUL' => 'SECTOR', 'SECTOR' => 'SECTOR', 'SECT' => 'SECTOR',
     ];
 
     /**
@@ -93,13 +94,17 @@ final class ConflictValueEquivalence
      * One address when the shorter is contained in the longer and what the
      * longer adds carries no number: a locality or county name repeated in the
      * street line adds nothing, while a block, floor or apartment number is
-     * another door.
+     * another door. A Bucharest sector is the locality, not a door: written in
+     * one street line only it adds nothing, written in both it must agree.
      */
     private function sameAddress(string $a, string $b): bool
     {
-        $left = $this->addressWords($a);
-        $right = $this->addressWords($b);
+        [$left, $leftSector] = $this->withoutSector($this->addressWords($a));
+        [$right, $rightSector] = $this->withoutSector($this->addressWords($b));
         if ($left === [] || $right === []) {
+            return false;
+        }
+        if ($leftSector !== null && $rightSector !== null && $leftSector !== $rightSector) {
             return false;
         }
         [$short, $long] = count($left) <= count($right) ? [$left, $right] : [$right, $left];
@@ -140,6 +145,32 @@ final class ConflictValueEquivalence
         return $words;
     }
 
+    /**
+     * The address words without a "SECTOR <n>" pair, and that sector number.
+     *
+     * @param list<string> $words
+     * @return array{list<string>, ?string}
+     */
+    private function withoutSector(array $words): array
+    {
+        $sector = null;
+        $kept = [];
+        for ($i = 0, $n = count($words); $i < $n; ++$i) {
+            if ($sector === null && $words[$i] === 'SECTOR' && preg_match('/^[1-6]$/', $words[$i + 1] ?? '') === 1) {
+                $sector = $words[++$i];
+
+                continue;
+            }
+            $kept[] = $words[$i];
+        }
+
+        return [$kept, $sector];
+    }
+
+    /**
+     * Only Bucharest has sectors, so "Sector 1 Mun. București" and "Sector 1"
+     * name one unit.
+     */
     private function unitKey(string $raw): string
     {
         $words = array_values(array_filter(
@@ -147,6 +178,9 @@ final class ConflictValueEquivalence
             static fn (string $w): bool => !in_array($w, self::UNIT_PREFIXES, true),
         ));
         $words = array_map(static fn (string $w): string => $w === 'SECTORUL' || $w === 'SECT' ? 'SECTOR' : $w, $words);
+        if (in_array('SECTOR', $words, true)) {
+            $words = array_values(array_filter($words, static fn (string $w): bool => $w !== 'BUCURESTI'));
+        }
 
         return implode(' ', $words);
     }

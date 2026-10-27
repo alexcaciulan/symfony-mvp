@@ -483,6 +483,7 @@ TEXT;
                 ?array $oldData = null,
                 ?array $newData = null,
                 ?string $category = null,
+                ?\App\Entity\User $actor = null,
             ): \App\Entity\AuditLog {
                 $this->loggedCalls[] = [
                     'action' => $action,

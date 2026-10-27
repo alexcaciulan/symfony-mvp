@@ -175,34 +175,9 @@ final class CaseStampDutyControllerTest extends WebTestCase
     }
 
     /**
-     * A case that declared payment at filing before that choice was withdrawn may
-     * already have paid inside the filing form.
-     * Telling them to wait for the file number would contradict the confirmation offered
-     * on the same card.
-     */
-    public function testTheCardDoesNotAskToWaitForTheFileNumberWhenPaymentWasDeclaredAtFiling(): void
-    {
-        $this->case->setStatus(CaseStatus::CERERE_DEPUSA);
-        $this->case->setFiledAt(new \DateTimeImmutable('2026-03-01'));
-        $this->case->setStampDutyStatus(StampDutyStatus::ACHITARE_LA_DEPUNERE);
-        $this->em->flush();
-
-        $this->client->loginUser($this->user);
-        $this->client->request('GET', '/case/' . $this->case->getId());
-
-        self::assertResponseIsSuccessful();
-        $html = (string) $this->client->getResponse()->getContent();
-        $translator = static::getContainer()->get('translator');
-
-        self::assertStringNotContainsString($translator->trans('case_overview.stamp_duty.pay_awaiting_case_number'), $html);
-        self::assertStringContainsString($translator->trans('case_overview.stamp_duty.cta_registry_paid'), $html);
-    }
-
-    /**
      * The platform files the petition by email, so the registry can only take the duty
      * in an existing case. Before the court assigns a number the button is shown but
-     * inactive. The "pay at filing" choice stays for now, flagged as provisional until
-     * the lawyer confirms it can go.
+     * inactive, and there is no registry payment to confirm yet.
      */
     public function testTheRegistryButtonStaysInactiveUntilTheCourtAssignsAFileNumber(): void
     {
@@ -216,8 +191,7 @@ final class CaseStampDutyControllerTest extends WebTestCase
         self::assertCount(0, $crawler->filter('a[href*="registratura.rejust.ro"]'));
         self::assertCount(1, $crawler->filter('button[disabled][aria-describedby="stamp-duty-registry-hint"]'));
         self::assertStringContainsString($translator->trans('case_overview.stamp_duty.pay_after_case_number'), $crawler->html());
-        self::assertCount(1, $crawler->filter('[data-hs-overlay="#hs-modal-stamp-duty-at-filing"]'));
-        self::assertStringContainsString($translator->trans('case_overview.stamp_duty.at_filing_provisional'), $crawler->html());
+        self::assertCount(0, $crawler->filter('[data-hs-overlay="#hs-modal-stamp-duty-registry-paid"]'));
     }
 
     /** The reason to pay as soon as the number appears sits where the choice is made. */
@@ -235,29 +209,18 @@ final class CaseStampDutyControllerTest extends WebTestCase
     }
 
     /**
-     * Paying in the existing case after registration is the lawyer's usual route, so it
-     * is offered on the card and listed before the provisional pay-at-filing choice in
-     * the generation dialog.
+     * Before filing, the generation dialog offers the two ways the petition may leave:
+     * with the proof, or with payment in the existing case once the number appears.
      */
-    public function testPaymentAfterRegistrationIsOfferedAheadOfPaymentAtFiling(): void
+    public function testTheGenerationDialogOffersProofOrPaymentAfterRegistration(): void
     {
         $this->client->loginUser($this->user);
         $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
-        $crawler = $this->client->getCrawler();
-        $label = static::getContainer()->get('translator')->trans('case_overview.stamp_duty.cta_defer');
-
-        $cardButton = $crawler->filter('#case-stamp-duty-card [data-hs-overlay="#hs-modal-stamp-duty-defer"]');
-        self::assertCount(1, $cardButton);
-        self::assertSame($label, trim($cardButton->text()));
-
-        $choices = $crawler->filter('#hs-modal-cerere-op [data-hs-overlay^="#hs-modal-stamp-duty-"]')
+        $choices = $this->client->getCrawler()->filter('#hs-modal-cerere-op [data-hs-overlay^="#hs-modal-stamp-duty-"]')
             ->each(static fn ($node): string => (string) $node->attr('data-hs-overlay'));
-        self::assertSame(
-            ['#hs-modal-stamp-duty-proof', '#hs-modal-stamp-duty-defer', '#hs-modal-stamp-duty-at-filing'],
-            $choices,
-        );
+        self::assertSame(['#hs-modal-stamp-duty-proof', '#hs-modal-stamp-duty-defer'], $choices);
     }
 
     /**
@@ -327,38 +290,6 @@ final class CaseStampDutyControllerTest extends WebTestCase
         );
     }
 
-    /** The provisional warning sits where the choice is confirmed, not only on the card. */
-    public function testTheAtFilingModalCarriesTheProvisionalWarning(): void
-    {
-        $this->client->loginUser($this->user);
-        $this->client->request('GET', '/case/' . $this->case->getId());
-
-        self::assertResponseIsSuccessful();
-        self::assertStringContainsString(
-            static::getContainer()->get('translator')->trans('case_overview.stamp_duty.at_filing_provisional'),
-            $this->client->getCrawler()->filter('#hs-modal-stamp-duty-at-filing')->text(),
-        );
-    }
-
-    /** The lawyer who declared paying at filing needs the form where that payment happens. */
-    public function testTheRegistryButtonLinksToTheNewCaseFormAfterDeclaringPaymentAtFiling(): void
-    {
-        $this->case->setStampDutyStatus(StampDutyStatus::ACHITARE_LA_DEPUNERE);
-        $this->em->flush();
-
-        $this->client->loginUser($this->user);
-        $this->client->request('GET', '/case/' . $this->case->getId());
-
-        self::assertResponseIsSuccessful();
-        $crawler = $this->client->getCrawler()->filter('#case-stamp-duty-card');
-
-        self::assertSame(
-            'https://registratura.rejust.ro/inregistreaza-un-dosar-nou-pe-rolul-instantei-de-judecata',
-            $crawler->filter('a[href*="registratura.rejust.ro"]')->attr('href'),
-        );
-        self::assertCount(0, $crawler->filter('button[disabled][aria-describedby="stamp-duty-registry-hint"]'));
-    }
-
     public function testTheRegistryButtonLinksToTheExistingCaseFormOnceTheFileNumberIsKnown(): void
     {
         $this->case->setStatus(CaseStatus::DOSAR_INREGISTRAT);
@@ -376,6 +307,43 @@ final class CaseStampDutyControllerTest extends WebTestCase
             $crawler->filter('a[href*="registratura.rejust.ro"]')->attr('href'),
         );
         self::assertCount(0, $crawler->filter('button[disabled][aria-describedby="stamp-duty-registry-hint"]'));
+        // Paid in the existing case, the confirmation reaches the court on the registry's channel.
+        self::assertCount(1, $crawler->filter('[data-hs-overlay="#hs-modal-stamp-duty-registry-paid"]'));
+    }
+
+    /** A duty already paid has nothing left to confirm, file number or not. */
+    public function testTheCardOffersNoRegistryConfirmationOnceTheDutyIsPaid(): void
+    {
+        $this->case->setStatus(CaseStatus::DOSAR_INREGISTRAT);
+        $this->case->setCourtCaseNumber('4521/211/2026');
+        $this->case->setStampDutyStatus(StampDutyStatus::ACHITATA);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $crawler = $this->client->getCrawler()->filter('#case-stamp-duty-card');
+
+        self::assertCount(0, $crawler->filter('[data-hs-overlay="#hs-modal-stamp-duty-registry-paid"]'));
+    }
+
+    /** A refunded duty is no longer owed, so the card offers no way to pay it. */
+    public function testTheCardOffersNoPaymentActionsOnARefundedDuty(): void
+    {
+        $this->case->setStatus(CaseStatus::DOSAR_INREGISTRAT);
+        $this->case->setCourtCaseNumber('4521/211/2026');
+        $this->case->setStampDutyStatus(StampDutyStatus::RESTITUITA);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $crawler = $this->client->getCrawler()->filter('#case-stamp-duty-card');
+
+        self::assertCount(0, $crawler->filter('a[href*="registratura.rejust.ro"]'));
+        self::assertCount(0, $crawler->filter('[data-hs-overlay]'));
     }
 
     /**
@@ -551,29 +519,13 @@ final class CaseStampDutyControllerTest extends WebTestCase
     }
 
     /**
-     * The recommended channel takes the duty in the filing form itself, so the package
-     * has to be buildable before the money moves. Without this path the lawyer who
-     * pays correctly had to claim a deferral to regularization the petition then
-     * asserted to the court.
+     * The confirmation file is optional: the portal sends it to the payer and/or the
+     * court, so the lawyer may not hold one, and its absence must not block the payment.
      */
-    public function testDeclaringPaymentAtFilingUnblocksTheFilingGate(): void
-    {
-        $this->client->loginUser($this->user);
-
-        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/at-filing', [
-            '_token' => $this->csrfToken('/stamp-duty/at-filing', '_token'),
-        ]);
-
-        $this->em->clear();
-        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
-        self::assertSame(StampDutyStatus::ACHITARE_LA_DEPUNERE, $refreshed->getStampDutyStatus());
-        self::assertTrue($refreshed->getStampDutyStatus()->allowsFiling());
-    }
-
-    /** Confirming the registry payment needs no file: the portal already sent one. */
     public function testConfirmingTheRegistryPaymentMarksTheDutyPaidWithoutAFile(): void
     {
-        $this->case->setStampDutyStatus(StampDutyStatus::ACHITARE_LA_DEPUNERE);
+        $this->case->setStatus(CaseStatus::DOSAR_INREGISTRAT);
+        $this->case->setCourtCaseNumber('4521/211/2026');
         $this->em->flush();
 
         $this->client->loginUser($this->user);
@@ -589,7 +541,310 @@ final class CaseStampDutyControllerTest extends WebTestCase
         self::assertSame(StampDutyStatus::ACHITATA, $refreshed->getStampDutyStatus());
         self::assertSame('2026-07-15', $refreshed->getStampDutyPaidAt()->format('Y-m-d'));
         self::assertSame('GH-9911', $refreshed->getStampDutyPaymentReference());
-        self::assertFalse($refreshed->hasStampDutyProof(), 'No file is expected on this path.');
+        self::assertFalse($refreshed->hasStampDutyProof(), 'No file was attached.');
+    }
+
+    /** The confirmation the lawyer holds becomes the case's stamp duty proof. */
+    public function testConfirmingTheRegistryPaymentWithAFileAttachesTheConfirmation(): void
+    {
+        $this->case->setStatus(CaseStatus::DOSAR_INREGISTRAT);
+        $this->case->setCourtCaseNumber('4522/211/2026');
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/registry-paid', [
+            '_token' => $this->csrfToken('/stamp-duty/registry-paid', '_token'),
+            'paidAt' => '2026-07-15',
+        ], [
+            'file' => $this->proofFile(),
+        ]);
+
+        $flashes = $this->client->getRequest()->getSession()->getFlashBag()->peekAll();
+        self::assertContains('case_overview.stamp_duty.flash_success_registry_paid_with_file', array_merge(...array_values($flashes)));
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame(StampDutyStatus::ACHITATA, $refreshed->getStampDutyStatus());
+        self::assertTrue($refreshed->hasStampDutyProof());
+
+        $documents = $this->em->getRepository(Document::class)->findBy([
+            'legalCase' => $this->case->getId(),
+            'documentType' => DocumentType::DOVADA_TAXA_TIMBRU,
+        ]);
+        self::assertCount(1, $documents);
+
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+        $viewProof = $this->trans('case_overview.stamp_duty.view_proof');
+        $cardLink = $crawler->filter(sprintf('a[href$="/document/%d/download"]', $documents[0]->getId()))
+            ->reduce(static fn ($node): bool => str_contains($node->text(), $viewProof));
+        self::assertCount(1, $cardLink, 'The card links the attached confirmation as the proof.');
+        self::assertTrue($refreshed->isStampDutyPaidThroughRegistry());
+        self::assertStringContainsString($this->trans('case_overview.stamp_duty.paid_through_registry_with_confirmation'), $crawler->text());
+        self::assertCount(0, $crawler->filter('#case-stamp-duty-card button:contains("' . $this->trans('case_overview.stamp_duty.cta_attach_registry_confirmation') . '")'));
+    }
+
+    /** A wrong file type is a message, not a half-recorded payment. */
+    public function testRegistryPaymentWithAnInvalidFileIsRefusedAndTheDutyStaysUnpaid(): void
+    {
+        $this->case->setStatus(CaseStatus::DOSAR_INREGISTRAT);
+        $this->case->setCourtCaseNumber('4523/211/2026');
+        $this->em->flush();
+
+        $path = sys_get_temp_dir() . '/confirmare-' . uniqid() . '.txt';
+        file_put_contents($path, 'not a payment confirmation');
+
+        $this->client->loginUser($this->user);
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/registry-paid', [
+            '_token' => $this->csrfToken('/stamp-duty/registry-paid', '_token'),
+            'paidAt' => '2026-07-15',
+        ], [
+            'file' => new UploadedFile($path, 'confirmare.txt', 'text/plain', null, true),
+        ]);
+
+        $flashes = $this->client->getRequest()->getSession()->getFlashBag()->peekAll();
+        self::assertContains('document.upload.invalid_type', array_merge(...array_values($flashes)));
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame(StampDutyStatus::NEACHITATA, $refreshed->getStampDutyStatus());
+        self::assertNull($refreshed->getStampDutyPaidAt());
+        self::assertCount(0, $this->em->getRepository(Document::class)->findBy(['legalCase' => $this->case->getId()]));
+    }
+
+    /** A registry payment declared without a file can still receive the confirmation later. */
+    public function testTheCardOffersToAttachTheConfirmationAfterARegistryPaymentWithoutAFile(): void
+    {
+        $this->case->setStatus(CaseStatus::DOSAR_INREGISTRAT);
+        $this->case->setCourtCaseNumber('4524/211/2026');
+        $this->case->setStampDutyStatus(StampDutyStatus::ACHITATA);
+        $this->case->setStampDutyPaidAt(new \DateTimeImmutable('2026-07-15'));
+        $this->case->setStampDutyPaidThroughRegistry(true);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        $label = $this->trans('case_overview.stamp_duty.cta_attach_registry_confirmation');
+        $attach = $crawler->filter('#case-stamp-duty-card button[data-hs-overlay="#hs-modal-stamp-duty-registry-confirmation"]')
+            ->reduce(static fn ($node): bool => str_contains($node->text(), $label));
+        self::assertCount(1, $attach, 'The attach link opens the registry confirmation upload, not the generic proof form.');
+        $modal = $crawler->filter('#hs-modal-stamp-duty-registry-confirmation');
+        self::assertCount(0, $modal->filter('input[name="paidAt"]'), 'The declared payment date is not asked again.');
+        self::assertStringContainsString('15.07.2026', $modal->text());
+        self::assertStringContainsString($this->trans('case_overview.stamp_duty.paid_through_registry'), $crawler->text());
+    }
+
+    /** The confirmation obtained later is attached alone: the declared payment does not change. */
+    public function testAttachingTheRegistryConfirmationLaterKeepsTheDeclaredPayment(): void
+    {
+        $this->case->setStatus(CaseStatus::DOSAR_INREGISTRAT);
+        $this->case->setCourtCaseNumber('4525/211/2026');
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/registry-paid', [
+            '_token' => $this->csrfToken('/stamp-duty/registry-paid', '_token'),
+            'paidAt' => '2026-07-15',
+            'paymentReference' => 'GH-7001',
+        ]);
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/registry-confirmation', [
+            '_token' => $this->csrfToken('/stamp-duty/registry-confirmation', '_token'),
+        ], [
+            'file' => $this->proofFile(),
+        ]);
+
+        $flashes = $this->client->getRequest()->getSession()->getFlashBag()->peekAll();
+        self::assertContains('case_overview.stamp_duty.flash_success_registry_confirmation_attached', array_merge(...array_values($flashes)));
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertTrue($refreshed->hasStampDutyProof());
+        self::assertTrue($refreshed->isStampDutyPaidThroughRegistry());
+        self::assertSame('2026-07-15', $refreshed->getStampDutyPaidAt()->format('Y-m-d'));
+        self::assertSame('GH-7001', $refreshed->getStampDutyPaymentReference());
+        self::assertSame(1, (int) $this->em->getConnection()->fetchOne(
+            "SELECT COUNT(*) FROM audit_log WHERE action = 'stamp_duty_registry_confirmation_attached' AND entity_id = ?",
+            [(string) $this->case->getId()],
+        ));
+
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+        self::assertStringContainsString($this->trans('case_overview.stamp_duty.paid_through_registry_with_confirmation'), $crawler->text());
+        self::assertCount(0, $crawler->filter('#case-stamp-duty-card button[data-hs-overlay="#hs-modal-stamp-duty-registry-confirmation"]'));
+    }
+
+    /** A payment proven by an uploaded receipt has nothing to receive through this route. */
+    public function testTheRegistryConfirmationIsRefusedForAPaymentNotMadeThroughTheRegistry(): void
+    {
+        $this->case->setStampDutyStatus(StampDutyStatus::ACHITATA);
+        $this->case->setStampDutyPaidAt(new \DateTimeImmutable('2026-07-15'));
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+        $token = (string) $this->client->getCrawler()->filter('#hs-modal-stamp-duty-registry-confirmation input[name="_token"]')->attr('value');
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/registry-confirmation', [
+            '_token' => $token,
+        ], [
+            'file' => $this->proofFile(),
+        ]);
+
+        $flashes = $this->client->getRequest()->getSession()->getFlashBag()->peekAll();
+        self::assertContains('case_overview.stamp_duty.flash_error_registry_confirmation_not_expected', array_merge(...array_values($flashes)));
+        self::assertCount(0, $this->em->getRepository(Document::class)->findBy(['legalCase' => $this->case->getId()]));
+    }
+
+    public function testTheRegistryConfirmationWithoutAFileIsRefused(): void
+    {
+        $this->case->setStampDutyStatus(StampDutyStatus::ACHITATA);
+        $this->case->setStampDutyPaidAt(new \DateTimeImmutable('2026-07-15'));
+        $this->case->setStampDutyPaidThroughRegistry(true);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/registry-confirmation', [
+            '_token' => $this->csrfToken('/stamp-duty/registry-confirmation', '_token'),
+        ]);
+
+        $flashes = $this->client->getRequest()->getSession()->getFlashBag()->peekAll();
+        self::assertContains('case_overview.stamp_duty.flash_error_registry_confirmation_missing', array_merge(...array_values($flashes)));
+        self::assertCount(0, $this->em->getRepository(Document::class)->findBy(['legalCase' => $this->case->getId()]));
+    }
+
+    /** Arranges a registry payment declared without a file, ready to receive the confirmation. */
+    private function registryPaidWithoutFile(): void
+    {
+        $this->case->setStatus(CaseStatus::DOSAR_INREGISTRAT);
+        $this->case->setCourtCaseNumber('4526/211/2026');
+        $this->case->setStampDutyStatus(StampDutyStatus::ACHITATA);
+        $this->case->setStampDutyPaidAt(new \DateTimeImmutable('2026-07-15'));
+        $this->case->setStampDutyPaidThroughRegistry(true);
+        $this->em->flush();
+    }
+
+    public function testTheRegistryConfirmationIsRejectedWithAnInvalidCsrfToken(): void
+    {
+        $this->registryPaidWithoutFile();
+        $this->client->loginUser($this->user);
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/registry-confirmation', [
+            '_token' => 'forged',
+        ], [
+            'file' => $this->proofFile(),
+        ]);
+
+        self::assertCount(0, $this->em->getRepository(Document::class)->findBy(['legalCase' => $this->case->getId()]));
+    }
+
+    public function testAnotherUserCannotAttachTheRegistryConfirmation(): void
+    {
+        $this->registryPaidWithoutFile();
+        $hasher = static::getContainer()->get(UserPasswordHasherInterface::class);
+        $intruder = new User();
+        $intruder->setEmail('intruder-' . uniqid() . '@test.com');
+        $intruder->setPassword($hasher->hashPassword($intruder, 'password'));
+        $intruder->setIsVerified(true);
+        $this->em->persist($intruder);
+        $this->em->flush();
+
+        $this->client->loginUser($intruder);
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/registry-confirmation', [
+            '_token' => 'irrelevant',
+        ], [
+            'file' => $this->proofFile(),
+        ]);
+
+        self::assertResponseStatusCodeSame(403);
+        self::assertCount(0, $this->em->getRepository(Document::class)->findBy(['legalCase' => $this->case->getId()]));
+
+        $this->em->getConnection()->executeStatement('DELETE FROM user WHERE id = ?', [$intruder->getId()]);
+    }
+
+    public function testTheRegistryConfirmationRejectsAWrongFileType(): void
+    {
+        $this->registryPaidWithoutFile();
+        $path = sys_get_temp_dir() . '/confirmare-' . uniqid() . '.txt';
+        file_put_contents($path, 'not a payment confirmation');
+
+        $this->client->loginUser($this->user);
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/registry-confirmation', [
+            '_token' => $this->csrfToken('/stamp-duty/registry-confirmation', '_token'),
+        ], [
+            'file' => new UploadedFile($path, 'confirmare.txt', 'text/plain', null, true),
+        ]);
+
+        $flashes = $this->client->getRequest()->getSession()->getFlashBag()->peekAll();
+        self::assertContains('document.upload.invalid_type', array_merge(...array_values($flashes)));
+        self::assertCount(0, $this->em->getRepository(Document::class)->findBy(['legalCase' => $this->case->getId()]));
+    }
+
+    /** One confirmation per case: a second one would put an ambiguous proof in the package. */
+    public function testTheRegistryConfirmationIsRefusedOnceAProofIsOnTheCase(): void
+    {
+        $this->registryPaidWithoutFile();
+        $this->client->loginUser($this->user);
+        $token = $this->csrfToken('/stamp-duty/registry-confirmation', '_token');
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/registry-confirmation', ['_token' => $token], ['file' => $this->proofFile()]);
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/registry-confirmation', ['_token' => $token], ['file' => $this->proofFile()]);
+
+        $flashes = $this->client->getRequest()->getSession()->getFlashBag()->peekAll();
+        self::assertContains('case_overview.stamp_duty.flash_error_registry_confirmation_not_expected', array_merge(...array_values($flashes)));
+        self::assertCount(1, $this->em->getRepository(Document::class)->findBy([
+            'legalCase' => $this->case->getId(),
+            'documentType' => DocumentType::DOVADA_TAXA_TIMBRU,
+        ]));
+    }
+
+    /** A receipt filed on a duty already paid through the registry documents that payment. */
+    public function testAReceiptOnARegistryPaymentKeepsTheRegistryChannel(): void
+    {
+        $this->registryPaidWithoutFile();
+        $this->client->loginUser($this->user);
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/proof', [
+            'stamp_duty_proof' => [
+                '_token' => $this->csrfToken('/stamp-duty/proof', 'stamp_duty_proof[_token]'),
+                'paidAt' => '2026-07-15',
+            ],
+        ], [
+            'stamp_duty_proof' => ['file' => $this->proofFile()],
+        ]);
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertTrue($refreshed->hasStampDutyProof());
+        self::assertTrue($refreshed->isStampDutyPaidThroughRegistry());
+    }
+
+    /** A payment proven from scratch by a receipt is not a registry payment, whatever a stale flag said. */
+    public function testAReceiptOnAnUnpaidDutyClearsTheRegistryChannel(): void
+    {
+        $this->case->setStampDutyPaidThroughRegistry(true);
+        $this->em->flush();
+        $this->client->loginUser($this->user);
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/proof', [
+            'stamp_duty_proof' => [
+                '_token' => $this->csrfToken('/stamp-duty/proof', 'stamp_duty_proof[_token]'),
+                'paidAt' => '2026-07-10',
+            ],
+        ], [
+            'stamp_duty_proof' => ['file' => $this->proofFile()],
+        ]);
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame(StampDutyStatus::ACHITATA, $refreshed->getStampDutyStatus());
+        self::assertFalse($refreshed->isStampDutyPaidThroughRegistry());
+    }
+
+    private function trans(string $key): string
+    {
+        return static::getContainer()->get('translator')->trans($key);
     }
 
     /**
@@ -619,10 +874,37 @@ final class CaseStampDutyControllerTest extends WebTestCase
         self::assertNotContains('case_overview.stamp_duty.flash_warning_payer_mismatch', $keys);
     }
 
+    /**
+     * The registry takes the duty only in an existing case, so before the court assigns
+     * a number there is no registry payment to confirm.
+     */
+    public function testRegistryPaymentIsRefusedBeforeTheCourtAssignsAFileNumber(): void
+    {
+        $this->case->setStatus(CaseStatus::CERERE_DEPUSA);
+        $this->case->setFiledAt(new \DateTimeImmutable('2026-03-01'));
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/registry-paid', [
+            '_token' => $this->csrfToken('/stamp-duty/registry-paid', '_token'),
+            'paidAt' => '2026-07-15',
+        ]);
+
+        $flashes = $this->client->getRequest()->getSession()->getFlashBag()->peekAll();
+        self::assertContains('case_overview.stamp_duty.flash_error_registry_needs_case_number', array_merge(...array_values($flashes)));
+
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
+        self::assertSame(StampDutyStatus::NEACHITATA, $refreshed->getStampDutyStatus());
+        self::assertNull($refreshed->getStampDutyPaidAt());
+    }
+
     /** The column holds 100 characters, so a longer reference is refused, not truncated. */
     public function testRegistryPaymentRejectsAnOverlongReference(): void
     {
-        $this->case->setStampDutyStatus(StampDutyStatus::ACHITARE_LA_DEPUNERE);
+        $this->case->setStatus(CaseStatus::DOSAR_INREGISTRAT);
+        $this->case->setCourtCaseNumber('4521/211/2026');
         $this->em->flush();
 
         $this->client->loginUser($this->user);
@@ -635,7 +917,7 @@ final class CaseStampDutyControllerTest extends WebTestCase
 
         $this->em->clear();
         $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
-        self::assertSame(StampDutyStatus::ACHITARE_LA_DEPUNERE, $refreshed->getStampDutyStatus());
+        self::assertSame(StampDutyStatus::NEACHITATA, $refreshed->getStampDutyStatus());
         self::assertNull($refreshed->getStampDutyPaymentReference());
     }
 
@@ -738,11 +1020,7 @@ final class CaseStampDutyControllerTest extends WebTestCase
     }
 
     /**
-     * The 10-day term runs from the court's notice (OUG 80/2013 art. 33 alin. 2), a
-     * date the platform cannot observe, so the lawyer supplies it and we compute the term.
-     */
-    /**
-     * CPC art. 200 grants "cel mult 10 zile", so a court that gives fewer must be
+     * OUG 80/2013 art. 33 alin. 2, through CPC art. 200, grants "cel mult 10 zile", so a court that gives fewer must be
      * recordable. The lawyer supplies the number off the notice; the free-day count
      * and the prorogation stay with the application, which is the whole point of
      * asking for days rather than for a date.

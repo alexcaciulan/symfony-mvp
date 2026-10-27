@@ -1,0 +1,540 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Controller\Case;
+
+use App\Entity\FilingSubmission;
+use App\Entity\InboundMail;
+use App\Entity\LegalCase;
+use App\Entity\User;
+use App\Repository\FilingSubmissionRepository;
+use App\Repository\InboundMailRepository;
+use App\Repository\LegalCaseRepository;
+use App\Security\Voter\CaseVoter;
+use App\Service\AuditLogService;
+use App\Service\Case\OverviewContextBuilder;
+use App\Service\Document\MissingDocumentFileException;
+use App\Service\Filing\CourtFilingEmailFactory;
+use App\Service\Filing\FilingDateRefusedException;
+use App\Service\Filing\FilingDateService;
+use App\Service\Filing\FilingEmlStorage;
+use App\Service\Filing\FilingPackageBlockedException;
+use App\Service\Filing\FilingResplitService;
+use App\Service\Filing\FilingResumeService;
+use App\Service\Filing\FilingSendBlockedException;
+use App\Service\Filing\FilingSendGuard;
+use App\Service\Filing\FilingSubmissionService;
+use App\Service\Filing\RecipientOverrideGuard;
+use App\Service\Filing\UncertainPartResolver;
+use App\Service\Inbound\InboundMailView;
+use App\Service\Inbound\InboundRawStorage;
+use App\Service\Inbound\ManualReceiptRefusedException;
+use App\Service\Inbound\ManualReceiptUploadService;
+use App\Service\Pdf\PdfToolException;
+use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
+use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Contracts\Translation\TranslatorInterface;
+
+/**
+ * Transmitting the signed package to the court by email, on the lawyer's
+ * request: the confirmation page, the request itself, cancelling before
+ * anything left, what follows a failure (resuming the emails that did not leave,
+ * closing them, splitting the annexes again, declaring the copy in CC received or
+ * not), the copy of each sent email, and the filing date the lawyer declares
+ * afterwards, the receipts and messages received about it, and the lawyer's own
+ * receipt upload. Only the lawyer of the case acts here; the content is under
+ * professional secrecy, so an admin has no access.
+ */
+final class CaseFilingSubmissionController extends AbstractController
+{
+    public function __construct(
+        private readonly LegalCaseRepository $cases,
+        private readonly FilingSubmissionRepository $submissions,
+        private readonly FilingSubmissionService $submissionService,
+        private readonly FilingSendGuard $guard,
+        private readonly CourtFilingEmailFactory $emailFactory,
+        private readonly RecipientOverrideGuard $recipientGuard,
+        private readonly FilingDateService $filingDates,
+        private readonly FilingEmlStorage $emlStorage,
+        private readonly OverviewContextBuilder $contextBuilder,
+        private readonly TranslatorInterface $translator,
+        private readonly FilingResumeService $resumeService,
+        private readonly FilingResplitService $resplitService,
+        private readonly UncertainPartResolver $uncertainResolver,
+        private readonly ManualReceiptUploadService $receiptUploads,
+        private readonly InboundMailRepository $inboundMails,
+        private readonly InboundRawStorage $inboundStorage,
+        private readonly AuditLogService $auditLogService,
+        private readonly EntityManagerInterface $em,
+    ) {}
+
+    #[Route('/case/{id}/filing/submission/confirm', name: 'case_filing_submission_confirm', requirements: ['id' => '\d+'], methods: ['GET'])]
+    public function confirm(int $id): Response
+    {
+        $case = $this->findOrThrow($id);
+        $this->denyAccessUnlessGranted(CaseVoter::FILING_CONTENT, $case);
+
+        return $this->render('case/filing/confirm.html.twig', $this->confirmContext($case));
+    }
+
+    #[Route('/case/{id}/filing/submission', name: 'case_filing_submission_submit', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function submit(int $id, Request $request): Response
+    {
+        $case = $this->findOrThrow($id);
+        $this->denyAccessUnlessGranted(CaseVoter::FILING_CONTENT, $case);
+        $this->denyAccessUnlessGranted(CaseVoter::TRANSITION, $case);
+
+        if (!$this->isCsrfTokenValid('filing_submit_' . $id, $request->getPayload()->getString('_token'))) {
+            return $this->panelError($request, $case, 'filing.package.flash.csrf');
+        }
+
+        $confirmed = [];
+        foreach (array_keys($this->submissionService->confirmationTexts($case)) as $key) {
+            $confirmed[$key] = $request->getPayload()->getString('confirm_' . $key) === '1';
+        }
+
+        $session = $request->hasSession() ? $request->getSession() : null;
+        try {
+            $this->submissionService->submit(
+                $case,
+                $this->currentUser(),
+                $confirmed,
+                $request->getClientIp(),
+                $session !== null && $session->getId() !== '' ? hash('sha256', $session->getId()) : null,
+            );
+        } catch (FilingSendBlockedException $e) {
+            return $this->panelError($request, $case, $e->messageKey);
+        }
+
+        // The confirmation page has no card to replace: the lawyer lands on the filing tab, which polls the send.
+        $this->addFlash('success', $this->translator->trans('filing.send.flash_queued'));
+
+        return $this->redirectToRoute('case_overview', ['id' => $case->getId(), 'tab' => 'depunere'], Response::HTTP_SEE_OTHER);
+    }
+
+    #[Route('/case/{id}/filing/submission/{submissionId}/cancel', name: 'case_filing_submission_cancel', requirements: ['id' => '\d+', 'submissionId' => '\d+'], methods: ['POST'])]
+    public function cancel(int $id, int $submissionId, Request $request): Response
+    {
+        $case = $this->findOrThrow($id);
+        $this->denyAccessUnlessGranted(CaseVoter::FILING_CONTENT, $case);
+        $submission = $this->findSubmission($case, $submissionId);
+
+        if (!$this->isCsrfTokenValid('filing_cancel_' . $submissionId, $request->getPayload()->getString('_token'))) {
+            return $this->respondCard($request, $case, 'error', 'filing.package.flash.csrf', false);
+        }
+
+        try {
+            $this->submissionService->cancel($submission, $this->currentUser());
+        } catch (FilingSendBlockedException $e) {
+            return $this->respondCard($request, $case, 'error', $e->messageKey, false);
+        }
+
+        return $this->respondCard($request, $case, 'success', 'filing.status.cancelled');
+    }
+
+    /** The petition left and annexes failed: only the emails not accepted go again, in the same thread. */
+    #[Route('/case/{id}/filing/submission/{submissionId}/resume', name: 'case_filing_submission_resume', requirements: ['id' => '\d+', 'submissionId' => '\d+'], methods: ['POST'])]
+    public function resume(int $id, int $submissionId, Request $request): Response
+    {
+        [$case, $submission] = $this->ownedSubmission($id, $submissionId);
+        if (!$this->isCsrfTokenValid('filing_resume_' . $submissionId, $request->getPayload()->getString('_token'))) {
+            return $this->respondCard($request, $case, 'error', 'filing.package.flash.csrf', false);
+        }
+
+        $session = $request->hasSession() ? $request->getSession() : null;
+        try {
+            $this->resumeService->resumeRemaining(
+                $submission,
+                $this->currentUser(),
+                $this->confirmed($request, array_keys($this->resumeService->confirmationTexts())),
+                $request->getClientIp(),
+                $session !== null && $session->getId() !== '' ? hash('sha256', $session->getId()) : null,
+            );
+        } catch (FilingSendBlockedException $e) {
+            return $this->respondCard($request, $case, 'error', $e->messageKey, false);
+        }
+
+        return $this->respondCard($request, $case, 'success', 'filing.resume.queued');
+    }
+
+    /** The first email was refused for its size: the annexes are split again into smaller volumes. */
+    #[Route('/case/{id}/filing/submission/{submissionId}/resplit', name: 'case_filing_submission_resplit', requirements: ['id' => '\d+', 'submissionId' => '\d+'], methods: ['POST'])]
+    public function resplit(int $id, int $submissionId, Request $request, RateLimiterFactory $filingPackageBuildLimiter): Response
+    {
+        [$case, $submission] = $this->ownedSubmission($id, $submissionId);
+        if (!$this->isCsrfTokenValid('filing_resplit_' . $submissionId, $request->getPayload()->getString('_token'))) {
+            return $this->respondCard($request, $case, 'error', 'filing.package.flash.csrf', false);
+        }
+        if (!$filingPackageBuildLimiter->create($this->currentUser()->getUserIdentifier())->consume()->isAccepted()) {
+            return $this->respondCard($request, $case, 'warning', 'filing.package.flash.rate_limited', false);
+        }
+
+        try {
+            $this->resplitService->resplitAfterSizeFailure($submission, $this->currentUser());
+        } catch (FilingPackageBlockedException | PdfToolException $e) {
+            return $this->respondCard($request, $case, 'error', $e->messageKey, false);
+        } catch (MissingDocumentFileException) {
+            return $this->respondCard($request, $case, 'error', 'case_overview.zip_package.flash_error_file_missing', false);
+        }
+
+        return $this->respondCard($request, $case, 'success', 'filing.resplit.done');
+    }
+
+    /** The petition left; the remaining emails are closed and filed on another channel by the lawyer. */
+    #[Route('/case/{id}/filing/submission/{submissionId}/close-remaining', name: 'case_filing_submission_close', requirements: ['id' => '\d+', 'submissionId' => '\d+'], methods: ['POST'])]
+    public function closeRemaining(int $id, int $submissionId, Request $request): Response
+    {
+        [$case, $submission] = $this->ownedSubmission($id, $submissionId);
+        if (!$this->isCsrfTokenValid('filing_close_' . $submissionId, $request->getPayload()->getString('_token'))) {
+            return $this->respondCard($request, $case, 'error', 'filing.package.flash.csrf', false);
+        }
+
+        try {
+            $this->submissionService->closeRemaining(
+                $submission,
+                $this->currentUser(),
+                $this->confirmed($request, array_keys($this->submissionService->closeConfirmationTexts())),
+            );
+        } catch (FilingSendBlockedException $e) {
+            return $this->respondCard($request, $case, 'error', $e->messageKey, false);
+        }
+
+        return $this->respondCard($request, $case, 'success', 'filing.close.done');
+    }
+
+    #[Route('/case/{id}/filing/submission/{submissionId}/part/{sequence}/cc-received', name: 'case_filing_submission_cc_received', requirements: ['id' => '\d+', 'submissionId' => '\d+', 'sequence' => '\d+'], methods: ['POST'])]
+    public function ccReceived(int $id, int $submissionId, int $sequence, Request $request): Response
+    {
+        return $this->resolveUncertain($id, $submissionId, $sequence, $request, UncertainPartResolver::CONFIRM_RECEIVED);
+    }
+
+    #[Route('/case/{id}/filing/submission/{submissionId}/part/{sequence}/cc-not-received', name: 'case_filing_submission_cc_not_received', requirements: ['id' => '\d+', 'submissionId' => '\d+', 'sequence' => '\d+'], methods: ['POST'])]
+    public function ccNotReceived(int $id, int $submissionId, int $sequence, Request $request): Response
+    {
+        return $this->resolveUncertain($id, $submissionId, $sequence, $request, UncertainPartResolver::CONFIRM_NOT_RECEIVED);
+    }
+
+    /**
+     * The regions of the case page the filing changes (hero, pipeline, figures,
+     * recommended actions), fetched by the polling card when its state key changes.
+     */
+    #[Route('/case/{id}/filing/state', name: 'case_filing_state_stream', requirements: ['id' => '\d+'], methods: ['GET'])]
+    public function stateStream(int $id): Response
+    {
+        $case = $this->findOrThrow($id);
+        $this->denyAccessUnlessGranted(CaseVoter::VIEW, $case);
+
+        return new Response(
+            $this->renderView('case/filing/_state_regions_turbo_stream.html.twig', $this->contextBuilder->build($case)),
+            Response::HTTP_OK,
+            ['Content-Type' => 'text/vnd.turbo-stream.html; charset=utf-8'],
+        );
+    }
+
+    /** The filing tab's frame alone, refreshed by the page while the emails are on their way. */
+    #[Route('/case/{id}/filing/submission/card', name: 'case_filing_submission_card', requirements: ['id' => '\d+'], methods: ['GET'])]
+    public function card(int $id): Response
+    {
+        $case = $this->findOrThrow($id);
+        $this->denyAccessUnlessGranted(CaseVoter::VIEW, $case);
+
+        return $this->render('case/filing/_tab_frame.html.twig', $this->contextBuilder->build($case));
+    }
+
+    #[Route('/case/{id}/filing/submission/{submissionId}/part/{sequence}/eml', name: 'case_filing_submission_eml', requirements: ['id' => '\d+', 'submissionId' => '\d+', 'sequence' => '\d+'], methods: ['GET'])]
+    public function eml(int $id, int $submissionId, int $sequence): Response
+    {
+        $case = $this->findOrThrow($id);
+        $this->denyAccessUnlessGranted(CaseVoter::FILING_CONTENT, $case);
+        $part = $this->findSubmission($case, $submissionId)->getPart($sequence) ?? throw $this->createNotFoundException();
+
+        // A copy that no longer matches its recorded hash is not offered as what was sent.
+        $path = $this->emlStorage->verifiedPath($part) ?? throw $this->createNotFoundException();
+        $response = new BinaryFileResponse($path);
+        $response->setContentDisposition(
+            ResponseHeaderBag::DISPOSITION_ATTACHMENT,
+            sprintf('email-instanta-%s-partea-%d.eml', preg_replace('/[^A-Za-z0-9_-]+/', '_', $case->getCaseNumber()), $sequence),
+        );
+        $response->headers->set('Content-Type', 'message/rfc822');
+
+        return $response;
+    }
+
+    /** The lawyer's own receipt (the court's answer as .eml, a PDF or a picture): recorded as declared by the lawyer. */
+    #[Route('/case/{id}/filing/submission/{submissionId}/receipt-upload', name: 'case_filing_submission_receipt_upload', requirements: ['id' => '\d+', 'submissionId' => '\d+'], methods: ['POST'])]
+    public function receiptUpload(int $id, int $submissionId, Request $request, RateLimiterFactory $filingSignedUploadLimiter): Response
+    {
+        [$case, $submission] = $this->ownedSubmission($id, $submissionId);
+        if (!$this->isCsrfTokenValid('filing_receipt_upload_' . $submissionId, $request->getPayload()->getString('_token'))) {
+            return $this->respondCard($request, $case, 'error', 'filing.package.flash.csrf', false);
+        }
+        // Each upload may run a large PDF through the sandbox and always stores a copy.
+        if (!$filingSignedUploadLimiter->create($this->currentUser()->getUserIdentifier())->consume()->isAccepted()) {
+            return $this->respondCard($request, $case, 'warning', 'filing.receipt.upload.error.rate_limited', false);
+        }
+        $file = $request->files->get('receipt');
+        if (!$file instanceof UploadedFile) {
+            return $this->respondCard($request, $case, 'error', 'filing.receipt.upload.error.missing', false);
+        }
+
+        try {
+            $this->receiptUploads->upload($submission, $file, $this->currentUser());
+        } catch (ManualReceiptRefusedException $e) {
+            return $this->respondCard($request, $case, 'error', $e->messageKey, false);
+        }
+
+        return $this->respondCard($request, $case, 'success', 'filing.receipt.upload.saved');
+    }
+
+    /** A received message or an uploaded receipt, for the lawyer of the case only. */
+    #[Route('/case/{id}/filing/inbound/{mailId}/download', name: 'case_filing_inbound_download', requirements: ['id' => '\d+', 'mailId' => '\d+'], methods: ['GET'])]
+    public function inboundDownload(int $id, int $mailId): Response
+    {
+        $case = $this->findOrThrow($id);
+        $this->denyAccessUnlessGranted(CaseVoter::FILING_CONTENT, $case);
+        if ($case->getUser() !== $this->currentUser()) {
+            throw $this->createAccessDeniedException();
+        }
+        $mail = $this->inboundMails->find($mailId);
+        if (!$mail instanceof InboundMail || $mail->getMatchedSubmission()?->getLegalCase()->getId() !== $case->getId()
+            || !InboundMailView::isVisibleToLawyer($mail)) {
+            throw $this->createNotFoundException();
+        }
+        $path = $this->inboundStorage->verifiedPath($mail) ?? throw $this->createNotFoundException();
+
+        $this->auditLogService->log(
+            action: 'inbound_mail_downloaded',
+            entityType: LegalCase::class,
+            entityId: (string) $case->getId(),
+            newData: ['inboundMailId' => $mail->getId(), 'submissionId' => $mail->getMatchedSubmission()?->getId()],
+            category: AuditLogService::CATEGORY_FILING_SUBMISSION,
+            actor: $this->currentUser(),
+        );
+        $this->em->flush();
+
+        [$extension, $type] = match ($mail->getRawMime()) {
+            InboundMail::MIME_PDF => ['pdf', 'application/pdf'],
+            InboundMail::MIME_IMAGE => [str_ends_with($mail->getRawPath(), '.png') ? 'png' : 'jpg', str_ends_with($mail->getRawPath(), '.png') ? 'image/png' : 'image/jpeg'],
+            default => ['eml', 'message/rfc822'],
+        };
+        $response = new BinaryFileResponse($path);
+        $response->setContentDisposition(
+            ResponseHeaderBag::DISPOSITION_ATTACHMENT,
+            sprintf('mesaj-primit-%s-%d.%s', preg_replace('/[^A-Za-z0-9_-]+/', '_', $case->getCaseNumber()), (int) $mail->getId(), $extension),
+        );
+        $response->headers->set('Content-Type', $type);
+        $response->headers->set('X-Content-Type-Options', 'nosniff');
+
+        return $response;
+    }
+
+    /** A late bounce on a case that had moved on: the lawyer checked it, nothing on the case is undone. */
+    #[Route('/case/{id}/filing/submission/{submissionId}/late-bounce-ack', name: 'case_filing_submission_late_bounce_ack', requirements: ['id' => '\d+', 'submissionId' => '\d+'], methods: ['POST'])]
+    public function lateBounceAck(int $id, int $submissionId, Request $request): Response
+    {
+        [$case, $submission] = $this->ownedSubmission($id, $submissionId);
+        if (!$this->isCsrfTokenValid('filing_late_bounce_' . $submissionId, $request->getPayload()->getString('_token'))) {
+            return $this->respondCard($request, $case, 'error', 'filing.package.flash.csrf', false);
+        }
+
+        try {
+            $this->submissionService->acknowledgeLateBounce($submission, $this->currentUser());
+        } catch (FilingSendBlockedException $e) {
+            return $this->respondCard($request, $case, 'error', $e->messageKey, false);
+        }
+
+        return $this->respondCard($request, $case, 'success', 'filing.undelivered.ack_saved');
+    }
+
+    #[Route('/case/{id}/filing/submission/filed-date', name: 'case_filing_submission_filed_date', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function filedDate(int $id, Request $request): Response
+    {
+        $case = $this->findOrThrow($id);
+        $this->denyAccessUnlessGranted(CaseVoter::FILING_CONTENT, $case);
+
+        if (!$this->isCsrfTokenValid('filing_filed_date_' . $id, $request->getPayload()->getString('_token'))) {
+            return $this->respondCard($request, $case, 'error', 'filing.package.flash.csrf', false);
+        }
+
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $request->getPayload()->getString('filed_at'));
+        if ($date === false) {
+            return $this->respondCard($request, $case, 'error', 'filing.status.set_date.error_invalid', false);
+        }
+
+        try {
+            $this->filingDates->setFromLawyer($case, $date, $this->currentUser());
+        } catch (FilingDateRefusedException $e) {
+            return $this->respondCard($request, $case, 'error', $e->messageKey, false);
+        }
+
+        return $this->respondCard($request, $case, 'success', 'filing.status.set_date.saved');
+    }
+
+    /** @return array<string, mixed> */
+    private function confirmContext(LegalCase $case, ?string $errorKey = null): array
+    {
+        $verdict = $this->guard->checkForSubmit($case, $this->currentUser());
+        $preview = null;
+        if ($verdict->isAllowed() && $verdict->package !== null) {
+            $package = $verdict->package;
+            $emails = $this->emailFactory->emailsOf($package);
+            $attachments = [];
+            foreach ($emails as $i => $parts) {
+                foreach ($parts as $part) {
+                    $attachments[] = [
+                        'email' => $i + 1,
+                        'name' => $this->emailFactory->attachmentName($package, $part),
+                        'title' => $part->getTitle(),
+                        'bytes' => $part->getSignedBytes(),
+                        'signature_detected' => $part->isSignatureAccepted(),
+                    ];
+                }
+            }
+            $preview = [
+                'subject' => $this->emailFactory->subject($case, 1, count($emails)),
+                'body' => $this->emailFactory->body($case, $package, 1),
+                'from' => sprintf('%s <%s>', $this->emailFactory->fromName($case->getUser()), $this->emailFactory->fromAddress()),
+                'cc' => $case->getUser()->getEmail(),
+                'email_count' => count($emails),
+                'attachments' => $attachments,
+                'interest_date' => $package->getSourceManifest()['accessoryReferenceDate'] ?? null,
+            ];
+        }
+
+        return [
+            'case' => $case,
+            'verdict' => $verdict,
+            'preview' => $preview,
+            'confirmations' => $this->submissionService->confirmationTexts($case),
+            'court_live' => $this->recipientGuard->isLive(),
+            'recipient_override' => $this->recipientGuard->override(),
+            'error_key' => $errorKey,
+        ];
+    }
+
+    private function panelError(Request $request, LegalCase $case, string $key): Response
+    {
+        if ($this->wantsTurboStream($request)) {
+            return $this->render(
+                'case/filing/_send_modal_turbo_stream.html.twig',
+                $this->confirmContext($case, $key),
+                new Response(headers: ['Content-Type' => 'text/vnd.turbo-stream.html; charset=utf-8']),
+            );
+        }
+
+        $this->addFlash('error', $key);
+
+        return $this->redirectToRoute('case_overview', ['id' => $case->getId(), 'tab' => 'depunere']);
+    }
+
+    private function respondCard(Request $request, LegalCase $case, string $variant, string $key, bool $replaceCard = true): Response
+    {
+        if ($this->wantsTurboStream($request)) {
+            $context = $replaceCard ? $this->contextBuilder->build($case) : ['case' => $case];
+            $context['replace_card'] = $replaceCard;
+            $context['toast_variant'] = $variant;
+            $context['toast_key'] = $key;
+            $context['toast_params'] = [];
+
+            return new Response(
+                $this->renderView('case/filing/_package_turbo_stream.html.twig', $context),
+                Response::HTTP_OK,
+                ['Content-Type' => 'text/vnd.turbo-stream.html; charset=utf-8'],
+            );
+        }
+
+        $this->addFlash($variant, $this->translator->trans($key));
+
+        return $this->redirectToRoute('case_overview', ['id' => $case->getId(), 'tab' => 'depunere']);
+    }
+
+    private function resolveUncertain(int $id, int $submissionId, int $sequence, Request $request, string $kind): Response
+    {
+        [$case, $submission] = $this->ownedSubmission($id, $submissionId);
+        $part = $submission->getPart($sequence) ?? throw $this->createNotFoundException();
+        if (!$this->isCsrfTokenValid('filing_uncertain_' . $submissionId . '_' . $sequence, $request->getPayload()->getString('_token'))) {
+            return $this->respondCard($request, $case, 'error', 'filing.package.flash.csrf', false);
+        }
+
+        $confirmed = $this->confirmed($request, [$kind]);
+        try {
+            $kind === UncertainPartResolver::CONFIRM_RECEIVED
+                ? $this->uncertainResolver->declareReceived($part, $this->currentUser(), $confirmed)
+                : $this->uncertainResolver->declareNotReceived($part, $this->currentUser(), $confirmed);
+        } catch (FilingSendBlockedException $e) {
+            return $this->respondCard($request, $case, 'error', $e->messageKey, false);
+        }
+
+        return $this->respondCard($request, $case, 'success', 'filing.uncertain.saved');
+    }
+
+    /** @return array{0: LegalCase, 1: FilingSubmission} */
+    private function ownedSubmission(int $id, int $submissionId): array
+    {
+        $case = $this->findOrThrow($id);
+        $this->denyAccessUnlessGranted(CaseVoter::FILING_CONTENT, $case);
+        if ($case->getUser() !== $this->currentUser()) {
+            throw $this->createAccessDeniedException();
+        }
+
+        return [$case, $this->findSubmission($case, $submissionId)];
+    }
+
+    /**
+     * @param list<string> $keys
+     *
+     * @return array<string, bool>
+     */
+    private function confirmed(Request $request, array $keys): array
+    {
+        $confirmed = [];
+        foreach ($keys as $key) {
+            $confirmed[$key] = $request->getPayload()->getString('confirm_' . $key) === '1';
+        }
+
+        return $confirmed;
+    }
+
+    private function wantsTurboStream(Request $request): bool
+    {
+        return str_contains((string) $request->headers->get('Accept', ''), 'text/vnd.turbo-stream.html');
+    }
+
+    private function findSubmission(LegalCase $case, int $submissionId): FilingSubmission
+    {
+        $submission = $this->submissions->find($submissionId);
+        if (!$submission instanceof FilingSubmission || $submission->getLegalCase()->getId() !== $case->getId()) {
+            throw $this->createNotFoundException();
+        }
+
+        return $submission;
+    }
+
+    private function currentUser(): User
+    {
+        $user = $this->getUser();
+        if (!$user instanceof User) {
+            throw $this->createAccessDeniedException();
+        }
+
+        return $user;
+    }
+
+    private function findOrThrow(int $id): LegalCase
+    {
+        $case = $this->cases->find($id);
+        if (!$case instanceof LegalCase || $case->isDeleted()) {
+            throw $this->createNotFoundException();
+        }
+
+        return $case;
+    }
+}

@@ -44,9 +44,31 @@ services:
       NETOPIA_PUBLIC_KEY: ${NETOPIA_PUBLIC_KEY:-}
       NETOPIA_NOTIFY_URL: ${DEMO_PUBLIC_URL}/webhook/netopia
       NETOPIA_RETURN_URL: ${DEMO_PUBLIC_URL}/subscription/return
+      # The demo runs as prod with real-looking data: court filings stay in the
+      # demo Mailpit, addressed to the override, whatever .env.local says.
+      COURT_FILING_LIVE: '0'
+      COURT_FILING_MAILER_DSN: smtp://mailer:1025
+      COURT_FILING_RECIPIENT_OVERRIDE: instanta-simulata@example.test
+      # Court answers come only from the simulator (app:filing:simulate-court-reply),
+      # written to the demo Mailpit and read back from its API, which sits behind
+      # the same basic auth as the Mailpit UI (DEMO_MAIL_AUTH; letters and digits
+      # only in the password, it is put in a URL). The inbound-poll service reads
+      # it every two minutes.
+      INBOUND_MAIL_DSN: mailpit://${DEMO_MAIL_AUTH:-}@mailer:8025
+      INBOUND_SIMULATOR_ENABLED: '1'
+      # Every transmitted petition gets a simulated court receipt a minute later.
+      INBOUND_AUTO_RECEIPT: '1'
 
   worker:
     container_name: lexdemo-worker
+    environment: *demo_php_env
+
+  worker-filing:
+    container_name: lexdemo-worker-filing
+    environment: *demo_php_env
+
+  inbound-poll:
+    container_name: lexdemo-inbound-poll
     environment: *demo_php_env
 
   nginx:
@@ -58,6 +80,8 @@ services:
     volumes:
       - .:/var/www/html
       - ./docker/nginx/demo.conf:/etc/nginx/conf.d/default.conf
+      # Written by scripts/demo.sh before every compose call (see demo.conf).
+      - ./var/mockups.htpasswd:/etc/nginx/mockups.htpasswd:ro
 
   database:
     container_name: lexdemo-db

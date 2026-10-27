@@ -25,6 +25,9 @@ final class ConflictValueEquivalenceTest extends TestCase
         yield 'locality with and without diacritics' => ['locality', 'Grumazești', 'Grumăzești'];
         yield 'locality with unit prefix' => ['locality', 'Municipiul Cluj-Napoca', 'Cluj-Napoca'];
         yield 'sector spelled out' => ['locality', 'Sectorul 6', 'Sector 6'];
+        yield 'sector with and without the city' => ['locality', 'Sector 1 Mun. București', 'Sector 1'];
+        yield 'seat with city and sector in the street line' => ['address', 'Bucuresti, Calea Floreasca nr. 246C, Etaj 15, Sector 1', 'CALEA FLOREASCA NR. 246C, ET.15'];
+        yield 'seat with the same sector on both sides' => ['address', 'Calea Floreasca nr. 246C, Sector 1', 'CALEA FLOREASCA NR. 246C, SECTORUL 1'];
         yield 'county with prefix' => ['county', 'Jud. Ilfov', 'Ilfov'];
         yield 'representative with diacritics and dash' => ['legalRepresentative', 'Pavăl Marco – Gabriel', 'Paval Marco Gabriel'];
         yield 'administrator without middle name, reversed' => ['administrator', 'Marchis Bogdan', 'Bogdan Marius Marchiș'];
@@ -41,6 +44,9 @@ final class ConflictValueEquivalenceTest extends TestCase
         yield 'strada against bulevard' => ['address', 'strada Preciziei 24A', 'bd. Preciziei 24A'];
         yield 'another apartment' => ['address', 'Str. Linia de Centura nr. 50', 'Str. Linia de Centura nr. 50, Bl Q16, AP. 002'];
         yield 'another sector' => ['locality', 'Sector 2', 'Sector 3'];
+        yield 'seat in another sector' => ['address', 'Calea Floreasca nr. 246C, Sector 1', 'Calea Floreasca nr. 246C, Sector 2'];
+        yield 'another floor next to the sector' => ['address', 'Calea Floreasca nr. 246C, Etaj 15, Sector 1', 'Calea Floreasca nr. 246C, Etaj 14'];
+        yield 'sector against another city' => ['locality', 'Sector 1', 'Cluj-Napoca'];
         yield 'another locality' => ['locality', 'Voluntari', 'Ștefăneștii de Jos'];
         yield 'another person' => ['legalRepresentative', 'Amariei Petru', 'Bumbea Sebi'];
         yield 'one shared surname only' => ['administrator', 'Popescu Ion', 'Popescu Maria'];

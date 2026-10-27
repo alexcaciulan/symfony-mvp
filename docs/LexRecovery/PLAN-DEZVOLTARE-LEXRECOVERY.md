@@ -2555,6 +2555,12 @@ Prompt-ul original păstrat ca referință:
 >    - Cron jobs (Coolify Scheduled Tasks):
 >      - `0 7 * * *` → `bin/console app:check-deadlines`.
 >      - `0 8 * * *` → `bin/console app:portal-check-all`.
+>      - `*/5 * * * *` → `bin/console app:filing:poll-inbound` (mesajele primite de la instanțe; cere `INBOUND_MAIL_DSN` IMAP).
+>      - `*/30 * * * *` → `bin/console app:filing:inbound-heartbeat-check` (alertă admin dacă preluarea s-a oprit).
+>      - `0 9 * * *` → `bin/console app:filing:receipt-overdue` (confirmări de primire întârziate).
+>      - `30 3 * * *` → `bin/console app:filing:inbound-purge` (mesaje neidentificate și spam mai vechi de 30 de zile).
+>    - Servicii worker: `worker` (transportul `async`) și `worker-filing` (transportul `court_filing`), ambele cu restart automat.
+>    - Trimiterea reală la instanțe: `COURT_FILING_LIVE=1`, fără `COURT_FILING_RECIPIENT_OVERRIDE`, cu `COURT_FILING_MAILER_DSN` pe căsuța de depunere; rulează întâi `bin/console app:filing:preflight`.
 >    - Backup: dacă Coolify nu suportă cron nativ, folosește `symfony/scheduler` (in-process). Fallback: cron extern pe VPS.
 >
 > 4. Env vars producție: `APP_ENV=prod`, `APP_SECRET`, `DATABASE_URL` (MySQL Coolify), `MAILER_DSN` (Resend), `MESSENGER_TRANSPORT_DSN` (doctrine), `STORAGE_PATH=/var/uploads`, `MERCURE_URL=http://mercure/.well-known/mercure`, `MERCURE_PUBLIC_URL=https://lexrecovery.app/.well-known/mercure` (proxy via Caddy/nginx la container), `MERCURE_JWT_SECRET` (32+ chars random), `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL=claude-sonnet-4-6`, `EXTRAGERE_CONFIDENCE_THRESHOLD=0.6`, `OCR_LANGUAGES=ron+eng`.

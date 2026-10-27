@@ -1,0 +1,20 @@
+{# Helpers for the power of attorney: the trigger attributes that open the shared
+   details modal prefilled for one document, and the one-line description. #}
+
+{% macro edit_trigger_attrs(case, doc) %}
+    data-hs-overlay="#hs-modal-power-of-attorney"
+    data-poa-edit-url="{{ path('case_document_power_of_attorney', {caseId: case.id, documentId: doc.id}) }}"
+    data-poa-edit-series="{{ doc.powerOfAttorneySeries }}"
+    data-poa-edit-number="{{ doc.powerOfAttorneyNumber }}"
+    data-poa-edit-date="{{ doc.powerOfAttorneyDate ? doc.powerOfAttorneyDate|date('Y-m-d') : '' }}"
+    data-poa-edit-filename="{{ doc.originalFilename }}"
+{% endmacro %}
+
+{# Only the filled parts: no "nr." without a number, no placeholder series. #}
+{% macro details_suffix(doc) %}
+    {%- set parts = [] -%}
+    {%- if doc.powerOfAttorneySeries -%}{%- set parts = parts|merge(['document.power_of_attorney.part_series'|trans({'%series%': doc.powerOfAttorneySeries})]) -%}{%- endif -%}
+    {%- if doc.powerOfAttorneyNumber -%}{%- set parts = parts|merge(['document.power_of_attorney.part_number'|trans({'%number%': doc.powerOfAttorneyNumber})]) -%}{%- endif -%}
+    {%- if doc.powerOfAttorneyDate -%}{%- set parts = parts|merge(['document.power_of_attorney.part_date'|trans({'%date%': doc.powerOfAttorneyDate|date('d.m.Y')})]) -%}{%- endif -%}
+    {{- parts|join(' ') -}}
+{% endmacro %}

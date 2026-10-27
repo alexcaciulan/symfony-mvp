@@ -50,28 +50,24 @@
                         {% elseif case.stampDutyUat %}
                             <p class="mt-0.5">{{ 'case_overview.stamp_duty.paid_to'|trans({'%uat%': case.stampDutyUat}) }}</p>
                         {% endif %}
+                        {% if case.stampDutyPaidThroughRegistry %}
+                            <p class="mt-0.5">{{ (proof ? 'case_overview.stamp_duty.paid_through_registry_with_confirmation' : 'case_overview.stamp_duty.paid_through_registry')|trans }}</p>
+                        {% endif %}
                         {% if proof %}
                             <a href="{{ path('case_document_download', {caseId: case.id, documentId: proof.id}) }}"
                                class="mt-1 inline-flex items-center gap-1 font-semibold underline">
                                 {{ icon_document('size-3.5') }}
                                 {{ 'case_overview.stamp_duty.view_proof'|trans }}
                             </a>
-                        {% elseif case.stampDutyPaidAt %}
-                            {# Fără fișier de descărcat, dar nu fiindcă lipsește ceva: pe
-                               calea registraturii confirmarea a plecat la instanță pe
-                               canalul ei, iar tăcerea aici ar arăta ca o dovadă pierdută. #}
-                            <p class="mt-0.5">{{ 'case_overview.stamp_duty.paid_through_registry'|trans }}</p>
+                        {% elseif case.stampDutyPaidThroughRegistry %}
+                            {# The portal may have sent the confirmation only to the payer, so
+                               the lawyer can attach it later, without restating the payment. #}
+                            <button type="button" data-hs-overlay="#hs-modal-stamp-duty-registry-confirmation"
+                                    class="mt-1 inline-flex items-center gap-1 font-semibold underline">
+                                {{ icon_document('size-3.5') }}
+                                {{ 'case_overview.stamp_duty.cta_attach_registry_confirmation'|trans }}
+                            </button>
                         {% endif %}
-                    </div>
-                </div>
-            </div>
-        {% elseif status.value == 'ACHITARE_LA_DEPUNERE' %}
-            <div class="rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/60 p-3 mb-4">
-                <div class="flex items-start gap-2">
-                    {{ icon_money('size-4 text-blue-600 shrink-0 mt-0.5') }}
-                    <div class="text-xs text-blue-800 dark:text-blue-200">
-                        <p class="font-semibold">{{ 'case_overview.stamp_duty.at_filing_title'|trans }}</p>
-                        <p class="mt-0.5">{{ 'case_overview.stamp_duty.at_filing_body'|trans }}</p>
                     </div>
                 </div>
             </div>
@@ -122,18 +118,18 @@
             {% endif %}
         {% endif %}
 
+        {# The voter refuses these while a filing holds the case: the buttons are not offered then. #}
+        {% set can_manage_duty = is_granted('CASE_STAMP_DUTY_MANAGE', case) %}
+        {% set duty_paused_by_filing = not can_manage_duty and filing_submission|default(null) and filing_submission.active %}
         <div class="space-y-2">
-            {% if status.value != 'ACHITATA' %}
+            {% if status.outstanding %}
                 {% if rejust_url %}
                     <a href="{{ rejust_url }}" target="_blank" rel="noopener noreferrer"
                        class="w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-semibold rounded-lg bg-lex-navy text-white hover:bg-lex-navy-dark transition no-underline">
                         {{ icon_external_link('size-4') }}
                         {{ 'case_overview.stamp_duty.cta_pay'|trans }}
                     </a>
-                {# A legacy case that declared payment at filing may already have paid
-                   inside the filing form; telling it to wait for the file number would
-                   contradict the confirmation button below. #}
-                {% elseif status.value != 'ACHITARE_LA_DEPUNERE' %}
+                {% else %}
                     <div>
                         <button type="button" disabled aria-describedby="stamp-duty-registry-hint"
                                 class="w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-semibold rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed select-none">
@@ -145,34 +141,17 @@
                         </p>
                     </div>
                 {% endif %}
+                {% if can_manage_duty %}
                 <button type="button" data-hs-overlay="#hs-modal-stamp-duty-proof"
                         class="w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-semibold rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
                     {{ 'case_overview.stamp_duty.cta_upload_proof'|trans }}
                 </button>
+                {% endif %}
             {% endif %}
 
-            {# Kept provisionally until the lawyer confirms it can go: with the petition
-               sent by email the registry's new-case form is never filled, so paying at
-               filing may no longer be possible. Only offered before the petition leaves. #}
-            {% if status.value == 'NEACHITATA' and rejust_form.value == 'NOT_FILED' %}
-                {# The usual route: file now, pay in the existing case once the court
-                   allocates the number. #}
-                <button type="button" data-hs-overlay="#hs-modal-stamp-duty-defer"
-                        class="w-full py-2 px-3 inline-flex items-center justify-center gap-2 text-xs font-medium rounded-lg border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition">
-                    {{ 'case_overview.stamp_duty.cta_defer'|trans }}
-                </button>
-                <div>
-                    <button type="button" data-hs-overlay="#hs-modal-stamp-duty-at-filing"
-                            class="w-full py-2 px-3 inline-flex items-center justify-center gap-2 text-xs font-medium rounded-lg border border-blue-300 dark:border-blue-800 text-blue-800 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 transition">
-                        {{ 'case_overview.stamp_duty.cta_at_filing'|trans }}
-                    </button>
-                    <p class="mt-1.5 text-[11px] text-slate-500 dark:text-slate-400">{{ 'case_overview.stamp_duty.at_filing_provisional'|trans }}</p>
-                </div>
-            {% endif %}
-
-            {# Once the case has a number, any outstanding duty is paid in that case on
-               the registry, which leaves no file to upload, only a payment to confirm. #}
-            {% if status.value == 'ACHITARE_LA_DEPUNERE' or (status.isOutstanding and rejust_form.value == 'EXISTING_CASE') %}
+            {# The registry takes the duty only in an existing case and sends the proof to
+               the court file itself; the email confirmation is optional in the modal. #}
+            {% if status.outstanding and rejust_form.value == 'EXISTING_CASE' and can_manage_duty %}
                 <button type="button" data-hs-overlay="#hs-modal-stamp-duty-registry-paid"
                         class="w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-semibold rounded-lg bg-lex-navy text-white hover:bg-lex-navy-dark transition">
                     {{ 'case_overview.stamp_duty.cta_registry_paid'|trans }}
@@ -183,11 +162,14 @@
                neachitată: de când taxa se plătește la apariția numărului de dosar,
                avocatul nu mai trece prin amânare, iar o înștiințare primită totuși
                trebuie să aibă unde să fie consemnată. #}
-            {% if status.value != 'ACHITATA' %}
+            {% if status.outstanding and can_manage_duty %}
                 <button type="button" data-hs-overlay="#hs-modal-stamp-duty-court-notice"
                         class="w-full py-2 px-3 inline-flex items-center justify-center gap-2 text-xs font-medium rounded-lg border border-orange-300 dark:border-orange-800 text-orange-800 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-950/40 transition">
                     {{ 'case_overview.stamp_duty.cta_court_notice'|trans }}
                 </button>
+            {% endif %}
+            {% if status.outstanding and duty_paused_by_filing %}
+                <p class="text-xs text-slate-500 dark:text-slate-400" data-testid="stamp-duty-filing-lock-note">{{ 'filing.lock.actions_paused_note'|trans }}</p>
             {% endif %}
         </div>
 

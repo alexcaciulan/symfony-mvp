@@ -17,6 +17,7 @@ use App\Enum\ExtractionStatus;
 use App\Enum\PersonType;
 use App\Service\Document\OpisGeneratorService;
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
@@ -189,5 +190,60 @@ final class OpisGeneratorServiceTest extends KernelTestCase
 
         self::assertSame(DocumentType::OPIS, $document->getDocumentType());
         self::assertGreaterThan(0, $document->getFileSize());
+    }
+
+    /**
+     * @return iterable<string, array{?string, ?string, ?string, string}>
+     */
+    public static function powerOfAttorneyRows(): iterable
+    {
+        yield 'series and number' => ['B', '1234', '2026-03-10', 'Împuternicire avocațială seria B nr. 1234 din 10.03.2026'];
+        yield 'series only' => ['B', null, '2026-03-10', 'Împuternicire avocațială seria B din 10.03.2026'];
+        yield 'number only' => [null, '1234', '2026-03-10', 'Împuternicire avocațială nr. 1234 din 10.03.2026'];
+        yield 'date only' => [null, null, '2026-03-10', 'Împuternicire avocațială din 10.03.2026'];
+    }
+
+    #[DataProvider('powerOfAttorneyRows')]
+    public function testThePowerOfAttorneyRowCarriesOnlyTheFilledDetails(?string $series, ?string $number, string $date, string $expected): void
+    {
+        $doc = $this->attachDocument(DocumentType::IMPUTERNICIRE_AVOCATIALA, 'imputernicire-scan.pdf');
+        $doc->setPowerOfAttorneySeries($series);
+        $doc->setPowerOfAttorneyNumber($number);
+        $doc->setPowerOfAttorneyDate(new \DateTimeImmutable($date));
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString($expected, $html);
+        self::assertStringContainsString('imputernicire-scan.pdf', $html, 'The file name stays under the description.');
+        self::assertStringNotContainsString('nr.  din', $html);
+        self::assertStringNotContainsString('N/A', $html);
+        self::assertStringNotContainsString('—', $html);
+    }
+
+    /** An act uploaded before the date was asked for keeps its label, without inventing a date. */
+    public function testAnUndatedPowerOfAttorneyShowsOnlyItsLabel(): void
+    {
+        $doc = $this->attachDocument(DocumentType::IMPUTERNICIRE_AVOCATIALA, 'imputernicire-veche.pdf');
+        $doc->setPowerOfAttorneySeries('B');
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertMatchesRegularExpression('#<td>\s*Împuternicire avocațială<div class="meta">imputernicire-veche.pdf</div>#u', $html);
+        self::assertStringNotContainsString('seria B', $html, 'Series without the date the act is anchored to is not printed.');
+        self::assertStringNotContainsString(' din ', $html);
+    }
+
+    /** The lawyer's bar roll number was removed from the product and must not come back here. */
+    public function testThePowerOfAttorneyRowNamesNoBarNumber(): void
+    {
+        $doc = $this->attachDocument(DocumentType::IMPUTERNICIRE_AVOCATIALA, 'imputernicire.pdf');
+        $doc->setPowerOfAttorneyDate(new \DateTimeImmutable('2026-03-10'));
+
+        $html = mb_strtolower($this->service->renderHtml($this->case));
+
+        self::assertStringNotContainsString('barou', $html);
+        self::assertStringNotContainsString('tablou', $html);
+        self::assertStringNotContainsString('legitimație', $html);
+        self::assertStringNotContainsString('verificat', $html);
     }
 }

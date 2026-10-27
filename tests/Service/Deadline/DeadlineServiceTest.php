@@ -556,7 +556,7 @@ final class DeadlineServiceTest extends KernelTestCase
      * The boundary the OP filing gate rests on. With free-days counting (CPC art.
      * 181 alin. 1 pct. 2) a summons served on Monday 2 February 2026 gives the
      * debtor until the end of Wednesday 18 February, so a petition filed that same
-     * day is premature and inadmissible (CPC art. 1015-1016). Only from 19
+     * day is premature and inadmissible (CPC art. 1015-1017). Only from 19
      * February is the term proven expired.
      */
     public function testIsPaymentTermExpiredOnlyFromTheDayAfterTheMaturityDate(): void
@@ -575,7 +575,7 @@ final class DeadlineServiceTest extends KernelTestCase
      * the debtor has that whole Monday to pay and the request is admissible only from
      * Tuesday 23 June. A gate reading the raw date instead would have declared the
      * term expired over the weekend and let a premature petition through (CPC art.
-     * 1015-1016).
+     * 1015-1017).
      */
     public function testIsPaymentTermExpiredWaitsForTheProrogatedMaturityDate(): void
     {

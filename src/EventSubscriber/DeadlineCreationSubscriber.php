@@ -190,7 +190,7 @@ final class DeadlineCreationSubscriber
         //     term's maturity date plus one day, taken from DeadlineService so it never
         //     drifts from the deadline the lawyer sees (free days per CPC art. 181
         //     para. 1 pt. 2, plus the working-day prorogation of para. 2). A payment order
-        //     is enforceable from service even while under appeal (CPC art. 1021), but
+        //     is enforceable from service even while under appeal (CPC art. 1022 and art. 1024 para. 5), but
         //     that governs when enforcement may start, not when the limitation begins:
         //     art. 705 para. 2 ties the latter to the ruling becoming final;
         //  2. failing that, the ruling date. Pronouncement always precedes service, so

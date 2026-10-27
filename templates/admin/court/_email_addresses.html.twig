@@ -1,0 +1,23 @@
+{# The court's addresses on the court detail page, with the admin's way to add one. #}
+{% set addresses = field.value %}
+<p><a href="{{ path('admin_court_email_add', {courtId: entity.instance.id}) }}" class="btn btn-sm btn-secondary" data-testid="admin-court-email-add">Adaugă o adresă</a></p>
+{% if addresses is empty %}
+    <span class="text-muted" data-testid="court-email-addresses-empty">Nicio adresă înregistrată.</span>
+{% else %}
+    <table class="table table-sm" data-testid="court-email-addresses">
+        <thead>
+            <tr><th>E-mail</th><th>Scop</th><th>Status</th><th>Implicită</th><th>Confirmată la</th></tr>
+        </thead>
+        <tbody>
+            {% for address in addresses %}
+                <tr>
+                    <td><a href="{{ ea_url().unsetAll().setController('App\\Controller\\Admin\\CourtEmailAddressCrudController').setAction('detail').setEntityId(address.id) }}">{{ address.email }}</a></td>
+                    <td>{{ address.purpose.label|trans }}</td>
+                    <td>{{ address.status.label|trans }}</td>
+                    <td>{{ address.filingDefault ? 'Da' : 'Nu' }}</td>
+                    <td>{{ address.validatedAt ? address.validatedAt|date('d.m.Y') : '-' }}</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+{% endif %}

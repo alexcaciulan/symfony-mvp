@@ -1,0 +1,23 @@
+Authentication-Results: mx.lexrecovery.test; dkim=pass header.d=instanta-test.just.ro; spf=pass smtp.mailfrom=instanta-test.just.ro; dmarc=pass header.from=instanta-test.just.ro
+From: Registratura <registratura@instanta-test.example.test>
+To: depuneri@lexrecovery.test
+Date: Thu, 22 Oct 2026 11:00:00 +0000
+Subject: Citit: Cerere de ordonanta de plata
+Message-ID: <mdn-0001@instanta-test.example.test>
+MIME-Version: 1.0
+Content-Type: multipart/report; report-type=disposition-notification; boundary="md"
+
+--md
+Content-Type: text/plain; charset=utf-8
+
+Mesajul a fost afișat pe calculatorul destinatarului.
+
+--md
+Content-Type: message/disposition-notification
+
+Reporting-UA: instanta-test.example.test; Microsoft Outlook
+Final-Recipient: rfc822; {{COURT}}
+Original-Message-ID: {{MSGID}}
+Disposition: manual-action/MDN-sent-manually; displayed
+
+--md--

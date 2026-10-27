@@ -2,14 +2,20 @@
 
 namespace App\Controller\Admin;
 
+use App\Enum\CourtEmailSource;
+use App\Repository\CourtEmailAddressReportRepository;
+use App\Repository\CourtEmailAddressRepository;
 use App\Repository\InvoiceRepository;
 use App\Repository\LegalCaseRepository;
 use App\Repository\UserRepository;
 use EasyCorp\Bundle\EasyAdminBundle\Attribute\AdminDashboard;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Action;
+use EasyCorp\Bundle\EasyAdminBundle\Config\Crud;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Dashboard;
 use EasyCorp\Bundle\EasyAdminBundle\Config\MenuItem;
 use EasyCorp\Bundle\EasyAdminBundle\Controller\AbstractDashboardController;
+use EasyCorp\Bundle\EasyAdminBundle\Router\AdminUrlGenerator;
+use Psr\Clock\ClockInterface;
 use Symfony\Component\HttpFoundation\Response;
 
 #[AdminDashboard(routePath: '/admin', routeName: 'admin')]
@@ -19,11 +25,17 @@ class DashboardController extends AbstractDashboardController
         private UserRepository $userRepository,
         private LegalCaseRepository $legalCaseRepository,
         private InvoiceRepository $invoiceRepository,
+        private CourtEmailAddressRepository $courtEmailAddressRepository,
+        private CourtEmailAddressReportRepository $courtEmailAddressReportRepository,
+        private AdminUrlGenerator $adminUrlGenerator,
+        private ClockInterface $clock,
     ) {
     }
 
     public function index(): Response
     {
+        $now = $this->clock->now();
+
         return $this->render('admin/dashboard.html.twig', [
             'totalUsers' => $this->userRepository->countAll(),
             'verifiedUsers' => $this->userRepository->countVerified(),
@@ -33,13 +45,47 @@ class DashboardController extends AbstractDashboardController
             'activeCases' => $this->legalCaseRepository->countActive(),
             'rulingsIssuedThisMonth' => $this->legalCaseRepository->countRulingsIssuedThisMonth(),
             'pendingInvoices' => $this->invoiceRepository->countPending(),
+            'courtsWithoutValidatedAddress' => $this->courtEmailAddressRepository->countActiveCourtsWithoutValidatedAddress($now),
+            'proposedCourtAddresses' => $this->courtEmailAddressRepository->countProposed(),
+            'expiredCourtAddressValidations' => $this->courtEmailAddressRepository->countExpiredValidations($now),
+            'proposedCourtAddressesUrl' => $this->adminUrlGenerator
+                ->unsetAll()
+                ->setController(CourtEmailAddressCrudController::class)
+                ->setAction(Action::INDEX)
+                ->set('filters', ['status' => ['comparison' => '=', 'value' => 'PROPOSED']])
+                ->generateUrl(),
+            'lawyerSuggestions' => $this->courtEmailAddressRepository->countProposedFromSource(CourtEmailSource::LAWYER_SUGGESTION),
+            'lawyerSuggestionsUrl' => $this->adminUrlGenerator
+                ->unsetAll()
+                ->setController(CourtEmailAddressCrudController::class)
+                ->setAction(Action::INDEX)
+                ->set('filters', [
+                    'status' => ['comparison' => '=', 'value' => 'PROPOSED'],
+                    'source' => ['comparison' => '=', 'value' => CourtEmailSource::LAWYER_SUGGESTION->value],
+                ])
+                ->generateUrl(),
+            'openCourtEmailReports' => $this->courtEmailAddressReportRepository->countOpen(),
+            'openCourtEmailReportsUrl' => $this->adminUrlGenerator
+                ->unsetAll()
+                ->setController(CourtEmailAddressReportCrudController::class)
+                ->setAction(Action::INDEX)
+                ->set('filters', ['resolvedAt' => 'null'])
+                ->generateUrl(),
         ]);
+    }
+
+    /** Romanian date formats on every admin list and detail page. */
+    public function configureCrud(): Crud
+    {
+        return Crud::new()
+            ->setDateFormat('dd.MM.yyyy')
+            ->setDateTimeFormat('dd.MM.yyyy HH:mm');
     }
 
     public function configureDashboard(): Dashboard
     {
         return Dashboard::new()
-            ->setTitle('RecuperăriCreanțe — Admin')
+            ->setTitle('LexRecovery · Admin')
             ->setFaviconPath('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 128 128%22><text y=%221.2em%22 font-size=%2296%22>⚖️</text></svg>');
     }
 
@@ -54,6 +100,8 @@ class DashboardController extends AbstractDashboardController
         yield MenuItem::linkTo(ClaimItemCrudController::class, 'Poziții creanță', 'fas fa-list-ol')->setAction(Action::INDEX);
         yield MenuItem::linkTo(DocumentCrudController::class, 'Documente', 'fas fa-file-lines')->setAction(Action::INDEX);
         yield MenuItem::linkTo(LegalDeadlineCrudController::class, 'Termene', 'fas fa-calendar-day')->setAction(Action::INDEX);
+        yield MenuItem::linkTo(FilingSubmissionCrudController::class, 'Transmiteri la instanță', 'fas fa-paper-plane')->setAction(Action::INDEX);
+        yield MenuItem::linkTo(InboundMailCrudController::class, 'Mesaje primite', 'fas fa-inbox')->setAction(Action::INDEX);
         yield MenuItem::section('Monetizare');
         yield MenuItem::linkTo(PlanCrudController::class, 'Planuri', 'fas fa-layer-group')->setAction(Action::INDEX);
         yield MenuItem::linkTo(SubscriptionCrudController::class, 'Abonamente', 'fas fa-id-card')->setAction(Action::INDEX);
@@ -63,6 +111,8 @@ class DashboardController extends AbstractDashboardController
         yield MenuItem::linkTo(AppSettingCrudController::class, 'Setări aplicație', 'fas fa-sliders-h')->setAction(Action::INDEX);
         yield MenuItem::linkTo(UserCrudController::class, 'Utilizatori', 'fas fa-users')->setAction(Action::INDEX);
         yield MenuItem::linkTo(CourtCrudController::class, 'Instanțe', 'fas fa-landmark')->setAction(Action::INDEX);
+        yield MenuItem::linkTo(CourtEmailAddressCrudController::class, 'Adrese e-mail instanțe', 'fas fa-at')->setAction(Action::INDEX);
+        yield MenuItem::linkTo(CourtEmailAddressReportCrudController::class, 'Rapoarte adrese instanțe', 'fas fa-flag')->setAction(Action::INDEX);
         yield MenuItem::linkTo(CourtPortalEventCrudController::class, 'Evenimente portal', 'fas fa-satellite-dish')->setAction(Action::INDEX);
         yield MenuItem::linkTo(InterestRateConfigCrudController::class, 'Rate dobândă', 'fas fa-percent')->setAction(Action::INDEX);
         yield MenuItem::linkTo(BnrExchangeRateCrudController::class, 'Cursuri valutare BNR', 'fas fa-money-bill-transfer')->setAction(Action::INDEX);

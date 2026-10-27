@@ -42,6 +42,33 @@ framework:
             policy: sliding_window
             limit: 20
             interval: '1 hour'
+        # Filing package build: runs qpdf/Ghostscript for up to 100 s per build.
+        filing_package_build:
+            policy: sliding_window
+            limit: 10
+            interval: '1 hour'
+        # Signed file uploads: each one parses an untrusted PDF with qpdf and Ghostscript.
+        filing_signed_upload:
+            policy: sliding_window
+            limit: 30
+            interval: '1 hour'
+        # Court filings sent by email, per user and per court: each one leaves the
+        # platform's domain for a court, so a compromised or careless account must
+        # not be able to flood a registry.
+        filing_submission:
+            policy: fixed_window
+            limit: 10
+            interval: '1 day'
+        filing_court_cap:
+            policy: fixed_window
+            limit: 50
+            interval: '1 day'
+        # Court address actions from a case page (confirm, add by hand, report),
+        # per user: each one is audited and visible to the admin.
+        court_address_validation:
+            policy: sliding_window
+            limit: 20
+            interval: '1 hour'
         # Manual portal.just.ro check (Pas 6.1 CasePortalController::checkNow) —
         # SOAP I/O extern la cerere; limitează abuzul de butonul „Verifică acum".
         portal_check:
@@ -134,6 +161,16 @@ when@test:
             summons_generation:
                 policy: no_limit
             payment_order_generation:
+                policy: no_limit
+            filing_package_build:
+                policy: no_limit
+            filing_signed_upload:
+                policy: no_limit
+            court_address_validation:
+                policy: no_limit
+            filing_submission:
+                policy: no_limit
+            filing_court_cap:
                 policy: no_limit
             portal_check:
                 policy: no_limit

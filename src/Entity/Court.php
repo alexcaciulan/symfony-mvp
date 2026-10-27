@@ -29,9 +29,6 @@ class Court
     #[ORM\JoinColumn(nullable: false)]
     private ?County $county = null;
 
-    #[ORM\Column(length: 255, nullable: true)]
-    private ?string $email = null;
-
     #[ORM\Column(length: 20, nullable: true)]
     private ?string $phone = null;
 
@@ -44,6 +41,10 @@ class Court
     #[ORM\Column(length: 100, nullable: true, unique: true)]
     private ?string $portalCode = null;
 
+    /** The court's page id on portal.just.ro, where its contact addresses are listed. */
+    #[ORM\Column(nullable: true, unique: true)]
+    private ?int $portalSiteId = null;
+
     /** @var Collection<int, City> */
     #[ORM\ManyToMany(targetEntity: City::class)]
     #[ORM\JoinTable(name: 'court_covered_city')]
@@ -53,10 +54,20 @@ class Court
     #[ORM\OneToMany(targetEntity: LegalCase::class, mappedBy: 'court')]
     private Collection $legalCases;
 
+    /**
+     * Read-only from this side: addresses change only through CourtEmailAddressService.
+     *
+     * @var Collection<int, CourtEmailAddress>
+     */
+    #[ORM\OneToMany(targetEntity: CourtEmailAddress::class, mappedBy: 'court')]
+    #[ORM\OrderBy(['status' => 'ASC', 'purpose' => 'ASC'])]
+    private Collection $emailAddresses;
+
     public function __construct()
     {
         $this->coveredCities = new ArrayCollection();
         $this->legalCases = new ArrayCollection();
+        $this->emailAddresses = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -96,18 +107,6 @@ class Court
     public function setCounty(County $county): static
     {
         $this->county = $county;
-
-        return $this;
-    }
-
-    public function getEmail(): ?string
-    {
-        return $this->email;
-    }
-
-    public function setEmail(?string $email): static
-    {
-        $this->email = $email;
 
         return $this;
     }
@@ -158,6 +157,24 @@ class Court
         $this->portalCode = $portalCode;
 
         return $this;
+    }
+
+    public function getPortalSiteId(): ?int
+    {
+        return $this->portalSiteId;
+    }
+
+    public function setPortalSiteId(?int $portalSiteId): static
+    {
+        $this->portalSiteId = $portalSiteId;
+
+        return $this;
+    }
+
+    /** @return Collection<int, CourtEmailAddress> */
+    public function getEmailAddresses(): Collection
+    {
+        return $this->emailAddresses;
     }
 
     /** @return Collection<int, City> */

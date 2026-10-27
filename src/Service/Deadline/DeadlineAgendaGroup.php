@@ -16,7 +16,7 @@ final readonly class DeadlineAgendaGroup
     /**
      * Past-due terms of the debtor. They sit right under the arrears because they
      * read the same way on a calendar and the opposite way in law: their expiry is
-     * the event that opens the filing of the request (CPC art. 1015-1016).
+     * the event that opens the filing of the request (CPC art. 1015-1017).
      */
     public const KEY_UNBLOCKED = 'unblocked';
 

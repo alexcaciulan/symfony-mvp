@@ -1,0 +1,16 @@
+Return-Path: <>
+Delivered-To: bounces+{{VERP}}@lexrecovery.test
+From: Mail Delivery Subsystem <mailer-daemon@old-mta.instanta-test.example.test>
+To: bounces+{{VERP}}@lexrecovery.test
+Date: Thu, 22 Oct 2026 10:30:00 +0000
+Subject: Returned mail: see transcript for details
+Message-ID: <legacy-0001@old-mta.instanta-test.example.test>
+Content-Type: text/plain; charset=us-ascii
+
+The original message was received at Thu, 22 Oct 2026 10:29:00.
+
+   ----- The following addresses had permanent fatal errors -----
+<{{COURT}}>
+
+   ----- Transcript of session follows -----
+550 5.1.1 {{COURT}}... User unknown

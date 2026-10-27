@@ -1,0 +1,49 @@
+{# Cover of one annex volume, outside the page numbering and signed with the volume.
+   The certification statement is a declaration of the lawyer, not of the platform;
+   its wording is provisional until the consulting lawyer confirms it. #}
+{% set creditor = case.creditor %}
+{% set debtor = case.primaryDebtor %}
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page { margin: 3cm 2.5cm; }
+        body { font-family: 'DejaVu Sans', sans-serif; font-size: 11pt; color: #111827; line-height: 1.5; }
+        .caseref { text-align: right; font-size: 9pt; color: #6b7280; }
+        h1 { font-size: 18pt; text-align: center; margin: 80pt 0 6pt 0; letter-spacing: 1pt; }
+        .range { text-align: center; font-size: 13pt; margin: 0 0 30pt 0; }
+        .parties { font-size: 10.5pt; margin: 0 0 30pt 0; }
+        .parties .label { font-weight: bold; display: inline-block; min-width: 80pt; }
+        .statement { border: 1px solid #9ca3af; padding: 10pt 12pt; font-size: 10.5pt; }
+        .signature { margin-top: 40pt; text-align: right; font-size: 10pt; }
+        .signature .line { display: block; border-top: 1px solid #9ca3af; width: 180pt; margin: 30pt 0 4pt auto; }
+        .meta { font-size: 9pt; color: #6b7280; }
+    </style>
+</head>
+<body>
+<div class="caseref">{{ 'pdf.document_index.case_reference'|trans }}: <strong>{{ case.caseNumber }}</strong></div>
+
+<h1>{{ 'pdf.annex_cover.heading'|trans }}</h1>
+<p class="range">{{ page_from == page_to ? 'pdf.annex_cover.page_single'|trans({'%page%': page_from}) : 'pdf.annex_cover.page_range'|trans({'%from%': page_from, '%to%': page_to}) }}</p>
+
+<div class="parties">
+    {% if case.court %}<div><span class="label">{{ 'pdf.opis_package.court_label'|trans }}:</span> {{ case.court.name }}</div>{% endif %}
+    {% if creditor %}<div><span class="label">{{ 'pdf.opis_package.creditor_label'|trans }}:</span> {{ creditor.name }}</div>{% endif %}
+    {% if debtor %}<div><span class="label">{{ 'pdf.opis_package.debtor_label'|trans }}:</span> {{ debtor.name }}</div>{% endif %}
+</div>
+
+{# The builder refuses a lawyer without a name; never print a nameless statement. #}
+{% if user and user.fullName %}
+<div class="statement">
+    {{ 'pdf.annex_cover.statement'|trans({'%lawyer%': user.fullName}) }}
+</div>
+{% endif %}
+
+<div class="signature">
+    <span class="line"></span>
+    {% if user and user.fullName %}<div><strong>{{ 'pdf.annex_cover.lawyer'|trans({'%lawyer%': user.fullName}) }}</strong></div>{% endif %}
+    <div class="meta">{{ 'pdf.annex_cover.signature_label'|trans }}</div>
+</div>
+</body>
+</html>

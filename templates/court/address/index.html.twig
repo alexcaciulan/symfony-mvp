@@ -1,0 +1,55 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{{ 'court_address.validation.page_title'|trans }} · {{ case.caseNumber }}{% endblock %}
+
+{% from 'case/overview/_icons.html.twig' import icon_chevron_right %}
+
+{% block breadcrumb %}
+  <li class="inline-flex items-center">
+    <a href="{{ path('app_cases') }}" class="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300">{{ 'case_overview.breadcrumb.cases'|trans }}</a>
+    <span class="shrink-0 mx-1.5 text-slate-300 dark:text-slate-700">{{ icon_chevron_right('size-3') }}</span>
+  </li>
+  <li class="inline-flex items-center">
+    <a href="{{ path('case_overview', {id: case.id, tab: 'depunere'}) }}" class="font-mono text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300">{{ case.caseNumber }}</a>
+    <span class="shrink-0 mx-1.5 text-slate-300 dark:text-slate-700">{{ icon_chevron_right('size-3') }}</span>
+  </li>
+  <li class="inline-flex items-center font-medium text-slate-700 dark:text-slate-300 truncate" aria-current="page">{{ 'court_address.validation.page_title'|trans }}</li>
+{% endblock %}
+
+{# The court's name first, the address used for filing next, then every address of
+   the court, the suggestion form and, folded at the end, how addresses are checked. #}
+{% block body %}
+<div class="space-y-6">
+    <div>
+        <a href="{{ path('case_overview', {id: case.id, tab: 'depunere'}) }}" class="text-sm text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200">{{ 'court_address.page.back'|trans }}</a>
+        {% if court %}
+            <h1 class="mt-2 text-2xl font-bold text-slate-900 dark:text-white" data-testid="court-address-court">{{ court.name }}</h1>
+            <p class="text-sm text-slate-500 dark:text-slate-400">{{ court.type.label|trans }}</p>
+        {% else %}
+            <h1 class="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{{ 'court_address.validation.page_title'|trans }}</h1>
+            <p class="text-sm text-amber-800 dark:text-amber-200">{{ 'enum.court_filing_address_missing_reason.NO_COURT'|trans }}</p>
+        {% endif %}
+        <p class="mt-2 text-slate-600 dark:text-slate-300 max-w-3xl">{{ 'court_address.page.intro'|trans }}</p>
+        {% if not is_owner %}
+            <p class="mt-2 text-sm text-slate-500" data-testid="court-address-read-only">{{ 'court_address.validation.read_only_admin'|trans }}</p>
+        {% endif %}
+    </div>
+
+    {{ include('court/address/_list.html.twig') }}
+
+    <details class="group bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800" data-testid="court-address-rules">
+        <summary class="cursor-pointer list-none px-5 py-4 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+            <svg class="size-4 text-slate-400 transition-transform group-open:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+            {{ 'court_address.page.rules_title'|trans }}
+        </summary>
+        <ul class="px-5 pb-5 ps-10 space-y-1.5 text-sm text-slate-600 dark:text-slate-300 list-disc">
+            <li>{{ 'court_address.validation.intro'|trans }}</li>
+            <li>{{ 'court_address.validation.scope_note'|trans }}</li>
+            <li>{{ 'court_address.validation.other_channel_note'|trans }}</li>
+            <li>{{ 'court_address.validation.unofficial_source'|trans }}</li>
+            <li>{{ 'court_address.validation.expiry_note'|trans({'%days%': constant('App\\Entity\\CourtEmailAddress::VALIDATION_TTL_DAYS')}) }}</li>
+            <li>{{ 'court_address.validation.tribunal_note'|trans }}</li>
+        </ul>
+    </details>
+</div>
+{% endblock %}

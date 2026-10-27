@@ -56,11 +56,37 @@
                     <select id="document_upload_documentType"
                             name="document_upload[documentType]"
                             data-document-upload-preset-target="type"
+                            data-action="change->document-upload-preset#toggle"
                             class="wizard-select w-full py-2 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                         {% for t in document_upload_types %}
                             <option value="{{ t.value }}">{{ ('document.type.' ~ t.value)|trans }}</option>
                         {% endfor %}
                     </select>
+                </div>
+
+                {# Shown only for a power of attorney; disabled otherwise so other types
+                   submit without them. The date is never prefilled: it is the date of
+                   the act, which only the lawyer knows. #}
+                <div data-document-upload-preset-target="powerOfAttorney" class="hidden space-y-3" data-testid="upload-power-of-attorney-fields">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label for="document_upload_powerOfAttorneySeries" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'document.power_of_attorney.series_label'|trans }}</label>
+                            <input type="text" id="document_upload_powerOfAttorneySeries" name="document_upload[powerOfAttorneySeries]" maxlength="20" disabled
+                                   class="w-full py-2 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label for="document_upload_powerOfAttorneyNumber" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'document.power_of_attorney.number_label'|trans }}</label>
+                            <input type="text" id="document_upload_powerOfAttorneyNumber" name="document_upload[powerOfAttorneyNumber]" maxlength="30" disabled
+                                   class="w-full py-2 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                    </div>
+                    <div>
+                        <label for="document_upload_powerOfAttorneyDate" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">{{ 'document.power_of_attorney.date_label'|trans }}</label>
+                        <input type="date" id="document_upload_powerOfAttorneyDate" name="document_upload[powerOfAttorneyDate]" max="{{ 'now'|date('Y-m-d') }}" disabled
+                               data-document-upload-preset-target="powerOfAttorneyDate"
+                               class="w-full py-2 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <p class="mt-1.5 text-xs text-slate-400 dark:text-slate-500">{{ 'document.power_of_attorney.date_hint'|trans }}</p>
+                    </div>
                 </div>
             </div>
 

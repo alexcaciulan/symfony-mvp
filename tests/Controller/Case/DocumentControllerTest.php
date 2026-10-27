@@ -7,6 +7,7 @@ namespace App\Tests\Controller\Case;
 use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\User;
+use App\Enum\CaseStatus;
 use App\Enum\DocumentType;
 use Doctrine\ORM\EntityManagerInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -16,6 +17,7 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
+use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
  * Tests for DocumentController (upload / download / delete).
@@ -594,5 +596,266 @@ final class DocumentControllerTest extends WebTestCase
         $this->em->flush();
 
         return $intruder;
+    }
+
+    // ===== power of attorney ============================================
+
+    /**
+     * @param array<string, string> $details
+     */
+    private function uploadPowerOfAttorney(array $details, bool $turbo = true): void
+    {
+        $this->client->request(
+            'POST',
+            sprintf('/case/%d/document/upload', $this->case->getId()),
+            ['document_upload' => ['_token' => $this->uploadToken(), 'documentType' => 'imputernicire_avocatiala'] + $details],
+            ['document_upload' => ['file' => $this->makePdf('imputernicire.pdf')]],
+            $turbo ? ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html'] : [],
+        );
+    }
+
+    private function trans(string $key, array $params = []): string
+    {
+        return static::getContainer()->get(TranslatorInterface::class)->trans($key, $params);
+    }
+
+    private function body(): string
+    {
+        return html_entity_decode((string) $this->client->getResponse()->getContent());
+    }
+
+    public function testPowerOfAttorneyUploadWithoutADateIsRefused(): void
+    {
+        $this->client->loginUser($this->user);
+
+        $this->uploadPowerOfAttorney(['powerOfAttorneySeries' => 'B', 'powerOfAttorneyNumber' => '12']);
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString($this->trans('document.power_of_attorney.date_required'), $this->body());
+        $this->em->clear();
+        self::assertCount(0, $this->em->getRepository(Document::class)->findBy(['legalCase' => $this->case->getId()]));
+    }
+
+    public function testPowerOfAttorneyUploadStoresSeriesNumberAndDate(): void
+    {
+        $this->client->loginUser($this->user);
+
+        $this->uploadPowerOfAttorney([
+            'powerOfAttorneySeries' => '  B ',
+            'powerOfAttorneyNumber' => '0042',
+            'powerOfAttorneyDate' => '2026-03-10',
+        ]);
+
+        self::assertStringContainsString($this->trans('document.upload.success'), $this->body());
+        $this->em->clear();
+        $doc = $this->em->getRepository(Document::class)->findOneBy(['legalCase' => $this->case->getId()]);
+        self::assertNotNull($doc);
+        self::assertSame(DocumentType::IMPUTERNICIRE_AVOCATIALA, $doc->getDocumentType());
+        self::assertSame('B', $doc->getPowerOfAttorneySeries());
+        self::assertSame('0042', $doc->getPowerOfAttorneyNumber());
+        self::assertSame('2026-03-10', $doc->getPowerOfAttorneyDate()?->format('Y-m-d'));
+    }
+
+    public function testPowerOfAttorneyUploadWithAFutureDateIsRefused(): void
+    {
+        $this->client->loginUser($this->user);
+
+        $this->uploadPowerOfAttorney(['powerOfAttorneyDate' => (new \DateTimeImmutable('+1 day'))->format('Y-m-d')]);
+
+        self::assertStringContainsString($this->trans('document.power_of_attorney.date_future'), $this->body());
+        $this->em->clear();
+        self::assertCount(0, $this->em->getRepository(Document::class)->findBy(['legalCase' => $this->case->getId()]));
+    }
+
+    /** The date is required for the power of attorney alone. */
+    public function testOtherTypesUploadWithoutThePowerOfAttorneyDate(): void
+    {
+        $this->client->loginUser($this->user);
+
+        $this->client->request(
+            'POST',
+            sprintf('/case/%d/document/upload', $this->case->getId()),
+            ['document_upload' => ['_token' => $this->uploadToken(), 'documentType' => 'factura', 'powerOfAttorneyDate' => '2026-01-01']],
+            ['document_upload' => ['file' => $this->makePdf('factura.pdf')]],
+        );
+
+        self::assertResponseRedirects('/case/' . $this->case->getId() . '?tab=documente');
+        $this->em->clear();
+        $doc = $this->em->getRepository(Document::class)->findOneBy(['legalCase' => $this->case->getId()]);
+        self::assertNotNull($doc);
+        self::assertNull($doc->getPowerOfAttorneyDate(), 'Details sent with another type are ignored.');
+    }
+
+    public function testPowerOfAttorneyDatedAfterTheSummonsUploadsWithAWarning(): void
+    {
+        $this->case->setPaymentNoticeDate(new \DateTime('2026-02-01'));
+        $this->em->flush();
+        $this->client->loginUser($this->user);
+
+        $this->uploadPowerOfAttorney(['powerOfAttorneyDate' => '2026-02-02']);
+
+        $body = $this->body();
+        self::assertStringContainsString($this->trans('document.upload.success'), $body);
+        self::assertStringContainsString($this->trans('document.upload.power_of_attorney_after_summons', [
+            '%poa_date%' => '02.02.2026',
+            '%summons_date%' => '01.02.2026',
+        ]), $body);
+    }
+
+    public function testPowerOfAttorneyDatedOnTheSummonsDayDoesNotWarn(): void
+    {
+        $this->case->setPaymentNoticeDate(new \DateTime('2026-02-01'));
+        $this->em->flush();
+        $this->client->loginUser($this->user);
+
+        $this->uploadPowerOfAttorney(['powerOfAttorneyDate' => '2026-02-01']);
+
+        self::assertStringContainsString($this->trans('document.upload.success'), $this->body());
+        self::assertStringNotContainsString('power_of_attorney_after_summons', $this->body());
+        self::assertStringNotContainsString($this->trans('document.upload.power_of_attorney_after_summons', [
+            '%poa_date%' => '01.02.2026',
+            '%summons_date%' => '01.02.2026',
+        ]), $this->body());
+    }
+
+    private function editToken(): string
+    {
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        return (string) $this->client->getCrawler()
+            ->filter('input[name="power_of_attorney_details[_token]"]')->first()->attr('value');
+    }
+
+    /**
+     * @param array<string, string> $details
+     */
+    private function postEdit(int $documentId, array $details, ?string $token = null): void
+    {
+        $this->client->request(
+            'POST',
+            sprintf('/case/%d/document/%d/power-of-attorney', $this->case->getId(), $documentId),
+            ['power_of_attorney_details' => ['_token' => $token ?? $this->editToken()] + $details],
+            [],
+            ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html'],
+        );
+    }
+
+    public function testOwnerCompletesTheDetailsOfAnUndatedPowerOfAttorney(): void
+    {
+        $docId = $this->persistDocument(DocumentType::IMPUTERNICIRE_AVOCATIALA);
+        $this->em->clear();
+        $this->client->loginUser($this->user);
+
+        // The documents list flags the missing date and offers the edit.
+        $this->client->request('GET', '/case/' . $this->case->getId());
+        self::assertSelectorExists('[data-testid="poa-date-missing-' . $docId . '"]');
+        self::assertSelectorExists('[data-testid="poa-edit-' . $docId . '"]');
+
+        $this->postEdit($docId, [
+            'powerOfAttorneySeries' => 'B',
+            'powerOfAttorneyNumber' => '77',
+            'powerOfAttorneyDate' => '2026-04-01',
+        ]);
+
+        $body = $this->body();
+        self::assertStringContainsString($this->trans('document.power_of_attorney.updated'), $body);
+        self::assertStringContainsString('target="panel-documente"', $body);
+        self::assertStringContainsString('hs-modal-power-of-attorney', $body);
+        self::assertStringContainsString('seria B nr. 77 din 01.04.2026', $body);
+
+        $this->em->clear();
+        $doc = $this->em->getRepository(Document::class)->find($docId);
+        self::assertSame('B', $doc->getPowerOfAttorneySeries());
+        self::assertSame('77', $doc->getPowerOfAttorneyNumber());
+        self::assertSame('2026-04-01', $doc->getPowerOfAttorneyDate()?->format('Y-m-d'));
+    }
+
+    /** Editing brings no new act onto the case, so the warning does not say one was uploaded. */
+    public function testEditingADateAfterTheSummonsWarnsWithoutClaimingAnUpload(): void
+    {
+        $this->case->setPaymentNoticeDate(new \DateTime('2026-02-01'));
+        $this->em->flush();
+        $docId = $this->persistDocument(DocumentType::IMPUTERNICIRE_AVOCATIALA);
+        $this->em->clear();
+        $this->client->loginUser($this->user);
+
+        $this->postEdit($docId, ['powerOfAttorneyDate' => '2026-02-02']);
+
+        $body = $this->body();
+        self::assertStringContainsString($this->trans('document.power_of_attorney.after_summons', [
+            '%poa_date%' => '02.02.2026',
+            '%summons_date%' => '01.02.2026',
+        ]), $body);
+        self::assertStringNotContainsString($this->trans('document.upload.power_of_attorney_after_summons', [
+            '%poa_date%' => '02.02.2026',
+            '%summons_date%' => '01.02.2026',
+        ]), $body);
+    }
+
+    public function testPowerOfAttorneyEditWithoutADateIsRefused(): void
+    {
+        $docId = $this->persistDocument(DocumentType::IMPUTERNICIRE_AVOCATIALA);
+        $this->client->loginUser($this->user);
+
+        $this->postEdit($docId, ['powerOfAttorneySeries' => 'B']);
+
+        self::assertStringContainsString($this->trans('document.power_of_attorney.date_required'), $this->body());
+        $this->em->clear();
+        self::assertNull($this->em->getRepository(Document::class)->find($docId)->getPowerOfAttorneySeries());
+    }
+
+    public function testPowerOfAttorneyEditRejectsInvalidCsrf(): void
+    {
+        $docId = $this->persistDocument(DocumentType::IMPUTERNICIRE_AVOCATIALA);
+        $this->client->loginUser($this->user);
+
+        $this->postEdit($docId, ['powerOfAttorneyDate' => '2026-04-01'], 'bad-token');
+
+        self::assertStringNotContainsString($this->trans('document.power_of_attorney.updated'), $this->body());
+        $this->em->clear();
+        self::assertNull($this->em->getRepository(Document::class)->find($docId)->getPowerOfAttorneyDate());
+    }
+
+    public function testPowerOfAttorneyEditIsNotFoundForAnotherType(): void
+    {
+        $docId = $this->persistDocument(DocumentType::FACTURA);
+        $this->client->loginUser($this->user);
+
+        $this->postEdit($docId, ['powerOfAttorneyDate' => '2026-04-01']);
+
+        self::assertResponseStatusCodeSame(Response::HTTP_NOT_FOUND);
+    }
+
+    public function testPowerOfAttorneyEditForbiddenForOtherUser(): void
+    {
+        $docId = $this->persistDocument(DocumentType::IMPUTERNICIRE_AVOCATIALA);
+        $intruder = $this->createIntruder();
+        try {
+            $this->client->loginUser($intruder);
+            $this->postEdit($docId, ['powerOfAttorneyDate' => '2026-04-01'], 'any');
+            self::assertResponseStatusCodeSame(Response::HTTP_FORBIDDEN);
+        } finally {
+            $this->em->getConnection()->executeStatement('DELETE FROM `user` WHERE id = ?', [$intruder->getId()]);
+        }
+    }
+
+    /** The court holds the index as filed, so the details no longer change afterwards. */
+    public function testPowerOfAttorneyEditIsLockedOnceThePetitionIsFiled(): void
+    {
+        $docId = $this->persistDocument(DocumentType::IMPUTERNICIRE_AVOCATIALA);
+        $this->client->loginUser($this->user);
+        $token = $this->editToken();
+
+        $this->case->setStatus(CaseStatus::CERERE_DEPUSA);
+        $this->em->flush();
+
+        $this->client->request('GET', '/case/' . $this->case->getId());
+        self::assertSelectorNotExists('[data-testid="poa-edit-' . $docId . '"]');
+
+        $this->postEdit($docId, ['powerOfAttorneyDate' => '2026-04-01'], $token);
+
+        self::assertStringContainsString($this->trans('document.power_of_attorney.locked'), $this->body());
+        $this->em->clear();
+        self::assertNull($this->em->getRepository(Document::class)->find($docId)->getPowerOfAttorneyDate());
     }
 }

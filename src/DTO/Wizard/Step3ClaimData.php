@@ -19,7 +19,7 @@ use Symfony\Component\Validator\Constraints as Assert;
  * form hides CIVIL from the dropdown until post-MVP B2C support.
  *
  * `dueDate` must be in the past or today — a not-yet-due claim cannot enter
- * the OP procedure (CPC art. 1013: "creanța să fie certă, lichidă și
+ * the OP procedure (CPC art. 1014: "creanța să fie certă, lichidă și
  * exigibilă"). The exact "today" cutoff uses Symfony's `LessThanOrEqual`
  * with `'today'` reference, which is UTC midnight; tests use explicit
  * relative dates (-1 day / +1 day) to stay deterministic across timezones.

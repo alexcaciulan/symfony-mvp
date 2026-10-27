@@ -55,6 +55,25 @@ class AdminAccessTest extends WebTestCase
         $this->em->flush();
     }
 
+    protected function tearDown(): void
+    {
+        // A leftover admin receives every later admin notification in the shared test database.
+        if (isset($this->em, $this->admin) && $this->admin->getId() !== null) {
+            self::removeAdmin($this->em->getConnection(), (int) $this->admin->getId());
+        }
+        parent::tearDown();
+    }
+
+    public static function removeAdmin(\Doctrine\DBAL\Connection $conn, int $id): void
+    {
+        $conn->executeStatement('DELETE FROM audit_log WHERE user_id = ?', [$id]);
+        $conn->executeStatement('DELETE FROM notification WHERE user_id = ?', [$id]);
+        $conn->executeStatement('UPDATE case_status_history SET created_by_id = NULL WHERE created_by_id = ?', [$id]);
+        $conn->executeStatement('UPDATE legal_deadline SET completed_by_id = NULL WHERE completed_by_id = ?', [$id]);
+        $conn->executeStatement('UPDATE portal_case_match SET decided_by_id = NULL WHERE decided_by_id = ?', [$id]);
+        $conn->executeStatement('DELETE FROM `user` WHERE id = ? AND id NOT IN (SELECT user_id FROM legal_case) AND id NOT IN (SELECT user_id FROM subscription)', [$id]);
+    }
+
     public function testAdminDashboardAccessibleByAdmin(): void
     {
         $this->client->loginUser($this->admin);
@@ -124,6 +143,7 @@ class AdminAccessTest extends WebTestCase
 
         $this->assertResponseIsSuccessful();
         $this->assertSelectorTextContains('h3', 'Informații dosar');
+        $this->assertSelectorExists('body.ea #main-menu');
     }
 
     public function testChangeStatusAppliesTransition(): void
@@ -176,6 +196,27 @@ class AdminAccessTest extends WebTestCase
 
         $freshEm = static::getContainer()->get(EntityManagerInterface::class);
         $this->assertSame(CaseStatus::AMIABIL, $freshEm->getRepository(LegalCase::class)->find($caseId)->getStatus());
+    }
+
+    /** Undoing an undelivered filing belongs to the inbound processing alone. */
+    public function testChangeStatusDoesNotOfferUndoingAFiling(): void
+    {
+        $this->client->loginUser($this->admin);
+        $case = $this->createTestCase(CaseStatus::CERERE_DEPUSA);
+        $caseId = $case->getId();
+
+        $crawler = $this->client->request('GET', '/admin/case/' . $caseId . '/change-status');
+        $this->assertStringNotContainsString('anuleaza_depunere_nelivrata', (string) $this->client->getResponse()->getContent());
+        $csrfToken = $crawler->filter('input[name="_token"]')->attr('value');
+
+        $this->client->request('POST', '/admin/case/' . $caseId . '/change-status', [
+            'transition' => 'anuleaza_depunere_nelivrata',
+            'reason' => '',
+            '_token' => $csrfToken,
+        ]);
+
+        $freshEm = static::getContainer()->get(EntityManagerInterface::class);
+        $this->assertSame(CaseStatus::CERERE_DEPUSA, $freshEm->getRepository(LegalCase::class)->find($caseId)->getStatus());
     }
 
     public function testChangeStatusRejectsInvalidTransition(): void

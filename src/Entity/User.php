@@ -63,9 +63,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, Equatab
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $companyName = null;
 
-    #[ORM\Column(length: 50, nullable: true)]
-    private ?string $barNumber = null;
-
     #[ORM\Column(length: 20, nullable: true)]
     private ?string $phone = null;
 
@@ -328,18 +325,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, Equatab
     public function setCompanyName(?string $companyName): static
     {
         $this->companyName = $companyName;
-
-        return $this;
-    }
-
-    public function getBarNumber(): ?string
-    {
-        return $this->barNumber;
-    }
-
-    public function setBarNumber(?string $barNumber): static
-    {
-        $this->barNumber = $barNumber;
 
         return $this;
     }

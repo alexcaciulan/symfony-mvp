@@ -86,6 +86,73 @@ services:
         exec php bin/console messenger:consume async \
             --time-limit=3600 --memory-limit=128M -vv
 
+  # Court filing emails, on their own queue and process: an extraction running on
+  # `async` must never delay a filing nor outlive its redelivery window. The
+  # `worker` above consumes `async` only.
+  worker-filing:
+    <<: *php_base
+    container_name: symfony-mvp-worker-filing
+    depends_on:
+      database:
+        condition: service_healthy
+      php:
+        condition: service_started
+    entrypoint: []
+    command:
+      - sh
+      - -c
+      - |
+        # Same readiness wait as `worker`: the php container clears the cache after
+        # its migrations, which would pull the DI container from under this process.
+        sleep 5
+        waited=0
+        until [ -f var/.app-ready ]; do
+          if [ "$$waited" -ge 600 ]; then
+            echo "worker-filing: no readiness marker after $${waited}s, starting anyway (check the php container)"
+            break
+          fi
+          echo "worker-filing: waiting for the php container to finish booting..."
+          sleep 3
+          waited=$$((waited + 3))
+        done
+        until php bin/console doctrine:migrations:up-to-date >/dev/null 2>&1; do
+          echo "worker-filing: waiting for migrations to be applied..."
+          sleep 3
+        done
+        echo "worker-filing: starting messenger:consume court_filing"
+        exec php bin/console messenger:consume court_filing \
+            --time-limit=3600 --memory-limit=128M -vv
+
+  # Reads the inbound mailbox on a loop, the stand-in for the */5 cron of
+  # production. Only in the `inbound-poll` profile (the demo enables it); the dev
+  # stack keeps reading on demand with `make filing-poll`.
+  inbound-poll:
+    <<: *php_base
+    profiles: [inbound-poll]
+    container_name: symfony-mvp-inbound-poll
+    depends_on:
+      database:
+        condition: service_healthy
+      php:
+        condition: service_started
+    entrypoint: []
+    command:
+      - sh
+      - -c
+      - |
+        sleep 5
+        until [ -f var/.app-ready ] && php bin/console doctrine:migrations:up-to-date >/dev/null 2>&1; do
+          echo "inbound-poll: waiting for the php container and the migrations..."
+          sleep 5
+        done
+        echo "inbound-poll: reading the inbound mailbox every 120s"
+        while true; do
+          # Writes nothing unless INBOUND_AUTO_RECEIPT is on (the demo).
+          php bin/console app:filing:simulate-auto-receipts || echo "inbound-poll: auto receipts failed"
+          php bin/console app:filing:poll-inbound || echo "inbound-poll: run failed, retrying next round"
+          sleep 120
+        done
+
   nginx:
     image: nginx:alpine
     container_name: symfony-mvp-nginx

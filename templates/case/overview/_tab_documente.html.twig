@@ -1,5 +1,5 @@
 {# Tab Documente orchestrator: main col-span-2 (summons communication + Generated +
-   Source) + sidebar (Taxă timbru + ZIP). Cardul taxei stă deasupra ZIP-ului
+   Source) + sidebar (Taxă timbru + where the email filing stands + ZIP for other channels). Cardul taxei stă deasupra ZIP-ului
    fiindcă plata condiționează pachetul: dovada trebuie atașată cererii (CPC art. 197). #}
 
 {# The communication card leads the column while date or proof is missing and drops
@@ -26,6 +26,9 @@
             {{ include('case/overview/_stamp_duty_card.html.twig') }}
         {% endif %}
         {% if not case.fullPaymentDate %}
+            {% if filing_tab_visible|default(false) %}
+                {{ include('case/filing/_documents_compact_card.html.twig') }}
+            {% endif %}
             {{ include('case/overview/_zip_package_card.html.twig') }}
         {% endif %}
     </aside>

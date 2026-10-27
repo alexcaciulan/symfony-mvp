@@ -62,7 +62,7 @@ final class SharedPromptFragments
         return 'Ești un expert în extracție de date din documente juridice și comerciale '
             . 'românești (facturi, contracte, extrase de cont, somații, recunoașteri de datorie). '
             . 'Documentul analizat stă la baza unei cereri de ordonanță de plată '
-            . '(Codul de procedură civilă art. 1013-1024).';
+            . '(Codul de procedură civilă art. 1014-1025).';
     }
 
     private static function partyGlossary(): string

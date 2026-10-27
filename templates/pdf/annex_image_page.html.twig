@@ -1,0 +1,17 @@
+{# One image annex on one A4 page, centred within 10 mm margins. Size computed in ImageToPdfConverter. #}
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page { margin: 10mm; }
+        body { margin: 0; padding: 0; }
+        .box { width: 190mm; height: 277mm; text-align: center; }
+    </style>
+</head>
+<body>
+<div class="box">
+    <img src="{{ image_data_uri }}" style="width: {{ width_mm }}mm; height: {{ height_mm }}mm;" alt="">
+</div>
+</body>
+</html>

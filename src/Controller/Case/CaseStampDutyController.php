@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controller\Case;
 
 use App\Entity\LegalCase;
+use App\Enum\RejustStampDutyForm;
 use App\Enum\StampDutyStatus;
 use App\Form\Case\StampDutyProofType;
 use App\Repository\LegalCaseRepository;
@@ -12,10 +13,12 @@ use App\Security\Voter\CaseVoter;
 use App\Service\Case\OverviewContextBuilder;
 use App\Service\StampDuty\StampDutyService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 /**
  * Judicial stamp duty (OUG 80/2013): proof of payment, payment after registration in
@@ -112,41 +115,19 @@ final class CaseStampDutyController extends AbstractController
     }
 
     /**
-     * The lawyer will pay in the electronic registry form, together with filing.
-     * Unblocks the package without pretending the money has moved.
-     */
-    #[Route('/case/{id}/stamp-duty/at-filing', name: 'case_stamp_duty_at_filing', requirements: ['id' => '\d+'], methods: ['POST'])]
-    public function atFiling(int $id, Request $request): Response
-    {
-        $case = $this->findOrThrow($id);
-        $this->denyAccessUnlessGranted(CaseVoter::STAMP_DUTY_MANAGE, $case);
-
-        if (!$this->isCsrfTokenValid('stamp_duty_at_filing_' . $id, $request->getPayload()->getString('_token'))) {
-            return $this->respond($request, $case, false, 'error', 'case_overview.stamp_duty.flash_error_csrf');
-        }
-
-        if ($case->getStampDutyStatus() === StampDutyStatus::ACHITATA) {
-            return $this->respond($request, $case, false, 'warning', 'case_overview.stamp_duty.flash_error_already_paid');
-        }
-
-        $this->stampDutyService->declarePaymentAtFiling($case, $this->getUser());
-
-        return $this->respond(
-            $request,
-            $case,
-            true,
-            'success',
-            'case_overview.stamp_duty.flash_success_at_filing',
-            'hs-modal-stamp-duty-at-filing',
-        );
-    }
-
-    /**
-     * Payment went through the electronic registry, so the confirmation reached the
-     * court on its own channel and there is no file for us to hold.
+     * Payment was individualized on the existing case through the electronic registry.
+     * The registry sends the proof of payment to the court file itself, whoever paid,
+     * so the confirmation the lawyer received by email is optional and kept only for
+     * the case record. The registry takes the duty only in an existing case, hence the
+     * file-number guard.
      */
     #[Route('/case/{id}/stamp-duty/registry-paid', name: 'case_stamp_duty_registry_paid', requirements: ['id' => '\d+'], methods: ['POST'])]
-    public function registryPaid(int $id, Request $request): Response
+    public function registryPaid(
+        int $id,
+        Request $request,
+        RateLimiterFactory $documentUploadLimiter,
+        ValidatorInterface $validator,
+    ): Response
     {
         $case = $this->findOrThrow($id);
         $this->denyAccessUnlessGranted(CaseVoter::STAMP_DUTY_MANAGE, $case);
@@ -155,8 +136,12 @@ final class CaseStampDutyController extends AbstractController
             return $this->respond($request, $case, false, 'error', 'case_overview.stamp_duty.flash_error_csrf');
         }
 
-        if ($case->getStampDutyStatus() === StampDutyStatus::ACHITATA) {
+        if (!$case->getStampDutyStatus()->isOutstanding()) {
             return $this->respond($request, $case, false, 'warning', 'case_overview.stamp_duty.flash_error_already_paid');
+        }
+
+        if ($case->rejustStampDutyForm() !== RejustStampDutyForm::EXISTING_CASE) {
+            return $this->respond($request, $case, false, 'error', 'case_overview.stamp_duty.flash_error_registry_needs_case_number');
         }
 
         $paidAtRaw = trim($request->getPayload()->getString('paidAt'));
@@ -174,12 +159,35 @@ final class CaseStampDutyController extends AbstractController
             return $this->respond($request, $case, false, 'error', 'case_overview.stamp_duty.error.payment_reference_too_long');
         }
 
+        $file = $request->files->get('file');
+        if (!$file instanceof UploadedFile) {
+            $file = null;
+        }
+
+        $user = $this->getUser();
+        if ($file !== null) {
+            if ($case->hasStampDutyProof()) {
+                return $this->respond($request, $case, false, 'warning', 'case_overview.stamp_duty.flash_error_already_paid');
+            }
+
+            if ($user !== null && !$documentUploadLimiter->create($user->getUserIdentifier())->consume()->isAccepted()) {
+                return $this->respond($request, $case, false, 'warning', 'rate_limit.document_upload');
+            }
+
+            // Validated here so a wrong type is a message, not the upload service's exception.
+            $violations = $validator->validate($file, StampDutyProofType::fileConstraint());
+            if (\count($violations) > 0) {
+                return $this->respond($request, $case, false, 'error', (string) $violations->get(0)->getMessage());
+            }
+        }
+
         $this->stampDutyService->confirmPaymentThroughRegistry(
             case: $case,
-            user: $this->getUser(),
+            user: $user,
             paidAt: $paidAt,
             paymentReference: $reference !== '' ? $reference : null,
             lawVersion: $this->stampDutyLawVersion,
+            file: $file,
         );
 
         return $this->respond(
@@ -187,8 +195,59 @@ final class CaseStampDutyController extends AbstractController
             $case,
             true,
             'success',
-            'case_overview.stamp_duty.flash_success_registry_paid',
+            $file !== null
+                ? 'case_overview.stamp_duty.flash_success_registry_paid_with_file'
+                : 'case_overview.stamp_duty.flash_success_registry_paid',
             'hs-modal-stamp-duty-registry-paid',
+        );
+    }
+
+    /**
+     * The registry confirmation obtained after a registry payment was declared without
+     * it. Only the file is taken; the payment data stays as declared.
+     */
+    #[Route('/case/{id}/stamp-duty/registry-confirmation', name: 'case_stamp_duty_registry_confirmation', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function registryConfirmation(
+        int $id,
+        Request $request,
+        RateLimiterFactory $documentUploadLimiter,
+        ValidatorInterface $validator,
+    ): Response {
+        $case = $this->findOrThrow($id);
+        $this->denyAccessUnlessGranted(CaseVoter::STAMP_DUTY_MANAGE, $case);
+
+        if (!$this->isCsrfTokenValid('stamp_duty_registry_confirmation_' . $id, $request->getPayload()->getString('_token'))) {
+            return $this->respond($request, $case, false, 'error', 'case_overview.stamp_duty.flash_error_csrf');
+        }
+
+        if ($case->getStampDutyStatus() !== StampDutyStatus::ACHITATA || !$case->isStampDutyPaidThroughRegistry() || $case->hasStampDutyProof()) {
+            return $this->respond($request, $case, false, 'warning', 'case_overview.stamp_duty.flash_error_registry_confirmation_not_expected');
+        }
+
+        $file = $request->files->get('file');
+        if (!$file instanceof UploadedFile) {
+            return $this->respond($request, $case, false, 'error', 'case_overview.stamp_duty.flash_error_registry_confirmation_missing');
+        }
+
+        $user = $this->getUser();
+        if ($user !== null && !$documentUploadLimiter->create($user->getUserIdentifier())->consume()->isAccepted()) {
+            return $this->respond($request, $case, false, 'warning', 'rate_limit.document_upload');
+        }
+
+        $violations = $validator->validate($file, StampDutyProofType::fileConstraint());
+        if (\count($violations) > 0) {
+            return $this->respond($request, $case, false, 'error', (string) $violations->get(0)->getMessage());
+        }
+
+        $this->stampDutyService->attachRegistryConfirmation($case, $file, $user);
+
+        return $this->respond(
+            $request,
+            $case,
+            true,
+            'success',
+            'case_overview.stamp_duty.flash_success_registry_confirmation_attached',
+            'hs-modal-stamp-duty-registry-confirmation',
         );
     }
 

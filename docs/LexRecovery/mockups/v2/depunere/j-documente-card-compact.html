@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Documente: card compact depunere</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="shell.js"></script>
+</head>
+<body class="font-sans antialiased bg-slate-50 text-slate-900">
+<main data-shell data-tab="documente" data-badge="Cerere generată" data-tone="slate" data-cta="Depune pe altă cale" data-tab-dot="red">
+
+<div class="grid grid-cols-3 gap-6">
+  <div class="col-span-2 space-y-6">
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-soft">
+      <header class="px-6 py-4 border-b border-slate-100 flex justify-between"><h3 class="font-semibold">Documente generate</h3><span class="text-sm text-slate-500">3 din 3 generate</span></header>
+      <ul class="divide-y divide-slate-100 text-sm">
+        <li class="px-6 py-4 flex items-center justify-between"><div><div class="font-medium">Somație de plată</div><div class="text-slate-500">Generată 24.10.2026 16:06</div></div><a href="#" class="py-1.5 px-3 rounded-lg border border-slate-200">Descarcă PDF</a></li>
+        <li class="px-6 py-4 flex items-center justify-between"><div><div class="font-medium">Cerere ordonanță de plată</div><div class="text-slate-500">Generată 24.10.2026 16:06</div></div><a href="#" class="py-1.5 px-3 rounded-lg border border-slate-200">Descarcă PDF</a></li>
+        <li class="px-6 py-4 flex items-center justify-between"><div><div class="font-medium">Opis documente</div><div class="text-slate-500">Generat 24.10.2026 16:06</div></div><a href="#" class="py-1.5 px-3 rounded-lg border border-slate-200">Descarcă PDF</a></li>
+      </ul>
+    </section>
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-soft h-40 flex items-center justify-center text-sm text-slate-400">Comunicarea somației, documente sursă (neschimbate)</section>
+  </div>
+
+  <aside class="space-y-6">
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-soft p-5 h-36 flex items-center justify-center text-sm text-slate-400">Taxa de timbru (neschimbat)</section>
+
+    <!-- Compact filing card: status + one link, nothing else -->
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-soft p-5">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-semibold">Depunere la instanță prin e-mail</h3>
+        <span class="size-2 rounded-full bg-red-500" aria-hidden="true"></span>
+      </div>
+      <p class="mt-2 text-sm font-medium text-red-700">Cererea nu a ajuns la instanță</p>
+      <p class="text-sm text-slate-600">Adresa nu există. Necesită o decizie.</p>
+      <a href="f-cerere-nelivrata.html" class="mt-3 inline-flex py-2 px-3.5 rounded-lg bg-lex-navy text-white text-sm font-semibold">Deschide depunerea</a>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-soft p-5 h-28 flex items-center justify-center text-sm text-slate-400">Pachet ZIP pentru alte canale (neschimbat)</section>
+  </aside>
+</div>
+</main>
+</body>
+</html>

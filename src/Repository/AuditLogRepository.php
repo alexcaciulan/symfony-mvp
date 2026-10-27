@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Entity\AuditLog;
+use App\Entity\FilingSubmission;
 use App\Entity\LegalCase;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -33,6 +34,43 @@ class AuditLogRepository extends ServiceEntityRepository
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
+    }
+
+    /** Whether the case's trail holds at least one entry with this action. */
+    public function hasActionForCase(LegalCase $case, string $action): bool
+    {
+        return (bool) $this->createQueryBuilder('a')
+            ->select('1')
+            ->andWhere('a.entityType = :type')
+            ->andWhere('a.entityId = :id')
+            ->andWhere('a.action = :action')
+            ->setParameter('type', LegalCase::class)
+            ->setParameter('id', (string) $case->getId())
+            ->setParameter('action', $action)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
+
+    /** Whether the case's audit trail holds this action for one filing submission. */
+    public function hasActionForSubmission(FilingSubmission $submission, string $action): bool
+    {
+        $rows = $this->createQueryBuilder('a')
+            ->andWhere('a.entityType = :type')
+            ->andWhere('a.entityId = :id')
+            ->andWhere('a.action = :action')
+            ->setParameter('type', LegalCase::class)
+            ->setParameter('id', (string) $submission->getLegalCase()->getId())
+            ->setParameter('action', $action)
+            ->getQuery()
+            ->getResult();
+        foreach ($rows as $row) {
+            if ((int) ($row->getNewData()['submissionId'] ?? 0) === (int) $submission->getId()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -76,5 +114,39 @@ class AuditLogRepository extends ServiceEntityRepository
             ->orderBy('a.createdAt', 'ASC')
             ->getQuery()
             ->getResult();
+    }
+
+    /**
+     * Replaces the given strings in the stored payloads of one entity's audit rows,
+     * so an erasure request also reaches what the trail recorded about it.
+     *
+     * @param array<string, string> $replace search => replacement
+     */
+    public function redactEntityPayloads(string $entityType, string $entityId, array $replace): int
+    {
+        /** @var list<AuditLog> $rows */
+        $rows = $this->findBy(['entityType' => $entityType, 'entityId' => $entityId]);
+        $redact = static function (mixed $value) use (&$redact, $replace): mixed {
+            if (is_string($value)) {
+                return str_ireplace(array_keys($replace), array_values($replace), $value);
+            }
+            if (is_array($value)) {
+                $out = [];
+                foreach ($value as $key => $item) {
+                    $out[is_string($key) ? $redact($key) : $key] = $redact($item);
+                }
+
+                return $out;
+            }
+
+            return $value;
+        };
+
+        foreach ($rows as $row) {
+            $row->setOldData($row->getOldData() !== null ? $redact($row->getOldData()) : null);
+            $row->setNewData($row->getNewData() !== null ? $redact($row->getNewData()) : null);
+        }
+
+        return count($rows);
     }
 }
