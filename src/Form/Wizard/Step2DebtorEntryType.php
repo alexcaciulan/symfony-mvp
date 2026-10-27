@@ -135,6 +135,11 @@ final class Step2DebtorEntryType extends AbstractType
                 'mapped' => false,
                 'required' => false,
             ])
+            // '1' once a full sync took the party's data from ANAF, '0' when it did not.
+            ->add('anafDataSynced', HiddenType::class, [
+                'mapped' => false,
+                'required' => false,
+            ])
             ->add('debtorId', HiddenType::class, [
                 'required' => false,
             ])
@@ -172,6 +177,7 @@ final class Step2DebtorEntryType extends AbstractType
                 // a previous PJ selection may have populated.
                 $data['anafStatus'] = null;
                 $data['anafCheckedAt'] = null;
+                $data['anafDataSynced'] = '0';
                 // BPI is a Legea 85/2014 (PJ) concept; a PF debtor never carries
                 // the attestation, so drop a tick left over from a PJ selection.
                 unset($data['bpiVerifiedToday']);
@@ -223,6 +229,13 @@ final class Step2DebtorEntryType extends AbstractType
                 $entry->anafStatus = AnafStatus::tryFrom($rawStatus);
             }
 
+            // '1' and '0' are decisions; an empty value (a Live Component
+            // re-render that had no entry to read it from) keeps what was known.
+            $rawSynced = (string) ($form->get('anafDataSynced')->getData() ?? '');
+            if ($rawSynced === '1' || $rawSynced === '0') {
+                $entry->anafDataSynced = $rawSynced === '1';
+            }
+
             $rawCheckedAt = (string) ($form->get('anafCheckedAt')->getData() ?? '');
             if ($rawCheckedAt !== '') {
                 try {
@@ -266,8 +279,10 @@ final class Step2DebtorEntryType extends AbstractType
         if ($submittedCheckedAt === '' || $submittedCheckedAt === $boundCheckedAt) {
             $bound->anafStatus = null;
             $bound->anafCheckedAt = null;
+            $bound->anafDataSynced = false;
             $data['anafStatus'] = null;
             $data['anafCheckedAt'] = null;
+            $data['anafDataSynced'] = '0';
         }
 
         return $data;

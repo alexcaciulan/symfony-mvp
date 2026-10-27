@@ -130,15 +130,15 @@ final class ClaimItemFactory
             $rows[] = $row;
         }
 
-        $result = $this->settleBalanceSummaries(
-            $this->settleAdvances($this->deduplicator->deduplicate($rows, $typesByDocument)),
-            $typesByDocument,
-        );
+        $result = $this->settleAdvances($this->deduplicator->deduplicate($rows, $typesByDocument));
         // Due dates first: a payment covering several invoices goes to the
         // oldest due date first.
         $this->paymentTerms->apply($result->rows, $paymentTerms, $typesByDocument, $hasContract);
         $unmatched = $this->statementPayments->settle($result->rows, $paymentsByDocument, $balancesByDocument);
         $unmatched = $this->statementPayments->flagFromText($result->rows, $statements) || $unmatched;
+        // After the payments: a statement's balance is set against what is
+        // still unpaid on the invoices it sums, not against their totals.
+        $result = $this->settleBalanceSummaries($result, $typesByDocument);
 
         if (!$unmatched) {
             return $result;
@@ -370,9 +370,11 @@ final class ClaimItemFactory
      * The creditor's ledger states one outstanding balance over several
      * invoices. Counted next to those invoices it asks for the debt twice: the
      * reviewing lawyer saw 371.712,60 lei where 169.251,60 were owed. It stays
-     * on screen, excluded and saying why. When its balance is below the
-     * invoices' total, the difference is payments the ledger already took into
-     * account, and the row says so: imputing them stays the lawyer's call.
+     * on screen, excluded and saying why. When its balance is below what is
+     * still unpaid on those invoices, once the payments the statements tie to
+     * them are off, the difference is something the file does not explain
+     * (a payment not tied to an invoice, a set-off, a storno), and the row
+     * says so.
      *
      * @param array<int, DocumentType> $typesByDocument
      */
@@ -413,8 +415,8 @@ final class ClaimItemFactory
 
             $summary->excluded = true;
             $summary->warningKeys[] = 'wizard.step3.claim_items.warning.balance_summarizes_invoices';
-            $invoicedTotal = array_sum(array_map(static fn (ClaimItemRow $r): float => $r->amountRon ?? 0.0, $covered));
-            if ($summary->amountRon !== null && $summary->amountRon < $invoicedTotal - StatementPaymentSettler::AMOUNT_TOLERANCE) {
+            $unpaidTotal = array_sum(array_map(static fn (ClaimItemRow $r): float => $r->signedAmountRon() ?? 0.0, $covered));
+            if ($summary->amountRon !== null && $summary->amountRon < $unpaidTotal - StatementPaymentSettler::AMOUNT_TOLERANCE) {
                 $summary->warningKeys[] = 'wizard.step3.claim_items.warning.balance_below_invoices';
             }
         }

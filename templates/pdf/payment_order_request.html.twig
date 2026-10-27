@@ -14,6 +14,13 @@
    creditor 200 lei pe care instanța nu îi acordă din oficiu. #}
 {% set stampDuty = stamp_duty_amount|default(case.stampDuty|default('0')) %}
 {% set currency = case.currency|default('RON') %}
+{# A contractual accessory is named as the contract names it, like in the summons;
+   only the statutory one is "dobândă". #}
+{% set contractual_key = case.penaltyType is not null and case.penaltyType.value == 'CONTRACTUAL'
+    ? (case.contractualAccessoryLabel ? case.contractualAccessoryLabel.value : 'PENALITATI_INTARZIERE')
+    : null %}
+{% set contractual_phrase = contractual_key ? ('pdf.summons.accessory_label.' ~ contractual_key)|trans : '' %}
+{% set contractual_title = contractual_key ? ('enum.contractual_accessory_label.' ~ contractual_key)|trans : '' %}
 {# Taxa de timbru e fixă în RON (OUG 80/2013 art. 6 alin. 2), indiferent de moneda creanței.
    Totalul în moneda creanței = principal + dobândă; taxa timbru afișată separat în RON. #}
 {% set total_claim = (principal ?: 0) + (interest ?: 0) %}
@@ -185,7 +192,7 @@
                         }) }}</span>
                     {% endif %}
                     {% if item.description %}<br><span class="meta">{{ item.description }}</span>{% endif %}</td>
-                    <td class="amount">{{ item.signedAmountRon|number_format(2, ',', '.') }} {{ currency }}<br><span class="meta">{% if itemAccessory %}{{ 'pdf.payment_order.amount_interest_item'|trans({'%sum%': itemAccessory.total|number_format(2, ',', '.'), '%currency%': currency}) }}{% elseif item.dueDate and not item.isCreditNote %}{{ 'pdf.payment_order.amount_interest_item_unavailable'|trans }}{% endif %}</span></td>
+                    <td class="amount">{{ item.signedAmountRon|number_format(2, ',', '.') }} {{ currency }}<br><span class="meta">{% if itemAccessory %}{{ (contractual_key ? 'pdf.payment_order.amount_contractual_item' : 'pdf.payment_order.amount_interest_item')|trans({'%sum%': itemAccessory.total|number_format(2, ',', '.'), '%currency%': currency, '%label%': contractual_phrase}) }}{% elseif item.dueDate and not item.isCreditNote %}{{ (contractual_key ? 'pdf.payment_order.amount_contractual_item_unavailable' : 'pdf.payment_order.amount_interest_item_unavailable')|trans({'%label%': contractual_phrase}) }}{% endif %}</span></td>
                 </tr>
             {% endfor %}
             <tr>
@@ -202,7 +209,7 @@
         <tr>
             {# The calculation date is printed only when the figure was computed here at a
                known date; the stored fallback carries none and must not be dated. #}
-            <td>{% if items_accessory is not null and accessory_reference_date|default(null) %}{{ 'pdf.payment_order.amount_interest_as_of'|trans({'%date%': accessory_reference_date|date('d.m.Y')}) }}{% else %}{{ 'pdf.payment_order.amount_interest'|trans }}{% endif %}</td>
+            <td>{% if items_accessory is not null and accessory_reference_date|default(null) %}{{ (contractual_key ? 'pdf.payment_order.amount_contractual_as_of' : 'pdf.payment_order.amount_interest_as_of')|trans({'%date%': accessory_reference_date|date('d.m.Y'), '%label%': contractual_title}) }}{% else %}{{ (contractual_key ? 'pdf.payment_order.amount_contractual' : 'pdf.payment_order.amount_interest')|trans({'%label%': contractual_title}) }}{% endif %}</td>
             <td class="amount">{{ interest|number_format(2, ',', '.') }} {{ currency }}</td>
         </tr>
         {% endif %}
@@ -225,7 +232,9 @@
 {% if interest and interest != '0' and interest != '0.00' and items_accessory is not null and accessory_reference_date|default(null) %}
     {# Interest keeps running until payment (art. 1535 C.civ.): the figure above is a
        snapshot at a stated date, not the final sum, and the claim says so. #}
-    <p>{{ 'pdf.payment_order.interest_continuing'|trans({'%date%': accessory_reference_date|date('d.m.Y')}) }}</p>
+    {# The cap is named only when the contract sets one; otherwise the contract's terms. #}
+    {% set contractual_cap = contractual_key ? case.contractualPenaltyCap : null %}
+    <p>{{ (contractual_key ? (contractual_cap ? 'pdf.payment_order.contractual_continuing_capped' : 'pdf.payment_order.contractual_continuing') : 'pdf.payment_order.interest_continuing')|trans({'%date%': accessory_reference_date|date('d.m.Y'), '%label%': contractual_phrase, '%cap%': contractual_cap ? (contractual_cap|number_format(2, ',', '.')|trim('0', 'right')|trim(',', 'right')) : ''}) }}</p>
 {% endif %}
 {% if itemized and single_cause %}
     {# Art. 99: the cumulative total is valued as one head only on a single cause.

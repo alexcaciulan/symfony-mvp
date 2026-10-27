@@ -286,6 +286,10 @@
                        DTO properties (`?AnafStatus`, `?DateTimeImmutable`). #}
                     {{ form_widget(entry.anafStatus, { attr: { 'data-party-anaf-lookup-target': 'anafStatus' }}) }}
                     {{ form_widget(entry.anafCheckedAt, { attr: { 'data-party-anaf-lookup-target': 'anafCheckedAt' }}) }}
+                    {# Without the entry (a re-render) the submitted value stands; an empty one keeps the DTO's. #}
+                    {{ form_widget(entry.anafDataSynced, entry_dto is not null
+                        ? { value: entry_dto.anafDataSynced ? '1' : '0', attr: { 'data-party-anaf-lookup-target': 'anafDataSynced' }}
+                        : { attr: { 'data-party-anaf-lookup-target': 'anafDataSynced' }}) }}
                 </div>
 
                 {# BPI verification panel, shown for PJ debtors only. BPI (Legea 85/2014)

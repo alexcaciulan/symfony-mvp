@@ -26,9 +26,10 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 )]
 class ImportExchangeRatesCommand extends Command
 {
-    private const NS = 'http://www.bnr.ro/xsd';
-    private const CURRENT_URL = 'https://www.bnr.ro/nbrfxrates.xml';
-    private const ARCHIVE_URL = 'https://www.bnr.ro/files/xml/years/nbrfxrates%d.xml';
+    // BNR serves the rate files from curs.bnr.ro; www.bnr.ro now redirects
+    // these paths to its home page, which is HTML.
+    private const CURRENT_URL = 'https://curs.bnr.ro/nbrfxrates.xml';
+    private const ARCHIVE_URL = 'https://curs.bnr.ro/files/xml/years/nbrfxrates%d.xml';
 
     /** Currencies persisted; the UI exposes only EUR, USD is kept for future use. */
     private const CURRENCIES = ['EUR', 'USD'];
@@ -78,20 +79,23 @@ class ImportExchangeRatesCommand extends Command
         $updated = 0;
         $skipped = 0;
 
-        $body = $xml->children(self::NS)->Body ?? null;
+        // The feed switched its namespace from http:// to https:// once already,
+        // so the document's own default namespace is read, none when it has none.
+        $ns = $xml->getNamespaces()[''] ?? '';
+        $body = $xml->children($ns)->Body ?? null;
         if ($body === null) {
             $io->error('Unexpected BNR XML structure (missing Body).');
             return Command::FAILURE;
         }
 
-        foreach ($body->children(self::NS)->Cube as $cube) {
+        foreach ($body->children($ns)->Cube as $cube) {
             $dateRaw = (string) $cube->attributes()->date;
             $rateDate = \DateTimeImmutable::createFromFormat('!Y-m-d', $dateRaw);
             if ($rateDate === false) {
                 continue;
             }
 
-            foreach ($cube->children(self::NS)->Rate as $rateNode) {
+            foreach ($cube->children($ns)->Rate as $rateNode) {
                 $currency = (string) $rateNode->attributes()->currency;
                 if (!in_array($currency, self::CURRENCIES, true)) {
                     continue;

@@ -73,7 +73,7 @@ tailwind-watch: ## Watch and rebuild Tailwind CSS on file changes
 	docker compose exec php php bin/console tailwind:build --watch
 
 monitor-cases: ## Monitor court cases via portal.just.ro
-	docker compose exec php php bin/console app:monitor-court-cases --no-interaction
+	docker compose exec php php bin/console app:portal-check-all --no-interaction
 
 filing-poll: ## Read the inbound mailbox once (court receipts, bounces, replies)
 	docker compose exec -T php php bin/console app:filing:poll-inbound

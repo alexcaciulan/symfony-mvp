@@ -29,6 +29,14 @@ use Symfony\Component\Validator\Context\ExecutionContextInterface;
  */
 class Step2DebtorEntry
 {
+    /**
+     * Whether the name, Trade Registry number and seat were taken from ANAF by
+     * a full sync. A status-only check (the library debtor, the confirmation
+     * step) dates `anafCheckedAt` too but takes none of those fields, so it
+     * leaves what the documents disagree on for the lawyer to settle.
+     */
+    public bool $anafDataSynced = false;
+
     /** @param list<string> $autoFilled */
     public function __construct(
         #[Assert\NotNull(message: 'wizard.step2.error.person_type_required')]

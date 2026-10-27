@@ -216,6 +216,28 @@ final class StatementPaymentSettlementTest extends TestCase
         self::assertFalse($row->hasStatedDeduction);
     }
 
+    /** The statement's balance matches what is unpaid once its payments are off: nothing left to explain. */
+    public function testAStatementBalanceEqualToTheUnpaidRestRaisesNoDifferenceWarning(): void
+    {
+        $result = $this->factory([
+            $this->invoice(1, '23381', 1000.0),
+            $this->invoice(2, '23382', 2000.0),
+            $this->document(3, DocumentType::CONFIRMARE_SOLD, [
+                'amount' => 2400.0,
+                'currency' => 'RON',
+                'description' => 'Sold: factura 23381 rest 400; factura 23382 rest 2000.',
+                'invoiceBalances' => [
+                    ['invoiceReference' => '23381', 'outstanding' => 400.0],
+                    ['invoiceReference' => '23382', 'outstanding' => 2000.0],
+                ],
+            ]),
+        ])->collectRows([1, 2, 3]);
+
+        $summary = $this->row($result->rows, '');
+        self::assertTrue($summary->excluded);
+        self::assertNotContains('wizard.step3.claim_items.warning.balance_below_invoices', $summary->warningKeys);
+    }
+
     /** Two statements of one invoice: payments only add up, so the lower balance is the later one. */
     public function testTheLowerOfTwoStatedBalancesIsKept(): void
     {
@@ -403,7 +425,7 @@ final class StatementPaymentSettlementTest extends TestCase
     private function row(array $rows, string $number): ClaimItemRow
     {
         foreach ($rows as $row) {
-            if ($row->documentNumber === $number) {
+            if ((string) $row->documentNumber === $number) {
                 return $row;
             }
         }

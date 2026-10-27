@@ -15,6 +15,8 @@ use App\Entity\User;
 use App\Enum\ClaimItemKind;
 use App\Enum\CourtType;
 use App\Enum\DocumentType;
+use App\Enum\ContractualAccessoryLabel;
+use App\Enum\PenaltyType;
 use App\Enum\PersonType;
 use App\Enum\StampDutyStatus;
 use App\Service\Document\PaymentOrderRequestGeneratorService;
@@ -479,6 +481,52 @@ final class PaymentOrderRequestGeneratorServiceTest extends KernelTestCase
         $this->case->addClaimItem($item);
 
         return $item;
+    }
+
+    /** A contractual accessory is named as the contract names it; only legal interest is "dobândă". */
+    public function testAContractualAccessoryIsNamedAsTheContractNamesIt(): void
+    {
+        $this->case->setPenaltyType(PenaltyType::CONTRACTUAL);
+        $this->case->setContractualPenaltyRate('0.100');
+        $this->case->setContractualAccessoryLabel(ContractualAccessoryLabel::MAJORARI_INTARZIERE);
+        $this->addClaimItem('FACT-1', '5000.00', null);
+        $this->addClaimItem('FACT-2', '5000.00', null);
+        $this->em->flush();
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString('majorări de întârziere', $html);
+        self::assertStringContainsString('Majorări de întârziere acumulate', $html);
+        // No cap in the contract: the claim names the contract's terms, not a limit.
+        self::assertStringContainsString('în condițiile stabilite prin contract', $html);
+        self::assertStringNotContainsString('plafonului', $html);
+        self::assertStringNotContainsString('Dobândă acumulată', $html);
+        self::assertStringNotContainsString('>dobândă ', $html);
+    }
+
+    public function testAContractualCapIsNamedWithItsShareOfEachInvoice(): void
+    {
+        $this->case->setPenaltyType(PenaltyType::CONTRACTUAL);
+        $this->case->setContractualPenaltyRate('0.100');
+        $this->case->setContractualPenaltyCapPercent('10.00');
+        $this->addClaimItem('FACT-1', '5000.00', null);
+        $this->addClaimItem('FACT-2', '5000.00', null);
+        $this->em->flush();
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString('în limita plafonului de 10% din valoarea fiecărei facturi', $html);
+    }
+
+    public function testLegalInterestIsStillCalledInterest(): void
+    {
+        $this->addClaimItem('FACT-1', '5000.00', null);
+        $this->addClaimItem('FACT-2', '5000.00', null);
+        $this->em->flush();
+
+        $html = $this->service->renderHtml($this->case);
+
+        self::assertStringContainsString('Dobândă acumulată', $html);
     }
 
     public function testRenderHtmlWithNullCourtShowsPlaceholder(): void

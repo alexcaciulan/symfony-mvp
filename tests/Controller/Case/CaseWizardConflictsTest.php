@@ -287,6 +287,7 @@ final class CaseWizardConflictsTest extends WebTestCase
         ]);
         $synced = new Step2DebtorEntry(personType: PersonType::PJ, name: 'ALFA CONSTRUCT SRL', cui: '11111111', addressCounty: 'Cluj');
         $synced->anafCheckedAt = new \DateTimeImmutable();
+        $synced->anafDataSynced = true;
         $session = $this->client->getRequest()->getSession();
         $session->set(self::SESSION_KEY, ['documentIds' => $ids, 'debtors' => new Step2DebtorsData([$synced])]);
         $session->save();
@@ -295,6 +296,29 @@ final class CaseWizardConflictsTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSame(0, $crawler->filter('[data-testid="prefill-conflicts"]')->count());
+    }
+
+    /**
+     * The confirmation step looks the status up on its own and a library debtor
+     * syncs only its status: both date the check but take no name or seat from
+     * the register, so what the documents disagree on is still the lawyer's.
+     */
+    public function testAStatusOnlyAnafCheckStillAsksAboutTheSeat(): void
+    {
+        $ids = $this->primeDocuments([
+            $this->payload('Alfa Construct SRL', '11111111', 'Cluj', null),
+            $this->payload('Alfa Construct SRL', '11111111', 'București', null),
+        ]);
+        $checked = new Step2DebtorEntry(personType: PersonType::PJ, name: 'ALFA CONSTRUCT SRL', cui: '11111111', addressCounty: 'Cluj');
+        $checked->anafCheckedAt = new \DateTimeImmutable();
+        $session = $this->client->getRequest()->getSession();
+        $session->set(self::SESSION_KEY, ['documentIds' => $ids, 'debtors' => new Step2DebtorsData([$checked])]);
+        $session->save();
+
+        $crawler = $this->client->request('GET', '/case/new/debtor');
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(1, $crawler->filter('[data-testid="prefill-conflicts"]')->count());
     }
 
     public function testAnAnafSyncedDebtorIsNoLongerAskedAboutItsRegistryNumber(): void
@@ -312,6 +336,7 @@ final class CaseWizardConflictsTest extends WebTestCase
 
         $synced = new Step2DebtorEntry(personType: PersonType::PJ, name: 'ALFA CONSTRUCT SRL', cui: '11111111', onrcNumber: 'J2010000345122', addressCounty: 'Cluj');
         $synced->anafCheckedAt = new \DateTimeImmutable();
+        $synced->anafDataSynced = true;
         $session = $this->client->getRequest()->getSession();
         $session->set(self::SESSION_KEY, ['documentIds' => $ids, 'debtors' => new Step2DebtorsData([$synced])]);
         $session->save();

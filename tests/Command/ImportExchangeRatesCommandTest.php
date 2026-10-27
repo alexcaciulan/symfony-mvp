@@ -61,6 +61,42 @@ XML;
         $this->assertNull($this->repo->findRateValidAt('HUF', new \DateTimeImmutable('2099-06-15')));
     }
 
+    /** The feed now declares its namespace over https; the rates must still be read. */
+    public function testImportsTheFeedDeclaringItsNamespaceOverHttps(): void
+    {
+        $tester = $this->runImport(str_replace('xmlns="http://www.bnr.ro/xsd"', 'xmlns="https://www.bnr.ro/xsd"', self::XML));
+
+        $this->assertStringContainsString('2 created', $tester->getDisplay());
+        $this->assertSame('4.9760', $this->repo->findRateValidAt('EUR', new \DateTimeImmutable('2099-06-15'))?->getRate());
+    }
+
+    /** A feed declaring no namespace at all is read as it is. */
+    public function testImportsAFeedWithoutANamespace(): void
+    {
+        $tester = $this->runImport(str_replace(' xmlns="http://www.bnr.ro/xsd"', '', self::XML));
+
+        $this->assertStringContainsString('2 created', $tester->getDisplay());
+    }
+
+    /** www.bnr.ro redirects the old feed paths to its HTML home page; the files are on curs.bnr.ro. */
+    public function testTheFeedIsReadFromCursBnrRo(): void
+    {
+        $requested = [];
+        $client = new MockHttpClient(static function (string $method, string $url) use (&$requested): MockResponse {
+            $requested[] = $url;
+
+            return new MockResponse(self::XML);
+        });
+        $tester = new CommandTester(new ImportExchangeRatesCommand($this->em, $this->repo, $client));
+        $tester->execute(['--year' => '2099']);
+        $tester->execute([]);
+
+        $this->assertSame([
+            'https://curs.bnr.ro/files/xml/years/nbrfxrates2099.xml',
+            'https://curs.bnr.ro/nbrfxrates.xml',
+        ], $requested);
+    }
+
     public function testRerunSkipsAndUpdateOverwrites(): void
     {
         $this->runImport(self::XML);

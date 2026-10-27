@@ -2597,7 +2597,8 @@ final class CaseWizardController extends AbstractController
             && preg_match('/^debtor-(\d+)$/', (string) $conflict->entityKey, $m) === 1) {
             $entry = $debtors->debtors[(int) $m[1]] ?? null;
 
-            return $entry instanceof Step2DebtorEntry && $entry->anafCheckedAt !== null;
+            // A status-only check dates the entry too, but took none of its data.
+            return $entry instanceof Step2DebtorEntry && $entry->anafDataSynced;
         }
 
         return false;

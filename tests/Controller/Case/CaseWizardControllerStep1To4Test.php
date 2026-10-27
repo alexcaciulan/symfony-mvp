@@ -914,6 +914,44 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
     }
 
     /**
+     * A re-render of the debtor list (a debtor added or removed) posts the
+     * entry without the marker of a full ANAF sync: what was known stands.
+     */
+    public function testAFullAnafSyncSurvivesASubmitThatDoesNotCarryTheMarker(): void
+    {
+        $this->primeSessionForStep4(insolvencyCheckedAt: new \DateTimeImmutable('-1 hour'));
+        $session = $this->client->getRequest()->getSession();
+        $bag = $session->get(self::SESSION_KEY);
+        $bag['debtors']->debtors[0]->anafDataSynced = true;
+        $session->set(self::SESSION_KEY, $bag);
+        $session->save();
+        $crawler = $this->client->request('GET', '/case/new/debtor');
+        $token = $crawler->filter('input[name="step2_debtors[_token]"]')->first()->attr('value');
+
+        $this->client->request('POST', '/case/new/debtor', $this->debtorPost($token, 'ro 14186770'));
+
+        self::assertTrue($this->client->getRequest()->getSession()->get(self::SESSION_KEY)['debtors']->debtors[0]->anafDataSynced);
+    }
+
+    public function testAnExplicitZeroClearsTheFullAnafSyncMarker(): void
+    {
+        $this->primeSessionForStep4(insolvencyCheckedAt: new \DateTimeImmutable('-1 hour'));
+        $session = $this->client->getRequest()->getSession();
+        $bag = $session->get(self::SESSION_KEY);
+        $bag['debtors']->debtors[0]->anafDataSynced = true;
+        $session->set(self::SESSION_KEY, $bag);
+        $session->save();
+        $crawler = $this->client->request('GET', '/case/new/debtor');
+        $token = $crawler->filter('input[name="step2_debtors[_token]"]')->first()->attr('value');
+
+        $post = $this->debtorPost($token, 'ro 14186770');
+        $post['step2_debtors']['debtors'][0]['anafDataSynced'] = '0';
+        $this->client->request('POST', '/case/new/debtor', $post);
+
+        self::assertFalse($this->client->getRequest()->getSession()->get(self::SESSION_KEY)['debtors']->debtors[0]->anafDataSynced);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function debtorPost(?string $token, string $cui): array
@@ -951,6 +989,54 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         $entry = $this->client->getRequest()->getSession()->get('case_wizard_data')['debtors']->debtors[0];
         self::assertSame(AnafStatus::INACTIV, $entry->anafStatus);
         self::assertSame('Acme Debtor SRL', $entry->name, 'only the status is taken from the register');
+    }
+
+    /**
+     * The status lookup dates the check but takes no name or seat from the
+     * register, so the documents' disagreement on the seat is still the
+     * lawyer's to see at the confirmation step.
+     */
+    public function testTheStatusLookupLeavesTheDocumentsDisagreementOnTheSeatVisible(): void
+    {
+        $ids = [];
+        foreach (['Cluj', 'București'] as $index => $county) {
+            $document = new Document();
+            $document->setUploadedBy($this->user);
+            $document->setDocumentType(DocumentType::FACTURA);
+            $document->setOriginalFilename('factura-' . $index . '.pdf');
+            $document->setStoredFilename('stored-' . uniqid() . '.pdf');
+            $document->setMimeType('application/pdf');
+            $document->setFileSize(1024);
+            $document->setExtractionStatus(ExtractionStatus::COMPLETED);
+            $document->setExtractedData([
+                'schemaVersion' => 2,
+                'strategy' => 'ai_vision',
+                'globalConfidence' => 0.9,
+                'debtors' => [[
+                    'personType' => 'PJ',
+                    'name' => 'Acme Debtor SRL',
+                    'cui' => 'RO14186770',
+                    'county' => $county,
+                    'confidencePerField' => ['personType' => 0.95, 'name' => 0.95, 'cui' => 0.95, 'county' => 0.95],
+                ]],
+            ]);
+            $this->em->persist($document);
+            $this->em->flush();
+            $ids[] = $document->getId();
+        }
+        $this->primeSessionForStep4(anafStatus: null, insolvencyCheckedAt: new \DateTimeImmutable('-1 hour'), documentIds: $ids);
+        $this->client->disableReboot();
+        $anaf = static::getContainer()->get(AnafLookupService::class);
+        self::assertInstanceOf(OfflineAnafLookupService::class, $anaf);
+        $anaf->respondWith('14186770', ['stare' => 'ACTIV', 'companyName' => 'ACME DEBTOR SRL']);
+
+        $crawler = $this->client->request('GET', '/case/new/confirmation');
+
+        self::assertResponseIsSuccessful();
+        $entry = $this->client->getRequest()->getSession()->get('case_wizard_data')['debtors']->debtors[0];
+        self::assertSame(AnafStatus::ACTIV, $entry->anafStatus);
+        self::assertFalse($entry->anafDataSynced);
+        self::assertGreaterThan(0, $crawler->filter('[data-testid="prefill-conflict"][data-field="county"]')->count());
     }
 
     public function testAnUnansweringRegisterLeavesTheStatusToBeChecked(): void

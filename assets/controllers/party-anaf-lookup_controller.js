@@ -37,7 +37,7 @@ import { Controller } from '@hotwired/stimulus';
  * never prose, so each key is mapped to a template-provided translation here.
  */
 export default class extends Controller {
-    static targets = ['cui', 'name', 'onrcNumber', 'address', 'addressCounty', 'addressLocality', 'anafStatus', 'anafCheckedAt', 'badge', 'spinner', 'syncButton', 'undoButton'];
+    static targets = ['cui', 'name', 'onrcNumber', 'address', 'addressCounty', 'addressLocality', 'anafStatus', 'anafCheckedAt', 'anafDataSynced', 'badge', 'spinner', 'syncButton', 'undoButton'];
     static values = {
         url: String,
         // English fallbacks. User-facing text comes from the template:
@@ -144,7 +144,7 @@ export default class extends Controller {
         if (this.previousValues === null) {
             this.previousValues = new Map();
 
-            for (const targetName of Object.values(this.constructor.FIELD_MAP)) {
+            for (const targetName of [...Object.values(this.constructor.FIELD_MAP), 'anafDataSynced']) {
                 const field = this.fieldFor(targetName);
                 if (field) {
                     this.previousValues.set(targetName, field.value);
@@ -160,6 +160,11 @@ export default class extends Controller {
             if (field && data[key]) {
                 this.setFieldValue(field, data[key]);
             }
+        }
+        // Tells the server the register now speaks for the name and the seat;
+        // a status-only sync takes neither, so it leaves the marker alone.
+        if (!this.statusOnlyValue && this.hasAnafDataSyncedTarget) {
+            this.setFieldValue(this.anafDataSyncedTarget, '1');
         }
 
         // A second sync has nothing left to offer and would only muddy what
