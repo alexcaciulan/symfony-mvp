@@ -69,6 +69,9 @@ final class CaseCourtAddressControllerTest extends WebTestCase
         self::assertSelectorNotExists('form[data-testid="court-address-validate-form"]');
         self::assertSelectorExists('[data-testid="court-address-awaiting-admin"]');
         self::assertSelectorExists('form[data-testid="court-address-suggest-form"]');
+        // The header link focuses the form even when it is already on screen.
+        self::assertSelectorExists('a[data-testid="court-address-suggest-link"][data-action="focus-field#open"][data-focus-field-field-value="court-address-suggest-email"]');
+        self::assertSelectorExists('form[data-testid="court-address-suggest-form"] input#court-address-suggest-email[name="email"]');
         self::assertSelectorExists('form[data-testid="court-address-report-form"]');
     }
 
