@@ -123,6 +123,34 @@ services:
         exec php bin/console messenger:consume court_filing \
             --time-limit=3600 --memory-limit=128M -vv
 
+  # Reads the inbound mailbox on a loop, the stand-in for the */5 cron of
+  # production. Only in the `inbound-poll` profile (the demo enables it); the dev
+  # stack keeps reading on demand with `make filing-poll`.
+  inbound-poll:
+    <<: *php_base
+    profiles: [inbound-poll]
+    container_name: symfony-mvp-inbound-poll
+    depends_on:
+      database:
+        condition: service_healthy
+      php:
+        condition: service_started
+    entrypoint: []
+    command:
+      - sh
+      - -c
+      - |
+        sleep 5
+        until [ -f var/.app-ready ] && php bin/console doctrine:migrations:up-to-date >/dev/null 2>&1; do
+          echo "inbound-poll: waiting for the php container and the migrations..."
+          sleep 5
+        done
+        echo "inbound-poll: reading the inbound mailbox every 120s"
+        while true; do
+          php bin/console app:filing:poll-inbound || echo "inbound-poll: run failed, retrying next round"
+          sleep 120
+        done
+
   nginx:
     image: nginx:alpine
     container_name: symfony-mvp-nginx

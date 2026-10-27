@@ -49,10 +49,13 @@ services:
       COURT_FILING_LIVE: '0'
       COURT_FILING_MAILER_DSN: smtp://mailer:1025
       COURT_FILING_RECIPIENT_OVERRIDE: instanta-simulata@example.test
-      # No inbound mailbox on the demo and no simulated court answers: the poll
-      # only logs, and app:filing:simulate-court-reply refuses to run.
-      INBOUND_MAIL_DSN: ''
-      INBOUND_SIMULATOR_ENABLED: '0'
+      # Court answers come only from the simulator (app:filing:simulate-court-reply),
+      # written to the demo Mailpit and read back from its API, which sits behind
+      # the same basic auth as the Mailpit UI (DEMO_MAIL_AUTH; letters and digits
+      # only in the password, it is put in a URL). The inbound-poll service reads
+      # it every two minutes.
+      INBOUND_MAIL_DSN: mailpit://${DEMO_MAIL_AUTH:-}@mailer:8025
+      INBOUND_SIMULATOR_ENABLED: '1'
 
   worker:
     container_name: lexdemo-worker
@@ -60,6 +63,10 @@ services:
 
   worker-filing:
     container_name: lexdemo-worker-filing
+    environment: *demo_php_env
+
+  inbound-poll:
+    container_name: lexdemo-inbound-poll
     environment: *demo_php_env
 
   nginx:

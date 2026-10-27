@@ -14,7 +14,7 @@ use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\RawMessage;
 
 /**
- * Dev only: writes to the local Mailpit the answers a court mailbox or a mail
+ * Dev and demo only: writes to the local Mailpit the answers a court mailbox or a mail
  * server could send about a submission (receipt, read receipt, delivery reports,
  * a clerk's reply), so the inbound processing can be checked end to end. Every
  * message is marked as simulated, uses .test addresses only, and is refused unless

@@ -78,6 +78,32 @@ final class InboundSourcesTest extends TestCase
         self::assertSame([], [...$missing->fetch(10)]);
     }
 
+    public function testMailpitSendsTheCredentialsOfTheDsnWhenItsUiIsBehindBasicAuth(): void
+    {
+        $headers = [];
+        $client = new MockHttpClient(static function (string $method, string $url, array $options) use (&$headers): MockResponse {
+            $headers[] = $options['normalized_headers']['authorization'][0] ?? null;
+
+            return new MockResponse(self::recorded('search-empty.json'));
+        });
+        $source = MailpitInboundSource::fromDsn('mailpit://avocat:p%40ss@mailer:8025', $client, 'depuneri@lexrecovery.test', 'lexrecovery.test', new NullLogger());
+
+        self::assertSame([], [...$source->fetch(10)]);
+        self::assertNotEmpty($headers);
+        foreach ($headers as $header) {
+            self::assertSame('Authorization: Basic ' . base64_encode('avocat:p@ss'), $header);
+        }
+    }
+
+    public function testMailpitRefusingTheCredentialsFailsThePollInsteadOfReadingAsEmpty(): void
+    {
+        $source = MailpitInboundSource::fromDsn('mailpit://avocat:wrong@mailer:8025', new MockHttpClient(static fn (): MockResponse => new MockResponse('', ['http_code' => 401])), 'depuneri@lexrecovery.test', 'lexrecovery.test', new NullLogger());
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('HTTP 401');
+        [...$source->fetch(10)];
+    }
+
     public function testMailpitRefusesAHostThatIsNotLocal(): void
     {
         $this->expectException(\InvalidArgumentException::class);

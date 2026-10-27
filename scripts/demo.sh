@@ -50,8 +50,10 @@ compose() {
   [ -f "${ROOT}/.env.local" ] && env_args+=(--env-file "${ROOT}/.env.local")
   env_args+=(--env-file "${ENV_FILE}")
 
+  # The inbound-poll profile adds the loop that reads the demo Mailpit for
+  # simulated court answers (production uses a cron instead).
   ( cd "${WORKTREE}" && docker compose -p "${PROJECT}" \
-      -f compose.yaml -f compose.demo.yaml "${env_args[@]}" "$@" )
+      -f compose.yaml -f compose.demo.yaml --profile inbound-poll "${env_args[@]}" "$@" )
 }
 
 ensure_worktree() {
@@ -112,13 +114,13 @@ case "${1:-}" in
     # recreates only what the new config or image actually changed, which a
     # `restart` would not do either.
     compose build php worker worker-filing
-    compose up -d php worker worker-filing nginx
+    compose up -d php worker worker-filing inbound-poll nginx
     # The bind-mounted code leaves the image unchanged, so `up -d` keeps the
     # running containers: the long-lived consumers would keep the DI container
     # cache:clear just removed. Restart them (and php-fpm) on the new one, and
     # nginx too: a recreated php container gets a new IP that nginx keeps
     # resolving to the old one (502 until restarted).
-    compose restart php worker worker-filing nginx
+    compose restart php worker worker-filing inbound-poll nginx
     wait_until_up
     ;;
 

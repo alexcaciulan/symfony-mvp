@@ -28,6 +28,8 @@ final class MailpitInboundSource implements InboundMailSourceInterface
         private readonly string $platformAddress,
         private readonly string $bounceDomain,
         private readonly LoggerInterface $logger,
+        /** @var array{0: string, 1: string}|null user and password of a Mailpit UI behind basic auth (the demo) */
+        private readonly ?array $basicAuth = null,
     ) {}
 
     public static function fromDsn(string $dsn, HttpClientInterface $httpClient, string $platformAddress, string $bounceDomain, LoggerInterface $logger): self
@@ -38,8 +40,10 @@ final class MailpitInboundSource implements InboundMailSourceInterface
             throw new \InvalidArgumentException(sprintf('Mailpit host "%s" is not a local Mailpit.', $host));
         }
         $port = (int) ($parts['port'] ?? 8025);
+        $user = rawurldecode((string) ($parts['user'] ?? ''));
+        $basicAuth = $user !== '' ? [$user, rawurldecode((string) ($parts['pass'] ?? ''))] : null;
 
-        return new self($httpClient, sprintf('http://%s:%d', $host, $port), mb_strtolower(trim($platformAddress)), mb_strtolower(trim($bounceDomain)), $logger);
+        return new self($httpClient, sprintf('http://%s:%d', $host, $port), mb_strtolower(trim($platformAddress)), mb_strtolower(trim($bounceDomain)), $logger, $basicAuth);
     }
 
     public function fetch(int $limit): iterable
@@ -70,10 +74,10 @@ final class MailpitInboundSource implements InboundMailSourceInterface
 
     public function acknowledge(RawInboundMail $mail): void
     {
-        $this->httpClient->request('PUT', $this->baseUrl . '/api/v1/tags', [
+        $this->httpClient->request('PUT', $this->baseUrl . '/api/v1/tags', $this->options([
             'json' => ['IDs' => [$mail->sourceId], 'Tags' => [self::TAG]],
             'max_redirects' => 0,
-        ])->getStatusCode();
+        ]))->getStatusCode();
     }
 
     public function name(): string
@@ -94,16 +98,21 @@ final class MailpitInboundSource implements InboundMailSourceInterface
     private function search(string $query, int $limit): array
     {
         try {
-            $response = $this->httpClient->request('GET', $this->baseUrl . '/api/v1/search', [
+            $response = $this->httpClient->request('GET', $this->baseUrl . '/api/v1/search', $this->options([
                 'query' => ['query' => $query, 'limit' => $limit],
                 'max_redirects' => 0,
-            ]);
+            ]));
             if ($response->getStatusCode() === 404) {
                 return [];
             }
             $data = $response->toArray();
         } catch (HttpExceptionInterface $e) {
-            $this->logger->warning('inbound.mailpit.search_failed', ['status' => $e->getResponse()->getStatusCode()]);
+            $status = $e->getResponse()->getStatusCode();
+            // Refused credentials must fail the poll (and the heartbeat), not read as an empty mailbox.
+            if ($status === 401 || $status === 403) {
+                throw new \RuntimeException(sprintf('Mailpit refused the inbound credentials (HTTP %d).', $status));
+            }
+            $this->logger->warning('inbound.mailpit.search_failed', ['status' => $status]);
 
             return [];
         }
@@ -113,11 +122,25 @@ final class MailpitInboundSource implements InboundMailSourceInterface
 
     private function raw(string $id): ?string
     {
-        $response = $this->httpClient->request('GET', $this->baseUrl . '/api/v1/message/' . rawurlencode($id) . '/raw', ['max_redirects' => 0]);
+        $response = $this->httpClient->request('GET', $this->baseUrl . '/api/v1/message/' . rawurlencode($id) . '/raw', $this->options(['max_redirects' => 0]));
         if ($response->getStatusCode() === 404) {
             return null;
         }
 
         return $response->getContent();
+    }
+
+    /**
+     * @param array<string, mixed> $options
+     *
+     * @return array<string, mixed>
+     */
+    private function options(array $options): array
+    {
+        if ($this->basicAuth !== null) {
+            $options['auth_basic'] = $this->basicAuth;
+        }
+
+        return $options;
     }
 }
