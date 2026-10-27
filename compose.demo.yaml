@@ -71,6 +71,8 @@ services:
     volumes:
       - .:/var/www/html
       - ./docker/nginx/demo.conf:/etc/nginx/conf.d/default.conf
+      # Written by scripts/demo.sh before every compose call (see demo.conf).
+      - ./var/mockups.htpasswd:/etc/nginx/mockups.htpasswd:ro
 
   database:
     container_name: lexdemo-db
