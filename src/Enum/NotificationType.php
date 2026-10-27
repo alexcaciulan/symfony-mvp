@@ -47,6 +47,7 @@ enum NotificationType: string
     case INBOUND_UNPROCESSED = 'inbound_unprocessed';
     case COURT_EMAIL_REPORTED = 'court_email_reported';
     case COURT_EMAIL_SUGGESTED = 'court_email_suggested';
+    case COURT_EMAIL_REPORT_RESOLVED = 'court_email_report_resolved';
 
     public function label(): string
     {
@@ -89,6 +90,7 @@ enum NotificationType: string
             self::INBOUND_UNPROCESSED => 'document',
             self::COURT_EMAIL_REPORTED => 'document',
             self::COURT_EMAIL_SUGGESTED => 'document',
+            self::COURT_EMAIL_REPORT_RESOLVED => 'document',
         };
     }
 

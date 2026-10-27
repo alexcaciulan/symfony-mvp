@@ -27,6 +27,8 @@ use App\Service\Notification\NotificationDispatch;
 use App\Service\Notification\NotificationDispatcherInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Clock\ClockInterface;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -58,6 +60,9 @@ class CourtEmailAddressService
         private readonly CourtEmailAddressReportRepository $reports,
         private readonly UserRepository $users,
         private readonly NotificationDispatcherInterface $dispatcher,
+        private readonly UrlGeneratorInterface $urlGenerator,
+        #[Autowire('%app.base_url%')]
+        private readonly string $baseUrl,
     ) {}
 
     /** The statement exactly as the Romanian UI shows it next to the checkbox. */
@@ -240,6 +245,7 @@ class CourtEmailAddressService
             $report->resolve($admin, CourtEmailReportResolution::DISMISSED, $now);
             $this->audit('court_email_report_dismissed', $address, null, ['reportId' => $report->getId()], $report->getLegalCase());
             $this->em->flush();
+            $this->notifyReporters([$report], 'court_email_report_dismissed', 'info');
 
             return;
         }
@@ -254,10 +260,65 @@ class CourtEmailAddressService
                 $report->getInboundMail(),
             );
         }
-        foreach ($this->reports->findOpenForAddress($address) as $open) {
+        $resolved = $this->reports->findOpenForAddress($address);
+        foreach ($resolved as $open) {
             $open->resolve($admin, CourtEmailReportResolution::INVALIDATED, $now);
         }
         $this->em->flush();
+        $this->notifyReporters($resolved, 'court_email_report_invalidated', 'warning');
+    }
+
+    /**
+     * Tells each lawyer whose report the admin just decided what became of the
+     * address, once per lawyer and case. A delivery report has no reporter: the
+     * lawyer of its case is told, since the address served that case.
+     *
+     * @param list<CourtEmailAddressReport> $reports
+     */
+    private function notifyReporters(array $reports, string $key, string $variant): void
+    {
+        $told = [];
+        foreach ($reports as $report) {
+            $case = $report->getLegalCase();
+            if ($case === null) {
+                continue;
+            }
+            $user = $report->getReportedBy() ?? $case->getUser();
+            $once = $user->getId() . ':' . $case->getId();
+            if (isset($told[$once])) {
+                continue;
+            }
+            $told[$once] = true;
+
+            $address = $report->getAddress();
+            $params = [
+                '%court%' => $address->getCourt()->getName(),
+                '%email%' => $address->getEmail(),
+                '%case%' => $case->getCourtCaseNumber() ?? $case->getCaseNumber(),
+            ];
+            $title = $this->translator->trans('notification.' . $key . '.title', $params);
+            $message = $this->translator->trans('notification.' . $key . '.message', $params);
+            $link = $this->urlGenerator->generate('case_court_address', ['id' => $case->getId()]);
+            $this->dispatcher->dispatch(new NotificationDispatch(
+                user: $user,
+                legalCase: $case,
+                type: NotificationType::COURT_EMAIL_REPORT_RESOLVED,
+                title: $title,
+                message: $message,
+                resourceLink: $link,
+                variant: $variant,
+                emailSubject: $this->translator->trans('email.' . $key . '.subject', $params),
+                emailTemplate: 'emails/case_status.html.twig',
+                emailContext: [
+                    'case' => $case,
+                    'caseLabel' => $params['%case%'],
+                    'caseUrl' => rtrim($this->baseUrl, '/') . $link,
+                    'heading' => $title,
+                    'body' => $message,
+                ],
+                dedupKey: sprintf('%s:%d:%d', $key, (int) $report->getId(), (int) $user->getId()),
+            ));
+        }
     }
 
     /**

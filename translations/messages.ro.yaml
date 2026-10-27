@@ -2721,6 +2721,7 @@ enum:
         inbound_unprocessed: 'Mesaje primite neprocesate'
         court_email_reported: 'Adresă de instanță raportată'
         court_email_suggested: 'Adresă de instanță sugerată'
+        court_email_report_resolved: 'Decizie pe o adresă de instanță raportată'
     person_type:
         PF: 'Persoană fizică'
         PJ: 'Persoană juridică'
@@ -2932,6 +2933,10 @@ email:
         subject: 'Mesaj primit de la adresa instanței: %case%'
     filing_inbound_review:
         subject: 'Mesaj primit care necesită verificare: %case%'
+    court_email_report_dismissed:
+        subject: 'Adresa instanței rămâne în uz: %case%'
+    court_email_report_invalidated:
+        subject: 'Adresa instanței a fost scoasă din uz: %case%'
     filing_sent:
         subject: 'Cerere transmisă instanței: %case%'
     filing_annexes_cancelled:
@@ -3258,6 +3263,12 @@ notification:
     court_email_reported:
         title: 'Adresă de instanță raportată: %court%'
         message: 'Adresa %email% a instanței %court% a fost raportată ca greșită (de un avocat sau printr-un raport de nelivrare). Adresa rămâne în uz până la decizie. Raportul se verifică în coada „Rapoarte adrese instanțe”.'
+    court_email_report_dismissed:
+        title: 'Adresa instanței rămâne în uz: %court%'
+        message: 'Raportul despre adresa %email% a instanței %court% a fost verificat de administrator, iar adresa rămâne în uz în evidența platformei. Primirea fiecărei cereri de către instanță se verifică în continuare pe dosar.'
+    court_email_report_invalidated:
+        title: 'Adresa instanței a fost scoasă din uz: %court%'
+        message: 'În urma unui raport, administratorul a scos din uz adresa %email% a instanței %court%. Depunerea prin e-mail la această instanță este posibilă după confirmarea unei adrese noi; până atunci, cererea se poate depune pe altă cale.'
     court_email_suggested:
         title: 'Adresă de instanță sugerată: %court%'
         message: 'Un avocat a sugerat adresa %email% pentru instanța %court%. Adresa este propusă și nu se folosește până la verificarea pe sursa ei și validare.'

@@ -2724,6 +2724,7 @@ enum:
         inbound_unprocessed: 'Unprocessed received messages'
         court_email_reported: 'Court address reported'
         court_email_suggested: 'Court address suggested'
+        court_email_report_resolved: 'Decision on a reported court address'
     person_type:
         PF: 'Individual'
         PJ: 'Legal entity'
@@ -2935,6 +2936,10 @@ email:
         subject: 'Message received from the court address: %case%'
     filing_inbound_review:
         subject: 'Received message to review: %case%'
+    court_email_report_dismissed:
+        subject: 'The court address stays in use: %case%'
+    court_email_report_invalidated:
+        subject: 'The court address was taken out of use: %case%'
     filing_sent:
         subject: 'Petition transmitted to the court: %case%'
     filing_annexes_cancelled:
@@ -3260,6 +3265,12 @@ notification:
     court_email_reported:
         title: 'Court address reported: %court%'
         message: 'The address %email% of %court% was reported as wrong (by a lawyer or by a delivery report). The address stays in use until a decision is made. The report is checked in the "Court address reports" queue.'
+    court_email_report_dismissed:
+        title: 'The court address stays in use: %court%'
+        message: 'The report on the address %email% of %court% was checked by the administrator, and the address stays in use in the platform records. Whether the court receives each petition is still checked on the case.'
+    court_email_report_invalidated:
+        title: 'The court address was taken out of use: %court%'
+        message: 'Following a report, the administrator took the address %email% of %court% out of use. Filing by email with this court is possible once a new address is confirmed; until then, the petition can be filed through another channel.'
     court_email_suggested:
         title: 'Court address suggested: %court%'
         message: 'A lawyer suggested the address %email% for %court%. The address is proposed and is not used until it is checked on its source and validated.'

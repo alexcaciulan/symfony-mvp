@@ -10,6 +10,7 @@ use App\Repository\LegalCaseRepository;
 use App\Repository\UserRepository;
 use EasyCorp\Bundle\EasyAdminBundle\Attribute\AdminDashboard;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Action;
+use EasyCorp\Bundle\EasyAdminBundle\Config\Crud;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Dashboard;
 use EasyCorp\Bundle\EasyAdminBundle\Config\MenuItem;
 use EasyCorp\Bundle\EasyAdminBundle\Controller\AbstractDashboardController;
@@ -73,10 +74,18 @@ class DashboardController extends AbstractDashboardController
         ]);
     }
 
+    /** Romanian date formats on every admin list and detail page. */
+    public function configureCrud(): Crud
+    {
+        return Crud::new()
+            ->setDateFormat('dd.MM.yyyy')
+            ->setDateTimeFormat('dd.MM.yyyy HH:mm');
+    }
+
     public function configureDashboard(): Dashboard
     {
         return Dashboard::new()
-            ->setTitle('RecuperăriCreanțe — Admin')
+            ->setTitle('LexRecovery · Admin')
             ->setFaviconPath('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 128 128%22><text y=%221.2em%22 font-size=%2296%22>⚖️</text></svg>');
     }
 

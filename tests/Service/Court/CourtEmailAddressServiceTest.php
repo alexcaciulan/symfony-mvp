@@ -368,6 +368,32 @@ final class CourtEmailAddressServiceTest extends KernelTestCase
         return $this->em->getRepository(Notification::class)->findBy(['user' => $this->admin->getId(), 'type' => $type->value]);
     }
 
+    public function testTakingAnAddressOutOfUseTellsEveryReportingLawyerOnce(): void
+    {
+        $address = $this->createCourtEmailAddress($this->em, $this->court, 'registratura@just.ro', CourtEmailPurpose::REGISTRY, CourtEmailStatus::VALIDATED, new \DateTimeImmutable('-1 day'), $this->admin, true);
+        $otherLawyer = $this->createFilingUser($this->em, 'court-email-svc-other');
+        $this->em->flush();
+        $otherCase = $this->createFilingCase($this->em, $otherLawyer);
+        try {
+            $mine = $this->service->report($address, CourtEmailReportReason::BOUNCED, $this->case, $this->user);
+            $this->service->report($address, CourtEmailReportReason::WRONG_COURT, $otherCase, $otherLawyer);
+
+            $this->service->resolveReport($mine, $this->admin, true);
+
+            $sent = $this->em->getConnection()->fetchAllAssociative(
+                'SELECT user_id, legal_case_id, title FROM notification WHERE type = ? AND user_id IN (?, ?) ORDER BY user_id',
+                ['court_email_report_resolved', $this->user->getId(), $otherLawyer->getId()],
+            );
+            self::assertCount(2, $sent, 'One notification per reporting lawyer, both reports resolved together.');
+            self::assertSame([(int) $this->case->getId(), (int) $otherCase->getId()], array_map(static fn (array $r): int => (int) $r['legal_case_id'], $sent));
+            foreach ($sent as $row) {
+                self::assertStringStartsWith('Adresa instanței a fost scoasă din uz', (string) $row['title']);
+            }
+        } finally {
+            $this->removeFilingFixtures($this->em, $otherLawyer, $otherCase);
+        }
+    }
+
     private function proposed(string $email, CourtEmailPurpose $purpose = CourtEmailPurpose::REGISTRY): CourtEmailAddress
     {
         return $this->createCourtEmailAddress($this->em, $this->court, $email, $purpose);

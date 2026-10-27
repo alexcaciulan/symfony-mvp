@@ -231,6 +231,11 @@ final class CourtEmailAddressAdminTest extends WebTestCase
         $this->em->clear();
         self::assertSame(CourtEmailReportResolution::DISMISSED, $this->em->find(CourtEmailAddressReport::class, $dismissed->getId())?->getResolution());
         self::assertSame(CourtEmailStatus::VALIDATED, $this->reload($other)?->getStatus());
+        // The reporting lawyer learns the decision, linked to the case's court address page.
+        self::assertSame([[
+            'title' => 'Adresa instanței rămâne în uz: ' . $this->court->getName(),
+            'link' => '/case/' . $this->case->getId() . '/court-address',
+        ]], $this->lawyerDecisionNotifications());
 
         $this->postReport((int) $invalidated->getId(), 'invalidate');
         $this->em->clear();
@@ -238,6 +243,19 @@ final class CourtEmailAddressAdminTest extends WebTestCase
         $address = $this->reload($address);
         self::assertSame(CourtEmailStatus::INVALID, $address?->getStatus());
         self::assertSame('admin_report:LAWYER:BOUNCED', $address?->getInvalidReason());
+        self::assertSame('Adresa instanței a fost scoasă din uz: ' . $this->court->getName(), $this->lawyerDecisionNotifications()[1]['title'] ?? null);
+    }
+
+    /** @return list<array{title: string, link: string}> */
+    private function lawyerDecisionNotifications(): array
+    {
+        return array_map(
+            static fn (array $row): array => ['title' => (string) $row['title'], 'link' => (string) $row['resource_link']],
+            $this->em->getConnection()->fetchAllAssociative(
+                'SELECT title, resource_link FROM notification WHERE user_id = ? AND type = ? ORDER BY id',
+                [$this->lawyer->getId(), 'court_email_report_resolved'],
+            ),
+        );
     }
 
     public function testDashboardCountsSuggestionsAndOpenReports(): void
