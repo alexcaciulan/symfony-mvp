@@ -77,6 +77,11 @@ final class CaseFilesPackager
             DocumentType::IMPUTERNICIRE_AVOCATIALA->value => '05_imputernicire_avocatiala',
         ];
 
+        // ZipArchive::addFile replaces an entry with the same name, so a second power
+        // of attorney or two invoices uploaded as "factura.pdf" would silently drop a
+        // file from the package. Every repeated name gets a numeric suffix instead.
+        $used = [];
+
         foreach ($case->getDocuments() as $document) {
             $diskPath = $this->uploadsDir . '/' . $document->getStoredFilename();
             $typeValue = $document->getDocumentType()->value;
@@ -96,7 +101,7 @@ final class CaseFilesPackager
 
             if (isset($orderedTopLevel[$typeValue])) {
                 $extension = pathinfo($document->getOriginalFilename(), PATHINFO_EXTENSION) ?: 'pdf';
-                $zip->addFile($diskPath, sprintf('%s.%s', $orderedTopLevel[$typeValue], $extension));
+                $zip->addFile($diskPath, self::uniqueEntryName(sprintf('%s.%s', $orderedTopLevel[$typeValue], $extension), $used));
                 continue;
             }
 
@@ -106,11 +111,30 @@ final class CaseFilesPackager
             $safeName = basename($document->getOriginalFilename());
 
             if ($document->getDocumentType() === DocumentType::DOVADA_COMUNICARE) {
-                $zip->addFile($diskPath, 'dovada_comunicare/' . $safeName);
+                $zip->addFile($diskPath, self::uniqueEntryName('dovada_comunicare/' . $safeName, $used));
                 continue;
             }
 
-            $zip->addFile($diskPath, 'anexe/' . $safeName);
+            $zip->addFile($diskPath, self::uniqueEntryName('anexe/' . $safeName, $used));
         }
+    }
+
+    /**
+     * The entry name, or the same name with "_2", "_3"... before the extension when it
+     * is already in the archive. Compared case-insensitively, as most unzip tools do.
+     *
+     * @param array<string, true> $used
+     */
+    private static function uniqueEntryName(string $name, array &$used): string
+    {
+        $extension = pathinfo($name, PATHINFO_EXTENSION);
+        $stem = $extension === '' ? $name : substr($name, 0, -strlen($extension) - 1);
+        $candidate = $name;
+        for ($n = 2; isset($used[mb_strtolower($candidate)]); ++$n) {
+            $candidate = $extension === '' ? sprintf('%s_%d', $stem, $n) : sprintf('%s_%d.%s', $stem, $n, $extension);
+        }
+        $used[mb_strtolower($candidate)] = true;
+
+        return $candidate;
     }
 }

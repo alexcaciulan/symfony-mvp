@@ -84,9 +84,9 @@ final class CaseFilesPackagerTest extends KernelTestCase
         parent::tearDown();
     }
 
-    private function attachDocument(DocumentType $type, string $filename, string $content = '%PDF-1.4 test'): Document
+    private function attachDocument(DocumentType $type, string $filename, string $content = '%PDF-1.4 test', ?string $storedName = null): Document
     {
-        $relativeStoredPath = 'cases/' . $this->case->getId() . '/' . $filename;
+        $relativeStoredPath = 'cases/' . $this->case->getId() . '/' . ($storedName ?? $filename);
         $absolutePath = $this->uploadsDir . '/' . $relativeStoredPath;
 
         $dir = dirname($absolutePath);
@@ -120,6 +120,28 @@ final class CaseFilesPackagerTest extends KernelTestCase
         self::assertFileExists($zipPath);
         self::assertStringContainsString('Pachet_', $zipPath);
         self::assertStringContainsString('.zip', $zipPath);
+    }
+
+    public function testRepeatedNamesKeepEveryFileWithANumericSuffix(): void
+    {
+        $this->attachDocument(DocumentType::IMPUTERNICIRE_AVOCATIALA, 'imputernicire.pdf', '%PDF-1.4 first', 'poa-1.pdf');
+        $this->attachDocument(DocumentType::IMPUTERNICIRE_AVOCATIALA, 'imputernicire.pdf', '%PDF-1.4 second', 'poa-2.pdf');
+        $this->attachDocument(DocumentType::FACTURA, 'factura.pdf', '%PDF-1.4 invoice A', 'inv-1.pdf');
+        $this->attachDocument(DocumentType::FACTURA, 'Factura.pdf', '%PDF-1.4 invoice B', 'inv-2.pdf');
+
+        $zip = new \ZipArchive();
+        self::assertTrue($zip->open($this->packager->package($this->case)) === true);
+        $contents = [];
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $contents[$zip->getNameIndex($i)] = $zip->getFromIndex($i);
+        }
+        $zip->close();
+
+        self::assertSame('%PDF-1.4 first', $contents['05_imputernicire_avocatiala.pdf'] ?? null);
+        self::assertSame('%PDF-1.4 second', $contents['05_imputernicire_avocatiala_2.pdf'] ?? null);
+        self::assertSame('%PDF-1.4 invoice A', $contents['anexe/factura.pdf'] ?? null);
+        self::assertSame('%PDF-1.4 invoice B', $contents['anexe/Factura_2.pdf'] ?? null);
+        self::assertCount(4, $contents);
     }
 
     public function testPackageContainsNumberedTopLevelFiles(): void
