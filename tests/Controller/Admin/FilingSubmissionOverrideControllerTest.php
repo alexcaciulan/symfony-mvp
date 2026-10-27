@@ -66,6 +66,7 @@ final class FilingSubmissionOverrideControllerTest extends WebTestCase
         $this->client->request('GET', sprintf('/admin/filing-submission/%d/override', $this->submissionId));
 
         self::assertResponseIsSuccessful();
+        self::assertSelectorExists('body.ea #main-menu');
         $translator = static::getContainer()->get('translator');
         self::assertSelectorTextContains('[data-testid="admin-submission-status"]', $translator->trans(FilingDeliveryStatus::NEEDS_REVIEW->label()));
         self::assertSelectorTextNotContains('[data-testid="admin-submission-status"]', 'NEEDS_REVIEW');

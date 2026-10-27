@@ -288,15 +288,41 @@ class CourtEmailAddressService
         $this->em->flush();
     }
 
-    /** Added by an admin: proposed until the admin confirms it on its source. */
-    public function addByAdmin(Court $court, string $email, CourtEmailPurpose $purpose, User $admin): CourtEmailAddress
+    /**
+     * Added by an admin, who checked it on an official source before typing it in: the
+     * same statement as a validation confirms it on the spot, so there is no second step.
+     * The page it was checked on is optional and kept with the address and in the audit.
+     */
+    public function addByAdmin(Court $court, string $email, CourtEmailPurpose $purpose, User $admin, bool $statementConfirmed, ?string $sourceUrl = null): CourtEmailAddress
     {
         self::requireAdmin($admin);
+        if (!$statementConfirmed) {
+            throw new CourtEmailActionRefusedException('court_address.validation.error.statement_required');
+        }
+        $sourceUrl = $this->checkedSourceUrl($sourceUrl);
         $address = $this->create($court, $email, $purpose, CourtEmailSource::MANUAL);
-        $this->audit('court_email_added', $address, null);
-        $this->em->flush();
+        $address->setSourceUrl($sourceUrl);
+        $this->audit('court_email_added', $address, null, ['sourceUrl' => $sourceUrl]);
+        $this->validate($address, $admin, true);
 
         return $address;
+    }
+
+    private function checkedSourceUrl(?string $sourceUrl): ?string
+    {
+        $sourceUrl = trim((string) $sourceUrl);
+        if ($sourceUrl === '') {
+            return null;
+        }
+        $violations = $this->validator->validate($sourceUrl, [
+            new Assert\Length(max: 500),
+            new Assert\Url(protocols: ['https', 'http'], requireTld: true),
+        ]);
+        if (count($violations) > 0) {
+            throw new CourtEmailActionRefusedException('court_address.validation.error.invalid_source_url');
+        }
+
+        return $sourceUrl;
     }
 
     /**

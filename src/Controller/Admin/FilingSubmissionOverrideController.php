@@ -10,12 +10,12 @@ use App\Repository\FilingSubmissionRepository;
 use App\Service\Filing\FilingSendBlockedException;
 use App\Service\Filing\FilingSubmissionService;
 use App\Service\Filing\UncertainPartResolver;
+use EasyCorp\Bundle\EasyAdminBundle\Attribute\AdminRoute;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Action;
 use EasyCorp\Bundle\EasyAdminBundle\Router\AdminUrlGenerator;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
@@ -37,7 +37,7 @@ class FilingSubmissionOverrideController extends AbstractController
         private readonly TranslatorInterface $translator,
     ) {}
 
-    #[Route('/admin/filing-submission/{id}/override', name: 'admin_filing_submission_override', requirements: ['id' => '\d+'], methods: ['GET'])]
+    #[AdminRoute('/filing-submission/{id}/override', name: 'filing_submission_override', options: ['requirements' => ['id' => '\d+'], 'methods' => ['GET']])]
     public function show(int $id): Response
     {
         $submission = $this->find($id);
@@ -49,7 +49,7 @@ class FilingSubmissionOverrideController extends AbstractController
         ]);
     }
 
-    #[Route('/admin/filing-submission/{id}/part/{sequence}/override', name: 'admin_filing_submission_part_override', requirements: ['id' => '\d+', 'sequence' => '\d+'], methods: ['POST'])]
+    #[AdminRoute('/filing-submission/{id}/part/{sequence}/override', name: 'filing_submission_part_override', options: ['requirements' => ['id' => '\d+', 'sequence' => '\d+'], 'methods' => ['POST']])]
     public function overridePart(int $id, int $sequence, Request $request): Response
     {
         $submission = $this->find($id);
@@ -67,7 +67,7 @@ class FilingSubmissionOverrideController extends AbstractController
         return $this->back($id, 'success', 'filing.override.flash.saved');
     }
 
-    #[Route('/admin/filing-submission/{id}/close', name: 'admin_filing_submission_close', requirements: ['id' => '\d+'], methods: ['POST'])]
+    #[AdminRoute('/filing-submission/{id}/close', name: 'filing_submission_close', options: ['requirements' => ['id' => '\d+'], 'methods' => ['POST']])]
     public function close(int $id, Request $request): Response
     {
         $submission = $this->find($id);

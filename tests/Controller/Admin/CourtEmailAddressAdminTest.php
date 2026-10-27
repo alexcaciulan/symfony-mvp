@@ -177,7 +177,7 @@ final class CourtEmailAddressAdminTest extends WebTestCase
         self::assertSame($before['courts'] - 1, $this->dashboardCounters()['courts']);
     }
 
-    public function testAdminAddsAProposedAddressFromTheCourtDetail(): void
+    public function testAdminAddsAConfirmedAddressFromTheCourtDetail(): void
     {
         $this->em->clear();
         $this->client->loginUser($this->admin);
@@ -187,20 +187,29 @@ final class CourtEmailAddressAdminTest extends WebTestCase
         $addUrl = (string) $crawler->filter('[data-testid="admin-court-email-add"]')->attr('href');
         $crawler = $this->client->request('GET', $addUrl);
         self::assertResponseIsSuccessful();
+        // The add page stays inside the admin layout, not the lawyer app shell.
+        self::assertSelectorExists('body.ea #main-menu');
+        self::assertSelectorNotExists('[data-controller~="mobile-menu"]');
+        self::assertSelectorTextContains('form[data-testid="admin-court-email-add-form"]', $this->trans('court_address.validation.statement'));
         $token = (string) $crawler->filter('form[data-testid="admin-court-email-add-form"] input[name="_token"]')->attr('value');
+        $repository = $this->em->getRepository(CourtEmailAddress::class);
 
+        // Without the statement nothing is stored.
         $this->client->request('POST', $addUrl, ['_token' => $token, 'email' => 'Registratura-Admin@just.ro', 'purpose' => 'REGISTRY']);
+        self::assertResponseRedirects($addUrl);
+        self::assertNull($repository->findOneBy(['court' => $this->court->getId(), 'email' => 'registratura-admin@just.ro']));
+
+        $this->client->request('POST', $addUrl, ['_token' => $token, 'email' => 'Registratura-Admin@just.ro', 'purpose' => 'REGISTRY', 'statement_confirmed' => '1', 'source_url' => 'https://portal.just.ro/301/SitePages/contact.aspx']);
 
         self::assertResponseRedirects();
         $this->em->clear();
-        $address = $this->em->getRepository(CourtEmailAddress::class)->findOneBy(['court' => $this->court->getId(), 'email' => 'registratura-admin@just.ro']);
+        $address = $repository->findOneBy(['court' => $this->court->getId(), 'email' => 'registratura-admin@just.ro']);
         self::assertNotNull($address);
-        self::assertSame(CourtEmailStatus::PROPOSED, $address->getStatus());
+        self::assertSame(CourtEmailStatus::VALIDATED, $address->getStatus());
         self::assertSame(CourtEmailSource::MANUAL, $address->getSource());
-
-        // The confirmation page names the source the admin checks the address on.
-        $this->client->request('GET', '/admin/court-email/' . $address->getId() . '/validate');
-        self::assertSelectorTextContains('[data-testid="admin-court-email-source"]', $this->trans('enum.court_email_source.MANUAL'));
+        self::assertSame($this->admin->getId(), $address->getValidatedBy()?->getId());
+        self::assertSame($this->trans('court_address.validation.statement'), $address->getValidationStatement());
+        self::assertSame('https://portal.just.ro/301/SitePages/contact.aspx', $address->getSourceUrl());
     }
 
     public function testTheQueueListsReportsAndTheAdminDismissesOrInvalidates(): void
@@ -281,6 +290,7 @@ final class CourtEmailAddressAdminTest extends WebTestCase
         $url = '/admin/court-email-report/' . $reportId . '/' . $action;
         $crawler = $this->client->request('GET', $url);
         self::assertResponseIsSuccessful();
+        self::assertSelectorExists('body.ea #main-menu');
         $token = (string) $crawler->filter('input[name="_token"]')->attr('value');
 
         $this->client->request('POST', $url, ['_token' => $token]);

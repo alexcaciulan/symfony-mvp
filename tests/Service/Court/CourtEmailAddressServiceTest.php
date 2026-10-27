@@ -99,7 +99,7 @@ final class CourtEmailAddressServiceTest extends KernelTestCase
         self::assertSame($this->admin->getId(), $address->getValidatedBy()?->getId());
         self::assertNotNull($address->getValidatedAt());
         self::assertSame(
-            'Confirm că am verificat adresa pe sursa indicată și că, potrivit acestei surse, instanța primește la această adresă cereri introductive, inclusiv cereri de ordonanță de plată, pe cale electronică.',
+            'Confirm că am verificat adresa pe o sursă oficială a instanței și că, potrivit acestei surse, instanța primește la această adresă cereri introductive, inclusiv cereri de ordonanță de plată, pe cale electronică.',
             $address->getValidationStatement(),
         );
         self::assertTrue($address->isFilingDefault());
@@ -128,22 +128,42 @@ final class CourtEmailAddressServiceTest extends KernelTestCase
         self::assertTrue($second->isFilingDefault());
     }
 
-    public function testAddByAdminRefusesBadInputAndCreatesAProposedManualAddress(): void
+    public function testAddByAdminRefusesBadInputAndCreatesAConfirmedManualAddress(): void
     {
-        $this->assertRefused('court_address.validation.error.invalid_format', fn () => $this->service->addByAdmin($this->court, 'not-an-email', CourtEmailPurpose::REGISTRY, $this->admin));
-        $this->assertRefused('court_address.validation.error.personal_refused', fn () => $this->service->addByAdmin($this->court, 'ion.popescu@just.ro', CourtEmailPurpose::REGISTRY, $this->admin));
-        $this->assertRefused('court_address.validation.error.personal_refused', fn () => $this->service->addByAdmin($this->court, 'registratura@just.ro', CourtEmailPurpose::PERSONAL, $this->admin));
+        $this->assertRefused('court_address.validation.error.invalid_format', fn () => $this->service->addByAdmin($this->court, 'not-an-email', CourtEmailPurpose::REGISTRY, $this->admin, true));
+        $this->assertRefused('court_address.validation.error.personal_refused', fn () => $this->service->addByAdmin($this->court, 'ion.popescu@just.ro', CourtEmailPurpose::REGISTRY, $this->admin, true));
+        $this->assertRefused('court_address.validation.error.personal_refused', fn () => $this->service->addByAdmin($this->court, 'registratura@just.ro', CourtEmailPurpose::PERSONAL, $this->admin, true));
         self::assertSame(0, $this->addressCount());
 
-        $address = $this->service->addByAdmin($this->court, ' Registratura@Just.ro ', CourtEmailPurpose::REGISTRY, $this->admin);
+        // The admin types in an address checked on its source: without the statement nothing is stored.
+        $this->assertRefused('court_address.validation.error.statement_required', fn () => $this->service->addByAdmin($this->court, 'registratura@just.ro', CourtEmailPurpose::REGISTRY, $this->admin, false));
+        self::assertSame(0, $this->addressCount());
+
+        $address = $this->service->addByAdmin($this->court, ' Registratura@Just.ro ', CourtEmailPurpose::REGISTRY, $this->admin, true);
 
         self::assertSame('registratura@just.ro', $address->getEmail());
-        self::assertSame(CourtEmailStatus::PROPOSED, $address->getStatus());
+        self::assertSame(CourtEmailStatus::VALIDATED, $address->getStatus());
         self::assertSame(CourtEmailSource::MANUAL, $address->getSource());
-        self::assertNull($address->getValidatedAt());
+        self::assertNotNull($address->getValidatedAt());
+        self::assertSame($this->admin->getId(), $address->getValidatedBy()?->getId());
+        self::assertSame($this->service->statementText(), $address->getValidationStatement());
+        self::assertTrue($address->isFilingDefault());
+        self::assertNull($address->getSourceUrl());
 
-        $this->assertRefused('court_address.validation.error.duplicate', fn () => $this->service->addByAdmin($this->court, 'REGISTRATURA@just.ro', CourtEmailPurpose::SECTION_CIVIL, $this->admin));
+        $this->assertRefused('court_address.validation.error.duplicate', fn () => $this->service->addByAdmin($this->court, 'REGISTRATURA@just.ro', CourtEmailPurpose::SECTION_CIVIL, $this->admin, true));
         self::assertSame(1, $this->addressCount());
+    }
+
+    public function testAddByAdminKeepsTheOptionalSourceLinkAndRefusesAMalformedOne(): void
+    {
+        $this->assertRefused('court_address.validation.error.invalid_source_url', fn () => $this->service->addByAdmin($this->court, 'registratura@just.ro', CourtEmailPurpose::REGISTRY, $this->admin, true, 'pagina instantei'));
+        $this->assertRefused('court_address.validation.error.invalid_source_url', fn () => $this->service->addByAdmin($this->court, 'registratura@just.ro', CourtEmailPurpose::REGISTRY, $this->admin, true, 'ftp://portal.just.ro/x'));
+        self::assertSame(0, $this->addressCount());
+
+        $address = $this->service->addByAdmin($this->court, 'registratura@just.ro', CourtEmailPurpose::REGISTRY, $this->admin, true, ' https://portal.just.ro/301/SitePages/contact.aspx ');
+
+        self::assertSame('https://portal.just.ro/301/SitePages/contact.aspx', $address->getSourceUrl());
+        self::assertSame(CourtEmailStatus::VALIDATED, $address->getStatus());
     }
 
     public function testOnlyAnAdministratorValidatesOrAddsAnAddress(): void
@@ -151,7 +171,7 @@ final class CourtEmailAddressServiceTest extends KernelTestCase
         $address = $this->proposed('registratura@just.ro');
 
         $this->assertRefused('court_address.validation.error.admin_only', fn () => $this->service->validate($address, $this->user, true, $this->case));
-        $this->assertRefused('court_address.validation.error.admin_only', fn () => $this->service->addByAdmin($this->court, 'civil@just.ro', CourtEmailPurpose::SECTION_CIVIL, $this->user));
+        $this->assertRefused('court_address.validation.error.admin_only', fn () => $this->service->addByAdmin($this->court, 'civil@just.ro', CourtEmailPurpose::SECTION_CIVIL, $this->user, true));
 
         $this->em->refresh($address);
         self::assertSame(CourtEmailStatus::PROPOSED, $address->getStatus());
@@ -290,7 +310,7 @@ final class CourtEmailAddressServiceTest extends KernelTestCase
 
     public function testAnExpiredManualAddressMissingFromItsSourceCanBeReconfirmed(): void
     {
-        $address = $this->service->addByAdmin($this->court, 'registratura@just.ro', CourtEmailPurpose::REGISTRY, $this->admin);
+        $address = $this->service->addByAdmin($this->court, 'registratura@just.ro', CourtEmailPurpose::REGISTRY, $this->admin, true);
         $address->markValidated($this->user, new \DateTimeImmutable('-200 days'), 'statement');
         $address->setMissingSince(new \DateTimeImmutable('-3 days'));
         $this->em->flush();

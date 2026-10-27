@@ -8,12 +8,12 @@ use App\Enum\CaseTransition;
 use App\Service\AuditLogService;
 use App\Service\Case\CaseWorkflowService;
 use Doctrine\ORM\EntityManagerInterface;
+use EasyCorp\Bundle\EasyAdminBundle\Attribute\AdminRoute;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Action;
 use EasyCorp\Bundle\EasyAdminBundle\Router\AdminUrlGenerator;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
@@ -28,7 +28,7 @@ class CaseStatusController extends AbstractController
         private TranslatorInterface $translator,
     ) {}
 
-    #[Route('/admin/case/{id}/change-status', name: 'admin_case_change_status', requirements: ['id' => '\d+'], methods: ['GET', 'POST'])]
+    #[AdminRoute('/case/{id}/change-status', name: 'case_change_status', options: ['requirements' => ['id' => '\d+'], 'methods' => ['GET', 'POST']])]
     public function __invoke(Request $request, int $id): Response
     {
         $case = $this->em->getRepository(LegalCase::class)->find($id);

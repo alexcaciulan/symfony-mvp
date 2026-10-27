@@ -13,12 +13,12 @@ use App\Repository\CourtEmailAddressRepository;
 use App\Repository\CourtRepository;
 use App\Service\Court\CourtEmailActionRefusedException;
 use App\Service\Court\CourtEmailAddressService;
+use EasyCorp\Bundle\EasyAdminBundle\Attribute\AdminRoute;
 use EasyCorp\Bundle\EasyAdminBundle\Config\Action;
 use EasyCorp\Bundle\EasyAdminBundle\Router\AdminUrlGenerator;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
@@ -32,7 +32,7 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 class CourtEmailAddressAdminController extends AbstractController
 {
     private const ACTIONS = [
-        'validate' => 'Validează adresa (verificată pe sursa indicată)',
+        'validate' => 'Validează adresa (verificată pe o sursă oficială)',
         'reject' => 'Respinge adresa',
         'default' => 'Setează ca adresă implicită de depunere',
         'invalidate' => 'Marchează adresa ca invalidă',
@@ -50,7 +50,7 @@ class CourtEmailAddressAdminController extends AbstractController
         private readonly TranslatorInterface $translator,
     ) {}
 
-    #[Route('/admin/court-email/{id}/{action}', name: 'admin_court_email_action', requirements: ['id' => '\d+', 'action' => 'validate|reject|default|invalidate|reopen|purpose|erase'], methods: ['GET', 'POST'])]
+    #[AdminRoute('/court-email/{id}/{action}', name: 'court_email_action', options: ['requirements' => ['id' => '\d+', 'action' => 'validate|reject|default|invalidate|reopen|purpose|erase'], 'methods' => ['GET', 'POST']])]
     public function __invoke(Request $request, int $id, string $action): Response
     {
         $address = $this->addresses->find($id) ?? throw $this->createNotFoundException();
@@ -87,8 +87,8 @@ class CourtEmailAddressAdminController extends AbstractController
         ]);
     }
 
-    /** An address the admin adds: proposed until confirmed on its source. */
-    #[Route('/admin/court/{courtId}/email/add', name: 'admin_court_email_add', requirements: ['courtId' => '\d+'], methods: ['GET', 'POST'])]
+    /** An address the admin adds, confirmed on adding with the validation statement. */
+    #[AdminRoute('/court/{courtId}/email/add', name: 'court_email_add', options: ['requirements' => ['courtId' => '\d+'], 'methods' => ['GET', 'POST']])]
     public function add(Request $request, int $courtId): Response
     {
         $court = $this->courts->find($courtId) ?? throw $this->createNotFoundException();
@@ -107,26 +107,29 @@ class CourtEmailAddressAdminController extends AbstractController
                     $payload->getString('email'),
                     CourtEmailPurpose::tryFrom($payload->getString('purpose')) ?? throw new CourtEmailActionRefusedException('court_address.validation.error.invalid_purpose'),
                     $this->currentUser(),
+                    $payload->getBoolean('statement_confirmed'),
+                    $payload->getString('source_url'),
                 );
             } catch (CourtEmailActionRefusedException $e) {
                 $this->addFlash('error', $this->translator->trans($e->messageKey, [], 'messages', 'ro'));
 
                 return $this->redirectToRoute('admin_court_email_add', ['courtId' => $courtId]);
             }
-            $this->addFlash('success', 'Adresa a fost adăugată ca propusă. Se validează după verificarea sursei.');
+            $this->addFlash('success', 'Adresa a fost adăugată și confirmată.');
 
             return $this->redirect($this->crudUrl((int) $address->getId()));
         }
 
         return $this->render('admin/court_email/add.html.twig', [
             'court' => $court,
+            'statement' => $this->service->statementText(),
             'purposes' => array_filter(CourtEmailAddressCrudController::PURPOSE_LABELS, static fn (CourtEmailPurpose $p): bool => in_array($p, CourtEmailPurpose::manualChoices(), true)),
             'back_url' => $backUrl,
         ]);
     }
 
     /** The admin's decision on a report: dismiss it, or take the address out of use. */
-    #[Route('/admin/court-email-report/{id}/{action}', name: 'admin_court_email_report_action', requirements: ['id' => '\d+', 'action' => 'dismiss|invalidate'], methods: ['GET', 'POST'])]
+    #[AdminRoute('/court-email-report/{id}/{action}', name: 'court_email_report_action', options: ['requirements' => ['id' => '\d+', 'action' => 'dismiss|invalidate'], 'methods' => ['GET', 'POST']])]
     public function report(Request $request, int $id, string $action): Response
     {
         $report = $this->reports->find($id) ?? throw $this->createNotFoundException();

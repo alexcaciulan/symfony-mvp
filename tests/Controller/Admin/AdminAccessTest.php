@@ -143,6 +143,7 @@ class AdminAccessTest extends WebTestCase
 
         $this->assertResponseIsSuccessful();
         $this->assertSelectorTextContains('h3', 'Informații dosar');
+        $this->assertSelectorExists('body.ea #main-menu');
     }
 
     public function testChangeStatusAppliesTransition(): void

@@ -1,15 +1,13 @@
-{% extends 'base.html.twig' %}
+{% extends '@EasyAdmin/page/content.html.twig' %}
 
-{% block title %}{{ title }} · raport #{{ report.id }}{% endblock %}
+{% block page_title %}{{ title }} · raport #{{ report.id }}{% endblock %}
 
-{% block body %}
+{% block main %}
 {% set address = report.address %}
-<div style="max-width: 640px; margin: 40px auto; padding: 0 16px;">
+<div style="max-width: 640px;">
     <div style="margin-bottom: 20px;">
         <a href="{{ back_url }}" style="color: #2563eb; text-decoration: none; font-size: 14px;">Înapoi la raport</a>
     </div>
-
-    <h2 style="font-size: 20px; font-weight: 600; color: #111827; margin: 0 0 20px 0;">{{ title }}</h2>
 
     <div style="background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 24px; margin-bottom: 20px; font-size: 14px;">
         <table style="width: 100%;">
