@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\DTO\Wizard;
 
 use App\Enum\ClaimItemKind;
+use App\Util\ClaimBalance;
 
 /**
  * One row of the claim-positions table in wizard step 3, carried in the session
@@ -27,15 +28,18 @@ final class ClaimItemRow
     public ?array $dueDateNote = null;
 
     /**
-     * The payments an account or bank statement ties to this position, shown
-     * as recorded, never imputed; dates as Y-m-d. `shared` marks a payment the
-     * document ties to several invoices at once, which is listed on each of
-     * them without being split. Plain property for the same session reason as
+     * The payments an account or bank statement ties to this position, dates
+     * as Y-m-d. `allocated` is the part of a payment covering several invoices
+     * that went to this one; `shared` marks such a payment left unsplit, listed
+     * on each invoice it names. Plain property for the same session reason as
      * the note above.
      *
-     * @var list<array{amount: ?float, currency: string, date: ?string, fullyPaid: bool, shared: bool}>
+     * @var list<array{amount: ?float, currency: string, date: ?string, fullyPaid: bool, shared: bool, allocated: ?float}>
      */
     public array $statementPayments = [];
+
+    /** What an account statement shows still unpaid on this invoice, in its currency. */
+    public ?float $statementBalance = null;
 
     /** @param list<string> $warningKeys */
     public function __construct(
@@ -65,14 +69,14 @@ final class ClaimItemRow
     /**
      * A row the single table-wide checkbox may not confirm on the lawyer's
      * behalf. Where the risk is, the attention is forced: an unresolvable rate,
-     * a payment nobody has imputed, a sum the document itself says was partly
+     * a payment taken off the claim, a sum the document itself says was partly
      * settled, a storno that subtracts, or an extraction the model was not sure
      * about.
      */
     public function requiresIndividualConfirmation(float $reviewThreshold): bool
     {
         return $this->needsManualFx
-            || $this->paidAmount > 0.0
+            || $this->paidOnInvoice() > 0.0
             || $this->hasStatedDeduction
             || $this->kind === ClaimItemKind::CREDIT_NOTE
             || $this->confidence < $reviewThreshold;
@@ -111,7 +115,11 @@ final class ClaimItemRow
             && $this->amountRon !== null;
     }
 
-    /** Signed RON value: negative for a credit note. */
+    /**
+     * Signed RON value: negative for a credit note. Mirrors
+     * {@see \App\Entity\ClaimItem::signedAmountRon()}: a payment tied to the
+     * invoice comes off it, so the claim asks for the unpaid rest.
+     */
     public function signedAmountRon(): ?float
     {
         if ($this->amountRon === null) {
@@ -119,7 +127,30 @@ final class ClaimItemRow
         }
 
         $value = abs($this->amountRon);
+        if ($this->kind === ClaimItemKind::CREDIT_NOTE) {
+            return -$value;
+        }
 
-        return $this->kind === ClaimItemKind::CREDIT_NOTE ? -$value : $value;
+        return ClaimBalance::outstandingRon($value, abs($this->amount), $this->paidOnInvoice());
+    }
+
+    /**
+     * What has been paid on the invoice, in its currency. A balance the account
+     * statement shows is what is left to pay whatever the invoice total turns
+     * out to be, so a total the lawyer corrects keeps that balance.
+     */
+    public function paidOnInvoice(): float
+    {
+        if ($this->statementBalance !== null) {
+            return max(0.0, round(abs($this->amount) - $this->statementBalance, 2));
+        }
+
+        return $this->paidAmount;
+    }
+
+    /** What is still unpaid on the invoice, in its currency. */
+    public function outstandingAmount(): float
+    {
+        return max(0.0, round(abs($this->amount) - $this->paidOnInvoice(), 2));
     }
 }

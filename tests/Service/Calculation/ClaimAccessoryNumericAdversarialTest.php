@@ -214,21 +214,24 @@ final class ClaimAccessoryNumericAdversarialTest extends TestCase
      * amount. Civil Code art. 1507-1509 imputes to costs, then interest, then
      * capital; the platform must not do it silently in either direction.
      */
-    public function testARecordedPaymentDoesNotShrinkTheInterestBase(): void
+    /**
+     * A partial payment leaves the rest owed since the due date: the interest
+     * runs on the rest from the due date, not from the day of the payment.
+     */
+    public function testInterestRunsOnTheUnpaidRestFromTheDueDate(): void
     {
         $aggregator = new ClaimInterestAggregator($this->interestCalculator(), new ContractualPenaltyCalculator());
 
         $paid = $this->item(1, '10000.00', '2025-01-31')->setPaidAmount('4000.00');
+        $rest = $this->item(2, '6000.00', '2025-01-31');
 
-        $result = $aggregator->aggregate(
-            items: [$paid],
-            referenceDate: new \DateTimeImmutable(self::REFERENCE),
-            relationshipType: RelationshipType::COMERCIAL,
-        );
+        $reference = new \DateTimeImmutable(self::REFERENCE);
+        $result = $aggregator->aggregate(items: [$paid], referenceDate: $reference, relationshipType: RelationshipType::COMERCIAL);
+        $expected = $aggregator->aggregate(items: [$rest], referenceDate: $reference, relationshipType: RelationshipType::COMERCIAL);
 
-        // Interest on 10.000, not on 6.000 (which would be 628,27).
-        $this->assertSame(1047.12, $result->total);
-        $this->assertNotSame(628.27, $result->total);
+        // Interest on 6.000 from the due date (on 10.000 it would be 1.047,12).
+        $this->assertSame(628.27, $result->total);
+        $this->assertSame($expected->total, $result->total);
     }
 
     /**

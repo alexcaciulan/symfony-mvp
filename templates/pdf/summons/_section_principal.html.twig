@@ -35,12 +35,21 @@
                             '%date%': row.exchangeRateDate ? row.exchangeRateDate|date('d.m.Y') : '—',
                         }) }}</span>
                     {% endif %}
+                    {% if row.invoicedAmount is not null %}
+                        <br><span class="fx">{{ 'pdf.summons.table.partly_paid_note'|trans({
+                            '%invoiced%': row.invoicedAmount|number_format(2, ',', '.'),
+                            '%paid%': row.paidAmount|number_format(2, ',', '.'),
+                        }) }}</span>
+                    {% endif %}
                 </td>
             </tr>
         {% endfor %}
     </tbody>
 </table>
 
+{% if summonsTables.principalRows|filter(r => r.invoicedAmount is not null) is not empty %}
+    <p>{{ 'pdf.summons.principal.payments_deducted'|trans }}</p>
+{% endif %}
 <p class="total">{{ 'pdf.summons.principal.total'|trans({'%amount%': principal|number_format(2, ',', '.')}) }}</p>
 <p>{{ 'pdf.summons.principal.conclusion'|trans({'%amount%': principal|number_format(2, ',', '.')}) }}</p>
 <p>{{ 'pdf.summons.principal.certain_claim'|trans }}</p>

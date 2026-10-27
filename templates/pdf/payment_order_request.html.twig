@@ -170,10 +170,18 @@
                     {% if item.currency != 'RON' and item.exchangeRate %}
                         {# The debtor is entitled to check the equivalent opposed to them. #}
                         <br><span class="meta">{{ 'pdf.payment_order.amount_principal_item_fx'|trans({
-                            '%amount%': item.amount|number_format(2, ',', '.'),
+                            '%amount%': item.outstandingAmount|number_format(2, ',', '.'),
                             '%currency%': item.currency,
                             '%rate%': item.exchangeRate|number_format(4, ',', '.'),
                             '%rate_date%': item.exchangeRateDate ? item.exchangeRateDate|date('d.m.Y') : '—',
+                        }) }}</span>
+                    {% endif %}
+                    {% set invoiced = item.amountRon|abs %}
+                    {% if not item.isCreditNote and invoiced - item.signedAmountRon > 0.005 %}
+                        {# A partly paid invoice claims its rest: the debtor ties it to the invoice. #}
+                        <br><span class="meta">{{ 'pdf.payment_order.amount_principal_item_partly_paid'|trans({
+                            '%invoiced%': invoiced|number_format(2, ',', '.'),
+                            '%paid%': (invoiced - item.signedAmountRon)|number_format(2, ',', '.'),
                         }) }}</span>
                     {% endif %}
                     {% if item.description %}<br><span class="meta">{{ item.description }}</span>{% endif %}</td>

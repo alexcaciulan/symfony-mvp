@@ -44,15 +44,20 @@ class ClaimItemEntityTest extends TestCase
         $this->assertFalse($item->countsTowardsClaim());
     }
 
-    public function testARecordedPaymentIsReportedAndNeverDeducted(): void
+    public function testAPaymentTiedToThePositionComesOffTheClaimedAmount(): void
     {
         $item = $this->item()->setPaidAmount('400.00');
 
-        $this->assertTrue($item->hasUnimputedPayment());
-        // Civil Code art. 1507-1509: imputation is the lawyer's, so the position
-        // still carries its full amount.
+        // The invoice keeps its total; what is claimed is the unpaid rest.
         $this->assertSame('1000.00', $item->getAmount());
-        $this->assertSame('1000.00', $item->getAmountRon());
+        $this->assertSame(600.0, $item->signedAmountRon());
+    }
+
+    public function testAPaymentInTheInvoiceCurrencyComesOffInTheSameProportionInRon(): void
+    {
+        $item = $this->item()->setCurrency('EUR')->setAmount('1000.00')->setAmountRon('4975.00')->setPaidAmount('250.00');
+
+        $this->assertSame(3731.25, $item->signedAmountRon());
     }
 
     public function testCauseKeyNormalizesSpacingAndCase(): void

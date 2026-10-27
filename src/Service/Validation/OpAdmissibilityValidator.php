@@ -23,7 +23,6 @@ use App\Service\Case\ClaimTextSignals;
  *   0.  due date in the future            → ERROR   OP_DEBT_NOT_YET_DUE / OP_ITEM_NOT_YET_DUE
  *   0b. position with no due date         → WARNING OP_ITEM_DUE_DATE_MISSING
  *   0c. due date older than 3 years       → WARNING OP_ITEM_PRESCRIBED
- *   0d. payment recorded, not imputed     → WARNING OP_ITEM_UNIMPUTED_PAYMENT
  *   0e. deduction stated on the document   → WARNING OP_ITEM_STATED_DEDUCTION
  *   0f. balance below the invoices it sums → WARNING OP_BALANCE_BELOW_INVOICES (wizard rows only)
  *
@@ -192,13 +191,9 @@ final class OpAdmissibilityValidator
      */
     private function validateImputation(array $items): array
     {
-        $hasPayment = false;
         $hasStatedDeduction = false;
 
         foreach ($items as $item) {
-            if ($item->hasUnimputedPayment()) {
-                $hasPayment = true;
-            }
             // A final invoice that reverses the advance states a balance, not a
             // sum still to be reduced: its total already nets the advance out.
             $description = $item->getDescription();
@@ -208,13 +203,6 @@ final class OpAdmissibilityValidator
         }
 
         $issues = [];
-        if ($hasPayment) {
-            $issues[] = new AdmissibilityIssue(
-                IssueSeverity::WARNING,
-                'OP_ITEM_UNIMPUTED_PAYMENT',
-                'validation.op_admissibility.OP_ITEM_UNIMPUTED_PAYMENT',
-            );
-        }
         if ($hasStatedDeduction) {
             $issues[] = new AdmissibilityIssue(
                 IssueSeverity::WARNING,

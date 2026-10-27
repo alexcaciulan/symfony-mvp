@@ -85,6 +85,22 @@ final class SummonsTableBuilderTest extends TestCase
         self::assertNotContains('NC-1', array_map(static fn ($row) => $row->documentNumber, $tables->legalInterestRows));
     }
 
+    /** A partly paid invoice claims its rest and states its total and the payment beside it. */
+    public function testAPartlyPaidInvoiceStatesItsTotalAndThePaymentBesideTheRest(): void
+    {
+        $paid = $this->item(1, '10000.00', '2025-04-30', 'F-1')->setPaidAmount('4000.00');
+
+        $tables = $this->buildLegal([$paid, $this->item(2, '500.00', '2025-04-30', 'F-2')]);
+
+        $row = $tables->principalRows[0];
+        self::assertSame(6000.0, $row->amount);
+        self::assertSame(10000.0, $row->invoicedAmount);
+        self::assertSame(4000.0, $row->paidAmount);
+        self::assertNull($tables->principalRows[1]->invoicedAmount);
+        // Interest runs on the rest, from the due date.
+        self::assertEqualsWithDelta(6000.0, $tables->legalInterestRows[0]->balance, 0.001);
+    }
+
     public function testItemWithoutDueDateIsListedAsPrincipalWithoutAccessoryRow(): void
     {
         $tables = $this->buildLegal([$this->item(1, '1000.00', '2025-04-30', 'F-1'), $this->item(2, '500.00', null, 'F-2')]);

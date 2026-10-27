@@ -87,6 +87,25 @@ class ContractualPenaltyCalculatorTest extends TestCase
         $this->assertEqualsWithDelta(12_535.51, $result->breakdown[0]->periodPenalty, 0.01, 'the uncapped figure stays visible');
     }
 
+    /**
+     * "10% din valoarea fiecărei facturi": a partial payment lowers the sum the
+     * penalty runs on, not the invoice value the ceiling is a share of.
+     */
+    public function testTheCeilingStaysAShareOfTheInvoiceAfterAPartialPayment(): void
+    {
+        $result = (new ContractualPenaltyCalculator())->calculate(
+            amount: 6_000.0,
+            dailyRatePercent: 0.1,
+            startDate: new \DateTimeImmutable('2025-01-01'),
+            referenceDate: new \DateTimeImmutable('2026-01-01'),
+            capPercent: 10.0,
+            capBase: 10_000.0,
+        );
+
+        $this->assertTrue($result->isCapped());
+        $this->assertEqualsWithDelta(1_000.0, $result->total, 0.01);
+    }
+
     public function testACeilingNotYetReachedChangesNothing(): void
     {
         $result = (new ContractualPenaltyCalculator())->calculate(

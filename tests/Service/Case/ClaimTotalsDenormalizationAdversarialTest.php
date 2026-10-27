@@ -120,14 +120,13 @@ final class ClaimTotalsDenormalizationAdversarialTest extends TestCase
     /**
      * Totals never impute a payment, not even one larger than the position.
      */
-    public function testAnOverpaymentIsReportedAndStillNotDeducted(): void
+    public function testAnOverpaymentNeverTurnsThePrincipalNegative(): void
     {
         $item = $this->item('1000.00', '2025-01-31')->setPaidAmount('1500.00');
 
         $totals = $this->service->totals([$item]);
 
-        $this->assertSame(1000.0, $totals->principalRon);
-        $this->assertSame(1500.0, $totals->unimputedPaidTotal);
+        $this->assertSame(0.0, $totals->principalRon);
     }
 
     private function item(

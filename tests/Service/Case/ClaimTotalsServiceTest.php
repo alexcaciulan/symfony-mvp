@@ -51,17 +51,15 @@ class ClaimTotalsServiceTest extends TestCase
         $this->assertSame('FF-100', $totals->earliestInvoiceNumber);
     }
 
-    public function testAPartialPaymentIsReportedButNeverDeductedFromThePrincipal(): void
+    public function testAPartialPaymentComesOffThePrincipal(): void
     {
-        // Civil Code art. 1507-1509 imputes payment to costs, then interest,
-        // then capital; deducting it here would state a calculation the debtor
-        // could show contradicts the law.
+        // The claim asks for the unpaid rest: taking the payment off the capital
+        // only ever lowers the claim, so it is the creditor's to choose.
         $item = $this->item('1000.00', '2025-01-31')->setPaidAmount('250.00');
 
         $totals = $this->service->totals([$item]);
 
-        $this->assertSame(1000.0, $totals->principalRon);
-        $this->assertSame(250.0, $totals->unimputedPaidTotal);
+        $this->assertSame(750.0, $totals->principalRon);
     }
 
     public function testAPositionAwaitingAManualRateIsReportedAndLeftOut(): void

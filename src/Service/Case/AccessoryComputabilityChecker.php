@@ -84,7 +84,7 @@ final class AccessoryComputabilityChecker
         $issues = [];
         foreach ($items as $index => $item) {
             // A credit note and a settled balance accrue nothing, by design.
-            if ($item->isCreditNote() || (float) ($item->getAmountRon() ?? '0') <= 0.0) {
+            if ($item->isCreditNote() || ($item->signedAmountRon() ?? 0.0) <= 0.0) {
                 continue;
             }
 

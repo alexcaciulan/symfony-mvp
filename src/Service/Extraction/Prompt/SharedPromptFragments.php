@@ -210,6 +210,13 @@ final class SharedPromptFragments
             „achitate integral: 20951, 20954”); o astfel de mențiune fără sumă
             se trece ca element fără `amount`. Nu împărți tu o plată între
             facturi și nu deduce ce factură a stins o plată care nu o numește.
+          • `invoiceBalances` se completează DOAR la fișă de cont sau
+            confirmare de sold care arată, pentru fiecare factură, cât a rămas
+            de plată: câte un element pe factură, cu `invoiceReference` (numărul
+            facturii exact cum apare), `outstanding` (soldul rămas, 0 pentru o
+            factură achitată integral) și `currency`. Ia soldul pe care îl arată
+            documentul, nu-l calcula tu din plăți. Dacă documentul arată doar un
+            sold general, fără sold pe fiecare factură, lasă câmpul gol.
         FRAGMENT;
     }
 
@@ -445,6 +452,7 @@ final class SharedPromptFragments
             'paymentTermAnchor' => self::enumField(self::paymentTermAnchorValues(), 'Momentul de la care curge `paymentTermDays`'),
             'paymentTermBusinessDays' => self::field('boolean', 'true doar dacă termenul este exprimat în zile lucrătoare'),
             'payments' => self::paymentsSchema(),
+            'invoiceBalances' => self::invoiceBalancesSchema(),
         ];
         $fields['confidencePerField'] = self::confidenceSchema(array_keys($fields));
 
@@ -473,6 +481,26 @@ final class SharedPromptFragments
                     'items' => ['type' => 'string'],
                 ],
                 'fullyPaid' => self::field('boolean', 'true doar dacă documentul spune explicit că facturile referite sunt achitate integral'),
+            ]),
+        ];
+    }
+
+    /**
+     * What an account statement shows still unpaid on each invoice: the
+     * creditor's own imputation of the payments it received, which decides the
+     * claimed rest over any allocation worked out from the payments.
+     *
+     * @return array<string, mixed>
+     */
+    private static function invoiceBalancesSchema(): array
+    {
+        return [
+            'type' => 'array',
+            'description' => 'Doar la fișă de cont sau confirmare de sold: soldul rămas de plată pe fiecare factură, cum îl arată documentul',
+            'items' => self::object([
+                'invoiceReference' => self::stringField('Numărul facturii, exact cum apare'),
+                'outstanding' => self::numberField('Soldul rămas de plată pe factură, ca număr; 0 pentru o factură achitată integral'),
+                'currency' => self::enumField(self::currencyValues(), 'Moneda soldului'),
             ]),
         ];
     }

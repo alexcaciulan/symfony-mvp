@@ -902,6 +902,34 @@ class AiVisionExtractionStrategyTest extends TestCase
         $this->assertSame($result->claim?->payments, $result->toArray()['claim']['payments']);
     }
 
+    public function testExtractMapsTheBalancePerInvoiceAndDropsIncompleteEntries(): void
+    {
+        $aiContent = json_encode([
+            'claim' => [
+                'description' => 'Fișă de cont client',
+                'invoiceBalances' => [
+                    ['invoiceReference' => ' 23381 ', 'outstanding' => 456.6, 'currency' => 'RON'],
+                    ['invoiceReference' => '23382', 'outstanding' => 0],
+                    ['invoiceReference' => '23383'],
+                    ['outstanding' => 100],
+                    ['invoiceReference' => '23384', 'outstanding' => -5],
+                ],
+                'confidencePerField' => ['description' => 0.9, 'invoiceBalances' => 0.8],
+            ],
+            'globalConfidence' => 0.8,
+        ]);
+        $strategy = $this->makeStrategy(llmClient: $this->fakeLlmClient($aiContent));
+
+        $result = $strategy->extract($this->makeDocument(id: 78));
+
+        $this->assertSame([
+            ['invoiceReference' => '23381', 'outstanding' => 456.6, 'currency' => 'RON'],
+            ['invoiceReference' => '23382', 'outstanding' => 0.0, 'currency' => null],
+        ], $result->claim?->invoiceBalances);
+        $this->assertSame(0.8, $result->claim?->confidencePerField['invoiceBalances'] ?? null);
+        $this->assertSame($result->claim?->invoiceBalances, $result->toArray()['claim']['invoiceBalances']);
+    }
+
     public function testAnAnswerWithoutPaymentsStoresNullSoTheTextIsStillChecked(): void
     {
         $aiContent = json_encode([

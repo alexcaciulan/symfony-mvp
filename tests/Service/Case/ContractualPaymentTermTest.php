@@ -187,14 +187,53 @@ final class ContractualPaymentTermTest extends TestCase
         self::assertNull($result->rows[0]->dueDateNote);
     }
 
-    public function testAnInvoiceWithoutAnyTermKeepsTheCurrentBehaviour(): void
+    /**
+     * Law 72/2013 art. 3 alin. 3 lit. a: between professionals who set no term,
+     * 30 days. A sale made on the invoice alone is still a contract.
+     */
+    public function testAnInvoiceWithNoContractAndNoDueDateIsDueThirtyDaysAfterIssue(): void
     {
         $result = $this->factory([
             $this->invoice(1, 'MJ-9/2025', '2025-03-01', null, null),
         ])->collectRows([1]);
 
-        self::assertNull($result->rows[0]->dueDate);
+        self::assertSame('2025-03-31', $result->rows[0]->dueDate?->format('Y-m-d'));
+        self::assertSame('wizard.step3.claim_items.note.statutory_term_no_contract', $result->rows[0]->dueDateNote['key'] ?? null);
+    }
+
+    public function testAContractThatSetsNoTermLeavesTheStatutoryThirtyDays(): void
+    {
+        $silent = $this->document(1, DocumentType::CONTRACT, ['contractNumber' => '63']);
+        $result = $this->factory([
+            $silent,
+            $this->invoice(2, 'MJ-9/2025', '2025-03-01', null, '63'),
+        ])->collectRows([1, 2]);
+
+        self::assertSame('2025-03-31', $result->rows[0]->dueDate?->format('Y-m-d'));
+        self::assertSame('wizard.step3.claim_items.note.statutory_term_contract_silent', $result->rows[0]->dueDateNote['key'] ?? null);
+    }
+
+    /** A due date printed on the invoice is the term the parties used: it stays. */
+    public function testAPrintedDueDateIsKeptWhenNoContractSetsATerm(): void
+    {
+        $result = $this->factory([
+            $this->invoice(1, 'MJ-9/2025', '2025-03-01', '2025-03-01', null),
+        ])->collectRows([1]);
+
+        self::assertSame('2025-03-01', $result->rows[0]->dueDate?->format('Y-m-d'));
         self::assertNull($result->rows[0]->dueDateNote);
+    }
+
+    /** A term counted from delivery cannot be computed, and is not replaced by the 30 days. */
+    public function testATermFromAnotherEventIsNotReplacedByTheStatutoryTerm(): void
+    {
+        $result = $this->factory([
+            $this->contract(1, '63', 10, 'DELIVERY'),
+            $this->invoice(2, 'MJ-9/2025', '2025-03-01', null, '63'),
+        ])->collectRows([1, 2]);
+
+        self::assertNull($result->rows[0]->dueDate);
+        self::assertSame('wizard.step3.claim_items.note.contract_term_manual', $result->rows[0]->dueDateNote['key'] ?? null);
     }
 
     /**

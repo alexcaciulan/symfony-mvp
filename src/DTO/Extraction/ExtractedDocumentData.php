@@ -149,6 +149,7 @@ final readonly class ExtractedDocumentData
                 'paymentTermAnchor' => $this->claim->paymentTermAnchor?->value,
                 'paymentTermBusinessDays' => $this->claim->paymentTermBusinessDays,
                 'payments' => $this->claim->payments,
+                'invoiceBalances' => $this->claim->invoiceBalances,
                 'confidencePerField' => $this->claim->confidencePerField,
             ] : null,
             'rawOcrText' => $this->rawOcrText,

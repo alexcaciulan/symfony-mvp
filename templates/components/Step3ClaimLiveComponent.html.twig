@@ -515,7 +515,7 @@
                                     <span class="block text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500 mb-1">{{ 'wizard.step3.claim_items.column.description'|trans }}</span>
                                     <p class="text-xs leading-relaxed text-slate-600 dark:text-slate-300">{{ row.description|default('—') }}</p>
                                     {% for warning in row.warningKeys|default([]) %}<p class="mt-1 text-[11px] text-amber-600 dark:text-amber-400">{{ warning|trans }}</p>{% endfor %}
-                                    {% if row.statementPayments|default([]) is not empty %}
+                                    {% if row.statementPayments|default([]) is not empty or row.statementBalance|default(null) is not null %}
                                         <div class="mt-1.5 text-[11px] text-slate-600 dark:text-slate-300" data-testid="claim-item-statement-payments">
                                             <p class="font-medium">{{ 'wizard.step3.claim_items.statement_payments.heading'|trans }}</p>
                                             <ul class="mt-0.5 space-y-0.5">
@@ -530,11 +530,17 @@
                                                     ] %}
                                                     {% if payment.fullyPaid %}{% set parts = parts|merge(['wizard.step3.claim_items.statement_payments.fully_paid'|trans]) %}{% endif %}
                                                     {% if payment.shared %}{% set parts = parts|merge(['wizard.step3.claim_items.statement_payments.shared'|trans]) %}{% endif %}
+                                                    {% if payment.allocated|default(null) is not null %}{% set parts = parts|merge(['wizard.step3.claim_items.statement_payments.allocated'|trans({'%amount%': payment.allocated|number_format(2, ',', '.'), '%currency%': payment.currency})]) %}{% endif %}
                                                     <li class="tnum">{{ parts|join(', ') }}</li>
                                                 {% endfor %}
                                             </ul>
-                                            {% if row.paidAmount|default(0) > 0 %}
-                                                <p class="mt-0.5 tnum">{{ 'wizard.step3.claim_items.statement_payments.recorded_total'|trans({'%amount%': row.paidAmount|number_format(2, ',', '.'), '%currency%': row.currency}) }}</p>
+                                            {% if row.statementBalance|default(null) is not null %}
+                                                <p class="mt-0.5 tnum">{{ 'wizard.step3.claim_items.statement_payments.balance'|trans({'%amount%': row.statementBalance|number_format(2, ',', '.'), '%currency%': row.currency}) }}</p>
+                                            {% endif %}
+                                            {% set payment_summary = this.paymentSummary(row) %}
+                                            {% if payment_summary.paid > 0 %}
+                                                {# Paid in full: excluded and saying so, with no rest to state. #}
+                                                <p class="mt-0.5 tnum">{{ (payment_summary.rest > 0 ? 'wizard.step3.claim_items.statement_payments.recorded_total' : 'wizard.step3.claim_items.statement_payments.recorded_total_paid_in_full')|trans({'%paid%': payment_summary.paid|number_format(2, ',', '.'), '%rest%': payment_summary.rest|number_format(2, ',', '.'), '%currency%': row.currency}) }}</p>
                                             {% endif %}
                                         </div>
                                     {% endif %}
@@ -588,7 +594,9 @@
                     <div class="text-[10px] text-white/60 uppercase tracking-wide font-medium">{{ 'wizard.step3.sidebar.principal_label'|trans }}</div>
                     {% if display_principal is not null and display_principal > 0 %}
                         <div class="mt-1 text-2xl font-bold tnum">{{ display_principal|number_format(2, '.', ',') }} <span class="text-sm font-normal text-white/70">{{ display_currency }}</span></div>
-                        {% if conv is not null %}
+                        {# With positions each converted invoice states its own rate in the
+                           table; one case-level line would not add up to the total. #}
+                        {% if conv is not null and not positions_mode %}
                             <div class="mt-1 text-[11px] text-white/60">{{ 'wizard.step3.sidebar.conversion_line'|trans({ '%amount%': conv.originalAmount|number_format(2, '.', ','), '%currency%': conv.originalCurrency, '%rate%': conv.rate|number_format(4, '.', ','), '%date%': conv.rateDate ? conv.rateDate|date('d.m.Y') : '', '%ron%': conv.ronAmount|number_format(2, '.', ',') }) }}</div>
                         {% endif %}
                     {% else %}

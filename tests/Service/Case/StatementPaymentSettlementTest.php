@@ -17,7 +17,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * Payments an account statement or a bank statement lists, tied to the
  * invoices they name: a fully paid invoice leaves the claim, a partly paid one
- * records what was paid without imputing it.
+ * is claimed for its unpaid rest.
  */
 final class StatementPaymentSettlementTest extends TestCase
 {
@@ -94,7 +94,7 @@ final class StatementPaymentSettlementTest extends TestCase
         self::assertTrue($result->rows[0]->excluded);
     }
 
-    public function testAPartlyPaidInvoiceRecordsThePaymentWithoutReducingTheClaim(): void
+    public function testAPartlyPaidInvoiceIsClaimedForItsUnpaidRest(): void
     {
         $result = $this->factory([
             $this->invoice(1, 'MJ-9/2025', 10000.0),
@@ -106,8 +106,9 @@ final class StatementPaymentSettlementTest extends TestCase
         $row = $result->rows[0];
         self::assertFalse($row->excluded);
         self::assertSame(4000.0, $row->paidAmount);
+        // The invoice keeps its total; the claim asks for the rest.
         self::assertSame(10000.0, $row->amount);
-        self::assertSame(10000.0, $row->amountRon);
+        self::assertSame(6000.0, $row->signedAmountRon());
         self::assertContains(self::PAID_IN_PART, $row->warningKeys);
         self::assertNotContains(self::PAID_IN_FULL, $row->warningKeys);
         self::assertTrue($row->requiresIndividualConfirmation(0.8));
@@ -128,31 +129,103 @@ final class StatementPaymentSettlementTest extends TestCase
         self::assertFalse($row->excluded);
     }
 
-    public function testAPaymentForSeveralInvoicesIsSplitOnlyWhenItPaysExactlyTheirTotal(): void
+    /**
+     * The lawyer's example: three invoices due the same day, one payment of
+     * 60.000 for all of them. The first two are paid off, 10.000 goes to the
+     * third, and 40.000 is left to recover (Civil Code art. 1509 alin. 1).
+     */
+    public function testAPaymentForSeveralInvoicesInTheFileGoesToTheOldestFirst(): void
     {
-        $exact = $this->factory([
-            $this->invoice(1, 'FF 1001', 1000.0),
-            $this->invoice(2, 'FF 1002', 2000.0),
-            $this->bankStatement(3, [
-                ['amount' => 3000.0, 'currency' => 'RON', 'date' => '2025-04-10', 'invoiceReferences' => ['FF1001', 'FF1002']],
+        $result = $this->factory([
+            $this->invoice(1, 'FF 1001', 20000.0, issued: '2026-02-01', due: '2026-03-01'),
+            $this->invoice(2, 'FF 1002', 30000.0, issued: '2026-02-02', due: '2026-03-01'),
+            $this->invoice(3, 'FF 1003', 50000.0, issued: '2026-02-03', due: '2026-03-01'),
+            $this->bankStatement(4, [
+                ['amount' => 60000.0, 'currency' => 'RON', 'date' => '2026-03-15', 'invoiceReferences' => ['FF1003', 'FF1001', 'FF1002']],
             ]),
-        ])->collectRows([1, 2, 3]);
-        self::assertTrue($this->row($exact->rows, 'FF 1001')->excluded);
-        self::assertTrue($this->row($exact->rows, 'FF 1002')->excluded);
+        ])->collectRows([1, 2, 3, 4]);
 
-        $partial = $this->factory([
-            $this->invoice(1, 'FF 1001', 1000.0),
-            $this->invoice(2, 'FF 1002', 2000.0),
+        self::assertTrue($this->row($result->rows, 'FF 1001')->excluded);
+        self::assertTrue($this->row($result->rows, 'FF 1002')->excluded);
+        $third = $this->row($result->rows, 'FF 1003');
+        self::assertFalse($third->excluded);
+        self::assertSame(10000.0, $third->paidAmount);
+        self::assertSame(40000.0, $third->signedAmountRon());
+        self::assertSame(10000.0, $third->statementPayments[0]['allocated']);
+        self::assertFalse($third->statementPayments[0]['shared']);
+    }
+
+    /** The oldest due date is paid first, whatever order the payment lists the invoices in. */
+    public function testThePaymentGoesToTheOldestDueDateFirst(): void
+    {
+        $result = $this->factory([
+            $this->invoice(1, 'FF 1001', 1000.0, issued: '2026-01-01', due: '2026-04-01'),
+            $this->invoice(2, 'FF 1002', 2000.0, issued: '2026-01-01', due: '2026-02-01'),
             $this->bankStatement(3, [
-                ['amount' => 1500.0, 'currency' => 'RON', 'date' => '2025-04-10', 'invoiceReferences' => ['FF1001', 'FF1002']],
+                ['amount' => 1500.0, 'currency' => 'RON', 'date' => '2026-04-10', 'invoiceReferences' => ['FF1001', 'FF1002']],
             ]),
         ])->collectRows([1, 2, 3]);
-        $row = $this->row($partial->rows, 'FF 1001');
-        self::assertFalse($row->excluded);
-        self::assertSame(0.0, $row->paidAmount, 'an unsplit payment is not attributed to either invoice');
-        self::assertTrue($row->statementPayments[0]['shared']);
-        self::assertContains(self::PAID_IN_PART, $row->warningKeys);
-        self::assertSame([], $partial->conflicts);
+
+        self::assertSame(1500.0, $this->row($result->rows, 'FF 1002')->paidAmount);
+        self::assertSame(0.0, $this->row($result->rows, 'FF 1001')->paidAmount);
+    }
+
+    /**
+     * What the account statement shows still owed on an invoice is how the
+     * creditor's accounting imputed the payments (Civil Code art. 1508): it
+     * decides the rest, and the payments it lists are not counted again.
+     */
+    public function testTheBalanceTheAccountStatementShowsPerInvoiceDecidesTheRest(): void
+    {
+        $result = $this->factory([
+            $this->invoice(1, '23381', 33666.0),
+            $this->invoice(2, '23382', 34298.4),
+            $this->document(3, DocumentType::CONFIRMARE_SOLD, [
+                'invoiceBalances' => [
+                    ['invoiceReference' => '23381', 'outstanding' => 456.6, 'currency' => 'RON'],
+                    ['invoiceReference' => '23382', 'outstanding' => 0.0, 'currency' => 'RON'],
+                ],
+                'payments' => [
+                    ['amount' => 33209.4, 'currency' => 'RON', 'date' => '2025-12-30', 'invoiceReferences' => ['23381']],
+                ],
+            ]),
+        ])->collectRows([1, 2, 3]);
+
+        $partly = $this->row($result->rows, '23381');
+        self::assertSame(456.6, $partly->statementBalance);
+        self::assertSame(33209.4, $partly->paidAmount, 'the listed payment is already in the balance');
+        self::assertSame(456.6, $partly->signedAmountRon());
+        self::assertContains(self::PAID_IN_PART, $partly->warningKeys);
+
+        $paid = $this->row($result->rows, '23382');
+        self::assertTrue($paid->excluded);
+        self::assertContains(self::PAID_IN_FULL, $paid->warningKeys);
+    }
+
+    /** The statement shows the whole invoice still owed: nothing was paid, so the row says nothing about payments. */
+    public function testABalanceEqualToTheInvoiceRaisesNoPaymentWarning(): void
+    {
+        $result = $this->factory([
+            $this->invoice(1, '23382', 34298.4),
+            $this->document(2, DocumentType::CONFIRMARE_SOLD, ['invoiceBalances' => [['invoiceReference' => '23382', 'outstanding' => 34298.4]]]),
+        ])->collectRows([1, 2]);
+
+        $row = $result->rows[0];
+        self::assertSame(34298.4, $row->signedAmountRon());
+        self::assertSame([], $row->warningKeys);
+        self::assertFalse($row->hasStatedDeduction);
+    }
+
+    /** Two statements of one invoice: payments only add up, so the lower balance is the later one. */
+    public function testTheLowerOfTwoStatedBalancesIsKept(): void
+    {
+        $result = $this->factory([
+            $this->invoice(1, '23381', 33666.0),
+            $this->document(2, DocumentType::CONFIRMARE_SOLD, ['invoiceBalances' => [['invoiceReference' => '23381', 'outstanding' => 10000.0]]]),
+            $this->document(3, DocumentType::CONFIRMARE_SOLD, ['invoiceBalances' => [['invoiceReference' => '23381', 'outstanding' => 456.6]]]),
+        ])->collectRows([1, 2, 3]);
+
+        self::assertSame(456.6, $result->rows[0]->signedAmountRon());
     }
 
     public function testAPaymentAlsoNamingInvoicesOutsideTheFileIsNotCountedOnThePositionItNames(): void
@@ -172,7 +245,66 @@ final class StatementPaymentSettlementTest extends TestCase
         self::assertSame(0.0, $row->paidAmount);
         self::assertCount(2, $row->statementPayments);
         self::assertTrue($row->statementPayments[0]['shared']);
-        self::assertContains('wizard.step3.claim_items.warning.payment_in_statement', $row->warningKeys);
+        self::assertContains('wizard.step3.claim_items.warning.payment_in_statement_unsplit', $row->warningKeys);
+    }
+
+    /** Nothing came off the invoice, so the row must not say only the rest is claimed. */
+    public function testAnUnsplitPaymentSaysTheInvoiceTotalIsStillClaimed(): void
+    {
+        $result = $this->factory([
+            $this->invoice(1, '23381', 33666.0),
+            $this->accountStatement(2, [
+                ['amount' => 68448.0, 'currency' => 'RON', 'date' => '2025-12-30', 'invoiceReferences' => ['20954', '23381']],
+            ]),
+        ])->collectRows([1, 2]);
+
+        $row = $result->rows[0];
+        self::assertSame(33666.0, $row->signedAmountRon());
+        self::assertContains('wizard.step3.claim_items.warning.payment_in_statement_unsplit', $row->warningKeys);
+        self::assertNotContains(self::PAID_IN_PART, $row->warningKeys);
+    }
+
+    /** A balance the statement shows is what is left, whatever total the lawyer corrects the invoice to. */
+    public function testAStatedBalanceStaysTheRestAfterTheTotalIsCorrected(): void
+    {
+        $result = $this->factory([
+            $this->invoice(1, '23381', 1000.0),
+            $this->document(2, DocumentType::CONFIRMARE_SOLD, ['invoiceBalances' => [['invoiceReference' => '23381', 'outstanding' => 400.0]]]),
+        ])->collectRows([1, 2]);
+
+        $row = $result->rows[0];
+        $row->amount = 1200.0;
+        $row->amountRon = 1200.0;
+
+        self::assertSame(400.0, $row->signedAmountRon());
+        self::assertSame(800.0, $row->paidOnInvoice());
+    }
+
+    public function testABalanceInAnotherCurrencyThanTheInvoiceIsIgnored(): void
+    {
+        $result = $this->factory([
+            $this->invoice(1, '23381', 1000.0),
+            $this->document(2, DocumentType::CONFIRMARE_SOLD, ['invoiceBalances' => [['invoiceReference' => '23381', 'outstanding' => 100.0, 'currency' => 'EUR']]]),
+        ])->collectRows([1, 2]);
+
+        self::assertNull($result->rows[0]->statementBalance);
+        self::assertSame(1000.0, $result->rows[0]->signedAmountRon());
+    }
+
+    /** A payment over what the invoices owe pays them off and no more. */
+    public function testAnOverpaymentPaysOffTheInvoicesAndNoMore(): void
+    {
+        $result = $this->factory([
+            $this->invoice(1, 'FF 1001', 1000.0),
+            $this->invoice(2, 'FF 1002', 2000.0),
+            $this->bankStatement(3, [
+                ['amount' => 5000.0, 'currency' => 'RON', 'date' => '2025-04-10', 'invoiceReferences' => ['FF1001', 'FF1002']],
+            ]),
+        ])->collectRows([1, 2, 3]);
+
+        self::assertSame(1000.0, $this->row($result->rows, 'FF 1001')->paidAmount);
+        self::assertSame(2000.0, $this->row($result->rows, 'FF 1002')->paidAmount);
+        self::assertTrue($this->row($result->rows, 'FF 1002')->excluded);
     }
 
     public function testAPaymentNamingNoPositionRaisesTheUnmatchedWarning(): void
@@ -292,14 +424,14 @@ final class StatementPaymentSettlementTest extends TestCase
         return new ClaimItemFactory($repository, new CurrencyConverter($rates));
     }
 
-    private function invoice(int $id, string $number, float $amount, string $currency = 'RON'): Document
+    private function invoice(int $id, string $number, float $amount, string $currency = 'RON', string $issued = '2025-03-01', string $due = '2025-04-01'): Document
     {
         return $this->document($id, DocumentType::FACTURA, [
             'amount' => $amount,
             'currency' => $currency,
             'invoiceNumber' => $number,
-            'invoiceDate' => '2025-03-01',
-            'dueDate' => '2025-04-01',
+            'invoiceDate' => $issued,
+            'dueDate' => $due,
             'confidencePerField' => ['amount' => 0.95],
         ]);
     }

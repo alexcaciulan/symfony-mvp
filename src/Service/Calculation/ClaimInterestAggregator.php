@@ -68,8 +68,8 @@ final class ClaimInterestAggregator
             }
 
             $dueDate = $item->getDueDate();
-            $amountRon = $item->getAmountRon();
-            $amount = $amountRon !== null ? (float) $amountRon : 0.0;
+            // What is still unpaid: a payment tied to the position comes off it.
+            $amount = $item->signedAmountRon() ?? 0.0;
 
             // No due date means nothing is late yet, and a zero balance has
             // nothing to accrue on. Both are reported, not dropped.
@@ -88,6 +88,7 @@ final class ClaimInterestAggregator
                     // The ceiling is a share of what each position accrues on,
                     // so it is applied per position like the rate itself.
                     capPercent: $contractualPenaltyCapPercent,
+                    capBase: abs((float) $item->getAmountRon()),
                 );
                 $penaltyByItem[$key] = $result;
                 $total += $result->total;

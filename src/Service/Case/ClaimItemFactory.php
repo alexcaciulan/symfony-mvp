@@ -91,10 +91,13 @@ final class ClaimItemFactory
         $typesByDocument = [];
         $statements = [];
         $paymentsByDocument = [];
+        $balancesByDocument = [];
         $paymentTerms = [];
+        $hasContract = false;
         foreach ($this->loadOrdered($documentIds) as $document) {
             $type = $this->effectiveType($document);
             if (in_array($type, self::PAYMENT_LISTING_TYPES, true)) {
+                $balancesByDocument[] = $this->statementPayments->balancesOf($document);
                 $listed = $this->statementPayments->paymentsOf($document);
                 if ($listed !== null) {
                     $paymentsByDocument[] = $listed;
@@ -105,6 +108,7 @@ final class ClaimItemFactory
                 }
             }
             if (in_array($type, self::CONTRACTUAL_TYPES, true)) {
+                $hasContract = true;
                 $term = $this->paymentTerms->termOf($document);
                 if ($term !== null) {
                     $paymentTerms[] = $term;
@@ -130,9 +134,11 @@ final class ClaimItemFactory
             $this->settleAdvances($this->deduplicator->deduplicate($rows, $typesByDocument)),
             $typesByDocument,
         );
-        $unmatched = $this->statementPayments->settle($result->rows, $paymentsByDocument);
+        // Due dates first: a payment covering several invoices goes to the
+        // oldest due date first.
+        $this->paymentTerms->apply($result->rows, $paymentTerms, $typesByDocument, $hasContract);
+        $unmatched = $this->statementPayments->settle($result->rows, $paymentsByDocument, $balancesByDocument);
         $unmatched = $this->statementPayments->flagFromText($result->rows, $statements) || $unmatched;
-        $this->paymentTerms->apply($result->rows, $paymentTerms, $typesByDocument);
 
         if (!$unmatched) {
             return $result;
@@ -529,7 +535,7 @@ final class ClaimItemFactory
             $item->setExchangeRate($row->exchangeRate !== null ? sprintf('%.4f', $row->exchangeRate) : null);
             $item->setExchangeRateDate($row->exchangeRateDate);
             $item->setNeedsManualFx($row->needsManualFx);
-            $item->setPaidAmount(sprintf('%.2f', $row->paidAmount));
+            $item->setPaidAmount(sprintf('%.2f', $row->paidOnInvoice()));
             $item->setDedupKey($row->dedupKey);
             $item->setSourceDocument(
                 $row->sourceDocumentId !== null ? ($documentsById[$row->sourceDocumentId] ?? null) : null

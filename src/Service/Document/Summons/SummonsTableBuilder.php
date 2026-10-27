@@ -55,7 +55,7 @@ final class SummonsTableBuilder
 
             // Same key the aggregator uses, so unsaved positions still match.
             $key = $item->getId() ?? -((int) $index + 1);
-            $balance = (float) ($item->getAmountRon() ?? '0');
+            $balance = $item->signedAmountRon() ?? 0.0;
 
             $interest = $perItem->interestByItemId[$key] ?? null;
             if ($interest !== null) {
@@ -133,16 +133,22 @@ final class SummonsTableBuilder
     private function principalRow(ClaimItem $item): PrincipalRow
     {
         $converted = $item->getCurrency() !== 'RON' && $item->getExchangeRate() !== null;
+        $amount = $item->signedAmountRon() ?? 0.0;
+        $invoiced = abs((float) ($item->getAmountRon() ?? '0'));
+        $partlyPaid = !$item->isCreditNote() && $invoiced - $amount > 0.005;
 
         return new PrincipalRow(
             documentNumber: $item->getDocumentNumber(),
             documentDate: $item->getDocumentDate(),
             dueDate: $item->getDueDate(),
-            amount: $item->signedAmountRon() ?? 0.0,
-            originalAmount: $converted ? (float) $item->getAmount() : null,
+            amount: $amount,
+            // The rest in the invoice currency, so that it times the rate gives the RON rest.
+            originalAmount: $converted ? $item->outstandingAmount() : null,
             originalCurrency: $converted ? $item->getCurrency() : null,
             exchangeRate: $converted ? (float) $item->getExchangeRate() : null,
             exchangeRateDate: $converted ? $item->getExchangeRateDate() : null,
+            invoicedAmount: $partlyPaid ? $invoiced : null,
+            paidAmount: $partlyPaid ? round($invoiced - $amount, 2) : null,
         );
     }
 

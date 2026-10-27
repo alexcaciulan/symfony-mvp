@@ -54,6 +54,7 @@ final class ClaimRowLiveMapper
             'hasStatedDeduction' => $row->hasStatedDeduction,
             'dueDateNote' => $row->dueDateNote,
             'statementPayments' => $row->statementPayments,
+            'statementBalance' => $row->statementBalance,
         ];
     }
 }

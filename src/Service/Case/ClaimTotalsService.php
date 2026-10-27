@@ -27,8 +27,6 @@ final class ClaimTotalsService
         $counted = [];
         $excluded = [];
         $needsFx = [];
-        $unimputedIds = [];
-        $unimputedTotal = 0.0;
         $count = 0;
         $countedCount = 0;
         $needsFxCount = 0;
@@ -37,13 +35,6 @@ final class ClaimTotalsService
         foreach ($items as $item) {
             ++$count;
             $id = $item->getId();
-
-            if ($item->hasUnimputedPayment()) {
-                $unimputedTotal += (float) $item->getPaidAmount();
-                if ($id !== null) {
-                    $unimputedIds[] = $id;
-                }
-            }
 
             if ($item->needsManualFx() || $item->getAmountRon() === null) {
                 ++$needsFxCount;
@@ -62,7 +53,7 @@ final class ClaimTotalsService
                 continue;
             }
 
-            // Payments are recorded, never imputed here: see ClaimTotals.
+            // A payment tied to the position is already off it: see ClaimTotals.
             // A credit note carries a negative value and subtracts.
             $principal += $item->signedAmountRon() ?? 0.0;
             ++$countedCount;
@@ -90,8 +81,6 @@ final class ClaimTotalsService
             countedItemIds: $counted,
             excludedItemIds: $excluded,
             needsManualFxItemIds: $needsFx,
-            unimputedPaidTotal: round($unimputedTotal, 2),
-            unimputedPaymentItemIds: $unimputedIds,
             countedCount: $countedCount,
             needsManualFxCount: $needsFxCount,
         );

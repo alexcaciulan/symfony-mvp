@@ -116,15 +116,13 @@ class OpAdmissibilityClaimItemTest extends TestCase
         $this->assertSame([], $this->codes((new OpAdmissibilityValidator())->validate($case, $this->now())));
     }
 
-    public function testARecordedPaymentIsSurfacedInsteadOfSilentlyIgnored(): void
+    /** A payment a statement ties to the invoice is already off the claim, so there is nothing left to warn about. */
+    public function testAPaymentAlreadyOffTheClaimRaisesNoWarning(): void
     {
         $case = $this->caseWithItems(['2026-01-31']);
         $case->getClaimItems()->first()->setPaidAmount('4000.00');
 
-        $this->assertSame(
-            ['OP_ITEM_UNIMPUTED_PAYMENT'],
-            $this->codes((new OpAdmissibilityValidator())->validate($case, $this->now())),
-        );
+        $this->assertSame([], $this->codes((new OpAdmissibilityValidator())->validate($case, $this->now())));
     }
 
     public function testADeductionStatedOnTheDocumentIsSurfaced(): void

@@ -896,6 +896,7 @@ final class AiVisionExtractionStrategy implements ExtractionStrategyInterface
             : null;
 
         $payments = $this->coercePayments($raw['payments'] ?? null);
+        $balances = $this->coerceInvoiceBalances($raw['invoiceBalances'] ?? null);
 
         $values = [
             'amount' => $amount,
@@ -918,6 +919,7 @@ final class AiVisionExtractionStrategy implements ExtractionStrategyInterface
             // to score. The DTO gets the value as is: null when the answer
             // carries no list, so the statement's text is still checked.
             'payments' => $payments !== [] ? $payments : null,
+            'invoiceBalances' => $balances !== [] ? $balances : null,
         ];
 
         return new ClaimExtraction(
@@ -938,8 +940,40 @@ final class AiVisionExtractionStrategy implements ExtractionStrategyInterface
             paymentTermAnchor: $values['paymentTermAnchor'],
             paymentTermBusinessDays: $values['paymentTermBusinessDays'],
             payments: $payments,
+            invoiceBalances: $balances !== [] ? $balances : null,
             confidencePerField: $this->coerceConfidenceMap($raw['confidencePerField'] ?? null, $values),
         );
+    }
+
+    /**
+     * What an account statement shows still unpaid on each invoice. An entry
+     * needs the invoice number and a balance of zero or more.
+     *
+     * @return list<array{invoiceReference: string, outstanding: float, currency: ?string}>
+     */
+    private function coerceInvoiceBalances(mixed $raw): array
+    {
+        if (!is_array($raw)) {
+            return [];
+        }
+        $balances = [];
+        foreach ($raw as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            $reference = $this->coerceString($entry['invoiceReference'] ?? null);
+            $outstanding = $entry['outstanding'] ?? null;
+            if ($reference === null || !is_numeric($outstanding) || (float) $outstanding < 0.0) {
+                continue;
+            }
+            $balances[] = [
+                'invoiceReference' => $reference,
+                'outstanding' => (float) $outstanding,
+                'currency' => $this->coerceString($entry['currency'] ?? null),
+            ];
+        }
+
+        return $balances;
     }
 
     /**

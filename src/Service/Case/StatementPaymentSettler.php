@@ -21,17 +21,64 @@ final class StatementPaymentSettler
     public const AMOUNT_TOLERANCE = 0.005;
 
     /**
-     * Settles the positions with the payments of every statement, each payment
-     * counted once across statements.
+     * Settles the positions with what every statement says about them, each
+     * payment counted once across statements.
      *
      * @param list<ClaimItemRow> $rows
      * @param list<list<array{amount: ?float, currency: string, date: ?string, references: list<string>, fullyPaid: bool, sourceDocumentId: ?int}>> $paymentsByDocument
+     * @param list<list<array{reference: string, outstanding: float, currency: string, sourceDocumentId: ?int}>> $balancesByDocument
      *
      * @return bool whether a payment matched no position
      */
-    public function settle(array $rows, array $paymentsByDocument): bool
+    public function settle(array $rows, array $paymentsByDocument, array $balancesByDocument = []): bool
     {
-        return $this->settlePayments($rows, $this->distinctPayments($paymentsByDocument));
+        $governed = $this->applyStatedBalances($rows, array_merge(...$balancesByDocument));
+
+        return $this->settlePayments($rows, $this->distinctPayments($paymentsByDocument), $governed);
+    }
+
+    /**
+     * What an account statement shows still unpaid on an invoice is the
+     * creditor's own imputation of every payment received (Civil Code art.
+     * 1508), so it decides the position over any payment worked out here.
+     * Two statements of one invoice keep the lower balance: payments only add
+     * up over time.
+     *
+     * @param list<ClaimItemRow> $rows
+     * @param list<array{reference: string, outstanding: float, currency: string, sourceDocumentId: ?int}> $balances
+     *
+     * @return array<int, true> the positions a stated balance settled, by object id
+     */
+    private function applyStatedBalances(array $rows, array $balances): array
+    {
+        $governed = [];
+        foreach ($balances as $balance) {
+            $matched = $this->rowsNamedBy($rows, [
+                'references' => [$balance['reference']],
+                'sourceDocumentId' => $balance['sourceDocumentId'],
+            ]);
+            if (count($matched) !== 1 || $matched[0]->currency !== $balance['currency']) {
+                continue;
+            }
+
+            $row = $matched[0];
+            $outstanding = max(0.0, $balance['outstanding']);
+            if ($row->statementBalance !== null && $row->statementBalance <= $outstanding) {
+                continue;
+            }
+            $row->statementBalance = $outstanding;
+            $row->paidAmount = round(max(0.0, $row->amount - $outstanding), 2);
+            $governed[spl_object_id($row)] = true;
+        }
+
+        foreach ($rows as $row) {
+            // A balance equal to the invoice says nothing was paid: no payment to flag.
+            if (isset($governed[spl_object_id($row)]) && $row->paidOnInvoice() > self::AMOUNT_TOLERANCE) {
+                $this->flagSettled($row, $row->statementBalance <= self::AMOUNT_TOLERANCE);
+            }
+        }
+
+        return $governed;
     }
 
     /**
@@ -39,20 +86,28 @@ final class StatementPaymentSettler
      *
      * An invoice the statement shows as paid in full (stated so, or paid at
      * least its total) leaves the claim: it stays on screen, excluded and
-     * saying why, and the lawyer can bring it back. A partly paid one keeps
-     * its invoiced total and records what was paid, unimputed: imputation is
-     * the lawyer's (Civil Code art. 1507-1509), and the interest is computed
-     * as before. A payment naming several invoices is split only when all of
-     * them are positions and it pays exactly their total; otherwise it is
-     * listed on each position it names, unsplit and uncounted.
+     * saying why, and the lawyer can bring it back. A partly paid one is
+     * claimed for its unpaid rest, which accrues from the due date; the paid
+     * part is not claimed for its delay. A payment naming several invoices is
+     * put on them from the oldest due date on, the order the law imputes a
+     * payment that names no single debt (Civil Code art. 1509 alin. 1), but
+     * only when all of them are positions: a payment that also names
+     * invoices outside the file may have gone to those first, so it is listed
+     * on each position it names, unsplit and uncounted. A position whose
+     * statement states the balance is settled by that balance alone.
      *
      * @param list<ClaimItemRow> $rows
      * @param list<array{amount: ?float, currency: string, date: ?string, references: list<string>, fullyPaid: bool, sourceDocumentId: ?int}> $payments
+     * @param array<int, true> $governed positions a stated balance already settled
      *
      * @return bool whether a payment matched no position
      */
-    private function settlePayments(array $rows, array $payments): bool
+    private function settlePayments(array $rows, array $payments, array $governed): bool
     {
+        // Earlier payments are imputed first, as they were received; undated last.
+        usort($payments, static fn (array $a, array $b): int => [$a['date'] === null, $a['date']]
+            <=> [$b['date'] === null, $b['date']]);
+
         $unmatched = false;
         $settled = [];
         foreach ($payments as $payment) {
@@ -63,18 +118,17 @@ final class StatementPaymentSettler
                 continue;
             }
 
-            // A payment naming invoices outside the file is shared with them
-            // too, so no part of it can be put on the positions it does name.
             $shared = count($payment['references']) > 1;
-            $splitsExactly = $shared && count($matched) === count($payment['references'])
-                && $payment['amount'] !== null && abs(array_sum(array_map(
-                static fn (ClaimItemRow $row): float => $row->currency === $payment['currency'] ? $row->amount : INF,
-                $matched,
-            )) - $payment['amount']) < self::AMOUNT_TOLERANCE;
+            // A stated balance already holds this payment for the positions it
+            // settles; splitting the payment again would count it twice.
+            $allocates = (!$shared || count($matched) === count($payment['references']))
+                && array_filter($matched, static fn (ClaimItemRow $row): bool => isset($governed[spl_object_id($row)])) === [];
+            $shares = $allocates ? $this->allocate($payment, $matched) : [];
 
             foreach ($matched as $row) {
-                $share = !$shared ? $payment['amount'] : ($splitsExactly ? $row->amount : null);
-                if ($share !== null && $row->currency === $payment['currency']) {
+                $id = spl_object_id($row);
+                $share = $shares[$id] ?? null;
+                if ($share !== null && !isset($governed[$id])) {
                     $row->paidAmount = round($row->paidAmount + $share, 2);
                 }
                 $row->statementPayments[] = [
@@ -82,28 +136,87 @@ final class StatementPaymentSettler
                     'currency' => $payment['currency'],
                     'date' => $payment['date'],
                     'fullyPaid' => $payment['fullyPaid'],
-                    'shared' => $shared,
+                    'shared' => $shared && !$allocates,
+                    'allocated' => $shared && $allocates ? $share : null,
                 ];
-                $settled[spl_object_id($row)] = [$row, ($settled[spl_object_id($row)][1] ?? false) || $payment['fullyPaid']];
+                $settled[$id] = [$row, ($settled[$id][1] ?? false) || $payment['fullyPaid']];
             }
         }
 
-        foreach ($settled as [$row, $statedFullyPaid]) {
-            // Same effect a deduction stated on the invoice has: the row can no
-            // longer be waved through by the table-wide checkbox.
-            $row->hasStatedDeduction = true;
-            if ($row->excluded) {
+        foreach ($settled as $id => [$row, $statedFullyPaid]) {
+            if (isset($governed[$id])) {
                 continue;
             }
-            if ($statedFullyPaid || $row->paidAmount >= $row->amount - self::AMOUNT_TOLERANCE) {
-                $row->excluded = true;
-                $row->warningKeys[] = 'wizard.step3.claim_items.warning.paid_in_full_by_statement';
-            } else {
-                $row->warningKeys[] = 'wizard.step3.claim_items.warning.payment_in_statement';
-            }
+            $this->flagSettled($row, $statedFullyPaid || $row->paidAmount >= $row->amount - self::AMOUNT_TOLERANCE);
         }
 
         return $unmatched;
+    }
+
+    /**
+     * The part of a payment each named position takes: what it still owes,
+     * from the oldest due date on (then the oldest invoice), until the payment
+     * runs out. A payment in another currency than a position pays none of it.
+     *
+     * @param array{amount: ?float, currency: string, date: ?string, references: list<string>, fullyPaid: bool, sourceDocumentId: ?int} $payment
+     * @param list<ClaimItemRow> $matched
+     *
+     * @return array<int, float> by object id
+     */
+    private function allocate(array $payment, array $matched): array
+    {
+        if ($payment['amount'] === null) {
+            return [];
+        }
+
+        usort($matched, self::oldestFirst(...));
+
+        $left = $payment['amount'];
+        $shares = [];
+        foreach ($matched as $row) {
+            if ($row->currency !== $payment['currency']) {
+                continue;
+            }
+            $owed = max(0.0, $row->amount - $row->paidAmount);
+            $share = round(min($left, $owed), 2);
+            $shares[spl_object_id($row)] = $share;
+            $left = round($left - $share, 2);
+        }
+
+        return $shares;
+    }
+
+    /**
+     * Oldest due date first, then the oldest invoice, then the invoice number,
+     * so invoices due the same day are paid in the order the statement keeps
+     * them and the result does not depend on the upload order.
+     */
+    private static function oldestFirst(ClaimItemRow $a, ClaimItemRow $b): int
+    {
+        return [$a->dueDate === null, $a->dueDate, $a->documentDate === null, $a->documentDate, (string) $a->documentNumber]
+            <=> [$b->dueDate === null, $b->dueDate, $b->documentDate === null, $b->documentDate, (string) $b->documentNumber];
+    }
+
+    /**
+     * Same effect a deduction stated on the invoice has: the row can no longer
+     * be waved through by the table-wide checkbox.
+     */
+    private function flagSettled(ClaimItemRow $row, bool $paidInFull): void
+    {
+        $row->hasStatedDeduction = true;
+        if ($row->excluded) {
+            return;
+        }
+        if ($paidInFull) {
+            $row->excluded = true;
+            $row->warningKeys[] = 'wizard.step3.claim_items.warning.paid_in_full_by_statement';
+        } elseif ($row->paidOnInvoice() > 0.0) {
+            $row->warningKeys[] = 'wizard.step3.claim_items.warning.payment_in_statement';
+        } else {
+            // Only a payment left unsplit reaches here: nothing came off the
+            // invoice, and the lawyer has to say whether part of it is paid.
+            $row->warningKeys[] = 'wizard.step3.claim_items.warning.payment_in_statement_unsplit';
+        }
     }
 
     /**
@@ -112,7 +225,7 @@ final class StatementPaymentSettler
      * matched to the document that lists it.
      *
      * @param list<ClaimItemRow> $rows
-     * @param array{amount: ?float, currency: string, date: ?string, references: list<string>, fullyPaid: bool, sourceDocumentId: ?int} $payment
+     * @param array{references: list<string>, sourceDocumentId: ?int} $payment
      *
      * @return list<ClaimItemRow>
      */
@@ -245,6 +358,41 @@ final class StatementPaymentSettler
         }
 
         return $payments;
+    }
+
+    /**
+     * The balance an account statement shows still unpaid on each invoice it
+     * lists, as extracted. Empty when the statement shows no such balance.
+     *
+     * @return list<array{reference: string, outstanding: float, currency: string, sourceDocumentId: ?int}>
+     */
+    public function balancesOf(Document $document): array
+    {
+        $extracted = $document->getExtractedData();
+        $claim = is_array($extracted) ? ($extracted['claim'] ?? null) : null;
+        if (!is_array($claim) || !is_array($claim['invoiceBalances'] ?? null)) {
+            return [];
+        }
+
+        $documentCurrency = ExtractedValue::currency($claim['currency'] ?? null) ?? 'RON';
+        $balances = [];
+        foreach ($claim['invoiceBalances'] as $entry) {
+            if (!is_array($entry) || !is_numeric($entry['outstanding'] ?? null)) {
+                continue;
+            }
+            $reference = DocumentReferenceNormalizer::normalize(is_string($entry['invoiceReference'] ?? null) ? $entry['invoiceReference'] : null);
+            if ($reference === null) {
+                continue;
+            }
+            $balances[] = [
+                'reference' => $reference,
+                'outstanding' => (float) $entry['outstanding'],
+                'currency' => ExtractedValue::currency($entry['currency'] ?? null) ?? $documentCurrency,
+                'sourceDocumentId' => $document->getId(),
+            ];
+        }
+
+        return $balances;
     }
 
     /**

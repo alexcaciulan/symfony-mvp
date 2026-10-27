@@ -22,6 +22,8 @@ final readonly class ClaimExtraction
      * @param ?bool                $paymentTermBusinessDays true when the term counts working days
      * @param ?list<array<string, mixed>> $payments     the payments a statement lists; null when no list
      *                                                     was read, so the statement's text is checked instead
+     * @param ?list<array<string, mixed>> $invoiceBalances what an account statement shows still unpaid on
+     *                                                     each invoice it lists; null when it shows none
      */
     public function __construct(
         public ?float $amount = null,
@@ -42,5 +44,6 @@ final readonly class ClaimExtraction
         public ?PaymentTermAnchor $paymentTermAnchor = null,
         public ?bool $paymentTermBusinessDays = null,
         public ?array $payments = null,
+        public ?array $invoiceBalances = null,
     ) {}
 }

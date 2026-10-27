@@ -263,7 +263,8 @@
                         <span class="text-[11px] text-slate-500">{{ 'wizard.step4.claim_items.positions_note'|trans({'%count%': claim_items|length}) }}</span>
                     </div>
                 {% endif %}
-                {% if conversion is defined and conversion is not null %}
+                {# Positions state their own rate in the table below. #}
+                {% if conversion is defined and conversion is not null and not positions_drive %}
                     <div class="flex justify-end">
                         <span class="text-[11px] text-slate-500">{{ 'wizard.step3.sidebar.conversion_line'|trans({ '%amount%': conversion.originalAmount|number_format(2, '.', ','), '%currency%': conversion.originalCurrency, '%rate%': conversion.rate|number_format(4, '.', ','), '%date%': conversion.rateDate ? conversion.rateDate|date('d.m.Y') : '', '%ron%': conversion.ronAmount|number_format(2, '.', ',') }) }}</span>
                     </div>
@@ -358,7 +359,14 @@
                                 <td class="px-5 py-2 text-right tnum text-slate-800 dark:text-slate-100">
                                     {{ item.signedAmountRon|number_format(2, ',', '.') }} RON
                                     {% if item.currency != 'RON' %}
-                                        <div class="text-[11px] text-slate-500">{{ item.amount|number_format(2, ',', '.') }} {{ item.currency }}{% if item.exchangeRate %} · {{ item.exchangeRate|number_format(4, ',', '.') }} · {{ item.exchangeRateDate ? item.exchangeRateDate|date('d.m.Y') : '' }}{% endif %}</div>
+                                        <div class="text-[11px] text-slate-500">{{ item.outstandingAmount|number_format(2, ',', '.') }} {{ item.currency }}{% if item.exchangeRate %} · {{ item.exchangeRate|number_format(4, ',', '.') }} · {{ item.exchangeRateDate ? item.exchangeRateDate|date('d.m.Y') : '' }}{% endif %}</div>
+                                    {% endif %}
+                                    {% set invoiced = item.amountRon|abs %}
+                                    {% if not item.isCreditNote and invoiced - item.signedAmountRon > 0.005 %}
+                                        <div class="text-[11px] text-slate-500" data-testid="step4-claim-item-partly-paid">{{ 'pdf.payment_order.amount_principal_item_partly_paid'|trans({
+                                            '%invoiced%': invoiced|number_format(2, ',', '.'),
+                                            '%paid%': (invoiced - item.signedAmountRon)|number_format(2, ',', '.'),
+                                        }) }}</div>
                                     {% endif %}
                                 </td>
                                 <td class="px-5 py-2 text-right tnum text-amber-700 dark:text-amber-400">

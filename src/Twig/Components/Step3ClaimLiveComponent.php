@@ -260,7 +260,7 @@ final class Step3ClaimLiveComponent extends AbstractController
         // value; foreign currency keeps the rate-based figure resolved earlier.
         $amountRon = $currency === 'RON' ? $amount : $storedRon;
 
-        return new ClaimItemRow(
+        $built = new ClaimItemRow(
             dedupKey: (string) ($row['key'] ?? ''),
             amount: $amount,
             currency: $currency,
@@ -283,6 +283,24 @@ final class Step3ClaimLiveComponent extends AbstractController
             warningKeys: is_array($row['warningKeys'] ?? null) ? array_values(array_filter($row['warningKeys'], 'is_string')) : [],
             hasStatedDeduction: (bool) ($row['hasStatedDeduction'] ?? false),
         );
+        $built->statementBalance = is_numeric($row['statementBalance'] ?? null) ? (float) $row['statementBalance'] : null;
+
+        return $built;
+    }
+
+    /**
+     * What was paid on a position and what is still claimed on it, both in the
+     * invoice currency, following the total the lawyer may have just corrected.
+     *
+     * @param array<string, mixed> $row
+     *
+     * @return array{paid: float, rest: float}
+     */
+    public function paymentSummary(array $row): array
+    {
+        $built = $this->rowFromArray($row);
+
+        return ['paid' => $built->paidOnInvoice(), 'rest' => $built->outstandingAmount()];
     }
 
     /**

@@ -7,6 +7,7 @@ namespace App\Entity;
 use App\Enum\ClaimItemKind;
 use App\Repository\ClaimItemRepository;
 use App\Service\Case\DocumentReferenceNormalizer;
+use App\Util\ClaimBalance;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
@@ -299,11 +300,6 @@ class ClaimItem
         return $this;
     }
 
-    public function hasUnimputedPayment(): bool
-    {
-        return (float) $this->paidAmount > 0.0;
-    }
-
     public function getDedupKey(): string
     {
         return $this->dedupKey;
@@ -430,6 +426,11 @@ class ClaimItem
     /**
      * The signed RON value this position contributes to the principal: negative
      * for a credit note, positive otherwise. Null when the rate is unresolved.
+     *
+     * A payment a statement ties to the invoice comes off it: the claim asks for
+     * what is still unpaid, and the accessory accrues on that rest from the due
+     * date. The paid part is not claimed for its delay. The payment is in the
+     * invoice currency, so it is taken off in the same proportion in RON.
      */
     public function signedAmountRon(): ?float
     {
@@ -438,7 +439,16 @@ class ClaimItem
         }
 
         $value = abs((float) $this->amountRon);
+        if ($this->isCreditNote()) {
+            return -$value;
+        }
 
-        return $this->isCreditNote() ? -$value : $value;
+        return ClaimBalance::outstandingRon($value, abs((float) $this->amount), (float) $this->paidAmount);
+    }
+
+    /** What is still unpaid on the invoice, in its own currency. */
+    public function outstandingAmount(): float
+    {
+        return max(0.0, round(abs((float) $this->amount) - (float) $this->paidAmount, 2));
     }
 }

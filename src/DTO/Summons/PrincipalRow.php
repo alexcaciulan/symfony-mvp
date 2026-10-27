@@ -6,7 +6,9 @@ namespace App\DTO\Summons;
 
 /**
  * One outstanding document in the payment notice's principal table. `amount`
- * is the signed RON value, so a credit note reads negative.
+ * is the signed RON value, so a credit note reads negative. A partly paid
+ * invoice states its total and the payment beside the rest it claims, so the
+ * debtor can tie the sum to the invoice.
  */
 final readonly class PrincipalRow
 {
@@ -19,5 +21,7 @@ final readonly class PrincipalRow
         public ?string $originalCurrency = null,
         public ?float $exchangeRate = null,
         public ?\DateTimeImmutable $exchangeRateDate = null,
+        public ?float $invoicedAmount = null,
+        public ?float $paidAmount = null,
     ) {}
 }

@@ -7,12 +7,11 @@ namespace App\DTO\Calculation;
 /**
  * Aggregate of the claim positions that count.
  *
- * `principalRon` deliberately ignores `paidAmount`. In the absence of an
- * agreement, Civil Code art. 1507-1509 imputes payment to costs, then interest,
- * then capital; deducting a partial payment from the principal here would state
- * a calculation that contradicts the law, which the debtor can point at in
- * opposition. Unimputed payments are reported in `unimputedPaidTotal` and
- * `unimputedPaymentItemIds` so the lawyer allocates them explicitly.
+ * `principalRon` is what is still unpaid on each position: a payment a
+ * statement ties to an invoice comes off it. Taking it off the capital rather
+ * than off the accessory first (Civil Code art. 1509 alin. 2) only ever lowers
+ * the claim, so it is the creditor's to choose, and the paid part is not
+ * claimed for its delay.
  */
 final readonly class ClaimTotals
 {
@@ -20,7 +19,6 @@ final readonly class ClaimTotals
      * @param list<int>  $countedItemIds
      * @param list<int>  $excludedItemIds     excluded or unconfirmed by the lawyer
      * @param list<int>  $needsManualFxItemIds
-     * @param list<int>  $unimputedPaymentItemIds
      */
     public function __construct(
         public float $principalRon,
@@ -31,8 +29,6 @@ final readonly class ClaimTotals
         public array $countedItemIds = [],
         public array $excludedItemIds = [],
         public array $needsManualFxItemIds = [],
-        public float $unimputedPaidTotal = 0.0,
-        public array $unimputedPaymentItemIds = [],
         // Counts, not ids: a position that has not been flushed yet has no id,
         // and the wizard decides on exactly such positions.
         public int $countedCount = 0,

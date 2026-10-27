@@ -58,6 +58,10 @@ final class AcknowledgementPrompt extends AbstractExtractionPrompt
             facturi în `invoiceReferences` și `fullyPaid` = true, chiar dacă
             suma plății nu apare.
           • O confirmare care arată doar un sold, fără plăți, nu are `payments`.
+          • Când documentul arată soldul rămas pe fiecare factură, pune-l în
+            `invoiceBalances`, câte un element pe factură (0 pentru o factură
+            achitată integral). Acesta e modul în care contabilitatea
+            creditorului a alocat plățile, deci are prioritate.
 
         SEMNĂTURA: notează în `description` cine a semnat pentru debitor și data
         semnării. O recunoaștere nesemnată de debitor își pierde valoarea

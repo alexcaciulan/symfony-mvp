@@ -32,6 +32,7 @@ final class ContractualPenaltyCalculator
         \DateTimeImmutable $startDate,
         \DateTimeImmutable $referenceDate,
         ?float $capPercent = null,
+        ?float $capBase = null,
     ): PenaltyResult {
         $start = $startDate->setTime(0, 0, 0);
         $reference = $referenceDate->setTime(0, 0, 0);
@@ -52,7 +53,9 @@ final class ContractualPenaltyCalculator
         );
 
         if ($capPercent !== null && $capPercent > 0.0) {
-            $cap = $amount * $capPercent / 100.0;
+            // The cap is a share of the invoice value, which stays the base when
+            // a partial payment leaves the penalty running on a smaller rest.
+            $cap = ($capBase ?? $amount) * $capPercent / 100.0;
             if ($penalty > $cap) {
                 return new PenaltyResult($cap, [$period], $cap);
             }

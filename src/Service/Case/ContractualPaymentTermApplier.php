@@ -16,6 +16,9 @@ use App\Service\Deadline\WorkingDayResolver;
  */
 final class ContractualPaymentTermApplier
 {
+    /** Law 72/2013 art. 3 alin. 3 lit. a: the term between professionals who set none. */
+    private const STATUTORY_TERM_DAYS = 30;
+
     /** Shorter contract numbers ("4") turn up inside any reference by chance. */
     private const MIN_CONTAINED_CONTRACT_LENGTH = 4;
 
@@ -35,16 +38,21 @@ final class ContractualPaymentTermApplier
      * from the invoice: the printed date stays and the row says the lawyer has
      * to set it. Either way the row says why, and the date stays editable.
      *
+     * An invoice no term reaches and that prints no due date is due 30 days
+     * after it was issued: between professionals that is the term the law sets
+     * when the parties set none (Law 72/2013 art. 3 alin. 3 lit. a), and a sale
+     * made on the invoice alone is still a contract. The term runs from receipt,
+     * which the file does not show, so it runs from the issue date, which
+     * e-invoicing puts days apart at most. The row says so, because a term the
+     * contract does state but the extraction missed would look the same.
+     *
      * @param list<ClaimItemRow> $rows
      * @param list<array{contract: ?string, days: int, anchor: PaymentTermAnchor, businessDays: bool}> $terms
      * @param array<int, DocumentType> $typesByDocument
+     * @param bool $hasContract whether the file holds a contract or an amendment
      */
-    public function apply(array $rows, array $terms, array $typesByDocument): void
+    public function apply(array $rows, array $terms, array $typesByDocument, bool $hasContract = false): void
     {
-        if ($terms === []) {
-            return;
-        }
-
         foreach ($rows as $row) {
             if ($row->isCreditNote()
                 || ($typesByDocument[$row->sourceDocumentId ?? 0] ?? null) !== DocumentType::FACTURA) {
@@ -58,6 +66,8 @@ final class ContractualPaymentTermApplier
                 $distinct[serialize($term)] = $term;
             }
             if ($distinct === []) {
+                $this->applyStatutoryTerm($row, $hasContract && $terms === []);
+
                 continue;
             }
             if (count($distinct) > 1) {
@@ -100,6 +110,29 @@ final class ContractualPaymentTermApplier
             );
             $row->dueDate = $derived;
         }
+    }
+
+    /**
+     * The 30-day term of Law 72/2013 art. 3 alin. 3 lit. a, for an invoice that
+     * prints no due date. `$contractSilent` tells a contract that states no term
+     * apart from a file with no contract for the invoice.
+     */
+    private function applyStatutoryTerm(ClaimItemRow $row, bool $contractSilent): void
+    {
+        if ($row->dueDate !== null || $row->documentDate === null) {
+            return;
+        }
+
+        $derived = $row->documentDate->modify(sprintf('+%d days', self::STATUTORY_TERM_DAYS));
+        $row->dueDateNote = $this->dueDateNote(
+            $contractSilent
+                ? 'wizard.step3.claim_items.note.statutory_term_contract_silent'
+                : 'wizard.step3.claim_items.note.statutory_term_no_contract',
+            null,
+            $row,
+            $derived,
+        );
+        $row->dueDate = $derived;
     }
 
     /**
