@@ -414,37 +414,118 @@ class LegalCaseRepository extends ServiceEntityRepository
     }
 
     /**
-     * Cases filed without proof of stamping and without the court notice that starts
-     * the 10-day term to stamp (OUG 80/2013 art. 33 para. 2). The notice date is not
-     * stored on the case, only in the audit log, so the evidence that it was recorded
-     * is the existence of the TIMBRARE deadline itself, the same reading
-     * {@see \App\Service\Deadline\DeadlineCertaintyResolver} relies on.
-     *
-     * Cases with the duty already paid are excluded on purpose: the court issues no
-     * regularization notice for them, so there is nothing missing.
+     * Petition filed, duty unpaid, and no court file number pointing at the case: none
+     * confirmed, none proposed by the portal search. The duty is paid in the existing
+     * case, so without a number there is nothing to pay into and the payment window
+     * cannot start. For the blockage zone of one lawyer.
      *
      * @return LegalCase[] oldest first
      */
-    public function findAwaitingStampDutyCourtNotice(User $user): array
+    public function findAwaitingCourtCaseNumberForStampDuty(User $user): array
     {
-        $withStampDutyDeadline = $this->getEntityManager()->createQueryBuilder()
+        $qb = $this->blockedCasesQueryBuilder($user);
+
+        return $qb
+            ->andWhere('lc.status = :filed')
+            ->andWhere('lc.stampDutyStatus IN (:stampDutyStatuses)')
+            ->andWhere('lc.courtCaseNumber IS NULL')
+            ->andWhere($qb->expr()->not($qb->expr()->exists($this->proposedPortalMatchDql())))
+            ->setParameter('filed', CaseStatus::CERERE_DEPUSA)
+            ->setParameter('stampDutyStatuses', StampDutyStatus::outstandingCases())
+            ->setParameter('proposedStatus', PortalCaseMatchStatus::PROPOSED)
+            ->orderBy('lc.updatedAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * File number known (confirmed, or proposed by the portal and not yet answered),
+     * duty unpaid, and no open notice to stamp on the case: the duty is payable in the
+     * existing case now, inside the payment window of
+     * {@see \App\Service\StampDuty\StampDutyPaymentWindow}. An open TIMBRARE term,
+     * running or expired, moves the case out of this set: running, it is an agenda row
+     * of its own; expired, it is {@see self::findStampDutyTermExpired()}. A closed term
+     * is the lawyer's word that he stamped and does not clear the row while the duty
+     * still reads unpaid. For the blockage zone of one lawyer.
+     *
+     * @return LegalCase[] oldest first
+     */
+    public function findStampDutyPaymentDue(User $user): array
+    {
+        $qb = $this->blockedCasesQueryBuilder($user);
+
+        return $qb
+            ->andWhere('lc.status IN (:statuses)')
+            ->andWhere('lc.stampDutyStatus IN (:stampDutyStatuses)')
+            ->andWhere($qb->expr()->orX(
+                'lc.courtCaseNumber IS NOT NULL',
+                $qb->expr()->exists($this->proposedPortalMatchDql()),
+            ))
+            ->andWhere($qb->expr()->not($qb->expr()->exists($this->openStampingTermDql())))
+            ->setParameter('statuses', CaseStatus::stampDutyAtStakeAtCourt())
+            ->setParameter('stampDutyStatuses', StampDutyStatus::outstandingCases())
+            ->setParameter('proposedStatus', PortalCaseMatchStatus::PROPOSED)
+            ->setParameter('stampDutyType', DeadlineType::TIMBRARE)
+            ->orderBy('lc.updatedAt', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * The notice to stamp was recorded, its term is past and the duty still reads
+     * unpaid. The reminders stop here, because the petition is annulled in chambers
+     * when the term lapses unstamped (OUG 80/2013 art. 33 para. 2): what the case
+     * waits on is the court's ruling or the payment the lawyer forgot to record. For
+     * the blockage zone of one lawyer.
+     *
+     * @return LegalCase[] oldest first
+     */
+    public function findStampDutyTermExpired(User $user, \DateTimeImmutable $today): array
+    {
+        $expiredStampingTerm = $this->getEntityManager()->createQueryBuilder()
             ->select('1')
             ->from(LegalDeadline::class, 'sd')
             ->where('sd.legalCase = lc')
-            ->andWhere('sd.type = :stampDutyType');
+            ->andWhere('sd.type = :stampDutyType')
+            ->andWhere('sd.completed = false')
+            ->andWhere('sd.deadlineDate < :today');
 
         $qb = $this->blockedCasesQueryBuilder($user);
 
         return $qb
             ->andWhere('lc.status IN (:statuses)')
             ->andWhere('lc.stampDutyStatus IN (:stampDutyStatuses)')
-            ->andWhere($qb->expr()->not($qb->expr()->exists($withStampDutyDeadline->getDQL())))
-            ->setParameter('statuses', [CaseStatus::CERERE_DEPUSA, CaseStatus::DOSAR_INREGISTRAT, CaseStatus::TERMEN_FIXAT])
-            ->setParameter('stampDutyStatuses', [StampDutyStatus::NEACHITATA, StampDutyStatus::AMANATA_REGULARIZARE])
+            ->andWhere($qb->expr()->exists($expiredStampingTerm->getDQL()))
+            ->setParameter('statuses', CaseStatus::stampDutyAtStakeAtCourt())
+            ->setParameter('stampDutyStatuses', StampDutyStatus::outstandingCases())
             ->setParameter('stampDutyType', DeadlineType::TIMBRARE)
+            ->setParameter('today', $today->setTime(0, 0))
             ->orderBy('lc.updatedAt', 'ASC')
             ->getQuery()
             ->getResult();
+    }
+
+    /** Subquery DQL: a portal proposal the lawyer has not answered. Binds `proposedStatus`. */
+    private function proposedPortalMatchDql(): string
+    {
+        return $this->getEntityManager()->createQueryBuilder()
+            ->select('1')
+            ->from(PortalCaseMatch::class, 'pm')
+            ->where('pm.legalCase = lc')
+            ->andWhere('pm.status = :proposedStatus')
+            ->getDQL();
+    }
+
+    /** Subquery DQL: an open TIMBRARE term on the case, running or expired. Binds `stampDutyType`. */
+    private function openStampingTermDql(): string
+    {
+        return $this->getEntityManager()->createQueryBuilder()
+            ->select('1')
+            ->from(LegalDeadline::class, 'sd')
+            ->where('sd.legalCase = lc')
+            ->andWhere('sd.type = :stampDutyType')
+            ->andWhere('sd.completed = false')
+            ->getDQL();
     }
 
     /**
@@ -589,78 +670,45 @@ class LegalCaseRepository extends ServiceEntityRepository
     }
 
     /**
-     * Cases whose court file number is known while the stamp duty is still recorded as
-     * unpaid, across all users, for the daily alerting job. The duty is paid in advance
-     * (OUG 80/2013 art. 33 alin. 1), so the file number appearing on the portal is the
-     * moment it is due; waiting for a regularization notice is waiting for the court to
-     * ask.
+     * Cases whose stamp duty is payable now and still reads unpaid or deferred, across
+     * all users, for the daily alerting job: the court file number is confirmed on the
+     * case, or the portal search proposed one the lawyer has not answered. The registry
+     * takes the duty in the existing case from the moment the number exists, and the
+     * court's notice to stamp, when it comes, grants at most ten days and may be served
+     * at the client's seat, so the payment is chased from the number, not from the
+     * notice. Which message and at what pace is decided by the caller on each case.
      *
-     * Only an ACTIVE stamping term (open, not yet past) silences the alert: there the
-     * term is running and the ordinary deadline alerts cover it. A closed or expired
-     * term proves nothing about payment while `stampDutyStatus` still reads unpaid, and
-     * an expired one with the duty unpaid is the worst case, so neither may hide it.
-     * Cases with the duty deferred pending regularization are the subject of
-     * {@see self::findAwaitingRegularizationNoticeDate()}; the two sets stay disjoint on
-     * `stampDutyStatus` so one case never produces two messages.
-     *
-     * @return LegalCase[] oldest first
-     */
-    public function findStampDutyDueAfterCaseNumber(\DateTimeImmutable $today): array
-    {
-        $activeStampingTerm = $this->getEntityManager()->createQueryBuilder()
-            ->select('1')
-            ->from(LegalDeadline::class, 'sd')
-            ->where('sd.legalCase = lc')
-            ->andWhere('sd.type = :stampDutyType')
-            ->andWhere('sd.completed = false')
-            ->andWhere('sd.deadlineDate >= :today');
-
-        $qb = $this->stampDutyAlertQueryBuilder();
-
-        return $qb
-            ->andWhere('lc.courtCaseNumber IS NOT NULL')
-            ->andWhere('lc.stampDutyStatus = :stampDutyStatus')
-            ->andWhere($qb->expr()->not($qb->expr()->exists($activeStampingTerm->getDQL())))
-            ->setParameter('stampDutyStatus', StampDutyStatus::NEACHITATA)
-            ->setParameter('stampDutyType', DeadlineType::TIMBRARE)
-            ->setParameter('today', $today->setTime(0, 0))
-            ->getQuery()
-            ->getResult();
-    }
-
-    /**
-     * Cases whose stamp duty was deferred pending a regularization notice, with no
-     * TIMBRARE deadline at all (open or closed), across all users. The ten days of
-     * OUG 80/2013 art. 33 alin. 2 run from the communication of that notice, a date the
-     * application never learns on its own, so as long as it is missing the term exists
-     * nowhere. Any stamping term, even closed, means the date was recorded.
+     * An open TIMBRARE term, running or expired, silences the alert. Running, the term
+     * has alerts of its own; expired, the petition is annulled in chambers unless the
+     * lawyer paid and never recorded it, and both outcomes are a row of the blockage
+     * zone rather than a reminder to pay. A term the lawyer closed by hand proves
+     * nothing about payment while the status still reads unpaid, so it hides nothing.
      *
      * @return LegalCase[] oldest first
      */
-    public function findAwaitingRegularizationNoticeDate(): array
+    public function findStampDutyDue(): array
     {
-        $anyStampingTerm = $this->getEntityManager()->createQueryBuilder()
-            ->select('1')
-            ->from(LegalDeadline::class, 'sd')
-            ->where('sd.legalCase = lc')
-            ->andWhere('sd.type = :stampDutyType');
-
         $qb = $this->stampDutyAlertQueryBuilder();
 
         return $qb
-            ->andWhere('lc.stampDutyStatus = :stampDutyStatus')
-            ->andWhere($qb->expr()->not($qb->expr()->exists($anyStampingTerm->getDQL())))
-            ->setParameter('stampDutyStatus', StampDutyStatus::AMANATA_REGULARIZARE)
+            ->andWhere('lc.stampDutyStatus IN (:stampDutyStatuses)')
+            ->andWhere($qb->expr()->orX(
+                'lc.courtCaseNumber IS NOT NULL',
+                $qb->expr()->exists($this->proposedPortalMatchDql()),
+            ))
+            ->andWhere($qb->expr()->not($qb->expr()->exists($this->openStampingTermDql())))
+            ->setParameter('stampDutyStatuses', StampDutyStatus::outstandingCases())
+            ->setParameter('proposedStatus', PortalCaseMatchStatus::PROPOSED)
             ->setParameter('stampDutyType', DeadlineType::TIMBRARE)
             ->getQuery()
             ->getResult();
     }
 
     /**
-     * Shared skeleton of the two stamp-duty alert queries: a live case whose request is
-     * at the court while an unpaid duty can still cost it, i.e. up to IN_ANULARE
-     * ({@see CaseStatus::isStampDutyAtStakeAtCourt()}). Not scoped per user, the
-     * consumer being a cron job; the recipient is read from each case.
+     * Skeleton of the stamp-duty alert query: a live case whose request is at the court
+     * and not yet closed by a final order ({@see CaseStatus::isStampDutyAtStakeAtCourt()}).
+     * Not scoped per user, the consumer being a cron job; the recipient is read from
+     * each case.
      */
     private function stampDutyAlertQueryBuilder(): QueryBuilder
     {

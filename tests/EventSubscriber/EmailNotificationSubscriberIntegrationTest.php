@@ -19,6 +19,7 @@ use App\Event\DeadlineAlertEvent;
 use App\Event\PortalEventDetectedEvent;
 use App\EventSubscriber\EmailNotificationSubscriber;
 use App\Service\Notification\AlertCadence;
+use App\Service\StampDuty\StampDutyPaymentWindow;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Bundle\FrameworkBundle\Test\MailerAssertionsTrait;
@@ -158,8 +159,9 @@ final class EmailNotificationSubscriberIntegrationTest extends KernelTestCase
     /**
      * A blocked case has no term to lean on, so the email has to name the fact that is
      * missing and the act that unblocks it, apart from the explanation, and carry a
-     * link straight into the case. The regularization wording stays conditional on
-     * purpose: the platform cannot know whether the notice arrived.
+     * link straight into the case. The stamp-duty one names the court case number and
+     * the last day of the payment window, which the case knows from the moment its
+     * number was recorded.
      */
     public function testBlockedCaseAlertSendsEmailStatingWhatIsMissingAndWhatToDo(): void
     {
@@ -168,20 +170,27 @@ final class EmailNotificationSubscriberIntegrationTest extends KernelTestCase
 
         $this->subscriber->onBlockedCaseAlert(new BlockedCaseAlertEvent(
             $case,
-            BlockedCaseAlert::REGULARIZATION_NOTICE_DATE_MISSING,
+            BlockedCaseAlert::STAMP_DUTY_DUE,
         ));
 
         $this->assertEmailCount(1);
         $email = $this->getMailerMessage(0);
         self::assertNotNull($email);
 
-        $params = ['%case%' => $case->getCourtCaseNumber()];
+        $payBy = (new StampDutyPaymentWindow())->payBy($case);
+        self::assertNotNull($payBy, 'Setting the number records when it became known.');
+        $params = [
+            '%case%' => $case->getCourtCaseNumber(),
+            '%number%' => $case->getCourtCaseNumber(),
+            '%pay_by%' => $translator->trans('notification.blocked_case.pay_by_suffix', ['%date%' => $payBy->format('d.m.Y')]),
+        ];
         $this->assertEmailHtmlBodyContains($email, $translator->trans('email.blocked_case.missing_label'));
         $this->assertEmailHtmlBodyContains($email, $translator->trans('email.blocked_case.action_label'));
         $this->assertEmailHtmlBodyContains(
             $email,
-            $translator->trans(BlockedCaseAlert::REGULARIZATION_NOTICE_DATE_MISSING->emailActionKey(), $params),
+            $translator->trans(BlockedCaseAlert::STAMP_DUTY_DUE->emailActionKey(), $params),
         );
+        $this->assertEmailHtmlBodyContains($email, $payBy->format('d.m.Y'));
         $this->assertEmailHtmlBodyContains($email, '/case/' . $case->getId());
 
         $notifications = $this->em->getRepository(Notification::class)->findBy([

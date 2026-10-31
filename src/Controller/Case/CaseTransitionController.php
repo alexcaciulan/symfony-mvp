@@ -262,7 +262,9 @@ final class CaseTransitionController extends AbstractController
         }
 
         $transition = match ($case->getStatus()) {
-            CaseStatus::TERMEN_FIXAT => 'respinge',
+            // Before the hearing the only rejection is the annulment in chambers, for
+            // want of the stamp duty or of another condition the registry checks.
+            CaseStatus::DOSAR_INREGISTRAT, CaseStatus::TERMEN_FIXAT => 'respinge',
             CaseStatus::IN_ANULARE, CaseStatus::EXECUTARE => 'admite_cerere_anulare',
             default => null,
         };

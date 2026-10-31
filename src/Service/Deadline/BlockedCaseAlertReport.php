@@ -14,13 +14,13 @@ final readonly class BlockedCaseAlertReport
 {
     public function __construct(
         public int $stampDutyDue = 0,
-        public int $regularizationNoticeDateMissing = 0,
+        public int $stampDutyDueUnconfirmed = 0,
         public int $enforcementRegistrationNumberMissing = 0,
     ) {}
 
     public function total(): int
     {
-        return $this->stampDutyDue + $this->regularizationNoticeDateMissing + $this->enforcementRegistrationNumberMissing;
+        return $this->stampDutyDue + $this->stampDutyDueUnconfirmed + $this->enforcementRegistrationNumberMissing;
     }
 
     /** @return array<string, int> */
@@ -28,7 +28,7 @@ final readonly class BlockedCaseAlertReport
     {
         return [
             'stampDutyDue' => $this->stampDutyDue,
-            'regularizationNoticeDateMissing' => $this->regularizationNoticeDateMissing,
+            'stampDutyDueUnconfirmed' => $this->stampDutyDueUnconfirmed,
             'enforcementRegistrationNumberMissing' => $this->enforcementRegistrationNumberMissing,
             'total' => $this->total(),
         ];

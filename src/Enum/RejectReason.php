@@ -16,6 +16,12 @@ enum RejectReason: string
 {
     case NO_PROOF = 'NO_PROOF';
     case INADMISSIBLE = 'INADMISSIBLE';
+    /**
+     * Annulled in chambers for want of the stamp duty, within the term the court
+     * granted (OUG 80/2013 art. 33 para. 2, CPC art. 200). Not a ruling on the claim,
+     * which can be brought again, but the petition is gone.
+     */
+    case UNSTAMPED = 'UNSTAMPED';
 
     public function label(): string
     {

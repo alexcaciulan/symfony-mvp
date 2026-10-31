@@ -2555,6 +2555,7 @@ Prompt-ul original păstrat ca referință:
 >    - Cron jobs (Coolify Scheduled Tasks):
 >      - `0 7 * * *` → `bin/console app:check-deadlines`.
 >      - `0 8 * * *` → `bin/console app:portal-check-all`.
+>      - `0 9,15 * * *` → `bin/console app:portal-discover-cases` (numărul de dosar trebuie prins în ziua în care apare pe portal: taxa de timbru se plătește în cel mult 5 zile de la alocarea lui).
 >      - `*/5 * * * *` → `bin/console app:filing:poll-inbound` (mesajele primite de la instanțe; cere `INBOUND_MAIL_DSN` IMAP).
 >      - `*/30 * * * *` → `bin/console app:filing:inbound-heartbeat-check` (alertă admin dacă preluarea s-a oprit).
 >      - `0 9 * * *` → `bin/console app:filing:receipt-overdue` (confirmări de primire întârziate).

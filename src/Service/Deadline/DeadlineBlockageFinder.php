@@ -29,15 +29,18 @@ final class DeadlineBlockageFinder
     /**
      * Ordered by how close the gap is to costing something: the summons receipt gates
      * filing, its proof gates the same filing one step later, the ruling communication
-     * gates a forfeiture term, the stamping notice gates annulment of a claim already on
-     * the court's desk, the two enforcement anchors gate a term that is three years out
+     * gates a forfeiture term, the three stamp-duty gaps gate the annulment of a claim
+     * already on the court's desk (a lapsed stamping term first, then the duty payable
+     * now, then the file number nobody has yet), the two enforcement anchors gate a term that is three years out
      * but silently absent, and the missing registration number leaves that same term
      * open with its alerts muted.
      *
      * @return list<DeadlineBlockage>
      */
-    public function find(User $user): array
+    public function find(User $user, ?\DateTimeImmutable $today = null): array
     {
+        $today = $today ?? new \DateTimeImmutable('today');
+
         return [
             ...$this->wrap(
                 $this->cases->findAwaitingSummonsCommunicationDate($user),
@@ -52,8 +55,16 @@ final class DeadlineBlockageFinder
                 DeadlineBlockageReason::RULING_COMMUNICATION_MISSING,
             ),
             ...$this->wrap(
-                $this->cases->findAwaitingStampDutyCourtNotice($user),
-                DeadlineBlockageReason::STAMP_DUTY_NOTICE_MISSING,
+                $this->cases->findStampDutyTermExpired($user, $today),
+                DeadlineBlockageReason::STAMP_DUTY_TERM_EXPIRED,
+            ),
+            ...$this->wrap(
+                $this->cases->findStampDutyPaymentDue($user),
+                DeadlineBlockageReason::STAMP_DUTY_PAYMENT_DUE,
+            ),
+            ...$this->wrap(
+                $this->cases->findAwaitingCourtCaseNumberForStampDuty($user),
+                DeadlineBlockageReason::COURT_CASE_NUMBER_MISSING,
             ),
             ...$this->wrap(
                 $this->cases->findAwaitingAnnulmentRulingCommunicationDate($user),

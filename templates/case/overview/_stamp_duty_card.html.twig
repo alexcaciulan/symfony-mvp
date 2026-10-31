@@ -121,14 +121,36 @@
         {# The voter refuses these while a filing holds the case: the buttons are not offered then. #}
         {% set can_manage_duty = is_granted('CASE_STAMP_DUTY_MANAGE', case) %}
         {% set duty_paused_by_filing = not can_manage_duty and filing_submission|default(null) and filing_submission.active %}
-        <div class="space-y-2">
+        {# The payment window of practice: five days from the file number, so the court's
+           notice to stamp, served wherever the court chooses, finds the duty paid. #}
+        {% set pay_by = stamp_duty_pay_by|default(null) %}
+        {% if status.outstanding and pay_by and rejust_form.value != 'NOT_FILED' %}
+            {% set pay_by_passed = pay_by|date('Y-m-d') < 'now'|date('Y-m-d') %}
+            <p class="mb-3 text-xs font-semibold {{ pay_by_passed ? 'text-red-700 dark:text-red-300' : 'text-amber-800 dark:text-amber-300' }}" data-testid="stamp-duty-pay-by">
+                {{ (pay_by_passed ? 'case_overview.stamp_duty.pay_by_passed' : 'case_overview.stamp_duty.pay_by')|trans({'%date%': pay_by|date('d.m.Y')}) }}
+            </p>
+        {% endif %}
+
+        {% set registry_confirmable = status.outstanding and rejust_form.value == 'EXISTING_CASE' and can_manage_duty %}
+        <div class="space-y-2"{% if registry_confirmable %} data-controller="registry-return"{% endif %}>
             {% if status.outstanding %}
                 {% if rejust_url %}
                     <a href="{{ rejust_url }}" target="_blank" rel="noopener noreferrer"
+                       {% if registry_confirmable %}data-action="click->registry-return#leave"{% endif %}
                        class="w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-semibold rounded-lg bg-lex-navy text-white hover:bg-lex-navy-dark transition no-underline">
                         {{ icon_external_link('size-4') }}
                         {{ 'case_overview.stamp_duty.cta_pay'|trans }}
                     </a>
+                    {% if registry_confirmable %}
+                        {# Hidden until the lawyer comes back from the registry tab. #}
+                        <div class="hidden rounded-lg border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50 dark:bg-emerald-950/30 p-3" data-registry-return-target="prompt" data-testid="stamp-duty-registry-return-prompt">
+                            <p class="text-xs text-emerald-900 dark:text-emerald-200">{{ 'case_overview.stamp_duty.registry_return_prompt'|trans }}</p>
+                            <button type="button" data-action="registry-return#confirm"
+                                    class="mt-2 py-1.5 px-3 inline-flex items-center text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition">
+                                {{ 'case_overview.stamp_duty.registry_return_cta'|trans }}
+                            </button>
+                        </div>
+                    {% endif %}
                 {% else %}
                     <div>
                         <button type="button" disabled aria-describedby="stamp-duty-registry-hint"
@@ -151,8 +173,8 @@
 
             {# The registry takes the duty only in an existing case and sends the proof to
                the court file itself; the email confirmation is optional in the modal. #}
-            {% if status.outstanding and rejust_form.value == 'EXISTING_CASE' and can_manage_duty %}
-                <button type="button" data-hs-overlay="#hs-modal-stamp-duty-registry-paid"
+            {% if registry_confirmable %}
+                <button type="button" data-hs-overlay="#hs-modal-stamp-duty-registry-paid" data-registry-return-target="confirmButton"
                         class="w-full py-2.5 px-3 inline-flex items-center justify-center gap-2 text-sm font-semibold rounded-lg bg-lex-navy text-white hover:bg-lex-navy-dark transition">
                     {{ 'case_overview.stamp_duty.cta_registry_paid'|trans }}
                 </button>

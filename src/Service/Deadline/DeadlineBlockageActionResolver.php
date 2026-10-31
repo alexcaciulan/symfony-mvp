@@ -60,9 +60,19 @@ final class DeadlineBlockageActionResolver
                 'case_deadline_annulment_ruling_date',
                 ['caseId' => $case->getId()],
             ),
-            DeadlineBlockageReason::STAMP_DUTY_NOTICE_MISSING => $this->button(
+            // Three links into the case, on GET: the number is confirmed on the portal tab,
+            // the duty is paid and confirmed from the card on the documents tab, and the
+            // lapsed term ends in a decision the hero of the case collects.
+            DeadlineBlockageReason::COURT_CASE_NUMBER_MISSING => $this->link(
                 $blockage,
-                'case_stamp_duty_court_notice',
+                ['id' => $case->getId(), 'tab' => 'portal'],
+            ),
+            DeadlineBlockageReason::STAMP_DUTY_PAYMENT_DUE => $this->link(
+                $blockage,
+                ['id' => $case->getId(), 'tab' => 'documente'],
+            ),
+            DeadlineBlockageReason::STAMP_DUTY_TERM_EXPIRED => $this->link(
+                $blockage,
                 ['id' => $case->getId()],
             ),
             DeadlineBlockageReason::ENFORCEMENT_REGISTRATION_NUMBER_MISSING => $this->button(
@@ -71,6 +81,22 @@ final class DeadlineBlockageActionResolver
                 ['caseId' => $case->getId()],
             ),
         };
+    }
+
+    /**
+     * A plain link into the case page, where the act lives in a card or a dialog the
+     * agenda does not carry.
+     *
+     * @param array<string, int|string|null> $routeParameters
+     */
+    private function link(DeadlineBlockage $blockage, array $routeParameters): DeadlineActionButton
+    {
+        return new DeadlineActionButton(
+            label: $blockage->reason->actionLabel(),
+            route: 'case_overview',
+            routeParameters: $routeParameters,
+            method: 'GET',
+        );
     }
 
     /** @param array<string, int|string|null> $routeParameters */

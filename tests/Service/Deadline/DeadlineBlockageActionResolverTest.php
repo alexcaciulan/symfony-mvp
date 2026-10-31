@@ -30,7 +30,7 @@ final class DeadlineBlockageActionResolverTest extends TestCase
      * carries itself: only the summons date has one, every other reason sends the lawyer
      * into the case, where the dialog that collects the fact lives.
      *
-     * @return iterable<string, array{DeadlineBlockageReason, string, ?string}>
+     * @return iterable<string, array{DeadlineBlockageReason, string, ?string, 3?: string}>
      */
     public static function reasonProvider(): iterable
     {
@@ -56,10 +56,26 @@ final class DeadlineBlockageActionResolverTest extends TestCase
             'case_deadline_annulment_ruling_date',
             null,
         ];
-        yield 'stamping notice' => [
-            DeadlineBlockageReason::STAMP_DUTY_NOTICE_MISSING,
-            'case_stamp_duty_court_notice',
+        // The three stamp-duty gaps are plain links into the case, on GET: the number is
+        // confirmed on the portal tab, the duty is paid from the card, the lapsed term
+        // ends in a decision the hero collects.
+        yield 'file number missing' => [
+            DeadlineBlockageReason::COURT_CASE_NUMBER_MISSING,
+            'case_overview',
             null,
+            'GET',
+        ];
+        yield 'stamp duty payable' => [
+            DeadlineBlockageReason::STAMP_DUTY_PAYMENT_DUE,
+            'case_overview',
+            null,
+            'GET',
+        ];
+        yield 'stamping term lapsed' => [
+            DeadlineBlockageReason::STAMP_DUTY_TERM_EXPIRED,
+            'case_overview',
+            null,
+            'GET',
         ];
         // The enforcement anchor of a case that never went through an annulment request
         // is the communication of the order itself, recorded through the same route.
@@ -76,13 +92,13 @@ final class DeadlineBlockageActionResolverTest extends TestCase
     }
 
     #[DataProvider('reasonProvider')]
-    public function testEachReasonLeadsToTheRouteThatRecordsIt(DeadlineBlockageReason $reason, string $expectedRoute, ?string $expectedDialogId): void
+    public function testEachReasonLeadsToTheRouteThatRecordsIt(DeadlineBlockageReason $reason, string $expectedRoute, ?string $expectedDialogId, string $expectedMethod = 'POST'): void
     {
         $button = $this->resolver->resolve(new DeadlineBlockage(new LegalCase(), $reason));
 
         self::assertSame($expectedRoute, $button->route);
         self::assertSame($reason->actionLabel(), $button->label);
-        self::assertSame('POST', $button->method);
+        self::assertSame($expectedMethod, $button->method);
         self::assertSame($expectedDialogId, $button->agendaDialogId);
     }
 
@@ -103,7 +119,7 @@ final class DeadlineBlockageActionResolverTest extends TestCase
             $button = $this->resolver->resolve(new DeadlineBlockage(new LegalCase(), $reason));
 
             self::assertNull($button->csrfTokenId, $reason->value);
-            self::assertTrue($button->needsCaseDialog(), $reason->value);
+            self::assertTrue($button->needsCaseDialog() || !$button->isPost(), $reason->value);
             self::assertFalse($button->closesDeadline, $reason->value . ': recording a missing fact is not closing a term.');
         }
     }

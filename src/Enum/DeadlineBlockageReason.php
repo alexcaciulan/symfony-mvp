@@ -42,8 +42,32 @@ enum DeadlineBlockageReason: string
     /** Order issued, communication of the ruling never recorded (CPC art. 1024 para. 1). */
     case RULING_COMMUNICATION_MISSING = 'RULING_COMMUNICATION_MISSING';
 
-    /** Claim filed unstamped, the court notice to stamp never recorded (OUG 80/2013 art. 33 para. 2). */
-    case STAMP_DUTY_NOTICE_MISSING = 'STAMP_DUTY_NOTICE_MISSING';
+    /**
+     * Petition filed with the duty unpaid and no court file number known yet, neither
+     * confirmed nor proposed by the portal search. Nothing can be paid in a case that
+     * has no number, and the payment window of the duty cannot start, so the number
+     * is what the case waits on.
+     */
+    case COURT_CASE_NUMBER_MISSING = 'COURT_CASE_NUMBER_MISSING';
+
+    /**
+     * File number known (confirmed or proposed by the portal), duty still unpaid, no
+     * notice to stamp recorded. The duty is payable in the existing case from this
+     * moment, within the payment window of practice
+     * ({@see \App\Service\StampDuty\StampDutyPaymentWindow}); the court's own notice,
+     * when it comes, gives at most ten days (OUG 80/2013 art. 33 para. 2) and may be
+     * served at the client's seat, so the window is what the row states, not the
+     * notice.
+     */
+    case STAMP_DUTY_PAYMENT_DUE = 'STAMP_DUTY_PAYMENT_DUE';
+
+    /**
+     * The notice to stamp was recorded, its term has passed and the duty still reads
+     * unpaid. The alerts stop here: the sanction is the annulment of the petition in
+     * chambers, so what the case waits on is the court's ruling, to be recorded as a
+     * rejection, or the payment the lawyer made and never recorded.
+     */
+    case STAMP_DUTY_TERM_EXPIRED = 'STAMP_DUTY_TERM_EXPIRED';
 
     /**
      * Case final, with neither the communication date nor the ruling date recorded, so

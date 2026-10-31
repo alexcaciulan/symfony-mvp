@@ -7,6 +7,8 @@
 {% set proposed = case.portalProposedNumber %}
 {% set confirmed = case.courtCaseNumber %}
 {% set court_name = case.court ? case.court.name : '' %}
+{% set pay_by = stamp_duty_pay_by|default(null) %}
+{% set pay_by_key = pay_by and pay_by|date('Y-m-d') < 'now'|date('Y-m-d') ? 'case_overview.stamp_duty.pay_by_passed' : 'case_overview.stamp_duty.pay_by' %}
 
 {% if open_case and confirmed is null and proposed %}
     <div class="rounded-xl border border-blue-200 dark:border-blue-900/40 bg-blue-50 dark:bg-blue-950/20 px-4 py-3 mb-4 flex flex-wrap sm:flex-nowrap items-start gap-3" data-testid="portal-case-alert-proposed">
@@ -16,6 +18,9 @@
         <div class="flex-1 min-w-0">
             <div class="text-sm font-semibold text-blue-900 dark:text-blue-200">{{ 'case_overview.portal.alert_proposed_title'|trans({'%number%': proposed}) }}</div>
             <div class="text-xs text-blue-800 dark:text-blue-300/80 mt-0.5">{{ 'case_overview.portal.alert_proposed_hint'|trans({'%court%': court_name}) }}</div>
+            {% if pay_by %}
+                <div class="text-xs font-semibold text-blue-900 dark:text-blue-200 mt-1" data-testid="portal-case-alert-pay-by">{{ pay_by_key|trans({'%date%': pay_by|date('d.m.Y')}) }}</div>
+            {% endif %}
         </div>
         {# On a phone the actions go under the text, aligned with it, instead of squeezing it. #}
         <div class="basis-full sm:basis-auto pl-11 sm:pl-0 flex flex-col items-start sm:items-end gap-1 shrink-0">
@@ -41,6 +46,9 @@
         <div class="flex-1 min-w-0">
             <div class="text-sm font-semibold text-amber-900 dark:text-amber-200">{{ 'case_overview.portal.alert_stamp_duty_title'|trans }}</div>
             <div class="text-xs text-amber-800 dark:text-amber-300/80 mt-0.5">{{ 'case_overview.portal.alert_stamp_duty_hint'|trans({'%number%': confirmed, '%court%': court_name}) }}</div>
+            {% if pay_by %}
+                <div class="text-xs font-semibold text-amber-900 dark:text-amber-200 mt-1" data-testid="portal-case-alert-pay-by">{{ pay_by_key|trans({'%date%': pay_by|date('d.m.Y')}) }}</div>
+            {% endif %}
         </div>
         <a href="{{ path('case_overview', { id: case.id, tab: 'documente' }) }}" data-turbo="false"
            class="shrink-0 ml-11 sm:ml-0 py-1.5 px-3 inline-flex items-center text-xs font-semibold rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition">

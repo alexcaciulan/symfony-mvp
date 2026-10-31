@@ -274,6 +274,17 @@ class LegalCase
     private ?string $courtCaseNumber = null;
 
     /**
+     * When the court file number first became known here, whoever brought it (the
+     * lawyer typing it, the portal proposal he confirmed). It is the start of the
+     * payment window for the stamp duty: the court takes the duty in the existing
+     * case from this moment, and the lawyer is expected to pay within days of it,
+     * before any notice to stamp is issued. Kept once the number is set, so a later
+     * correction of the number does not restart the window.
+     */
+    #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $courtCaseNumberKnownAt = null;
+
+    /**
      * Declared by the lawyer when confirming the filing. Not a finding of the
      * platform: the proof of the filing date sits with the court (CPC art. 183
      * alin. 3), so this records what they told us, nothing more.
@@ -1094,13 +1105,22 @@ class LegalCase
     public function setCourtCaseNumber(?string $courtCaseNumber, ?User $decidedBy = null): static
     {
         $this->courtCaseNumber = $courtCaseNumber;
+        if ($courtCaseNumber === null) {
+            $this->courtCaseNumberKnownAt = null;
+        } elseif ($this->courtCaseNumberKnownAt === null) {
+            $this->courtCaseNumberKnownAt = new \DateTimeImmutable();
+        }
         if ($courtCaseNumber !== null) {
             // A confirmed number answers the proposal: taken when it is the same
             // number (even one set aside before, the lawyer changed their mind),
-            // set aside when the lawyer confirmed another one.
+            // set aside when the lawyer confirmed another one. The number was known
+            // from the proposal, so the payment clock keeps that earlier start.
             foreach ($this->portalCaseMatches as $match) {
                 if ($match->getCourtCaseNumber() === $courtCaseNumber) {
                     $match->accept($decidedBy);
+                    if ($match->getCreatedAt() < $this->courtCaseNumberKnownAt) {
+                        $this->courtCaseNumberKnownAt = $match->getCreatedAt();
+                    }
                 } elseif ($match->isProposed()) {
                     $match->dismiss($decidedBy);
                 }
@@ -1108,6 +1128,45 @@ class LegalCase
         }
 
         return $this;
+    }
+
+    public function getCourtCaseNumberKnownAt(): ?\DateTimeImmutable
+    {
+        return $this->courtCaseNumberKnownAt;
+    }
+
+    /**
+     * Overrides the moment recorded by {@see self::setCourtCaseNumber()}, for data
+     * loaded from elsewhere (seeds, imports) where the number was known earlier than
+     * the row was written.
+     */
+    public function setCourtCaseNumberKnownAt(?\DateTimeImmutable $knownAt): static
+    {
+        $this->courtCaseNumberKnownAt = $knownAt;
+
+        return $this;
+    }
+
+    /**
+     * When the stamp duty became payable in the court case: the moment the number was
+     * confirmed here, or, before that, the moment the portal search proposed one that
+     * the lawyer has not answered yet. A proposal is a strong guess rather than a
+     * confirmation, but the court does not wait for the lawyer to confirm anything,
+     * so neither does the payment window. Null while nothing points at a number.
+     */
+    public function stampDutyPaymentClockStart(): ?\DateTimeImmutable
+    {
+        if ($this->courtCaseNumber !== null) {
+            return $this->courtCaseNumberKnownAt;
+        }
+
+        foreach ($this->portalCaseMatches as $match) {
+            if ($match->isProposed()) {
+                return $match->getCreatedAt();
+            }
+        }
+
+        return null;
     }
 
     /** @return Collection<int, PortalCaseMatch> */

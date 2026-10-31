@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\EventSubscriber;
 
 use App\Entity\LegalCase;
+use App\Enum\BlockedCaseAlert;
 use App\Enum\DeadlineType;
 use App\Enum\NotificationType;
 use App\Event\BlockedCaseAlertEvent;
@@ -13,6 +14,7 @@ use App\Event\MissingCommunicationDateEvent;
 use App\Event\PortalEventDetectedEvent;
 use App\Service\Notification\NotificationDispatch;
 use App\Service\Notification\NotificationDispatcherInterface;
+use App\Service\StampDuty\StampDutyPaymentWindow;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
@@ -31,6 +33,7 @@ final class EmailNotificationSubscriber
         private readonly UrlGeneratorInterface $urlGenerator,
         #[Autowire('%app.base_url%')]
         private readonly string $baseUrl,
+        private readonly StampDutyPaymentWindow $stampDutyPaymentWindow,
     ) {}
 
     #[AsEventListener(event: 'workflow.legal_case.entered.SOMATIE_TRIMISA')]
@@ -241,6 +244,18 @@ final class EmailNotificationSubscriber
         $case = $event->case;
         $reason = $event->reason;
         $params = ['%case%' => $this->caseLabel($case)];
+
+        // The stamp-duty reminders name the number the court case has (confirmed, or
+        // the one the portal proposed) and the last day of the payment window, when the
+        // case knows when its number appeared; older cases without that date get the
+        // sentence without a day rather than an invented one.
+        if ($reason === BlockedCaseAlert::STAMP_DUTY_DUE || $reason === BlockedCaseAlert::STAMP_DUTY_DUE_UNCONFIRMED) {
+            $payBy = $this->stampDutyPaymentWindow->payBy($case);
+            $params['%number%'] = (string) ($case->getCourtCaseNumber() ?? $case->getPortalProposedNumber());
+            $params['%pay_by%'] = $payBy === null
+                ? ''
+                : $this->translator->trans('notification.blocked_case.pay_by_suffix', ['%date%' => $payBy->format('d.m.Y')]);
+        }
 
         $title = $this->translator->trans($reason->titleKey(), $params);
         $message = $this->translator->trans($reason->messageKey(), $params);

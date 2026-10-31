@@ -23,24 +23,24 @@ namespace App\Enum;
 enum BlockedCaseAlert: string
 {
     /**
-     * The court file number has been found, so the claim is registered and the stamp
-     * duty is due (OUG 80/2013 art. 33 para. 1: it is paid in advance), while the case
-     * still records it as unpaid. Waiting for the court to ask for it is a bet on the
-     * court asking.
+     * The court file number is confirmed on the case, so the duty can be paid through
+     * the electronic registry in the existing case, while the case still records it as
+     * unpaid or deferred. The registry checks the duty at the very first step, issues a
+     * notice to stamp with at most ten days and annuls the unstamped petition in
+     * chambers, and that notice may be served at the client's seat rather than at the
+     * law office. So the payment is not waited for: it is chased from the day the
+     * number appears, daily inside the payment window
+     * ({@see \App\Service\StampDuty\StampDutyPaymentWindow}) and weekly after it.
      */
     case STAMP_DUTY_DUE = 'STAMP_DUTY_DUE';
 
     /**
-     * The duty was deferred pending a regularization notice, and the date of that
-     * notice has never been recorded, so the ten days of OUG 80/2013 art. 33 para. 2
-     * are not running anywhere in the application.
-     *
-     * The wording has to stay conditional. The platform cannot know whether the notice
-     * arrived: the only evidence it will ever have is the lawyer entering the date. So
-     * the message asks for the date IF the notice was received; it never asserts that
-     * one is sitting unrecorded.
+     * Same duty, one step earlier: the portal search found a court case that looks
+     * like this one and the lawyer has not confirmed it yet. The court does not wait
+     * for that confirmation, so neither does the reminder; it asks for the check and
+     * the payment in one message. Dismissing the proposal ends it.
      */
-    case REGULARIZATION_NOTICE_DATE_MISSING = 'REGULARIZATION_NOTICE_DATE_MISSING';
+    case STAMP_DUTY_DUE_UNCONFIRMED = 'STAMP_DUTY_DUE_UNCONFIRMED';
 
     /**
      * The lawyer recorded the date he filed the enforcement request with the bailiff and

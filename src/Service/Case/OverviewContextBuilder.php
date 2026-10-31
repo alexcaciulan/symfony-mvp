@@ -51,6 +51,7 @@ use App\Service\Filing\RecipientOverrideGuard;
 use App\Service\Inbound\InboundMailView;
 use App\Service\Inbound\ManualReceiptUploadService;
 use App\Service\Portal\RulingProposalResolver;
+use App\Service\StampDuty\StampDutyPaymentWindow;
 use App\Service\StampDuty\StampDutyUatResolver;
 use Symfony\Bundle\SecurityBundle\Security;
 
@@ -71,6 +72,7 @@ final class OverviewContextBuilder
         private readonly RulingProposalResolver $rulingProposalResolver,
         private readonly StampDutyUatResolver $stampDutyUatResolver,
         private readonly StampDutyCalculator $stampDutyCalculator,
+        private readonly StampDutyPaymentWindow $stampDutyPaymentWindow,
         private readonly CaseAccessoryService $caseAccessories,
         private readonly CaseFullPaymentClosureService $fullPaymentClosure,
         private readonly FilingPackageStalenessChecker $filingStaleness,
@@ -221,6 +223,7 @@ final class OverviewContextBuilder
             // cases predate the field), so fall back to the statutory amount rather
             // than telling the lawyer the duty is 0 lei.
             'stamp_duty_amount' => (float) ($case->getStampDuty() ?? $this->stampDutyCalculator->calculate()->amount),
+            'stamp_duty_pay_by' => $this->stampDutyPaymentWindow->payBy($case),
             'can_close_full_payment' => $this->fullPaymentClosure->canClose($case),
             'closed_from_status' => $this->closedFromStatus($case),
             'debtor_count' => $case->getDebtors()->count(),

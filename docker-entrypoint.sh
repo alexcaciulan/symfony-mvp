@@ -155,7 +155,9 @@ echo "Application is ready!"
 
 # NOTE: cron jobs are NOT started here. These are registered as scheduled
 # jobs in Coolify: `app:import-exchange-rates` (06:00), `app:check-deadlines`
-# (07:00), `app:portal-check-all` (08:00), `app:portal-discover-cases` (09:00).
+# (07:00), `app:portal-check-all` (08:00), `app:portal-discover-cases` (09:00
+# and 15:00: the file number has to be caught the day it appears, because the
+# stamp duty is chased from it).
 # The Messenger worker (compose `worker`) consumes the `CheckCasePortalMessage`
 # items dispatched by `app:portal-check-all`.
 

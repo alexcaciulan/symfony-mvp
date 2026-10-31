@@ -9,6 +9,7 @@ use App\Enum\BlockedCaseAlert;
 use App\Event\BlockedCaseAlertEvent;
 use App\Repository\LegalCaseRepository;
 use App\Service\Notification\AlertCadence;
+use App\Service\StampDuty\StampDutyPaymentWindow;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
@@ -26,31 +27,54 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  * ({@see \App\Service\Notification\NotificationDispatcher}), which is the whole point:
  * an unthrottled daily email is what makes a lawyer filter the sender.
  *
- * The exception is the missing bailiff registration number, which is sent once and never
- * again: it waits on a third party rather than on the lawyer, and a weekly reminder to
- * chase a bailiff would run for the three years of the term it guards.
+ * Two exceptions. The stamp duty is chased daily while its payment window is open,
+ * because the days after the file number appears are the only ones that matter for it.
+ * The missing bailiff registration number is sent once and never again: it waits on a
+ * third party rather than on the lawyer, and a weekly reminder to chase a bailiff would
+ * run for the three years of the term it guards.
  */
 final class BlockedCaseAlertService
 {
     public function __construct(
         private readonly LegalCaseRepository $caseRepository,
         private readonly EventDispatcherInterface $eventDispatcher,
+        private readonly StampDutyPaymentWindow $paymentWindow,
         private readonly int $enforcementRegistrationGraceDays = 10,
     ) {}
 
     public function process(\DateTimeImmutable $now): BlockedCaseAlertReport
     {
-        $stampDutyDue = $this->dispatchAll(
-            $this->caseRepository->findStampDutyDueAfterCaseNumber($now),
-            BlockedCaseAlert::STAMP_DUTY_DUE,
-            static fn (int $caseId): string => AlertCadence::weekly('blocked_case:' . BlockedCaseAlert::STAMP_DUTY_DUE->value, $caseId, $now),
-        );
+        $stampDutyDue = 0;
+        $stampDutyDueUnconfirmed = 0;
 
-        $regularization = $this->dispatchAll(
-            $this->caseRepository->findAwaitingRegularizationNoticeDate(),
-            BlockedCaseAlert::REGULARIZATION_NOTICE_DATE_MISSING,
-            static fn (int $caseId): string => AlertCadence::weekly('blocked_case:' . BlockedCaseAlert::REGULARIZATION_NOTICE_DATE_MISSING->value, $caseId, $now),
-        );
+        // The file number is the moment the duty becomes payable in the court case, and
+        // the lawyer is expected to pay within the window of practice that starts there.
+        // Inside it the reminder repeats every day, on purpose: a notice to stamp served
+        // at the client's seat and missed costs the petition. After the window the pace
+        // drops to weekly, the case being by then either stamped or under a real term.
+        // A proposed number the lawyer has not confirmed gets its own wording: confirm,
+        // then pay, in one message.
+        foreach ($this->caseRepository->findStampDutyDue() as $case) {
+            $caseId = $case->getId();
+            if ($caseId === null) {
+                continue;
+            }
+
+            $reason = $case->getCourtCaseNumber() !== null
+                ? BlockedCaseAlert::STAMP_DUTY_DUE
+                : BlockedCaseAlert::STAMP_DUTY_DUE_UNCONFIRMED;
+            $key = 'blocked_case:' . $reason->value;
+            $dedupKey = $this->paymentWindow->isOpenOn($case, $now)
+                ? AlertCadence::daily($key, $caseId, $now)
+                : AlertCadence::weekly($key, $caseId, $now);
+
+            $this->eventDispatcher->dispatch(new BlockedCaseAlertEvent($case, $reason, $dedupKey));
+            if ($reason === BlockedCaseAlert::STAMP_DUTY_DUE) {
+                ++$stampDutyDue;
+            } else {
+                ++$stampDutyDueUnconfirmed;
+            }
+        }
 
         // The grace runs in calendar days from the date the lawyer declared he filed the
         // request: the bailiff registers it on receipt, so what the grace covers is the
@@ -63,7 +87,7 @@ final class BlockedCaseAlertService
             static fn (int $caseId): string => AlertCadence::once('blocked_case:' . BlockedCaseAlert::ENFORCEMENT_REGISTRATION_NUMBER_MISSING->value, $caseId),
         );
 
-        return new BlockedCaseAlertReport($stampDutyDue, $regularization, $registrationNumber);
+        return new BlockedCaseAlertReport($stampDutyDue, $stampDutyDueUnconfirmed, $registrationNumber);
     }
 
     /**

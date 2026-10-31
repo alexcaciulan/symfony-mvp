@@ -1095,6 +1095,7 @@ case_overview:
         reject_case: 'Marchează respinsă'
         reject_case_hint: 'Instanța a respins cererea de OP'
         reject_case_hint_in_anulare: 'Admite cererea în anulare a debitorului'
+        reject_case_hint_registered: 'Instanța a anulat cererea în camera de consiliu (de exemplu pentru netimbrare)'
         close_case_definitiva: 'Închide dosar (definitiv)'
         close_case_definitiva_hint: 'Plată confirmată sau abandon dosar'
         close_case_executare: 'Închide dosar (executare)'
@@ -1243,7 +1244,7 @@ case_overview:
         paid_through_registry_with_confirmation: 'Plată individualizată pe dosar prin registratura electronică, declarată la data de mai sus. Registratura transmite automat dovada plății la dosarul instanței; confirmarea primită pe e-mail este atașată.'
         cta_attach_registry_confirmation: 'Atașează confirmarea'
         deferred_title: 'Se achită după înregistrarea dosarului'
-        deferred_body: 'Taxa se plătește pe registratura electronică, în dosarul existent, după ce instanța alocă numărul. Dacă instanța comunică între timp înștiințarea de timbrare, plata se face în termenul acordat, altfel cererea se anulează (OUG 80/2013 art. 33 alin. 2).'
+        deferred_body: 'Taxa se plătește pe registratura electronică, în dosarul existent, în cel mult 5 zile de la alocarea numărului de dosar. Instanța verifică taxa la înregistrare și poate pune în vedere timbrarea într-un termen de cel mult 10 zile (CPC art. 200), iar neplata în acel termen atrage anularea cererii (OUG 80/2013 art. 33 alin. 2). Înștiințarea poate ajunge la client, nu la cabinet, așa că plata nu se amână până la primirea ei.'
         cta_pay: 'Plătește pe registratura.rejust.ro'
         pay_awaiting_case_number: 'Cererea a fost depusă, dar instanța nu i-a alocat încă un număr de dosar. Plata prin registratură se face după alocarea numărului. Butonul devine activ imediat ce numărul este cunoscut.'
         pay_after_case_number: 'Plata prin registratură se face în dosarul existent, deci după ce instanța alocă cererii un număr de dosar. Butonul devine activ imediat ce numărul este cunoscut.'
@@ -1251,6 +1252,10 @@ case_overview:
         cta_registry_paid: 'Am achitat prin registratură'
         cta_defer: 'Plătesc după înregistrare, în dosarul existent'
         cta_court_notice: 'Am primit înștiințarea instanței'
+        pay_by: 'Plătește până la %date% (cel mult 5 zile de când numărul de dosar este cunoscut aici).'
+        pay_by_passed: 'Cele 5 zile de când numărul de dosar este cunoscut aici au trecut la %date%. Plătește imediat, dacă instanța nu a anulat deja cererea, și înregistrează plata.'
+        registry_return_prompt: 'Ai plătit pe registratură? Confirmă plata acum, cât ai confirmarea în față. Confirmarea ta este suficientă; fișierul primit pe e-mail este opțional.'
+        registry_return_cta: 'Confirmă plata'
         disclaimer: 'Platforma nu încasează taxa. Verificați contul beneficiarului pe portalul oficial înainte de plată.'
         target:
             resolved: 'Beneficiarul taxei a fost determinat din sediul social al creditorului.'
@@ -1265,17 +1270,17 @@ case_overview:
             payment_reference: 'Număr ordin de plată / chitanță'
         modal_proof:
             title: 'Încarcă dovada plății'
-            intro: 'Atașați chitanța, ordinul de plată vizat de bancă sau dovada generată de ghiseul.ro. Dovada intră automat în pachetul depus la instanță.'
+            intro: 'Atașați chitanța, ordinul de plată vizat de bancă, dovada de la CEC sau trezorerie ori dovada generată de ghiseul.ro. Se poate folosi și o taxă achitată anterior și nefolosită. Dovada intră automat în pachetul depus la instanță.'
             file_hint: 'PDF, JPG sau PNG, maximum 10 MB.'
             payer_hint: 'Taxa este datorată de creditor. Dacă pe dovadă apare alt nume, bifați mai jos, ca să știm că plata s-a făcut în numele lui.'
             cancel: 'Renunță'
             submit: 'Salvează dovada'
         modal_defer:
             title: 'Plata taxei după înregistrarea dosarului'
-            intro: 'Cererea se depune fără dovada plății. După ce instanța alocă numărul de dosar, taxa se plătește pe registratura electronică, la „Plata taxei judiciare de timbru într-un dosar existent”, iar plata se confirmă apoi aici.'
+            intro: 'Cererea se depune fără dovada plății. După ce instanța alocă numărul de dosar, taxa se plătește pe registratura electronică, la „Plata taxei judiciare de timbru într-un dosar existent”, în cel mult 5 zile, iar plata se confirmă apoi aici.'
             risk_title: 'De reținut'
-            risk_body: 'Dacă taxa nu figurează achitată, instanța stabilește un termen pentru timbrare. Neplata până la acel termen atrage anularea cererii (OUG 80/2013 art. 33 alin. 2).'
-            practice_note: 'Înștiințarea de timbrare poate fi comunicată la sediul clientului, nu la cabinet. Plata imediat după alocarea numărului de dosar face înștiințarea inutilă.'
+            risk_body: 'Instanța verifică taxa la alocarea numărului și pune în vedere timbrarea într-un termen de cel mult 10 zile (CPC art. 200). Neplata până la acel termen atrage anularea cererii în camera de consiliu (OUG 80/2013 art. 33 alin. 2).'
+            practice_note: 'Înștiințarea de timbrare poate fi comunicată la sediul clientului, nu la cabinet, deci nu te baza pe ea. Platforma caută numărul de dosar pe portal de două ori pe zi și te anunță imediat ce îl găsește; plata în cele 5 zile de la alocare face înștiințarea inutilă.'
             consent: 'Am reținut că taxa se plătește în dosarul existent, după alocarea numărului de dosar.'
             cancel: 'Renunță'
             submit: 'Continuă cu plata după înregistrare'
@@ -2778,6 +2783,7 @@ enum:
     reject_reason:
         NO_PROOF: 'Probe insuficiente'
         INADMISSIBLE: 'Cerere inadmisibilă'
+        UNSTAMPED: 'Anulată pentru netimbrare'
     close_reason:
         PAID: 'Plată integrală'
         PARTIAL: 'Recuperare parțială'
@@ -3110,24 +3116,23 @@ email:
         heading: 'Completează data comunicării ordonanței'
         body: 'Pentru a porni termenul de 10 zile al cererii în anulare (CPC art. 1024 alin. 1), introdu în dosarul %case% data comunicării ordonanței către debitor. Fără această dată, dosarul nu poate fi marcat definitiv automat.'
     # Alerte pentru dosarele blocate pe un act, fără niciun termen care să curgă.
-    # Formularea de la regularizare este condiționată intenționat: platforma nu are
-    # cum să știe dacă înștiințarea a sosit, singura ei dovadă ar fi chiar data pe
-    # care o cere.
+    # Taxa de timbru se cere de la apariția numărului de dosar, nu de la înștiințarea
+    # instanței, pe care platforma nu o vede și care poate ajunge la client.
     blocked_case:
         missing_label: 'Ce lipsește:'
         action_label: 'Ce ai de făcut:'
         STAMP_DUTY_DUE:
-            subject: 'Taxa de timbru figurează neachitată pe dosarul %case%'
-            heading: 'Taxa de timbru este încă înregistrată ca neachitată'
-            body: 'Dosarul %case% are număr la instanță, iar taxa de timbru figurează ca neachitată. Taxa se plătește anticipat (OUG 80/2013 art. 33 alin. 1); dacă instanța comunică obligația de plată, neplata în termenul acordat atrage anularea cererii (art. 33 alin. 2). Dacă taxa a fost deja achitată, plata se înregistrează în dosar pentru ca alerta să nu se mai repete.'
-            missing: 'Înregistrarea plății taxei de timbru pe dosarul %case%.'
-            action: 'Se achită taxa prin registratura electronică, apoi se confirmă plata în dosar (prin registratură sau cu dovada de plată).'
-        REGULARIZATION_NOTICE_DATE_MISSING:
-            subject: 'Dosarul %case% așteaptă data înștiințării de regularizare'
-            heading: 'Dacă ai primit înștiințarea, introdu data'
-            body: 'Pe dosarul %case% taxa de timbru este amânată până la regularizare, iar data înștiințării nu este introdusă. Dacă ai primit înștiințarea de la instanță, introdu data comunicării ei: de la acea dată curg cele 10 zile de timbrare (OUG 80/2013 art. 33 alin. 2), iar ratarea lor atrage anularea cererii.'
-            missing: 'Data comunicării înștiințării de regularizare pe dosarul %case%.'
-            action: 'Dacă ai primit înștiințarea, deschide dosarul și introdu data comunicării ei, ca să pornească termenul de 10 zile.'
+            subject: 'Taxa de timbru trebuie plătită pe dosarul %case%'
+            heading: 'Dosarul are număr la instanță, taxa de timbru figurează neachitată'
+            body: 'Dosarul %case% are număr la instanță, iar taxa de timbru figurează ca neachitată. Taxa se plătește prin registratura electronică, în dosarul existent, în cel mult 5 zile de când numărul este cunoscut%pay_by%. Instanța verifică taxa la înregistrare și pune în vedere timbrarea într-un termen de cel mult 10 zile (CPC art. 200), iar neplata atrage anularea cererii (OUG 80/2013 art. 33 alin. 2); înștiințarea poate ajunge la client, nu la cabinet. Dacă taxa a fost deja achitată, înregistrează plata în dosar ca alerta să nu se mai repete.'
+            missing: 'Plata taxei de timbru pe dosarul %case%.'
+            action: 'Plătește taxa pe registratura electronică, la „plata taxei într-un dosar existent”, apoi confirmă plata în dosar.'
+        STAMP_DUTY_DUE_UNCONFIRMED:
+            subject: 'Dosarul %case% pare înregistrat la instanță: confirmă numărul și plătește taxa'
+            heading: 'Portalul arată un dosar care pare să fie cererea ta'
+            body: 'Pe portal.just.ro a apărut dosarul %number%, care pare să fie cererea depusă pe dosarul %case%. Taxa de timbru figurează ca neachitată. Verifică părțile și confirmă dosarul, apoi plătește taxa prin registratura electronică, în dosarul existent, în cel mult 5 zile de când numărul este cunoscut%pay_by%. Dacă nu este dosarul tău, înlătură propunerea din dosar ca alerta să se oprească.'
+            missing: 'Confirmarea numărului de dosar %number% și plata taxei de timbru pe dosarul %case%.'
+            action: 'Deschide dosarul, confirmă numărul de pe portal, apoi plătește taxa pe registratura electronică și confirmă plata.'
         ENFORCEMENT_REGISTRATION_NUMBER_MISSING:
             subject: 'Dosarul %case% așteaptă numărul de înregistrare de la executor'
             heading: 'Cere executorului numărul de înregistrare'
@@ -3290,12 +3295,13 @@ notification:
         title: 'Completează data comunicării: %case%'
         message: 'Introdu data comunicării ordonanței pe dosarul %case% pentru a porni termenul cererii în anulare.'
     blocked_case:
+        pay_by_suffix: ', adică până la %date%'
         STAMP_DUTY_DUE:
-            title: 'Taxa de timbru neachitată: %case%'
-            message: 'Dosarul %case% are număr la instanță, iar taxa de timbru figurează ca neachitată. Taxa se plătește anticipat; dacă a fost deja achitată, plata se înregistrează în dosar.'
-        REGULARIZATION_NOTICE_DATE_MISSING:
-            title: 'Data înștiințării de regularizare: %case%'
-            message: 'Pe dosarul %case% taxa este amânată până la regularizare. Dacă ai primit înștiințarea de la instanță, introdu data comunicării ei ca să pornească termenul de 10 zile.'
+            title: 'Plătește taxa de timbru: %case%'
+            message: 'Dosarul %case% are număr la instanță, iar taxa de timbru figurează ca neachitată. Se plătește prin registratură, în dosarul existent, în cel mult 5 zile de când numărul este cunoscut%pay_by%.'
+        STAMP_DUTY_DUE_UNCONFIRMED:
+            title: 'Confirmă dosarul și plătește taxa: %case%'
+            message: 'Portalul arată dosarul %number%, care pare să fie cererea de pe dosarul %case%. Confirmă-l, apoi plătește taxa de timbru prin registratură în cel mult 5 zile de când numărul este cunoscut%pay_by%.'
         ENFORCEMENT_REGISTRATION_NUMBER_MISSING:
             title: 'Număr de înregistrare de la executor: %case%'
             message: 'Pe dosarul %case% cererea de executare figurează depusă, dar numărul de înregistrare de la executor lipsește. Introdu-l ca să se închidă termenul de prescripție a executării.'
@@ -3531,14 +3537,30 @@ deadlines:
             cause: 'Ordonanța a fost emisă, dar data comunicării hotărârii nu este introdusă.'
             consequence: 'Termenul este de decădere. Fără dată, nu se creează și nu generează nicio alertă.'
             action: 'Introdu data comunicării ordonanței'
-        STAMP_DUTY_NOTICE_MISSING:
-            label: 'Data înștiințării de timbrare nu este introdusă'
-            missing: 'Timbrarea, 10 zile'
+        STAMP_DUTY_TERM_EXPIRED:
+            label: 'Termenul de timbrare a expirat fără plată'
+            missing: 'Timbrarea, în termenul instanței'
             legal_basis: 'OUG 80/2013 art. 33 alin. 2'
-            state: 'Se așteaptă înștiințarea'
-            cause: 'Cererea este depusă cu taxa neachitată sau amânată la regularizare, dar data înștiințării de timbrare nu este introdusă.'
-            consequence: 'Netimbrarea în termenul acordat de instanță atrage anularea cererii.'
-            action: 'Introdu data înștiințării'
+            state: 'Termen expirat'
+            cause: 'Instanța a pus în vedere timbrarea, termenul a trecut, iar taxa figurează neachitată.'
+            consequence: 'Dacă taxa nu a fost plătită, cererea se anulează în camera de consiliu. Alertele de plată s-au oprit. Dacă ai plătit totuși, înregistrează plata; dacă instanța a anulat cererea, marchează dosarul ca respins pentru netimbrare.'
+            action: 'Deschide dosarul'
+        STAMP_DUTY_PAYMENT_DUE:
+            label: 'Taxa de timbru de plătit în dosarul instanței'
+            missing: 'Plata taxei de timbru, 5 zile de când numărul este cunoscut'
+            legal_basis: 'OUG 80/2013 art. 33 alin. 1 și 2'
+            state: 'De plătit acum'
+            cause: 'Dosarul are număr la instanță (sau portalul a propus unul), iar taxa de timbru figurează neachitată.'
+            consequence: 'Instanța pune în vedere timbrarea în cel mult 10 zile (CPC art. 200) și anulează cererea neplătită (OUG 80/2013 art. 33 alin. 2), iar înștiințarea poate ajunge la client, nu la cabinet. Plata se face în cel mult 5 zile de când numărul este cunoscut.'
+            action: 'Plătește taxa'
+        COURT_CASE_NUMBER_MISSING:
+            label: 'Numărul de dosar nu este cunoscut'
+            missing: 'Numărul de dosar de la instanță'
+            legal_basis: 'OUG 80/2013 art. 33 alin. 1'
+            state: 'Se așteaptă numărul'
+            cause: 'Cererea este depusă cu taxa neachitată, dar niciun număr de dosar nu este cunoscut încă aplicației. Portalul este căutat de două ori pe zi.'
+            consequence: 'Prin registratura electronică taxa se plătește doar într-un dosar cu număr; o plată făcută altfel (ordin de plată, CEC) se poate încărca oricând ca dovadă. Dacă ai aflat numărul, introdu-l; altfel, așteaptă căutarea automată.'
+            action: 'Caută numărul de dosar'
         ANNULMENT_RULING_COMMUNICATION_MISSING:
             label: 'Lipsește data comunicării hotărârii din cererea în anulare'
             missing: 'Prescripția executării, 3 ani'

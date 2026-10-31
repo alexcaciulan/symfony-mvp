@@ -12,6 +12,7 @@ use App\Enum\CaseStatus;
 use App\Enum\DeadlineType;
 use App\Enum\ExtractionMode;
 use App\Enum\PersonType;
+use App\Enum\PortalCaseMatchSource;
 use App\Enum\RejustStampDutyForm;
 use App\Enum\RelationshipType;
 use PHPUnit\Framework\TestCase;
@@ -250,5 +251,59 @@ class LegalCaseEntityTest extends TestCase
 
         $case->setStampDutyUat('Sector 3');
         $this->assertSame(3, $case->getStampDutyUatSectorNumber());
+    }
+
+    /** The moment the number appears is what the stamp duty payment window counts from. */
+    public function testSettingTheCourtCaseNumberRecordsWhenItBecameKnownOnce(): void
+    {
+        $case = new LegalCase();
+        $this->assertNull($case->getCourtCaseNumberKnownAt());
+
+        $case->setCourtCaseNumber('700/211/2026');
+        $knownAt = $case->getCourtCaseNumberKnownAt();
+        $this->assertNotNull($knownAt);
+
+        // Correcting the number later does not restart the window.
+        $case->setCourtCaseNumber('701/211/2026');
+        $this->assertSame($knownAt, $case->getCourtCaseNumberKnownAt());
+    }
+
+    public function testClearingTheCourtCaseNumberClearsWhenItBecameKnown(): void
+    {
+        $case = new LegalCase();
+        $case->setCourtCaseNumber('700/211/2026');
+        $case->setCourtCaseNumber(null);
+
+        $this->assertNull($case->getCourtCaseNumberKnownAt());
+    }
+
+    /**
+     * The court did not wait for the confirmation, so the clock that started with the
+     * proposal keeps its start when the lawyer confirms the same number days later.
+     */
+    public function testConfirmingTheProposedNumberKeepsTheClockStartOfTheProposal(): void
+    {
+        $case = new LegalCase();
+        $case->proposePortalMatch('703/211/2026', PortalCaseMatchSource::AUTO);
+        $proposedAt = $case->getPortalCaseMatches()->first()->getCreatedAt();
+
+        $case->setCourtCaseNumber('703/211/2026');
+
+        $this->assertEquals($proposedAt, $case->getCourtCaseNumberKnownAt());
+        $this->assertEquals($proposedAt, $case->stampDutyPaymentClockStart());
+    }
+
+    /** A confirmed number wins over any proposal as the start of the payment clock. */
+    public function testThePaymentClockStartsFromTheConfirmedNumberWhenThereIsOne(): void
+    {
+        $case = new LegalCase();
+        $this->assertNull($case->stampDutyPaymentClockStart());
+
+        $case->proposePortalMatch('702/211/2026', PortalCaseMatchSource::AUTO);
+        $this->assertNotNull($case->stampDutyPaymentClockStart(), 'An open proposal starts the clock.');
+
+        $case->setCourtCaseNumber('702/211/2026');
+        $case->setCourtCaseNumberKnownAt(new \DateTimeImmutable('2026-08-01'));
+        $this->assertSame('2026-08-01', $case->stampDutyPaymentClockStart()?->format('Y-m-d'));
     }
 }

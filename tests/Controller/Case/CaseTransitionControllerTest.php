@@ -417,6 +417,39 @@ final class CaseTransitionControllerTest extends WebTestCase
         self::assertNull($refreshed->getFinalRulingDate());
     }
 
+    /**
+     * The registry annuls an unstamped petition in chambers, before any hearing, so
+     * the rejection has to be recordable from the registration stage with its own reason.
+     */
+    public function testRejectForWantOfStampDutyFromDosarInregistrat(): void
+    {
+        $this->client->loginUser($this->user);
+        $case = $this->createCase(CaseStatus::DOSAR_INREGISTRAT);
+        $token = $this->csrfForForm($case, 'reject_case');
+
+        $this->client->request('POST', '/case/' . $case->getId() . '/transition/reject', [
+            'reject_case' => [
+                'reason' => 'UNSTAMPED',
+                'details' => 'Anulată prin încheiere pentru netimbrare.',
+                '_token' => $token,
+            ],
+        ]);
+
+        self::assertResponseRedirects('/case/' . $case->getId());
+        $this->em->clear();
+        $refreshed = $this->em->getRepository(LegalCase::class)->find($case->getId());
+        self::assertSame(CaseStatus::RESPINSA, $refreshed->getStatus());
+
+        $entries = $this->em->getRepository(AuditLog::class)->findBy([
+            'category' => AuditLogService::CATEGORY_CASE_REJECTED,
+            'entityId' => (string) $refreshed->getId(),
+        ]);
+        self::assertCount(1, $entries);
+        self::assertSame('respinge', $entries[0]->getNewData()['transition']);
+        self::assertSame('UNSTAMPED', $entries[0]->getNewData()['reason']);
+        self::assertSame('DOSAR_INREGISTRAT', $entries[0]->getNewData()['fromStatus']);
+    }
+
     public function testRejectHappyPathFromTermenFixat(): void
     {
         $this->client->loginUser($this->user);

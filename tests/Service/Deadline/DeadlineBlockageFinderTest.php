@@ -13,6 +13,7 @@ use App\Enum\CaseStatus;
 use App\Enum\DeadlineBlockageReason;
 use App\Enum\DeadlineType;
 use App\Enum\DocumentType;
+use App\Enum\PortalCaseMatchSource;
 use App\Enum\StampDutyStatus;
 use App\Service\Deadline\DeadlineBlockage;
 use App\Service\Deadline\DeadlineBlockageFinder;
@@ -55,6 +56,11 @@ class DeadlineBlockageFinderTest extends KernelTestCase
         $conn->executeStatement('DELETE FROM document WHERE uploaded_by_id IN (?)', [$ids], [ArrayParameterType::INTEGER]);
         $conn->executeStatement(
             'DELETE FROM legal_deadline WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id IN (?))',
+            [$ids],
+            [ArrayParameterType::INTEGER],
+        );
+        $conn->executeStatement(
+            'DELETE FROM portal_case_match WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id IN (?))',
             [$ids],
             [ArrayParameterType::INTEGER],
         );
@@ -205,36 +211,108 @@ class DeadlineBlockageFinderTest extends KernelTestCase
         self::assertSame([], $this->reasonsFor($case));
     }
 
-    public function testFiledUnstampedCaseWithoutTheStampDutyDeadlineIsBlocked(): void
+    /** Number known, duty unpaid, no notice recorded: the duty is payable in the court case now. */
+    public function testRegisteredUnstampedCaseIsBlockedOnThePayment(): void
     {
         $case = $this->createCase(CaseStatus::DOSAR_INREGISTRAT);
+        $case->setCourtCaseNumber('500/211/2026');
         $case->setStampDutyStatus(StampDutyStatus::AMANATA_REGULARIZARE);
         $this->em->flush();
-
         self::assertSame(
-            [DeadlineBlockageReason::STAMP_DUTY_NOTICE_MISSING],
+            [DeadlineBlockageReason::STAMP_DUTY_PAYMENT_DUE],
             $this->reasonsFor($case),
         );
     }
 
-    /** The deadline exists only when the court notice was recorded, so it clears the blockage. */
-    public function testRecordedStampDutyNoticeClearsTheBlockage(): void
+    /** A number the portal proposed opens the same gap: the court is not waiting for the confirmation. */
+    public function testFiledCaseWithAProposedNumberIsBlockedOnThePayment(): void
+    {
+        $case = $this->createCase(CaseStatus::CERERE_DEPUSA);
+        $case->setStampDutyStatus(StampDutyStatus::NEACHITATA);
+        $case->proposePortalMatch('501/211/2026', PortalCaseMatchSource::AUTO);
+        $this->em->flush();
+        self::assertSame(
+            [DeadlineBlockageReason::STAMP_DUTY_PAYMENT_DUE],
+            $this->reasonsFor($case),
+        );
+    }
+
+    /** Filed, unpaid, and no number anywhere: the number is what the case waits on. */
+    public function testFiledUnstampedCaseWithoutAnyNumberIsBlockedOnTheNumber(): void
+    {
+        $case = $this->createCase(CaseStatus::CERERE_DEPUSA);
+        $case->setStampDutyStatus(StampDutyStatus::NEACHITATA);
+        $this->em->flush();
+        self::assertSame(
+            [DeadlineBlockageReason::COURT_CASE_NUMBER_MISSING],
+            $this->reasonsFor($case),
+        );
+    }
+
+    /** A proposal set aside leaves the case where it was: without a number. */
+    public function testADismissedProposalLeavesTheCaseWaitingForTheNumber(): void
+    {
+        $case = $this->createCase(CaseStatus::CERERE_DEPUSA);
+        $case->setStampDutyStatus(StampDutyStatus::NEACHITATA);
+        $case->proposePortalMatch('502/211/2026', PortalCaseMatchSource::AUTO);
+        $case->dismissPortalProposal(null);
+        $this->em->flush();
+        self::assertSame(
+            [DeadlineBlockageReason::COURT_CASE_NUMBER_MISSING],
+            $this->reasonsFor($case),
+        );
+    }
+
+    /** A running stamping term is an agenda row of its own, so the zone shows nothing. */
+    public function testRunningStampDutyTermClearsTheBlockage(): void
     {
         $case = $this->createCase(CaseStatus::DOSAR_INREGISTRAT);
+        $case->setCourtCaseNumber('503/211/2026');
         $case->setStampDutyStatus(StampDutyStatus::NEACHITATA);
         $this->createDeadline($case, DeadlineType::TIMBRARE);
         $this->em->flush();
-
         self::assertSame([], $this->reasonsFor($case));
     }
 
-    /** No regularization notice is ever issued for a stamped claim. */
+    /**
+     * The term lapsed and the duty still reads unpaid: the petition is annulled in
+     * chambers unless the lawyer paid and never recorded it, and either outcome is what
+     * this row asks him to record. The payment reminders have stopped by then.
+     */
+    public function testLapsedStampDutyTermWithTheDutyUnpaidIsBlockedOnTheOutcome(): void
+    {
+        $case = $this->createCase(CaseStatus::DOSAR_INREGISTRAT);
+        $case->setCourtCaseNumber('504/211/2026');
+        $case->setStampDutyStatus(StampDutyStatus::NEACHITATA);
+        $this->createDeadline($case, DeadlineType::TIMBRARE, new \DateTimeImmutable('-3 days'));
+        $this->em->flush();
+        self::assertSame(
+            [DeadlineBlockageReason::STAMP_DUTY_TERM_EXPIRED],
+            $this->reasonsFor($case),
+        );
+    }
+
+    /** A term closed by hand proves no payment: while the duty reads unpaid the payment row stays. */
+    public function testClosedStampDutyTermDoesNotClearThePaymentBlockage(): void
+    {
+        $case = $this->createCase(CaseStatus::DOSAR_INREGISTRAT);
+        $case->setCourtCaseNumber('505/211/2026');
+        $case->setStampDutyStatus(StampDutyStatus::NEACHITATA);
+        $this->createDeadline($case, DeadlineType::TIMBRARE, new \DateTimeImmutable('-3 days'), completed: true);
+        $this->em->flush();
+        self::assertSame(
+            [DeadlineBlockageReason::STAMP_DUTY_PAYMENT_DUE],
+            $this->reasonsFor($case),
+        );
+    }
+
+    /** No duty is owed any more on a stamped claim. */
     public function testPaidStampDutyIsNotBlocked(): void
     {
         $case = $this->createCase(CaseStatus::DOSAR_INREGISTRAT);
+        $case->setCourtCaseNumber('506/211/2026');
         $case->setStampDutyStatus(StampDutyStatus::ACHITATA);
         $this->em->flush();
-
         self::assertSame([], $this->reasonsFor($case));
     }
 
@@ -242,16 +320,16 @@ class DeadlineBlockageFinderTest extends KernelTestCase
     public function testUnstampedCaseWithAHearingSetIsStillBlocked(): void
     {
         $case = $this->createCase(CaseStatus::TERMEN_FIXAT);
+        $case->setCourtCaseNumber('507/211/2026');
         $case->setStampDutyStatus(StampDutyStatus::NEACHITATA);
         $this->em->flush();
-
         self::assertSame(
-            [DeadlineBlockageReason::STAMP_DUTY_NOTICE_MISSING],
+            [DeadlineBlockageReason::STAMP_DUTY_PAYMENT_DUE],
             $this->reasonsFor($case),
         );
     }
 
-    /** Before filing there is no court to issue a regularization notice. */
+    /** Before filing there is no court case to pay the duty into. */
     public function testUnstampedCaseThatIsNotFiledYetIsNotBlocked(): void
     {
         $case = $this->createCase(CaseStatus::SOMATIE_TRIMISA);
@@ -279,8 +357,19 @@ class DeadlineBlockageFinderTest extends KernelTestCase
 
         $ruling = $this->createCase(CaseStatus::ORDONANTA_EMISA);
 
+        // The three stamp-duty gaps, disjoint by what points at a number and whether a
+        // notice to stamp has lapsed on it.
+        $lapsed = $this->createCase(CaseStatus::DOSAR_INREGISTRAT);
+        $lapsed->setCourtCaseNumber('510/211/2026');
+        $lapsed->setStampDutyStatus(StampDutyStatus::NEACHITATA);
+        $this->createDeadline($lapsed, DeadlineType::TIMBRARE, new \DateTimeImmutable('-2 days'));
+
         $stamping = $this->createCase(CaseStatus::DOSAR_INREGISTRAT);
+        $stamping->setCourtCaseNumber('511/211/2026');
         $stamping->setStampDutyStatus(StampDutyStatus::AMANATA_REGULARIZARE);
+
+        $unnumbered = $this->createCase(CaseStatus::CERERE_DEPUSA);
+        $unnumbered->setStampDutyStatus(StampDutyStatus::NEACHITATA);
 
         // Final after an annulment request: the anchor is the second ruling, so this
         // case belongs to the annulment reason and not to the plain enforcement one,
@@ -303,7 +392,9 @@ class DeadlineBlockageFinderTest extends KernelTestCase
                 DeadlineBlockageReason::SUMMONS_COMMUNICATION_MISSING,
                 DeadlineBlockageReason::SUMMONS_PROOF_MISSING,
                 DeadlineBlockageReason::RULING_COMMUNICATION_MISSING,
-                DeadlineBlockageReason::STAMP_DUTY_NOTICE_MISSING,
+                DeadlineBlockageReason::STAMP_DUTY_TERM_EXPIRED,
+                DeadlineBlockageReason::STAMP_DUTY_PAYMENT_DUE,
+                DeadlineBlockageReason::COURT_CASE_NUMBER_MISSING,
                 DeadlineBlockageReason::ANNULMENT_RULING_COMMUNICATION_MISSING,
                 DeadlineBlockageReason::EXECUTION_ANCHOR_MISSING,
                 DeadlineBlockageReason::ENFORCEMENT_REGISTRATION_NUMBER_MISSING,
@@ -312,7 +403,7 @@ class DeadlineBlockageFinderTest extends KernelTestCase
         );
 
         $caseIds = array_map(static fn (DeadlineBlockage $b): ?int => $b->legalCase->getId(), $blockages);
-        self::assertSame([$summons->getId(), $proof->getId(), $ruling->getId(), $stamping->getId(), $annulment->getId(), $enforcement->getId(), $registration->getId()], $caseIds);
+        self::assertSame([$summons->getId(), $proof->getId(), $ruling->getId(), $lapsed->getId(), $stamping->getId(), $unnumbered->getId(), $annulment->getId(), $enforcement->getId(), $registration->getId()], $caseIds);
         self::assertSame($caseIds, array_values(array_unique($caseIds)), 'One case may never raise two blockages.');
     }
 
@@ -515,14 +606,14 @@ class DeadlineBlockageFinderTest extends KernelTestCase
         $this->em->persist($document);
     }
 
-    private function createDeadline(LegalCase $case, DeadlineType $type): void
+    private function createDeadline(LegalCase $case, DeadlineType $type, ?\DateTimeImmutable $date = null, bool $completed = false): void
     {
         $deadline = new LegalDeadline();
         $deadline->setLegalCase($case);
         $deadline->setType($type);
-        $deadline->setDeadlineDate(new \DateTimeImmutable('+7 days'));
+        $deadline->setDeadlineDate($date ?? new \DateTimeImmutable('+7 days'));
         $deadline->setPriority($type->defaultPriority());
-        $deadline->setCompleted(false);
+        $deadline->setCompleted($completed);
         $this->em->persist($deadline);
     }
 }

@@ -61,4 +61,16 @@ enum StampDutyStatus: string
             self::ACHITATA, self::RESTITUITA => false,
         };
     }
+
+    /**
+     * The statuses under which the duty is still owed, for queries. Named apart from
+     * {@see self::isOutstanding()} on purpose: Twig resolves `status.outstanding` to
+     * the first method called `outstanding`, and a static one here would shadow it.
+     *
+     * @return list<self>
+     */
+    public static function outstandingCases(): array
+    {
+        return array_values(array_filter(self::cases(), static fn (self $s): bool => $s->isOutstanding()));
+    }
 }

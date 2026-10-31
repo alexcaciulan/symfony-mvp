@@ -147,6 +147,22 @@
                 </div>
                 {{ icon_chevron_right('size-4 text-indigo-600 dark:text-indigo-400 shrink-0') }}
             </button>
+        {# Registered, no hearing yet: the court may still annul the petition in chambers
+           (an unstamped petition, most often), and that outcome has to be recordable. #}
+        {% elseif case.status.value == 'DOSAR_INREGISTRAT' %}
+            <button type="button"
+                    data-hs-overlay="#hs-modal-reject"
+                    data-testid="recommended-reject-registered"
+                    class="w-full px-3 py-2.5 flex items-center gap-3 text-left rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 transition">
+                <div class="size-9 rounded-lg bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
+                    {{ icon_document('size-4') }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium text-red-700 dark:text-red-300">{{ 'case_overview.recommended_actions.reject_case'|trans }}</div>
+                    <div class="text-[11px] text-red-600/80 dark:text-red-400/80 mt-0.5">{{ 'case_overview.recommended_actions.reject_case_hint_registered'|trans }}</div>
+                </div>
+                {{ icon_chevron_right('size-4 text-red-500 shrink-0') }}
+            </button>
         {% elseif case.status.value == 'TERMEN_FIXAT' %}
             <button type="button"
                     data-hs-overlay="#hs-modal-issue-ruling"

@@ -50,6 +50,7 @@ class CaseWorkflowServiceTest extends KernelTestCase
             'fixeaza_termen'       => [CaseStatus::DOSAR_INREGISTRAT,  'fixeaza_termen',       CaseStatus::TERMEN_FIXAT],
             'emite_ordonanta'      => [CaseStatus::TERMEN_FIXAT,       'emite_ordonanta',      CaseStatus::ORDONANTA_EMISA],
             'respinge'             => [CaseStatus::TERMEN_FIXAT,       'respinge',             CaseStatus::RESPINSA],
+            'respinge_din_inregistrat' => [CaseStatus::DOSAR_INREGISTRAT, 'respinge',          CaseStatus::RESPINSA],
             'formuleaza_cerere_anulare' => [CaseStatus::ORDONANTA_EMISA, 'formuleaza_cerere_anulare', CaseStatus::IN_ANULARE],
             'marcheaza_definitiva'      => [CaseStatus::ORDONANTA_EMISA, 'marcheaza_definitiva',      CaseStatus::DEFINITIVA],
             'respinge_cerere_anulare'   => [CaseStatus::IN_ANULARE,      'respinge_cerere_anulare',   CaseStatus::DEFINITIVA],

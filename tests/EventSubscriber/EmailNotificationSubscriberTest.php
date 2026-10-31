@@ -17,6 +17,7 @@ use App\Event\PortalEventDetectedEvent;
 use App\EventSubscriber\EmailNotificationSubscriber;
 use App\Service\Notification\NotificationDispatch;
 use App\Service\Notification\NotificationDispatcherInterface;
+use App\Service\StampDuty\StampDutyPaymentWindow;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 use Symfony\Component\Workflow\Event\EnteredEvent;
@@ -328,7 +329,7 @@ final class EmailNotificationSubscriberTest extends TestCase
         $urlGenerator = $this->createStub(UrlGeneratorInterface::class);
         $urlGenerator->method('generate')->willReturn('/case/1');
 
-        return new EmailNotificationSubscriber($dispatcher, $this->echoTranslator(), $urlGenerator, 'http://test');
+        return new EmailNotificationSubscriber($dispatcher, $this->echoTranslator(), $urlGenerator, 'http://test', new StampDutyPaymentWindow());
     }
 
     private function case(): LegalCase

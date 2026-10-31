@@ -51,7 +51,9 @@ framework:
                     from: TERMEN_FIXAT
                     to: ORDONANTA_EMISA
                 respinge:
-                    from: TERMEN_FIXAT
+                    # Also from the registration stage: the registry annuls an unstamped
+                    # petition in chambers before any hearing is set.
+                    from: [DOSAR_INREGISTRAT, TERMEN_FIXAT]
                     to: RESPINSA
                 formuleaza_cerere_anulare:
                     from: ORDONANTA_EMISA

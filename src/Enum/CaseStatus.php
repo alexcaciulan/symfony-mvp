@@ -83,11 +83,14 @@ enum CaseStatus: string
     }
 
     /**
-     * The request is at the court and an unpaid stamp duty can still cost it:
-     * annulment for non-payment (OUG 80/2013 art. 33 alin. 2, CPC art. 197) operates
-     * until the order is final. Once DEFINITIVA or EXECUTARE the claim stands on an
-     * enforceable title, so the sanction is no longer operable; terminal and
-     * pre-filing statuses are out by nature.
+     * The request is at the court and the stamp duty is still worth chasing. The
+     * sanction itself falls early: the registry checks the duty when it allocates the
+     * file number, serves a notice to stamp with at most ten days and annuls the
+     * unstamped petition in chambers (OUG 80/2013 art. 33 alin. 2, CPC art. 200). A
+     * duty still reading unpaid after that point is, far more often, a payment the
+     * lawyer made and never recorded, and recording it is what the later statuses ask
+     * for. Once DEFINITIVA or EXECUTARE the claim stands on an enforceable title, so
+     * nothing is asked any more; terminal and pre-filing statuses are out by nature.
      */
     public function isStampDutyAtStakeAtCourt(): bool
     {

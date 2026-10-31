@@ -48,8 +48,10 @@
                             required
                             class="w-full py-2 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-red-500">
                         <option value="">{{ 'case_overview.modal.reject_reason_placeholder'|trans }}</option>
-                        <option value="NO_PROOF">{{ 'enum.reject_reason.NO_PROOF'|trans }}</option>
-                        <option value="INADMISSIBLE">{{ 'enum.reject_reason.INADMISSIBLE'|trans }}</option>
+                        {# Every reason of the enum, so a reason added there is offered here without a second list. #}
+                        {% for reason in enum('App\\Enum\\RejectReason').cases() %}
+                            <option value="{{ reason.value }}">{{ reason.label()|trans }}</option>
+                        {% endfor %}
                     </select>
                 </div>
 

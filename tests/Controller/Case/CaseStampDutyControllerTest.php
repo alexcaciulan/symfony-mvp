@@ -19,6 +19,7 @@ use App\Enum\DeadlineType;
 use App\Enum\DocumentType;
 use App\Enum\PersonType;
 use App\Enum\StampDutyStatus;
+use App\Service\StampDuty\StampDutyPaymentWindow;
 use App\Service\Deadline\DeadlineConsequenceResolver;
 use App\Tests\Support\CountyFixtureTrait;
 use Doctrine\ORM\EntityManagerInterface;
@@ -309,6 +310,32 @@ final class CaseStampDutyControllerTest extends WebTestCase
         self::assertCount(0, $crawler->filter('button[disabled][aria-describedby="stamp-duty-registry-hint"]'));
         // Paid in the existing case, the confirmation reaches the court on the registry's channel.
         self::assertCount(1, $crawler->filter('[data-hs-overlay="#hs-modal-stamp-duty-registry-paid"]'));
+
+        // The number was just recorded, so the five-day payment window is stated with its
+        // last day, and the prompt shown on the way back from the registry waits hidden.
+        $payBy = (new StampDutyPaymentWindow())->payBy($this->case);
+        self::assertNotNull($payBy);
+        self::assertStringContainsString($payBy->format('d.m.Y'), $crawler->filter('[data-testid="stamp-duty-pay-by"]')->text());
+        $prompt = $crawler->filter('[data-testid="stamp-duty-registry-return-prompt"]');
+        self::assertCount(1, $prompt);
+        self::assertStringContainsString('hidden', (string) $prompt->attr('class'));
+        self::assertCount(1, $crawler->filter('[data-controller="registry-return"]'));
+    }
+
+    /** Before any number exists there is no window to count, so the card states none. */
+    public function testTheCardStatesNoPaymentWindowBeforeTheFileNumber(): void
+    {
+        $this->case->setStatus(CaseStatus::CERERE_DEPUSA);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $crawler = $this->client->getCrawler()->filter('#case-stamp-duty-card');
+
+        self::assertCount(0, $crawler->filter('[data-testid="stamp-duty-pay-by"]'));
+        self::assertCount(0, $crawler->filter('[data-testid="stamp-duty-registry-return-prompt"]'));
     }
 
     /** A duty already paid has nothing left to confirm, file number or not. */

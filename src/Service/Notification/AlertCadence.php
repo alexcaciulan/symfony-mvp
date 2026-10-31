@@ -25,6 +25,18 @@ final class AlertCadence
     }
 
     /**
+     * One key per calendar day, so the daily job delivers every morning. Reserved for
+     * the few days in which the condition is both urgent and fully in the lawyer's
+     * hands, such as the payment window of the stamp duty after the file number
+     * appears: there the repetition is the point, and a week of silence would be the
+     * noise.
+     */
+    public static function daily(string $reason, int $caseId, \DateTimeImmutable $on): string
+    {
+        return sprintf('%s:%d:%s', $reason, $caseId, $on->format('Y-m-d'));
+    }
+
+    /**
      * Key without a period, so the condition produces exactly one message per case, ever.
      * The dedup lookup in {@see NotificationDispatcher} refuses every later delivery on
      * the same key, on both channels, and no later run can build a different one.
