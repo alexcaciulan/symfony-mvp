@@ -31,3 +31,6 @@ de crearea draft dosar dupa primul pas din wizard
 
 
 semnatura digitala calificata a avocatului sa fie pe toate documnetele 
+
+NETOPIA:
+https://admin.netopia-payments.com/login

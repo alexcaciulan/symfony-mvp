@@ -2,7 +2,7 @@
 
 Data: 02.10.2026. Branch: `feature/feedback-avocat-dosare-2-6` (necomis).
 
-Sursa: `docs/LexRecovery/260812_analiza dosare/260812_Documentare dosare 2 - 6.docx` și documentele din folderele 2-6.
+Sursa: `docs/LexRecovery/analiza_dosare/260812_analiza dosare/260812_Documentare dosare 2 - 6.docx` și documentele din folderele 2-6.
 
 Metodă: fiecare dosar a fost reîncărcat pe stack-ul de dev cu documentele avocatului și parcurs prin wizard (Pașii 0-4), cu extracție AI reală. Am verificat fiecare observație pe codul de azi: o parte fuseseră rezolvate între timp, restul au fost implementate, testate automat și verificate live în browser.
 

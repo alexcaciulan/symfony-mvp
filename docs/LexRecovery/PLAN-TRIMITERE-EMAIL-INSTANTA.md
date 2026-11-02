@@ -24,6 +24,7 @@ Citările legale marcate **[V]** nu sunt verificate pe sursă primară și se ve
 | 11 | Adresele instanțelor sunt doar pe pagina fiecărei instanțe de pe portal.just.ro; colectare automată, avocatul doar validează. Import aprobat pe dev. | 3b: import ca propuneri; validare de către avocat (pagină dedicată) sau admin (EasyAdmin). **Revizia 3 (2026-10-23): decizia s-a schimbat la „doar adminul decide”; vezi 11.1 D7.** |
 | 12 | Trimiterea e blocată fără documentele obligatorii. | `FilingReadinessChecker` (din `b291f83`) reutilizat neschimbat ca poartă. |
 | Semnături | Semnătură calificată aplicată local; platforma generează PDF-uri nesemnate, avocatul descarcă, semnează, încarcă; platforma verifică prezența semnăturii. Fără ZIP. | 3c1 și 3c2. „Fără ZIP” se interpretează în 1.4. |
+| Răspunsuri (2026-10-27) | Instanța răspunde doar cu un e-mail automat de confirmare a primirii; nu trimite alte mesaje pe e-mail. | Fără funcționalitatea „Citește mesajul” în aplicație: confirmarea automată e deja recunoscută și afișată pe dosar. Redirecționarea mesajelor neașteptate către avocat rămâne ca plasă de siguranță. |
 
 ### 1.2. Deciziile utilizatorului (2026-10-22, obligatorii)
 

@@ -40,3 +40,6 @@ bin/.phpunit.result.cache
 
 # Demo stack config (hostnames, tunnel name)
 /.env.demo
+
+# Client documents for analysis (contracts, invoices, lawyer answers), never committed
+/docs/LexRecovery/analiza_dosare/
