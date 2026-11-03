@@ -8,6 +8,7 @@ use App\DTO\Validation\AdmissibilityIssue;
 use App\Entity\LegalCase;
 use App\Entity\User;
 use App\Enum\CaseStatus;
+use App\Enum\IssueSeverity;
 use App\Enum\SubscriptionSlotConsumptionOutcome;
 use App\Repository\LegalCaseRepository;
 use App\Security\Voter\CaseVoter;
@@ -19,6 +20,7 @@ use App\Service\Case\CaseWorkflowService;
 use App\Service\Case\OverviewContextBuilder;
 use App\Service\Deadline\AgendaResponseFactory;
 use App\Service\Document\PaymentNoticeGeneratorService;
+use App\Service\Validation\OpAdmissibilityValidator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -48,6 +50,7 @@ final class CaseSummonsController extends AbstractController
         private readonly EntityManagerInterface $em,
         private readonly CaseAccessoryService $caseAccessories,
         private readonly AccessoryComputabilityChecker $accessoryChecker,
+        private readonly OpAdmissibilityValidator $admissibility,
         private readonly TranslatorInterface $translator,
     ) {}
 
@@ -76,13 +79,24 @@ final class CaseSummonsController extends AbstractController
 
         // A summons that names the interest without its sum is no notice of the
         // amount owed, so it waits until every position the platform computes
-        // can be computed. Checked at the date the summons would carry. Claim
-        // data is frozen once the case is saved (stamp duty, court and
-        // admissibility were derived from it), so the way out is the wizard,
-        // which blocks the same defects and lets the position be excluded.
+        // can be computed. Checked at the date the summons would carry. The
+        // way out is excluding the position or correcting the claim from the
+        // Claim card of the case page.
         $notComputable = $this->accessoryChecker->issues($case, $case->accessoryReferenceDate(new \DateTimeImmutable()));
         if ($notComputable !== []) {
             return $this->respond($request, $case, false, 'error', 'case_overview.summons.flash_error_accessory_not_computable', null, null, $notComputable);
+        }
+
+        // The claim can change while the case is amiable, so exigibility is checked
+        // here too and not only at the petition: a position that falls due later
+        // would otherwise be summoned for before it is owed (CPC art. 1014).
+        $notExigible = array_values(array_filter(
+            $this->admissibility->validate($case),
+            static fn (AdmissibilityIssue $issue): bool => $issue->severity === IssueSeverity::ERROR
+                && in_array($issue->code, ['OP_DEBT_NOT_YET_DUE', 'OP_ITEM_NOT_YET_DUE'], true),
+        ));
+        if ($notExigible !== []) {
+            return $this->respond($request, $case, false, 'error', 'case_overview.summons.flash_error_not_exigible', null, null, $notExigible);
         }
 
         $user = $this->getUser();

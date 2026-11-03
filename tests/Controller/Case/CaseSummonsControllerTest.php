@@ -196,6 +196,47 @@ final class CaseSummonsControllerTest extends WebTestCase
         self::assertStringContainsString('Poziția 1 (F-77) nu are dată de scadență', $body);
     }
 
+    /**
+     * A position added in the amiable stage may fall due later; the summons
+     * waits for it (CPC art. 1014) instead of summoning for a sum not yet owed.
+     */
+    public function testGenerateSummonsIsBlockedWhileAPositionIsNotYetDue(): void
+    {
+        $this->addPosition('F-OK', new \DateTimeImmutable('-60 days'));
+        $this->addPosition('F-LATER', new \DateTimeImmutable('+10 days'));
+
+        $this->client->loginUser($this->user);
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/summons/generate', ['_token' => $token], [], ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html']);
+
+        self::assertResponseIsSuccessful();
+        $body = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('nu este exigibilă', $body);
+        self::assertStringContainsString('are scadența în viitor', $body);
+        self::assertStringNotContainsString('target="case-hero"', $body);
+        $this->assertNothingWasGenerated();
+    }
+
+    public function testGenerateSummonsNotExigibleRefusalAlsoAnswersWithARedirectAndAFlash(): void
+    {
+        $this->addPosition('F-OK', new \DateTimeImmutable('-60 days'));
+        $this->addPosition('F-LATER', new \DateTimeImmutable('+10 days'));
+
+        $this->client->loginUser($this->user);
+        $token = $this->csrfTokenFromOverview($this->case->getId());
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/summons/generate', ['_token' => $token]);
+
+        self::assertResponseRedirects('/case/' . $this->case->getId());
+        $this->assertNothingWasGenerated();
+
+        $this->client->followRedirect();
+        $body = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('Somația nu se poate trimite: o poziție din creanță nu este exigibilă', $body);
+        self::assertStringContainsString('are scadența în viitor', $body);
+    }
+
     public function testGenerateSummonsBlockedListsTheMissingDataInTheTurboStreamToast(): void
     {
         $this->addPosition('F-78', new \DateTimeImmutable('2011-08-01'));
