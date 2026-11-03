@@ -16,6 +16,11 @@ namespace App\Service\Case;
  */
 final class DocumentReferenceNormalizer
 {
+    /** Romanian letters in both the comma-below and the legacy cedilla forms, already upper-cased. */
+    private const array DIACRITICS = [
+        'Ă' => 'A', 'Â' => 'A', 'Î' => 'I', 'Ș' => 'S', 'Ş' => 'S', 'Ț' => 'T', 'Ţ' => 'T',
+    ];
+
     /**
      * Null when nothing identifying is left after normalization.
      */
@@ -26,6 +31,9 @@ final class DocumentReferenceNormalizer
         }
 
         $value = mb_strtoupper(trim($raw));
+        // A page read by OCR or by the model often loses the diacritics the
+        // original carried ("grâu" versus "grau"): both name one contract.
+        $value = strtr($value, self::DIACRITICS);
         $value = preg_replace('/\b(NR|NO|SERIA|SERIE)\.?\b/u', '', $value) ?? $value;
         // The separator between number and year is kept: it carries identity
         // ("12/2024" is not "122024"). Only decoration is dropped.
