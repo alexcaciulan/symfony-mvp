@@ -26,6 +26,7 @@ use App\Enum\FilingPackageStatus;
 use App\Enum\FilingPartStatus;
 use App\Enum\PenaltyType;
 use App\Repository\AuditLogRepository;
+use App\Repository\ClaimItemRepository;
 use App\Repository\CourtEmailAddressReportRepository;
 use App\Repository\CourtPortalEventRepository;
 use App\Repository\FilingSubmissionRepository;
@@ -89,6 +90,8 @@ final class OverviewContextBuilder
         private readonly FilingPanelStateResolver $filingPanelResolver,
         private readonly FilingPartRowPresenter $filingPartRows,
         private readonly RecipientOverrideGuard $recipientGuard,
+        private readonly ClaimRecalculator $claimRecalculator,
+        private readonly ClaimItemRepository $claimItems,
     ) {}
 
     /**
@@ -186,6 +189,7 @@ final class OverviewContextBuilder
         $filingSubmission = $this->filingSubmissions->findActiveForCase($case) ?? $this->filingSubmissions->findLatestForCase($case);
         $countingItems = $case->getCountingClaimItems();
         $accessories = $this->caseAccessories->aggregate($case);
+        $claimEditable = !$case->isDeleted() && $case->getStatus() === CaseStatus::AMIABIL;
         $filing = $this->filingContext($case, $filingPackage, $filingSubmission, $deadlines);
 
         return array_merge($filing, [
@@ -206,6 +210,17 @@ final class OverviewContextBuilder
             // the very figure the positions exist to stop claiming.
             'claim_items' => $countingItems,
             'claim_item_accessories' => count($countingItems) > 1 ? $accessories : null,
+            // Every position, the excluded ones included: the table on the card
+            // shows what was set aside and why, and offers to reinstate it.
+            'claim_items_all' => $case->getClaimItems()->toArray(),
+            // Only while the claim can still change: afterwards the court on the
+            // case is the one the petition names, and the comparison would only
+            // propose what the lawyer can no longer accept.
+            'court_proposal' => $claimEditable && $countingItems !== [] ? $this->claimRecalculator->courtProposal($case) : null,
+            'claim_change_summary' => null,
+            // Invoices a position rests on may not be deleted; one left without a
+            // position (a reading that failed, an upload abandoned) may.
+            'claim_referenced_document_ids' => $this->claimItems->referencedDocumentIds($case),
             'penalty_breakdown' => $this->penaltyBreakdown($case, $countingItems, $accessories),
             'accessory_reference_date' => $this->caseAccessories->referenceDate($case),
             'has_communication_proof' => $this->hasCommunicationProof($case),

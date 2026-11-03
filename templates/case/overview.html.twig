@@ -15,6 +15,7 @@
 {% endblock %}
 
 {% block body %}
+  <div data-controller="claim-exclude" class="contents">
   {% set show_c4_modal = app.flashes('show_c4_modal')|length > 0 %}
   {% if show_c4_modal %}
     <div data-controller="auto-modal"
@@ -95,7 +96,13 @@
   {% if is_granted('CASE_DELETE', case) %}
     {{ include('case/overview/_modal_delete_case.html.twig') }}
   {% endif %}
+  {% if is_granted('CASE_CLAIM_EDIT', case) %}
+    {{ include('case/overview/_modal_claim_position.html.twig') }}
+    {{ include('case/overview/_modal_claim_exclude.html.twig') }}
+    {{ include('case/overview/_modal_claim_details.html.twig') }}
+  {% endif %}
   {% if case.status.value == 'IN_ANULARE' or case.status.value == 'EXECUTARE' %}
     {{ include('case/overview/_modal_annulment_rejected.html.twig') }}
   {% endif %}
+  </div>
 {% endblock %}

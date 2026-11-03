@@ -5,6 +5,8 @@ namespace App\Tests\MessageHandler;
 use App\DTO\Extraction\ExtractedDocumentData;
 use App\DTO\Extraction\DocumentClassification;
 use App\Entity\Document;
+use App\Entity\LegalCase;
+use App\Entity\User;
 use App\Enum\DocumentType;
 use App\Enum\ExtractionFailureReason;
 use App\Enum\ExtractionStatus;
@@ -484,6 +486,51 @@ class ExtractDataMessageHandlerTest extends TestCase
         } catch (RecoverableMessageHandlingException $e) {
             self::assertNull($e->getRetryDelay());
         }
+    }
+
+    /**
+     * An invoice uploaded from the claim card already belongs to a case; the
+     * handler reads it exactly like a wizard upload that belongs to nothing yet.
+     */
+    public function testADocumentAlreadyAttachedToACaseIsReadLikeAnyOther(): void
+    {
+        $document = $this->makeDocument(11);
+        $document->setDocumentType(DocumentType::FACTURA);
+        $case = new LegalCase();
+        $case->setUser(new User());
+        $document->setLegalCase($case);
+
+        $documents = $this->createMock(DocumentRepository::class);
+        $documents->method('find')->with(11)->willReturn($document);
+
+        $extractor = $this->createMock(DataExtractionService::class);
+        $extractor->expects(self::once())
+            ->method('extract')
+            ->with($document)
+            ->willReturnCallback(static function (Document $doc): ExtractedDocumentData {
+                $doc->setExtractionStatus(ExtractionStatus::COMPLETED);
+                $doc->setExtractedData(['claim' => ['amount' => 1000, 'invoiceNumber' => 'F-11']]);
+
+                return new ExtractedDocumentData(
+                    sourceDocumentId: 11,
+                    strategy: 'pdf_parser',
+                    globalConfidence: 0.9,
+                    extractedAt: new \DateTimeImmutable(),
+                );
+            });
+
+        $events = $this->createMock(EventDispatcherInterface::class);
+        $events->expects(self::once())->method('dispatch')->with(self::isInstanceOf(DataExtractedEvent::class));
+
+        $em = $this->createMock(EntityManagerInterface::class);
+        $em->expects(self::exactly(2))->method('flush');
+
+        $handler = new ExtractDataMessageHandler($documents, $extractor, $events, $em, new NullLogger());
+        $handler(new ExtractDataMessage(11));
+
+        self::assertSame(ExtractionStatus::COMPLETED, $document->getExtractionStatus());
+        self::assertSame($case, $document->getLegalCase(), 'The reading leaves the case link untouched.');
+        self::assertSame('F-11', $document->getExtractedData()['claim']['invoiceNumber']);
     }
 
     private function makeDocument(int $id): Document

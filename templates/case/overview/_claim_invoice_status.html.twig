@@ -1,0 +1,55 @@
+{# The state of one invoice uploaded from the claim card, inside the add dialog.
+   While the reading runs the body polls its own endpoint (and listens on the
+   document's Mercure topic for an earlier refresh); once it ends the body is the
+   position form, prefilled or empty. The element keeps its id across refreshes:
+   the poller swaps it by id. #}
+{% set state = status.state %}
+{% set pending = state == 'processing' %}
+<div id="claim-invoice-status-body"
+     data-controller="poll-frame{{ pending ? ' mercure claim-invoice-status' : '' }}"
+     data-poll-frame-pending-value="{{ pending ? 'true' : 'false' }}"
+     data-poll-frame-interval-ms-value="3000"
+     {% if status.document_id %}data-poll-frame-url-value="{{ path('case_claim_invoice_status', {id: case.id, documentId: status.document_id}) }}"{% endif %}
+     {% if pending %}
+     data-mercure-topic-value="user/{{ app.user.id }}/document/{{ status.document_id }}/extraction-status"
+     data-mercure-token-value="{{ mercure_token_for_user(app.user) }}"
+     data-action="mercure:message->claim-invoice-status#refresh"
+     {% endif %}
+     data-claim-invoice-state="{{ state }}"
+     data-testid="claim-invoice-status">
+    {% if state == 'processing' %}
+        <div class="flex flex-col items-center justify-center py-10 text-center" role="status" aria-live="polite">
+            <svg class="size-6 animate-spin text-slate-400" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25"/><path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+            <p class="mt-3 text-sm font-medium text-slate-700 dark:text-slate-300">{{ 'case.claim.edit.reading_document'|trans }}</p>
+            <p class="mt-1 text-xs text-slate-500">{{ status.filename }}</p>
+        </div>
+    {% elseif state == 'party_mismatch' %}
+        <div class="flex items-start gap-2.5 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 p-3 text-sm text-red-900 dark:text-red-200" role="alert" data-testid="claim-invoice-party-mismatch">
+            <svg class="size-4 shrink-0 text-red-600 dark:text-red-400 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <div>
+                <p>{{ 'case.claim.edit.error.party_mismatch'|trans({'%creditor%': status.party_check.extractedCreditorName|default('—'), '%debtor%': status.party_check.extractedDebtorName|default('—')}) }}</p>
+                <p class="mt-1 text-xs">{{ 'case.claim.edit.party_mismatch_file_removed'|trans }}</p>
+            </div>
+        </div>
+    {% else %}
+        <div class="mb-4 flex items-center gap-2 rounded-lg bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 px-3 py-2 text-xs text-slate-600 dark:text-slate-400">
+            <svg class="size-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <span class="font-medium text-slate-800 dark:text-slate-200">{{ status.filename }}</span>
+            <span>({{ (status.file_size / 1024)|number_format(0) }} KB)</span>
+        </div>
+        {% if state == 'failed' or state == 'skipped' or state == 'no_claim' %}
+            <p class="mb-3 text-xs text-amber-800 dark:text-amber-200" data-testid="claim-invoice-read-failed">{{ ('case.claim.edit.reading_' ~ state)|trans }}</p>
+        {% elseif state == 'ready' %}
+            <p class="mb-3 text-xs text-slate-500">{{ 'case.claim.edit.reading_ready'|trans }}</p>
+        {% endif %}
+        {{ include('case/overview/_claim_position_form.html.twig', {
+            form_action: path('case_claim_add_from_document', {id: case.id, documentId: status.document_id}),
+            values: status.values,
+            detected: status.detected,
+            scope: 'document',
+            source_document_id: status.document_id,
+            party_check: status.party_check,
+            warning_keys: status.warning_keys,
+        }) }}
+    {% endif %}
+</div>

@@ -1,0 +1,27 @@
+{# A refusal the lawyer can lift from inside the dialog: the invoice names another
+   contract than the case. The block with the confirmation boxes lands inside the
+   form that posted, so the next submit carries the answers. #}
+<turbo-stream action="replace" target="claim-position-warnings-{{ scope }}">
+    <template>
+        <div id="claim-position-warnings-{{ scope }}" class="rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 p-3 text-sm text-amber-900 dark:text-amber-200" role="alert" data-testid="claim-other-contract-block">
+            <p class="font-semibold">{{ 'case.claim.edit.warning.other_contract_title'|trans }}</p>
+            <p class="mt-1">{{ message }}</p>
+            <label class="mt-3 flex items-start gap-2 text-sm font-medium">
+                <input type="checkbox" name="claim_position[sameCauseConfirmed]" value="1" {{ refusal_code == 'clause_unconfirmed' ? 'checked' : '' }} class="mt-0.5 size-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500">
+                <span>{{ 'case.claim.edit.warning.other_contract_confirm'|trans }}</span>
+            </label>
+            {% if contractual %}
+                <label class="mt-2 flex items-start gap-2 text-sm font-medium">
+                    <input type="checkbox" name="claim_position[clauseAppliesConfirmed]" value="1" class="mt-0.5 size-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500">
+                    <span>{{ 'case.claim.edit.warning.clause_applies_confirm'|trans }}</span>
+                </label>
+            {% endif %}
+            <p class="mt-2 text-xs">{{ 'case.claim.edit.warning.other_contract_new_case'|trans }}</p>
+        </div>
+    </template>
+</turbo-stream>
+<turbo-stream action="append" target="toasts">
+    <template>
+        {% include 'components/Toast.html.twig' with { message: message, variant: 'warning', details: [] } only %}
+    </template>
+</turbo-stream>

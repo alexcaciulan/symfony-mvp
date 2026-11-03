@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller\Case;
 
+use App\Entity\ClaimItem;
 use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\User;
@@ -66,6 +67,10 @@ final class DocumentControllerTest extends WebTestCase
         $conn = $this->em->getConnection();
         $conn->executeStatement('DELETE FROM audit_log WHERE user_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM audit_log WHERE user_id IS NULL', []);
+        $conn->executeStatement(
+            'DELETE ci FROM claim_item ci JOIN legal_case lc ON ci.legal_case_id = lc.id WHERE lc.user_id = ?',
+            [$userId]
+        );
         $conn->executeStatement(
             'DELETE d FROM document d JOIN legal_case lc ON d.legal_case_id = lc.id WHERE lc.user_id = ?',
             [$userId]
@@ -469,7 +474,62 @@ final class DocumentControllerTest extends WebTestCase
     {
         yield 'contract' => [DocumentType::CONTRACT];
         yield 'addendum' => [DocumentType::ACT_ADITIONAL];
-        yield 'invoice' => [DocumentType::FACTURA];
+    }
+
+    /** A position of the claim resting on the document, which is what makes an invoice evidence. */
+    private function restPositionOn(int $documentId): void
+    {
+        $item = new ClaimItem();
+        $item->setLegalCase($this->case);
+        $item->setDedupKey('doc-ref-' . uniqid('', true));
+        $item->setDocumentNumber('F-' . $documentId);
+        $item->setAmount('100.00');
+        $item->setCurrency('RON');
+        $item->setAmountRon('100.00');
+        $item->setDueDate(new \DateTimeImmutable('-30 days'));
+        $item->setConfirmedByLawyer(true);
+        $item->setSourceDocument($this->em->getReference(Document::class, $documentId));
+        $this->em->persist($item);
+        $this->em->flush();
+    }
+
+    /** An invoice is evidence only while a position rests on it. */
+    public function testDeleteRefusesAnInvoiceAPositionRestsOn(): void
+    {
+        $this->client->loginUser($this->user);
+        $docId = $this->persistDocument(DocumentType::FACTURA);
+        $this->restPositionOn($docId);
+
+        $this->client->request(
+            'POST',
+            sprintf('/case/%d/document/%d/delete', $this->case->getId(), $docId),
+            ['_token' => $this->sessionDeleteToken($docId)],
+            [],
+            ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html'],
+        );
+
+        self::assertStringContainsString('nu se pot șterge: pe ele se sprijină creanța', (string) $this->client->getResponse()->getContent());
+        $this->em->clear();
+        self::assertNotNull($this->em->getRepository(Document::class)->find($docId));
+    }
+
+    /** An invoice no position rests on (a reading that failed, an upload abandoned) is just a file. */
+    public function testDeleteAllowsAnInvoiceNoPositionRestsOn(): void
+    {
+        $this->client->loginUser($this->user);
+        $docId = $this->persistDocument(DocumentType::FACTURA);
+
+        $this->client->request(
+            'POST',
+            sprintf('/case/%d/document/%d/delete', $this->case->getId(), $docId),
+            ['_token' => $this->sessionDeleteToken($docId)],
+            [],
+            ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html'],
+        );
+
+        self::assertStringContainsString('Documentul a fost șters.', (string) $this->client->getResponse()->getContent());
+        $this->em->clear();
+        self::assertNull($this->em->getRepository(Document::class)->find($docId));
     }
 
     /**
@@ -531,13 +591,16 @@ final class DocumentControllerTest extends WebTestCase
     public function testDocumentsTabOffersDeleteOnlyForDeletableTypes(): void
     {
         $this->client->loginUser($this->user);
+        $referencedInvoiceId = $this->persistDocument(DocumentType::FACTURA);
+        $this->restPositionOn($referencedInvoiceId);
         $protectedIds = [
             $this->persistDocument(DocumentType::CONTRACT),
             $this->persistDocument(DocumentType::ACT_ADITIONAL),
-            $this->persistDocument(DocumentType::FACTURA),
+            $referencedInvoiceId,
             $this->persistDocument(DocumentType::DOVADA_TAXA_TIMBRU),
         ];
         $deletableId = $this->persistDocument(DocumentType::EXTRAS_CONT);
+        $orphanInvoiceId = $this->persistDocument(DocumentType::FACTURA);
         $this->em->clear();
 
         $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
@@ -547,6 +610,7 @@ final class DocumentControllerTest extends WebTestCase
             self::assertGreaterThan(0, $crawler->filter(sprintf('a[href$="/document/%d/download"]', $id))->count());
         }
         self::assertCount(1, $crawler->filter(sprintf('form[action$="/document/%d/delete"]', $deletableId)));
+        self::assertCount(1, $crawler->filter(sprintf('form[action$="/document/%d/delete"]', $orphanInvoiceId)), 'An invoice no position rests on may be deleted.');
     }
 
     public function testDeleteReturnsTurboStreamWhenRequested(): void

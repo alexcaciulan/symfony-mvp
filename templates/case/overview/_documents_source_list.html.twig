@@ -108,7 +108,9 @@
                        class="p-1.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition">
                         {{ icon_download('size-3.5 text-slate-500 dark:text-slate-400') }}
                     </a>
-                    {% if doc.documentType.isDeletable() %}
+                    {# An invoice no position rests on (a reading that failed, an upload
+                       abandoned) may go; one a position rests on stays, like the contract. #}
+                    {% if doc.documentType.isDeletable() or (doc.documentType.value == 'factura' and doc.id not in claim_referenced_document_ids|default([])) %}
                         <form method="post"
                               action="{{ path('case_document_delete', {caseId: case.id, documentId: doc.id}) }}"
                               data-turbo-frame="_top"

@@ -1,0 +1,36 @@
+{# The inputs of the details dialog, prefilled from the case. Refreshed in place
+   after a save so reopening the dialog shows what was saved. #}
+{% set fld = 'w-full py-2 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500' %}
+{% set lbl = 'block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5' %}
+{% set contractual = case.penaltyType and case.penaltyType.value == 'CONTRACTUAL' %}
+<div class="space-y-4">
+    <p class="text-xs text-slate-500">{{ 'case.claim.edit.details_intro'|trans }}</p>
+    <div>
+        <label for="claim_details_claimDescription" class="{{ lbl }}">{{ 'case.claim.edit.field_claim_description'|trans }}</label>
+        <textarea id="claim_details_claimDescription" name="claim_details[claimDescription]" rows="3" maxlength="2000" class="{{ fld }}">{{ case.claimDescription }}</textarea>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+            <label for="claim_details_contractReference" class="{{ lbl }}">{{ 'case.claim.edit.field_contract_reference'|trans }}</label>
+            <input type="text" id="claim_details_contractReference" name="claim_details[contractReference]" maxlength="255" value="{{ case.contractReference }}" class="{{ fld }}">
+            <p class="mt-1 text-[11px] text-slate-500">{{ 'case.claim.edit.field_contract_reference_hint'|trans }}</p>
+        </div>
+        <div>
+            <label for="claim_details_penaltyClauseArticle" class="{{ lbl }}">{{ 'case.claim.edit.field_penalty_clause_article'|trans }}</label>
+            <input type="text" id="claim_details_penaltyClauseArticle" name="claim_details[penaltyClauseArticle]" maxlength="100" value="{{ case.penaltyClauseArticle }}" {{ contractual ? '' : 'disabled' }} class="{{ fld }} disabled:opacity-60">
+            {% if not contractual %}<p class="mt-1 text-[11px] text-slate-500">{{ 'case.claim.edit.field_penalty_clause_statutory'|trans }}</p>{% endif %}
+        </div>
+    </div>
+    <div>
+        <label for="claim_details_penaltyClauseText" class="{{ lbl }}">{{ 'case.claim.edit.field_penalty_clause_text'|trans }}</label>
+        <textarea id="claim_details_penaltyClauseText" name="claim_details[penaltyClauseText]" rows="3" maxlength="10000" {{ contractual ? '' : 'disabled' }} class="{{ fld }} disabled:opacity-60">{{ case.penaltyClauseText }}</textarea>
+    </div>
+    <div>
+        <label for="claim_details_paymentNoticeNumber" class="{{ lbl }}">{{ 'case.claim.edit.field_payment_notice_number'|trans }}</label>
+        <input type="text" id="claim_details_paymentNoticeNumber" name="claim_details[paymentNoticeNumber]" maxlength="50" value="{{ case.paymentNoticeNumber }}" placeholder="{{ 'case.claim.edit.field_payment_notice_number_placeholder'|trans }}" class="{{ fld }}">
+        <p class="mt-1 text-[11px] text-slate-500">{{ 'case.claim.edit.field_payment_notice_number_hint'|trans }}</p>
+    </div>
+    {% if case.paymentNoticeDate %}
+        <p class="text-xs text-amber-800 dark:text-amber-200" data-testid="claim-details-regenerate-note">{{ 'case.claim.edit.details_payment_notice_regenerate'|trans({'%date%': case.paymentNoticeDate|date('d.m.Y')}) }}</p>
+    {% endif %}
+</div>

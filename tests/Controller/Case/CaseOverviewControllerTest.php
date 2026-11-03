@@ -82,6 +82,7 @@ final class CaseOverviewControllerTest extends WebTestCase
         $conn->executeStatement('DELETE FROM audit_log WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM court_portal_event WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM legal_deadline WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
+        $conn->executeStatement('DELETE FROM claim_item WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM document WHERE uploaded_by_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM legal_case_debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM case_status_history WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
@@ -215,6 +216,30 @@ final class CaseOverviewControllerTest extends WebTestCase
     }
 
     /**
+     * Attach one counting position to {@see self::$case}, keyed uniquely so two
+     * tests never collide on the case's dedup index.
+     */
+    private function attachClaimItem(string $documentNumber, string $amount, string $dueDate = '-90 days'): ClaimItem
+    {
+        $item = new ClaimItem();
+        $item->setLegalCase($this->case);
+        $item->setDedupKey('ov-claim-' . uniqid('', true));
+        $item->setDocumentNumber($documentNumber);
+        $item->setDocumentDate(new \DateTimeImmutable($dueDate . ' -30 days'));
+        $item->setAmount($amount);
+        $item->setCurrency('RON');
+        $item->setAmountRon($amount);
+        $item->setDueDate(new \DateTimeImmutable($dueDate));
+        $item->setConfirmedByLawyer(true);
+        $item->setDebtor($this->case->getPrimaryDebtor());
+        $this->case->addClaimItem($item);
+        $this->em->persist($item);
+        $this->em->flush();
+
+        return $item;
+    }
+
+    /**
      * Append a status-history entry so the Recommended Actions card can resolve
      * "Generează somație → deja generată %date%" against a real transition date.
      */
@@ -229,6 +254,65 @@ final class CaseOverviewControllerTest extends WebTestCase
         $this->em->flush();
 
         return $entry;
+    }
+
+    public function testClaimEditControlsAreAbsentPastTheAmiableStage(): void
+    {
+        $this->enrichCase(CaseStatus::SOMATIE_TRIMISA);
+        $item = $this->attachClaimItem('INV-1', '47500.00');
+        $this->client->loginUser($this->user);
+
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertCount(0, $crawler->filter('[data-testid="claim-add-invoice"]'));
+        self::assertCount(0, $crawler->filter('[data-testid="claim-edit-details"]'));
+        self::assertCount(0, $crawler->filter('[data-testid="claim-exclude-' . $item->getId() . '"]'));
+        self::assertCount(0, $crawler->filter('[data-testid="modal-claim-add"]'));
+        self::assertCount(0, $crawler->filter('[data-testid="modal-claim-exclude"]'));
+        self::assertCount(0, $crawler->filter('[data-testid="modal-claim-details"]'));
+        self::assertCount(0, $crawler->filter('[data-testid="claim-court-proposal"]'));
+        self::assertCount(1, $crawler->filter('[data-testid="claim-positions-table"]'), 'The positions stay readable.');
+        self::assertCount(1, $crawler->filter('[data-testid="claim-locked-note"]'));
+        self::assertStringContainsString('Facturile nu se mai pot modifica după trimiterea somației', $crawler->filter('[data-testid="claim-locked-note"]')->text());
+    }
+
+    public function testClaimLockedNoteIsAbsentOnAnAmiableCaseWithoutPositions(): void
+    {
+        $this->enrichCase();
+        $this->client->loginUser($this->user);
+
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertCount(0, $crawler->filter('[data-testid="claim-locked-note"]'));
+        self::assertCount(1, $crawler->filter('[data-testid="claim-add-invoice"]'));
+        self::assertCount(1, $crawler->filter('[data-testid="modal-claim-add"]'));
+        self::assertCount(0, $crawler->filter('[data-testid="court-card-proposal"]'), 'Nothing counts, so there is nothing to compare the court with.');
+    }
+
+    /**
+     * The fixture debtor has no county: the rules cannot name a court, the
+     * court on the case stays and the card says why.
+     */
+    public function testCourtCardSaysWhenTheRulesCannotNameACourt(): void
+    {
+        $this->enrichCase();
+        $this->attachClaimItem('INV-1', '47500.00');
+        $this->client->loginUser($this->user);
+
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $note = $crawler->filter('[data-testid="court-card-proposal"]');
+        self::assertCount(1, $note);
+        self::assertStringContainsString('Județul debitorului nu este specificat', $note->text());
+        self::assertStringContainsString($this->case->getCourt()->getName(), $crawler->filter('#case-court-card')->text(), 'The court on the case stays.');
+        $block = $crawler->filter('[data-testid="claim-court-proposal"]');
+        self::assertCount(1, $block, 'The claim card says why no court can be named.');
+        self::assertStringContainsString('Instanța competentă nu poate fi stabilită', $block->text());
+        self::assertStringContainsString('Instanța actuală rămâne pe dosar', $block->text());
+        self::assertCount(0, $block->filter('[data-testid="claim-court-accept"]'), 'Nothing to accept.');
     }
 
     public function testFullPaymentActionAndModalOfferedOnAmiabilAndSomatie(): void

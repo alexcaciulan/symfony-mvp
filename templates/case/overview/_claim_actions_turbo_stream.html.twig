@@ -1,0 +1,39 @@
+{# Answer of a successful claim edit: every region the sums reach is swapped (claim
+   card with the summary of what changed, court card, KPI grid, hero, sidebar,
+   deadlines tab, documents tab for the outdated summons), the dialog that posted is
+   closed, the details dialog is refilled, and a toast confirms with the warnings
+   under it. #}
+<turbo-stream action="replace" target="case-claim-card">
+    <template>{{ include('case/overview/_claim_composition.html.twig') }}</template>
+</turbo-stream>
+<turbo-stream action="replace" target="case-court-card">
+    <template>{{ include('case/overview/_court_summary.html.twig') }}</template>
+</turbo-stream>
+<turbo-stream action="replace" target="case-kpi-grid">
+    <template>{{ include('case/overview/_kpi_grid.html.twig') }}</template>
+</turbo-stream>
+<turbo-stream action="replace" target="case-hero">
+    <template>{{ include('case/overview/_hero.html.twig') }}</template>
+</turbo-stream>
+<turbo-stream action="update" target="case-detalii-sidebar">
+    <template>{{ include('case/overview/_detalii_sidebar.html.twig') }}</template>
+</turbo-stream>
+<turbo-stream action="update" target="panel-termene">
+    <template>{{ include('case/overview/_tab_termene.html.twig') }}</template>
+</turbo-stream>
+<turbo-stream action="update" target="panel-documente">
+    <template>{{ include('case/overview/_tab_documente.html.twig') }}</template>
+</turbo-stream>
+<turbo-stream action="update" target="claim-details-fields">
+    <template>{{ include('case/overview/_claim_details_fields.html.twig') }}</template>
+</turbo-stream>
+{% if close_modal_id is defined and close_modal_id %}
+    <turbo-stream action="append" target="toasts">
+        <template><div data-controller="close-modal" data-close-modal-target-id-value="{{ close_modal_id }}"></div></template>
+    </turbo-stream>
+{% endif %}
+<turbo-stream action="append" target="toasts">
+    <template>
+        {% include 'components/Toast.html.twig' with { message: toast_message, variant: toast_variant, details: toast_details|default([]) } only %}
+    </template>
+</turbo-stream>

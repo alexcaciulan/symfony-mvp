@@ -1,0 +1,75 @@
+{# Dialog „Adaugă factură": an invoice read from an uploaded file (the reading
+   state lands in the `claim-invoice-status` frame) or typed by hand. Rendered only
+   when CASE_CLAIM_EDIT is granted, so it never offers what the routes refuse. #}
+{% from 'case/overview/_icons.html.twig' import icon_money %}
+{# The two panes are switched by the `tabs` controller (not Preline's tabs, which the
+   page nav owns), so the dialog never interferes with the case tabs. #}
+{% set tab_class = "[&.is-active]:font-semibold [&.is-active]:text-blue-700 [&.is-active]:border-blue-600 dark:[&.is-active]:text-blue-300 -mb-px pb-2.5 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-t" %}
+
+<div id="hs-modal-claim-add"
+     class="hs-overlay hidden size-full fixed top-0 start-0 z-[80] overflow-x-hidden overflow-y-auto pointer-events-none"
+     role="dialog"
+     tabindex="-1"
+     aria-labelledby="hs-modal-claim-add-title"
+     data-testid="modal-claim-add">
+    <div class="hs-overlay-open:mt-7 hs-overlay-open:opacity-100 hs-overlay-open:duration-500 mt-0 opacity-0 ease-out transition-all sm:max-w-2xl sm:w-full m-3 sm:mx-auto">
+        <div class="flex flex-col bg-white border border-slate-200 shadow-lg rounded-2xl pointer-events-auto dark:bg-slate-900 dark:border-slate-800" data-controller="tabs" data-tabs-sync-hash-value="false">
+            <div class="flex justify-between items-center py-4 px-5 border-b border-slate-100 dark:border-slate-800">
+                <div class="flex items-center gap-3">
+                    <span class="inline-flex items-center justify-center size-9 rounded-lg bg-green-100 dark:bg-green-950/40 text-green-600 dark:text-green-400">
+                        {{ icon_money('size-5') }}
+                    </span>
+                    <h3 id="hs-modal-claim-add-title" class="font-bold text-slate-900 dark:text-white">{{ 'case.claim.edit.add_invoice'|trans }}</h3>
+                </div>
+                <button type="button"
+                        class="size-8 inline-flex justify-center items-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 hover:bg-slate-200 dark:text-slate-100 dark:hover:bg-slate-700"
+                        aria-label="{{ 'case_overview.modal.aria_close'|trans }}"
+                        data-hs-overlay="#hs-modal-claim-add">
+                    <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <div class="px-5 pt-3 border-b border-slate-100 dark:border-slate-800">
+                <nav class="flex gap-5" role="tablist" aria-label="{{ 'case.claim.edit.source_label'|trans }}">
+                    <button type="button" role="tab" id="claim-add-tab-document" data-tabs-target="tab" data-tab-id="claim-add-document" data-action="tabs#select" aria-controls="claim-add-pane-document" aria-selected="true" class="{{ tab_class }} is-active" data-testid="claim-add-tab-document">{{ 'case.claim.edit.add_from_document'|trans }}</button>
+                    <button type="button" role="tab" id="claim-add-tab-manual" data-tabs-target="tab" data-tab-id="claim-add-manual" data-action="tabs#select" aria-controls="claim-add-pane-manual" aria-selected="false" class="{{ tab_class }}" data-testid="claim-add-tab-manual">{{ 'case.claim.edit.add_manual'|trans }}</button>
+                </nav>
+            </div>
+
+            <div id="claim-add-body" class="p-5 max-h-[70vh] overflow-y-auto">
+                <div id="claim-add-pane-document" data-tabs-target="panel" data-tab-id="claim-add-document" role="tabpanel" aria-labelledby="claim-add-tab-document">
+                    <turbo-frame id="claim-invoice-status">
+                        <form method="post"
+                              action="{{ path('case_claim_invoice_upload', {id: case.id}) }}"
+                              enctype="multipart/form-data"
+                              data-turbo-frame="_top"
+                              data-testid="claim-invoice-upload-form"
+                              class="space-y-3">
+                            <input type="hidden" name="claim_invoice[_token]" value="{{ csrf_token('claim_invoice') }}">
+                            <label for="claim_invoice_file" class="flex flex-col items-center justify-center text-center rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-950/40 hover:border-blue-400 px-6 py-8 cursor-pointer">
+                                <svg class="size-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                                <span class="mt-3 text-sm font-medium text-slate-900 dark:text-white">{{ 'case.claim.edit.upload_prompt'|trans }}</span>
+                                <span class="mt-1 text-xs text-slate-500">{{ 'case_overview.documents.modal_upload.field_file_hint'|trans }}</span>
+                                <input type="file" id="claim_invoice_file" name="claim_invoice[file]" required accept=".pdf,.jpg,.jpeg,.png" class="mt-3 block text-sm text-slate-600 dark:text-slate-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:cursor-pointer file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 dark:file:bg-slate-800 dark:file:text-slate-200">
+                            </label>
+                            <p class="text-xs text-slate-500">{{ 'case.claim.edit.upload_hint'|trans }}</p>
+                            <div class="flex justify-end">
+                                <button type="submit" data-testid="claim-invoice-upload-submit" class="py-2 px-4 inline-flex items-center text-sm font-semibold rounded-lg bg-lex-navy text-white hover:bg-lex-navy/90 transition">{{ 'case.claim.edit.upload_submit'|trans }}</button>
+                            </div>
+                        </form>
+                    </turbo-frame>
+                </div>
+                <div id="claim-add-pane-manual" data-tabs-target="panel" data-tab-id="claim-add-manual" class="hidden" role="tabpanel" aria-labelledby="claim-add-tab-manual">
+                    {{ include('case/overview/_claim_position_form.html.twig', {
+                        form_action: path('case_claim_add_manual', {id: case.id}),
+                        values: {},
+                        detected: [],
+                        scope: 'manual',
+                        party_check: null,
+                        warning_keys: [],
+                    }) }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

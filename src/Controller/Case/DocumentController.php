@@ -11,6 +11,7 @@ use App\Enum\CaseStatus;
 use App\Enum\DocumentType;
 use App\Form\Case\DocumentUploadType;
 use App\Form\Case\PowerOfAttorneyDetailsType;
+use App\Repository\ClaimItemRepository;
 use App\Repository\DocumentRepository;
 use App\Repository\LegalCaseRepository;
 use App\Service\Case\OverviewContextBuilder;
@@ -31,6 +32,7 @@ final class DocumentController extends AbstractController
     public function __construct(
         private readonly LegalCaseRepository $legalCaseRepository,
         private readonly DocumentRepository $documentRepository,
+        private readonly ClaimItemRepository $claimItemRepository,
         private readonly DocumentUploadService $documentUploadService,
         private readonly OverviewContextBuilder $contextBuilder,
         private readonly PowerOfAttorneyService $powerOfAttorneyService,
@@ -218,7 +220,11 @@ final class DocumentController extends AbstractController
             return $this->respondDocument($request, $legalCase, false, 'error', 'document.delete.generated_protected', null);
         }
 
-        if (!$document->getDocumentType()->isDeletable()) {
+        // An invoice is evidence only while a position rests on it; one left without
+        // a position (a reading that failed, an upload abandoned) is just a file.
+        $invoiceWithoutPosition = $document->getDocumentType() === DocumentType::FACTURA
+            && !$this->claimItemRepository->isReferenced($document);
+        if (!$document->getDocumentType()->isDeletable() && !$invoiceWithoutPosition) {
             return $this->respondDocument($request, $legalCase, false, 'error', 'document.delete.evidence_protected', null);
         }
 

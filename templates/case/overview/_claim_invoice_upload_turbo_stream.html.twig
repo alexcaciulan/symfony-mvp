@@ -1,0 +1,10 @@
+{# After an invoice was stored from the add dialog: the reading state takes the
+   place of the upload box, and the lawyer is told the file is being read. #}
+<turbo-stream action="update" target="claim-invoice-status">
+    <template>{{ include('case/overview/_claim_invoice_status.html.twig') }}</template>
+</turbo-stream>
+<turbo-stream action="append" target="toasts">
+    <template>
+        {% include 'components/Toast.html.twig' with { message: 'case.claim.edit.flash.invoice_uploaded'|trans, variant: 'info', details: [] } only %}
+    </template>
+</turbo-stream>
