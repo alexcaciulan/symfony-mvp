@@ -100,6 +100,49 @@ class ClaimTotalsServiceTest extends TestCase
         $this->assertSame('9999.00', $case->getAmount());
     }
 
+    public function testExcludingEveryPositionEmptiesTheClaimScalars(): void
+    {
+        $case = new LegalCase();
+        $case->setAmount('3000.00');
+        $case->setCurrency('RON');
+        $case->setDueDate(new \DateTime('2025-01-31'));
+        $case->setInvoiceNumber('FF-1');
+        $case->setInvoiceDate(new \DateTime('2025-01-01'));
+        $case->addClaimItem($this->item('1000.00', '2025-01-31', 'FF-1', '2025-01-01')->setExcludedByLawyer(true));
+        $case->addClaimItem($this->item('2000.00', '2025-02-28', 'FF-2', '2025-02-01')->setConfirmedByLawyer(false));
+
+        $totals = $this->service->recalculate($case);
+
+        $this->assertSame(0, $totals->countedCount);
+        $this->assertSame(0, $totals->needsManualFxCount);
+        $this->assertSame('0.00', $case->getAmount());
+        $this->assertSame('RON', $case->getCurrency());
+        // No due date, no invoice identity: nothing is claimed, so a prescription
+        // term must not be created for an invoice the lawyer set aside.
+        $this->assertNull($case->getDueDate());
+        $this->assertNull($case->getInvoiceNumber());
+        $this->assertNull($case->getInvoiceDate());
+    }
+
+    public function testAllUnconfirmedPositionsKeepTheDueDateAndInvoiceIdentity(): void
+    {
+        $case = new LegalCase();
+        $case->setAmount('3000.00');
+        $case->setCurrency('RON');
+        $case->setDueDate(new \DateTime('2025-01-31'));
+        $case->setInvoiceNumber('FF-1');
+        $case->setInvoiceDate(new \DateTime('2025-01-01'));
+        $case->addClaimItem($this->item('1000.00', '2025-01-31', 'FF-1', '2025-01-01')->setConfirmedByLawyer(false));
+
+        $totals = $this->service->recalculate($case);
+
+        $this->assertSame(0, $totals->countedCount);
+        $this->assertSame('0.00', $case->getAmount());
+        $this->assertSame('2025-01-31', $case->getDueDate()?->format('Y-m-d'));
+        $this->assertSame('FF-1', $case->getInvoiceNumber());
+        $this->assertSame('2025-01-01', $case->getInvoiceDate()?->format('Y-m-d'));
+    }
+
     private function item(
         string $amount,
         string $dueDate,

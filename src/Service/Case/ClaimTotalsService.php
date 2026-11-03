@@ -92,15 +92,20 @@ final class ClaimTotalsService
      * Two cases are left exactly as they are, and they are not the same thing:
      * a case carrying no positions at all (created before positions existed),
      * and a case whose every position awaits a manual exchange rate, where the
-     * stored scalars are the only figures anyone has. A case whose positions
-     * were all deliberately excluded is written, zero included, because leaving
-     * a claimable principal standing behind an emptied claim is what makes the
-     * document generator bill interest on a sum nobody kept.
+     * stored scalars are the only figures anyone has.
      *
-     * A scalar is only ever overwritten by a value the positions actually
-     * supply. The due date and the invoice identity the lawyer entered are not
-     * erased by positions that carry none: a null due date silently disables
-     * the exigibility check of CPC art. 1014.
+     * A case whose positions all count for nothing gets a zero principal; when
+     * the lawyer excluded at least one of them it also loses its due date and
+     * invoice identity (positions that are merely unconfirmed keep them). Leaving a
+     * claimable principal standing behind an emptied claim is what makes the
+     * document generator bill interest on a sum nobody kept, and a due date
+     * left behind would have a prescription term created for an invoice that
+     * is no longer claimed.
+     *
+     * Otherwise a scalar is only ever overwritten by a value the positions
+     * actually supply. The due date and the invoice identity the lawyer entered
+     * are not erased by positions that carry none: a null due date silently
+     * disables the exigibility check of CPC art. 1014.
      */
     public function recalculate(LegalCase $case): ClaimTotals
     {
@@ -111,6 +116,20 @@ final class ClaimTotalsService
         }
 
         if ($totals->countedCount === 0 && $totals->needsManualFxCount > 0) {
+            return $totals;
+        }
+
+        if ($totals->countedCount === 0) {
+            $case->setAmount('0.00');
+            $case->setCurrency('RON');
+            // Identity is cleared only when the lawyer excluded a position;
+            // rows that are merely unconfirmed leave the scalars the lawyer entered.
+            if ($this->anyExcludedByLawyer($case)) {
+                $case->setDueDate(null);
+                $case->setInvoiceNumber(null);
+                $case->setInvoiceDate(null);
+            }
+
             return $totals;
         }
 
@@ -130,5 +149,16 @@ final class ClaimTotalsService
         }
 
         return $totals;
+    }
+
+    private function anyExcludedByLawyer(LegalCase $case): bool
+    {
+        foreach ($case->getClaimItems() as $item) {
+            if ($item->isExcludedByLawyer()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
