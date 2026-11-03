@@ -13,6 +13,7 @@ use App\Enum\ConflictSeverity;
 use App\Enum\DocumentType;
 use App\Enum\FieldGroup;
 use App\Service\Case\DocumentReferenceNormalizer;
+use App\Util\CuiNormalizer;
 
 /**
  * Recognises the same invoice read twice and collapses it into one position.
@@ -260,15 +261,6 @@ final class ClaimItemDeduplicator
 
     private function normalizedCui(?string $raw): ?string
     {
-        if ($raw === null) {
-            return null;
-        }
-        $digits = preg_replace('/\D+/', '', $raw) ?? '';
-        if ($digits === '') {
-            return null;
-        }
-        $trimmed = ltrim($digits, '0');
-
-        return $trimmed === '' ? $digits : $trimmed;
+        return CuiNormalizer::normalize($raw);
     }
 }
