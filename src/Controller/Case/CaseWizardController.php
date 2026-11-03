@@ -62,6 +62,7 @@ use App\Service\Calculation\StampDutyCalculator;
 use App\Service\Case\AccessoryComputabilityChecker;
 use App\Service\Case\ClaimItemFactory;
 use App\Service\Case\ClaimTotalsService;
+use App\Service\Case\LegalCaseClaimFieldsMapper;
 use App\Service\Case\DocumentReferenceNormalizer;
 use App\Service\Company\AnafLookupException;
 use App\Service\Company\AnafLookupService;
@@ -88,7 +89,6 @@ use App\Service\Wizard\CaseDraftListBuilder;
 use App\Service\Wizard\WizardStateStore;
 use App\Util\ClaimRowLiveMapper;
 use App\Util\RomanianAmountParser;
-use App\Util\StringCapper;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -157,6 +157,7 @@ final class CaseWizardController extends AbstractController
         private readonly ClaimItemFactory $claimItemFactory,
         private readonly DetectedDataPreviewBuilder $detectedDataPreview,
         private readonly ClaimTotalsService $claimTotals,
+        private readonly LegalCaseClaimFieldsMapper $claimFields,
         private readonly ClaimInterestAggregator $accessoryAggregator,
         private readonly AuditLogService $auditLog,
         private readonly MessageBusInterface $bus,
@@ -1920,7 +1921,7 @@ final class CaseWizardController extends AbstractController
             // at the persistence boundary.
             $case->setDueDate($claimDto->dueDate !== null ? \DateTime::createFromImmutable($claimDto->dueDate) : null);
             $case->setRelationshipType($claimDto->relationshipType);
-            $this->applyAccessoryFields($case, $claimDto);
+            $this->claimFields->applyAccessoryFields($case, $claimDto);
 
             if (($calculations['accessoryTotal'] ?? 0.0) > 0.0) {
                 $case->setCalculatedInterest(sprintf('%.2f', $calculations['accessoryTotal']));
@@ -2171,54 +2172,6 @@ final class CaseWizardController extends AbstractController
     }
 
     /**
-     * Copy the summons accessory configuration (penalty type, contractual rate,
-     * invoice/contract metadata, legal costs) from the claim DTO onto the case.
-     * The document recomputes the actual accessory amounts from these at render.
-     */
-    private function applyAccessoryFields(LegalCase $case, Step3ClaimData $claimDto): void
-    {
-        $case->setPenaltyType($claimDto->penaltyType ?? PenaltyType::LEGAL_PENALIZATOARE);
-        $case->setContractualPenaltyRate(
-            $claimDto->contractualPenaltyRate !== null ? sprintf('%.3f', $claimDto->contractualPenaltyRate) : null
-        );
-        $case->setAccessoryCutoffDate($claimDto->accessoryCutoffDate);
-        $case->setContractualPenaltyCapPercent(
-            $claimDto->penaltyType === PenaltyType::CONTRACTUAL && $claimDto->contractualPenaltyCapPercent !== null
-                ? sprintf('%.2f', $claimDto->contractualPenaltyCapPercent)
-                : null,
-        );
-        // AI extraction can return a longer string than a column holds (a
-        // contract's object phrase lands in contractReference, say), so cap
-        // each to its column length rather than let the save 500.
-        $case->setContractReference(StringCapper::cap($claimDto->contractReference, 255));
-        $case->setContractObject(StringCapper::cap($this->trimmedOrNull($claimDto->contractObject), 255));
-        $case->setPaymentNoticeNumber(StringCapper::cap($this->trimmedOrNull($claimDto->paymentNoticeNumber), 50));
-        // The clause belongs to the contractual notice only; a statutory case
-        // keeps none, so switching the type never leaves a stale clause behind.
-        $isContractual = $case->getPenaltyType() === PenaltyType::CONTRACTUAL;
-        $case->setPenaltyClauseArticle($isContractual ? StringCapper::cap($this->trimmedOrNull($claimDto->penaltyClauseArticle), 100) : null);
-        $case->setPenaltyClauseText($isContractual ? $this->trimmedOrNull($claimDto->penaltyClauseText) : null);
-        $case->setContractualAccessoryLabel($isContractual ? $claimDto->contractualAccessoryLabel : null);
-        $case->setClaimDescription($claimDto->description);
-        $case->setInvoiceNumber(StringCapper::cap($claimDto->invoiceNumber, 100));
-        $case->setInvoiceDate($claimDto->invoiceDate !== null ? \DateTime::createFromImmutable($claimDto->invoiceDate) : null);
-        $case->setContractNumber(StringCapper::cap($claimDto->contractNumber, 100));
-        $case->setContractDate($claimDto->contractDate !== null ? \DateTime::createFromImmutable($claimDto->contractDate) : null);
-        $case->setLegalCostsFixed($claimDto->legalCostsFixed !== null ? sprintf('%.2f', $claimDto->legalCostsFixed) : null);
-        $case->setLegalCostsCurrency($claimDto->legalCostsCurrency);
-        $case->setLegalCostsSuccessPercent(
-            $claimDto->legalCostsSuccessPercent !== null ? sprintf('%.2f', $claimDto->legalCostsSuccessPercent) : null
-        );
-    }
-
-    private function trimmedOrNull(?string $value): ?string
-    {
-        $value = $value !== null ? trim($value) : null;
-
-        return $value !== '' ? $value : null;
-    }
-
-    /**
      * FX conversion for a foreign-currency claim, at the BNR rate of the invoice
      * emission date. Null when the claim is already in RON, when required inputs
      * are missing, or when no BNR rate is available (logged, surfaced upstream).
@@ -2293,7 +2246,7 @@ final class CaseWizardController extends AbstractController
         $case->setCurrency($conversion !== null ? 'RON' : $claimDto->currency);
         $case->setDueDate($claimDto->dueDate !== null ? \DateTime::createFromImmutable($claimDto->dueDate) : null);
         $case->setRelationshipType($claimDto->relationshipType);
-        $this->applyAccessoryFields($case, $claimDto);
+        $this->claimFields->applyAccessoryFields($case, $claimDto);
 
         // We attach the creditor only when picked from the catalog — the
         // skeleton is for OpAdmissibilityValidator which only looks at debtors,
