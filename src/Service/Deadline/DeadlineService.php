@@ -797,14 +797,22 @@ final class DeadlineService
      * the denormalized case due date. Returns an empty array when no due date is
      * known anywhere (neither on positions nor on the scalar).
      *
+     * @param ?\DateTimeImmutable $notBefore when given, a due date whose term already
+     *                                        matured before this day gets no deadline:
+     *                                        the claim is prescribed, which is reported
+     *                                        elsewhere, and a term in the past is noise
+     *
      * @return list<LegalDeadline> deadlines created by this call (existing ones skipped)
      */
-    public function createPrescriptionDeadlines(LegalCase $legalCase): array
+    public function createPrescriptionDeadlines(LegalCase $legalCase, ?\DateTimeImmutable $notBefore = null): array
     {
         $created = [];
         foreach ($this->prescriptionDueDates($legalCase) as $dueDate) {
             $term = $this->substantiveTermEnd($dueDate->modify(self::PRESCRIPTION_INTERVAL));
             $deadlineDate = $term->end;
+            if ($notBefore !== null && $deadlineDate < $notBefore) {
+                continue;
+            }
             if ($this->deadlineRepository->findOneByCaseTypeAndDate($legalCase, DeadlineType::PRESCRIPTIE, $deadlineDate) !== null) {
                 continue;
             }

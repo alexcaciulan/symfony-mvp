@@ -2945,6 +2945,8 @@ court:
 # Mesaje pentru OpAdmissibilityValidator — afișate în wizard / blocaj PDF.
 # =============================================================================
 validation:
+    accessory_cutoff:
+        before_due_date: 'Data limită a accesoriilor (%cutoff%) este înaintea scadenței poziției %position% (%due_date%), deci poziția nu primește accesorii.'
     accessory_not_computable:
         position:
             due_date_missing: 'Poziția %position% nu are dată de scadență, deci accesoriile ei nu se pot calcula.'
@@ -4464,3 +4466,4 @@ case:
 audit:
     category:
         case_deleted: 'Dosar șters'
+        claim_edited: 'Creanță modificată'

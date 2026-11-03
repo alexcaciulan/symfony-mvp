@@ -2948,6 +2948,8 @@ court:
 # Messages for OpAdmissibilityValidator — shown in wizard / PDF block.
 # =============================================================================
 validation:
+    accessory_cutoff:
+        before_due_date: 'The accessory cutoff date (%cutoff%) falls before the due date of position %position% (%due_date%), so the position accrues nothing.'
     accessory_not_computable:
         position:
             due_date_missing: 'Position %position% has no due date, so its accessories cannot be computed.'
@@ -4468,3 +4470,4 @@ case:
 audit:
     category:
         case_deleted: 'Case deleted'
+        claim_edited: 'Claim edited'

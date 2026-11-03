@@ -104,6 +104,9 @@ class AuditLogService
     /** Case removed from the lawyer's lists while still amiable; `newData` holds the snapshot and the reason. */
     public const CATEGORY_CASE_DELETED = 'CASE_DELETED';
 
+    /** Claim positions changed on an amiable case; `oldData`/`newData` hold the positions before and after. */
+    public const CATEGORY_CLAIM_EDITED = 'CLAIM_EDITED';
+
     public function __construct(
         private EntityManagerInterface $em,
         private Security $security,

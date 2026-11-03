@@ -785,6 +785,39 @@ final class DeadlineServiceTest extends KernelTestCase
         self::assertSame('2027-03-15', $created[0]->getDeadlineDate()->format('Y-m-d'));
     }
 
+    public function testCreatePrescriptionDeadlinesSkipsTermsAlreadyMaturedWhenToldNotBefore(): void
+    {
+        $case = $this->freshCaseWithoutSubscriberDeadline();
+        $recent = new \DateTimeImmutable('-200 days');
+        foreach (['2020-03-15', $recent->format('Y-m-d')] as $due) {
+            $item = new ClaimItem();
+            $item->setLegalCase($case);
+            $item->setDedupKey('svc-ci-' . uniqid('', true));
+            $item->setAmount('500.00');
+            $item->setCurrency('RON');
+            $item->setAmountRon('500.00');
+            $item->setDueDate(new \DateTimeImmutable($due));
+            $item->setConfirmedByLawyer(true);
+            $case->addClaimItem($item);
+            $this->em->persist($item);
+        }
+        $this->em->flush();
+        $openTerm = $this->service->limitationTermEnd(DeadlineType::PRESCRIPTIE, $recent);
+        self::assertNotNull($openTerm);
+
+        $created = $this->service->createPrescriptionDeadlines($case, new \DateTimeImmutable('today'));
+
+        self::assertCount(1, $created);
+        self::assertSame($openTerm->end->format('Y-m-d'), $created[0]->getDeadlineDate()->format('Y-m-d'));
+
+        // Without the floor the matured term is still created, as the subscriber does.
+        $later = $this->service->createPrescriptionDeadlines($case);
+
+        self::assertCount(1, $later);
+        self::assertSame('2023-03-15', $later[0]->getDeadlineDate()->format('Y-m-d'));
+        self::assertSame([], $this->service->createPrescriptionDeadlines($case, new \DateTimeImmutable('today')));
+    }
+
     public function testCreatePrescriptionDeadlinesReturnsEmptyWhenNoDueDateAnywhere(): void
     {
         // No positions and no scalar due date: nothing to base a prescription term
