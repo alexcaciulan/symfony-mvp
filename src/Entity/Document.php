@@ -28,6 +28,13 @@ class Document
     #[ORM\JoinColumn(nullable: true)]
     private ?LegalCase $legalCase = null;
 
+    // The unfinished wizard run this upload belongs to, until the case exists.
+    // Cleared when the draft is deleted, so an orphan can be told from a draft
+    // document by this column alone.
+    #[ORM\ManyToOne(targetEntity: CaseDraft::class)]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?CaseDraft $draft = null;
+
     #[ORM\Column(length: 30, enumType: DocumentType::class)]
     private DocumentType $documentType;
 
@@ -111,6 +118,18 @@ class Document
     public function setLegalCase(?LegalCase $legalCase): static
     {
         $this->legalCase = $legalCase;
+
+        return $this;
+    }
+
+    public function getDraft(): ?CaseDraft
+    {
+        return $this->draft;
+    }
+
+    public function setDraft(?CaseDraft $draft): static
+    {
+        $this->draft = $draft;
 
         return $this;
     }
