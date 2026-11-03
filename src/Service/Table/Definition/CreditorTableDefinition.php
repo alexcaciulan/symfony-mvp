@@ -91,7 +91,7 @@ final class CreditorTableDefinition implements TableDefinitionInterface
             'name' => $row->getName(),
             'personType' => $this->translator->trans($row->getPersonType()->label()),
             'cui' => $row->getCui() ?? $row->getPersonalId() ?? '—',
-            'casesCount' => $row->getLegalCases()->count(),
+            'casesCount' => $this->repository->countLiveCases($row),
             'createdAt' => $row->getCreatedAt()->format(\DateTimeInterface::ATOM),
             'link' => $this->urlGenerator->generate('app_creditors_edit', ['id' => $row->getId()]),
         ];

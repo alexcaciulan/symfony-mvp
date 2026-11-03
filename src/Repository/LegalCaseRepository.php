@@ -28,8 +28,10 @@ class LegalCaseRepository extends ServiceEntityRepository
     }
 
     /**
-     * Eager-load for the case overview page (Pas 4.0.2+). Explicit `sh.createdAt ASC`
-     * because OrderBy on the OneToMany applies only to lazy-loads, not joined hydration.
+     * Eager-load for the case overview page. Explicit `sh.createdAt ASC` because
+     * OrderBy on the OneToMany applies only to lazy-loads, not joined hydration.
+     * A soft-deleted case reads as absent, like in every list, so the page and the
+     * actions posted to it answer 404 instead of acting on it.
      */
     public function findWithOverviewRelations(int $id): ?LegalCase
     {
@@ -40,6 +42,7 @@ class LegalCaseRepository extends ServiceEntityRepository
             ->leftJoin('lc.court', 'ct')->addSelect('ct')
             ->leftJoin('lc.statusHistory', 'sh')->addSelect('sh')
             ->andWhere('lc.id = :id')
+            ->andWhere('lc.deletedAt IS NULL')
             ->setParameter('id', $id)
             ->addOrderBy('sh.createdAt', 'ASC')
             ->getQuery()

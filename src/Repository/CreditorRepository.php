@@ -109,6 +109,19 @@ class CreditorRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+    /** How many cases still in the lawyer's lists name the creditor; deleted ones are out. */
+    public function countLiveCases(Creditor $creditor): int
+    {
+        return (int) $this->getEntityManager()->createQueryBuilder()
+            ->select('COUNT(lc.id)')
+            ->from(LegalCase::class, 'lc')
+            ->andWhere('lc.creditor = :creditor')
+            ->andWhere('lc.deletedAt IS NULL')
+            ->setParameter('creditor', $creditor)
+            ->getQuery()
+            ->getSingleScalarResult();
+    }
+
     /**
      * Whether a case past the amicable stage names the creditor (a somatie went
      * out). Soft-deleted cases count: the somatie they sent still stands. A case

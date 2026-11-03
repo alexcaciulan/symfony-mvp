@@ -224,6 +224,18 @@ class LegalCaseRepositoryTest extends KernelTestCase
         self::assertSame(10000.0, $this->repo->sumActiveAmountByUser($this->user));
     }
 
+    /** The overview loader is the one every case page and action goes through, so a deleted case must read as absent there too. */
+    public function testFindWithOverviewRelationsReturnsNullForSoftDeleted(): void
+    {
+        $live = $this->createCase(CaseStatus::AMIABIL, false);
+        $deleted = $this->createCase(CaseStatus::AMIABIL, true);
+        $this->em->flush();
+        $this->em->clear();
+
+        $this->assertNotNull($this->repo->findWithOverviewRelations($live->getId()));
+        $this->assertNull($this->repo->findWithOverviewRelations($deleted->getId()));
+    }
+
     protected function tearDown(): void
     {
         $conn = $this->em->getConnection();

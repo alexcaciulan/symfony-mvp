@@ -339,6 +339,68 @@ class CaseVoterTest extends TestCase
         );
     }
 
+    #[DataProvider('deleteStatusProvider')]
+    public function testOwnerMayDeleteOnlyWhileAmiable(CaseStatus $status, bool $granted): void
+    {
+        $owner = new User();
+        $case = $this->persistedCase($owner, $status);
+
+        self::assertSame(
+            $granted ? VoterInterface::ACCESS_GRANTED : VoterInterface::ACCESS_DENIED,
+            $this->voter->vote($this->createToken($owner), $case, [CaseVoter::DELETE]),
+            $status->value,
+        );
+    }
+
+    /** @return iterable<string, array{CaseStatus, bool}> */
+    public static function deleteStatusProvider(): iterable
+    {
+        foreach (CaseStatus::cases() as $status) {
+            yield $status->value => [$status, $status === CaseStatus::AMIABIL];
+        }
+    }
+
+    /** The decision to drop a case is the lawyer's alone: no other user and no admin bypass. */
+    public function testDeleteIsRefusedToOtherUsersAndToTheAdmin(): void
+    {
+        $owner = new User();
+        $other = new User();
+        $admin = new User();
+        $admin->setRoles(['ROLE_ADMIN']);
+        $case = $this->persistedCase($owner, CaseStatus::AMIABIL);
+
+        self::assertSame(VoterInterface::ACCESS_DENIED, $this->voter->vote($this->createToken($other), $case, [CaseVoter::DELETE]));
+        self::assertSame(VoterInterface::ACCESS_DENIED, $this->voter->vote($this->createToken($admin), $case, [CaseVoter::DELETE]));
+    }
+
+    public function testFilingLockDeniesDelete(): void
+    {
+        $voter = new CaseVoter($this->lockQuery(true));
+        $owner = new User();
+        $case = $this->persistedCase($owner, CaseStatus::AMIABIL);
+
+        self::assertSame(VoterInterface::ACCESS_DENIED, $voter->vote($this->createToken($owner), $case, [CaseVoter::DELETE]));
+    }
+
+    /** A deleted case exists for nobody: every attribute is refused, the admin bypass included. */
+    public function testADeletedCaseRefusesEveryAttributeEvenToTheAdmin(): void
+    {
+        $owner = new User();
+        $admin = new User();
+        $admin->setRoles(['ROLE_ADMIN']);
+        $case = $this->persistedCase($owner, CaseStatus::AMIABIL);
+        $case->markAsDeleted();
+
+        $attributes = [
+            CaseVoter::VIEW, CaseVoter::EDIT, CaseVoter::UPLOAD, CaseVoter::TRANSITION,
+            CaseVoter::DEADLINE_MANAGE, CaseVoter::STAMP_DUTY_MANAGE, CaseVoter::FILING_CONTENT, CaseVoter::DELETE,
+        ];
+        foreach ($attributes as $attribute) {
+            self::assertSame(VoterInterface::ACCESS_DENIED, $this->voter->vote($this->createToken($owner), $case, [$attribute]), 'owner ' . $attribute);
+            self::assertSame(VoterInterface::ACCESS_DENIED, $this->voter->vote($this->createToken($admin), $case, [$attribute]), 'admin ' . $attribute);
+        }
+    }
+
     public function testFilingContentIsGrantedToTheOwnerOnly(): void
     {
         $owner = new User();

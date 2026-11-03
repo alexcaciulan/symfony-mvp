@@ -43,8 +43,17 @@ class CaseVoter extends Voter
      */
     public const FILING_CONTENT = 'CASE_FILING_CONTENT';
 
+    /**
+     * Removing the case from the lawyer's lists (soft delete). Owner only, and only
+     * while nothing has left the platform: in AMIABIL no summons, petition or filing
+     * exists yet. Not restricted by EDIT on purpose, which also covers the statuses
+     * after the summons; a dedicated attribute keeps the rule in one place for the
+     * route and the template.
+     */
+    public const DELETE = 'CASE_DELETE';
+
     /** What would change the content of a filing the platform is transmitting. */
-    private const LOCKED_BY_FILING = [self::EDIT, self::UPLOAD, self::STAMP_DUTY_MANAGE];
+    private const LOCKED_BY_FILING = [self::EDIT, self::UPLOAD, self::STAMP_DUTY_MANAGE, self::DELETE];
 
     private const EDITABLE_STATUSES = [
         CaseStatus::AMIABIL,
@@ -61,7 +70,7 @@ class CaseVoter extends Voter
 
     protected function supports(string $attribute, mixed $subject): bool
     {
-        return in_array($attribute, [self::VIEW, self::EDIT, self::UPLOAD, self::TRANSITION, self::DEADLINE_MANAGE, self::STAMP_DUTY_MANAGE, self::FILING_CONTENT], true)
+        return in_array($attribute, [self::VIEW, self::EDIT, self::UPLOAD, self::TRANSITION, self::DEADLINE_MANAGE, self::STAMP_DUTY_MANAGE, self::FILING_CONTENT, self::DELETE], true)
             && $subject instanceof LegalCase;
     }
 
@@ -76,6 +85,12 @@ class CaseVoter extends Voter
         /** @var LegalCase $legalCase */
         $legalCase = $subject;
 
+        // A deleted case no longer exists for anyone, the admin included: every list
+        // hides it, so no page may act on it through a stale link.
+        if ($legalCase->isDeleted()) {
+            return false;
+        }
+
         // Before the admin bypass: what was signed is on its way to the court, so
         // nobody changes its sources until the transmission ends.
         if (in_array($attribute, self::LOCKED_BY_FILING, true) && $this->filingLock->isLocked($legalCase)) {
@@ -86,6 +101,12 @@ class CaseVoter extends Voter
         // metadata on the case page, never the files themselves.
         if ($attribute === self::FILING_CONTENT) {
             return $this->canView($legalCase, $user);
+        }
+
+        // Owner only, no admin bypass: the decision to drop a case belongs to the
+        // lawyer; an administrator can only undo it, from the back office.
+        if ($attribute === self::DELETE) {
+            return $this->canDelete($legalCase, $user);
         }
 
         if (in_array('ROLE_ADMIN', $user->getRoles(), true)) {
@@ -143,5 +164,11 @@ class CaseVoter extends Voter
     private function canManageStampDuty(LegalCase $legalCase, User $user): bool
     {
         return $legalCase->getUser() === $user;
+    }
+
+    private function canDelete(LegalCase $legalCase, User $user): bool
+    {
+        return $legalCase->getUser() === $user
+            && $legalCase->getStatus() === CaseStatus::AMIABIL;
     }
 }
