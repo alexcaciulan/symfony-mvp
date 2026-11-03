@@ -1,0 +1,52 @@
+{# The unfinished wizard runs of the signed-in user, with "Continue" and "Discard".
+   `drafts`: list of {draft, active, unreadable} from CaseDraftListBuilder.
+   `return_route`: where a discard sends the user back. #}
+{% if drafts is not empty %}
+<section class="bg-white dark:bg-slate-900 rounded-2xl border border-amber-200 dark:border-amber-900 shadow-soft" data-testid="drafts-band">
+    <div class="px-5 py-3 border-b border-amber-100 dark:border-amber-900/60 flex items-center justify-between gap-3">
+        <h2 class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ 'case.drafts.title'|trans }}</h2>
+        <span class="text-xs text-slate-500 dark:text-slate-400">{{ 'case.drafts.subtitle'|trans }}</span>
+    </div>
+    <ul class="divide-y divide-slate-100 dark:divide-slate-800">
+        {% for row in drafts %}
+            {% set draft = row.draft %}
+            <li class="px-5 py-3 flex flex-col md:flex-row md:items-center gap-3" data-testid="draft-row" data-draft-id="{{ draft.id }}">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{{ draft.creditorName ?: 'case.drafts.no_creditor'|trans }}</span>
+                        {% if row.active %}
+                            <span class="inline-flex items-center rounded-full bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 text-[11px] font-semibold text-blue-700 dark:text-blue-300" data-testid="draft-active">{{ 'case.drafts.active'|trans }}</span>
+                        {% endif %}
+                    </div>
+                    {% if row.unreadable %}
+                        <p class="mt-1 text-xs text-amber-700 dark:text-amber-300" data-testid="draft-unreadable">{{ 'case.drafts.unreadable'|trans }}</p>
+                    {% else %}
+                        <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                            {{ 'case.drafts.step_reached.label'|trans }}: {{ ('case.drafts.step_reached.' ~ draft.stepReached)|trans }}
+                            · {{ 'case.drafts.documents_count'|trans({'%count%': draft.documentsCount}) }}
+                            · {{ 'case.drafts.last_activity'|trans }}: {{ draft.lastActivityAt|date('d.m.Y H:i', 'Europe/Bucharest') }}
+                        </p>
+                    {% endif %}
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    {% if not row.unreadable %}
+                        <form method="post" action="{{ path('case_draft_continue', {id: draft.id}) }}" class="inline">
+                            <input type="hidden" name="_token" value="{{ csrf_token('case_draft_continue_' ~ draft.id) }}">
+                            <button type="submit" class="inline-flex items-center gap-1.5 rounded-lg bg-lex-navy hover:bg-lex-navy-dark px-3 py-1.5 text-sm font-semibold text-white transition" data-testid="draft-continue">{{ 'case.drafts.continue'|trans }}</button>
+                        </form>
+                    {% endif %}
+                    <form method="post" action="{{ path('case_draft_discard', {id: draft.id}) }}"
+                          data-controller="confirm"
+                          data-confirm-message-value="{{ 'case.drafts.discard_confirm'|trans }}"
+                          data-action="submit->confirm#confirm"
+                          class="inline">
+                        <input type="hidden" name="_token" value="{{ csrf_token('case_draft_discard_' ~ draft.id) }}">
+                        <input type="hidden" name="_return" value="{{ return_route }}">
+                        <button type="submit" class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium border border-red-200 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-200 dark:hover:bg-red-900/20 transition" data-testid="draft-discard">{{ 'case.drafts.discard'|trans }}</button>
+                    </form>
+                </div>
+            </li>
+        {% endfor %}
+    </ul>
+</section>
+{% endif %}

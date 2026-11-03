@@ -18,6 +18,8 @@
         </div>
     </div>
 
+    {{ include('case/_drafts_band.html.twig', { drafts: drafts, return_route: 'app_dashboard' }) }}
+
     {% if not has_cases %}
 
         <twig:HeroEmptyState

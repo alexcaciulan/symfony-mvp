@@ -1,0 +1,36 @@
+{% extends 'base.html.twig' %}
+
+{# "Dosar nou" when unfinished runs exist: continue one of them, or start another. #}
+
+{% block title %}{{ 'case.drafts.heading_new'|trans }} · {{ parent() }}{% endblock %}
+
+{% block breadcrumb %}
+    <li class="inline-flex items-center"><a href="{{ path('app_cases') }}" class="text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300 no-underline">{{ 'layout.sidebar.nav.cases'|trans }}</a><svg class="size-3 mx-1.5 text-slate-300 dark:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></li>
+    <li class="font-medium text-slate-700 dark:text-slate-300">{{ 'case.drafts.heading_new'|trans }}</li>
+{% endblock %}
+
+{% block body %}
+<div class="max-w-4xl mx-auto py-2 space-y-6" data-testid="wizard-drafts">
+    <header>
+        <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">{{ 'case.drafts.heading_new'|trans }}</h1>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">{{ 'case.drafts.new_hint'|trans }}</p>
+    </header>
+
+    {{ include('case/_drafts_band.html.twig', { drafts: drafts, return_route: 'case_wizard_start' }) }}
+
+    <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-soft px-5 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        {% if limit_reached %}
+            <p class="text-sm text-amber-700 dark:text-amber-300" data-testid="drafts-limit">{{ 'case.drafts.limit_reached'|trans({'%limit%': draft_limit}) }}</p>
+        {% else %}
+            <p class="text-sm text-slate-600 dark:text-slate-400">{{ 'case.drafts.new_explainer'|trans }}</p>
+            <form method="post" action="{{ path('case_wizard_draft_new') }}" class="inline">
+                <input type="hidden" name="_token" value="{{ csrf_token('case_wizard_draft_new') }}">
+                <button type="submit" class="inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg bg-lex-navy hover:bg-lex-navy-dark text-white text-sm font-semibold transition" data-testid="draft-new">
+                    <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                    {{ 'case.drafts.new'|trans }}
+                </button>
+            </form>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

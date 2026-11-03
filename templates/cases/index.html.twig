@@ -19,6 +19,8 @@
         </a>
     </div>
 
+    {{ include('case/_drafts_band.html.twig', { drafts: drafts, return_route: 'app_cases' }) }}
+
     <twig:DataTable key="cases" />
 </div>
 {% endblock %}
