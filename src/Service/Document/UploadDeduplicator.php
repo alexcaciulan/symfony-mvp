@@ -36,8 +36,10 @@ final class UploadDeduplicator
      * @param list<UploadedFile> $files           the batch being uploaded
      * @param list<Document>     $alreadyUploaded documents already attached to the draft
      *
-     * @return array{files: list<UploadedFile>, duplicates: list<string>} accepted files,
-     *                                                                   plus the original names of the skipped ones
+     * @return array{files: list<UploadedFile>, duplicates: list<string>, hashes: list<?string>} accepted files,
+     *                                                                   the original names of the skipped ones, and the
+     *                                                                   fingerprint of each accepted file in the same order
+     *                                                                   (null when it could not be read)
      */
     public function partition(array $files, array $alreadyUploaded): array
     {
@@ -51,6 +53,7 @@ final class UploadDeduplicator
 
         $accepted = [];
         $duplicates = [];
+        $hashes = [];
 
         foreach ($files as $file) {
             $hash = $this->hasher->hashFile($file->getPathname());
@@ -58,6 +61,7 @@ final class UploadDeduplicator
                 // Unreadable temp file: let the upload path run so the user gets
                 // the real validation error instead of a silent skip.
                 $accepted[] = $file;
+                $hashes[] = null;
                 continue;
             }
 
@@ -70,8 +74,9 @@ final class UploadDeduplicator
             // together in one batch, not just collisions with earlier uploads.
             $seenHashes[$hash] = true;
             $accepted[] = $file;
+            $hashes[] = $hash;
         }
 
-        return ['files' => $accepted, 'duplicates' => $duplicates];
+        return ['files' => $accepted, 'duplicates' => $duplicates, 'hashes' => $hashes];
     }
 }

@@ -90,6 +90,43 @@ final class UploadDeduplicatorTest extends TestCase
         self::assertSame([], $result['duplicates']);
     }
 
+    public function testReportsTheFingerprintOfEachAcceptedFileInTheSameOrder(): void
+    {
+        $first = $this->makeUpload('first bytes', 'first.pdf');
+        $known = $this->makeUpload('known bytes', 'known.pdf');
+        $second = $this->makeUpload('second bytes', 'second.pdf');
+        $existing = $this->makeDocument($this->hasher->hashContents('known bytes'));
+
+        $result = $this->deduplicator->partition([$first, $known, $second], [$existing]);
+
+        self::assertSame([$first, $second], $result['files']);
+        self::assertSame(
+            [$this->hasher->hashContents('first bytes'), $this->hasher->hashContents('second bytes')],
+            $result['hashes'],
+            'one fingerprint per accepted file, in the order of the files, none for the skipped one',
+        );
+    }
+
+    public function testAnUnreadableFileIsAcceptedWithoutAFingerprint(): void
+    {
+        $readable = $this->makeUpload('readable bytes', 'readable.pdf');
+        $gone = $this->makeUpload('gone bytes', 'gone.pdf');
+        unlink($gone->getPathname());
+
+        $result = $this->deduplicator->partition([$gone, $readable], []);
+
+        self::assertSame([$gone, $readable], $result['files']);
+        self::assertSame([null, $this->hasher->hashContents('readable bytes')], $result['hashes']);
+        self::assertSame([], $result['duplicates']);
+    }
+
+    public function testAnEmptyBatchReportsNoFingerprints(): void
+    {
+        $result = $this->deduplicator->partition([], [$this->makeDocument('abc')]);
+
+        self::assertSame(['files' => [], 'duplicates' => [], 'hashes' => []], $result);
+    }
+
     private function makeUpload(string $contents, string $clientName): UploadedFile
     {
         $path = tempnam(sys_get_temp_dir(), 'dedup-test-');
