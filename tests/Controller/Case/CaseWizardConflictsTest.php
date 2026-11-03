@@ -13,6 +13,7 @@ use App\Entity\User;
 use App\Enum\DocumentType;
 use App\Enum\ExtractionStatus;
 use App\Enum\PersonType;
+use App\Tests\Support\WizardBagTestTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -29,7 +30,7 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
  */
 final class CaseWizardConflictsTest extends WebTestCase
 {
-    private const SESSION_KEY = 'case_wizard_data';
+    use WizardBagTestTrait;
 
     private KernelBrowser $client;
     private EntityManagerInterface $em;
@@ -60,6 +61,7 @@ final class CaseWizardConflictsTest extends WebTestCase
         $conn = $this->em->getConnection();
         $conn->executeStatement('DELETE FROM audit_log WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM document WHERE uploaded_by_id = :id', ['id' => $userId]);
+        $conn->executeStatement('DELETE FROM case_draft WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM `user` WHERE id = :id', ['id' => $userId]);
 
         parent::tearDown();
@@ -288,9 +290,7 @@ final class CaseWizardConflictsTest extends WebTestCase
         $synced = new Step2DebtorEntry(personType: PersonType::PJ, name: 'ALFA CONSTRUCT SRL', cui: '11111111', addressCounty: 'Cluj');
         $synced->anafCheckedAt = new \DateTimeImmutable();
         $synced->anafDataSynced = true;
-        $session = $this->client->getRequest()->getSession();
-        $session->set(self::SESSION_KEY, ['documentIds' => $ids, 'debtors' => new Step2DebtorsData([$synced])]);
-        $session->save();
+        $this->primeBag(['documentIds' => $ids, 'debtors' => new Step2DebtorsData([$synced])]);
 
         $crawler = $this->client->request('GET', '/case/new/debtor');
 
@@ -311,9 +311,7 @@ final class CaseWizardConflictsTest extends WebTestCase
         ]);
         $checked = new Step2DebtorEntry(personType: PersonType::PJ, name: 'ALFA CONSTRUCT SRL', cui: '11111111', addressCounty: 'Cluj');
         $checked->anafCheckedAt = new \DateTimeImmutable();
-        $session = $this->client->getRequest()->getSession();
-        $session->set(self::SESSION_KEY, ['documentIds' => $ids, 'debtors' => new Step2DebtorsData([$checked])]);
-        $session->save();
+        $this->primeBag(['documentIds' => $ids, 'debtors' => new Step2DebtorsData([$checked])]);
 
         $crawler = $this->client->request('GET', '/case/new/debtor');
 
@@ -337,9 +335,7 @@ final class CaseWizardConflictsTest extends WebTestCase
         $synced = new Step2DebtorEntry(personType: PersonType::PJ, name: 'ALFA CONSTRUCT SRL', cui: '11111111', onrcNumber: 'J2010000345122', addressCounty: 'Cluj');
         $synced->anafCheckedAt = new \DateTimeImmutable();
         $synced->anafDataSynced = true;
-        $session = $this->client->getRequest()->getSession();
-        $session->set(self::SESSION_KEY, ['documentIds' => $ids, 'debtors' => new Step2DebtorsData([$synced])]);
-        $session->save();
+        $this->primeBag(['documentIds' => $ids, 'debtors' => new Step2DebtorsData([$synced])]);
 
         $crawler = $this->client->request('GET', '/case/new/debtor');
 
@@ -405,7 +401,7 @@ final class CaseWizardConflictsTest extends WebTestCase
         ]);
 
         self::assertResponseRedirects('/case/new/documents');
-        self::assertSame([$ids[0]], $this->client->getRequest()->getSession()->get(self::SESSION_KEY)['documentIds']);
+        self::assertSame([$ids[0]], $this->readBag()['documentIds']);
         $this->em->clear();
         self::assertNull($this->em->find(Document::class, $ids[1]));
         $crawler = $this->client->request('GET', '/case/new/creditor');
@@ -541,7 +537,7 @@ final class CaseWizardConflictsTest extends WebTestCase
 
         $this->client->request('POST', '/case/new/documents/' . $ids[1] . '/remove', ['_token' => $this->removeToken($ids[1])]);
 
-        $creditor = $this->client->getRequest()->getSession()->get(self::SESSION_KEY)['creditor'];
+        $creditor = $this->readBag()['creditor'];
         self::assertSame('Str. Corectata de avocat 1', $creditor->address);
         self::assertSame('2026-10-08T10:00:00+03:00', $creditor->anafCheckedAt);
     }
@@ -567,7 +563,7 @@ final class CaseWizardConflictsTest extends WebTestCase
         self::assertSame('Suma de cerut se schimbă: 2.000,00 lei → 1.000,00 lei.', trim($dialog->filter('[data-testid="step0-remove-principal"]')->text()));
         $this->client->request('POST', '/case/new/documents/' . $ids[1] . '/remove', ['_token' => $this->removeToken($ids[1])]);
 
-        $claim = $this->client->getRequest()->getSession()->get(self::SESSION_KEY)['claim'];
+        $claim = $this->readBag()['claim'];
         self::assertSame(1000.0, $claim->amount, 'read again from the invoice left');
         self::assertSame(500.0, $claim->legalCostsFixed);
         self::assertSame('123', $claim->paymentNoticeNumber);
@@ -602,7 +598,7 @@ final class CaseWizardConflictsTest extends WebTestCase
         self::assertStringContainsString('Debitor: se schimbă în Debitor SRL (în loc de Gresit Debitor SRL)', $dialog->filter('[data-testid="step0-remove-debtor-refilled"]')->text());
 
         $this->client->request('POST', '/case/new/documents/' . $ids[1] . '/remove', ['_token' => $this->removeToken($ids[1])]);
-        self::assertNull($this->client->getRequest()->getSession()->get(self::SESSION_KEY)['debtors'], 'the insolvency check of the other company goes with it');
+        self::assertNull($this->readBag()['debtors'], 'the insolvency check of the other company goes with it');
         $this->client->followRedirect();
         self::assertStringContainsString('Debitorul s-a reluat din documentele rămase.', (string) $this->client->getResponse()->getContent());
     }
@@ -643,12 +639,12 @@ final class CaseWizardConflictsTest extends WebTestCase
             $this->creditorPayload('Gresit SRL', '14186770'),
         ]);
         $this->saveSteps(['creditor' => new Step1CreditorData(personType: PersonType::PJ, name: 'Gresit SRL', cui: '14186770', autoFilled: ['name', 'cui'])]);
-        $before = serialize($this->client->getRequest()->getSession()->get(self::SESSION_KEY));
+        $before = serialize($this->readBag());
 
         $this->client->request('GET', '/case/new/documents/' . $ids[1] . '/remove/preview');
 
         self::assertResponseIsSuccessful();
-        self::assertSame($before, serialize($this->client->getRequest()->getSession()->get(self::SESSION_KEY)));
+        self::assertSame($before, serialize($this->readBag()));
         $this->em->clear();
         self::assertNotNull($this->em->find(Document::class, $ids[1]));
     }
@@ -656,9 +652,7 @@ final class CaseWizardConflictsTest extends WebTestCase
     public function testThePreviewOfADocumentOutsideTheWizardIsNotFound(): void
     {
         $ids = $this->primeDocuments([$this->creditorPayload('Cedent SRL', '15193236')]);
-        $session = $this->client->getRequest()->getSession();
-        $session->set(self::SESSION_KEY, ['documentIds' => []]);
-        $session->save();
+        $this->primeBag(['documentIds' => []]);
 
         $this->client->request('GET', '/case/new/documents/' . $ids[0] . '/remove/preview');
 
@@ -704,9 +698,7 @@ final class CaseWizardConflictsTest extends WebTestCase
     {
         $ids = $this->primeDocuments([$this->creditorPayload('Cedent SRL', '15193236')]);
         $token = $this->removeToken($ids[0]);
-        $session = $this->client->getRequest()->getSession();
-        $session->set(self::SESSION_KEY, ['documentIds' => []]);
-        $session->save();
+        $this->primeBag(['documentIds' => []]);
 
         $this->client->request('POST', '/case/new/documents/' . $ids[0] . '/remove', ['_token' => $token]);
 
@@ -729,9 +721,7 @@ final class CaseWizardConflictsTest extends WebTestCase
      */
     private function saveSteps(array $changes): void
     {
-        $session = $this->client->getRequest()->getSession();
-        $session->set(self::SESSION_KEY, [...$session->get(self::SESSION_KEY), ...$changes]);
-        $session->save();
+        $this->primeBag([...$this->readBag(), ...$changes]);
     }
 
     /**
@@ -759,9 +749,7 @@ final class CaseWizardConflictsTest extends WebTestCase
         }
 
         $this->client->request('GET', '/case/new/documents');
-        $session = $this->client->getRequest()->getSession();
-        $session->set(self::SESSION_KEY, ['documentIds' => $ids]);
-        $session->save();
+        $this->primeBag(['documentIds' => $ids]);
 
         return $ids;
     }

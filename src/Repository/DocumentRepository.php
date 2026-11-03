@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Repository;
 
+use App\Entity\CaseDraft;
 use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Enum\DocumentType;
+use App\Enum\ExtractionStatus;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -128,10 +130,67 @@ class DocumentRepository extends ServiceEntityRepository
         return $this->createQueryBuilder('d')
             ->update()
             ->set('d.legalCase', ':case')
+            // The draft is deleted with the submit, so the link goes with it.
+            ->set('d.draft', ':noDraft')
             ->where('d.id IN (:ids)')
             ->setParameter('case', $case)
+            ->setParameter('noDraft', null)
             ->setParameter('ids', $documentIds)
             ->getQuery()
             ->execute();
+    }
+
+    /**
+     * Ids of the documents linked to the draft that its payload does not list,
+     * so a list overwritten by a concurrent request can be repaired from the
+     * link column.
+     *
+     * @param list<int> $knownIds
+     * @return list<int>
+     */
+    public function findIdsByDraftNotIn(CaseDraft $draft, array $knownIds): array
+    {
+        $qb = $this->createQueryBuilder('d')
+            ->select('d.id')
+            ->andWhere('d.draft = :draft')
+            ->setParameter('draft', $draft)
+            ->orderBy('d.id', 'ASC');
+        if ($knownIds !== []) {
+            $qb->andWhere('d.id NOT IN (:known)')->setParameter('known', $knownIds);
+        }
+
+        return array_map(static fn (array $row): int => (int) $row['id'], $qb->getQuery()->getArrayResult());
+    }
+
+    /** @return list<Document> */
+    public function findByDraft(CaseDraft $draft): array
+    {
+        return $this->createQueryBuilder('d')
+            ->andWhere('d.draft = :draft')
+            ->setParameter('draft', $draft)
+            ->orderBy('d.id', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * Uploads that belong to no case and no draft and are older than the cutoff.
+     * A document still being read, or waiting for another attempt, is left out:
+     * the worker would write on a deleted row.
+     *
+     * @return list<Document>
+     */
+    public function findOrphansOlderThan(\DateTimeImmutable $cutoff): array
+    {
+        return $this->createQueryBuilder('d')
+            ->andWhere('d.legalCase IS NULL')
+            ->andWhere('d.draft IS NULL')
+            ->andWhere('d.createdAt < :cutoff')
+            ->andWhere('d.extractionStatus NOT IN (:inFlight)')
+            ->setParameter('cutoff', $cutoff)
+            ->setParameter('inFlight', [ExtractionStatus::PROCESSING, ExtractionStatus::PENDING_RETRY])
+            ->orderBy('d.id', 'ASC')
+            ->getQuery()
+            ->getResult();
     }
 }

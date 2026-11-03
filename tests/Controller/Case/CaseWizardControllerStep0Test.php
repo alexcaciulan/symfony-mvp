@@ -10,6 +10,8 @@ use App\Enum\DocumentType;
 use App\Enum\ExtractionStatus;
 use App\Message\ExtractDataMessage;
 use App\Repository\DocumentRepository;
+use App\Service\Wizard\WizardBag;
+use App\Tests\Support\WizardBagTestTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -31,6 +33,8 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
  */
 final class CaseWizardControllerStep0Test extends WebTestCase
 {
+    use WizardBagTestTrait;
+
     private KernelBrowser $client;
     private EntityManagerInterface $em;
     private User $user;
@@ -61,6 +65,7 @@ final class CaseWizardControllerStep0Test extends WebTestCase
         $conn = $this->em->getConnection();
         $conn->executeStatement('DELETE FROM audit_log WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM document WHERE uploaded_by_id = :id', ['id' => $userId]);
+        $conn->executeStatement('DELETE FROM case_draft WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM `user` WHERE id = :id', ['id' => $userId]);
 
         parent::tearDown();
@@ -74,27 +79,36 @@ final class CaseWizardControllerStep0Test extends WebTestCase
         self::assertResponseRedirects('/case/new/documents');
     }
 
-    public function testStartClearsLeftoverSessionFromPreviousWizardRun(): void
+    public function testStartWithAnUnfinishedRunOffersToContinueOrStartAnother(): void
     {
-        // Simulate an abandoned wizard: upload one file then walk away.
+        // An abandoned wizard: upload one file then walk away.
         $this->uploadOneFile();
         $owned = $this->em->getRepository(Document::class)->findOneBy(['uploadedBy' => $this->user]);
-        self::assertNotNull($owned, 'precondition: upload created an orphan Document');
+        self::assertNotNull($owned, 'precondition: upload created a pending Document');
 
-        // Clicking "Dosar nou" again must reset the wizard state so the user
-        // lands on an empty drop zone — NOT on the previous abandoned files.
-        $this->client->request('GET', '/case/new');
+        // Clicking "Dosar nou" again must not bury that work: the run is listed
+        // as unfinished, with the choice of continuing it or starting another.
+        $crawler = $this->client->request('GET', '/case/new');
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(1, $crawler->filter('[data-testid="draft-row"]')->count());
+        self::assertSame(1, $crawler->filter('[data-testid="draft-active"]')->count(), 'the run of this browser is marked as the open one');
+        self::assertSame(1, $crawler->filter('[data-testid="draft-new"]')->count());
+        self::assertStringContainsString('un document', $crawler->filter('[data-testid="draft-row"]')->text());
+
+        // Starting another run opens an empty step 0 and keeps the old run.
+        $token = $crawler->filter('form[action$="/case/new/draft/new"] input[name="_token"]')->attr('value');
+        $this->client->request('POST', '/case/new/draft/new', ['_token' => $token]);
         self::assertResponseRedirects('/case/new/documents');
-
-        // Follow the redirect and confirm the list of documents in the page
-        // is empty (the orphan Document row is still in the DB — cleanup is
-        // a backlog cron — but it's no longer surfaced in the new wizard run).
         $this->client->followRedirect();
         self::assertResponseIsSuccessful();
         $html = $this->client->getResponse()->getContent();
         self::assertStringNotContainsString('wizard-upload.pdf', $html);
         self::assertStringNotContainsString('data-document-id="' . $owned->getId() . '"', $html);
         self::assertStringContainsString('Încarcă documente pentru a vedea valorile extrase', $html);
+        $this->em->clear();
+        self::assertNotNull($this->em->find(Document::class, $owned->getId()), 'the document of the unfinished run is kept');
+        self::assertSame(1, (int) $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM case_draft WHERE user_id = ?', [$this->user->getId()]));
     }
 
     public function testGetDocumentsRendersDropZoneOnFreshSession(): void
@@ -233,11 +247,9 @@ final class CaseWizardControllerStep0Test extends WebTestCase
 
         // Establish the session, then prime the bag with both documents.
         $this->client->request('GET', '/case/new/documents');
-        $session = $this->client->getRequest()->getSession();
-        $bag = $session->get('case_wizard_data');
-        $bag['documentIds'] = $ids;
-        $session->set('case_wizard_data', $bag);
-        $session->save();
+        $this->mutateBag(static function (WizardBag $bag) use ($ids): void {
+            $bag->documentIds = $ids;
+        });
 
         $this->client->request('GET', '/case/new/documents');
         self::assertResponseIsSuccessful();
@@ -280,15 +292,29 @@ final class CaseWizardControllerStep0Test extends WebTestCase
         self::assertStringNotContainsString('Încredere', $crawler->filter('#step0-sidecard')->html());
     }
 
-    public function testSkipClearsSessionAndRedirectsToCreditor(): void
+    public function testSkipDeletesTheUploadedDocumentsAndRedirectsToCreditor(): void
     {
-        // Establish session via GET, harvest CSRF, POST skip.
+        $this->uploadOneFile();
+        $owned = $this->em->getRepository(Document::class)->findOneBy(['uploadedBy' => $this->user]);
+        self::assertNotNull($owned, 'precondition: upload created a pending Document');
+        $path = $this->uploadsDir . '/' . $owned->getStoredFilename();
+        self::assertFileExists($path);
+
         $crawler = $this->client->request('GET', '/case/new/documents');
         $token = $crawler->filter('form[action*="/skip"] input[name="_token"]')->first()->attr('value');
 
         $this->client->request('POST', '/case/new/skip', ['_token' => $token]);
 
         self::assertResponseRedirects('/case/new/creditor');
+        // The lawyer chose to go on without the documents, so nothing of them
+        // is kept: not the row, not the file, not its upload directory.
+        $this->em->clear();
+        self::assertNull($this->em->find(Document::class, $owned->getId()));
+        self::assertFileDoesNotExist($path);
+        self::assertDirectoryDoesNotExist(dirname($path));
+        self::assertSame(0, (int) $this->em->getConnection()->fetchOne('SELECT COUNT(*) FROM case_draft WHERE user_id = ?', [$this->user->getId()]), 'a run with nothing in it is not kept as a draft');
+        $this->client->followRedirect();
+        self::assertResponseIsSuccessful();
     }
 
     public function testCreditorStepRendersOnEmptySession(): void
@@ -519,6 +545,86 @@ final class CaseWizardControllerStep0Test extends WebTestCase
      * with the $files array is the canonical Symfony pattern for multipart
      * uploads in tests.
      */
+    // ---------- reusing a reading the lawyer already paid for ----------
+
+    public function testUploadingAFileAlreadyReadInAnotherRunReusesItsReadingWithoutAWorker(): void
+    {
+        $upload = $this->makePdfUpload();
+        $source = $this->completedDocumentWithHash((string) hash_file('sha256', $upload->getPathname()), $this->user);
+
+        $crawler = $this->client->request('GET', '/case/new/documents');
+        $token = $crawler->filter('form input[name="step0_documents[_token]"]')->first()->attr('value');
+        $this->client->request(
+            'POST',
+            '/case/new/documents',
+            parameters: ['step0_documents' => ['_token' => $token]],
+            files: ['step0_documents' => ['documents' => [$upload]]],
+        );
+        self::assertResponseRedirects('/case/new/documents');
+
+        /** @var InMemoryTransport $transport */
+        $transport = static::getContainer()->get('messenger.transport.async');
+        self::assertCount(0, $transport->getSent(), 'a reused reading costs no extraction');
+        $documents = $this->em->getRepository(Document::class)->findBy(['uploadedBy' => $this->user], ['id' => 'ASC']);
+        self::assertCount(2, $documents);
+        $copy = $documents[1];
+        self::assertSame(ExtractionStatus::COMPLETED, $copy->getExtractionStatus());
+        self::assertSame($copy->getId(), $copy->getExtractedData()['sourceDocumentId']);
+        self::assertSame('Reuse Creditor SRL', $copy->getExtractedData()['creditor']['name']);
+        self::assertSame($source->getContentHash(), $copy->getContentHash());
+
+        $crawler = $this->client->request('GET', '/case/new/documents');
+        self::assertStringContainsString('Reuse Creditor SRL', $crawler->filter('#step0-sidecard')->text());
+    }
+
+    public function testADeclaredTypeOtherThanTheSourcesIsReadAgain(): void
+    {
+        $upload = $this->makePdfUpload();
+        $this->completedDocumentWithHash((string) hash_file('sha256', $upload->getPathname()), $this->user);
+
+        $crawler = $this->client->request('GET', '/case/new/documents');
+        $token = $crawler->filter('form input[name="step0_documents[_token]"]')->first()->attr('value');
+        $this->client->request(
+            'POST',
+            '/case/new/documents',
+            parameters: ['step0_documents' => ['_token' => $token, 'documentType' => DocumentType::CONTRACT->value]],
+            files: ['step0_documents' => ['documents' => [$upload]]],
+        );
+
+        /** @var InMemoryTransport $transport */
+        $transport = static::getContainer()->get('messenger.transport.async');
+        self::assertCount(1, $transport->getSent(), 'a contract is not read from an invoice reading');
+        $documents = $this->em->getRepository(Document::class)->findBy(['uploadedBy' => $this->user], ['id' => 'ASC']);
+        self::assertSame(ExtractionStatus::PENDING, $documents[1]->getExtractionStatus());
+    }
+
+    private function completedDocumentWithHash(string $hash, User $owner): Document
+    {
+        $document = new Document();
+        $document->setUploadedBy($owner);
+        $document->setDocumentType(DocumentType::FACTURA);
+        $document->setOriginalFilename('earlier-run.pdf');
+        $document->setStoredFilename('cases/_pending/' . $owner->getId() . '/earlier/earlier-run.pdf');
+        $document->setMimeType('application/pdf');
+        $document->setFileSize(10);
+        $document->setContentHash($hash);
+        $document->setExtractionStatus(ExtractionStatus::COMPLETED);
+        $document->setExtractionConfidence('0.90');
+        $document->setExtractionStrategy('ai_vision');
+        $this->em->persist($document);
+        $this->em->flush();
+        $document->setExtractedData([
+            'schemaVersion' => 2,
+            'sourceDocumentId' => $document->getId(),
+            'strategy' => 'ai_vision',
+            'globalConfidence' => 0.9,
+            'creditor' => ['personType' => 'PJ', 'name' => 'Reuse Creditor SRL', 'cui' => '15193236', 'confidencePerField' => ['personType' => 0.95, 'name' => 0.95, 'cui' => 0.95]],
+        ]);
+        $this->em->flush();
+
+        return $document;
+    }
+
     private function uploadOneFile(?DocumentType $declaredType = null): void
     {
         $crawler = $this->client->request('GET', '/case/new/documents');

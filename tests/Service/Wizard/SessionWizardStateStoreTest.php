@@ -15,24 +15,30 @@ use App\Enum\PersonType;
 use App\Service\Wizard\SessionWizardStateStore;
 use App\Service\Wizard\WizardBag;
 use App\Service\Wizard\WizardStateStore;
-use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
+use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpFoundation\Session\Session;
 use Symfony\Component\HttpFoundation\Session\SessionInterface;
 use Symfony\Component\HttpFoundation\Session\Storage\MockArraySessionStorage;
 
-final class SessionWizardStateStoreTest extends KernelTestCase
+final class SessionWizardStateStoreTest extends TestCase
 {
     private WizardStateStore $store;
 
     protected function setUp(): void
     {
-        self::bootKernel();
-        $this->store = static::getContainer()->get(WizardStateStore::class);
+        // The app wires the interface to the draft store; this one has no
+        // dependencies and is exercised on its own contract.
+        $this->store = new SessionWizardStateStore();
     }
 
-    public function testTheInterfaceResolvesToTheSessionStore(): void
+    public function testDetachLeavesAnEmptyBagLikeReset(): void
     {
-        self::assertInstanceOf(SessionWizardStateStore::class, $this->store);
+        $session = $this->session();
+        $this->store->save($session, new WizardBag(documentIds: [1]));
+
+        $this->store->detach($session);
+
+        self::assertSame([], $this->store->load($session)->documentIds);
     }
 
     public function testAnEmptySessionLoadsAnEmptyBag(): void

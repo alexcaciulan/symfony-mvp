@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Repository;
 
+use App\Entity\CaseDraft;
 use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\User;
@@ -61,6 +62,7 @@ final class DocumentRepositoryTest extends KernelTestCase
         $conn->executeStatement('DELETE FROM audit_log WHERE user_id = ?', [$userId]);
         $conn->executeStatement('DELETE d FROM legal_deadline d JOIN legal_case lc ON d.legal_case_id = lc.id WHERE lc.user_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM document WHERE uploaded_by_id = ?', [$userId]);
+        $conn->executeStatement('DELETE FROM case_draft WHERE user_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM legal_case WHERE user_id = ?', [$userId]);
         $conn->executeStatement('DELETE FROM `user` WHERE id = ?', [$userId]);
         parent::tearDown();
@@ -146,5 +148,99 @@ final class DocumentRepositoryTest extends KernelTestCase
         self::assertContains('a.pdf', $filenames);
         self::assertContains('b.pdf', $filenames);
         self::assertContains('c.pdf', $filenames);
+    }
+
+    public function testAttachToCaseAlsoDropsTheDraftLink(): void
+    {
+        $draft = $this->persistDraft();
+        $document = $this->persistPendingDocument(draft: $draft);
+        $other = $this->persistPendingDocument(draft: $draft);
+
+        $this->repository->attachToCase([$document->getId()], $this->case);
+
+        $conn = $this->em->getConnection();
+        $row = $conn->fetchAssociative('SELECT legal_case_id, draft_id FROM document WHERE id = ?', [$document->getId()]);
+        self::assertSame($this->case->getId(), (int) $row['legal_case_id']);
+        self::assertNull($row['draft_id'], 'a document of a case belongs to no draft');
+        $untouched = $conn->fetchAssociative('SELECT legal_case_id, draft_id FROM document WHERE id = ?', [$other->getId()]);
+        self::assertNull($untouched['legal_case_id']);
+        self::assertSame($draft->getId(), (int) $untouched['draft_id']);
+    }
+
+    public function testFindIdsByDraftNotInNamesTheLinkedDocumentsTheListMisses(): void
+    {
+        $draft = $this->persistDraft();
+        $a = $this->persistPendingDocument(draft: $draft);
+        $b = $this->persistPendingDocument(draft: $draft);
+        $c = $this->persistPendingDocument(draft: $draft);
+        $elsewhere = $this->persistPendingDocument(draft: $this->persistDraft());
+        $unlinked = $this->persistPendingDocument();
+
+        self::assertSame([$b->getId(), $c->getId()], $this->repository->findIdsByDraftNotIn($draft, [$a->getId()]));
+        self::assertSame([$a->getId(), $b->getId(), $c->getId()], $this->repository->findIdsByDraftNotIn($draft, []));
+        self::assertSame([], $this->repository->findIdsByDraftNotIn($draft, [$a->getId(), $b->getId(), $c->getId()]));
+        self::assertSame([$a->getId(), $b->getId(), $c->getId()], $this->repository->findIdsByDraftNotIn($draft, [$elsewhere->getId(), $unlinked->getId()]));
+    }
+
+    public function testFindByDraftReturnsOnlyTheDraftsDocumentsInIdOrder(): void
+    {
+        $draft = $this->persistDraft();
+        $second = $this->persistPendingDocument(draft: $draft);
+        $this->persistPendingDocument(draft: $this->persistDraft());
+        $this->persistPendingDocument();
+        $first = $this->persistPendingDocument(draft: $draft);
+
+        $found = $this->repository->findByDraft($draft);
+
+        self::assertSame([$second->getId(), $first->getId()], array_map(static fn (Document $d): int => $d->getId(), $found));
+    }
+
+    public function testFindOrphansOlderThanSkipsLinkedYoungAndInFlightUploads(): void
+    {
+        $cutoff = new \DateTimeImmutable('-30 days');
+        $oldFailed = $this->persistPendingDocument(createdAt: '-40 days', status: ExtractionStatus::FAILED);
+        $oldDone = $this->persistPendingDocument(createdAt: '-40 days', status: ExtractionStatus::COMPLETED);
+        $this->persistPendingDocument(createdAt: '-40 days', status: ExtractionStatus::PROCESSING);
+        $this->persistPendingDocument(createdAt: '-40 days', status: ExtractionStatus::PENDING_RETRY);
+        $this->persistPendingDocument(createdAt: '-3 days', status: ExtractionStatus::FAILED);
+        $this->persistPendingDocument(createdAt: '-40 days', draft: $this->persistDraft());
+        $attached = $this->persistPendingDocument(createdAt: '-40 days');
+        $attached->setLegalCase($this->case);
+        $this->em->flush();
+
+        $found = $this->repository->findOrphansOlderThan($cutoff);
+
+        $ids = array_map(static fn (Document $d): int => $d->getId(), $found);
+        self::assertContains($oldFailed->getId(), $ids);
+        self::assertContains($oldDone->getId(), $ids);
+        $mine = array_values(array_filter($found, fn (Document $d): bool => $d->getUploadedBy()->getId() === $this->user->getId()));
+        self::assertSame([$oldFailed->getId(), $oldDone->getId()], array_map(static fn (Document $d): int => $d->getId(), $mine));
+    }
+
+    private function persistDraft(): CaseDraft
+    {
+        $draft = new CaseDraft($this->user);
+        $this->em->persist($draft);
+        $this->em->flush();
+
+        return $draft;
+    }
+
+    private function persistPendingDocument(?CaseDraft $draft = null, string $createdAt = 'now', ExtractionStatus $status = ExtractionStatus::COMPLETED): Document
+    {
+        $doc = new Document();
+        $doc->setDraft($draft);
+        $doc->setDocumentType(DocumentType::FACTURA);
+        $doc->setOriginalFilename('pending.pdf');
+        $doc->setStoredFilename('cases/_pending/' . $this->user->getId() . '/' . uniqid() . '/pending.pdf');
+        $doc->setFileSize(1024);
+        $doc->setMimeType('application/pdf');
+        $doc->setUploadedBy($this->user);
+        $doc->setExtractionStatus($status);
+        (new \ReflectionProperty(Document::class, 'createdAt'))->setValue($doc, new \DateTimeImmutable($createdAt));
+        $this->em->persist($doc);
+        $this->em->flush();
+
+        return $doc;
     }
 }

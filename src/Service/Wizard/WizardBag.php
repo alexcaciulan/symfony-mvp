@@ -18,6 +18,12 @@ use App\DTO\Wizard\Step3ClaimData;
  * `claim` hold the step DTOs once a step was saved; the rest carries the
  * library picks, the positions table and the decisions taken on the
  * disagreements between documents.
+ *
+ * The bag is stored serialized and a stored copy can be weeks old, written
+ * by an earlier deployment. A property added to one of the DTOs it carries
+ * must therefore be a plain property with a default, not a promoted
+ * constructor parameter: a promoted one stays uninitialized on an older
+ * payload and breaks the first step that reads it.
  */
 final class WizardBag
 {

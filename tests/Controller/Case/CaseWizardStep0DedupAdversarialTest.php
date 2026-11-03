@@ -6,6 +6,7 @@ namespace App\Tests\Controller\Case;
 
 use App\Entity\Document;
 use App\Entity\User;
+use App\Enum\ExtractionStatus;
 use App\Message\ExtractDataMessage;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
@@ -167,8 +168,12 @@ final class CaseWizardStep0DedupAdversarialTest extends WebTestCase
         $this->postFiles([$this->pdf('contract-cadru.pdf', 'the-contract')]);
         self::assertSame(1, $this->documentCount());
 
-        // "Dosar nou" resets the wizard draft.
-        $this->client->request('GET', '/case/new');
+        // "Dosar nou" lists the unfinished run; starting another leaves it be
+        // and opens an empty step 0.
+        $crawler = $this->client->request('GET', '/case/new');
+        self::assertResponseIsSuccessful();
+        $token = $crawler->filter('form[action$="/case/new/draft/new"] input[name="_token"]')->attr('value');
+        $this->client->request('POST', '/case/new/draft/new', ['_token' => $token]);
         self::assertResponseRedirects('/case/new/documents');
 
         $this->postFiles([$this->pdf('contract-cadru.pdf', 'the-contract')]);
@@ -213,6 +218,46 @@ final class CaseWizardStep0DedupAdversarialTest extends WebTestCase
         $this->client->request('GET', '/case/new/documents');
         $html = $this->client->getResponse()->getContent();
         self::assertStringNotContainsString('data-document-id="' . $mine->getId() . '"', $html);
+    }
+
+    public function testASecondLawyerNeverReusesTheFirstLawyersReading(): void
+    {
+        $this->postFiles([$this->pdf('shared.pdf', 'cross-tenant-reading')]);
+        $mine = $this->em->getRepository(Document::class)->findOneBy(['uploadedBy' => $this->user]);
+        self::assertNotNull($mine);
+        // The first lawyer's copy was read: identifiers and bank accounts in it.
+        $mine->setExtractionStatus(ExtractionStatus::COMPLETED);
+        $mine->setExtractedData([
+            'schemaVersion' => 2,
+            'sourceDocumentId' => $mine->getId(),
+            'strategy' => 'ai_vision',
+            'globalConfidence' => 0.9,
+            'creditor' => ['personType' => 'PJ', 'name' => 'Secret Creditor SRL', 'iban' => 'RO49AAAA1B31007593840000', 'confidencePerField' => ['name' => 0.95]],
+        ]);
+        $this->em->flush();
+
+        $hasher = static::getContainer()->get(UserPasswordHasherInterface::class);
+        $other = new User();
+        $other->setEmail('dedup-adv-other-' . uniqid() . '@test.com');
+        $other->setPassword($hasher->hashPassword($other, 'password'));
+        $other->setIsVerified(true);
+        $other->setFirstName('Other');
+        $other->setLastName('Lawyer');
+        $this->em->persist($other);
+        $this->em->flush();
+        $this->extraUserIds[] = $other->getId();
+        $this->client->getCookieJar()->clear();
+        $this->client->loginUser($other);
+
+        $this->postFiles([$this->pdf('shared.pdf', 'cross-tenant-reading')]);
+
+        $theirs = $this->em->getRepository(Document::class)->findBy(['uploadedBy' => $other]);
+        self::assertCount(1, $theirs);
+        self::assertSame(ExtractionStatus::PENDING, $theirs[0]->getExtractionStatus(), 'the same bytes are read again for the other lawyer');
+        self::assertNull($theirs[0]->getExtractedData());
+        self::assertCount(1, $this->sentMessages());
+        $html = (string) $this->client->request('GET', '/case/new/documents')->html();
+        self::assertStringNotContainsString('Secret Creditor SRL', $html);
     }
 
     // ---------- fingerprint bookkeeping ----------

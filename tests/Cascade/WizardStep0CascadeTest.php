@@ -6,6 +6,7 @@ namespace App\Tests\Cascade;
 
 use App\Entity\Document;
 use App\Entity\User;
+use App\Enum\DocumentType;
 use App\Enum\ExtractionMode;
 use App\Enum\ExtractionPipeline;
 use App\Enum\ExtractionStatus;
@@ -77,6 +78,7 @@ final class WizardStep0CascadeTest extends WebTestCase
         $conn = $this->em->getConnection();
         $conn->executeStatement('DELETE FROM audit_log WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM document WHERE uploaded_by_id = :id', ['id' => $userId]);
+        $conn->executeStatement('DELETE FROM case_draft WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM `user` WHERE id = :id', ['id' => $userId]);
 
         parent::tearDown();
@@ -203,6 +205,54 @@ final class WizardStep0CascadeTest extends WebTestCase
 
         self::assertNotEmpty($captured, 'Event must fire even when the cascade has nothing to extract');
         self::assertSame($document->getId(), $captured[0][0]);
+    }
+
+    public function testAReadingReusedFromAnEarlierUploadShowsInTheDetectedDataWithoutAWorker(): void
+    {
+        $fixture = dirname(__DIR__) . '/fixtures/extraction/invoice-realistic.pdf';
+        $earlier = new Document();
+        $earlier->setUploadedBy($this->user);
+        $earlier->setDocumentType(DocumentType::FACTURA);
+        $earlier->setOriginalFilename('invoice-realistic.pdf');
+        $earlier->setStoredFilename('cases/_pending/' . $this->user->getId() . '/earlier/invoice-realistic.pdf');
+        $earlier->setMimeType('application/pdf');
+        $earlier->setFileSize((int) filesize($fixture));
+        $earlier->setContentHash((string) hash_file('sha256', $fixture));
+        $earlier->setExtractionStatus(ExtractionStatus::COMPLETED);
+        $earlier->setExtractionConfidence('0.90');
+        $earlier->setExtractionStrategy('ai_vision');
+        $this->em->persist($earlier);
+        $this->em->flush();
+        $earlier->setExtractedData([
+            'schemaVersion' => 2,
+            'sourceDocumentId' => $earlier->getId(),
+            'strategy' => 'ai_vision',
+            'globalConfidence' => 0.9,
+            'creditor' => ['personType' => 'PJ', 'name' => 'Cascade Reuse SRL', 'cui' => '15193236', 'confidencePerField' => ['personType' => 0.95, 'name' => 0.95, 'cui' => 0.95]],
+        ]);
+        $this->em->flush();
+
+        $crawler = $this->client->request('GET', '/case/new/documents');
+        $token = $crawler->filter('form input[name="step0_documents[_token]"]')->first()->attr('value');
+        $this->client->request(
+            'POST',
+            '/case/new/documents',
+            parameters: ['step0_documents' => ['_token' => $token]],
+            files: ['step0_documents' => ['documents' => [$this->makePdfUpload()]]],
+        );
+        self::assertResponseRedirects('/case/new/documents');
+
+        /** @var InMemoryTransport $transport */
+        $transport = static::getContainer()->get('messenger.transport.async');
+        self::assertCount(0, $transport->getSent(), 'no extraction is queued for a reused reading');
+
+        $crawler = $this->client->followRedirect();
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('Cascade Reuse SRL', $crawler->filter('#step0-sidecard')->text(), 'the detected data comes from the reused reading');
+        $documents = $this->em->getRepository(Document::class)->findBy(['uploadedBy' => $this->user], ['id' => 'ASC']);
+        self::assertCount(2, $documents);
+        self::assertSame(ExtractionStatus::COMPLETED, $documents[1]->getExtractionStatus());
+        self::assertSame($documents[1]->getId(), $documents[1]->getExtractedData()['sourceDocumentId']);
     }
 
     private function makePdfUpload(): UploadedFile

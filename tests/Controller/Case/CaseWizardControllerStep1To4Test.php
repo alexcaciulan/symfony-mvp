@@ -32,6 +32,8 @@ use App\Service\AuditLogService;
 use App\Service\Court\LocalityNormalizer;
 use App\Tests\Support\CountyFixtureTrait;
 use App\Tests\Support\OfflineAnafLookupService;
+use App\Service\Wizard\WizardBag;
+use App\Tests\Support\WizardBagTestTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -49,9 +51,10 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
  */
 final class CaseWizardControllerStep1To4Test extends WebTestCase
 {
+    use WizardBagTestTrait;
+
     use CountyFixtureTrait;
 
-    private const SESSION_KEY = 'case_wizard_data';
 
     private KernelBrowser $client;
     private EntityManagerInterface $em;
@@ -82,6 +85,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         // FK order: audit_log → document → debtor → legal_case → creditor → user
         $conn->executeStatement('DELETE FROM audit_log WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM document WHERE uploaded_by_id = :id', ['id' => $userId]);
+        $conn->executeStatement('DELETE FROM case_draft WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM legal_case_debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM legal_deadline WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM case_status_history WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
@@ -151,7 +155,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         $this->pick($company->getId());
 
         self::assertResponseRedirects('/case/new/debtor');
-        $bag = $this->client->getRequest()->getSession()->get(self::SESSION_KEY);
+        $bag = $this->readBag();
         $entry = $bag['debtors']->debtors[0];
         self::assertSame($company->getId(), $entry->debtorId);
         self::assertSame('Biblioteca Debitor SRL', $entry->name);
@@ -172,7 +176,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
 
         $this->pick($company->getId());
 
-        $entry = $this->client->getRequest()->getSession()->get(self::SESSION_KEY)['debtors']->debtors[0];
+        $entry = $this->readBag()['debtors']->debtors[0];
         self::assertNull($entry->debtorId);
         self::assertSame('Acme Debtor SRL', $entry->name);
         $this->em->getConnection()->executeStatement('DELETE FROM `user` WHERE id = ?', [$stranger->getId()]);
@@ -189,7 +193,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         self::assertSelectorExists('input[name="step2_debtors[debtors][0][name]"][readonly]');
         $this->client->submit($crawler->filter('[data-testid="debtor-unpick"]')->form());
 
-        $entry = $this->client->getRequest()->getSession()->get(self::SESSION_KEY)['debtors']->debtors[0];
+        $entry = $this->readBag()['debtors']->debtors[0];
         self::assertNull($entry->debtorId);
         self::assertSame('Acme Debtor SRL', $entry->name);
     }
@@ -211,7 +215,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
 
         $this->client->request('POST', '/case/new/debtor', $post + ['library_debtor_choice' => [0 => 'library']]);
         self::assertResponseRedirects('/case/new/claim');
-        $entry = $this->client->getRequest()->getSession()->get(self::SESSION_KEY)['debtors']->debtors[0];
+        $entry = $this->readBag()['debtors']->debtors[0];
         self::assertSame('Biblioteca Debitor SRL', $entry->name);
         self::assertSame($company->getId(), $entry->debtorId);
     }
@@ -220,11 +224,9 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
     {
         $company = $this->libraryDebtor($this->user, 'Biblioteca Debitor SRL', 'RO14186770');
         $this->primeSessionForStep4(insolvencyCheckedAt: new \DateTimeImmutable('-1 hour'));
-        $session = $this->client->getRequest()->getSession();
-        $bag = $session->get(self::SESSION_KEY);
-        $bag['debtors']->debtors[0]->debtorId = $company->getId();
-        $session->set(self::SESSION_KEY, $bag);
-        $session->save();
+        $this->mutateBag(static function (WizardBag $bag) use ($company): void {
+            $bag->debtors->debtors[0]->debtorId = $company->getId();
+        });
 
         $crawler = $this->client->request('GET', '/case/new/confirmation');
         $token = $crawler->filter('form input[name="step4_confirmation[_token]"]')->first()->attr('value');
@@ -249,7 +251,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
 
         $this->client->request('POST', '/case/new/debtor/pick', ['debtor_pick' => ['_token' => 'forged', 'debtor' => (string) $company->getId()]]);
 
-        self::assertNull($this->client->getRequest()->getSession()->get(self::SESSION_KEY)['debtors']->debtors[0]->debtorId);
+        self::assertNull($this->readBag()['debtors']->debtors[0]->debtorId);
     }
 
     public function testCancellingTwiceKeepsWhatTheFirstCancelRestored(): void
@@ -263,7 +265,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         $this->client->submit($unpick);
         $this->client->submit($unpick);
 
-        $entry = $this->client->getRequest()->getSession()->get(self::SESSION_KEY)['debtors']->debtors[0];
+        $entry = $this->readBag()['debtors']->debtors[0];
         self::assertSame('Acme Debtor SRL', $entry->name);
     }
 
@@ -281,7 +283,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
 
         $this->client->request('POST', '/case/new/debtor', $post + ['library_debtor_choice' => [0 => 'library']]);
         self::assertResponseRedirects('/case/new/claim');
-        $entry = $this->client->getRequest()->getSession()->get(self::SESSION_KEY)['debtors']->debtors[0];
+        $entry = $this->readBag()['debtors']->debtors[0];
         self::assertSame($company->getId(), $entry->debtorId);
         self::assertSame('Biblioteca Debitor SRL', $entry->name, 'the library data stands');
         self::assertFalse($entry->updateLibrary);
@@ -318,7 +320,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         $this->client->request('POST', '/case/new/debtor', $this->debtorPost($token, '14186770'));
 
         self::assertResponseRedirects('/case/new/claim');
-        $entry = $this->client->getRequest()->getSession()->get(self::SESSION_KEY)['debtors']->debtors[0];
+        $entry = $this->readBag()['debtors']->debtors[0];
         self::assertSame($company->getId(), $entry->debtorId);
     }
 
@@ -336,7 +338,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         $this->client->request('POST', '/case/new/debtor', $this->debtorPost($token, '14186770'));
 
         self::assertResponseRedirects('/case/new/claim');
-        $entry = $this->client->getRequest()->getSession()->get(self::SESSION_KEY)['debtors']->debtors[0];
+        $entry = $this->readBag()['debtors']->debtors[0];
         self::assertSame($company->getId(), $entry->debtorId);
     }
 
@@ -357,7 +359,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
             $this->client->request('POST', '/case/new/debtor', $this->debtorPost($token, 'RO14186770'));
 
             self::assertResponseRedirects('/case/new/claim');
-            self::assertNull($this->client->getRequest()->getSession()->get(self::SESSION_KEY)['debtors']->debtors[0]->debtorId);
+            self::assertNull($this->readBag()['debtors']->debtors[0]->debtorId);
         } finally {
             $this->em->getConnection()->executeStatement('DELETE FROM `user` WHERE id = :id', ['id' => $other->getId()]);
         }
@@ -418,12 +420,10 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
     public function testStep4ShowsTheDebtorsRegistryNumberAndAdministrator(): void
     {
         $this->primeSessionForStep4();
-        $session = $this->client->getRequest()->getSession();
-        $bag = $session->get(self::SESSION_KEY);
-        $bag['debtors']->debtors[0]->onrcNumber = 'J40/8765/2019';
-        $bag['debtors']->debtors[0]->administrator = 'Maria Ionescu';
-        $session->set(self::SESSION_KEY, $bag);
-        $session->save();
+        $this->mutateBag(static function (WizardBag $bag): void {
+            $bag->debtors->debtors[0]->onrcNumber = 'J40/8765/2019';
+            $bag->debtors->debtors[0]->administrator = 'Maria Ionescu';
+        });
 
         $this->client->request('GET', '/case/new/confirmation');
 
@@ -446,7 +446,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
 
         $this->client->request('POST', '/case/new/debtor', $post);
         self::assertResponseRedirects('/case/new/claim');
-        $entry = $this->client->getRequest()->getSession()->get(self::SESSION_KEY)['debtors']->debtors[0];
+        $entry = $this->readBag()['debtors']->debtors[0];
         self::assertNull($entry->debtorId, 'another CUI is another company');
         self::assertSame('Acme Debtor SRL', $entry->name);
     }
@@ -472,11 +472,9 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         $company = $this->libraryDebtor($this->user, 'Seed Vechi SRL', 'RO87654321');
         $this->primeSessionForStep4(insolvencyCheckedAt: new \DateTimeImmutable('-1 hour'));
         $this->pick($company->getId());
-        $session = $this->client->getRequest()->getSession();
-        $bag = $session->get(self::SESSION_KEY);
-        $bag['debtors']->debtors[0]->insolvencyCheckedAt = new \DateTimeImmutable('-1 hour');
-        $session->set(self::SESSION_KEY, $bag);
-        $session->save();
+        $this->mutateBag(static function (WizardBag $bag): void {
+            $bag->debtors->debtors[0]->insolvencyCheckedAt = new \DateTimeImmutable('-1 hour');
+        });
 
         $reloaded = $this->em->find(Debtor::class, $company->getId());
         $reloaded->setCui('RO87654329');
@@ -487,7 +485,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
 
         self::assertSame('RO87654329', $crawler->filter('input[name="step2_debtors[debtors][0][cui]"]')->attr('value'));
         self::assertSame('Maria Ionescu', $crawler->filter('input[name="step2_debtors[debtors][0][administrator]"]')->attr('value'));
-        $entry = $this->client->getRequest()->getSession()->get(self::SESSION_KEY)['debtors']->debtors[0];
+        $entry = $this->readBag()['debtors']->debtors[0];
         self::assertSame($company->getId(), $entry->debtorId);
         self::assertNull($entry->insolvencyCheckedAt, 'the check made for the old CUI is withdrawn');
     }
@@ -500,7 +498,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         $this->client->request('GET', '/case/new/confirmation');
 
         self::assertResponseIsSuccessful();
-        self::assertSame($company->getId(), $this->client->getRequest()->getSession()->get(self::SESSION_KEY)['debtors']->debtors[0]->debtorId);
+        self::assertSame($company->getId(), $this->readBag()['debtors']->debtors[0]->debtorId);
     }
 
     public function testACompanyAddedToTheLibraryAfterStep2WithOtherDataSendsTheLawyerBackToChoose(): void
@@ -735,7 +733,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
 
     private function storedCreditorDto(): Step1CreditorData
     {
-        $dto = $this->client->getRequest()->getSession()->get(self::SESSION_KEY)['creditor'] ?? null;
+        $dto = $this->readBag()['creditor'] ?? null;
         self::assertInstanceOf(Step1CreditorData::class, $dto);
 
         return $dto;
@@ -877,7 +875,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
 
         // The tick that came with the form was given for the previous company.
         self::assertResponseStatusCodeSame(422);
-        $entry = $this->client->getRequest()->getSession()->get(self::SESSION_KEY)['debtors']->debtors[0];
+        $entry = $this->readBag()['debtors']->debtors[0];
         self::assertNull($entry->insolvencyCheckedAt, 'the attestation must be given again for the new company');
         self::assertNull($entry->anafStatus, 'the ANAF status was read for the previous company');
         self::assertNull($entry->anafCheckedAt);
@@ -894,7 +892,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         $post['step2_debtors']['debtors'][0]['anafCheckedAt'] = (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM);
         $this->client->request('POST', '/case/new/debtor', $post);
 
-        $entry = $this->client->getRequest()->getSession()->get(self::SESSION_KEY)['debtors']->debtors[0];
+        $entry = $this->readBag()['debtors']->debtors[0];
         self::assertSame(AnafStatus::INACTIV, $entry->anafStatus, 'the sync made for the new CUI stands');
         self::assertNull($entry->insolvencyCheckedAt, 'the attestation still has to be given again');
     }
@@ -908,7 +906,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         $this->client->request('POST', '/case/new/debtor', $this->debtorPost($token, 'ro 14186770'));
 
         self::assertResponseRedirects('/case/new/claim');
-        $entry = $this->client->getRequest()->getSession()->get(self::SESSION_KEY)['debtors']->debtors[0];
+        $entry = $this->readBag()['debtors']->debtors[0];
         self::assertSame(AnafStatus::ACTIV, $entry->anafStatus);
         self::assertNotNull($entry->insolvencyCheckedAt);
     }
@@ -920,27 +918,23 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
     public function testAFullAnafSyncSurvivesASubmitThatDoesNotCarryTheMarker(): void
     {
         $this->primeSessionForStep4(insolvencyCheckedAt: new \DateTimeImmutable('-1 hour'));
-        $session = $this->client->getRequest()->getSession();
-        $bag = $session->get(self::SESSION_KEY);
-        $bag['debtors']->debtors[0]->anafDataSynced = true;
-        $session->set(self::SESSION_KEY, $bag);
-        $session->save();
+        $this->mutateBag(static function (WizardBag $bag): void {
+            $bag->debtors->debtors[0]->anafDataSynced = true;
+        });
         $crawler = $this->client->request('GET', '/case/new/debtor');
         $token = $crawler->filter('input[name="step2_debtors[_token]"]')->first()->attr('value');
 
         $this->client->request('POST', '/case/new/debtor', $this->debtorPost($token, 'ro 14186770'));
 
-        self::assertTrue($this->client->getRequest()->getSession()->get(self::SESSION_KEY)['debtors']->debtors[0]->anafDataSynced);
+        self::assertTrue($this->readBag()['debtors']->debtors[0]->anafDataSynced);
     }
 
     public function testAnExplicitZeroClearsTheFullAnafSyncMarker(): void
     {
         $this->primeSessionForStep4(insolvencyCheckedAt: new \DateTimeImmutable('-1 hour'));
-        $session = $this->client->getRequest()->getSession();
-        $bag = $session->get(self::SESSION_KEY);
-        $bag['debtors']->debtors[0]->anafDataSynced = true;
-        $session->set(self::SESSION_KEY, $bag);
-        $session->save();
+        $this->mutateBag(static function (WizardBag $bag): void {
+            $bag->debtors->debtors[0]->anafDataSynced = true;
+        });
         $crawler = $this->client->request('GET', '/case/new/debtor');
         $token = $crawler->filter('input[name="step2_debtors[_token]"]')->first()->attr('value');
 
@@ -948,7 +942,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         $post['step2_debtors']['debtors'][0]['anafDataSynced'] = '0';
         $this->client->request('POST', '/case/new/debtor', $post);
 
-        self::assertFalse($this->client->getRequest()->getSession()->get(self::SESSION_KEY)['debtors']->debtors[0]->anafDataSynced);
+        self::assertFalse($this->readBag()['debtors']->debtors[0]->anafDataSynced);
     }
 
     /**
@@ -986,7 +980,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         $html = (string) $this->client->getResponse()->getContent();
         self::assertStringNotContainsString('Apelează ANAF pe baza CUI', $html);
         self::assertStringContainsString('inactiv fiscal', $html);
-        $entry = $this->client->getRequest()->getSession()->get('case_wizard_data')['debtors']->debtors[0];
+        $entry = $this->readBag()['debtors']->debtors[0];
         self::assertSame(AnafStatus::INACTIV, $entry->anafStatus);
         self::assertSame('Acme Debtor SRL', $entry->name, 'only the status is taken from the register');
     }
@@ -1033,7 +1027,7 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         $crawler = $this->client->request('GET', '/case/new/confirmation');
 
         self::assertResponseIsSuccessful();
-        $entry = $this->client->getRequest()->getSession()->get('case_wizard_data')['debtors']->debtors[0];
+        $entry = $this->readBag()['debtors']->debtors[0];
         self::assertSame(AnafStatus::ACTIV, $entry->anafStatus);
         self::assertFalse($entry->anafDataSynced);
         self::assertGreaterThan(0, $crawler->filter('[data-testid="prefill-conflict"][data-field="county"]')->count());
@@ -1697,11 +1691,9 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
     private function submitWithCreditor(Step1CreditorData $creditor): void
     {
         $this->primeSessionForStep4(insolvencyCheckedAt: new \DateTimeImmutable('-1 day'));
-        $session = $this->client->getRequest()->getSession();
-        $bag = $session->get(self::SESSION_KEY);
-        $bag['creditor'] = $creditor;
-        $session->set(self::SESSION_KEY, $bag);
-        $session->save();
+        $this->mutateBag(static function (WizardBag $bag) use ($creditor): void {
+            $bag->creditor = $creditor;
+        });
 
         $crawler = $this->client->request('GET', '/case/new/confirmation');
         $token = $crawler->filter('form input[name="step4_confirmation[_token]"]')->first()->attr('value');
@@ -1768,6 +1760,95 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         $fresh = $this->em->find(Document::class, $docId);
         self::assertNotNull($fresh->getLegalCase(), 'Document must be attached to the new LegalCase');
         self::assertResponseRedirects('/case/' . $fresh->getLegalCase()->getId());
+    }
+
+    public function testConfirmationSubmitDeletesTheDraftAndUnlinksItsDocuments(): void
+    {
+        $doc = new Document();
+        $doc->setDocumentType(DocumentType::ALT_DOCUMENT);
+        $doc->setOriginalFilename('demo.pdf');
+        $doc->setStoredFilename('cases/_pending/9/demo.pdf');
+        $doc->setFileSize(1);
+        $doc->setMimeType('application/pdf');
+        $doc->setUploadedBy($this->user);
+        $doc->setExtractionStatus(ExtractionStatus::COMPLETED);
+        $this->em->persist($doc);
+        $this->em->flush();
+        $docId = $doc->getId();
+
+        $this->primeSessionForStep4(
+            personType: PersonType::PJ,
+            anafStatus: AnafStatus::ACTIV,
+            anafCheckedAt: new \DateTimeImmutable('-1 day'),
+            insolvencyCheckedAt: new \DateTimeImmutable('-1 day'),
+            documentIds: [$docId],
+        );
+        $conn = $this->em->getConnection();
+        self::assertSame(1, (int) $conn->fetchOne('SELECT COUNT(*) FROM case_draft WHERE user_id = ?', [$this->user->getId()]), 'precondition: the primed run is a draft');
+        self::assertNotNull($conn->fetchOne('SELECT draft_id FROM document WHERE id = ?', [$docId]), 'precondition: the document is linked to the draft');
+
+        $crawler = $this->client->request('GET', '/case/new/confirmation');
+        $token = $crawler->filter('form input[name="step4_confirmation[_token]"]')->first()->attr('value');
+        $this->client->request('POST', '/case/new/confirmation', [
+            'step4_confirmation' => [
+                '_token' => $token,
+                'acceptTerms' => '1',
+                'acceptDataAccuracy' => '1',
+            ],
+        ]);
+
+        $this->em->clear();
+        $fresh = $this->em->find(Document::class, $docId);
+        self::assertNotNull($fresh->getLegalCase());
+        self::assertResponseRedirects('/case/' . $fresh->getLegalCase()->getId());
+        self::assertSame(0, (int) $conn->fetchOne('SELECT COUNT(*) FROM case_draft WHERE user_id = ?', [$this->user->getId()]), 'the draft is gone with the submit');
+        self::assertNull($conn->fetchOne('SELECT draft_id FROM document WHERE id = ?', [$docId]));
+        self::assertNull($this->client->getRequest()->getSession()->get('case_wizard_draft_id'));
+    }
+
+    public function testAConfirmationRefusedBeforePersistenceKeepsTheDraft(): void
+    {
+        $doc = new Document();
+        $doc->setDocumentType(DocumentType::ALT_DOCUMENT);
+        $doc->setOriginalFilename('demo.pdf');
+        $doc->setStoredFilename('cases/_pending/9/demo.pdf');
+        $doc->setFileSize(1);
+        $doc->setMimeType('application/pdf');
+        $doc->setUploadedBy($this->user);
+        $doc->setExtractionStatus(ExtractionStatus::COMPLETED);
+        $this->em->persist($doc);
+        $this->em->flush();
+        $docId = $doc->getId();
+
+        // A foreign-currency claim dated where no BNR rate can exist is refused
+        // at the confirmation, before anything is written.
+        $this->primeSessionForStep4(
+            documentIds: [$docId],
+            claim: new Step3ClaimData(
+                amount: 1000.0,
+                currency: 'EUR',
+                dueDate: new \DateTimeImmutable('1990-02-05'),
+                invoiceDate: new \DateTimeImmutable('1990-01-05'),
+                relationshipType: RelationshipType::COMERCIAL,
+            ),
+        );
+        $conn = $this->em->getConnection();
+        $draftId = $conn->fetchOne('SELECT id FROM case_draft WHERE user_id = ?', [$this->user->getId()]);
+        self::assertNotFalse($draftId, 'precondition: the primed run is a draft');
+
+        $crawler = $this->client->request('GET', '/case/new/confirmation');
+        self::assertResponseIsSuccessful();
+        $token = $crawler->filter('form input[name="step4_confirmation[_token]"]')->first()->attr('value');
+        $this->client->request('POST', '/case/new/confirmation', [
+            'step4_confirmation' => ['_token' => $token, 'acceptTerms' => '1', 'acceptDataAccuracy' => '1'],
+        ]);
+
+        self::assertResponseIsSuccessful('the confirmation is shown again, not left');
+        self::assertSelectorExists('[role="alert"]');
+        self::assertSame(0, (int) $conn->fetchOne('SELECT COUNT(*) FROM legal_case WHERE user_id = ?', [$this->user->getId()]));
+        self::assertSame((int) $draftId, (int) $conn->fetchOne('SELECT id FROM case_draft WHERE user_id = ?', [$this->user->getId()]), 'the draft is kept');
+        self::assertSame((int) $draftId, (int) $conn->fetchOne('SELECT draft_id FROM document WHERE id = ?', [$docId]), 'the document stays with the draft');
+        self::assertSame((int) $draftId, $this->client->getRequest()->getSession()->get('case_wizard_draft_id'));
     }
 
     public function testConfirmationSubmitResolvesAndPersistsCompetentCourt(): void
@@ -2073,14 +2154,12 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         // to ensure the session cookie is set, then mutate the session bag and
         // persist it back.
         $this->client->request('GET', '/case/new/documents');
-        $session = $this->client->getRequest()->getSession();
-        $session->set(self::SESSION_KEY, [
+        $this->primeBag([
             'documentIds' => $documentIds,
             'creditor' => $creditor,
             'debtors' => new Step2DebtorsData([$debtor]),
             'claim' => $claim,
         ]);
-        $session->save();
     }
 
     /**
@@ -2105,14 +2184,12 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         );
 
         $this->client->request('GET', '/case/new/documents');
-        $session = $this->client->getRequest()->getSession();
-        $session->set(self::SESSION_KEY, [
+        $this->primeBag([
             'documentIds' => [],
             'creditor' => $creditor,
             'debtors' => new Step2DebtorsData([$debtor]),
             'claim' => null,
         ]);
-        $session->save();
 
         return true;
     }

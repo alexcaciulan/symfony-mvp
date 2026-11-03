@@ -98,6 +98,9 @@ class AuditLogService
      */
     public const CATEGORY_FILING_SUBMISSION = 'FILING_SUBMISSION';
 
+    /** Unfinished wizard runs: created, discarded by the lawyer, or expired by the sweeper. */
+    public const CATEGORY_CASE_DRAFT = 'CASE_DRAFT';
+
     public function __construct(
         private EntityManagerInterface $em,
         private Security $security,

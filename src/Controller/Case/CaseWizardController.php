@@ -76,12 +76,15 @@ use App\Service\Extraction\ConflictResolutionService;
 use App\Service\Extraction\ConflictValueEquivalence;
 use App\Service\Extraction\DetectedDataPreviewBuilder;
 use App\Service\Extraction\DocumentRemovalPlanner;
+use App\Service\Extraction\ExtractionReuseService;
 use App\Service\Extraction\PrefillFromExtractionService;
 use App\Service\Party\CuiNormalizer;
 use App\Service\Party\OnrcNumber;
 use App\Service\Party\RomanianBankCode;
 use App\Service\Validation\OpAdmissibilityValidator;
 use App\Service\Wizard\WizardBag;
+use App\Service\Wizard\CaseDraftLimit;
+use App\Service\Wizard\CaseDraftListBuilder;
 use App\Service\Wizard\WizardStateStore;
 use App\Util\ClaimRowLiveMapper;
 use App\Util\RomanianAmountParser;
@@ -159,25 +162,52 @@ final class CaseWizardController extends AbstractController
         private readonly MessageBusInterface $bus,
         private readonly AccessoryComputabilityChecker $accessoryChecker,
         private readonly WizardStateStore $stateStore,
+        private readonly ExtractionReuseService $extractionReuse,
+        private readonly CaseDraftLimit $draftLimit,
         private readonly float $confidenceThreshold = self::DEFAULT_REVIEW_THRESHOLD,
         private readonly LoggerInterface $logger = new NullLogger(),
         private readonly ?AnafLookupService $anafLookup = null,
         private readonly ConflictValueEquivalence $valueEquivalence = new ConflictValueEquivalence(),
     ) {}
 
+    /**
+     * The entry of "Dosar nou". With no unfinished run on record the wizard
+     * opens on step 0; otherwise the user chooses between continuing one of
+     * them and starting another, so a click never buries work in progress.
+     */
     #[Route('', name: 'start', methods: ['GET'])]
-    public function start(Request $request): Response
+    public function start(Request $request, #[CurrentUser] User $user, CaseDraftListBuilder $draftList): Response
     {
-        // Hard reset on every "Dosar nou" click: clicking the topbar CTA after a
-        // previous abandoned wizard run must NOT resurrect the old drop-zone
-        // state. We drop the session bag so the user lands on an empty wizard.
-        // The orphan Document rows (legal_case_id IS NULL) stay on disk until a
-        // background cleanup command sweeps them — that's tracked as a post-MVP
-        // backlog item (`app:cleanup-pending-uploads`); deleting them here would
-        // make a fresh start synchronously delete N files + emit N audit log
-        // entries, which is too eager for a navigation click.
-        $session = $request->getSession();
-        $this->stateStore->reset($session);
+        $drafts = $draftList->forUser($user, $request->getSession());
+        if ($drafts === []) {
+            return $this->redirectToRoute('case_wizard_documents');
+        }
+
+        return $this->render('case/wizard_drafts.html.twig', [
+            'drafts' => $drafts,
+            'draft_limit' => CaseDraftLimit::MAX_PER_USER,
+            'limit_reached' => $this->draftLimit->isReached($user),
+        ]);
+    }
+
+    /**
+     * Starts a run from an empty bag and leaves the existing drafts as they
+     * are. Past the cap the user is sent back to the list to continue or drop
+     * one of them.
+     */
+    #[Route('/draft/new', name: 'draft_new', methods: ['POST'])]
+    public function newDraft(Request $request, #[CurrentUser] User $user): Response
+    {
+        if (!$this->isCsrfTokenValid('case_wizard_draft_new', (string) $request->request->get('_token'))) {
+            throw $this->createAccessDeniedException('Invalid CSRF token');
+        }
+        if ($this->draftLimit->isReached($user)) {
+            $this->addFlash('warning', $this->trans('case.drafts.limit_reached', ['%limit%' => CaseDraftLimit::MAX_PER_USER]));
+
+            return $this->redirectToRoute('case_wizard_start');
+        }
+
+        $this->stateStore->detach($request->getSession());
 
         return $this->redirectToRoute('case_wizard_documents');
     }
@@ -188,6 +218,11 @@ final class CaseWizardController extends AbstractController
         #[CurrentUser] User $user,
     ): Response {
         $session = $request->getSession();
+        if ($request->isMethod('GET') && $this->draftLimit->blocksNewRun($user, $session)) {
+            $this->addFlash('warning', $this->trans('case.drafts.limit_reached', ['%limit%' => CaseDraftLimit::MAX_PER_USER]));
+
+            return $this->redirectToRoute('case_wizard_start');
+        }
         $bag = $this->stateStore->load($session);
 
         $form = $this->createForm(Step0DocumentsType::class);
@@ -223,13 +258,24 @@ final class CaseWizardController extends AbstractController
                 $accepted = $partition['files'];
                 $duplicates = $partition['duplicates'];
 
+                // A file this lawyer already had read once, in another run or
+                // case, keeps that reading instead of being read again.
+                $reusable = [];
+                foreach ($accepted as $index => $file) {
+                    $hash = $partition['hashes'][$index] ?? null;
+                    $source = $hash !== null ? $this->extractionReuse->findReusable($user, $hash, $declaredType) : null;
+                    if ($source !== null) {
+                        $reusable[$index] = $source;
+                    }
+                }
+
                 // Only files that will really be stored and extracted cost
                 // extraction budget: a known file costs no LLM call.
-                $rateLimitHit = !$this->uploadRateLimiter->acceptsExtractions($identifier, count($accepted));
+                $rateLimitHit = !$this->uploadRateLimiter->acceptsExtractions($identifier, count($accepted) - count($reusable));
             }
 
             if (!$rateLimitHit) {
-                foreach ($accepted as $file) {
+                foreach ($accepted as $index => $file) {
                     try {
                         $document = $this->uploadService->upload(null, $file, $declaredType, $user);
                     } catch (\InvalidArgumentException) {
@@ -242,6 +288,10 @@ final class CaseWizardController extends AbstractController
                     }
                     $bag->documentIds[] = $document->getId();
                     ++$storedCount;
+                    if (isset($reusable[$index])) {
+                        $this->extractionReuse->copyInto($reusable[$index], $document);
+                        continue;
+                    }
                     $this->bus->dispatch(new ExtractDataMessage($document->getId()));
                 }
                 $this->stateStore->save($session, $bag);
@@ -666,8 +716,13 @@ final class CaseWizardController extends AbstractController
         return $this->redirectToRoute('case_wizard_documents');
     }
 
+    /**
+     * Goes on without documents. What was uploaded so far is deleted now: the
+     * lawyer chose to do without it, and a file kept nowhere would only wait
+     * for the sweeper. A document still being read is left to it instead.
+     */
     #[Route('/skip', name: 'skip', methods: ['POST'])]
-    public function skip(Request $request): Response
+    public function skip(Request $request, #[CurrentUser] User $user): Response
     {
         if (!$this->isCsrfTokenValid('wizard_step0_skip', (string) $request->request->get('_token'))) {
             $this->addFlash('error', 'wizard.step0.error.invalid_csrf');
@@ -677,6 +732,12 @@ final class CaseWizardController extends AbstractController
 
         $session = $request->getSession();
         $bag = $this->stateStore->load($session);
+        foreach ($this->loadOwnedDocuments($bag->documentIds, $user) as $document) {
+            if ($document->getLegalCase() !== null || $document->getExtractionStatus() === ExtractionStatus::PROCESSING) {
+                continue;
+            }
+            $this->uploadService->delete($document, $user);
+        }
         $bag->documentIds = [];
         $this->stateStore->save($session, $bag);
 
@@ -1689,6 +1750,7 @@ final class CaseWizardController extends AbstractController
 
             $creditorOutcome = ['wasReused' => false, 'source' => 'new'];
             $persisted = $this->persistWizard(
+                $session,
                 $user,
                 $creditorDto,
                 $debtorsDto,
@@ -1710,7 +1772,8 @@ final class CaseWizardController extends AbstractController
                 ),
             );
 
-            $this->stateStore->reset($session);
+            // The session forgets the run only after the transaction committed.
+            $this->stateStore->detach($session);
 
             if ($creditorOutcome['wasReused']) {
                 $this->addFlash('info', 'wizard.step4.flash.creditor_reused');
@@ -1801,6 +1864,7 @@ final class CaseWizardController extends AbstractController
      * @param list<array<string, mixed>> $conflictResolutions
      */
     private function persistWizard(
+        SessionInterface $session,
         User $user,
         Step1CreditorData $creditorDto,
         Step2DebtorsData $debtorsDto,
@@ -1817,6 +1881,7 @@ final class CaseWizardController extends AbstractController
         array $conflictResolutions = [],
     ): LegalCase {
         return $this->em->wrapInTransaction(function () use (
+            $session,
             $user,
             $creditorDto,
             $debtorsDto,
@@ -1892,6 +1957,10 @@ final class CaseWizardController extends AbstractController
             if ($documentIds !== []) {
                 $this->documents->attachToCase($documentIds, $case);
             }
+            // The run is over once its documents belong to the case; dropping
+            // it in the same transaction means a failed submit keeps the draft
+            // and a successful one never leaves a stale copy in the list.
+            $this->stateStore->removeStored($session);
 
             $this->auditLog->log(
                 action: 'wizard_submit',

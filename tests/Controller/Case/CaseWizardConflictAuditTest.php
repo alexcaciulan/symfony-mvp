@@ -20,6 +20,7 @@ use App\Enum\ExtractionStatus;
 use App\Enum\PersonType;
 use App\Enum\RelationshipType;
 use App\Service\AuditLogService;
+use App\Tests\Support\WizardBagTestTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
@@ -38,7 +39,8 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
  */
 final class CaseWizardConflictAuditTest extends WebTestCase
 {
-    private const SESSION_KEY = 'case_wizard_data';
+    use WizardBagTestTrait;
+
 
     private KernelBrowser $client;
     private EntityManagerInterface $em;
@@ -70,6 +72,7 @@ final class CaseWizardConflictAuditTest extends WebTestCase
         $conn->executeStatement('DELETE FROM audit_log WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM claim_item WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM document WHERE uploaded_by_id = :id', ['id' => $userId]);
+        $conn->executeStatement('DELETE FROM case_draft WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM legal_case_debtor WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM legal_deadline WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
         $conn->executeStatement('DELETE FROM case_status_history WHERE legal_case_id IN (SELECT id FROM legal_case WHERE user_id = :id)', ['id' => $userId]);
@@ -180,8 +183,7 @@ final class CaseWizardConflictAuditTest extends WebTestCase
         );
 
         $this->client->request('GET', '/case/new/documents');
-        $session = $this->client->getRequest()->getSession();
-        $session->set(self::SESSION_KEY, [
+        $this->primeBag([
             'documentIds' => $documentIds,
             'creditor' => $creditor,
             'debtors' => new Step2DebtorsData([$debtor]),
@@ -190,7 +192,6 @@ final class CaseWizardConflictAuditTest extends WebTestCase
             'claimItemsTableConfirmed' => false,
             'conflictResolutions' => $resolutions,
         ]);
-        $session->save();
 
         return $documentIds;
     }

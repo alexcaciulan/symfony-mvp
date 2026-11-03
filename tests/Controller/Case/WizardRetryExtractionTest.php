@@ -157,7 +157,10 @@ final class WizardRetryExtractionTest extends WebTestCase
 
         // Starting a new draft empties the bag while the row and the session
         // token both survive, which is exactly the state the guard is for.
-        $this->client->request('GET', '/case/new');
+        $crawler = $this->client->request('GET', '/case/new');
+        $this->client->request('POST', '/case/new/draft/new', [
+            '_token' => $crawler->filter('form[action$="/case/new/draft/new"] input[name="_token"]')->attr('value'),
+        ]);
 
         $this->drainTransport();
         $this->client->request('POST', '/case/new/documents/' . $document->getId() . '/retry', [

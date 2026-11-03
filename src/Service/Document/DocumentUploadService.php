@@ -5,9 +5,12 @@ namespace App\Service\Document;
 use App\DTO\Document\PowerOfAttorneyDetails;
 use App\Entity\Document;
 use App\Entity\LegalCase;
+use App\Entity\User;
 use App\Enum\DocumentType;
 use App\Service\AuditLogService;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Symfony\Component\Uid\Uuid;
@@ -34,6 +37,7 @@ class DocumentUploadService
         private AuditLogService $auditLogService,
         private FileContentHasher $contentHasher,
         private string $uploadsDir,
+        private LoggerInterface $logger = new NullLogger(),
     ) {}
 
     /**
@@ -133,20 +137,50 @@ class DocumentUploadService
         return $document;
     }
 
-    public function delete(Document $document): void
+    /**
+     * Deletes the row first and the file after: a row without a file is an
+     * upload that reads as missing, a file without a row is storage nobody can
+     * reach, and of the two only the second is invisible. The per-upload
+     * directory of a pending upload goes with its only file.
+     *
+     * `$actor` names who asked when there is no session, such as the sweeper
+     * acting on nobody's behalf or a worker acting on the lawyer's.
+     */
+    public function delete(Document $document, ?User $actor = null): void
     {
-        $this->auditLogService->log('document_delete', 'Document', (string) $document->getId(), [
-            'originalFilename' => $document->getOriginalFilename(),
-            'documentType' => $document->getDocumentType()->value,
-            'fileSize' => $document->getFileSize(),
-        ]);
-
-        $filePath = $this->uploadsDir . '/' . $document->getStoredFilename();
-        if (file_exists($filePath)) {
-            unlink($filePath);
-        }
+        $relativePath = $document->getStoredFilename();
+        $this->auditLogService->log(
+            action: 'document_delete',
+            entityType: 'Document',
+            entityId: (string) $document->getId(),
+            oldData: [
+                'originalFilename' => $document->getOriginalFilename(),
+                'documentType' => $document->getDocumentType()->value,
+                'fileSize' => $document->getFileSize(),
+            ],
+            actor: $actor,
+        );
 
         $this->em->remove($document);
         $this->em->flush();
+
+        $filePath = $this->uploadsDir . '/' . $relativePath;
+        if (file_exists($filePath) && !@unlink($filePath)) {
+            $this->logger->warning('document.delete.unlink_failed', ['path' => $relativePath]);
+
+            return;
+        }
+
+        $directory = dirname($filePath);
+        if (str_contains($relativePath, '/_pending/') && is_dir($directory) && self::isEmptyDirectory($directory)) {
+            @rmdir($directory);
+        }
+    }
+
+    private static function isEmptyDirectory(string $directory): bool
+    {
+        $entries = @scandir($directory);
+
+        return $entries !== false && count($entries) <= 2;
     }
 }

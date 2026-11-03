@@ -21,4 +21,17 @@ interface WizardStateStore
 
     /** Drops the current run so the next load starts from an empty bag. */
     public function reset(SessionInterface $session): void;
+
+    /**
+     * Removes the stored run from the database only, leaving the session as it
+     * is, so it can run inside a transaction; follow with detach() once the
+     * transaction has committed. A no-op where the run lives in the session.
+     */
+    public function removeStored(SessionInterface $session): void;
+
+    /**
+     * Leaves the current run where it is kept and starts the next load from
+     * an empty bag, so a new run can begin without losing the old one.
+     */
+    public function detach(SessionInterface $session): void;
 }

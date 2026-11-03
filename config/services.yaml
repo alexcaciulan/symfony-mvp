@@ -205,6 +205,11 @@ services:
         factory: ['App\Service\Filing\CourtFilingTransportFactory', 'create']
         arguments: ['%env(COURT_FILING_MAILER_DSN)%']
 
+    # Two stores exist for the wizard state. The session one is kept for the
+    # tests of the store contract; the app keeps the state in CaseDraft rows.
+    App\Service\Wizard\WizardStateStore:
+        alias: App\Service\Wizard\CaseDraftWizardStateStore
+
     App\Service\Deadline\WorkingDayResolver:
         arguments:
             $additionalHolidays: '%lexrecovery.working_days.additional_holidays%'
