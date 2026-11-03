@@ -81,6 +81,8 @@ use App\Service\Party\CuiNormalizer;
 use App\Service\Party\OnrcNumber;
 use App\Service\Party\RomanianBankCode;
 use App\Service\Validation\OpAdmissibilityValidator;
+use App\Service\Wizard\WizardBag;
+use App\Service\Wizard\WizardStateStore;
 use App\Util\ClaimRowLiveMapper;
 use App\Util\RomanianAmountParser;
 use App\Util\StringCapper;
@@ -104,11 +106,13 @@ use Symfony\Contracts\Translation\TranslatorInterface;
 use Symfony\UX\Turbo\TurboBundle;
 
 /**
- * Pas 3.0 — step 0 (Documente sursă) + Pas 3.2 — step 1-4 (Creditor / Debitor / Creanță / Confirmare).
+ * Case creation wizard: step 0 (source documents) and steps 1-4 (creditor, debtor, claim, confirmation).
  *
- * Routes are mounted at /case/new. Session bag `case_wizard_data` carries
- * cross-step state with four keys: `documentIds` (set in step 0), `creditor`
- * (Step1CreditorData), `debtors` (Step2DebtorsData), `claim` (Step3ClaimData).
+ * Routes are mounted at /case/new. The cross-step state is a `WizardBag`
+ * loaded from and saved to the `WizardStateStore` on every action:
+ * `documentIds` (set in step 0), `creditor` (Step1CreditorData), `debtors`
+ * (Step2DebtorsData), `claim` (Step3ClaimData), plus the positions table and
+ * the decisions taken on the disagreements between documents.
  *
  * Step 0 documents have legal_case_id = NULL until step 4 submit attaches
  * them to the freshly persisted LegalCase. The whole submit is run inside
@@ -119,8 +123,6 @@ use Symfony\UX\Turbo\TurboBundle;
 #[IsGranted('ROLE_USER')]
 final class CaseWizardController extends AbstractController
 {
-    private const SESSION_KEY = 'case_wizard_data';
-
     /**
      * Fallback for `EXTRACTION_REVIEW_THRESHOLD`. Below it, a position was read
      * with too little confidence to be waved through by the table-wide
@@ -156,6 +158,7 @@ final class CaseWizardController extends AbstractController
         private readonly AuditLogService $auditLog,
         private readonly MessageBusInterface $bus,
         private readonly AccessoryComputabilityChecker $accessoryChecker,
+        private readonly WizardStateStore $stateStore,
         private readonly float $confidenceThreshold = self::DEFAULT_REVIEW_THRESHOLD,
         private readonly LoggerInterface $logger = new NullLogger(),
         private readonly ?AnafLookupService $anafLookup = null,
@@ -174,7 +177,7 @@ final class CaseWizardController extends AbstractController
         // make a fresh start synchronously delete N files + emit N audit log
         // entries, which is too eager for a navigation click.
         $session = $request->getSession();
-        $session->set(self::SESSION_KEY, $this->emptyBag());
+        $this->stateStore->reset($session);
 
         return $this->redirectToRoute('case_wizard_documents');
     }
@@ -185,7 +188,7 @@ final class CaseWizardController extends AbstractController
         #[CurrentUser] User $user,
     ): Response {
         $session = $request->getSession();
-        $bag = $this->loadBag($session);
+        $bag = $this->stateStore->load($session);
 
         $form = $this->createForm(Step0DocumentsType::class);
         $form->handleRequest($request);
@@ -216,7 +219,7 @@ final class CaseWizardController extends AbstractController
                 // Duplicates are recognised before anything is stored, against
                 // the documents of this draft only (see UploadDeduplicator for
                 // why the scope is not global).
-                $partition = $this->deduplicator->partition($uploaded, $this->loadOwnedDocuments($bag['documentIds'], $user));
+                $partition = $this->deduplicator->partition($uploaded, $this->loadOwnedDocuments($bag->documentIds, $user));
                 $accepted = $partition['files'];
                 $duplicates = $partition['duplicates'];
 
@@ -237,19 +240,19 @@ final class CaseWizardController extends AbstractController
                         $uploadErrors[] = 'wizard.step0.error.invalid_mime';
                         continue;
                     }
-                    $bag['documentIds'][] = $document->getId();
+                    $bag->documentIds[] = $document->getId();
                     ++$storedCount;
                     $this->bus->dispatch(new ExtractDataMessage($document->getId()));
                 }
-                $this->saveBag($session, $bag);
+                $this->stateStore->save($session, $bag);
             }
 
             if ($isTurboStreamRequest || $isTurboFrameRequest) {
                 $request->setRequestFormat(TurboBundle::STREAM_FORMAT);
 
-                $documents = $this->loadOwnedDocuments($bag['documentIds'], $user);
-                $bag['documentIds'] = array_map(static fn (Document $d) => $d->getId(), $documents);
-                $this->saveBag($session, $bag);
+                $documents = $this->loadOwnedDocuments($bag->documentIds, $user);
+                $bag->documentIds = array_map(static fn (Document $d) => $d->getId(), $documents);
+                $this->stateStore->save($session, $bag);
 
                 // One toast per outcome, so a mixed batch reports the skipped
                 // file AND confirms the stored one, exactly like the flash bag
@@ -276,8 +279,8 @@ final class CaseWizardController extends AbstractController
                 // One aggregation for the whole side card: the three previews
                 // have to agree with each other, and three passes over the same
                 // documents is three chances for them not to.
-                $preview = $this->prefill->aggregate($bag['documentIds'], $bag['conflictResolutions']);
-                $collected = $this->claimItemFactory->collectRows($bag['documentIds']);
+                $preview = $this->prefill->aggregate($bag->documentIds, $bag->conflictResolutions);
+                $collected = $this->claimItemFactory->collectRows($bag->documentIds);
                 $positions = $this->positionsPreview($collected);
                 $step0Conflicts = [...$preview->conflicts, ...$collected->conflicts];
 
@@ -287,10 +290,10 @@ final class CaseWizardController extends AbstractController
                     'debtor_preview' => $preview->debtors->debtors[0],
                     'claim_preview' => $preview->claim,
                     'claim_positions_preview' => $positions,
-                    'detected_sections' => $this->detectedDataPreview->build($preview->creditor, $preview->debtors->debtors[0], $preview->claim, $step0Conflicts, $positions, $bag['conflictResolutions']),
+                    'detected_sections' => $this->detectedDataPreview->build($preview->creditor, $preview->debtors->debtors[0], $preview->claim, $step0Conflicts, $positions, $bag->conflictResolutions),
                     'prefill_conflicts' => $step0Conflicts,
-                    'prefill_conflict_resolutions' => $bag['conflictResolutions'],
-                    'prefill_conflict_documents' => $this->conflictDocumentNames($bag['documentIds']),
+                    'prefill_conflict_resolutions' => $bag->conflictResolutions,
+                    'prefill_conflict_documents' => $this->conflictDocumentNames($bag->documentIds),
                     'all_terminal' => $this->allTerminal($documents),
                     'consumer_debtor' => $this->consumerDebtorName($preview),
                     'document_types' => DocumentType::uploadableTypes(),
@@ -317,12 +320,12 @@ final class CaseWizardController extends AbstractController
             return $this->redirectToRoute('case_wizard_documents');
         }
 
-        $documents = $this->loadOwnedDocuments($bag['documentIds'], $user);
-        $bag['documentIds'] = array_map(static fn (Document $d) => $d->getId(), $documents);
-        $this->saveBag($session, $bag);
+        $documents = $this->loadOwnedDocuments($bag->documentIds, $user);
+        $bag->documentIds = array_map(static fn (Document $d) => $d->getId(), $documents);
+        $this->stateStore->save($session, $bag);
 
-        $preview = $this->prefill->aggregate($bag['documentIds'], $bag['conflictResolutions']);
-        $collected = $this->claimItemFactory->collectRows($bag['documentIds']);
+        $preview = $this->prefill->aggregate($bag->documentIds, $bag->conflictResolutions);
+        $collected = $this->claimItemFactory->collectRows($bag->documentIds);
         $positions = $this->positionsPreview($collected);
         // Two documents giving one invoice different sums or due dates is said
         // here too, so the card does not show one of them as settled.
@@ -335,15 +338,15 @@ final class CaseWizardController extends AbstractController
             'debtor_preview' => $preview->debtors->debtors[0],
             'claim_preview' => $preview->claim,
             'claim_positions_preview' => $positions,
-            'detected_sections' => $this->detectedDataPreview->build($preview->creditor, $preview->debtors->debtors[0], $preview->claim, $step0Conflicts, $positions, $bag['conflictResolutions']),
+            'detected_sections' => $this->detectedDataPreview->build($preview->creditor, $preview->debtors->debtors[0], $preview->claim, $step0Conflicts, $positions, $bag->conflictResolutions),
             // Shown here as soon as the documents disagree, read only: the
             // extraction of the other files may still be running, so the set is
             // not final and the decision belongs on the step that owns the
             // field. Seeing it now is what stops the lawyer filling three steps
             // on a party two documents describe differently.
             'prefill_conflicts' => $step0Conflicts,
-            'prefill_conflict_resolutions' => $bag['conflictResolutions'],
-            'prefill_conflict_documents' => $this->conflictDocumentNames($bag['documentIds']),
+            'prefill_conflict_resolutions' => $bag->conflictResolutions,
+            'prefill_conflict_documents' => $this->conflictDocumentNames($bag->documentIds),
             'all_terminal' => $this->allTerminal($documents),
             'consumer_debtor' => $this->consumerDebtorName($preview),
             // Choices for the per-document type correction shown on each card.
@@ -471,8 +474,8 @@ final class CaseWizardController extends AbstractController
     #[Route('/documents/status', name: 'documents_status', methods: ['GET'])]
     public function documentsStatus(Request $request, #[CurrentUser] User $user): JsonResponse
     {
-        $bag = $this->loadBag($request->getSession());
-        $sessionIds = array_flip($bag['documentIds']);
+        $bag = $this->stateStore->load($request->getSession());
+        $sessionIds = array_flip($bag->documentIds);
 
         $idsParam = $request->query->all('ids');
         $askedIds = array_values(array_unique(array_map('intval', is_array($idsParam) ? $idsParam : [])));
@@ -507,8 +510,8 @@ final class CaseWizardController extends AbstractController
             throw $this->createAccessDeniedException('Invalid CSRF token');
         }
 
-        $bag = $this->loadBag($request->getSession());
-        if (!in_array($id, $bag['documentIds'], true)) {
+        $bag = $this->stateStore->load($request->getSession());
+        if (!in_array($id, $bag->documentIds, true)) {
             throw $this->createNotFoundException('Document is not part of the current wizard session');
         }
 
@@ -542,12 +545,12 @@ final class CaseWizardController extends AbstractController
     #[Route('/documents/{id}/remove/preview', name: 'documents_remove_preview', methods: ['GET'], requirements: ['id' => '\d+'])]
     public function removeDocumentPreview(Request $request, int $id, #[CurrentUser] User $user, DocumentRemovalPlanner $planner): Response
     {
-        $bag = $this->loadBag($request->getSession());
+        $bag = $this->stateStore->load($request->getSession());
         $document = $this->removableDocument($bag, $id, $user);
 
         return $this->render('case/_step0_remove_dialog.html.twig', [
             'document' => $document,
-            'plan' => $planner->plan($bag, $id),
+            'plan' => $planner->plan($bag->toArray(), $id),
         ]);
     }
 
@@ -563,7 +566,7 @@ final class CaseWizardController extends AbstractController
         }
 
         $session = $request->getSession();
-        $bag = $this->loadBag($session);
+        $bag = $this->stateStore->load($session);
         $document = $this->removableDocument($bag, $id, $user);
         if ($document->getExtractionStatus() === ExtractionStatus::PROCESSING) {
             $this->addFlash('warning', 'wizard.step0.remove.processing');
@@ -571,9 +574,10 @@ final class CaseWizardController extends AbstractController
             return $this->redirectToRoute('case_wizard_documents');
         }
 
-        $plan = $planner->plan($bag, $id);
-        $planner->apply($bag, $id, $plan);
-        $this->saveBag($session, $bag);
+        $state = $bag->toArray();
+        $plan = $planner->plan($state, $id);
+        $planner->apply($state, $id, $plan);
+        $this->stateStore->save($session, WizardBag::fromArray($state));
         $this->uploadService->delete($document);
 
         $this->addFlash('success', $this->removalMessage($plan));
@@ -581,12 +585,9 @@ final class CaseWizardController extends AbstractController
         return $this->redirectToRoute('case_wizard_documents');
     }
 
-    /**
-     * @param array<string, mixed> $bag
-     */
-    private function removableDocument(array $bag, int $id, User $user): Document
+    private function removableDocument(WizardBag $bag, int $id, User $user): Document
     {
-        if (!in_array($id, $bag['documentIds'], true)) {
+        if (!in_array($id, $bag->documentIds, true)) {
             throw $this->createNotFoundException('Document is not part of the current wizard session');
         }
         $document = $this->loadOwnedDocuments([$id], $user)[0] ?? null;
@@ -630,8 +631,8 @@ final class CaseWizardController extends AbstractController
             throw $this->createAccessDeniedException('Invalid CSRF token');
         }
 
-        $bag = $this->loadBag($request->getSession());
-        if (!in_array($id, $bag['documentIds'], true)) {
+        $bag = $this->stateStore->load($request->getSession());
+        if (!in_array($id, $bag->documentIds, true)) {
             throw $this->createNotFoundException('Document is not part of the current wizard session');
         }
 
@@ -675,9 +676,9 @@ final class CaseWizardController extends AbstractController
         }
 
         $session = $request->getSession();
-        $bag = $this->loadBag($session);
-        $bag['documentIds'] = [];
-        $this->saveBag($session, $bag);
+        $bag = $this->stateStore->load($session);
+        $bag->documentIds = [];
+        $this->stateStore->save($session, $bag);
 
         $this->addFlash('info', 'wizard.flash.skipped');
 
@@ -688,10 +689,10 @@ final class CaseWizardController extends AbstractController
     public function creditor(Request $request, #[CurrentUser] User $user): Response
     {
         $session = $request->getSession();
-        $bag = $this->loadBag($session);
+        $bag = $this->stateStore->load($session);
 
         [$prefill, $conflicts] = $this->prefillWithConflicts($bag, [ConflictScope::CREDITOR]);
-        $dto = $bag['creditor'] ?? $prefill->creditor;
+        $dto = $bag->creditor ?? $prefill->creditor;
         // Taken before the form binds, because the form writes into this very
         // object: it is what the page put on screen, which is how a field the
         // lawyer edited is told from one they left as the aggregation had it.
@@ -721,14 +722,14 @@ final class CaseWizardController extends AbstractController
             $rejected = $this->conflictResolutions->rejectedChoices(
                 $request->request->all('prefill_conflict'),
                 $conflicts,
-                $bag['conflictResolutions'],
+                $bag->conflictResolutions,
             );
             $stands = $this->applyChosenValues($bag, ConflictScope::CREDITOR, $rendered, $form->getData(), $rejected);
             $acknowledged = $acknowledged && $stands;
         }
-        $libraryRecheck = $bag['creditorLibraryRecheck'];
+        $libraryRecheck = $bag->creditorLibraryRecheck;
         if ($form->isSubmitted()) {
-            $bag['creditorLibraryRecheck'] = false;
+            $bag->creditorLibraryRecheck = false;
         }
         $libraryDiffers = null;
         if ($submitted && $acknowledged) {
@@ -736,12 +737,12 @@ final class CaseWizardController extends AbstractController
             $libraryDiffers = $this->matchLibraryCreditor($form->getData(), $user, is_string($choice) ? $choice : '');
         }
         if ($submitted && $acknowledged && $libraryDiffers === null) {
-            $bag['creditor'] = $form->getData();
-            $this->saveBag($session, $bag);
+            $bag->creditor = $form->getData();
+            $this->stateStore->save($session, $bag);
 
             return $this->redirectToRoute('case_wizard_debtor');
         }
-        $this->saveBag($session, $bag);
+        $this->stateStore->save($session, $bag);
 
         return $this->render('case/_step1_creditor_content.html.twig', [
             'current_step' => 1,
@@ -749,7 +750,7 @@ final class CaseWizardController extends AbstractController
             'dto' => $dto,
             'creditor_library_differs' => $libraryDiffers,
             'creditor_library_recheck' => $libraryRecheck && $libraryDiffers === null,
-            'creditor_bank_accounts' => $this->creditorBankAccounts($bag['documentIds'], $user),
+            'creditor_bank_accounts' => $this->creditorBankAccounts($bag->documentIds, $user),
             ...$this->conflictViewVars($bag, $conflicts, 'creditor', $rejected),
         ], $this->stepRejected($acknowledged && $libraryDiffers === null));
     }
@@ -893,14 +894,14 @@ final class CaseWizardController extends AbstractController
     public function debtor(Request $request, #[CurrentUser] User $user): Response
     {
         $session = $request->getSession();
-        $bag = $this->loadBag($session);
+        $bag = $this->stateStore->load($session);
 
         [$prefill, $conflicts] = $this->prefillWithConflicts($bag, [ConflictScope::DEBTOR, ConflictScope::DEBTOR_SET]);
-        $dto = $bag['debtors'] ?? $prefill->debtors;
+        $dto = $bag->debtors ?? $prefill->debtors;
         // Shown afresh on arrival; a submission carries what the page showed,
         // which matchLibraryDebtors() sets against the library itself.
-        if ($bag['debtors'] !== null && !$request->isMethod('POST')) {
-            $this->refreshPickedDebtors($bag['debtors'], $user);
+        if ($bag->debtors !== null && !$request->isMethod('POST')) {
+            $this->refreshPickedDebtors($bag->debtors, $user);
         }
 
         // Pas 3.3 — add/remove debtor happens through Step2DebtorsLiveComponent
@@ -925,27 +926,27 @@ final class CaseWizardController extends AbstractController
             $rejected = $this->conflictResolutions->rejectedChoices(
                 $request->request->all('prefill_conflict'),
                 $conflicts,
-                $bag['conflictResolutions'],
+                $bag->conflictResolutions,
             );
             $stands = $this->applyChosenValues($bag, ConflictScope::DEBTOR, $rendered, $form->getData(), $rejected);
             $acknowledged = $acknowledged && $stands;
         }
-        $libraryRecheck = $bag['debtorLibraryRecheck'];
+        $libraryRecheck = $bag->debtorLibraryRecheck;
         if ($form->isSubmitted()) {
-            $bag['debtorLibraryRecheck'] = false;
+            $bag->debtorLibraryRecheck = false;
         }
         $libraryDiffers = [];
         if ($submitted && $acknowledged) {
             $libraryDiffers = $this->matchLibraryDebtors($form->getData(), $user, $request->request->all('library_debtor_choice'));
         }
         if ($submitted && $acknowledged && $libraryDiffers === []) {
-            $bag['debtors'] = $form->getData();
-            $this->bindLibraryDebtors($bag['debtors'], $user);
-            $this->saveBag($session, $bag);
+            $bag->debtors = $form->getData();
+            $this->bindLibraryDebtors($bag->debtors, $user);
+            $this->stateStore->save($session, $bag);
 
             return $this->redirectToRoute('case_wizard_claim');
         }
-        $this->saveBag($session, $bag);
+        $this->stateStore->save($session, $bag);
 
         return $this->render('case/_step2_debtor_content.html.twig', [
             'current_step' => 2,
@@ -1079,17 +1080,17 @@ final class CaseWizardController extends AbstractController
         }
 
         $session = $request->getSession();
-        $bag = $this->loadBag($session);
-        $current = $bag['debtors']->debtors[0] ?? null;
+        $bag = $this->stateStore->load($session);
+        $current = $bag->debtors->debtors[0] ?? null;
         if ($current === null || $current->debtorId === null) {
-            $bag['debtorBeforePick'] = $bag['debtors'];
+            $bag->debtorBeforePick = $bag->debtors;
         }
-        $bag['debtors'] = new Step2DebtorsData([$this->entryFromLibrary($picked)]);
-        $bag['conflictResolutions'] = array_filter(
-            $bag['conflictResolutions'],
+        $bag->debtors = new Step2DebtorsData([$this->entryFromLibrary($picked)]);
+        $bag->conflictResolutions = array_filter(
+            $bag->conflictResolutions,
             static fn (ConflictResolution $r): bool => $r->scope !== ConflictScope::DEBTOR,
         );
-        $this->saveBag($session, $bag);
+        $this->stateStore->save($session, $bag);
 
         return $this->redirectToRoute('case_wizard_debtor', status: Response::HTTP_SEE_OTHER);
     }
@@ -1101,13 +1102,13 @@ final class CaseWizardController extends AbstractController
             throw $this->createAccessDeniedException();
         }
         $session = $request->getSession();
-        $bag = $this->loadBag($session);
+        $bag = $this->stateStore->load($session);
         // Only a debtor that still comes from the library is given back: a
         // repeated request must not wipe what the first one restored.
-        if (($bag['debtors']->debtors[0]->debtorId ?? null) !== null) {
-            $bag['debtors'] = $bag['debtorBeforePick'];
-            $bag['debtorBeforePick'] = null;
-            $this->saveBag($session, $bag);
+        if (($bag->debtors->debtors[0]->debtorId ?? null) !== null) {
+            $bag->debtors = $bag->debtorBeforePick;
+            $bag->debtorBeforePick = null;
+            $this->stateStore->save($session, $bag);
         }
 
         return $this->redirectToRoute('case_wizard_debtor', status: Response::HTTP_SEE_OTHER);
@@ -1221,22 +1222,22 @@ final class CaseWizardController extends AbstractController
     public function claim(Request $request): Response
     {
         $session = $request->getSession();
-        $bag = $this->loadBag($session);
+        $bag = $this->stateStore->load($session);
         if (($back = $this->redirectForDebtorsNoLongerOffered($bag)) !== null) {
             return $back;
         }
 
         [$prefill, $claimConflicts] = $this->prefillWithConflicts($bag, [ConflictScope::CLAIM]);
-        $collected = $this->claimItemFactory->collectRows($bag['documentIds']);
+        $collected = $this->claimItemFactory->collectRows($bag->documentIds);
         $conflicts = array_values([...$claimConflicts, ...$collected->conflicts]);
-        $bag['conflictResolutions'] = $this->conflictResolutions->reconcile($bag['conflictResolutions'], $conflicts);
-        $dto = $bag['claim'] ?? $this->claimWithPositionAwareDescription($prefill->claim, $collected->rows);
+        $bag->conflictResolutions = $this->conflictResolutions->reconcile($bag->conflictResolutions, $conflicts);
+        $dto = $bag->claim ?? $this->claimWithPositionAwareDescription($prefill->claim, $collected->rows);
         $rendered = $this->snapshotDto($dto);
         $form = $this->createForm(Step3ClaimType::class, $dto);
         $form->handleRequest($request);
 
-        $rows = $bag['claimItems'] ?? $collected->rows;
-        $tableConfirmed = $bag['claimItemsTableConfirmed'];
+        $rows = $bag->claimItems ?? $collected->rows;
+        $tableConfirmed = $bag->claimItemsTableConfirmed;
         $rowErrors = [];
 
         $submitted = $form->isSubmitted() && $form->isValid();
@@ -1247,14 +1248,14 @@ final class CaseWizardController extends AbstractController
             $rejected = $this->conflictResolutions->rejectedChoices(
                 $request->request->all('prefill_conflict'),
                 $conflicts,
-                $bag['conflictResolutions'],
+                $bag->conflictResolutions,
             );
             $stands = $this->applyChosenValues($bag, ConflictScope::CLAIM, $rendered, $form->getData(), $rejected);
             $acknowledged = $acknowledged && $stands;
         }
         // Applied after the decisions of this request are in: a sum chosen now
         // has to reach the table now, not on the next render.
-        $this->claimItemFactory->applyResolutions($rows, $bag['conflictResolutions']);
+        $this->claimItemFactory->applyResolutions($rows, $bag->conflictResolutions);
         if ($submitted && $acknowledged) {
             if ($rows !== []) {
                 $tableConfirmed = $request->request->getBoolean('claim_items_table_confirmed');
@@ -1263,10 +1264,10 @@ final class CaseWizardController extends AbstractController
             }
 
             if ($rowErrors === []) {
-                $bag['claim'] = $form->getData();
-                $bag['claimItems'] = $rows !== [] ? $rows : null;
-                $bag['claimItemsTableConfirmed'] = $tableConfirmed;
-                $this->saveBag($session, $bag);
+                $bag->claim = $form->getData();
+                $bag->claimItems = $rows !== [] ? $rows : null;
+                $bag->claimItemsTableConfirmed = $tableConfirmed;
+                $this->stateStore->save($session, $bag);
 
                 return $this->redirectToRoute('case_wizard_confirmation');
             }
@@ -1281,7 +1282,7 @@ final class CaseWizardController extends AbstractController
         // its `rows` prop on every debounced edit. The controller only hands it
         // the initial rows; Step 4 uses {@see safeComputeForSidebar()} for the
         // final figures.
-        $this->saveBag($session, $bag);
+        $this->stateStore->save($session, $bag);
 
         return $this->render('case/_step3_claim_content.html.twig', [
             'current_step' => 3,
@@ -1292,7 +1293,7 @@ final class CaseWizardController extends AbstractController
             'claim_items_table_confirmed' => $tableConfirmed,
             'claim_items_review_threshold' => $this->confidenceThreshold,
             'claim_items_errors' => $rowErrors,
-            'claim_items_source_names' => $this->conflictDocumentNames($bag['documentIds']),
+            'claim_items_source_names' => $this->conflictDocumentNames($bag->documentIds),
             ...$this->conflictViewVars($bag, $conflicts, 'claim', $rejected),
         ], $this->stepRejected($acknowledged));
     }
@@ -1521,14 +1522,14 @@ final class CaseWizardController extends AbstractController
         RateLimiterFactory $caseCreationLimiter,
     ): Response {
         $session = $request->getSession();
-        $bag = $this->loadBag($session);
+        $bag = $this->stateStore->load($session);
         if (($back = $this->redirectForDebtorsNoLongerOffered($bag)) !== null) {
             return $back;
         }
 
-        $creditorDto = $bag['creditor'] ?? null;
-        $debtorsDto = $bag['debtors'] ?? null;
-        $claimDto = $bag['claim'] ?? null;
+        $creditorDto = $bag->creditor ?? null;
+        $debtorsDto = $bag->debtors ?? null;
+        $claimDto = $bag->claim ?? null;
 
         // Soft guard — incomplete wizard state means the user navigated
         // directly to step 4 without filling earlier steps. Redirect to the
@@ -1545,56 +1546,56 @@ final class CaseWizardController extends AbstractController
         // A library company may have been edited since it was picked: the
         // court and the summary are worked out from what the case will carry.
         if ($this->settleCreditorWithLibrary($creditorDto, $user)) {
-            $bag['creditorLibraryRecheck'] = true;
-            $this->saveBag($session, $bag);
+            $bag->creditorLibraryRecheck = true;
+            $this->stateStore->save($session, $bag);
 
             return $this->redirectToRoute('case_wizard_creditor');
         }
         $this->refreshPickedDebtors($debtorsDto, $user);
         if ($this->debtorReachedLibrary($debtorsDto, $user)) {
-            $bag['debtorLibraryRecheck'] = true;
-            $this->saveBag($session, $bag);
+            $bag->debtorLibraryRecheck = true;
+            $this->stateStore->save($session, $bag);
 
             return $this->redirectToRoute('case_wizard_debtor');
         }
         $this->bindLibraryDebtors($debtorsDto, $user);
         if ($this->checkAnafStatus($debtorsDto)) {
-            $this->saveBag($session, $bag);
+            $this->stateStore->save($session, $bag);
         }
 
         // Everything the documents disagree about, checked once more here. A
         // blocking conflict still open at this point was walked past rather than
         // decided, and this is the last screen before a filing is created.
-        $prefill = $this->prefill->aggregate($bag['documentIds'], $bag['conflictResolutions']);
+        $prefill = $this->prefill->aggregate($bag->documentIds, $bag->conflictResolutions);
         $conflicts = $this->withLibraryDebtor($bag, $prefill, array_values([
             ...$prefill->conflicts,
-            ...$this->claimItemFactory->collectRows($bag['documentIds'])->conflicts,
+            ...$this->claimItemFactory->collectRows($bag->documentIds)->conflicts,
         ]));
         $conflicts = $this->withoutAnafSettled($bag, $conflicts, $creditorDto, $debtorsDto);
         // Every disagreement of the file is on this screen, so a decision with
         // no conflict left to match is about documents that are no longer here
         // and has to go rather than wait for its key to mean something else.
-        $bag['conflictResolutions'] = $this->conflictResolutions->reconcile($bag['conflictResolutions'], $conflicts, true);
+        $bag->conflictResolutions = $this->conflictResolutions->reconcile($bag->conflictResolutions, $conflicts, true);
         // What the audit will say was retained is what the filing has to carry.
         // The steps already moved these values into the forms; doing it once
         // more here is what makes the two impossible to pull apart, whichever
         // way the bag was reached.
-        $this->conflictChoices->applyToCreditor($creditorDto, null, $prefill->creditor, $bag['conflictResolutions']);
-        $this->conflictChoices->applyToDebtors($debtorsDto, null, $prefill->debtors, $bag['conflictResolutions']);
-        $this->conflictChoices->applyToClaim($claimDto, null, $prefill->claim, $bag['conflictResolutions']);
-        $this->saveBag($session, $bag);
+        $this->conflictChoices->applyToCreditor($creditorDto, null, $prefill->creditor, $bag->conflictResolutions);
+        $this->conflictChoices->applyToDebtors($debtorsDto, null, $prefill->debtors, $bag->conflictResolutions);
+        $this->conflictChoices->applyToClaim($claimDto, null, $prefill->claim, $bag->conflictResolutions);
+        $this->stateStore->save($session, $bag);
         $unsettled = $this->unsettledConflicts($bag, $conflicts);
         $conflictVars = [
             'prefill_conflicts' => $conflicts,
-            'prefill_conflict_resolutions' => $bag['conflictResolutions'],
-            'prefill_conflict_documents' => $this->conflictDocumentNames($bag['documentIds']),
+            'prefill_conflict_resolutions' => $bag->conflictResolutions,
+            'prefill_conflict_documents' => $this->conflictDocumentNames($bag->documentIds),
             'prefill_conflicts_unsettled' => $unsettled,
         ];
 
         $now = new \DateTimeImmutable();
         $conversion = $this->resolveConversion($claimDto);
         $claimRows = $this->resolveClaimRows($bag, $claimDto);
-        $this->claimItemFactory->applyResolutions($claimRows, $bag['conflictResolutions']);
+        $this->claimItemFactory->applyResolutions($claimRows, $bag->conflictResolutions);
         $skeleton = $this->buildLegalCaseSkeleton($user, $creditorDto, $debtorsDto, $claimDto, $conversion, $claimRows);
         $calculations = $this->safeComputeForSidebar($claimDto, $debtorsDto->debtors[0] ?? null, $conversion, $skeleton);
         $issues = [
@@ -1607,7 +1608,7 @@ final class CaseWizardController extends AbstractController
         ['errors' => $errors, 'warnings' => $warnings] = $this->splitIssues($issues);
         $hasErrors = $errors !== [];
         $hasWarnings = $warnings !== [];
-        $sessionDocuments = $this->loadOwnedDocuments($bag['documentIds'], $user);
+        $sessionDocuments = $this->loadOwnedDocuments($bag->documentIds, $user);
 
         $confirmation = new Step4ConfirmationData();
         $form = $this->createForm(Step4ConfirmationType::class, $confirmation, [
@@ -1692,7 +1693,7 @@ final class CaseWizardController extends AbstractController
                 $creditorDto,
                 $debtorsDto,
                 $claimDto,
-                $bag['documentIds'],
+                $bag->documentIds,
                 $calculations,
                 $autoFilledIndex,
                 $warnings,
@@ -1703,13 +1704,13 @@ final class CaseWizardController extends AbstractController
                 $claimRows,
                 $this->conflictResolutions->auditEntries(
                     $conflicts,
-                    $bag['conflictResolutions'],
-                    $this->conflictDocumentDescriptors($bag['documentIds']),
+                    $bag->conflictResolutions,
+                    $this->conflictDocumentDescriptors($bag->documentIds),
                     $this->acknowledgements($bag, $conflicts),
                 ),
             );
 
-            $session->set(self::SESSION_KEY, $this->emptyBag());
+            $this->stateStore->reset($session);
 
             if ($creditorOutcome['wasReused']) {
                 $this->addFlash('info', 'wizard.step4.flash.creditor_reused');
@@ -2187,12 +2188,11 @@ final class CaseWizardController extends AbstractController
      * confirmed on the step 3 table, or the single one implied by a manually
      * filled claim, which the lawyer confirmed by submitting the form.
      *
-     * @param  array{claimItems: ?list<ClaimItemRow>, ...} $bag
      * @return list<ClaimItemRow>
      */
-    private function resolveClaimRows(array $bag, Step3ClaimData $claimDto): array
+    private function resolveClaimRows(WizardBag $bag, Step3ClaimData $claimDto): array
     {
-        $rows = $bag['claimItems'] ?? null;
+        $rows = $bag->claimItems ?? null;
         if ($rows !== null && $rows !== []) {
             return $rows;
         }
@@ -2532,26 +2532,6 @@ final class CaseWizardController extends AbstractController
     }
 
     /**
-     * @return array{documentIds: list<int>, creditor: ?Step1CreditorData, debtors: ?Step2DebtorsData, claim: ?Step3ClaimData, claimItems: ?list<ClaimItemRow>, claimItemsTableConfirmed: bool, conflictResolutions: array<string, ConflictResolution>}
-     */
-    private function emptyBag(): array
-    {
-        return [
-            'documentIds' => [],
-            'creditor' => null,
-            'debtors' => null,
-            'debtorBeforePick' => null,
-            'debtorLibraryRecheck' => false,
-            'creditorLibraryRecheck' => false,
-            'claim' => null,
-            'claimItems' => null,
-            'claimItemsTableConfirmed' => false,
-            'conflictResolutions' => [],
-            'conflictsAcknowledged' => [],
-        ];
-    }
-
-    /**
      * Fields the ANAF sync writes for a party. Once the lawyer has synced the
      * party, the register settles them: what the documents say about the seat,
      * the name or the Trade Registry number no longer decides anything, and asking would only invite the
@@ -2564,16 +2544,15 @@ final class CaseWizardController extends AbstractController
      * the choices made on the ones taken out are dropped, so they cannot be
      * applied over the register's values on the way to the filing.
      *
-     * @param array<string, mixed> $bag
      * @param list<PrefillConflict> $conflicts
      * @return list<PrefillConflict>
      */
-    private function withoutAnafSettled(array &$bag, array $conflicts, ?Step1CreditorData $creditor, ?Step2DebtorsData $debtors): array
+    private function withoutAnafSettled(WizardBag $bag, array $conflicts, ?Step1CreditorData $creditor, ?Step2DebtorsData $debtors): array
     {
         $kept = [];
         foreach ($conflicts as $conflict) {
             if ($this->isSettledByAnaf($conflict, $creditor, $debtors)) {
-                unset($bag['conflictResolutions'][$conflict->key()]);
+                unset($bag->conflictResolutions[$conflict->key()]);
 
                 continue;
             }
@@ -2629,29 +2608,28 @@ final class CaseWizardController extends AbstractController
      * it is dropped and the conflict is put again. Re-aggregating after that is
      * what keeps the form and the panel describing the same state.
      *
-     * @param array<string, mixed> $bag
      * @param list<ConflictScope> $scopes
      * @return array{0: WizardPrefillResult, 1: list<PrefillConflict>}
      */
-    private function prefillWithConflicts(array &$bag, array $scopes): array
+    private function prefillWithConflicts(WizardBag $bag, array $scopes): array
     {
-        $prefill = $this->prefill->aggregate($bag['documentIds'], $bag['conflictResolutions']);
+        $prefill = $this->prefill->aggregate($bag->documentIds, $bag->conflictResolutions);
         $conflicts = $this->conflictsInScope($prefill, $scopes);
 
-        $reconciled = $this->conflictResolutions->reconcile($bag['conflictResolutions'], $conflicts);
-        if ($reconciled !== $bag['conflictResolutions']) {
+        $reconciled = $this->conflictResolutions->reconcile($bag->conflictResolutions, $conflicts);
+        if ($reconciled !== $bag->conflictResolutions) {
             // The documents changed under a choice of party: the debtor card
             // kept in the session describes a party that is no longer the
             // chosen one, so it goes, with the field choices made for it.
-            if ($this->droppedPartyChoice($bag['conflictResolutions'], $reconciled)) {
-                $bag['debtors'] = null;
+            if ($this->droppedPartyChoice($bag->conflictResolutions, $reconciled)) {
+                $bag->debtors = null;
                 $reconciled = array_filter(
                     $reconciled,
                     static fn (ConflictResolution $r): bool => $r->scope !== ConflictScope::DEBTOR,
                 );
             }
-            $bag['conflictResolutions'] = $reconciled;
-            $prefill = $this->prefill->aggregate($bag['documentIds'], $reconciled);
+            $bag->conflictResolutions = $reconciled;
+            $prefill = $this->prefill->aggregate($bag->documentIds, $reconciled);
             $conflicts = $this->conflictsInScope($prefill, $scopes);
         }
 
@@ -2668,13 +2646,12 @@ final class CaseWizardController extends AbstractController
      * decides anything and is not asked. What is asked is whether the company
      * the documents name is the one picked, when their CUIs differ.
      *
-     * @param array<string, mixed> $bag
      * @param list<PrefillConflict> $conflicts
      * @return list<PrefillConflict>
      */
-    private function withLibraryDebtor(array $bag, WizardPrefillResult $prefill, array $conflicts): array
+    private function withLibraryDebtor(WizardBag $bag, WizardPrefillResult $prefill, array $conflicts): array
     {
-        $entry = $bag['debtors']->debtors[0] ?? null;
+        $entry = $bag->debtors->debtors[0] ?? null;
         if (!$entry instanceof Step2DebtorEntry || $entry->debtorId === null) {
             return $conflicts;
         }
@@ -2723,18 +2700,17 @@ final class CaseWizardController extends AbstractController
      * to stand up to the same constraints; where it does not, the step refuses
      * rather than filing something the form would have rejected.
      *
-     * @param array<string, mixed> $bag
      * @param mixed $rendered the step data as the page had drawn it
      * @param list<string> $rejected conflicts whose answer could not be kept
      */
-    private function applyChosenValues(array &$bag, ConflictScope $scope, mixed $rendered, mixed $dto, array &$rejected): bool
+    private function applyChosenValues(WizardBag $bag, ConflictScope $scope, mixed $rendered, mixed $dto, array &$rejected): bool
     {
-        $resolutions = $bag['conflictResolutions'];
+        $resolutions = $bag->conflictResolutions;
         if ($this->conflictResolutions->ofScope($resolutions, $scope) === []) {
             return true;
         }
 
-        $chosen = $this->prefill->aggregate($bag['documentIds'], $resolutions);
+        $chosen = $this->prefill->aggregate($bag->documentIds, $resolutions);
         $moved = match (true) {
             $dto instanceof Step1CreditorData => $this->conflictChoices->applyToCreditor($dto, $rendered instanceof Step1CreditorData ? $rendered : null, $chosen->creditor, $resolutions),
             $dto instanceof Step2DebtorsData => $this->conflictChoices->applyToDebtors($dto, $rendered instanceof Step2DebtorsData ? $rendered : null, $chosen->debtors, $resolutions),
@@ -2757,7 +2733,7 @@ final class CaseWizardController extends AbstractController
             if ($change['conflictKey'] === null) {
                 continue;
             }
-            unset($bag['conflictResolutions'][$change['conflictKey']]);
+            unset($bag->conflictResolutions[$change['conflictKey']]);
             $rejected[] = $change['conflictKey'];
             $stands = false;
         }
@@ -2791,19 +2767,18 @@ final class CaseWizardController extends AbstractController
      * file or two, all the lawyer can do is state they have read it. Both are
      * kept in the bag, so walking back to the step does not ask again.
      *
-     * @param array<string, mixed> $bag
      * @param list<PrefillConflict> $conflicts
      */
-    private function settleConflicts(Request $request, array &$bag, string $step, array $conflicts): bool
+    private function settleConflicts(Request $request, WizardBag $bag, string $step, array $conflicts): bool
     {
-        $bag['conflictResolutions'] = $this->conflictResolutions->collect(
+        $bag->conflictResolutions = $this->conflictResolutions->collect(
             $request->request->all('prefill_conflict'),
             $request->request->all('prefill_conflict_manual'),
             $conflicts,
-            $bag['conflictResolutions'],
+            $bag->conflictResolutions,
         );
 
-        if ($this->conflictResolutions->pendingChoices($conflicts, $bag['conflictResolutions']) !== []) {
+        if ($this->conflictResolutions->pendingChoices($conflicts, $bag->conflictResolutions) !== []) {
             $this->addFlash('error', 'wizard.conflict.choice_required');
 
             return false;
@@ -2823,11 +2798,11 @@ final class CaseWizardController extends AbstractController
         // afterwards can raise another one, and a flag that stayed true would
         // carry the lawyer's statement onto something they never saw.
         $fingerprint = $this->conflictResolutions->acknowledgementFingerprint($pending);
-        if (($bag['conflictsAcknowledged'][$step]['fingerprint'] ?? null) === $fingerprint) {
+        if (($bag->conflictsAcknowledged[$step]['fingerprint'] ?? null) === $fingerprint) {
             return true;
         }
         if ($request->request->getBoolean('prefill_conflicts_acknowledged')) {
-            $bag['conflictsAcknowledged'][$step] = [
+            $bag->conflictsAcknowledged[$step] = [
                 'fingerprint' => $fingerprint,
                 'at' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
             ];
@@ -2846,15 +2821,14 @@ final class CaseWizardController extends AbstractController
      * Only the blocking disagreements that offer nothing to choose between get
      * one: everywhere else the record is the choice itself.
      *
-     * @param array<string, mixed> $bag
      * @param list<PrefillConflict> $conflicts
      * @return array<string, array{at: string, fingerprint: string}>
      */
-    private function acknowledgements(array $bag, array $conflicts): array
+    private function acknowledgements(WizardBag $bag, array $conflicts): array
     {
         $entries = [];
         foreach ($this->byStep($this->conflictResolutions->pendingAcknowledgement($conflicts)) as $step => $group) {
-            $record = $bag['conflictsAcknowledged'][$step] ?? null;
+            $record = $bag->conflictsAcknowledged[$step] ?? null;
             if (!is_array($record)) {
                 continue;
             }
@@ -2886,14 +2860,13 @@ final class CaseWizardController extends AbstractController
     /**
      * The blocking disagreements nobody has settled, whichever step owns them.
      *
-     * @param array<string, mixed> $bag
      * @param list<PrefillConflict> $conflicts
      * @return list<PrefillConflict>
      */
-    private function unsettledConflicts(array $bag, array $conflicts): array
+    private function unsettledConflicts(WizardBag $bag, array $conflicts): array
     {
         $unsettled = [
-            ...$this->conflictResolutions->pendingChoices($conflicts, $bag['conflictResolutions']),
+            ...$this->conflictResolutions->pendingChoices($conflicts, $bag->conflictResolutions),
             ...$this->conflictResolutions->unresolvableBlocks($conflicts),
         ];
         $acknowledged = $this->acknowledgements($bag, $conflicts);
@@ -2927,12 +2900,11 @@ final class CaseWizardController extends AbstractController
      * option is built by the aggregation from extraction payloads and has no
      * business loading document rows.
      *
-     * @param array<string, mixed> $bag
      * @param list<PrefillConflict> $conflicts
      * @param list<string> $rejected keys whose answer could not be kept
      * @return array<string, mixed>
      */
-    private function conflictViewVars(array $bag, array $conflicts, string $step, array $rejected = []): array
+    private function conflictViewVars(WizardBag $bag, array $conflicts, string $step, array $rejected = []): array
     {
         $pending = array_values(array_filter(
             $this->conflictResolutions->pendingAcknowledgement($conflicts),
@@ -2942,9 +2914,9 @@ final class CaseWizardController extends AbstractController
         return [
             'prefill_conflicts' => $conflicts,
             'prefill_conflicts_acknowledged' => $pending !== []
-                && ($bag['conflictsAcknowledged'][$step]['fingerprint'] ?? null) === $this->conflictResolutions->acknowledgementFingerprint($pending),
-            'prefill_conflict_resolutions' => $bag['conflictResolutions'],
-            'prefill_conflict_documents' => $this->conflictDocumentNames($bag['documentIds']),
+                && ($bag->conflictsAcknowledged[$step]['fingerprint'] ?? null) === $this->conflictResolutions->acknowledgementFingerprint($pending),
+            'prefill_conflict_resolutions' => $bag->conflictResolutions,
+            'prefill_conflict_documents' => $this->conflictDocumentNames($bag->documentIds),
             'prefill_conflict_rejected' => $rejected,
         ];
     }
@@ -3011,14 +2983,13 @@ final class CaseWizardController extends AbstractController
      * one the lawyer chose, or the first while nothing is chosen), by its label
      * rather than its position, which moves when documents are added.
      *
-     * @param array<string, mixed> $bag
      * @param list<PrefillConflict> $conflicts
      */
-    private function chosenParty(array $bag, array $conflicts): string
+    private function chosenParty(WizardBag $bag, array $conflicts): string
     {
         foreach ($conflicts as $conflict) {
             if ($conflict->messageKey === PrefillFromExtractionService::DEBTOR_CHOICE_MESSAGE) {
-                $index = $bag['conflictResolutions'][$conflict->key()]->optionIndex ?? 0;
+                $index = $bag->conflictResolutions[$conflict->key()]->optionIndex ?? 0;
 
                 return ($conflict->options[$index] ?? $conflict->options[0])->displayValue();
             }
@@ -3033,16 +3004,15 @@ final class CaseWizardController extends AbstractController
      * choices and checks made for that party; the step is shown again with the
      * chosen party's data.
      *
-     * @param array<string, mixed> $bag
      */
-    private function showChosenParty(SessionInterface $session, array $bag): Response
+    private function showChosenParty(SessionInterface $session, WizardBag $bag): Response
     {
-        $bag['debtors'] = null;
-        $bag['conflictResolutions'] = array_filter(
-            $bag['conflictResolutions'],
+        $bag->debtors = null;
+        $bag->conflictResolutions = array_filter(
+            $bag->conflictResolutions,
             static fn (ConflictResolution $r): bool => $r->scope !== ConflictScope::DEBTOR,
         );
-        $this->saveBag($session, $bag);
+        $this->stateStore->save($session, $bag);
 
         return $this->redirectToRoute('case_wizard_debtor');
     }
@@ -3053,11 +3023,10 @@ final class CaseWizardController extends AbstractController
      * than converted silently: the lawyer re-enters the party with the data
      * the product accepts, or removes the extra debtor.
      *
-     * @param array<string, mixed> $bag
      */
-    private function redirectForDebtorsNoLongerOffered(array $bag): ?Response
+    private function redirectForDebtorsNoLongerOffered(WizardBag $bag): ?Response
     {
-        $debtors = $bag['debtors'] ?? null;
+        $debtors = $bag->debtors ?? null;
         if (!$debtors instanceof Step2DebtorsData) {
             return null;
         }
@@ -3076,89 +3045,6 @@ final class CaseWizardController extends AbstractController
         }
 
         return null;
-    }
-
-    /**
-     * @return array{documentIds: list<int>, creditor: ?Step1CreditorData, debtors: ?Step2DebtorsData, claim: ?Step3ClaimData, claimItems: ?list<ClaimItemRow>, claimItemsTableConfirmed: bool, conflictResolutions: array<string, ConflictResolution>}
-     */
-    private function loadBag(SessionInterface $session): array
-    {
-        $raw = $session->get(self::SESSION_KEY, []);
-        if (!is_array($raw)) {
-            $raw = [];
-        }
-
-        $ids = $raw['documentIds'] ?? [];
-        $ids = is_array($ids) ? array_values(array_unique(array_map('intval', $ids))) : [];
-
-        $creditor = $raw['creditor'] ?? null;
-        if (!$creditor instanceof Step1CreditorData) {
-            $creditor = null;
-        }
-
-        $debtors = $raw['debtors'] ?? null;
-        if (!$debtors instanceof Step2DebtorsData) {
-            $debtors = null;
-        }
-        $debtorBeforePick = $raw['debtorBeforePick'] ?? null;
-        if (!$debtorBeforePick instanceof Step2DebtorsData) {
-            $debtorBeforePick = null;
-        }
-
-        $claim = $raw['claim'] ?? null;
-        if (!$claim instanceof Step3ClaimData) {
-            $claim = null;
-        }
-
-        $claimItems = $raw['claimItems'] ?? null;
-        if (is_array($claimItems)) {
-            $claimItems = array_values(array_filter(
-                $claimItems,
-                static fn (mixed $row): bool => $row instanceof ClaimItemRow,
-            ));
-        } else {
-            $claimItems = null;
-        }
-
-        $acknowledged = [];
-        foreach (is_array($raw['conflictsAcknowledged'] ?? null) ? $raw['conflictsAcknowledged'] : [] as $step => $record) {
-            if (!is_string($step) || !is_array($record)) {
-                continue;
-            }
-            if (!is_string($record['fingerprint'] ?? null) || !is_string($record['at'] ?? null)) {
-                continue;
-            }
-            $acknowledged[$step] = ['fingerprint' => $record['fingerprint'], 'at' => $record['at']];
-        }
-
-        $resolutions = [];
-        foreach (is_array($raw['conflictResolutions'] ?? null) ? $raw['conflictResolutions'] : [] as $key => $resolution) {
-            if (is_string($key) && $resolution instanceof ConflictResolution) {
-                $resolutions[$key] = $resolution;
-            }
-        }
-
-        return [
-            'documentIds' => $ids,
-            'creditor' => $creditor,
-            'debtors' => $debtors,
-            'debtorBeforePick' => $debtorBeforePick,
-            'debtorLibraryRecheck' => (bool) ($raw['debtorLibraryRecheck'] ?? false),
-            'creditorLibraryRecheck' => (bool) ($raw['creditorLibraryRecheck'] ?? false),
-            'claim' => $claim,
-            'claimItems' => $claimItems,
-            'claimItemsTableConfirmed' => (bool) ($raw['claimItemsTableConfirmed'] ?? false),
-            'conflictResolutions' => $resolutions,
-            'conflictsAcknowledged' => $acknowledged,
-        ];
-    }
-
-    /**
-     * @param array{documentIds: list<int>, creditor: ?Step1CreditorData, debtors: ?Step2DebtorsData, claim: ?Step3ClaimData, claimItems: ?list<ClaimItemRow>, claimItemsTableConfirmed: bool, conflictResolutions: array<string, ConflictResolution>} $bag
-     */
-    private function saveBag(SessionInterface $session, array $bag): void
-    {
-        $session->set(self::SESSION_KEY, $bag);
     }
 
     /**
