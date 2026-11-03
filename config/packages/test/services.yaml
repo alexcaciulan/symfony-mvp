@@ -24,11 +24,6 @@ services:
         alias: App\Service\Deadline\DeadlineService
         public: true
 
-    # Drop once the claim card controllers inject ClaimRecalculator.
-    test.public.claim_recalculator:
-        alias: App\Service\Case\ClaimRecalculator
-        public: true
-
     # Pas 4.2 — subscriber e auto-tagged via #[AsDoctrineListener] + #[AsEventListener]
     # dar nu are caller direct; test idempotency-ului apelează manual `onSomatieTrimisa`.
     App\EventSubscriber\DeadlineCreationSubscriber:

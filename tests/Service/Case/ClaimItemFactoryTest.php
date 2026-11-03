@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Service\Case;
 
+use App\DTO\Case\ClaimPositionInput;
 use App\DTO\Wizard\Step3ClaimData;
 use App\Entity\BnrExchangeRate;
 use App\Repository\BnrExchangeRateRepository;
@@ -113,6 +114,56 @@ class ClaimItemFactoryTest extends TestCase
     public function testAZeroClaimProducesNoPosition(): void
     {
         $this->assertNull($this->factory()->rowFromClaim(new Step3ClaimData(amount: 0.0)));
+    }
+
+    public function testARowTypedOnTheCasePageIsConfirmedAndKeyedWithTheIssuer(): void
+    {
+        $factory = $this->factory();
+        $row = $factory->rowFromInput(new ClaimPositionInput(
+            documentNumber: ' FF 0012/2025 ',
+            documentDate: new \DateTimeImmutable('2026-02-01'),
+            dueDate: new \DateTimeImmutable('2026-03-01'),
+            amount: 1500.0,
+            currency: 'RON',
+            causeReference: ' Contract 7/2024 ',
+        ), 'RO12345678');
+
+        $this->assertTrue($row->confirmed);
+        $this->assertSame(1500.0, $row->amountRon);
+        $this->assertSame('FF 0012/2025', $row->documentNumber);
+        $this->assertSame('Contract 7/2024', $row->causeReference);
+        $this->assertSame($factory->dedupKey('FF12/2025', new \DateTimeImmutable('2026-02-01'), 1500.0, 'RON', 'RO12345678'), $row->dedupKey);
+        $this->assertNotSame($factory->dedupKey('FF12/2025', new \DateTimeImmutable('2026-02-01'), 1500.0, 'RON'), $row->dedupKey, 'The issuer qualifies the key.');
+    }
+
+    public function testARowInEuroIsConvertedAtTheRateOfItsInvoiceDate(): void
+    {
+        $row = $this->factory()->rowFromInput(new ClaimPositionInput(
+            documentNumber: 'FF-2',
+            documentDate: new \DateTimeImmutable('2026-02-01'),
+            dueDate: new \DateTimeImmutable('2026-03-01'),
+            amount: 100.0,
+            currency: 'EUR',
+        ), null);
+
+        $this->assertSame(500.0, $row->amountRon);
+        $this->assertSame(5.0, $row->exchangeRate);
+        $this->assertFalse($row->needsManualFx);
+    }
+
+    public function testARowInEuroWithoutARateIsFlaggedForAManualRate(): void
+    {
+        $row = $this->factory()->rowFromInput(new ClaimPositionInput(
+            documentNumber: 'FF-3',
+            documentDate: new \DateTimeImmutable('2020-02-01'),
+            dueDate: new \DateTimeImmutable('2020-03-01'),
+            amount: 100.0,
+            currency: 'EUR',
+        ), null);
+
+        $this->assertNull($row->amountRon);
+        $this->assertTrue($row->needsManualFx);
+        $this->assertContains('wizard.step3.claim_items.warning.fx_unavailable', $row->warningKeys);
     }
 
     private function factory(): ClaimItemFactory

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Service\Case;
 
+use App\DTO\Case\ClaimPositionInput;
 use App\DTO\Extraction\ConflictResolution;
 use App\DTO\Extraction\DeduplicationResult;
 use App\DTO\Extraction\PrefillConflict;
@@ -240,6 +241,37 @@ final class ClaimItemFactory
             $row->warningKeys[] = 'wizard.step3.claim_items.warning.deduction_mentioned';
             $row->hasStatedDeduction = true;
         }
+
+        $this->applyConversion($row);
+
+        return $row;
+    }
+
+    /**
+     * The position the lawyer typed on the case page, or corrected after an
+     * invoice was read. Converted like every other row, so a foreign currency
+     * without a rate is reported the same way (`needsManualFx`), and keyed with
+     * the issuer's fiscal code so that a hand-typed invoice collides with its
+     * extracted reading instead of standing next to it.
+     */
+    public function rowFromInput(ClaimPositionInput $input, ?string $issuerCui): ClaimItemRow
+    {
+        $amount = abs((float) $input->amount);
+        $currency = ExtractedValue::currency($input->currency) ?? 'RON';
+        $documentNumber = LegalCaseClaimFieldsMapper::trimmedOrNull($input->documentNumber);
+
+        $row = new ClaimItemRow(
+            dedupKey: $this->dedupKey($documentNumber, $input->documentDate, $amount, $currency, $issuerCui),
+            amount: $amount,
+            currency: $currency,
+            documentNumber: $documentNumber,
+            documentDate: $input->documentDate,
+            dueDate: $input->dueDate,
+            sourceDocumentId: $input->sourceDocumentId,
+            causeReference: LegalCaseClaimFieldsMapper::trimmedOrNull($input->causeReference),
+            description: LegalCaseClaimFieldsMapper::trimmedOrNull($input->description),
+            confirmed: true,
+        );
 
         $this->applyConversion($row);
 

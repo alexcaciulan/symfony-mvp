@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Entity;
 
+use App\Enum\ClaimExclusionReason;
 use App\Enum\ClaimItemKind;
 use App\Repository\ClaimItemRepository;
 use App\Service\Case\DocumentReferenceNormalizer;
@@ -126,6 +127,13 @@ class ClaimItem
 
     #[ORM\Column(options: ['default' => false])]
     private bool $excludedByLawyer = false;
+
+    /** Why the lawyer excluded the position; cleared when it is reinstated. */
+    #[ORM\Column(length: 30, nullable: true, enumType: ClaimExclusionReason::class)]
+    private ?ClaimExclusionReason $exclusionReason = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $exclusionNote = null;
 
     #[ORM\Column(type: Types::TEXT, nullable: true)]
     private ?string $description = null;
@@ -368,6 +376,30 @@ class ClaimItem
     public function setExcludedByLawyer(bool $excludedByLawyer): static
     {
         $this->excludedByLawyer = $excludedByLawyer;
+
+        return $this;
+    }
+
+    public function getExclusionReason(): ?ClaimExclusionReason
+    {
+        return $this->exclusionReason;
+    }
+
+    public function setExclusionReason(?ClaimExclusionReason $exclusionReason): static
+    {
+        $this->exclusionReason = $exclusionReason;
+
+        return $this;
+    }
+
+    public function getExclusionNote(): ?string
+    {
+        return $this->exclusionNote;
+    }
+
+    public function setExclusionNote(?string $exclusionNote): static
+    {
+        $this->exclusionNote = $exclusionNote;
 
         return $this;
     }

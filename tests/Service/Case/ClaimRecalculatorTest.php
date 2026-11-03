@@ -43,7 +43,7 @@ final class ClaimRecalculatorTest extends KernelTestCase
         self::bootKernel();
         $container = static::getContainer();
         $this->em = $container->get(EntityManagerInterface::class);
-        $this->recalculator = $container->get('test.public.claim_recalculator');
+        $this->recalculator = $container->get(ClaimRecalculator::class);
         $this->deadlineService = $container->get('test.public.deadline_service');
 
         $this->user = new User();

@@ -167,6 +167,16 @@ final class ClaimRecalculator
     }
 
     /**
+     * What the competence rules say about the case as it stands, for the court
+     * card and for the lawyer's acceptance of a proposal. Null when the rules
+     * and the case agree or when nothing counts.
+     */
+    public function courtProposal(LegalCase $case): ?CourtProposal
+    {
+        return $this->compareCourt($case, $this->accessoryService->referenceDate($case));
+    }
+
+    /**
      * The stored accessory at the case's reference date. When nothing counts
      * any more the aggregator has nothing to compute and the stored figure would
      * otherwise stay what it was: a claim emptied on purpose carries no accessory.
@@ -406,6 +416,8 @@ final class ClaimRecalculator
             'paidAmount' => $item->getPaidAmount(),
             'kind' => $item->getKind()->value,
             'excludedByLawyer' => $item->isExcludedByLawyer(),
+            'exclusionReason' => $item->getExclusionReason()?->value,
+            'exclusionNote' => $item->getExclusionNote(),
             'confirmed' => $item->isConfirmedByLawyer(),
             'debtor' => $debtor !== null ? ['id' => $debtor->getId(), 'name' => $debtor->getName()] : null,
             'causeReference' => $item->getCauseReference(),
