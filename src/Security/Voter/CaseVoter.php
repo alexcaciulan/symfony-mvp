@@ -52,8 +52,16 @@ class CaseVoter extends Voter
      */
     public const DELETE = 'CASE_DELETE';
 
+    /**
+     * Changing the claim from the case page: adding, excluding or reinstating a
+     * position and editing the claim details. Owner only, in AMIABIL only, with no
+     * admin bypass: a figure the court will quote belongs to the lawyer who signs
+     * the petition, exactly like the content of a filing.
+     */
+    public const CLAIM_EDIT = 'CASE_CLAIM_EDIT';
+
     /** What would change the content of a filing the platform is transmitting. */
-    private const LOCKED_BY_FILING = [self::EDIT, self::UPLOAD, self::STAMP_DUTY_MANAGE, self::DELETE];
+    private const LOCKED_BY_FILING = [self::EDIT, self::UPLOAD, self::STAMP_DUTY_MANAGE, self::DELETE, self::CLAIM_EDIT];
 
     private const EDITABLE_STATUSES = [
         CaseStatus::AMIABIL,
@@ -70,7 +78,7 @@ class CaseVoter extends Voter
 
     protected function supports(string $attribute, mixed $subject): bool
     {
-        return in_array($attribute, [self::VIEW, self::EDIT, self::UPLOAD, self::TRANSITION, self::DEADLINE_MANAGE, self::STAMP_DUTY_MANAGE, self::FILING_CONTENT, self::DELETE], true)
+        return in_array($attribute, [self::VIEW, self::EDIT, self::UPLOAD, self::TRANSITION, self::DEADLINE_MANAGE, self::STAMP_DUTY_MANAGE, self::FILING_CONTENT, self::DELETE, self::CLAIM_EDIT], true)
             && $subject instanceof LegalCase;
     }
 
@@ -107,6 +115,11 @@ class CaseVoter extends Voter
         // lawyer; an administrator can only undo it, from the back office.
         if ($attribute === self::DELETE) {
             return $this->canDelete($legalCase, $user);
+        }
+
+        // Same reasoning: the sums and the positions are the lawyer's statement.
+        if ($attribute === self::CLAIM_EDIT) {
+            return $this->canEditClaim($legalCase, $user);
         }
 
         if (in_array('ROLE_ADMIN', $user->getRoles(), true)) {
@@ -167,6 +180,12 @@ class CaseVoter extends Voter
     }
 
     private function canDelete(LegalCase $legalCase, User $user): bool
+    {
+        return $legalCase->getUser() === $user
+            && $legalCase->getStatus() === CaseStatus::AMIABIL;
+    }
+
+    private function canEditClaim(LegalCase $legalCase, User $user): bool
     {
         return $legalCase->getUser() === $user
             && $legalCase->getStatus() === CaseStatus::AMIABIL;

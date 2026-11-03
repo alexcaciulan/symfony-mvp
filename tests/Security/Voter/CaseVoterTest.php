@@ -401,6 +401,58 @@ class CaseVoterTest extends TestCase
         }
     }
 
+    #[DataProvider('claimEditStatusProvider')]
+    public function testOwnerMayEditTheClaimOnlyWhileAmiable(CaseStatus $status, bool $granted): void
+    {
+        $owner = new User();
+        $case = $this->persistedCase($owner, $status);
+
+        self::assertSame(
+            $granted ? VoterInterface::ACCESS_GRANTED : VoterInterface::ACCESS_DENIED,
+            $this->voter->vote($this->createToken($owner), $case, [CaseVoter::CLAIM_EDIT]),
+            $status->value,
+        );
+    }
+
+    /** @return iterable<string, array{CaseStatus, bool}> */
+    public static function claimEditStatusProvider(): iterable
+    {
+        foreach (CaseStatus::cases() as $status) {
+            yield $status->value => [$status, $status === CaseStatus::AMIABIL];
+        }
+    }
+
+    /** The sums the court will quote are the lawyer's statement: no other user and no admin bypass. */
+    public function testClaimEditIsRefusedToOtherUsersAndToTheAdmin(): void
+    {
+        $owner = new User();
+        $other = new User();
+        $admin = new User();
+        $admin->setRoles(['ROLE_ADMIN']);
+        $case = $this->persistedCase($owner, CaseStatus::AMIABIL);
+
+        self::assertSame(VoterInterface::ACCESS_DENIED, $this->voter->vote($this->createToken($other), $case, [CaseVoter::CLAIM_EDIT]));
+        self::assertSame(VoterInterface::ACCESS_DENIED, $this->voter->vote($this->createToken($admin), $case, [CaseVoter::CLAIM_EDIT]));
+    }
+
+    public function testFilingLockDeniesClaimEdit(): void
+    {
+        $voter = new CaseVoter($this->lockQuery(true));
+        $owner = new User();
+        $case = $this->persistedCase($owner, CaseStatus::AMIABIL);
+
+        self::assertSame(VoterInterface::ACCESS_DENIED, $voter->vote($this->createToken($owner), $case, [CaseVoter::CLAIM_EDIT]));
+    }
+
+    public function testADeletedCaseRefusesClaimEdit(): void
+    {
+        $owner = new User();
+        $case = $this->persistedCase($owner, CaseStatus::AMIABIL);
+        $case->markAsDeleted();
+
+        self::assertSame(VoterInterface::ACCESS_DENIED, $this->voter->vote($this->createToken($owner), $case, [CaseVoter::CLAIM_EDIT]));
+    }
+
     public function testFilingContentIsGrantedToTheOwnerOnly(): void
     {
         $owner = new User();
