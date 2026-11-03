@@ -92,6 +92,9 @@
   {{ include('case/overview/_modal_register_case_number.html.twig') }}
   {{ include('case/overview/_modal_issue_ruling.html.twig') }}
   {{ include('case/overview/_modal_reject.html.twig') }}
+  {% if is_granted('CASE_DELETE', case) %}
+    {{ include('case/overview/_modal_delete_case.html.twig') }}
+  {% endif %}
   {% if case.status.value == 'IN_ANULARE' or case.status.value == 'EXECUTARE' %}
     {{ include('case/overview/_modal_annulment_rejected.html.twig') }}
   {% endif %}

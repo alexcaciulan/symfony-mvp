@@ -101,6 +101,9 @@ class AuditLogService
     /** Unfinished wizard runs: created, discarded by the lawyer, or expired by the sweeper. */
     public const CATEGORY_CASE_DRAFT = 'CASE_DRAFT';
 
+    /** Case removed from the lawyer's lists while still amiable; `newData` holds the snapshot and the reason. */
+    public const CATEGORY_CASE_DELETED = 'CASE_DELETED';
+
     public function __construct(
         private EntityManagerInterface $em,
         private Security $security,

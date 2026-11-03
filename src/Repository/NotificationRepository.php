@@ -2,6 +2,7 @@
 
 namespace App\Repository;
 
+use App\Entity\LegalCase;
 use App\Entity\Notification;
 use App\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
@@ -72,6 +73,25 @@ class NotificationRepository extends ServiceEntityRepository
             ->setParameter('read', true)
             ->setParameter('now', new \DateTimeImmutable())
             ->setParameter('prefix', addcslashes($prefix, '%_') . '%' . ($contains !== '' ? addcslashes($contains, '%_') . '%' : ''))
+            ->getQuery()
+            ->execute();
+    }
+
+    /**
+     * Marks read every unread notice that points at the case. Used when the case
+     * leaves the lawyer's lists: its link would otherwise lead to a 404.
+     */
+    public function markReadByLegalCase(LegalCase $case): int
+    {
+        return $this->createQueryBuilder('n')
+            ->update()
+            ->set('n.isRead', ':read')
+            ->set('n.readAt', ':now')
+            ->where('n.legalCase = :case')
+            ->andWhere('n.isRead = false')
+            ->setParameter('read', true)
+            ->setParameter('now', new \DateTimeImmutable())
+            ->setParameter('case', $case)
             ->getQuery()
             ->execute();
     }
