@@ -165,6 +165,22 @@ final class PaymentNoticeGeneratorServiceTest extends KernelTestCase
         self::assertNotNull($document->getId(), 'Document should be persisted with an ID after flush.');
     }
 
+    /** An edit of the claim marks the summons outdated; generating it again lifts the mark on the same row. */
+    public function testGeneratingAgainReusesTheRowAndLiftsTheOutdatedMark(): void
+    {
+        $first = $this->service->generate($this->case);
+        $this->em->flush();
+        $first->setOutdatedAt(new \DateTimeImmutable('-1 hour'));
+        $this->em->flush();
+
+        $second = $this->service->generate($this->case);
+        $this->em->flush();
+
+        self::assertSame($first->getId(), $second->getId(), 'One generated document per type.');
+        self::assertNull($second->getOutdatedAt());
+        self::assertFalse($second->isOutdated());
+    }
+
     public function testRenderHtmlShowsContractObjectWhenSet(): void
     {
         $this->case->setContractObject('prestarea de servicii de transport');
