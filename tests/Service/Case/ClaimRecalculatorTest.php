@@ -16,8 +16,10 @@ use App\Entity\User;
 use App\Enum\AnafStatus;
 use App\Enum\CaseStatus;
 use App\Enum\ClaimItemKind;
+use App\Enum\ContractualAccessoryLabel;
 use App\Enum\DeadlinePriority;
 use App\Enum\DeadlineType;
+use App\Enum\PenaltyType;
 use App\Enum\PersonType;
 use App\Enum\RelationshipType;
 use App\Service\AuditLogService;
@@ -553,6 +555,53 @@ final class ClaimRecalculatorTest extends KernelTestCase
         self::assertSame('Extras pentru CNP ***-***-1232', $old['note']);
         self::assertStringNotContainsString($cnp, json_encode($old, JSON_THROW_ON_ERROR));
         self::assertStringNotContainsString($cnp, json_encode($new, JSON_THROW_ON_ERROR));
+    }
+
+    public function testSnapshotCarriesTheDetails(): void
+    {
+        $case = $this->makeCase();
+        $case->setPenaltyType(PenaltyType::CONTRACTUAL);
+        $case->setContractualPenaltyRate('0.100');
+        $case->setContractualPenaltyCapPercent('10.00');
+        $case->setContractualAccessoryLabel(ContractualAccessoryLabel::DOBANZI_PENALIZATOARE);
+        $case->setAccessoryCutoffDate(new \DateTimeImmutable('2025-06-30'));
+        $case->setContractNumber('58');
+        $case->setContractDate(new \DateTime('2024-01-10'));
+        $case->setContractObject('servicii de transport');
+
+        $details = $this->recalculator->snapshot($case)['details'];
+
+        self::assertSame([
+            'claimDescription', 'contractReference', 'penaltyClauseArticle', 'penaltyClauseText', 'paymentNoticeNumber',
+            'penaltyType', 'contractualPenaltyRate', 'contractualPenaltyCapPercent', 'contractualAccessoryLabel',
+            'accessoryCutoffDate', 'contractNumber', 'contractDate', 'contractObject',
+        ], array_keys($details));
+        self::assertSame('CONTRACTUAL', $details['penaltyType']);
+        self::assertSame('0.100', $details['contractualPenaltyRate']);
+        self::assertSame('DOBANZI_PENALIZATOARE', $details['contractualAccessoryLabel']);
+        self::assertSame('2025-06-30', $details['accessoryCutoffDate']);
+        self::assertSame('2024-01-10', $details['contractDate']);
+    }
+
+    public function testDetailsChangeListsOnlyChangedFields(): void
+    {
+        $case = $this->makeCase();
+        $this->position($case, 'F-1', '1000.00', '-100 days');
+        $case->setContractNumber('58');
+        $this->em->flush();
+        $before = $this->recalculator->snapshot($case);
+
+        $case->setContractNumber('59');
+        $case->setClaimDescription('Servicii');
+        $result = $this->recalculator->recalculate($case, 'edit_details', $before, $this->user);
+
+        self::assertSame([
+            'claimDescription' => ['from' => null, 'to' => 'Servicii'],
+            'contractNumber' => ['from' => '58', 'to' => '59'],
+        ], $result->detailsChange);
+
+        $positionsOnly = $this->recalculator->recalculate($case, 'add_manual', $this->recalculator->snapshot($case), $this->user);
+        self::assertSame([], $positionsOnly->detailsChange, 'An edit of the positions moves no detail.');
     }
 
     private function makeCase(?string $county = 'Cluj', ?string $locality = 'Cluj-Napoca'): LegalCase

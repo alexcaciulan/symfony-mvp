@@ -21,7 +21,6 @@ use App\Enum\PenaltyType;
 use App\Repository\ClaimItemRepository;
 use App\Service\AuditLogService;
 use App\Service\Document\DocumentUploadService;
-use Doctrine\DBAL\LockMode;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
@@ -57,6 +56,7 @@ final class ClaimPositionEditor
         private readonly ClaimDocumentPartyMatcher $partyMatcher,
         private readonly DocumentUploadService $documents,
         private readonly AuditLogService $auditLogService,
+        private readonly CaseEditTransaction $transaction,
     ) {}
 
     /** True while the case accepts claim edits: amiable, not deleted. */
@@ -156,8 +156,10 @@ final class ClaimPositionEditor
     }
 
     /**
-     * The contract reference feeds the grouping of the positions by cause, so
-     * the court and the admissibility are compared again after the rewrite.
+     * The contract reference feeds the grouping of the positions by cause, and
+     * the accessory mode, rate, cap, cutoff and contract date feed the stored
+     * accessory, the stamp duty and the competent court, so all of them are
+     * computed again after the rewrite.
      *
      * @throws ClaimEditRefused
      */
@@ -165,7 +167,6 @@ final class ClaimPositionEditor
     {
         return $this->transact($case, function () use ($case, $input, $actor): ClaimRecalculationResult {
             $before = $this->recalculator->snapshot($case);
-            $before['details'] = $this->detailsSnapshot($case);
             $this->fields->applyDetails($case, $input);
             $this->markGeneratedActsOutdated($case);
 
@@ -262,37 +263,7 @@ final class ClaimPositionEditor
      */
     private function transact(LegalCase $case, callable $work): mixed
     {
-        if (!$this->isEditable($case)) {
-            throw new ClaimEditRefused('status_changed');
-        }
-
-        $connection = $this->em->getConnection();
-        $connection->beginTransaction();
-        try {
-            $this->em->lock($case, LockMode::PESSIMISTIC_WRITE);
-            $this->em->refresh($case);
-            if (!$this->isEditable($case)) {
-                throw new ClaimEditRefused('status_changed');
-            }
-
-            $result = $work();
-            $this->em->flush();
-            $connection->commit();
-
-            return $result;
-        } catch (ClaimEditRefused $refusal) {
-            // Nothing was written before a refusal; the manager stays usable so
-            // the page can say why.
-            $connection->rollBack();
-            $this->em->refresh($case);
-
-            throw $refusal;
-        } catch (\Throwable $e) {
-            $connection->rollBack();
-            $this->em->close();
-
-            throw $e;
-        }
+        return $this->transaction->run($case, fn (LegalCase $c): bool => $this->isEditable($c), 'status_changed', $work);
     }
 
     /**
@@ -437,18 +408,6 @@ final class ClaimPositionEditor
                     'currency' => $claim['currency'] ?? null,
                 ],
             ],
-        ];
-    }
-
-    /** @return array<string, ?string> */
-    private function detailsSnapshot(LegalCase $case): array
-    {
-        return [
-            'claimDescription' => $case->getClaimDescription(),
-            'contractReference' => $case->getContractReference(),
-            'penaltyClauseArticle' => $case->getPenaltyClauseArticle(),
-            'penaltyClauseText' => $case->getPenaltyClauseText(),
-            'paymentNoticeNumber' => $case->getPaymentNoticeNumber(),
         ];
     }
 }

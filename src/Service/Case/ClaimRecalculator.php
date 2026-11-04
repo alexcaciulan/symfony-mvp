@@ -101,6 +101,7 @@ final class ClaimRecalculator
             ],
             'fx' => $this->fxTrace->read($case),
             'court' => $court !== null ? ['id' => $court->getId(), 'name' => $court->getName()] : null,
+            'details' => $this->detailsSnapshot($case),
         ];
     }
 
@@ -130,6 +131,7 @@ final class ClaimRecalculator
         $issues = $this->collectIssues($case, $referenceDate);
 
         $after = $this->snapshot($case);
+        $detailsChange = self::detailsChange($before['details'] ?? [], $after['details']);
         $this->auditLogService->log(
             action: self::ACTION,
             entityType: LegalCase::class,
@@ -141,6 +143,7 @@ final class ClaimRecalculator
                 'status' => $case->getStatus()->value,
                 'accessoryChange' => $accessoryChange,
                 'fxChange' => $fxChange,
+                'detailsChange' => $detailsChange,
                 'courtProposal' => $this->courtProposalData($courtProposal),
                 'deadlinesCreated' => array_map(static fn (LegalDeadline $d): array => self::deadlineData($d), $created),
                 'deadlinesRemoved' => $removed,
@@ -165,6 +168,7 @@ final class ClaimRecalculator
             deadlinesUnmatched: $unmatched,
             issues: $issues,
             referenceDate: $referenceDate,
+            detailsChange: $detailsChange,
         );
     }
 
@@ -397,6 +401,55 @@ final class ClaimRecalculator
         }
 
         return $issues;
+    }
+
+    /**
+     * The descriptive and accessory configuration of the claim, as stored.
+     *
+     * @return array<string, ?string>
+     */
+    private function detailsSnapshot(LegalCase $case): array
+    {
+        return [
+            'claimDescription' => $case->getClaimDescription(),
+            'contractReference' => $case->getContractReference(),
+            'penaltyClauseArticle' => $case->getPenaltyClauseArticle(),
+            'penaltyClauseText' => $case->getPenaltyClauseText(),
+            'paymentNoticeNumber' => $case->getPaymentNoticeNumber(),
+            'penaltyType' => $case->getPenaltyType()?->value,
+            'contractualPenaltyRate' => $case->getContractualPenaltyRate(),
+            'contractualPenaltyCapPercent' => $case->getContractualPenaltyCapPercent(),
+            'contractualAccessoryLabel' => $case->getContractualAccessoryLabel()?->value,
+            'accessoryCutoffDate' => $case->getAccessoryCutoffDate()?->format('Y-m-d'),
+            'contractNumber' => $case->getContractNumber(),
+            'contractDate' => $case->getContractDate()?->format('Y-m-d'),
+            'contractObject' => $case->getContractObject(),
+        ];
+    }
+
+    /**
+     * The detail fields whose stored value differs between the two snapshots.
+     * A `before` taken without details (an older caller) yields no change.
+     *
+     * @param array<string, mixed>   $before
+     * @param array<string, ?string> $after
+     *
+     * @return array<string, array{from: mixed, to: ?string}>
+     */
+    private static function detailsChange(array $before, array $after): array
+    {
+        if ($before === []) {
+            return [];
+        }
+        $change = [];
+        foreach ($after as $field => $to) {
+            $from = $before[$field] ?? null;
+            if ($from !== $to) {
+                $change[$field] = ['from' => $from, 'to' => $to];
+            }
+        }
+
+        return $change;
     }
 
     /** @return array<string, mixed> */

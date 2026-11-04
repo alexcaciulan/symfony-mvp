@@ -14,8 +14,10 @@ use App\Entity\Document;
 use App\Entity\LegalCase;
 use App\Entity\LegalDeadline;
 use App\Entity\User;
+use App\Enum\ContractualAccessoryLabel;
 use App\Enum\DocumentType;
 use App\Enum\ExtractionStatus;
+use App\Enum\PenaltyType;
 use App\Form\Case\ClaimDetailsType;
 use App\Form\Case\ClaimExcludeType;
 use App\Form\Case\ClaimInvoiceUploadType;
@@ -250,7 +252,7 @@ final class CaseClaimController extends AbstractController
         if ($case instanceof Response) {
             return $case;
         }
-        $form = $this->createForm(ClaimDetailsType::class, new ClaimDetailsInput());
+        $form = $this->createForm(ClaimDetailsType::class, ClaimDetailsInput::fromCase($case));
         $form->handleRequest($request);
         if (!$form->isSubmitted() || !$form->isValid()) {
             return $this->respondToast($request, $case, 'error', $this->firstErrorKey($form, 'case.claim.edit.error.invalid'));
@@ -521,6 +523,7 @@ final class CaseClaimController extends AbstractController
                 '%to%' => $this->money($principalAfter),
             ]);
         }
+        array_push($lines, ...$this->detailsLines($case, $result->detailsChange));
         $reference = $result->referenceDate->format('d.m.Y');
         if ($result->accessoryChange !== null) {
             $lines[] = $this->translator->trans('case.claim.edit.changed.accessory', [
@@ -559,6 +562,95 @@ final class CaseClaimController extends AbstractController
         }
 
         return $lines;
+    }
+
+    /**
+     * The accessory and contract settings the details dialog changed. On the
+     * statutory mode the contractual rate, cap and name do not apply, so only
+     * the mode itself is reported, with the clause it cleared.
+     *
+     * @param array<string, array{from: mixed, to: ?string}> $change
+     *
+     * @return list<string>
+     */
+    private function detailsLines(LegalCase $case, array $change): array
+    {
+        $lines = [];
+        $statutoryNow = isset($change['penaltyType']) && $change['penaltyType']['to'] !== PenaltyType::CONTRACTUAL->value;
+        if (isset($change['penaltyType'])) {
+            $lines[] = $this->translator->trans('case.claim.edit.changed.penalty_type', [
+                '%from%' => $this->penaltyTypeLabel($change['penaltyType']['from']),
+                '%to%' => $this->penaltyTypeLabel($change['penaltyType']['to']),
+            ]);
+            $clauseBefore = ($change['penaltyClauseArticle']['from'] ?? null) ?? ($change['penaltyClauseText']['from'] ?? null);
+            if ($statutoryNow && $clauseBefore !== null) {
+                $lines[] = $this->translator->trans('case.claim.edit.changed.clause_cleared');
+            }
+        }
+        $contractualCase = ($change['penaltyType']['to'] ?? $case->getPenaltyType()?->value) === PenaltyType::CONTRACTUAL->value;
+        if ($contractualCase && isset($change['contractualPenaltyRate']) && $change['contractualPenaltyRate']['to'] !== null) {
+            $lines[] = $this->translator->trans('case.claim.edit.changed.penalty_rate', [
+                '%from%' => $this->percent($change['contractualPenaltyRate']['from'], 3) ?? $this->translator->trans('case.claim.edit.changed.not_set'),
+                '%to%' => $this->percent($change['contractualPenaltyRate']['to'], 3),
+            ]);
+        }
+        if ($contractualCase && isset($change['contractualPenaltyCapPercent'])) {
+            $none = $this->translator->trans('case.claim.edit.changed.penalty_cap_none');
+            $lines[] = $this->translator->trans('case.claim.edit.changed.penalty_cap', [
+                '%from%' => $this->percent($change['contractualPenaltyCapPercent']['from'], 2) ?? $none,
+                '%to%' => $this->percent($change['contractualPenaltyCapPercent']['to'], 2) ?? $none,
+            ]);
+        }
+        if ($contractualCase && isset($change['contractualAccessoryLabel']) && $change['contractualAccessoryLabel']['to'] !== null) {
+            $lines[] = $this->translator->trans('case.claim.edit.changed.accessory_label', [
+                '%label%' => $this->translator->trans(ContractualAccessoryLabel::from($change['contractualAccessoryLabel']['to'])->label()),
+            ]);
+        }
+        if (isset($change['accessoryCutoffDate'])) {
+            $to = $change['accessoryCutoffDate']['to'];
+            $lines[] = $to !== null
+                ? $this->translator->trans('case.claim.edit.changed.accessory_cutoff', ['%date%' => $this->dayMonthYear($to)])
+                : $this->translator->trans('case.claim.edit.changed.accessory_cutoff_removed');
+        }
+        if (isset($change['contractDate'])) {
+            $none = $this->translator->trans('case.claim.edit.changed.not_set');
+            $from = $change['contractDate']['from'];
+            $to = $change['contractDate']['to'];
+            $lines[] = $this->translator->trans('case.claim.edit.changed.contract_date', [
+                '%from%' => is_string($from) ? $this->dayMonthYear($from) : $none,
+                '%to%' => $to !== null ? $this->dayMonthYear($to) : $none,
+            ]);
+        }
+        if (isset($change['contractNumber']) || isset($change['contractObject'])) {
+            $lines[] = $this->translator->trans('case.claim.edit.changed.contract');
+        }
+
+        return $lines;
+    }
+
+    private function penaltyTypeLabel(mixed $value): string
+    {
+        $type = is_string($value) ? PenaltyType::tryFrom($value) : null;
+
+        return $this->translator->trans(($type ?? PenaltyType::LEGAL_PENALIZATOARE)->label());
+    }
+
+    /** A stored percentage as the lawyer typed it: `0.100` reads `0,1%`. */
+    private function percent(mixed $value, int $scale): ?string
+    {
+        if (!is_string($value) || $value === '') {
+            return null;
+        }
+        $formatted = number_format((float) $value, $scale, ',', '.');
+
+        return rtrim(rtrim($formatted, '0'), ',') . '%';
+    }
+
+    private function dayMonthYear(string $isoDate): string
+    {
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $isoDate);
+
+        return $date !== false ? $date->format('d.m.Y') : $isoDate;
     }
 
     /**

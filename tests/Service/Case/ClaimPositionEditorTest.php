@@ -18,6 +18,7 @@ use App\Entity\User;
 use App\Enum\AnafStatus;
 use App\Enum\CaseStatus;
 use App\Enum\ClaimExclusionReason;
+use App\Enum\ContractualAccessoryLabel;
 use App\Enum\DocumentType;
 use App\Enum\ExtractionStatus;
 use App\Enum\PenaltyType;
@@ -27,6 +28,7 @@ use App\Service\AuditLogService;
 use App\Service\Case\ClaimEditRefused;
 use App\Service\Case\ClaimItemFactory;
 use App\Service\Case\ClaimPositionEditor;
+use App\Service\Case\ClaimRecalculator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
@@ -276,13 +278,14 @@ final class ClaimPositionEditorTest extends KernelTestCase
         $this->position($case, 'F-1', '250000.00', '-100 days', 'Contract 1/2024');
         $this->em->flush();
 
-        $result = $this->editor->updateDetails($case, new ClaimDetailsInput(
-            claimDescription: '  Lucrări de construcție  ',
-            contractReference: 'Contract 2/2024',
-            penaltyClauseArticle: 'art. 9.2',
-            penaltyClauseText: 'Penalități de 0,1% pe zi.',
-            paymentNoticeNumber: '114/2026',
-        ), $this->user);
+        // The dialog starts from the case, so the contractual mode stays as it is.
+        $input = ClaimDetailsInput::fromCase($case);
+        $input->claimDescription = '  Lucrări de construcție  ';
+        $input->contractReference = 'Contract 2/2024';
+        $input->penaltyClauseArticle = 'art. 9.2';
+        $input->penaltyClauseText = 'Penalități de 0,1% pe zi.';
+        $input->paymentNoticeNumber = '114/2026';
+        $result = $this->editor->updateDetails($case, $input, $this->user);
 
         self::assertSame('Lucrări de construcție', $case->getClaimDescription());
         self::assertSame('Contract 2/2024', $case->getContractReference());
@@ -310,6 +313,145 @@ final class ClaimPositionEditorTest extends KernelTestCase
 
         self::assertNull($case->getPenaltyClauseArticle());
         self::assertNull($case->getPenaltyClauseText());
+    }
+
+    public function testSwitchingToContractualRecomputesTheAccessoryAndKeepsTheClause(): void
+    {
+        $case = $this->makeCase();
+        $this->position($case, 'F-1', '10000.00', '-100 days');
+        $this->em->flush();
+        $this->editor->updateDetails($case, ClaimDetailsInput::fromCase($case), $this->user);
+        $statutory = $case->getCalculatedInterest();
+        self::assertNotNull($statutory);
+
+        $input = ClaimDetailsInput::fromCase($case);
+        $input->penaltyType = PenaltyType::CONTRACTUAL;
+        $input->contractualPenaltyRate = 0.1;
+        $input->contractualPenaltyCapPercent = 5.0;
+        $input->contractualAccessoryLabel = ContractualAccessoryLabel::DOBANZI_PENALIZATOARE;
+        $input->penaltyClauseArticle = 'art. 7';
+        $result = $this->editor->updateDetails($case, $input, $this->user);
+
+        self::assertSame(PenaltyType::CONTRACTUAL, $case->getPenaltyType());
+        self::assertSame('0.100', $case->getContractualPenaltyRate());
+        self::assertSame('5.00', $case->getContractualPenaltyCapPercent());
+        self::assertSame(ContractualAccessoryLabel::DOBANZI_PENALIZATOARE, $case->getContractualAccessoryLabel());
+        self::assertSame('art. 7', $case->getPenaltyClauseArticle());
+        // 0.1% a day over 100 days is 10% of the sum, held at the 5% cap.
+        self::assertSame('500.00', $case->getCalculatedInterest());
+        self::assertNotSame($statutory, $case->getCalculatedInterest());
+        self::assertNotNull($result->accessoryChange);
+        self::assertSame(['from' => 'LEGAL_PENALIZATOARE', 'to' => 'CONTRACTUAL'], $result->detailsChange['penaltyType']);
+        self::assertArrayNotHasKey('claimDescription', $result->detailsChange, 'Only the fields that moved are listed.');
+        $entry = $this->lastClaimAudit($case);
+        self::assertSame('LEGAL_PENALIZATOARE', $entry->getOldData()['details']['penaltyType']);
+        self::assertSame('CONTRACTUAL', $entry->getNewData()['details']['penaltyType']);
+        self::assertSame('CONTRACTUAL', $entry->getNewData()['detailsChange']['penaltyType']['to']);
+    }
+
+    public function testSwitchingToStatutoryClearsClauseCapAndLabel(): void
+    {
+        $case = $this->makeCase();
+        $case->setPenaltyType(PenaltyType::CONTRACTUAL);
+        $case->setContractualPenaltyRate('0.100');
+        $case->setContractualPenaltyCapPercent('10.00');
+        $case->setContractualAccessoryLabel(ContractualAccessoryLabel::MAJORARI_INTARZIERE);
+        $case->setPenaltyClauseArticle('art. 9');
+        $case->setPenaltyClauseText('Penalități de 0,1% pe zi.');
+        $this->position($case, 'F-1', '1000.00', '-100 days');
+        $this->em->flush();
+
+        $input = ClaimDetailsInput::fromCase($case);
+        $input->penaltyType = PenaltyType::LEGAL_PENALIZATOARE;
+        $result = $this->editor->updateDetails($case, $input, $this->user);
+
+        self::assertSame(PenaltyType::LEGAL_PENALIZATOARE, $case->getPenaltyType());
+        self::assertNull($case->getPenaltyClauseArticle());
+        self::assertNull($case->getPenaltyClauseText());
+        self::assertNull($case->getContractualPenaltyCapPercent());
+        self::assertNull($case->getContractualAccessoryLabel());
+        self::assertSame('0.100', $case->getContractualPenaltyRate(), 'The rate is kept as typed, like the wizard does; the statutory mode never reads it.');
+        self::assertArrayHasKey('penaltyClauseArticle', $result->detailsChange);
+        self::assertSame('art. 9', $result->detailsChange['penaltyClauseArticle']['from']);
+    }
+
+    /** OG 13/2011: + 4 pp for a contract concluded before 05.04.2013, + 8 pp after. */
+    public function testAnEarlierContractDateChangesTheStatutoryMargin(): void
+    {
+        $case = $this->makeCase();
+        $case->setContractDate(new \DateTime('2020-01-01'));
+        $this->position($case, 'F-1', '100000.00', '-100 days');
+        $this->em->flush();
+        $this->editor->updateDetails($case, ClaimDetailsInput::fromCase($case), $this->user);
+        $recent = (float) $case->getCalculatedInterest();
+
+        $input = ClaimDetailsInput::fromCase($case);
+        $input->contractDate = new \DateTimeImmutable('2012-01-01');
+        $result = $this->editor->updateDetails($case, $input, $this->user);
+
+        self::assertSame('2012-01-01', $case->getContractDate()?->format('Y-m-d'));
+        self::assertLessThan($recent, (float) $case->getCalculatedInterest());
+        self::assertNotNull($result->accessoryChange);
+        self::assertSame(['from' => '2020-01-01', 'to' => '2012-01-01'], $result->detailsChange['contractDate']);
+    }
+
+    public function testACutoffDateLimitsTheAccessoryAndWarnsForLaterPositions(): void
+    {
+        $case = $this->makeCase();
+        $this->position($case, 'F-1', '10000.00', '-100 days');
+        $this->position($case, 'F-2', '5000.00', '-20 days');
+        $this->em->flush();
+        $this->editor->updateDetails($case, ClaimDetailsInput::fromCase($case), $this->user);
+        $uncut = (float) $case->getCalculatedInterest();
+
+        $cutoff = new \DateTimeImmutable('-50 days midnight');
+        $input = ClaimDetailsInput::fromCase($case);
+        $input->accessoryCutoffDate = $cutoff;
+        $result = $this->editor->updateDetails($case, $input, $this->user);
+
+        self::assertSame($cutoff->format('Y-m-d'), $case->getAccessoryCutoffDate()?->format('Y-m-d'));
+        self::assertSame($cutoff->format('Y-m-d'), $result->referenceDate->format('Y-m-d'));
+        self::assertLessThan($uncut, (float) $case->getCalculatedInterest());
+        $codes = array_map(static fn ($issue): string => $issue->code, $result->issues['warnings']);
+        self::assertContains(ClaimRecalculator::CODE_CUTOFF_BEFORE_DUE_DATE, $codes);
+    }
+
+    /**
+     * Competence follows the principal of each cause, accessories aside: a large
+     * contractual accessory is compared again and still names the same court.
+     */
+    public function testAContractualAccessoryDoesNotMoveTheCourt(): void
+    {
+        $case = $this->makeCase();
+        $local = $this->court('Judecătoria Cluj-Napoca');
+        $case->setCourt($local);
+        $this->position($case, 'F-1', '190000.00', '-100 days');
+        $this->em->flush();
+
+        $input = ClaimDetailsInput::fromCase($case);
+        $input->penaltyType = PenaltyType::CONTRACTUAL;
+        $input->contractualPenaltyRate = 0.5;
+        $result = $this->editor->updateDetails($case, $input, $this->user);
+
+        self::assertGreaterThan(200000.0, (float) $case->getAmount() + (float) $case->getCalculatedInterest(), 'Principal and accessory together pass the threshold.');
+        self::assertNull($result->courtProposal, 'The rules still name the local court.');
+        self::assertSame($local->getId(), $case->getCourt()?->getId());
+    }
+
+    public function testAnAccessoryEditMarksTheGeneratedSummonsOutdated(): void
+    {
+        $case = $this->makeCase();
+        $this->position($case, 'F-1', '1000.00', '-100 days');
+        $summons = $this->invoice($case, []);
+        $summons->setDocumentType(DocumentType::SOMATIE);
+        $this->em->flush();
+
+        $input = ClaimDetailsInput::fromCase($case);
+        $input->penaltyType = PenaltyType::CONTRACTUAL;
+        $input->contractualPenaltyRate = 0.1;
+        $this->editor->updateDetails($case, $input, $this->user);
+
+        self::assertTrue($summons->isOutdated());
     }
 
     public function testTheSamePostTwiceAddsOnce(): void

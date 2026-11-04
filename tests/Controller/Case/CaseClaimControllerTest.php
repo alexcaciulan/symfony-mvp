@@ -15,9 +15,11 @@ use App\Entity\LegalCaseDebtor;
 use App\Entity\User;
 use App\Enum\AnafStatus;
 use App\Enum\CaseStatus;
+use App\Enum\ContractualAccessoryLabel;
 use App\Enum\CourtType;
 use App\Enum\DocumentType;
 use App\Enum\ExtractionStatus;
+use App\Enum\PenaltyType;
 use App\Enum\PersonType;
 use App\Enum\RelationshipType;
 use App\Message\ExtractDataMessage;
@@ -372,7 +374,7 @@ final class CaseClaimControllerTest extends WebTestCase
         $this->client->loginUser($this->user);
 
         $this->client->request('POST', sprintf('/case/%d/claim/details', $this->case->getId()), [
-            'claim_details' => ['_token' => $this->token('claim_details'), 'claimDescription' => 'Lucrări', 'contractReference' => 'Contract 2/2024', 'paymentNoticeNumber' => '114/2026'],
+            'claim_details' => ['_token' => $this->token('claim_details'), 'claimDescription' => 'Lucrări', 'contractReference' => 'Contract 2/2024', 'paymentNoticeNumber' => '114/2026', 'penaltyType' => 'LEGAL_PENALIZATOARE'],
         ], [], ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html']);
 
         self::assertResponseIsSuccessful();
@@ -384,6 +386,93 @@ final class CaseClaimControllerTest extends WebTestCase
         $case = $this->em->find(LegalCase::class, $this->case->getId());
         self::assertSame('Lucrări', $case->getClaimDescription());
         self::assertSame('114/2026', $case->getPaymentNoticeNumber());
+    }
+
+    public function testAccessoryDetailsAreSavedAndSummarized(): void
+    {
+        $this->client->loginUser($this->user);
+
+        $this->postDetails([
+            'penaltyType' => 'CONTRACTUAL',
+            'contractualPenaltyRate' => '0.1',
+            'contractualPenaltyCapPercent' => '5',
+            'contractualAccessoryLabel' => 'DOBANZI_PENALIZATOARE',
+            'penaltyClauseArticle' => 'art. 7',
+            'contractNumber' => '58',
+            'contractDate' => '2024-01-10',
+        ]);
+
+        self::assertResponseIsSuccessful();
+        $body = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('data-testid="claim-change-summary"', $body);
+        self::assertStringContainsString('Mod de calcul accesorii: din Dobândă legală penalizatoare (OG 13/2011) în Penalitate contractuală (rată zilnică)', $body);
+        self::assertStringContainsString('Rata penalității: din necompletată în 0,1% pe zi', $body);
+        self::assertStringContainsString('Plafonul penalităților: din fără plafon în 5%', $body);
+        self::assertStringContainsString('Denumirea accesoriilor: Dobânzi penalizatoare contractuale', $body);
+        self::assertStringContainsString('Data contractului: din necompletată în 10.01.2024', $body);
+        self::assertStringContainsString('Numărul sau obiectul contractului au fost actualizate.', $body);
+        self::assertStringContainsString('target="case-claim-card"', $body);
+        self::assertStringContainsString('target="case-kpi-grid"', $body);
+        self::assertStringContainsString('data-close-modal-target-id-value="' . CaseClaimController::MODAL_DETAILS . '"', $body);
+
+        $this->em->clear();
+        $case = $this->em->find(LegalCase::class, $this->case->getId());
+        self::assertSame(PenaltyType::CONTRACTUAL, $case->getPenaltyType());
+        self::assertSame('0.100', $case->getContractualPenaltyRate());
+        self::assertSame('5.00', $case->getContractualPenaltyCapPercent());
+        self::assertSame(ContractualAccessoryLabel::DOBANZI_PENALIZATOARE, $case->getContractualAccessoryLabel());
+        self::assertSame('art. 7', $case->getPenaltyClauseArticle());
+        self::assertSame('2024-01-10', $case->getContractDate()?->format('Y-m-d'));
+        // 0.1% a day for 100 days is 10% of 1000, held at the 5% cap.
+        self::assertSame('50.00', $case->getCalculatedInterest());
+    }
+
+    public function testAContractualModeWithoutRateIsRefusedAsToast(): void
+    {
+        $this->client->loginUser($this->user);
+
+        $this->postDetails(['penaltyType' => 'CONTRACTUAL', 'contractualPenaltyRate' => '']);
+
+        self::assertResponseIsSuccessful();
+        $body = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('Introdu rata zilnică a penalității contractuale.', $body);
+        self::assertStringNotContainsString('target="case-claim-card"', $body);
+        self::assertStringNotContainsString('close-modal', $body, 'The dialog stays open with what was typed.');
+        $this->em->clear();
+        self::assertNull($this->em->find(LegalCase::class, $this->case->getId())->getPenaltyType());
+    }
+
+    public function testAFutureCutoffIsRefused(): void
+    {
+        $this->client->loginUser($this->user);
+
+        $this->postDetails(['penaltyType' => 'LEGAL_PENALIZATOARE', 'accessoryCutoffDate' => $this->date('+5 days')]);
+
+        self::assertResponseIsSuccessful();
+        $body = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('Data până la care se calculează accesoriile nu poate fi în viitor.', $body);
+        self::assertStringNotContainsString('close-modal', $body);
+        $this->em->clear();
+        self::assertNull($this->em->find(LegalCase::class, $this->case->getId())->getAccessoryCutoffDate());
+    }
+
+    public function testTheDetailsFieldsRenderTheContractualSectionState(): void
+    {
+        $this->client->loginUser($this->user);
+
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+        $section = $crawler->filter('#claim-details-fields [data-conditional-fields-target="conditional"]');
+        self::assertCount(1, $section);
+        self::assertStringContainsString('hidden', (string) $section->attr('class'), 'A statutory case opens with the contractual inputs hidden.');
+
+        $this->postDetails(['penaltyType' => 'CONTRACTUAL', 'contractualPenaltyRate' => '0.2']);
+
+        $body = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('target="claim-details-fields"', $body);
+        self::assertMatchesRegularExpression('/class="space-y-4 " data-conditional-fields-target="conditional"/', $body, 'Refilled open for the contractual mode.');
+        self::assertStringContainsString('id="claim_details_contractualPenaltyRate" name="claim_details[contractualPenaltyRate]"', $body);
+        self::assertStringContainsString('value="0.2"', $body);
+        self::assertStringContainsString('<option value="CONTRACTUAL" selected>', $body);
     }
 
     // ===== court ========================================================
@@ -791,6 +880,14 @@ final class CaseClaimControllerTest extends WebTestCase
             sprintf('/case/%d/claim/details', $id),
             sprintf('/case/%d/claim/court/accept', $id),
         ];
+    }
+
+    /** @param array<string, string> $fields */
+    private function postDetails(array $fields): void
+    {
+        $this->client->request('POST', sprintf('/case/%d/claim/details', $this->case->getId()), [
+            'claim_details' => ['_token' => $this->token('claim_details')] + $fields,
+        ], [], ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html']);
     }
 
     /** @param array<string, string> $fields */

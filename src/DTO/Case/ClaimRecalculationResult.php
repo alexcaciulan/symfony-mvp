@@ -22,6 +22,7 @@ final readonly class ClaimRecalculationResult
      * @param list<LegalDeadline>                         $deadlinesUnmatched open prescription terms no position supports and nothing proves obsolete
      * @param array{errors: list<AdmissibilityIssue>, warnings: list<AdmissibilityIssue>} $issues
      * @param \DateTimeImmutable                          $referenceDate     the date the accessory was computed up to
+     * @param array<string, array{from: mixed, to: ?string}> $detailsChange the claim detail fields that changed, by field
      */
     public function __construct(
         public ClaimTotals $totals,
@@ -33,6 +34,7 @@ final readonly class ClaimRecalculationResult
         public array $deadlinesUnmatched,
         public array $issues,
         public \DateTimeImmutable $referenceDate,
+        public array $detailsChange = [],
     ) {}
 
     public function hasErrors(): bool
