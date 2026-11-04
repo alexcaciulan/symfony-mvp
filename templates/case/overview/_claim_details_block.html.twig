@@ -1,0 +1,90 @@
+{# "Detaliile creanței" at the bottom of the claim card: what the claim is about, how the
+   accessories are computed, the contract, the date they run to and the summons number,
+   readable without opening the dialog that edits them. Empty fields are left out.
+   Included from _claim_composition.html.twig, which sets can_edit_claim. #}
+{% from 'case/overview/_icons.html.twig' import icon_edit %}
+
+{% set contractual = case.penaltyType and case.penaltyType.value == 'CONTRACTUAL' %}
+{% set dt = 'text-[10px] font-medium uppercase tracking-wide text-slate-500' %}
+{% set dd = 'mt-0.5 text-sm text-slate-800 dark:text-slate-200' %}
+
+{% set mode = (case.penaltyType ? case.penaltyType.label() : 'enum.penalty_type.LEGAL_PENALIZATOARE')|trans %}
+{% if contractual and case.contractualPenaltyRate is not null %}
+    {% set mode = mode ~ ': ' ~ 'case_overview.claim.details_mode_rate'|trans({'%rate%': case.contractualPenaltyRate|number_format(2, ',', '.')}) %}
+    {% if case.contractualPenaltyCapPercent is not null %}
+        {% set mode = mode ~ ', ' ~ 'case_overview.claim.details_mode_cap'|trans({'%cap%': case.contractualPenaltyCapPercent|percent_number}) %}
+    {% endif %}
+{% endif %}
+
+{% set contract_parts = [] %}
+{% if case.contractNumber %}{% set contract_parts = contract_parts|merge(['case_overview.claim.details_contract_number'|trans({'%number%': case.contractNumber})]) %}{% endif %}
+{% if case.contractDate %}{% set contract_parts = contract_parts|merge(['case_overview.claim.details_contract_date'|trans({'%date%': case.contractDate|date('d.m.Y')})]) %}{% endif %}
+{% set contract = contract_parts|join(' ') %}
+{% if case.contractObject %}{% set contract = contract ? contract ~ ' · ' ~ case.contractObject : case.contractObject %}{% endif %}
+{% if not contract and case.contractReference %}{% set contract = case.contractReference %}{% endif %}
+
+{% set reference_date = accessory_reference_date|default(null) %}
+
+<div class="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800" data-testid="claim-details-block">
+    <div class="flex items-center justify-between gap-3 mb-3">
+        <h4 class="text-sm font-semibold text-slate-900 dark:text-white">{{ 'case_overview.claim.details_title'|trans }}</h4>
+        {% if can_edit_claim %}
+            <button type="button"
+                    data-hs-overlay="#hs-modal-claim-details"
+                    data-testid="claim-edit-details"
+                    class="py-1.5 px-2.5 inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-800 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 shrink-0 transition">
+                {{ icon_edit('size-3.5 shrink-0') }}
+                {{ 'case_overview.claim.details_edit'|trans }}
+            </button>
+        {% endif %}
+    </div>
+    <dl class="grid grid-cols-1 @lg:grid-cols-2 gap-x-6 gap-y-3">
+        {% if claim_description|default(null) %}
+            <div class="@lg:col-span-2 min-w-0" data-testid="claim-details-description">
+                <dt class="{{ dt }}">{{ 'case_overview.claim.description_label'|trans }}</dt>
+                <dd class="{{ dd }}">{{ claim_description }}</dd>
+            </div>
+        {% endif %}
+        <div class="min-w-0" data-testid="claim-details-mode">
+            <dt class="{{ dt }}">{{ 'case_overview.claim.details_mode'|trans }}</dt>
+            <dd class="{{ dd }}">{{ mode }}</dd>
+        </div>
+        {% if reference_date %}
+            <div class="min-w-0" data-testid="claim-details-reference">
+                <dt class="{{ dt }}">{{ 'case_overview.claim.details_reference_date'|trans }}</dt>
+                <dd class="{{ dd }}">
+                    <span class="tnum">{{ reference_date|date('d.m.Y') }}</span>
+                    <span class="text-slate-500 text-xs">
+                        {%- if case.accessoryCutoffDate %} {{ 'case_overview.claim.details_cutoff'|trans({'%date%': case.accessoryCutoffDate|date('d.m.Y')}) }}
+                        {%- elseif case.status.value == 'AMIABIL' %} {{ 'case_overview.claim.details_reference_pending'|trans }}
+                        {%- else %} {{ 'case_overview.claim.details_reference_summons'|trans }}{% endif -%}
+                    </span>
+                </dd>
+            </div>
+        {% endif %}
+        {% if contract %}
+            <div class="min-w-0" data-testid="claim-details-contract">
+                <dt class="{{ dt }}">{{ 'case_overview.claim.details_contract'|trans }}</dt>
+                <dd class="{{ dd }}">{{ contract }}</dd>
+            </div>
+        {% endif %}
+        {% if case.paymentNoticeNumber %}
+            <div class="min-w-0" data-testid="claim-details-summons-number">
+                <dt class="{{ dt }}">{{ 'case_overview.claim.details_summons_number'|trans }}</dt>
+                <dd class="{{ dd }} tnum">{{ case.paymentNoticeNumber }}</dd>
+            </div>
+        {% endif %}
+        {% if contractual %}
+            <div class="min-w-0" data-testid="claim-details-accessory-label">
+                <dt class="{{ dt }}">{{ 'case_overview.claim.details_accessory_label'|trans }}</dt>
+                <dd class="{{ dd }}">{{ (case.contractualAccessoryLabel ? case.contractualAccessoryLabel.label : 'enum.contractual_accessory_label.PENALITATI_INTARZIERE')|trans }}</dd>
+            </div>
+            {% if case.penaltyClauseArticle or case.penaltyClauseText %}
+                <div class="@lg:col-span-2 min-w-0" data-testid="claim-details-clause">
+                    <dt class="{{ dt }}">{{ 'case_overview.claim.details_clause'|trans }}</dt>
+                    <dd class="{{ dd }}">{{ case.penaltyClauseArticle }}{% if case.penaltyClauseArticle and case.penaltyClauseText %}: {% endif %}{{ case.penaltyClauseText }}</dd>
+                </div>
+            {% endif %}
+        {% endif %}
+    </dl>
+</div>

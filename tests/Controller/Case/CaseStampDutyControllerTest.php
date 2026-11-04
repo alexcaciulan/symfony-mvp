@@ -1005,6 +1005,23 @@ final class CaseStampDutyControllerTest extends WebTestCase
         self::assertSame(StampDutyStatus::AMANATA_REGULARIZARE, $refreshed->getStampDutyStatus());
     }
 
+    /** The filing state the duty decides reaches the hero; the Detalii tab has no sidebar left to swap. */
+    public function testTheTurboAnswerSwapsTheHeroInsteadOfASidebar(): void
+    {
+        $this->client->loginUser($this->user);
+
+        $this->client->request('POST', '/case/' . $this->case->getId() . '/stamp-duty/defer', [
+            '_token' => $this->csrfToken('/stamp-duty/defer', '_token'),
+            'deferralConsent' => '1',
+        ], [], ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html']);
+
+        self::assertResponseIsSuccessful();
+        $body = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('<turbo-stream action="replace" target="case-hero">', $body);
+        self::assertStringContainsString('id="case-hero-actions"', $body);
+        self::assertStringNotContainsString('case-detalii-sidebar', $body);
+    }
+
     /** The choice is explicit and audited: no tick, no change. */
     public function testDeferIsRejectedWithoutTheRiskAcknowledgement(): void
     {

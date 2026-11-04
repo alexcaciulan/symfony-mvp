@@ -28,6 +28,7 @@ use App\Service\Document\UploadRateLimiter;
 use App\Tests\Support\CountyFixtureTrait;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
+use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\RequestStack;
@@ -140,9 +141,14 @@ final class CaseClaimControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
         self::assertCount(1, $crawler->filter('[data-testid="claim-add-invoice"]'));
         self::assertCount(1, $crawler->filter('[data-testid="claim-edit-details"]'));
-        self::assertCount(1, $crawler->filter('[data-testid="claim-exclude-' . $this->first->getId() . '"]'));
+        // The only counting position cannot be excluded: the entry is there, disabled, with the reason.
+        $only = $crawler->filter('[data-testid="claim-exclude-' . $this->first->getId() . '"]');
+        self::assertCount(1, $only);
+        self::assertSame('true', $only->attr('aria-disabled'));
+        self::assertNull($only->attr('data-hs-overlay'));
         self::assertCount(1, $crawler->filter('[data-testid="modal-claim-add"]'));
         self::assertCount(1, $crawler->filter('[data-testid="claim-positions-table"]'), 'The table shows even a single position.');
+
 
         $this->case->setStatus(CaseStatus::SOMATIE_TRIMISA);
         $this->em->flush();
@@ -150,9 +156,27 @@ final class CaseClaimControllerTest extends WebTestCase
 
         self::assertCount(0, $crawler->filter('[data-testid="claim-add-invoice"]'));
         self::assertCount(0, $crawler->filter('[data-testid="claim-exclude-' . $this->first->getId() . '"]'));
+        self::assertCount(0, $crawler->filter('[data-testid="claim-edit-details"]'));
         self::assertCount(0, $crawler->filter('[data-testid="modal-claim-add"]'));
         self::assertCount(1, $crawler->filter('[data-testid="claim-locked-note"]'));
         self::assertCount(1, $crawler->filter('[data-testid="claim-positions-table"]'));
+    }
+
+    public function testEveryCountingPositionCanBeExcludedOnceThereAreTwo(): void
+    {
+        $second = $this->position('F-2', '500.00', '-60 days');
+        $this->em->flush();
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        foreach ([$this->first, $second] as $item) {
+            $exclude = $crawler->filter('[data-testid="claim-exclude-' . $item->getId() . '"]');
+            self::assertCount(1, $exclude);
+            self::assertSame('#hs-modal-claim-exclude', $exclude->attr('data-hs-overlay'));
+            self::assertSame('click->claim-exclude#open', $exclude->attr('data-action'));
+            self::assertNull($exclude->attr('aria-disabled'));
+        }
     }
 
     /**
@@ -241,7 +265,7 @@ final class CaseClaimControllerTest extends WebTestCase
         self::assertStringContainsString('target="case-court-card"', $body);
         self::assertStringContainsString('target="case-kpi-grid"', $body);
         self::assertStringContainsString('target="case-hero"', $body);
-        self::assertStringContainsString('target="case-detalii-sidebar"', $body);
+        self::assertStringNotContainsString('case-detalii-sidebar', $body);
         self::assertStringContainsString('target="panel-termene"', $body);
         self::assertStringContainsString('data-close-modal-target-id-value="' . CaseClaimController::MODAL_ADD . '"', $body);
         self::assertStringContainsString('Factura a fost adăugată în creanță.', $body);
@@ -252,6 +276,19 @@ final class CaseClaimControllerTest extends WebTestCase
         $case = $this->em->find(LegalCase::class, $this->case->getId());
         self::assertSame('1500.00', $case->getAmount());
         self::assertCount(2, $case->getClaimItems());
+
+        // Only the position this request added is marked as new.
+        $added = null;
+        foreach ($case->getClaimItems() as $item) {
+            if ($item->getDocumentNumber() === 'F-2') {
+                $added = $item;
+            }
+        }
+        self::assertNotNull($added);
+        $crawler = new Crawler($body);
+        self::assertSame(['added'], $crawler->filter('[data-testid="claim-position-pill"]')->each(static fn (Crawler $pill) => $pill->attr('data-kind')));
+        self::assertCount(1, $crawler->filter('#claim-position-' . $added->getId() . ' [data-testid="claim-position-pill"][data-kind="added"]'));
+        self::assertCount(0, $crawler->filter('#claim-position-' . $this->first->getId() . ' [data-testid="claim-position-pill"]'));
     }
 
     public function testAValidationErrorAnswersWithAToastOnlyAndKeepsTheDialog(): void

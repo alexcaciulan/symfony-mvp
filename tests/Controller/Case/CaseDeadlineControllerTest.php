@@ -652,9 +652,10 @@ final class CaseDeadlineControllerTest extends WebTestCase
         self::assertStringContainsString('target="panel-termene"', $body);
         self::assertStringContainsString('close-modal', $body);
         self::assertStringContainsString('target="toasts"', $body);
-        // The active deadline drives the top KPI card and the Detalii sidebar ring.
+        // The active deadline drives the top KPI card; the hero follows the dates set here.
         self::assertStringContainsString('target="case-kpi-grid"', $body);
-        self::assertStringContainsString('target="case-detalii-sidebar"', $body);
+        self::assertStringContainsString('target="case-hero"', $body);
+        self::assertStringNotContainsString('case-detalii-sidebar', $body);
         // The tab nav must refresh so the deadline count badge is not stale.
         self::assertStringContainsString('target="case-tabs-nav"', $body);
     }
@@ -1139,6 +1140,31 @@ final class CaseDeadlineControllerTest extends WebTestCase
         // 10 zile libere (CPC art. 1024 alin. 1 + art. 181 alin. 1 pct. 2) = 11 zile
         // calendaristice: 2026-02-02 luni + 11 = 2026-02-13 vineri.
         self::assertSame('2026-02-13', $deadlines[0]->getDeadlineDate()->format('Y-m-d'));
+    }
+
+    /** The communication date unlocks enforcement, and the hero offers it without a reload. */
+    public function testSetRulingCommunicationDateUnderTurboOffersEnforcementInTheHero(): void
+    {
+        $this->case->setStatus(CaseStatus::ORDONANTA_EMISA);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $tokens = $this->tokensFromOverview();
+        self::assertCount(0, $this->client->getCrawler()->filter('#case-hero-actions [data-hs-overlay="#hs-modal-executare"]'), 'Not before the order is communicated.');
+
+        $this->client->request('POST', sprintf('/case/%d/ruling-communication-date', $this->case->getId()), [
+            'ruling_communication_date' => [
+                '_token' => $tokens['set_ruling'],
+                'rulingCommunicationDate' => '2026-02-02',
+            ],
+        ], [], ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html']);
+
+        self::assertResponseIsSuccessful();
+        $body = (string) $this->client->getResponse()->getContent();
+        self::assertStringNotContainsString('case-detalii-sidebar', $body);
+        self::assertSame(1, preg_match('#<turbo-stream action="replace" target="case-hero">\s*<template>(.*?)</template>#s', $body, $matches));
+        $hero = new \Symfony\Component\DomCrawler\Crawler($matches[1]);
+        self::assertCount(1, $hero->filter('#case-hero-actions [data-testid="hero-primary-cta"][data-hs-overlay="#hs-modal-executare"]'));
     }
 
     public function testSetRulingCommunicationDateSkipsAppealDeadlineBeforeOrdonantaEmisa(): void

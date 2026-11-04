@@ -1,9 +1,10 @@
 {# Hero action cluster: a single status-driven primary CTA (the next workflow action for the
-   current status) + actions dropdown. Extracted as a partial so the same fragment is rendered
+   current status), the amicable-payment closing beside it while it applies, and the actions
+   dropdown with the rarer status actions (rejection, annulment outcomes). Extracted as a partial so the same fragment is rendered
    both by `_hero.html.twig` on initial page load and by the Turbo Stream response after a
    transition. The outer wrapper `<div id="case-hero-actions">` is rendered here so Turbo Stream
    `action=replace` can target it directly. #}
-{% from 'case/overview/_icons.html.twig' import icon_dots, icon_edit, icon_share, icon_copy, icon_trash %}
+{% from 'case/overview/_icons.html.twig' import icon_dots, icon_edit, icon_share, icon_copy, icon_trash, icon_check, icon_building, icon_warning %}
 
 {# Render the primary-CTA icon by name so the keyed map below can carry a distinct glyph per status. #}
 {% macro cta_icon(name) %}
@@ -25,10 +26,15 @@
     'SOMATIE_TRIMISA': {target: '#hs-modal-cerere-op', label: 'case_overview.cta.generate_op', color: 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100', icon: 'document'},
     'CERERE_GENERATA': {target: '#hs-modal-confirm-filing', label: 'case_overview.cta.confirm_filing', color: 'bg-purple-600 text-white hover:bg-purple-700', icon: 'building'},
     'TERMEN_FIXAT': {target: '#hs-modal-issue-ruling', label: 'case_overview.cta.issue_ruling', color: 'bg-violet-600 text-white hover:bg-violet-700', icon: 'check'},
+    'IN_ANULARE': {target: '#hs-modal-executare', label: 'case_overview.cta.start_execution', color: 'bg-teal-600 text-white hover:bg-teal-700', icon: 'money'},
     'DEFINITIVA': {target: '#hs-modal-executare', label: 'case_overview.cta.start_execution', color: 'bg-teal-600 text-white hover:bg-teal-700', icon: 'money'},
     'EXECUTARE': {target: '#hs-modal-close-case', label: 'case_overview.cta.close_case_executare', color: 'bg-emerald-600 text-white hover:bg-emerald-700', icon: 'money'},
 } %}
 {% set primary = primary_modal[case.status.value] ?? null %}
+{# An issued order is enforceable once communicated, so enforcement is offered from that date on. #}
+{% if case.status.value == 'ORDONANTA_EMISA' and case.rulingCommunicationDate %}
+    {% set primary = primary_modal['DEFINITIVA'] %}
+{% endif %}
 {# Once the case has an email filing (a package or a transmission), the hero only leads
    to the filing tab and never runs an action itself; a manual filing there would also
    file the petition twice. Without one, the manual confirmation stays. After the
@@ -41,7 +47,7 @@
     or (case.status.value == 'CERERE_DEPUSA' and case.filingChannel and case.filingChannel.value == 'EMAIL' and (case.filedAt is null or filing_late_bounce_review|default(false)))
 ) %}
 
-<div id="case-hero-actions" class="flex items-center gap-2 self-start">
+<div id="case-hero-actions" class="flex flex-wrap items-center gap-2 self-start">
     {% if filing_link %}
         <a href="{{ path('case_overview', {id: case.id, tab: 'depunere'}) }}#depunere-status"
            data-turbo-frame="_top"
@@ -56,6 +62,7 @@
                 <form method="post" action="{{ path('case_summons_generate', {id: case.id}) }}" data-turbo-frame="_top">
                     <input type="hidden" name="_token" value="{{ csrf_token('generate_summons_' ~ case.id) }}">
                     <button type="submit"
+                            data-testid="hero-primary-cta"
                             class="{{ base_cta_class }} bg-amber-500 text-white hover:bg-amber-600
                                    {% if just_created|default(false) %}ring-2 ring-offset-2 ring-emerald-400 dark:ring-offset-slate-900 soft-pulse-once{% endif %}">
                         {{ _self.cta_icon('warning') }}
@@ -68,6 +75,7 @@
                 <button type="button"
                         data-controller="goto-portal-discover"
                         data-action="goto-portal-discover#navigate"
+                        data-testid="hero-primary-cta"
                         class="{{ base_cta_class }} bg-indigo-600 text-white hover:bg-indigo-700
                                {% if just_created|default(false) %}ring-2 ring-offset-2 ring-emerald-400 dark:ring-offset-slate-900 soft-pulse-once{% endif %}">
                     {{ _self.cta_icon('building') }}
@@ -76,6 +84,7 @@
             {% else %}
                 <button type="button"
                         data-hs-overlay="{{ primary.target }}"
+                        data-testid="hero-primary-cta"
                         class="{{ base_cta_class }} {{ primary.color }}
                                {% if just_created|default(false) %}ring-2 ring-offset-2 ring-emerald-400 dark:ring-offset-slate-900 soft-pulse-once{% endif %}">
                     {{ _self.cta_icon(primary.icon) }}
@@ -91,6 +100,17 @@
                 </span>
             {% endif %}
         </div>
+    {% endif %}
+
+    {# Closing on an amicable payment sits beside the next step on wider screens and in the menu on a phone. #}
+    {% if can_close_full_payment|default(false) %}
+        <button type="button"
+                data-hs-overlay="#hs-modal-full-payment"
+                data-testid="hero-full-payment-action"
+                class="hidden sm:inline-flex py-2 px-3 items-center gap-x-1.5 text-sm font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition whitespace-nowrap">
+            {{ icon_check('size-4') }}
+            {{ 'case_overview.cta.mark_paid'|trans }}
+        </button>
     {% endif %}
 
     <div class="hs-dropdown relative inline-flex">
@@ -126,6 +146,42 @@
                 {{ icon_copy('size-4 text-slate-400') }}
                 {{ 'case_overview.cta.duplicate'|trans }}
             </span>
+            {# Status actions that are not the next step: rejection and the annulment outcomes. #}
+            {% set menu_item_class = 'flex w-full items-center gap-x-3 py-2 px-3 rounded-lg text-sm text-left text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800' %}
+            {% set status_menu = can_close_full_payment|default(false)
+                or (case.status.value == 'CERERE_DEPUSA' and filing_link)
+                or case.status.value in ['TERMEN_FIXAT', 'IN_ANULARE', 'EXECUTARE'] %}
+            {% if status_menu %}
+                <hr class="my-1 border-slate-100 dark:border-slate-800{% if can_close_full_payment|default(false) and case.status.value not in ['CERERE_DEPUSA', 'TERMEN_FIXAT', 'IN_ANULARE', 'EXECUTARE'] %} sm:hidden{% endif %}">
+            {% endif %}
+            {% if can_close_full_payment|default(false) %}
+                <button type="button" data-hs-overlay="#hs-modal-full-payment" data-testid="hero-menu-full-payment" class="sm:hidden {{ menu_item_class }}">
+                    {{ icon_check('size-4 text-slate-400') }}
+                    {{ 'case_overview.cta.mark_paid'|trans }}
+                </button>
+            {% endif %}
+            {% if case.status.value == 'CERERE_DEPUSA' and filing_link %}
+                <button type="button" data-controller="goto-portal-discover" data-action="goto-portal-discover#navigate" data-testid="hero-menu-register-case" class="{{ menu_item_class }}">
+                    {{ icon_building('size-4 text-slate-400') }}
+                    {{ 'case_overview.cta.register_case'|trans }}
+                </button>
+            {% endif %}
+            {% if case.status.value == 'TERMEN_FIXAT' %}
+                <button type="button" data-hs-overlay="#hs-modal-reject" data-testid="hero-menu-reject" class="{{ menu_item_class }}">
+                    {{ icon_warning('size-4 text-slate-400') }}
+                    {{ 'case_overview.cta.reject_case'|trans }}
+                </button>
+            {% endif %}
+            {% if case.status.value == 'IN_ANULARE' or case.status.value == 'EXECUTARE' %}
+                <button type="button" data-hs-overlay="#hs-modal-reject" data-testid="hero-menu-grant-annulment" class="{{ menu_item_class }}">
+                    {{ icon_warning('size-4 text-slate-400') }}
+                    {{ 'case_overview.cta.grant_annulment'|trans }}
+                </button>
+                <button type="button" data-hs-overlay="#hs-modal-annulment-rejected" data-testid="hero-menu-annulment-rejected" class="{{ menu_item_class }}">
+                    {{ icon_check('size-4 text-slate-400') }}
+                    {{ 'case_overview.cta.annulment_rejected'|trans }}
+                </button>
+            {% endif %}
             {# Close case applies from DEFINITIVA and EXECUTARE (the statuses the
                close transitions accept), so the action is hidden otherwise. #}
             {% if case.status.value == 'DEFINITIVA' or case.status.value == 'EXECUTARE' %}

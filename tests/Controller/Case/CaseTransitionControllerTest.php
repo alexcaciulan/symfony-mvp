@@ -1046,7 +1046,7 @@ final class CaseTransitionControllerTest extends WebTestCase
         $body = (string) $this->client->getResponse()->getContent();
         $translator = static::getContainer()->get('translator');
         self::assertStringNotContainsString(
-            $translator->trans('case_overview.recommended_actions.generate_summons'),
+            $translator->trans('case_overview.cta.send_summons'),
             $body,
             'Neither done nor offered: the case never sent a summons and is now closed.',
         );
@@ -1067,11 +1067,13 @@ final class CaseTransitionControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
         self::assertFalse($this->client->getResponse()->headers->has('Location'));
         $body = (string) $this->client->getResponse()->getContent();
-        foreach (['case-hero', 'case-pipeline', 'case-kpi-grid', 'case-detalii-sidebar', 'panel-documente', 'panel-termene', 'toasts'] as $target) {
+        foreach (['case-hero', 'case-pipeline', 'case-kpi-grid', 'panel-documente', 'panel-termene', 'toasts'] as $target) {
             self::assertStringContainsString('target="' . $target . '"', $body, $target);
         }
+        self::assertStringNotContainsString('case-detalii-sidebar', $body);
         self::assertStringContainsString('data-close-modal-target-id-value="hs-modal-full-payment"', $body);
-        self::assertStringContainsString('data-testid="action-full-payment-done"', $body);
+        self::assertStringContainsString('data-testid="hero-full-payment"', $body);
+        self::assertStringNotContainsString('data-testid="hero-full-payment-action"', $body);
         self::assertStringContainsString('<turbo-stream action="replace" target="filing-tab-dot">', $body);
         self::assertStringContainsString('data-reason="full_payment"', $body);
         self::assertStringNotContainsString('target="tab-depunere"', $body);

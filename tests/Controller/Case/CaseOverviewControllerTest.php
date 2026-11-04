@@ -283,6 +283,9 @@ final class CaseOverviewControllerTest extends WebTestCase
         self::assertCount(1, $crawler->filter('[data-testid="claim-positions-table"]'), 'The positions stay readable.');
         self::assertCount(1, $crawler->filter('[data-testid="claim-locked-note"]'));
         self::assertStringContainsString('Facturile nu se mai pot modifica după trimiterea somației', $crawler->filter('[data-testid="claim-locked-note"]')->text());
+        self::assertCount(1, $crawler->filter('[data-testid="claim-state-chip"][data-state="locked"]'));
+        self::assertStringContainsString('Blocată după somație', $crawler->filter('[data-testid="claim-state-chip"]')->text());
+        self::assertCount(0, $crawler->filter('[data-testid="claim-reinclude-' . $item->getId() . '"]'));
     }
 
     public function testClaimLockedNoteIsAbsentOnAnAmiableCaseWithoutPositions(): void
@@ -294,6 +297,8 @@ final class CaseOverviewControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertCount(0, $crawler->filter('[data-testid="claim-locked-note"]'));
+        self::assertCount(1, $crawler->filter('[data-testid="claim-state-chip"][data-state="editable"]'));
+        self::assertStringContainsString('Editabilă până la trimiterea somației', $crawler->filter('[data-testid="claim-state-chip"]')->text());
         self::assertCount(1, $crawler->filter('[data-testid="claim-add-invoice"]'));
         self::assertCount(1, $crawler->filter('[data-testid="modal-claim-add"]'));
         self::assertCount(0, $crawler->filter('[data-testid="court-card-proposal"]'), 'Nothing counts, so there is nothing to compare the court with.');
@@ -334,7 +339,8 @@ final class CaseOverviewControllerTest extends WebTestCase
             $this->client->request('GET', '/case/' . $this->case->getId());
 
             self::assertResponseIsSuccessful();
-            self::assertSelectorExists('[data-testid="action-full-payment"][data-hs-overlay="#hs-modal-full-payment"]', $status->value);
+            self::assertSelectorExists('#case-hero-actions [data-testid="hero-full-payment-action"][data-hs-overlay="#hs-modal-full-payment"]', $status->value);
+            self::assertSelectorExists('#case-hero-actions [data-testid="hero-menu-full-payment"][data-hs-overlay="#hs-modal-full-payment"]', $status->value);
             self::assertSelectorExists('#hs-modal-full-payment form[action$="/transition/full-payment"]', $status->value);
             self::assertSelectorNotExists('[data-testid="full-payment-multi-debtor"]', 'Single debtor: no multi-debtor warning.');
         }
@@ -346,7 +352,8 @@ final class CaseOverviewControllerTest extends WebTestCase
         $this->client->loginUser($this->user);
         $this->client->request('GET', '/case/' . $this->case->getId());
 
-        self::assertSelectorNotExists('[data-testid="action-full-payment"]');
+        self::assertSelectorNotExists('[data-testid="hero-full-payment-action"]');
+        self::assertSelectorNotExists('[data-testid="hero-menu-full-payment"]');
         self::assertSelectorNotExists('#hs-modal-full-payment');
     }
 
@@ -387,10 +394,9 @@ final class CaseOverviewControllerTest extends WebTestCase
         self::assertSelectorTextContains('[data-testid="pipeline-closed-full-payment"]', '15.01.2026');
         self::assertSelectorTextNotContains('#case-pipeline', $translator->trans('case_overview.pipeline.stage_in_progress_label'));
         self::assertSelectorExists('[data-testid="hero-full-payment"]');
-        self::assertSelectorExists('[data-testid="action-full-payment-done"]');
-        self::assertSelectorNotExists('[data-testid="action-full-payment"]');
+        self::assertSelectorNotExists('[data-testid="hero-full-payment-action"]');
         self::assertSelectorNotExists('#hs-modal-add-deadline');
-        self::assertSelectorNotExists('#case-recommended-actions [data-hs-overlay="#hs-modal-cerere-op"]');
+        self::assertSelectorNotExists('#case-hero-actions [data-hs-overlay="#hs-modal-cerere-op"]');
         self::assertSelectorNotExists('#panel-documente [data-hs-overlay="#hs-modal-cerere-op"]');
         self::assertSelectorTextContains('#panel-documente', $translator->trans('case_overview.documents.not_needed'));
         self::assertSelectorNotExists('#panel-documente [data-hs-overlay="#hs-modal-upload-document"]');
@@ -612,18 +618,25 @@ final class CaseOverviewControllerTest extends WebTestCase
         self::assertGreaterThan(0, $badge->count(), 'Green ONRC ACTIV badge must be rendered for AnafStatus::ACTIV debtor');
     }
 
-    public function testDetaliiClaimCompositionBarPercentagesMatch(): void
+    public function testClaimSummaryLineAddsPrincipalAccessoryAndStampDuty(): void
     {
-        // Principal 47500 + Interest 3842.50 ⇒ total 51342.50 ⇒ ~92.5% / ~7.5%
+        // Principal 47500 + interest 3842.50 + stamp duty 200 = 51542.50 to file.
         $this->enrichCase();
 
         $this->client->loginUser($this->user);
-        $this->client->request('GET', '/case/' . $this->case->getId());
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
-        $html = $this->client->getResponse()->getContent();
-        self::assertStringContainsString('92,5%', $html, 'Principal share rendered with Romanian decimal');
-        self::assertStringContainsString('7,5%', $html, 'Interest share rendered with Romanian decimal');
+        $line = $crawler->filter('[data-testid="claim-summary-line"]');
+        self::assertCount(1, $line);
+        self::assertStringContainsString('Cerere totală de depus', $line->text());
+        self::assertStringContainsString('51.542,50', $line->text());
+        self::assertStringContainsString('principal 47.500,00', $line->text());
+        self::assertStringContainsString('dobândă 3.842,50', $line->text());
+        self::assertStringContainsString('taxă timbru 200,00', $line->text());
+        $card = $crawler->filter('#case-claim-card')->text();
+        self::assertStringNotContainsString('92,5%', $card);
+        self::assertStringNotContainsString('Compoziție creanță', $card);
     }
 
     public function testDetaliiCourtSummaryRendersJudecatorieRationaleForSmallClaim(): void
@@ -662,9 +675,9 @@ final class CaseOverviewControllerTest extends WebTestCase
     public function testDetaliiClaimCompositionShowsPerInvoiceBnrBreakdownForMultipleItems(): void
     {
         $this->enrichCase();
-        // Two interest-bearing invoices with distinct past due dates: the overview
-        // must expose the BNR period breakdown per invoice (restored for multi-invoice
-        // claims), not just the per-position summary row.
+        // Two interest-bearing invoices with distinct past due dates: each row carries its
+        // own BNR period calculation, opened from its accessory amount.
+        $items = [];
         foreach ([['INV-A', '2024-01-15', '1000.00'], ['INV-B', '2024-06-20', '2000.00']] as [$doc, $due, $amt]) {
             $item = new ClaimItem();
             $item->setLegalCase($this->case);
@@ -678,18 +691,28 @@ final class CaseOverviewControllerTest extends WebTestCase
             $item->setConfirmedByLawyer(true);
             $this->case->addClaimItem($item);
             $this->em->persist($item);
+            $items[$doc] = $item;
         }
         $this->em->flush();
 
         $this->client->loginUser($this->user);
-        $this->client->request('GET', '/case/' . $this->case->getId());
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
-        $html = (string) $this->client->getResponse()->getContent();
-        self::assertStringContainsString('2 facturi · OG 13/2011', $html);
-        self::assertStringContainsString('Factură INV-A', $html);
-        self::assertStringContainsString('Factură INV-B', $html);
-        self::assertSelectorTextContains('#panel-detalii', 'Rata BNR');
+        foreach ($items as $doc => $item) {
+            $id = $item->getId();
+            $toggle = $crawler->filter('[data-testid="claim-toggle-breakdown-' . $id . '"]');
+            self::assertCount(1, $toggle, $doc);
+            self::assertSame('false', $toggle->attr('aria-expanded'));
+            self::assertSame('claim-breakdown-' . $id, $toggle->attr('aria-controls'));
+            $breakdown = $crawler->filter('#claim-breakdown-' . $id);
+            self::assertCount(1, $breakdown, $doc);
+            self::assertStringContainsString('hidden', (string) $breakdown->attr('class'), 'Closed until the amount is clicked.');
+            self::assertStringContainsString('Calculul dobânzii · ' . $doc, $breakdown->text());
+            self::assertStringContainsString('Rata BNR', $breakdown->text());
+            self::assertCount(1, $breakdown->filter('[data-testid="claim-position-breakdown"][data-kind="interest"]'));
+        }
+        self::assertStringNotContainsString('Vezi breakdown calcul dobândă', (string) $this->client->getResponse()->getContent());
     }
 
     public function testDetaliiShowsHowEachContractualPenaltyWasComputed(): void
@@ -716,8 +739,9 @@ final class CaseOverviewControllerTest extends WebTestCase
         $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
-        $breakdown = $crawler->filter('[data-testid="overview-penalty-breakdown"]');
+        $breakdown = $crawler->filter('[data-testid="claim-position-breakdown"][data-kind="penalty"]');
         self::assertCount(1, $breakdown);
+        self::assertStringContainsString('Calculul penalităților · KSS 1534', $breakdown->text());
         $text = $breakdown->text();
         self::assertStringContainsString('22.02.2025 → 03.10.2026', $text);
         self::assertStringContainsString('589', $text);
@@ -750,11 +774,13 @@ final class CaseOverviewControllerTest extends WebTestCase
         $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
-        $breakdown = $crawler->filter('[data-testid="overview-penalty-breakdown"]');
-        self::assertStringContainsString('2 facturi', $breakdown->text());
-        self::assertSame(2, $breakdown->filter('tbody tr')->count());
-        self::assertStringContainsString('INV-A', $breakdown->text());
-        self::assertStringContainsString('02.03.2025 → 23.03.2025', $breakdown->text());
+        $breakdown = $crawler->filter('[data-testid="claim-position-breakdown"][data-kind="penalty"]');
+        self::assertCount(2, $breakdown, 'One calculation per invoice.');
+        self::assertStringContainsString('Calculul penalităților · INV-A', $breakdown->eq(0)->text());
+        self::assertStringContainsString('22.02.2025 → 23.03.2025', $breakdown->eq(0)->text());
+        self::assertStringContainsString('Calculul penalităților · INV-B', $breakdown->eq(1)->text());
+        self::assertStringContainsString('02.03.2025 → 23.03.2025', $breakdown->eq(1)->text());
+        self::assertSame(1, $breakdown->eq(0)->filter('tbody tr')->count());
     }
 
     public function testDetaliiShowsNoPenaltyTableForLegalInterest(): void
@@ -765,7 +791,7 @@ final class CaseOverviewControllerTest extends WebTestCase
         $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
-        self::assertCount(0, $crawler->filter('[data-testid="overview-penalty-breakdown"]'));
+        self::assertCount(0, $crawler->filter('[data-testid="claim-position-breakdown"][data-kind="penalty"]'));
     }
 
     public function testKpiHintStatesTheMarginTheContractCarries(): void
@@ -794,20 +820,20 @@ final class CaseOverviewControllerTest extends WebTestCase
         self::assertSelectorTextContains('#panel-detalii', 'Instanță needeterminată');
     }
 
-    public function testDetaliiRecommendedActionsStrikesGeneratedSummonsWhenStatusAdvanced(): void
+    public function testDetaliiHasNoSidebar(): void
     {
         $this->enrichCase(CaseStatus::SOMATIE_TRIMISA);
-        $this->recordTransition('SOMATIE_TRIMISA');
-        $this->em->clear(); // Detach so the request EM re-reads statusHistory from DB.
+        $this->attachDeadline(DeadlineType::RASPUNS_SOMATIE, DeadlinePriority::HIGH, new \DateTimeImmutable('+10 days'));
 
         $this->client->loginUser($this->user);
-        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+        $this->client->request('GET', '/case/' . $this->case->getId());
 
         self::assertResponseIsSuccessful();
-        // The "Generează somație" entry must be line-through styled when summons is past.
-        $struck = $crawler->filter('#panel-detalii .line-through');
-        self::assertGreaterThan(0, $struck->count(), 'Summons row must be struck through when status is past AMIABIL');
-        self::assertSelectorTextContains('#panel-detalii', 'deja generată');
+        self::assertSelectorNotExists('#case-detalii-sidebar');
+        self::assertSelectorNotExists('#case-recommended-actions');
+        self::assertSelectorNotExists('#panel-detalii svg.-rotate-90', 'No deadline ring in the tab.');
+        self::assertSelectorNotExists('#panel-detalii .xl\\:grid-cols-3');
+        self::assertSelectorExists('#panel-detalii #case-claim-card');
     }
 
     public function testDetaliiBreakdownErrorRenderedWhenCalculatorFails(): void
@@ -823,6 +849,8 @@ final class CaseOverviewControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains('#panel-detalii', 'Defalcarea pe perioade nu poate fi recalculată');
+        self::assertSelectorExists('[data-testid="claim-breakdown-error"]');
+        self::assertSelectorNotExists('[data-testid="claim-case-breakdown"]');
     }
 
     public function testDocumenteGeneratedRenders3RowsAlways(): void
@@ -1694,5 +1722,347 @@ final class CaseOverviewControllerTest extends WebTestCase
         $contractual = $dialog->filter('[data-conditional-fields-target="conditional"]');
         self::assertCount(1, $contractual);
         self::assertStringNotContainsString('hidden', (string) $contractual->attr('class'), 'The contractual section is open for a contractual case.');
+    }
+
+    /**
+     * Every action the Detalii sidebar used to offer keeps a place in the hero: the
+     * primary CTA, the outlined amicable-payment button or the actions menu.
+     *
+     * @return iterable<string, array{CaseStatus, bool, list<string>, list<string>}>
+     */
+    public static function heroActionMap(): iterable
+    {
+        yield 'AMIABIL' => [CaseStatus::AMIABIL, false, [
+            '[data-testid="hero-primary-cta"]',
+            '[data-testid="hero-full-payment-action"][data-hs-overlay="#hs-modal-full-payment"]',
+            '[data-testid="hero-menu-full-payment"][data-hs-overlay="#hs-modal-full-payment"]',
+        ], ['#hs-modal-full-payment']];
+        yield 'SOMATIE_TRIMISA' => [CaseStatus::SOMATIE_TRIMISA, false, [
+            '[data-testid="hero-primary-cta"][data-hs-overlay="#hs-modal-cerere-op"]',
+            '[data-testid="hero-full-payment-action"]',
+            '[data-testid="hero-menu-full-payment"]',
+        ], ['#hs-modal-cerere-op', '#hs-modal-full-payment']];
+        yield 'CERERE_GENERATA' => [CaseStatus::CERERE_GENERATA, false, [
+            '[data-testid="hero-primary-cta"][data-hs-overlay="#hs-modal-confirm-filing"]',
+        ], ['#hs-modal-confirm-filing']];
+        yield 'CERERE_DEPUSA' => [CaseStatus::CERERE_DEPUSA, false, [
+            '[data-testid="hero-primary-cta"][data-controller="goto-portal-discover"]',
+        ], []];
+        yield 'TERMEN_FIXAT' => [CaseStatus::TERMEN_FIXAT, false, [
+            '[data-testid="hero-primary-cta"][data-hs-overlay="#hs-modal-issue-ruling"]',
+            '[data-testid="hero-menu-reject"][data-hs-overlay="#hs-modal-reject"]',
+        ], ['#hs-modal-issue-ruling', '#hs-modal-reject']];
+        yield 'ORDONANTA_EMISA communicated' => [CaseStatus::ORDONANTA_EMISA, true, [
+            '[data-testid="hero-primary-cta"][data-hs-overlay="#hs-modal-executare"]',
+        ], ['#hs-modal-executare']];
+        yield 'IN_ANULARE' => [CaseStatus::IN_ANULARE, false, [
+            '[data-testid="hero-primary-cta"][data-hs-overlay="#hs-modal-executare"]',
+            '[data-testid="hero-menu-grant-annulment"][data-hs-overlay="#hs-modal-reject"]',
+            '[data-testid="hero-menu-annulment-rejected"][data-hs-overlay="#hs-modal-annulment-rejected"]',
+        ], ['#hs-modal-executare', '#hs-modal-reject', '#hs-modal-annulment-rejected']];
+        yield 'DEFINITIVA' => [CaseStatus::DEFINITIVA, false, [
+            '[data-testid="hero-primary-cta"][data-hs-overlay="#hs-modal-executare"]',
+            '[data-hs-overlay="#hs-modal-close-case"]',
+        ], ['#hs-modal-executare', '#hs-modal-close-case']];
+        yield 'EXECUTARE' => [CaseStatus::EXECUTARE, false, [
+            '[data-testid="hero-primary-cta"][data-hs-overlay="#hs-modal-close-case"]',
+            '[data-testid="hero-menu-grant-annulment"][data-hs-overlay="#hs-modal-reject"]',
+            '[data-testid="hero-menu-annulment-rejected"][data-hs-overlay="#hs-modal-annulment-rejected"]',
+        ], ['#hs-modal-close-case', '#hs-modal-reject', '#hs-modal-annulment-rejected']];
+    }
+
+    /**
+     * @param list<string> $heroSelectors
+     * @param list<string> $modals
+     */
+    #[DataProvider('heroActionMap')]
+    public function testEverySidebarActionKeepsAPlaceInTheHero(CaseStatus $status, bool $rulingCommunicated, array $heroSelectors, array $modals): void
+    {
+        $this->enrichCase($status);
+        if ($rulingCommunicated) {
+            $this->case->setRulingCommunicationDate(new \DateTimeImmutable('-3 days'));
+            $this->em->flush();
+        }
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertCount(1, $crawler->filter('#case-hero-actions [data-testid="hero-primary-cta"]'), 'One next step.');
+        foreach ($heroSelectors as $selector) {
+            self::assertCount(1, $crawler->filter('#case-hero-actions ' . $selector), $selector);
+        }
+        foreach ($modals as $modal) {
+            self::assertCount(1, $crawler->filter($modal), $modal);
+        }
+        self::assertCount(0, $crawler->filter('#case-hero-actions form [data-hs-overlay]'), 'Menu entries open dialogs, they post nothing themselves.');
+    }
+
+    public function testIssuedOrderOffersNoEnforcementBeforeItIsCommunicated(): void
+    {
+        $this->enrichCase(CaseStatus::ORDONANTA_EMISA);
+
+        $this->client->loginUser($this->user);
+        $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertSelectorNotExists('#case-hero-actions [data-hs-overlay="#hs-modal-executare"]');
+    }
+
+    public function testKpiShowsTheNextAlertOfTheActiveDeadline(): void
+    {
+        $this->enrichCase();
+        $deadline = $this->attachDeadline(DeadlineType::PRESCRIPTIE, DeadlinePriority::CRITICAL, new \DateTimeImmutable('+400 days'));
+        $offset = static::getContainer()->get(\App\Service\Deadline\DeadlineAlertService::class)->nextAlertDaysBefore($deadline);
+        self::assertNotNull($offset, 'A term 400 days away still has every alert ahead of it.');
+        $expected = $deadline->getDeadlineDate()->modify('-' . $offset . ' days')->format('d.m.Y');
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $translator = static::getContainer()->get('translator');
+        self::assertStringContainsString($translator->trans(DeadlineType::PRESCRIPTIE->label()), $crawler->filter('[data-testid="kpi-active-deadline-line"]')->text());
+        self::assertStringContainsString($deadline->getDeadlineDate()->format('d.m.Y'), $crawler->filter('[data-testid="kpi-active-deadline-line"]')->text());
+        $alert = $crawler->filter('#case-kpi-grid [data-testid="kpi-next-alert"]');
+        self::assertCount(1, $alert);
+        self::assertStringContainsString('următoarea alertă', $alert->text());
+        self::assertStringContainsString($expected, $alert->text());
+    }
+
+    public function testPositionsAreOrderedByDueDateWithExcludedLast(): void
+    {
+        $this->enrichCase();
+        $this->attachClaimItem('INV-LATE', '1000.00', '-30 days');
+        $excluded = $this->attachClaimItem('INV-EXCL', '500.00', '-400 days');
+        $excluded->setExcludedByLawyer(true);
+        $excluded->setExclusionReason(\App\Enum\ClaimExclusionReason::PAID_IN_FULL);
+        $excluded->setExclusionNote('plata din 02.10.2026, transfer bancar cu ordinul de plată numărul 4471');
+        $this->attachClaimItem('INV-OLD', '2000.00', '-200 days');
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $rows = $crawler->filter('[data-testid="claim-position-row"]');
+        self::assertSame(['counting', 'counting', 'excluded'], $rows->each(static fn ($row) => $row->attr('data-claim-position-state')));
+        self::assertStringContainsString('INV-OLD', $rows->eq(0)->text());
+        self::assertStringContainsString('INV-LATE', $rows->eq(1)->text());
+        self::assertStringContainsString('INV-EXCL', $rows->eq(2)->text());
+        $reason = $rows->eq(2)->filter('[data-testid="claim-exclusion-reason"]');
+        self::assertStringContainsString('truncate', (string) $reason->attr('class'));
+        self::assertStringContainsString('Plătită integral: plata din 02.10.2026, transfer bancar cu ordinul de plată numărul 4471', (string) $reason->attr('title'));
+    }
+
+    public function testOnlyExceptionsCarryAPill(): void
+    {
+        $this->enrichCase();
+        $this->attachClaimItem('INV-OK', '1000.00');
+        $excluded = $this->attachClaimItem('INV-EXCL', '500.00');
+        $excluded->setExcludedByLawyer(true);
+        $fx = $this->attachClaimItem('INV-USD', '1200.00');
+        $fx->setCurrency('USD');
+        $fx->setAmountRon(null);
+        $fx->setNeedsManualFx(true);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $card = $crawler->filter('#case-claim-card');
+        self::assertStringNotContainsString('Confirmată', $card->text());
+        self::assertSame(['excluded', 'not_counting'], $card->filter('[data-testid="claim-position-pill"]')->each(static fn ($pill) => $pill->attr('data-kind')));
+        $fxRow = $crawler->filter('#claim-position-' . $fx->getId());
+        self::assertStringContainsString('necalculat', $fxRow->text());
+        self::assertStringContainsString('fără curs BNR', $fxRow->text());
+        self::assertCount(0, $crawler->filter('#claim-position-' . $this->case->getClaimItems()->first()->getId() . ' [data-testid="claim-position-pill"]'));
+    }
+
+    public function testFxPositionShowsRateAndRonLine(): void
+    {
+        $this->enrichCase();
+        $this->attachClaimItem('INV-RON', '1000.00');
+        $eur = $this->attachClaimItem('INV-EUR', '2500.00');
+        $eur->setCurrency('EUR');
+        $eur->setAmountRon('12678.00');
+        $eur->setExchangeRate('5.0712');
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $fx = $crawler->filter('#claim-position-' . $eur->getId() . ' [data-testid="claim-position-fx"]');
+        self::assertCount(1, $fx);
+        self::assertSame('curs BNR 5,0712 = 12.678,00 RON', trim($fx->text()));
+        self::assertCount(1, $crawler->filter('[data-testid="claim-how-fx"]'), 'The currency sentence appears with a foreign position.');
+    }
+
+    public function testHowItIsCalculatedMentionsCurrencyOnlyWithAForeignPosition(): void
+    {
+        $this->enrichCase();
+        $this->attachClaimItem('INV-1', '1000.00');
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $how = $crawler->filter('details[data-testid="claim-how-calculated"]');
+        self::assertCount(1, $how);
+        self::assertStringContainsString('Cum se calculează', $how->filter('summary')->text());
+        self::assertStringContainsString('Pozițiile excluse rămân în dosar', $how->text());
+        self::assertCount(0, $crawler->filter('[data-testid="claim-how-fx"]'));
+    }
+
+    public function testFiltersAppearAboveSixPositionsAndRowsBeyondEightStartHidden(): void
+    {
+        $this->enrichCase();
+        for ($i = 1; $i <= 8; ++$i) {
+            $this->attachClaimItem('INV-' . $i, '100.00', '-' . (300 - $i) . ' days');
+        }
+        $excluded = $this->attachClaimItem('INV-X', '100.00', '-400 days');
+        $excluded->setExcludedByLawyer(true);
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString('9', $crawler->filter('[data-testid="claim-filter-all"]')->text());
+        self::assertSame('true', $crawler->filter('[data-testid="claim-filter-all"]')->attr('aria-pressed'));
+        self::assertStringContainsString('8', $crawler->filter('[data-testid="claim-filter-in"]')->text());
+        self::assertStringContainsString('1', $crawler->filter('[data-testid="claim-filter-excluded"]')->text());
+        self::assertCount(0, $crawler->filter('[data-testid="claim-filter-attention"]'), 'No position needs attention.');
+        $groups = $crawler->filter('[data-testid="claim-position-group"]');
+        self::assertCount(9, $groups);
+        for ($i = 0; $i < 8; ++$i) {
+            self::assertStringNotContainsString('hidden', (string) $groups->eq($i)->attr('class'));
+        }
+        self::assertStringContainsString('hidden', (string) $groups->eq(8)->attr('class'));
+        self::assertSame('excluded', $groups->eq(8)->attr('data-filter-state'));
+        $showAll = $crawler->filter('[data-testid="claim-positions-show-all"]');
+        self::assertCount(1, $showAll);
+        self::assertStringContainsString('Arată toate cele 9 poziții', $showAll->text());
+        self::assertStringContainsString('încă 1', $showAll->text());
+    }
+
+    public function testNoFiltersUpToSixPositions(): void
+    {
+        $this->enrichCase();
+        for ($i = 1; $i <= 6; ++$i) {
+            $this->attachClaimItem('INV-' . $i, '100.00', '-' . (100 + $i) . ' days');
+        }
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertCount(0, $crawler->filter('[data-testid^="claim-filter-"]'));
+        self::assertCount(0, $crawler->filter('[data-testid="claim-positions-show-all"]'));
+        self::assertCount(6, $crawler->filter('[data-testid="claim-position-row"]'));
+    }
+
+    public function testDetailsBlockListsContractAndSummonsNumber(): void
+    {
+        $this->enrichCase();
+        $this->attachClaimItem('INV-1', '1000.00');
+        $this->case->setContractNumber('58');
+        $this->case->setContractDate(new \DateTime('2025-01-10'));
+        $this->case->setContractObject('Execuție lucrări de instalații');
+        $this->case->setPaymentNoticeNumber('114/2026');
+        $this->case->setClaimDescription('Contravaloarea lucrărilor executate.');
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $block = $crawler->filter('[data-testid="claim-details-block"]');
+        self::assertCount(1, $block);
+        self::assertStringContainsString('Detaliile creanței', $block->text());
+        self::assertSame('nr. 58 din 10.01.2025 · Execuție lucrări de instalații', trim($block->filter('[data-testid="claim-details-contract"] dd')->text()));
+        self::assertSame('114/2026', trim($block->filter('[data-testid="claim-details-summons-number"] dd')->text()));
+        self::assertStringContainsString('Dobândă legală penalizatoare', $block->filter('[data-testid="claim-details-mode"]')->text());
+        self::assertStringContainsString('(se recalculează la data somației)', $block->filter('[data-testid="claim-details-reference"]')->text());
+        self::assertStringContainsString('Contravaloarea lucrărilor executate.', $block->text());
+        self::assertCount(1, $block->filter('[data-testid="claim-edit-details"][data-hs-overlay="#hs-modal-claim-details"]'));
+        self::assertCount(0, $block->filter('[data-testid="claim-details-clause"]'), 'Legal interest has no penalty clause.');
+    }
+
+    public function testDetailsBlockShowsTheClauseOnAContractualPenalty(): void
+    {
+        $this->enrichCase(CaseStatus::SOMATIE_TRIMISA);
+        $this->attachClaimItem('INV-1', '1000.00');
+        $this->case->setPenaltyType(PenaltyType::CONTRACTUAL);
+        $this->case->setContractualPenaltyRate('0.1000');
+        $this->case->setContractualPenaltyCapPercent('10.00');
+        $this->case->setPenaltyClauseArticle('art. 7.2');
+        $this->case->setPenaltyClauseText('Penalități de 0,10% pe zi.');
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $block = $crawler->filter('[data-testid="claim-details-block"]');
+        self::assertStringContainsString('0,10% pe zi, plafon 10% din sumă', $block->filter('[data-testid="claim-details-mode"]')->text());
+        self::assertStringContainsString('art. 7.2: Penalități de 0,10% pe zi.', $block->filter('[data-testid="claim-details-clause"]')->text());
+        self::assertStringContainsString('(data somației)', $block->filter('[data-testid="claim-details-reference"]')->text());
+        self::assertCount(0, $block->filter('[data-testid="claim-edit-details"]'), 'Locked after the summons.');
+    }
+
+    public function testFooterTotalsAlignWithTheCaseFigures(): void
+    {
+        $this->enrichCase();
+        $this->attachClaimItem('INV-1', '1000.00');
+        $paid = $this->attachClaimItem('INV-2', '2000.00');
+        $paid->setPaidAmount('500.00');
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $footer = $crawler->filter('[data-testid="claim-positions-footer"]');
+        self::assertCount(1, $footer);
+        self::assertStringContainsString('2 din 2 poziții', $footer->text());
+        self::assertSame('500,00', trim($footer->filter('[data-testid="claim-footer-paid"]')->text()));
+        self::assertSame('47.500,00', trim($footer->filter('[data-testid="claim-footer-principal"]')->text()), 'The principal the case states.');
+        self::assertSame('+3.842,50', trim($footer->filter('[data-testid="claim-footer-accessory"]')->text()), 'The accessory the case states.');
+    }
+
+    public function testCaseWithoutPositionsShowsTheCaseBreakdown(): void
+    {
+        $this->enrichCase();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertCount(0, $crawler->filter('[data-testid="claim-positions-table"]'));
+        $breakdown = $crawler->filter('[data-testid="claim-case-breakdown"]');
+        self::assertCount(1, $breakdown);
+        self::assertStringContainsString('Calculul dobânzii', $breakdown->text());
+        self::assertStringContainsString('Rata BNR', $breakdown->text());
+        self::assertStringContainsString('3.842,50', $breakdown->text());
+    }
+
+    public function testTheOnlyCountingPositionCannotBeExcludedFromTheRowMenu(): void
+    {
+        $this->enrichCase();
+        $only = $this->attachClaimItem('INV-1', '1000.00');
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $exclude = $crawler->filter('[data-testid="claim-exclude-' . $only->getId() . '"]');
+        self::assertCount(1, $exclude);
+        self::assertSame('true', $exclude->attr('aria-disabled'));
+        self::assertNull($exclude->attr('data-hs-overlay'));
+        self::assertStringContainsString('singura care intră în creanță', $exclude->text());
+        self::assertCount(1, $crawler->filter('[data-testid="claim-position-menu-' . $only->getId() . '"]'));
     }
 }

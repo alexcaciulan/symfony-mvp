@@ -35,7 +35,7 @@ final class DeadlineAgendaResponseTest extends WebTestCase
         'panel-termene',
         'case-tabs-nav',
         'case-kpi-grid',
-        'case-detalii-sidebar',
+        'case-hero',
         'ruling-communication-alert',
     ];
 

@@ -1,0 +1,136 @@
+{# How one accessory figure was reached, laid out so it can be redone by hand: the BNR
+   periods of the legal interest, or the contractual penalty with its ceiling. Every
+   figure comes from the calculation the case already holds; nothing is computed here
+   beyond adding up the days.
+
+   Expects:
+     kind            'interest' or 'penalty'
+     number          the invoice number, null for the case-level calculation
+     base            the sum the accessory runs on (RON)
+     periods         list<InterestPeriod> (interest)
+     total           the accessory total (interest)
+     margin          ProfessionalPenaltyMargin|null (interest)
+     penalty         PenaltyBreakdownRow (penalty)
+     due_date        the due date the interest runs from (interest)
+     reference_date  the date the accessory is computed up to #}
+{% set meta = 'text-[11px] text-slate-500 dark:text-slate-400' %}
+{% set th = 'py-1.5 px-2 font-semibold text-right' %}
+{% set fmt_date = 'd.m.Y' %}
+
+{% if kind == 'penalty' %}
+    {% set title = number is not null ? 'case_overview.claim.calc_title_penalty'|trans({'%number%': number}) : 'wizard.step3.claim_items.penalty_breakdown.title'|trans %}
+    {% set range = 'case_overview.claim.calc_range_penalty'|trans({'%from%': penalty.firstDay|date(fmt_date), '%to%': penalty.endDate|date(fmt_date)}) %}
+    {% set basis = case.penaltyClauseArticle
+        ? 'case_overview.claim.calc_basis_penalty'|trans({'%article%': case.penaltyClauseArticle})
+        : 'case_overview.claim.calc_basis_penalty_generic'|trans %}
+    {% set base_value = penalty.base %}
+{% else %}
+    {% set title = number is not null ? 'case_overview.claim.calc_title_interest'|trans({'%number%': number}) : 'case_overview.claim.calc_title_case'|trans %}
+    {% set range = 'case_overview.claim.calc_range_interest'|trans({'%from%': due_date ? due_date|date(fmt_date) : '—', '%to%': reference_date|date(fmt_date)}) %}
+    {% set basis = margin
+        ? 'case_overview.claim.calc_basis_commercial'|trans({'%margin%': margin.value})
+        : 'case_overview.claim.calc_basis_civil'|trans %}
+    {% set base_value = base %}
+    {% set total_days = 0 %}
+    {% for period in periods %}{% set total_days = total_days + period.days %}{% endfor %}
+{% endif %}
+
+<div data-testid="claim-position-breakdown" data-kind="{{ kind }}" class="text-xs">
+    <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 mb-2">
+        <div class="font-semibold text-slate-800 dark:text-slate-100">{{ title }}</div>
+        <div class="{{ meta }}">{{ 'case_overview.claim.calc_meta'|trans({'%base%': base_value|number_format(2, ',', '.'), '%range%': range, '%basis%': basis}) }}</div>
+    </div>
+
+    {% if kind == 'penalty' %}
+        <div class="hidden @lg:block">
+            <table class="w-full tnum">
+                <thead class="text-[10px] uppercase tracking-wide text-slate-400 border-b border-slate-200 dark:border-slate-700">
+                    <tr>
+                        <th scope="col" class="py-1.5 pl-0 pr-2 font-semibold text-left">{{ 'case_overview.claim.breakdown_period'|trans }}</th>
+                        <th scope="col" class="{{ th }}">{{ 'case_overview.claim.breakdown_days'|trans }}</th>
+                        <th scope="col" class="{{ th }}">{{ 'case_overview.claim.calc_daily_rate'|trans }}</th>
+                        <th scope="col" class="{{ th }}">{{ 'case_overview.claim.calc_computed'|trans }}</th>
+                        <th scope="col" class="{{ th }} pr-7">{{ 'case_overview.claim.calc_penalty'|trans }}</th>
+                    </tr>
+                </thead>
+                <tbody class="text-slate-600 dark:text-slate-400">
+                    <tr>
+                        <td class="py-1.5 pl-0 pr-2 whitespace-nowrap text-slate-700 dark:text-slate-300">{{ penalty.firstDay|date(fmt_date) }} → {{ penalty.endDate|date(fmt_date) }}</td>
+                        <td class="py-1.5 px-2 text-right">{{ penalty.days }}</td>
+                        <td class="py-1.5 px-2 text-right">{{ penalty.dailyRate|number_format(2, ',', '.') }}%</td>
+                        <td class="py-1.5 px-2 text-right{% if penalty.capAmount is not null %} line-through decoration-slate-400 text-slate-400{% endif %}">{{ penalty.computed|number_format(2, ',', '.') }}</td>
+                        <td class="py-1.5 px-2 pr-7 text-right font-semibold text-slate-800 dark:text-slate-100">{{ penalty.total|number_format(2, ',', '.') }}</td>
+                    </tr>
+                </tbody>
+                <tfoot class="border-t border-slate-300 dark:border-slate-600">
+                    <tr class="font-semibold text-slate-900 dark:text-white">
+                        <td colspan="4" class="py-2 pl-0 pr-2">{{ 'case_overview.claim.calc_total_penalty'|trans }}</td>
+                        <td class="py-2 px-2 pr-7 text-right text-amber-600 dark:text-amber-400">{{ penalty.total|number_format(2, ',', '.') }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        <ul class="@lg:hidden divide-y divide-slate-200/70 dark:divide-slate-800">
+            <li class="py-2 flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                    <div class="tnum text-slate-700 dark:text-slate-300">{{ penalty.firstDay|date(fmt_date) }} → {{ penalty.endDate|date(fmt_date) }}</div>
+                    <div class="{{ meta }} tnum">{{ 'case_overview.claim.calc_penalty_line'|trans({'%days%': penalty.days, '%rate%': penalty.dailyRate|number_format(2, ',', '.'), '%computed%': penalty.computed|number_format(2, ',', '.')}) }}</div>
+                </div>
+                <div class="tnum font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">{{ penalty.total|number_format(2, ',', '.') }}</div>
+            </li>
+        </ul>
+        {% if penalty.capAmount is not null %}
+            <p class="mt-1.5 text-[11px] font-medium text-slate-700 dark:text-slate-200" data-testid="overview-penalty-cap-line">{{ 'wizard.step3.claim_items.penalty_breakdown.cap'|trans({'%percent%': penalty.capPercent|percent_number, '%base%': penalty.base|number_format(2, ',', '.'), '%cap%': penalty.capAmount|number_format(2, ',', '.')}) }}</p>
+        {% endif %}
+        <p class="mt-1.5 {{ meta }}">{{ 'wizard.step3.claim_items.penalty_breakdown.formula'|trans }}</p>
+    {% else %}
+        <div class="hidden @lg:block">
+            <table class="w-full tnum">
+                <thead class="text-[10px] uppercase tracking-wide text-slate-400 border-b border-slate-200 dark:border-slate-700">
+                    <tr>
+                        <th scope="col" class="py-1.5 pl-0 pr-2 font-semibold text-left">{{ 'case_overview.claim.breakdown_period'|trans }}</th>
+                        <th scope="col" class="{{ th }}">{{ 'case_overview.claim.breakdown_days'|trans }}</th>
+                        <th scope="col" class="{{ th }}">{{ 'case_overview.claim.breakdown_bnr'|trans }}</th>
+                        <th scope="col" class="{{ th }}">{{ 'case_overview.claim.breakdown_applicable'|trans }}</th>
+                        <th scope="col" class="{{ th }} pr-7">{{ 'case_overview.claim.breakdown_interest'|trans }}</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200/60 dark:divide-slate-800 text-slate-600 dark:text-slate-400">
+                    {% for period in periods %}
+                        <tr>
+                            <td class="py-1.5 pl-0 pr-2 whitespace-nowrap text-slate-700 dark:text-slate-300">{{ period.startDate|date(fmt_date) }} → {{ period.endDate|date(fmt_date) }}</td>
+                            <td class="py-1.5 px-2 text-right">{{ period.days }}</td>
+                            <td class="py-1.5 px-2 text-right">{{ period.nbrRate|number_format(2, ',', '.') }}%</td>
+                            <td class="py-1.5 px-2 text-right">{{ period.applicableRate|number_format(2, ',', '.') }}%</td>
+                            <td class="py-1.5 px-2 pr-7 text-right font-semibold text-slate-800 dark:text-slate-100">{{ period.periodInterest|number_format(2, ',', '.') }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="border-t border-slate-300 dark:border-slate-600">
+                    <tr class="font-semibold text-slate-900 dark:text-white">
+                        <td class="py-2 pl-0 pr-2">{{ 'case_overview.claim.breakdown_total'|trans }}</td>
+                        <td class="py-2 px-2 text-right">{{ total_days }}</td>
+                        <td></td>
+                        <td></td>
+                        <td class="py-2 px-2 pr-7 text-right text-amber-600 dark:text-amber-400">{{ total|number_format(2, ',', '.') }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        <ul class="@lg:hidden divide-y divide-slate-200/70 dark:divide-slate-800">
+            {% for period in periods %}
+                <li class="py-2 flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                        <div class="tnum text-slate-700 dark:text-slate-300">{{ period.startDate|date(fmt_date) }} → {{ period.endDate|date(fmt_date) }}</div>
+                        <div class="{{ meta }} tnum">{{ 'case_overview.claim.calc_period_line'|trans({'%days%': period.days, '%bnr%': period.nbrRate|number_format(2, ',', '.'), '%rate%': period.applicableRate|number_format(2, ',', '.')}) }}</div>
+                    </div>
+                    <div class="tnum font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">{{ period.periodInterest|number_format(2, ',', '.') }}</div>
+                </li>
+            {% endfor %}
+            <li class="pt-2 flex items-baseline justify-between font-semibold text-slate-900 dark:text-white">
+                <span>{{ 'case_overview.claim.breakdown_total'|trans }} <span class="font-normal {{ meta }}">{{ total_days }} {{ 'case_overview.kpi.active_deadline_unit'|trans }}</span></span>
+                <span class="tnum text-amber-600 dark:text-amber-400">{{ total|number_format(2, ',', '.') }}</span>
+            </li>
+        </ul>
+    {% endif %}
+</div>

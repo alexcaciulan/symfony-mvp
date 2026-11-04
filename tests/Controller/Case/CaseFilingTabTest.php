@@ -140,7 +140,7 @@ final class CaseFilingTabTest extends WebTestCase
         self::assertSelectorTextContains('#case-hero-actions [data-testid="hero-filing-link"]', 'Verifică și trimite');
         self::assertCount(0, $crawler->filter('#case-hero-actions form'));
         self::assertSelectorNotExists('#case-hero-actions [data-hs-overlay="#hs-modal-confirm-filing"]');
-        self::assertSelectorExists('#case-recommended-actions [data-testid="recommended-filing-link"]');
+        self::assertSelectorNotExists('#case-recommended-actions');
         self::assertSelectorExists('[data-testid="filing-tab-dot"][data-tone="blue"]');
     }
 

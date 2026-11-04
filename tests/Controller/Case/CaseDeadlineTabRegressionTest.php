@@ -46,7 +46,7 @@ final class CaseDeadlineTabRegressionTest extends WebTestCase
         'summons-communication-alert',
         'case-tabs-nav',
         'case-kpi-grid',
-        'case-detalii-sidebar',
+        'case-hero',
         'toasts',
     ];
 
@@ -458,6 +458,7 @@ final class CaseDeadlineTabRegressionTest extends WebTestCase
         foreach (self::CASE_STREAM_TARGETS as $target) {
             self::assertStringContainsString('target="' . $target . '"', $body, $target . ' must still be swapped.');
         }
+        self::assertStringNotContainsString('case-detalii-sidebar', $body, 'The Detalii tab has no sidebar left to swap.');
 
         $this->assertNoAgendaTargets($body);
     }

@@ -431,8 +431,8 @@ final class CasePaymentOrderControllerTest extends WebTestCase
     }
 
     /**
-     * The four places that offer the filing (hero, recommended actions, the petition
-     * card and the ZIP card) are triggers for ONE dialog, so they share a single form
+     * The places that offer the filing (hero, the petition card and the ZIP card)
+     * are triggers for ONE dialog, so they share a single form
      * and a single POST. That is what makes a guard on the route a guard on every entry
      * point, and a second form pointing at the same route would silently undo it.
      *
@@ -796,9 +796,9 @@ final class CasePaymentOrderControllerTest extends WebTestCase
         self::assertStringContainsString('target="case-pipeline"', $body);
         self::assertStringContainsString('target="panel-documente"', $body);
         self::assertStringContainsString('target="toasts"', $body);
-        // Status change refreshes the recommended actions + active deadline regions.
+        // Status change refreshes the hero actions and the active deadline in the KPI grid.
         self::assertStringContainsString('target="case-kpi-grid"', $body);
-        self::assertStringContainsString('target="case-detalii-sidebar"', $body);
+        self::assertStringNotContainsString('case-detalii-sidebar', $body);
         // The originating „Generează cerere OP" modal closes after the swap.
         self::assertStringContainsString('close-modal', $body);
         self::assertStringContainsString('hs-modal-cerere-op', $body);

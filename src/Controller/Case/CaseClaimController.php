@@ -96,13 +96,14 @@ final class CaseClaimController extends AbstractController
         }
 
         $principalBefore = $case->getAmount();
+        $idsBefore = $this->itemIds($case);
         try {
             $result = $this->editor->addManual($case, $form->getData(), $user);
         } catch (ClaimEditRefused $refusal) {
             return $this->respondRefusal($request, $case, $refusal, 'manual');
         }
 
-        return $this->respondChange($request, $case, $result, $principalBefore, 'case.claim.edit.flash.added', self::MODAL_ADD);
+        return $this->respondChange($request, $case, $result, $principalBefore, 'case.claim.edit.flash.added', self::MODAL_ADD, [], array_values(array_diff($this->itemIds($case), $idsBefore)));
     }
 
     #[Route('/invoice/{documentId}/add', name: 'case_claim_add_from_document', requirements: ['documentId' => '\d+'], methods: ['POST'])]
@@ -120,13 +121,14 @@ final class CaseClaimController extends AbstractController
         }
 
         $principalBefore = $case->getAmount();
+        $idsBefore = $this->itemIds($case);
         try {
             $result = $this->editor->addFromDocument($case, $document, $form->getData(), $user);
         } catch (ClaimEditRefused $refusal) {
             return $this->respondRefusal($request, $case, $refusal, 'document');
         }
 
-        return $this->respondChange($request, $case, $result, $principalBefore, 'case.claim.edit.flash.added', self::MODAL_ADD);
+        return $this->respondChange($request, $case, $result, $principalBefore, 'case.claim.edit.flash.added', self::MODAL_ADD, [], array_values(array_diff($this->itemIds($case), $idsBefore)));
     }
 
     /**
@@ -430,6 +432,7 @@ final class CaseClaimController extends AbstractController
      * closed, in one stream; a redirect with the summary as flashes otherwise.
      *
      * @param array<string, string> $toastParams
+     * @param list<int>             $addedItemIds positions this request added, marked on the card until the next render
      */
     private function respondChange(
         Request $request,
@@ -439,6 +442,7 @@ final class CaseClaimController extends AbstractController
         string $toastKey,
         ?string $closeModalId,
         array $toastParams = [],
+        array $addedItemIds = [],
     ): Response {
         $summary = $result !== null ? $this->summaryLines($case, $result, $principalBefore) : [];
         $warnings = $result !== null ? $this->warningLines($result) : [];
@@ -457,6 +461,7 @@ final class CaseClaimController extends AbstractController
 
         $context = $this->contextBuilder->build($case, [
             'claim_change_summary' => ['lines' => $summary, 'warnings' => $warnings],
+            'claim_added_item_ids' => $addedItemIds,
         ]);
         $context['toast_variant'] = 'success';
         $context['toast_message'] = $this->translator->trans($toastKey, $toastParams);
@@ -464,6 +469,19 @@ final class CaseClaimController extends AbstractController
         $context['close_modal_id'] = $closeModalId;
 
         return $this->streamResponse($this->renderView('case/overview/_claim_actions_turbo_stream.html.twig', $context));
+    }
+
+    /** @return list<int> */
+    private function itemIds(LegalCase $case): array
+    {
+        $ids = [];
+        foreach ($case->getClaimItems() as $item) {
+            if ($item->getId() !== null) {
+                $ids[] = $item->getId();
+            }
+        }
+
+        return $ids;
     }
 
     private function respondRefusal(Request $request, LegalCase $case, ClaimEditRefused $refusal, ?string $scope): Response

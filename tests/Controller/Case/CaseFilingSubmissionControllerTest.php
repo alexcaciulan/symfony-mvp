@@ -190,7 +190,7 @@ final class CaseFilingSubmissionControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
         self::assertSelectorExists('[data-testid="filing-submission-card"][data-status="QUEUED"]');
         self::assertSelectorNotExists('#case-hero-actions [data-hs-overlay="#hs-modal-confirm-filing"]');
-        // The recommended-action button (full width), not the modal's own close buttons.
+        // No full-width trigger anywhere on the page, only the modal's own close buttons.
         self::assertSelectorNotExists('button.w-full[data-hs-overlay="#hs-modal-confirm-filing"]');
         self::assertSelectorNotExists('[data-testid="filing-part-upload-form"]');
 
@@ -215,7 +215,7 @@ final class CaseFilingSubmissionControllerTest extends WebTestCase
         self::assertSelectorNotExists('#case-hero-actions [data-hs-overlay="#hs-modal-confirm-filing"]', 'The hero no longer offers to confirm a manual filing.');
         self::assertSelectorExists('#case-hero-actions a[data-testid="hero-filing-link"][href$="?tab=depunere#depunere-status"]');
         self::assertCount(0, $crawler->filter('#case-hero-actions form'));
-        self::assertSelectorNotExists('#case-recommended-actions [data-hs-overlay="#hs-modal-confirm-filing"]', 'Nor do the recommended actions.');
+        self::assertSelectorNotExists('#case-detalii-sidebar', 'The Detalii tab has no sidebar offering it either.');
 
         $submissionId = (int) $this->em->getConnection()->fetchOne('SELECT id FROM filing_submission WHERE legal_case_id = ?', [$this->case->getId()]);
         $cancelToken = $this->csrfToken('filing_cancel_' . $submissionId);
@@ -246,9 +246,10 @@ final class CaseFilingSubmissionControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertStringContainsString('text/vnd.turbo-stream.html', (string) $this->client->getResponse()->headers->get('Content-Type'));
-        foreach (['case-hero', 'case-pipeline', 'case-kpi-grid', 'case-detalii-sidebar'] as $target) {
+        foreach (['case-hero', 'case-pipeline', 'case-kpi-grid'] as $target) {
             self::assertStringContainsString('target="' . $target . '"', (string) $this->client->getResponse()->getContent());
         }
+        self::assertStringNotContainsString('case-detalii-sidebar', (string) $this->client->getResponse()->getContent());
 
         // The polling card carries the key the page compares to decide when to fetch it.
         $this->client->request('GET', sprintf('/case/%d/filing/submission/card', $this->case->getId()));

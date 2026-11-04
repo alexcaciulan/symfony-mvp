@@ -36,8 +36,8 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
 /**
- * Manual workflow transitions invoked from the case overview hero,
- * dropdown and recommended actions. Mirrors the established pattern
+ * Manual workflow transitions invoked from the case overview hero
+ * and its actions dropdown. Mirrors the established pattern
  * (CasePaymentOrderController): voter, form-validated CSRF, status
  * guard, transactional apply+audit, then redirect with a flash.
  */

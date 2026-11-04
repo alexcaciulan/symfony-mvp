@@ -1,6 +1,6 @@
 {# Answer of a successful claim edit: every region the sums reach is swapped (claim
-   card with the summary of what changed, court card, KPI grid, hero, sidebar,
-   deadlines tab, documents tab for the outdated summons), the dialog that posted is
+   card with the summary of what changed, court card, KPI grid, hero, deadlines
+   tab, documents tab for the outdated summons), the dialog that posted is
    closed, the details dialog is refilled, and a toast confirms with the warnings
    under it. #}
 <turbo-stream action="replace" target="case-claim-card">
@@ -14,9 +14,6 @@
 </turbo-stream>
 <turbo-stream action="replace" target="case-hero">
     <template>{{ include('case/overview/_hero.html.twig') }}</template>
-</turbo-stream>
-<turbo-stream action="update" target="case-detalii-sidebar">
-    <template>{{ include('case/overview/_detalii_sidebar.html.twig') }}</template>
 </turbo-stream>
 <turbo-stream action="update" target="panel-termene">
     <template>{{ include('case/overview/_tab_termene.html.twig') }}</template>

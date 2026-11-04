@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace App\Service\Case;
 
-use App\DTO\Calculation\AggregatedAccessoryResult;
-use App\DTO\Calculation\PenaltyBreakdownRow;
-use App\Entity\ClaimItem;
 use App\Entity\Document;
 use App\Entity\FilingEmailPart;
 use App\Entity\FilingPackage;
@@ -92,6 +89,7 @@ final class OverviewContextBuilder
         private readonly RecipientOverrideGuard $recipientGuard,
         private readonly ClaimRecalculator $claimRecalculator,
         private readonly ClaimItemRepository $claimItems,
+        private readonly ClaimPositionsPresenter $claimPositions,
     ) {}
 
     /**
@@ -205,14 +203,15 @@ final class OverviewContextBuilder
             // Free-text description of what the claim is about, entered in the wizard.
             // Shown on the claim card when present; empty on older cases predating it.
             'claim_description' => $case->getClaimDescription(),
-            // The positions replace the per-period accordion on a multi-position
-            // case: one aggregate breakdown from the earliest due date would show
-            // the very figure the positions exist to stop claiming.
-            'claim_items' => $countingItems,
-            'claim_item_accessories' => count($countingItems) > 1 ? $accessories : null,
-            // Every position, the excluded ones included: the table on the card
-            // shows what was set aside and why, and offers to reinstate it.
-            'claim_items_all' => $case->getClaimItems()->toArray(),
+            // Every position, the excluded ones included, in display order, each with
+            // the accessory the aggregate computed on it: the card shows what was set
+            // aside and why, and opens each position's own calculation.
+            'claim_positions' => $this->claimPositions->present(
+                $case,
+                $accessories,
+                $this->caseAccessories->referenceDate($case),
+                $extra['claim_added_item_ids'] ?? [],
+            ),
             // Only while the claim can still change: afterwards the court on the
             // case is the one the petition names, and the comparison would only
             // propose what the lawyer can no longer accept.
@@ -221,7 +220,6 @@ final class OverviewContextBuilder
             // Invoices a position rests on may not be deleted; one left without a
             // position (a reading that failed, an upload abandoned) may.
             'claim_referenced_document_ids' => $this->claimItems->referencedDocumentIds($case),
-            'penalty_breakdown' => $this->penaltyBreakdown($case, $countingItems, $accessories),
             'accessory_reference_date' => $this->caseAccessories->referenceDate($case),
             'has_communication_proof' => $this->hasCommunicationProof($case),
             'communication_proof' => $this->findLatestDocument($case, DocumentType::DOVADA_COMUNICARE),
@@ -325,7 +323,7 @@ final class OverviewContextBuilder
         $context['filing_court_live'] = $this->recipientGuard->isLive();
         $context['filing_recipient_override'] = $this->recipientGuard->override();
         $context['filing_admin_override_reason'] = $filingSubmission !== null ? $this->adminOverrideReason($filingSubmission) : null;
-        // Changes whenever the hero, the pipeline, the recommended actions or the tab dot would; the
+        // Changes whenever the hero, the pipeline, the figures or the tab dot would; the
         // polling frame compares it and refreshes those regions in place.
         $context['filing_state_key'] = self::filingStateKey($case, $filingSubmission, $panel);
 
@@ -399,32 +397,6 @@ final class OverviewContextBuilder
     }
 
     /**
-     * Contractual penalty per position, at the date the case states it.
-     *
-     * @param list<ClaimItem> $items
-     * @return list<PenaltyBreakdownRow>|null
-     */
-    private function penaltyBreakdown(LegalCase $case, array $items, ?AggregatedAccessoryResult $accessories): ?array
-    {
-        if ($accessories === null || $case->getPenaltyType() !== PenaltyType::CONTRACTUAL) {
-            return null;
-        }
-
-        $rows = [];
-        foreach ($items as $item) {
-            $penalty = $accessories->penaltyByItemId[$item->getId()] ?? null;
-            $row = $penalty !== null
-                ? PenaltyBreakdownRow::fromResult($penalty, $item->signedAmountRon() ?? 0.0, $case->contractualPenaltyCap(), $item->getDocumentNumber())
-                : null;
-            if ($row !== null) {
-                $rows[] = $row;
-            }
-        }
-
-        return $rows;
-    }
-
-    /**
      * @param LegalDeadline[] $deadlines ordered ASC by deadlineDate per findByCase()
      */
     private function pickActiveDeadline(array $deadlines): ?LegalDeadline
@@ -443,7 +415,7 @@ final class OverviewContextBuilder
     }
 
     /**
-     * Recomputes the interest breakdown server-side for the BNR accordion in Tab Detalii.
+     * Recomputes the case-level interest breakdown for a case without positions and for the KPI hint.
      * Returns `[breakdown[], errorFlag]`. The breakdown is not persisted — only used
      * to drive the per-period table render.
      *
@@ -455,8 +427,7 @@ final class OverviewContextBuilder
     private function computeBreakdown(LegalCase $case): array
     {
         // With several positions, one aggregate breakdown from the earliest due
-        // date would claim interest nobody owes, so the accordion shows periods
-        // only for a single-position case and the positions themselves otherwise.
+        // date would claim interest nobody owes; each position carries its own.
         if (count($case->getCountingClaimItems()) > 1) {
             return [null, false];
         }

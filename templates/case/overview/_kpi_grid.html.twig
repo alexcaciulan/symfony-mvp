@@ -20,9 +20,8 @@
     : 'case_overview.kpi.interest_hint_commercial' %}
 
 {# The "%days% zile" narrative only holds for a single-period breakdown from one due
-   date. On a multi-position claim interest is aggregated per position, so the same
-   signal that gates the hint in _claim_composition (no single first-period rate)
-   suppresses it here too; the lei figure above stays correct either way. #}
+   date. On a multi-position claim interest is aggregated per position, so there is
+   no single first-period rate and the hint is left out; the lei figure stays correct. #}
 {% set first_period_rate = (interest_breakdown is defined and interest_breakdown is not null and interest_breakdown|length > 0)
     ? (interest_breakdown|first).applicableRate
     : null %}
@@ -81,7 +80,23 @@
         </div>
         {% if active_deadline %}
             <div class="mt-1.5 text-2xl font-bold tnum text-amber-700 dark:text-amber-300">{{ deadline_days_remaining }} <span class="text-base font-medium">{{ 'case_overview.kpi.active_deadline_unit'|trans }}</span></div>
-            <div class="mt-1 text-xs text-slate-500">{{ 'case_overview.kpi.active_deadline_expires'|trans({'%date%': deadline_expires_label}) }}</div>
+            <div class="mt-1 text-xs text-slate-500" data-testid="kpi-active-deadline-line">{{ 'case_overview.kpi.active_deadline_type_line'|trans({'%type%': active_deadline.type.label()|trans, '%date%': deadline_expires_label}) }}</div>
+            {# Next reminder: the loosest threshold not yet sent, or the day of expiry once they all
+               have been. The ladder differs per type, so it is read from the service that owns it
+               (DeadlineAlertService) rather than written out here. #}
+            {% set next_alert_offset = deadline_next_alert_days_before(active_deadline) %}
+            {% set next_alert_date = next_alert_offset is null ? null : active_deadline.deadlineDate|date_modify('-' ~ next_alert_offset ~ ' days') %}
+            <div class="text-xs text-slate-500" data-testid="kpi-next-alert">
+                {% if next_alert_date is null %}
+                    {{ 'case_overview.kpi.next_alert_all_sent'|trans }}
+                {% elseif (next_alert_date|date('U') - "now"|date('U')) < 0 %}
+                    {{ 'case_overview.kpi.next_alert_imminent'|trans }}
+                {% else %}
+                    {{ 'case_overview.kpi.next_alert'|trans }}
+                    <span class="tnum font-medium text-slate-700 dark:text-slate-300">{{ next_alert_date|date('d.m.Y') }}</span>
+                    <span class="text-slate-400">{{ (next_alert_offset == 0 ? 'case_overview.kpi.next_alert_at_expiry' : 'case_overview.kpi.next_alert_days_before')|trans({'%days%': next_alert_offset}) }}</span>
+                {% endif %}
+            </div>
         {% else %}
             <div class="mt-1.5 text-lg font-semibold text-slate-400 dark:text-slate-500">{{ 'case_overview.kpi.no_active_deadline'|trans }}</div>
         {% endif %}

@@ -224,7 +224,7 @@ final class CaseFilingSubmissionController extends AbstractController
 
     /**
      * The regions of the case page the filing changes (hero, pipeline, figures,
-     * recommended actions), fetched by the polling card when its state key changes.
+     * filing card, tab dot), fetched by the polling card when its state key changes.
      */
     #[Route('/case/{id}/filing/state', name: 'case_filing_state_stream', requirements: ['id' => '\d+'], methods: ['GET'])]
     public function stateStream(int $id): Response

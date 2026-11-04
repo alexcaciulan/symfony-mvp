@@ -1,80 +1,70 @@
-{# Card Creanță: composition bar, 4-stat dl, the positions table (every position,
-   excluded ones included) and the BNR breakdown. While the case is amiable the
-   owner adds, excludes and reinstates positions from here; after the summons the
-   header says why the claim no longer changes. Reflects mockup 04-dosar/creanta-editare. #}
-{% from 'case/overview/_icons.html.twig' import icon_money, icon_chevron_right, icon_warning, icon_lock, icon_plus, icon_check %}
+{# Card Creanță: the state of the claim in the header, what changed after an edit, the
+   total to file as one line, the invoices as a table that folds into a list on a
+   narrow card (container queries on the card itself), each position's own accessory
+   calculation opened from its amount, and the claim details at the bottom. While the
+   case is amiable the owner adds, excludes and reinstates positions and edits the
+   details from here. The positions come from ClaimPositionsPresenter; nothing is
+   computed in this template beyond the sums already on the case. #}
+{% from 'case/overview/_icons.html.twig' import icon_money, icon_warning, icon_lock, icon_plus, icon_check, icon_edit, icon_dots, icon_document, icon_chevron_down %}
 
 {% set can_edit_claim = is_granted('CASE_CLAIM_EDIT', case) %}
-{% set all_items = claim_items_all|default(case.claimItems) %}
-{% set counting_ids = [] %}
-{% for ci in claim_items|default([]) %}{% set counting_ids = counting_ids|merge([ci.id]) %}{% endfor %}
-{% set excluded_count = 0 %}
-{% for ci in all_items %}{% if ci.excludedByLawyer %}{% set excluded_count = excluded_count + 1 %}{% endif %}{% endfor %}
+{% set positions = claim_positions|default(null) %}
+{% set has_positions = positions is not null and positions.totalCount > 0 %}
 {% set summary = claim_change_summary|default(null) %}
+{% set locked = case.status.value != 'AMIABIL' %}
 
 {% set principal = case.amount|default(0) + 0 %}
 {% set interest = case.calculatedInterest|default(0) + 0 %}
 {% set stamp_duty = case.stampDuty|default(0) + 0 %}
-{% set total_value = principal + interest %}
-{% set grand_total = total_value + stamp_duty %}
-{% set principal_pct = total_value > 0 ? (principal / total_value * 100) : 0 %}
-{% set interest_pct = total_value > 0 ? (interest / total_value * 100) : 0 %}
-
-{# Interest span ends at the reference date of the stored `calculatedInterest`, so the day count matches the breakdown. #}
-{% set interest_days = 0 %}
-{% if case.dueDate %}
-    {% set diff_seconds = (accessory_reference_date|default(case.createdAt)|date('U') - case.dueDate|date('U')) %}
-    {% set interest_days = (diff_seconds / 86400)|round(0, 'floor') %}
-    {% if interest_days < 0 %}{% set interest_days = 0 %}{% endif %}
-{% endif %}
-
-{% set first_period_rate = (interest_breakdown is not null and interest_breakdown|length > 0) ? (interest_breakdown|first).applicableRate : null %}
+{% set grand_total = principal + interest + stamp_duty %}
 
 {# A contractual penalty carries the contract's own name, never "interest". #}
 {% set is_contractual = case.penaltyType and case.penaltyType.value == 'CONTRACTUAL' and case.contractualPenaltyRate %}
 {% set accessory_label = is_contractual
     ? (case.contractualAccessoryLabel ? case.contractualAccessoryLabel.label : 'enum.contractual_accessory_label.PENALITATI_INTARZIERE')|trans
-    : null %}
+    : 'case_overview.claim.col_interest'|trans %}
 
-<section id="case-claim-card" class="bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 overflow-hidden" data-testid="case-claim-card">
-    <header class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div class="flex items-center gap-2.5">
-            <span class="inline-flex items-center justify-center size-7 rounded-lg bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/50 dark:to-green-900/30 text-green-600 dark:text-green-400">
+{% set meta = 'text-[11px] text-slate-400 dark:text-slate-500' %}
+{% set fmt_date = 'd.m.Y' %}
+{# The same column template on the header, every row, every breakdown and the footer keeps
+   the columns aligned: a list below 512px of card width, 5 columns up to 896px, 8 above. #}
+{% set cols = '@lg:grid-cols-[minmax(7rem,1fr)_5.5rem_6.5rem_7.5rem_2.5rem] @4xl:grid-cols-[minmax(9rem,1.5fr)_6.5rem_8rem_7rem_8.5rem_9rem_4.5rem_2.5rem]' %}
+{% set th = 'py-2.5 px-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap' %}
+{% set pill = 'inline-flex items-center gap-1 py-0.5 px-1.5 rounded-full text-[10px] font-semibold whitespace-nowrap' %}
+{% set menu_item = 'flex w-full items-center gap-x-2.5 py-2 px-2.5 rounded-lg text-sm text-left hover:bg-slate-50 dark:hover:bg-slate-800' %}
+
+<section id="case-claim-card" class="@container bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800" data-testid="case-claim-card">
+    <header class="px-5 @lg:px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <div class="flex items-center gap-2.5 min-w-0">
+            <span class="inline-flex items-center justify-center size-7 rounded-lg bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/50 dark:to-green-900/30 text-green-600 dark:text-green-400 shrink-0">
                 {{ icon_money('size-4') }}
             </span>
             <h3 class="text-sm font-semibold text-slate-900 dark:text-white">{{ 'case_overview.claim.title'|trans }}</h3>
             {% if case.relationshipType %}
-                <span class="text-xs text-slate-500 hidden md:inline">
-                    {{ 'case_overview.claim.report_type'|trans }}:
-                    <span class="font-semibold text-slate-700 dark:text-slate-300">{{ case.relationshipType.label()|trans }}</span>
-                </span>
+                <span class="py-0.5 px-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[11px] font-medium text-slate-600 dark:text-slate-300" data-testid="claim-relationship-type">{{ case.relationshipType.label()|trans }}</span>
             {% endif %}
         </div>
         {% if can_edit_claim %}
-            <div class="flex items-center gap-2" data-testid="claim-edit-actions">
-                <button type="button"
-                        data-hs-overlay="#hs-modal-claim-details"
-                        data-testid="claim-edit-details"
-                        class="py-2 px-3 inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-800 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 transition">
-                    {{ 'case.claim.edit.details_title'|trans }}
-                </button>
-                <button type="button"
-                        data-hs-overlay="#hs-modal-claim-add"
-                        data-testid="claim-add-invoice"
-                        class="py-2 px-3 inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg bg-lex-navy text-white hover:bg-lex-navy/90 transition">
-                    {{ icon_plus('size-3.5') }}
-                    {{ 'case.claim.edit.add_invoice'|trans }}
-                </button>
-            </div>
-        {% elseif case.status.value != 'AMIABIL' and all_items|length > 0 %}
-            <p class="flex items-start gap-2 text-xs text-slate-500 dark:text-slate-400 sm:max-w-sm" data-testid="claim-locked-note">
-                {{ icon_lock('size-4 shrink-0 text-slate-400 mt-px') }}
-                <span>{{ 'case.claim.edit.locked_after_summons'|trans }}</span>
-            </p>
+            <span class="inline-flex items-center gap-1.5 py-1 px-2 rounded-lg text-[11px] font-semibold bg-blue-50 text-blue-700 ring-1 ring-blue-200/70 dark:bg-blue-950/40 dark:text-blue-300 dark:ring-blue-900/50" data-testid="claim-state-chip" data-state="editable">
+                {{ icon_edit('size-3.5 shrink-0') }}
+                {{ 'case_overview.claim.state_editable'|trans }}
+            </span>
+        {% elseif locked %}
+            <span class="inline-flex items-center gap-1.5 py-1 px-2 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" data-testid="claim-state-chip" data-state="locked">
+                {{ icon_lock('size-3.5 shrink-0') }}
+                {{ 'case_overview.claim.state_locked'|trans }}
+            </span>
         {% endif %}
     </header>
 
-    <div class="px-6 py-5">
+    {% if locked and has_positions %}
+        <div class="px-5 @lg:px-6 py-2.5 bg-slate-50 dark:bg-slate-950/40 border-b border-slate-100 dark:border-slate-800 flex items-start gap-2 text-xs text-slate-600 dark:text-slate-400" data-testid="claim-locked-note">
+            {{ icon_lock('size-3.5 shrink-0 mt-px text-slate-400') }}
+            <span>{{ 'case.claim.edit.locked_after_summons'|trans }}</span>
+        </div>
+    {% endif %}
+
+    <div class="px-5 @lg:px-6 py-5">
         {% if summary and (summary.lines|length > 0 or summary.warnings|length > 0) %}
             <div id="claim-change-summary" class="mb-5 rounded-xl border border-green-200 dark:border-green-900/50 bg-green-50 dark:bg-green-950/30 p-4" role="status" data-testid="claim-change-summary">
                 <div class="flex items-start justify-between gap-3">
@@ -103,301 +93,407 @@
             {{ include('case/overview/_claim_court_proposal.html.twig', { proposal: court_proposal }) }}
         {% endif %}
 
-        {# Object of the claim (free text from the wizard). Hidden when empty. #}
-        {% if claim_description is defined and claim_description %}
-            <div class="mb-5">
-                <div class="text-[10px] font-medium uppercase tracking-wide text-slate-500">{{ 'case_overview.claim.description_label'|trans }}</div>
-                <p class="mt-0.5 text-sm text-slate-700 dark:text-slate-300">{{ claim_description }}</p>
-            </div>
+        {# The total to file and how it is made up; the KPI grid above already states each part on its own. #}
+        <div class="flex flex-wrap items-baseline gap-x-1.5 gap-y-1 rounded-xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200/70 dark:border-slate-800 px-4 py-3 text-sm" data-testid="claim-summary-line">
+            <span class="text-[10px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300 mr-1">{{ 'case_overview.claim.summary_total'|trans }}</span>
+            <span class="text-lg font-bold tnum text-blue-700 dark:text-blue-300">{{ grand_total|number_format(2, ',', '.') }} <span class="text-xs font-medium text-blue-500/80">{{ case.currency }}</span></span>
+            <span class="text-slate-400" aria-hidden="true">=</span>
+            <span class="tnum text-slate-600 dark:text-slate-300"><span class="inline-block size-2 rounded-sm bg-blue-500 mr-1" aria-hidden="true"></span>{{ 'case_overview.claim.summary_principal'|trans }} {{ principal|number_format(2, ',', '.') }}</span>
+            <span class="text-slate-400" aria-hidden="true">+</span>
+            <span class="tnum text-slate-600 dark:text-slate-300"><span class="inline-block size-2 rounded-sm bg-amber-500 mr-1" aria-hidden="true"></span>{{ is_contractual ? accessory_label|lower : 'case_overview.claim.summary_interest'|trans }} {{ interest|number_format(2, ',', '.') }}</span>
+            <span class="text-slate-400" aria-hidden="true">+</span>
+            <span class="tnum text-slate-600 dark:text-slate-300" title="{{ 'case_overview.claim.summary_stamp_basis'|trans }}"><span class="inline-block size-2 rounded-sm bg-slate-400 mr-1" aria-hidden="true"></span>{{ 'case_overview.claim.summary_stamp'|trans }} {{ stamp_duty|number_format(2, ',', '.') }}</span>
+        </div>
+        {% if case.originalCurrency %}
+            <p class="mt-2 text-[11px] text-slate-500">{{ 'wizard.step3.sidebar.conversion_line'|trans({ '%amount%': (case.originalAmount + 0)|number_format(2, '.', ','), '%currency%': case.originalCurrency, '%rate%': (case.exchangeRate + 0)|number_format(4, '.', ','), '%date%': case.exchangeRateDate ? case.exchangeRateDate|date(fmt_date) : '', '%ron%': principal|number_format(2, '.', ',') }) }}</p>
         {% endif %}
 
-        {# Composition bar — only when total > 0 to avoid divide-by-zero artifacts. #}
-        {% if total_value > 0 %}
-            <div class="mb-5">
-                <div class="flex items-baseline justify-between mb-2">
-                    <span class="text-xs font-medium text-slate-500">{{ 'case_overview.claim.composition'|trans }}</span>
-                    <div class="text-2xl font-bold tnum text-blue-700 dark:text-blue-300">{{ grand_total|number_format(2, ',', '.') }} <span class="text-sm font-medium text-slate-400">{{ case.currency }}</span></div>
-                </div>
-                {% if case.originalCurrency %}
-                    <p class="mb-2 text-[11px] text-slate-500">{{ 'wizard.step3.sidebar.conversion_line'|trans({ '%amount%': (case.originalAmount + 0)|number_format(2, '.', ','), '%currency%': case.originalCurrency, '%rate%': (case.exchangeRate + 0)|number_format(4, '.', ','), '%date%': case.exchangeRateDate ? case.exchangeRateDate|date('d.m.Y') : '', '%ron%': principal|number_format(2, '.', ',') }) }}</p>
-                {% endif %}
-                <div class="flex h-2.5 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800">
-                    <div class="bg-gradient-to-r from-blue-500 to-blue-600" style="width: {{ principal_pct|number_format(1, '.', '') }}%"></div>
-                    <div class="bg-gradient-to-r from-amber-400 to-amber-500" style="width: {{ interest_pct|number_format(1, '.', '') }}%"></div>
-                </div>
-                <div class="flex items-center gap-4 mt-2 text-[11px]">
-                    <div class="flex items-center gap-1.5"><span class="size-2 rounded-sm bg-blue-500" aria-hidden="true"></span><span class="text-slate-600 dark:text-slate-400">{{ 'case_overview.claim.principal'|trans }} <span class="font-semibold text-slate-900 dark:text-white">{{ principal_pct|number_format(1, ',', '.') }}%</span></span></div>
-                    <div class="flex items-center gap-1.5"><span class="size-2 rounded-sm bg-amber-500" aria-hidden="true"></span><span class="text-slate-600 dark:text-slate-400">{{ accessory_label ?? 'case_overview.claim.interest_label'|trans }} <span class="font-semibold text-slate-900 dark:text-white">{{ interest_pct|number_format(1, ',', '.') }}%</span></span></div>
-                </div>
-            </div>
-        {% endif %}
-
-        {# 4-stat dl grid #}
-        <dl class="grid grid-cols-2 md:grid-cols-4 gap-px bg-slate-100 dark:bg-slate-800 rounded-lg overflow-hidden mb-4">
-            <div class="bg-slate-50 dark:bg-slate-950/50 p-3">
-                <dt class="text-[10px] font-medium uppercase tracking-wide text-slate-500">{{ 'case_overview.claim.stat_principal'|trans }}</dt>
-                <dd class="mt-1 text-base font-bold tnum text-slate-900 dark:text-white">{{ principal|number_format(2, ',', '.') }}</dd>
-                {% if case.dueDate %}
-                    <dd class="text-[10px] text-slate-500">{{ 'case_overview.claim.stat_principal_hint'|trans({'%date%': case.dueDate|date('d.m.Y')}) }}</dd>
-                {% endif %}
-            </div>
-            <div class="bg-slate-50 dark:bg-slate-950/50 p-3">
-                <dt class="text-[10px] font-medium uppercase tracking-wide text-slate-500">{{ accessory_label ?? 'case_overview.claim.stat_interest'|trans }}</dt>
-                <dd class="mt-1 text-base font-bold tnum text-amber-600 dark:text-amber-400">+ {{ interest|number_format(2, ',', '.') }}</dd>
-                {% if is_contractual %}
-                    <dd class="text-[10px] text-slate-500">{{ (case.contractualPenaltyCapPercent ? 'case_overview.kpi.penalty_hint_capped' : 'case_overview.kpi.penalty_hint')|trans({'%rate%': case.contractualPenaltyRate|number_format(2, ',', '.'), '%cap%': case.contractualPenaltyCapPercent|default(0)|percent_number}) }}</dd>
-                {% elseif first_period_rate is not null %}
-                    <dd class="text-[10px] text-slate-500">{{ 'case_overview.claim.stat_interest_hint'|trans({'%days%': interest_days, '%rate%': first_period_rate|number_format(2, ',', '.')}) }}</dd>
-                {% endif %}
-            </div>
-            <div class="bg-slate-50 dark:bg-slate-950/50 p-3">
-                <dt class="text-[10px] font-medium uppercase tracking-wide text-slate-500">{{ 'case_overview.claim.stat_stamp'|trans }}</dt>
-                <dd class="mt-1 text-base font-bold tnum text-slate-900 dark:text-white">{{ stamp_duty|number_format(2, ',', '.') }}</dd>
-                <dd class="text-[10px] text-slate-500">{{ 'case_overview.claim.stat_stamp_hint'|trans }}</dd>
-            </div>
-            <div class="bg-slate-50 dark:bg-slate-950/50 p-3">
-                <dt class="text-[10px] font-medium uppercase tracking-wide text-slate-500">{{ 'case_overview.claim.stat_total'|trans }}</dt>
-                <dd class="mt-1 text-base font-bold tnum text-blue-700 dark:text-blue-300">{{ grand_total|number_format(2, ',', '.') }}</dd>
-                <dd class="text-[10px] text-slate-500">{{ 'case_overview.claim.stat_total_hint'|trans }}</dd>
-            </div>
-        </dl>
-
-        {% if all_items|length > 0 %}
-            <h4 class="text-sm font-semibold text-slate-900 dark:text-white mb-2">{{ 'case.claim.edit.positions_title'|trans }}</h4>
-            <div class="border border-slate-200 dark:border-slate-800 rounded-lg overflow-x-auto">
-                <table class="w-full min-w-[880px] text-xs" data-testid="claim-positions-table">
-                    <thead class="text-[10px] uppercase tracking-wide text-slate-500 border-b border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/30">
-                        <tr>
-                            <th scope="col" class="text-left py-2 px-3 font-medium">{{ 'case_overview.claim.positions_number'|trans }}</th>
-                            <th scope="col" class="text-left py-2 px-3 font-medium">{{ 'case.claim.edit.positions_date'|trans }}</th>
-                            <th scope="col" class="text-left py-2 px-3 font-medium">{{ 'case_overview.claim.positions_due_date'|trans }}</th>
-                            <th scope="col" class="text-right py-2 px-3 font-medium">{{ 'case_overview.claim.positions_amount'|trans }}</th>
-                            <th scope="col" class="text-right py-2 px-3 font-medium">{{ 'case.claim.edit.positions_paid'|trans }}</th>
-                            <th scope="col" class="text-right py-2 px-3 font-medium">{{ 'case.claim.edit.positions_outstanding'|trans }}</th>
-                            <th scope="col" class="text-right py-2 px-3 font-medium">{{ accessory_label ?? 'case_overview.claim.positions_interest'|trans }}</th>
-                            <th scope="col" class="text-left py-2 px-3 font-medium">{{ 'case.claim.edit.positions_state'|trans }}</th>
-                            <th scope="col" class="text-left py-2 px-3 font-medium">{{ 'case.claim.edit.positions_source'|trans }}</th>
-                            {% if can_edit_claim %}<th scope="col" class="text-right py-2 px-3 font-medium">{{ 'case.claim.edit.positions_actions'|trans }}</th>{% endif %}
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-                        {% for item in all_items %}
-                            {% set counts = item.id in counting_ids %}
-                            {% set itemAccessory = counts and claim_item_accessories is defined and claim_item_accessories ? claim_item_accessories.forItem(item.id) : null %}
-                            {% set label = item.documentNumber|default(item.amount|number_format(2, ',', '.') ~ ' ' ~ item.currency) %}
-                            <tr id="claim-position-{{ item.id }}" data-testid="claim-position-row" data-claim-position-state="{{ item.excludedByLawyer ? 'excluded' : (counts ? 'counting' : 'pending') }}" class="{{ item.excludedByLawyer ? 'opacity-60' : '' }}">
-                                <td class="py-2.5 px-3 font-medium text-slate-900 dark:text-white whitespace-nowrap">{{ item.documentNumber|default('—') }}</td>
-                                <td class="py-2.5 px-3 text-slate-700 dark:text-slate-300 tnum">{{ item.documentDate ? item.documentDate|date('d.m.Y') : '—' }}</td>
-                                <td class="py-2.5 px-3 text-slate-700 dark:text-slate-300 tnum">{{ item.dueDate ? item.dueDate|date('d.m.Y') : '—' }}</td>
-                                <td class="py-2.5 px-3 text-right tnum text-slate-900 dark:text-white {{ item.excludedByLawyer ? 'line-through' : '' }}">
-                                    {{ (item.amount + 0)|number_format(2, ',', '.') }} {{ item.currency }}
-                                    {% if item.currency != 'RON' and item.amountRon is not null %}
-                                        <div class="text-[10px] text-slate-500 whitespace-nowrap">≈ {{ (item.amountRon + 0)|number_format(2, ',', '.') }} RON{% if item.exchangeRate %} · {{ (item.exchangeRate + 0)|number_format(4, ',', '.') }}{% if item.exchangeRateDate %} / {{ item.exchangeRateDate|date('d.m.Y') }}{% endif %}{% endif %}</div>
-                                    {% elseif item.needsManualFx %}
-                                        <div class="text-[10px] text-amber-600 whitespace-nowrap">{{ 'case.claim.edit.positions_fx_missing'|trans }}</div>
-                                    {% endif %}
-                                </td>
-                                <td class="py-2.5 px-3 text-right tnum text-slate-700 dark:text-slate-300">{{ (item.paidAmount + 0)|number_format(2, ',', '.') }}</td>
-                                <td class="py-2.5 px-3 text-right tnum font-semibold text-slate-900 dark:text-white">{{ item.excludedByLawyer ? '0,00' : item.outstandingAmount|number_format(2, ',', '.') }}</td>
-                                <td class="py-2.5 px-3 text-right tnum text-amber-600 dark:text-amber-400">{{ itemAccessory ? itemAccessory.total|number_format(2, ',', '.') : '—' }}</td>
-                                <td class="py-2.5 px-3">
-                                    {% if item.excludedByLawyer %}
-                                        <span class="inline-flex items-center gap-1.5 py-0.5 px-2 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"><span class="size-1.5 rounded-full bg-slate-400" aria-hidden="true"></span>{{ 'case.claim.edit.state_excluded'|trans }}</span>
-                                        {% if item.exclusionReason or item.exclusionNote %}
-                                            <div class="mt-0.5 text-[10px] text-slate-500 whitespace-nowrap" data-testid="claim-exclusion-reason">{{ item.exclusionReason ? item.exclusionReason.label()|trans : '' }}{% if item.exclusionNote %}{{ item.exclusionReason ? ': ' : '' }}{{ item.exclusionNote }}{% endif %}</div>
-                                        {% endif %}
-                                    {% elseif counts %}
-                                        <span class="inline-flex items-center gap-1.5 py-0.5 px-2 rounded-full text-[11px] font-semibold bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300"><span class="size-1.5 rounded-full bg-green-500" aria-hidden="true"></span>{{ 'case.claim.edit.state_confirmed'|trans }}</span>
-                                    {% else %}
-                                        <span class="inline-flex items-center gap-1.5 py-0.5 px-2 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"><span class="size-1.5 rounded-full bg-amber-500" aria-hidden="true"></span>{{ 'case.claim.edit.state_not_counting'|trans }}</span>
-                                    {% endif %}
-                                </td>
-                                <td class="py-2.5 px-3 text-slate-700 dark:text-slate-300">
-                                    {% if item.sourceDocument %}
-                                        <a href="{{ path('case_document_download', {caseId: case.id, documentId: item.sourceDocument.id}) }}" class="text-blue-700 dark:text-blue-400 hover:underline">{{ item.sourceDocument.originalFilename }}</a>
-                                    {% else %}
-                                        {{ 'case.claim.edit.source_manual'|trans }}
-                                    {% endif %}
-                                </td>
-                                {% if can_edit_claim %}
-                                    <td class="py-2.5 px-3 text-right whitespace-nowrap">
-                                        {% if item.excludedByLawyer %}
-                                            <form method="post" action="{{ path('case_claim_reinclude', {id: case.id, itemId: item.id}) }}" data-turbo-frame="_top" class="inline">
-                                                <input type="hidden" name="_token" value="{{ csrf_token('claim_reinclude_' ~ item.id) }}">
-                                                <button type="submit" data-testid="claim-reinclude-{{ item.id }}" aria-label="{{ 'case.claim.edit.reinclude_aria'|trans({'%position%': label}) }}" class="text-xs font-semibold text-blue-700 dark:text-blue-400 hover:underline">{{ 'case.claim.edit.reinclude'|trans }}</button>
-                                            </form>
-                                        {% else %}
-                                            <button type="button"
-                                                    data-hs-overlay="#hs-modal-claim-exclude"
-                                                    data-action="click->claim-exclude#open"
-                                                    data-claim-exclude-url-param="{{ path('case_claim_exclude', {id: case.id, itemId: item.id}) }}"
-                                                    data-claim-exclude-label-param="{{ label }}"
-                                                    data-testid="claim-exclude-{{ item.id }}"
-                                                    aria-label="{{ 'case.claim.edit.exclude_aria'|trans({'%position%': label}) }}"
-                                                    class="text-xs font-semibold text-slate-600 dark:text-slate-300 hover:underline">{{ 'case.claim.edit.exclude'|trans }}</button>
-                                        {% endif %}
-                                    </td>
-                                {% endif %}
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                    <tfoot>
-                        <tr class="border-t border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/30">
-                            <td colspan="{{ can_edit_claim ? 10 : 9 }}" class="py-2.5 px-3 text-sm font-semibold text-slate-900 dark:text-white tnum">
-                                {{ 'case.claim.edit.positions_total'|trans({'%amount%': principal|number_format(2, ',', '.'), '%count%': all_items|length, '%excluded%': excluded_count}) }}
-                            </td>
-                        </tr>
-                    </tfoot>
-                </table>
-            </div>
-            <p class="mt-2 text-[11px] text-slate-500">{{ 'case.claim.edit.positions_note'|trans }} {{ (is_contractual ? 'case_overview.claim.positions_hint_contractual' : 'case_overview.claim.positions_hint')|trans }}</p>
-        {% endif %}
-
-        {# BNR breakdown: per invoice on a multi-position claim, aggregate otherwise, or the error/empty banner. #}
-        {% if breakdown_error %}
-            <div class="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-xs text-amber-900 dark:text-amber-200">
+        {% if breakdown_error|default(false) %}
+            <div class="mt-4 flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-xs text-amber-900 dark:text-amber-200" data-testid="claim-breakdown-error">
                 {{ icon_warning('size-4 text-amber-600 shrink-0 mt-0.5') }}
                 <span>{{ 'case_overview.claim.breakdown_error'|trans }}</span>
             </div>
-        {% elseif claim_items is defined and claim_items|length > 1 %}
-            {% include 'case/overview/_penalty_breakdown.html.twig' %}
+        {% endif %}
 
-            {# Per-invoice BNR period breakdown, restored for multi-invoice claims. Each
-               interest-bearing invoice accrues from its own due date, so the periods are
-               grouped per invoice rather than as a single aggregate table. Count only the
-               invoices that actually have accrued periods, so the header matches the rows
-               below (a not-yet-due invoice carries an empty breakdown). #}
-            {% set bnr_invoice_count = 0 %}
-            {% if claim_item_accessories is defined and claim_item_accessories %}
-                {% for item in claim_items %}
-                    {% set _ii = claim_item_accessories.interestByItemId[item.id]|default(null) %}
-                    {% if _ii and _ii.breakdown|length > 0 %}{% set bnr_invoice_count = bnr_invoice_count + 1 %}{% endif %}
-                {% endfor %}
-            {% endif %}
-            {% if bnr_invoice_count > 0 %}
-                <div class="hs-accordion-group mt-3 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
-                    <div class="hs-accordion" id="acc-bnr-breakdown-multi">
+        {% if has_positions %}
+            <div class="mt-6"
+                 data-controller="claim-positions"
+                 data-claim-positions-limit-value="{{ positions.visibleLimit }}"
+                 data-claim-positions-paged-value="{{ positions.isPaged ? 'true' : 'false' }}"
+                 data-claim-positions-show-all-label-value="{{ 'case_overview.claim.show_all'|trans({'%count%': '__COUNT__'}) }}"
+                 data-claim-positions-show-all-more-value="{{ 'case_overview.claim.show_all_more'|trans({'%more%': '__MORE__'}) }}">
+                <div class="flex items-center justify-between gap-3">
+                    <div class="min-w-0">
+                        <h4 class="text-sm font-semibold text-slate-900 dark:text-white">{{ 'case.claim.edit.positions_title'|trans }}</h4>
+                        <p class="text-[11px] text-slate-500 mt-0.5" data-testid="claim-positions-counts">
+                            {{ 'case_overview.claim.positions_count'|trans({'%count%': positions.totalCount}) }}
+                            {%- if positions.excludedCount > 0 %} · {{ 'case_overview.claim.positions_excluded_count'|trans({'%count%': positions.excludedCount}) }}{% endif %}
+                            {%- if positions.attentionCount > 0 %} · {{ 'case_overview.claim.positions_attention_count'|trans({'%count%': positions.attentionCount}) }}{% endif %}
+                        </p>
+                    </div>
+                    {% if can_edit_claim %}
                         <button type="button"
-                                class="hs-accordion-toggle hs-accordion-active:bg-slate-50 dark:hs-accordion-active:bg-slate-950/50 inline-flex items-center justify-between gap-x-3 w-full text-sm font-medium text-slate-700 dark:text-slate-300 py-3 px-4 hover:bg-slate-50 dark:hover:bg-slate-950/30 transition"
-                                aria-expanded="false"
-                                aria-controls="acc-bnr-breakdown-multi-content">
-                            <span class="inline-flex items-center gap-2">
-                                <span class="hs-accordion-active:rotate-90 transition-transform">{{ icon_chevron_right('size-4 text-slate-400') }}</span>
-                                {{ 'case_overview.claim.breakdown_toggle'|trans }}
-                            </span>
-                            <span class="text-xs text-slate-500 font-normal">{{ 'case_overview.claim.breakdown_summary_multi'|trans({'%count%': bnr_invoice_count}) }}</span>
+                                data-hs-overlay="#hs-modal-claim-add"
+                                data-testid="claim-add-invoice"
+                                class="py-2 px-3 inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg bg-lex-navy text-white hover:bg-lex-navy/90 shadow-sm shrink-0 transition">
+                            {{ icon_plus('size-3.5') }}
+                            {{ 'case.claim.edit.add_invoice'|trans }}
                         </button>
-                        <div id="acc-bnr-breakdown-multi-content"
-                             class="hs-accordion-content hidden w-full overflow-hidden transition-[height] duration-300"
-                             role="region"
-                             aria-labelledby="acc-bnr-breakdown-multi">
-                            <div class="px-4 pb-4 space-y-4">
-                                {% for item in claim_items %}
-                                    {% set itemInterest = claim_item_accessories.interestByItemId[item.id]|default(null) %}
-                                    {% if itemInterest and itemInterest.breakdown|length > 0 %}
-                                        {% set item_days = 0 %}
-                                        {% for period in itemInterest.breakdown %}{% set item_days = item_days + period.days %}{% endfor %}
-                                        <div>
-                                            <div class="text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">{{ 'case_overview.claim.breakdown_item_heading'|trans({'%doc%': item.documentNumber|default('—'), '%date%': item.dueDate ? item.dueDate|date('d.m.Y') : '—'}) }}</div>
-                                            <div class="overflow-x-auto">
-                                                <table class="w-full text-xs">
-                                                    <thead class="text-[10px] uppercase tracking-wide text-slate-500 border-b border-slate-200 dark:border-slate-800">
-                                                        <tr>
-                                                            <th class="text-left py-2 font-medium">{{ 'case_overview.claim.breakdown_period'|trans }}</th>
-                                                            <th class="text-right py-2 font-medium">{{ 'case_overview.claim.breakdown_bnr'|trans }}</th>
-                                                            <th class="text-right py-2 font-medium">{{ 'case_overview.claim.breakdown_applicable'|trans }}</th>
-                                                            <th class="text-right py-2 font-medium">{{ 'case_overview.claim.breakdown_days'|trans }}</th>
-                                                            <th class="text-right py-2 font-medium">{{ 'case_overview.claim.breakdown_interest'|trans }}</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-                                                        {% for period in itemInterest.breakdown %}
-                                                            <tr>
-                                                                <td class="py-2 text-slate-700 dark:text-slate-300">{{ period.startDate|date('d.m.Y') }} → {{ period.endDate|date('d.m.Y') }}</td>
-                                                                <td class="py-2 text-right tnum">{{ period.nbrRate|number_format(2, ',', '.') }}%</td>
-                                                                <td class="py-2 text-right tnum font-medium">{{ period.applicableRate|number_format(2, ',', '.') }}%</td>
-                                                                <td class="py-2 text-right tnum text-slate-500">{{ period.days }}</td>
-                                                                <td class="py-2 text-right tnum font-semibold">{{ period.periodInterest|number_format(2, ',', '.') }}</td>
-                                                            </tr>
-                                                        {% endfor %}
-                                                    </tbody>
-                                                    <tfoot class="border-t-2 border-slate-200 dark:border-slate-700 font-bold">
-                                                        <tr>
-                                                            <td colspan="3" class="py-2 text-slate-900 dark:text-white">{{ 'case_overview.claim.breakdown_total'|trans }}</td>
-                                                            <td class="py-2 text-right tnum text-slate-500">{{ item_days }}</td>
-                                                            <td class="py-2 text-right tnum text-amber-600 dark:text-amber-400">{{ itemInterest.total|number_format(2, ',', '.') }}</td>
-                                                        </tr>
-                                                    </tfoot>
-                                                </table>
+                    {% endif %}
+                </div>
+
+                {% if positions.showFilters %}
+                    {% set chip = 'py-1 px-2.5 rounded-md text-[11px] font-semibold whitespace-nowrap text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 aria-pressed:bg-white aria-pressed:text-slate-900 aria-pressed:shadow-sm aria-pressed:ring-1 aria-pressed:ring-slate-200 dark:aria-pressed:bg-slate-700 dark:aria-pressed:text-white dark:aria-pressed:ring-slate-600' %}
+                    <div class="mt-3 flex flex-wrap items-center justify-between gap-2">
+                        <div class="inline-flex flex-wrap gap-0.5 rounded-lg bg-slate-100 dark:bg-slate-800/70 p-0.5" role="group" aria-label="{{ 'case_overview.claim.filter_aria'|trans }}">
+                            {% for filter in [
+                                {kind: 'all', label: 'case_overview.claim.filter_all', count: positions.totalCount},
+                                {kind: 'in', label: 'case_overview.claim.filter_in', count: positions.countingCount},
+                                {kind: 'excluded', label: 'case_overview.claim.filter_excluded', count: positions.excludedCount},
+                                {kind: 'attention', label: 'case_overview.claim.filter_attention', count: positions.attentionCount},
+                            ] %}
+                                {% if filter.kind in ['all', 'in'] or filter.count > 0 %}
+                                    <button type="button"
+                                            class="{{ chip }}"
+                                            aria-pressed="{{ filter.kind == 'all' ? 'true' : 'false' }}"
+                                            data-testid="claim-filter-{{ filter.kind }}"
+                                            data-claim-positions-target="filterButton"
+                                            data-action="claim-positions#filter"
+                                            data-claim-positions-kind-param="{{ filter.kind }}">
+                                        {{ filter.label|trans }} <span class="tnum font-medium text-slate-400">{{ filter.count }}</span>
+                                    </button>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                        <span class="{{ meta }}">{{ 'case_overview.claim.sorted_by_due'|trans }}</span>
+                    </div>
+                {% endif %}
+
+                <div role="table" aria-label="{{ 'case.claim.edit.positions_title'|trans }}" data-testid="claim-positions-table"
+                     class="mt-3 -mx-5 @lg:mx-0 border-y @lg:border border-slate-200 dark:border-slate-800 @lg:rounded-lg text-xs">
+                    <div role="row" class="hidden @lg:grid {{ cols }} bg-slate-50 dark:bg-slate-950/40 border-b border-slate-200 dark:border-slate-800 @lg:rounded-t-lg">
+                        <div role="columnheader" class="{{ th }} pl-4 text-left">{{ 'case_overview.claim.col_invoice'|trans }}</div>
+                        <div role="columnheader" class="{{ th }} text-left">{{ 'case_overview.claim.col_due'|trans }}</div>
+                        <div role="columnheader" class="hidden @4xl:block {{ th }} text-right">{{ 'case_overview.claim.col_invoiced'|trans }}</div>
+                        <div role="columnheader" class="hidden @4xl:block {{ th }} text-right">{{ 'case_overview.claim.col_paid'|trans }}</div>
+                        <div role="columnheader" class="{{ th }} text-right">{{ 'case_overview.claim.col_outstanding'|trans }}</div>
+                        <div role="columnheader" class="{{ th }} text-right pr-7 truncate" title="{{ accessory_label }}">{{ is_contractual ? 'case_overview.claim.col_accessory'|trans : accessory_label }}</div>
+                        <div role="columnheader" class="hidden @4xl:block {{ th }} text-left">{{ 'case_overview.claim.col_source'|trans }}</div>
+                        <div role="columnheader" class="{{ th }}"><span class="sr-only">{{ 'case_overview.claim.col_actions'|trans }}</span></div>
+                    </div>
+
+                    <div class="divide-y divide-slate-100 dark:divide-slate-800">
+                        {% for row in positions.rows %}
+                            {% set item = row.item %}
+                            {% set position_label = item.documentNumber|default(item.amount|number_format(2, ',', '.') ~ ' ' ~ item.currency) %}
+                            {% set foreign = item.currency|upper != 'RON' %}
+                            {% set issued = item.documentDate ? 'case_overview.claim.issued_on'|trans({'%date%': item.documentDate|date(fmt_date)}) : null %}
+                            {% set kind = row.breakdownKind %}
+                            {% set hidden_by_limit = positions.isPaged and loop.index > positions.visibleLimit %}
+                            {% set reason = row.isExcluded and (item.exclusionReason or item.exclusionNote)
+                                ? (item.exclusionReason ? item.exclusionReason.label()|trans : '') ~ (item.exclusionNote ? (item.exclusionReason ? ': ' : '') ~ item.exclusionNote : '')
+                                : null %}
+                            <div role="rowgroup"
+                                 data-testid="claim-position-group"
+                                 data-claim-positions-target="position"
+                                 data-filter-state="{{ row.filterState }}"
+                                 class="{{ hidden_by_limit ? 'hidden' : '' }} data-[open]:bg-blue-50/50 dark:data-[open]:bg-blue-950/20 data-[open]:shadow-[inset_3px_0_0_#3b82f6]">
+                                <div role="row"
+                                     id="claim-position-{{ item.id }}"
+                                     data-testid="claim-position-row"
+                                     data-claim-position-state="{{ row.state }}"
+                                     class="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2.5 px-3 py-3 @lg:gap-0 @lg:p-0 {{ cols }} items-start {{ row.added ? 'bg-green-50/80 dark:bg-green-950/20' : '' }}">
+                                    {# Invoice number with the exception pills; under it the issue date, or the exclusion reason. #}
+                                    <div role="cell" class="min-w-0 @lg:pl-4 @lg:pr-2 @lg:py-3">
+                                        <div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 min-w-0">
+                                            <span class="font-semibold truncate {{ row.isExcluded ? 'text-slate-500 dark:text-slate-400' : 'text-slate-900 dark:text-white' }} text-sm @lg:text-xs" title="{{ item.documentNumber|default('—') }}{{ issued ? ' · ' ~ issued : '' }}">{{ item.documentNumber|default('—') }}</span>
+                                            {% if row.isExcluded %}
+                                                <span class="{{ pill }} bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" data-testid="claim-position-pill" data-kind="excluded"><span class="size-1.5 rounded-full bg-slate-400" aria-hidden="true"></span>{{ 'case.claim.edit.state_excluded'|trans }}</span>
+                                            {% elseif not row.counts %}
+                                                <span class="{{ pill }} bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300" data-testid="claim-position-pill" data-kind="not_counting"><span class="size-1.5 rounded-full bg-amber-500" aria-hidden="true"></span>{{ 'case.claim.edit.state_not_counting'|trans }}</span>
+                                            {% elseif row.added %}
+                                                <span class="{{ pill }} bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300" data-testid="claim-position-pill" data-kind="added"><span class="size-1.5 rounded-full bg-green-500" aria-hidden="true"></span>{{ 'case_overview.claim.pill_added'|trans }}</span>
+                                            {% endif %}
+                                            {% if item.sourceDocument %}
+                                                <a href="{{ path('case_document_download', {caseId: case.id, documentId: item.sourceDocument.id}) }}" title="{{ item.sourceDocument.originalFilename }}" aria-label="{{ item.sourceDocument.originalFilename }}" data-turbo="false" data-testid="claim-source-icon" class="@4xl:hidden inline-flex text-blue-700 dark:text-blue-400">{{ icon_document('size-3.5') }}</a>
+                                            {% else %}
+                                                <span class="@4xl:hidden {{ meta }}" title="{{ 'case_overview.claim.source_manual_title'|trans }}" data-testid="claim-source-icon">{{ 'case_overview.claim.source_manual'|trans }}</span>
+                                            {% endif %}
+                                        </div>
+                                        {% if reason %}
+                                            <div class="{{ meta }} truncate max-w-[15rem]" title="{{ reason }}{{ issued ? ' (' ~ issued ~ ')' : '' }}" data-testid="claim-exclusion-reason">{{ reason }}</div>
+                                        {% elseif issued %}
+                                            <div class="{{ meta }} whitespace-nowrap hidden @lg:block">{{ issued }}</div>
+                                        {% endif %}
+                                        {% if item.dueDate %}
+                                            <div class="{{ meta }} tnum whitespace-nowrap @lg:hidden" title="{{ issued }}">
+                                                {{ 'case_overview.claim.due_on'|trans({'%date%': item.dueDate|date(fmt_date)}) }}{% if row.daysLate is not null %} · {{ 'case_overview.claim.days_late'|trans({'%count%': row.daysLate}) }}{% endif %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+
+                                    <div role="cell" class="hidden @lg:block px-2 py-3 whitespace-nowrap">
+                                        <div class="tnum text-slate-700 dark:text-slate-300">{{ item.dueDate ? item.dueDate|date(fmt_date) : '—' }}</div>
+                                        <div class="{{ meta }} tnum">{% if row.daysLate is not null %}{{ 'case_overview.claim.days_late'|trans({'%count%': row.daysLate}) }}{% else %}&nbsp;{% endif %}</div>
+                                    </div>
+
+                                    <div role="cell" class="hidden @4xl:block px-2 py-3 text-right">
+                                        <div class="tnum whitespace-nowrap {{ row.isExcluded ? 'line-through decoration-slate-300 text-slate-400' : 'text-slate-700 dark:text-slate-300' }}">{{ (item.amount + 0)|number_format(2, ',', '.') }}{% if foreign %} <span class="text-[10px] font-semibold text-slate-500">{{ item.currency }}</span>{% endif %}</div>
+                                        {% if row.fxMissing %}
+                                            <div class="text-[11px] font-medium text-amber-600 dark:text-amber-400 whitespace-nowrap">{{ 'case.claim.edit.positions_fx_missing'|trans }}</div>
+                                        {% elseif foreign and item.exchangeRate %}
+                                            <div class="{{ meta }} tnum whitespace-nowrap" data-testid="claim-position-fx">{{ 'case_overview.claim.fx_rate_line'|trans({'%rate%': (item.exchangeRate + 0)|number_format(4, ',', '.'), '%ron%': (item.amountRon + 0)|number_format(2, ',', '.')}) }}</div>
+                                        {% endif %}
+                                    </div>
+
+                                    <div role="cell" class="hidden @4xl:block px-2 py-3 text-right tnum whitespace-nowrap">
+                                        {% if item.paidAmount + 0 > 0 %}
+                                            <span class="text-slate-700 dark:text-slate-300">{{ row.paidRon|number_format(2, ',', '.') }}</span>
+                                        {% else %}
+                                            <span class="text-slate-300 dark:text-slate-600">0,00</span>
+                                        {% endif %}
+                                    </div>
+
+                                    <div role="cell" class="@lg:px-2 @lg:py-3 @lg:text-right">
+                                        <div class="text-[10px] font-semibold uppercase tracking-wider text-slate-500 @lg:hidden">{{ 'case_overview.claim.col_outstanding'|trans }}</div>
+                                        <div class="tnum whitespace-nowrap text-sm @lg:text-xs">
+                                            {% if row.fxMissing %}
+                                                <span class="text-slate-400" title="{{ 'case_overview.claim.fx_missing_title'|trans({'%currency%': item.currency}) }}">{{ 'case_overview.claim.not_computed'|trans }}</span>
+                                            {% elseif row.isExcluded %}
+                                                <span class="line-through decoration-slate-300 text-slate-400">{{ (item.amountRon + 0)|number_format(2, ',', '.') }}</span>
+                                            {% else %}
+                                                <span class="font-semibold text-slate-900 dark:text-white">{{ row.restRon|number_format(2, ',', '.') }}</span>
+                                            {% endif %}
+                                        </div>
+                                        {% if row.fxMissing %}
+                                            <div class="{{ meta }} tnum whitespace-nowrap @4xl:hidden">{{ (item.amount + 0)|number_format(2, ',', '.') }} {{ item.currency }}</div>
+                                        {% elseif foreign and item.exchangeRate %}
+                                            <div class="{{ meta }} tnum whitespace-nowrap @4xl:hidden">{{ (item.amount + 0)|number_format(2, ',', '.') }} {{ item.currency }} · {{ (item.exchangeRate + 0)|number_format(4, ',', '.') }}</div>
+                                        {% elseif item.paidAmount + 0 > 0 %}
+                                            <div class="{{ meta }} tnum whitespace-nowrap @4xl:hidden">{{ 'case_overview.claim.col_paid'|trans }} {{ (item.paidAmount + 0)|number_format(2, ',', '.') }}</div>
+                                        {% endif %}
+                                    </div>
+
+                                    {# The accessory amount is the control that opens its own calculation. #}
+                                    <div role="cell" class="text-right @lg:px-2 @lg:py-3">
+                                        <div class="text-[10px] font-semibold uppercase tracking-wider text-slate-500 @lg:hidden">{{ accessory_label }}</div>
+                                        {% if not row.counts %}
+                                            <div class="tnum text-slate-400 pr-5">0,00</div>
+                                        {% elseif row.accessoryTotal is null %}
+                                            <div class="tnum text-slate-400 pr-5" title="{{ row.skipReasonKey ? row.skipReasonKey|trans : '' }}">—</div>
+                                        {% else %}
+                                            {% if kind == 'penalty' %}
+                                                {% set acc_meta = row.penalty.capAmount is not null
+                                                    ? 'case_overview.claim.capped_at'|trans({'%cap%': row.penalty.capPercent|percent_number})
+                                                    : 'case_overview.claim.rate_per_day'|trans({'%rate%': row.penalty.dailyRate|number_format(2, ',', '.')}) %}
+                                            {% elseif kind == 'interest' %}
+                                                {% set acc_meta = row.interest.breakdown|length > 1
+                                                    ? 'case_overview.claim.periods_count'|trans({'%count%': row.interest.breakdown|length})
+                                                    : 'case_overview.claim.rate_per_year'|trans({'%rate%': (row.interest.breakdown|first).applicableRate|number_format(2, ',', '.')}) %}
+                                            {% else %}
+                                                {% set acc_meta = null %}
+                                            {% endif %}
+                                            {% if kind %}
+                                                <button type="button"
+                                                        data-testid="claim-toggle-breakdown-{{ item.id }}"
+                                                        data-action="claim-positions#toggle"
+                                                        data-claim-positions-id-param="{{ item.id }}"
+                                                        aria-expanded="false"
+                                                        aria-controls="claim-breakdown-{{ item.id }}"
+                                                                                                                class="group/acc -mr-1.5 -my-0.5 inline-flex flex-col items-end rounded-md px-1.5 py-0.5 hover:bg-amber-50 dark:hover:bg-amber-950/30 aria-expanded:bg-amber-50 dark:aria-expanded:bg-amber-950/30">
+                                                    <span class="inline-flex items-center gap-1 tnum font-semibold text-sm @lg:text-xs text-amber-600 dark:text-amber-400">
+                                                        +{{ row.accessoryTotal|number_format(2, ',', '.') }}
+                                                        <span class="inline-flex items-center justify-center size-4 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300 group-hover/acc:bg-amber-200" aria-hidden="true">{{ icon_chevron_down('size-3 transition-transform group-aria-expanded/acc:rotate-180') }}</span>
+                                                    </span>
+                                                    <span class="{{ meta }} whitespace-nowrap pr-5">{{ acc_meta }}</span>
+                                                    <span class="sr-only">{{ 'case_overview.claim.toggle_calc_aria'|trans({'%position%': position_label}) }}</span>
+                                                </button>
+                                            {% else %}
+                                                <div class="tnum font-semibold text-amber-600 dark:text-amber-400 pr-5">+{{ row.accessoryTotal|number_format(2, ',', '.') }}</div>
+                                            {% endif %}
+                                        {% endif %}
+                                    </div>
+
+                                    <div role="cell" class="hidden @4xl:block px-2 py-3">
+                                        {% if item.sourceDocument %}
+                                            <a href="{{ path('case_document_download', {caseId: case.id, documentId: item.sourceDocument.id}) }}" title="{{ item.sourceDocument.originalFilename }}" data-turbo="false" class="inline-flex items-center gap-1 text-[11px] font-medium text-blue-700 dark:text-blue-400 hover:underline whitespace-nowrap">{{ icon_document('size-3.5') }}{{ 'case_overview.claim.source_pdf'|trans }}</a>
+                                        {% else %}
+                                            <span class="{{ meta }} whitespace-nowrap" title="{{ 'case_overview.claim.source_manual_title'|trans }}">{{ 'case_overview.claim.source_manual'|trans }}</span>
+                                        {% endif %}
+                                    </div>
+
+                                    <div role="cell" class="col-start-2 row-start-1 @lg:col-start-auto @lg:row-start-auto justify-self-end -mt-1 -mr-1 @lg:m-0 @lg:py-2.5 @lg:pr-2">
+                                        <div class="hs-dropdown relative inline-flex [--strategy:fixed] [--placement:bottom-right]">
+                                            <button type="button"
+                                                    id="claim-position-menu-{{ item.id }}"
+                                                    data-testid="claim-position-menu-{{ item.id }}"
+                                                    class="hs-dropdown-toggle inline-flex items-center justify-center size-7 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                                                    aria-haspopup="menu" aria-expanded="false"
+                                                    aria-label="{{ 'case_overview.claim.menu_aria'|trans({'%position%': position_label}) }}">
+                                                {{ icon_dots('size-4') }}
+                                            </button>
+                                            <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden w-64 bg-white shadow-card rounded-xl border border-slate-200 dark:bg-slate-900 dark:border-slate-800 p-1.5 z-50"
+                                                 role="menu" aria-labelledby="claim-position-menu-{{ item.id }}">
+                                                <div class="px-2.5 pt-1 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">{{ position_label }}</div>
+                                                {% if item.sourceDocument %}
+                                                    <a href="{{ path('case_document_download', {caseId: case.id, documentId: item.sourceDocument.id}) }}" role="menuitem" data-turbo="false" title="{{ item.sourceDocument.originalFilename }}" class="{{ menu_item }} text-slate-800 dark:text-slate-200">
+                                                        {{ icon_document('size-4 text-slate-400') }}
+                                                        {{ 'case_overview.claim.menu_open_invoice'|trans }}
+                                                    </a>
+                                                {% else %}
+                                                    <div role="menuitem" aria-disabled="true" class="flex items-start gap-2.5 py-2 px-2.5 rounded-lg text-sm text-slate-400 cursor-not-allowed">
+                                                        {{ icon_document('size-4 mt-0.5 shrink-0') }}
+                                                        <span><span class="block">{{ 'case_overview.claim.menu_no_source'|trans }}</span><span class="block text-[11px] leading-snug">{{ 'case_overview.claim.menu_no_source_hint'|trans }}</span></span>
+                                                    </div>
+                                                {% endif %}
+                                                {% if kind %}
+                                                    <button type="button"
+                                                            role="menuitem"
+                                                            data-action="claim-positions#toggle"
+                                                            data-claim-positions-id-param="{{ item.id }}"
+                                                            aria-expanded="false"
+                                                            aria-controls="claim-breakdown-{{ item.id }}"
+                                                            class="group/calc {{ menu_item }} text-slate-800 dark:text-slate-200">
+                                                        {{ icon_chevron_down('size-4 text-slate-400') }}
+                                                        <span class="group-aria-expanded/calc:hidden">{{ 'case_overview.claim.menu_show_calc'|trans }}</span>
+                                                        <span class="hidden group-aria-expanded/calc:inline">{{ 'case_overview.claim.menu_hide_calc'|trans }}</span>
+                                                    </button>
+                                                {% endif %}
+                                                {% if can_edit_claim and (row.isExcluded or row.counts) %}
+                                                    <hr class="my-1 border-slate-100 dark:border-slate-800">
+                                                    {% if row.isExcluded %}
+                                                        <form method="post" action="{{ path('case_claim_reinclude', {id: case.id, itemId: item.id}) }}" data-turbo-frame="_top">
+                                                            <input type="hidden" name="_token" value="{{ csrf_token('claim_reinclude_' ~ item.id) }}">
+                                                            <button type="submit" role="menuitem" data-testid="claim-reinclude-{{ item.id }}" aria-label="{{ 'case.claim.edit.reinclude_aria'|trans({'%position%': position_label}) }}" class="{{ menu_item }} font-medium text-blue-700 dark:text-blue-400">
+                                                                {{ icon_check('size-4') }}
+                                                                {{ 'case_overview.claim.menu_reinclude'|trans }}
+                                                            </button>
+                                                        </form>
+                                                    {% elseif row.lastCounting %}
+                                                        <div role="menuitem" aria-disabled="true" data-testid="claim-exclude-{{ item.id }}" class="flex items-start gap-2.5 py-2 px-2.5 rounded-lg text-sm text-slate-400 cursor-not-allowed">
+                                                            {{ icon_warning('size-4 mt-0.5 shrink-0') }}
+                                                            <span><span class="block">{{ 'case_overview.claim.menu_exclude'|trans }}</span><span class="block text-[11px] leading-snug">{{ 'case.claim.edit.error.last_counting_position'|trans({'%position%': position_label}) }}</span></span>
+                                                        </div>
+                                                    {% else %}
+                                                        <button type="button"
+                                                                role="menuitem"
+                                                                data-hs-overlay="#hs-modal-claim-exclude"
+                                                                data-action="click->claim-exclude#open"
+                                                                data-claim-exclude-url-param="{{ path('case_claim_exclude', {id: case.id, itemId: item.id}) }}"
+                                                                data-claim-exclude-label-param="{{ position_label }}"
+                                                                data-testid="claim-exclude-{{ item.id }}"
+                                                                aria-label="{{ 'case.claim.edit.exclude_aria'|trans({'%position%': position_label}) }}"
+                                                                class="{{ menu_item }} font-medium text-red-600 dark:text-red-400">
+                                                            {{ icon_warning('size-4') }}
+                                                            {{ 'case_overview.claim.menu_exclude'|trans }}
+                                                        </button>
+                                                    {% endif %}
+                                                {% endif %}
                                             </div>
                                         </div>
-                                    {% endif %}
-                                {% endfor %}
+                                    </div>
+                                </div>
+
+                                {% if kind %}
+                                    <div role="row"
+                                         id="claim-breakdown-{{ item.id }}"
+                                         data-claim-positions-target="breakdown"
+                                         class="hidden">
+                                        <div role="none" class="@lg:grid {{ cols }}">
+                                            <div role="cell" class="@lg:col-[1/5] @4xl:col-[1/7] px-3 pb-3 pt-1 @lg:pl-4 @lg:pr-2">
+                                                {{ include('case/overview/_claim_position_breakdown.html.twig', {
+                                                    kind: kind,
+                                                    number: position_label,
+                                                    base: row.restRon,
+                                                    periods: row.interest ? row.interest.breakdown : [],
+                                                    total: row.accessoryTotal,
+                                                    margin: row.interest ? row.interest.margin() : null,
+                                                    penalty: row.penalty,
+                                                    due_date: item.dueDate,
+                                                    reference_date: accessory_reference_date,
+                                                }) }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endif %}
                             </div>
+                        {% endfor %}
+                    </div>
+
+                    {% if positions.isPaged %}
+                        <button type="button"
+                                data-testid="claim-positions-show-all"
+                                data-claim-positions-target="showAll"
+                                data-action="claim-positions#showAll"
+                                class="w-full inline-flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-blue-700 dark:text-blue-400 hover:bg-blue-50/60 dark:hover:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800">
+                            <span data-claim-positions-target="showAllLabel">{{ 'case_overview.claim.show_all'|trans({'%count%': positions.totalCount}) }}</span>
+                            <span class="font-normal text-slate-400" data-claim-positions-target="showAllMore">{{ 'case_overview.claim.show_all_more'|trans({'%more%': positions.totalCount - positions.visibleLimit}) }}</span>
+                            {{ icon_chevron_down('size-3') }}
+                        </button>
+                    {% endif %}
+
+                    <div role="row" data-testid="claim-positions-footer"
+                         class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-3 py-3 @lg:p-0 @lg:grid {{ cols }} border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 @lg:rounded-b-lg">
+                        <div role="cell" class="@lg:col-span-2 @4xl:col-span-3 @lg:pl-4 @lg:pr-2 @lg:py-3 font-semibold text-slate-900 dark:text-white whitespace-nowrap">
+                            {{ 'case_overview.claim.footer_total'|trans }}
+                            <span class="font-normal {{ meta }}">· {{ 'case_overview.claim.footer_count'|trans({'%counting%': positions.countingCount, '%total%': positions.totalCount}) }}</span>
                         </div>
+                        <div role="cell" class="hidden @4xl:block px-2 py-3 text-right font-semibold tnum text-slate-600 dark:text-slate-300 whitespace-nowrap" data-testid="claim-footer-paid">{{ positions.paidRonTotal|number_format(2, ',', '.') }}</div>
+                        <div role="cell" class="ml-auto @lg:ml-0 @lg:px-2 @lg:py-3 text-right text-sm font-bold tnum text-slate-900 dark:text-white whitespace-nowrap" data-testid="claim-footer-principal">{{ principal|number_format(2, ',', '.') }}</div>
+                        <div role="cell" class="@lg:px-2 @lg:py-3 text-right text-sm font-bold tnum text-amber-600 dark:text-amber-400 whitespace-nowrap" data-testid="claim-footer-accessory"><span class="@lg:pr-5">+{{ interest|number_format(2, ',', '.') }}</span></div>
                     </div>
                 </div>
-            {% endif %}
-        {% elseif is_contractual %}
-            <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-950/30 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
-                {{ 'case_overview.claim.contractual_formula'|trans({'%rate%': case.contractualPenaltyRate|number_format(2, ',', '.')}) }}
-            </div>
-            {% include 'case/overview/_penalty_breakdown.html.twig' %}
-        {% elseif interest_breakdown is null or interest_breakdown|length == 0 %}
-            <div class="p-3 rounded-lg bg-slate-50 dark:bg-slate-950/30 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400">
-                {{ 'case_overview.claim.breakdown_zero'|trans }}
+
+                <details class="group mt-3 text-xs" data-testid="claim-how-calculated">
+                    <summary class="cursor-pointer select-none inline-flex items-center gap-1.5 font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white">
+                        <svg class="size-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        {{ 'case_overview.claim.how_title'|trans }}
+                    </summary>
+                    <ul class="mt-2 ml-1 space-y-1 text-[11px] leading-relaxed text-slate-500 list-disc list-inside">
+                        <li>{{ 'case_overview.claim.how_excluded'|trans }}</li>
+                        {% if positions.hasForeignCurrency %}<li data-testid="claim-how-fx">{{ 'case_overview.claim.how_fx'|trans }}</li>{% endif %}
+                        <li>{{ (is_contractual ? 'case_overview.claim.positions_hint_contractual' : 'case_overview.claim.positions_hint')|trans }}</li>
+                        <li>{{ 'case_overview.claim.how_open'|trans }}</li>
+                    </ul>
+                </details>
             </div>
         {% else %}
-            <div class="hs-accordion-group border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
-                <div class="hs-accordion" id="acc-bnr-breakdown">
-                    <button type="button"
-                            class="hs-accordion-toggle hs-accordion-active:bg-slate-50 dark:hs-accordion-active:bg-slate-950/50 inline-flex items-center justify-between gap-x-3 w-full text-sm font-medium text-slate-700 dark:text-slate-300 py-3 px-4 hover:bg-slate-50 dark:hover:bg-slate-950/30 transition"
-                            aria-expanded="false"
-                            aria-controls="acc-bnr-breakdown-content">
-                        <span class="inline-flex items-center gap-2">
-                            <span class="hs-accordion-active:rotate-90 transition-transform">{{ icon_chevron_right('size-4 text-slate-400') }}</span>
-                            {{ 'case_overview.claim.breakdown_toggle'|trans }}
-                        </span>
-                        <span class="text-xs text-slate-500 font-normal">{{ 'case_overview.claim.breakdown_summary'|trans({'%periods%': interest_breakdown|length}) }}</span>
-                    </button>
-                    <div id="acc-bnr-breakdown-content"
-                         class="hs-accordion-content hidden w-full overflow-hidden transition-[height] duration-300"
-                         role="region"
-                         aria-labelledby="acc-bnr-breakdown">
-                        <div class="px-4 pb-4 overflow-x-auto">
-                            <table class="w-full text-xs">
-                                <thead class="text-[10px] uppercase tracking-wide text-slate-500 border-b border-slate-200 dark:border-slate-800">
-                                    <tr>
-                                        <th class="text-left py-2 font-medium">{{ 'case_overview.claim.breakdown_period'|trans }}</th>
-                                        <th class="text-right py-2 font-medium">{{ 'case_overview.claim.breakdown_bnr'|trans }}</th>
-                                        <th class="text-right py-2 font-medium">{{ 'case_overview.claim.breakdown_applicable'|trans }}</th>
-                                        <th class="text-right py-2 font-medium">{{ 'case_overview.claim.breakdown_days'|trans }}</th>
-                                        <th class="text-right py-2 font-medium">{{ 'case_overview.claim.breakdown_interest'|trans }}</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
-                                    {% for period in interest_breakdown %}
-                                        <tr>
-                                            <td class="py-2 text-slate-700 dark:text-slate-300">{{ period.startDate|date('d.m.Y') }} → {{ period.endDate|date('d.m.Y') }}</td>
-                                            <td class="py-2 text-right tnum">{{ period.nbrRate|number_format(2, ',', '.') }}%</td>
-                                            <td class="py-2 text-right tnum font-medium">{{ period.applicableRate|number_format(2, ',', '.') }}%</td>
-                                            <td class="py-2 text-right tnum text-slate-500">{{ period.days }}</td>
-                                            <td class="py-2 text-right tnum font-semibold">{{ period.periodInterest|number_format(2, ',', '.') }}</td>
-                                        </tr>
-                                    {% endfor %}
-                                </tbody>
-                                <tfoot class="border-t-2 border-slate-200 dark:border-slate-700 font-bold">
-                                    <tr>
-                                        <td colspan="3" class="py-2 text-slate-900 dark:text-white">{{ 'case_overview.claim.breakdown_total'|trans }}</td>
-                                        <td class="py-2 text-right tnum text-slate-500">{{ interest_days }}</td>
-                                        <td class="py-2 text-right tnum text-amber-600 dark:text-amber-400">{{ interest|number_format(2, ',', '.') }}</td>
-                                    </tr>
-                                </tfoot>
-                            </table>
-                        </div>
-                    </div>
+            {# A case without positions (older cases): one breakdown from the case's own due date. #}
+            {% if breakdown_error|default(false) %}
+                {# The error band above already says why there is no breakdown. #}
+            {% elseif interest_breakdown is not null and interest_breakdown|length > 0 %}
+                <div class="mt-5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/30 p-4" data-testid="claim-case-breakdown">
+                    {{ include('case/overview/_claim_position_breakdown.html.twig', {
+                        kind: 'interest',
+                        number: null,
+                        base: principal,
+                        periods: interest_breakdown,
+                        total: interest,
+                        margin: (interest_breakdown|first).margin,
+                        penalty: null,
+                        due_date: case.dueDate,
+                        reference_date: accessory_reference_date|default(case.createdAt),
+                    }) }}
                 </div>
-            </div>
+            {% elseif not is_contractual and case.dueDate %}
+                <div class="mt-4 p-3 rounded-lg bg-slate-50 dark:bg-slate-950/30 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400" data-testid="claim-breakdown-zero">
+                    {{ 'case_overview.claim.breakdown_zero'|trans }}
+                </div>
+            {% endif %}
+            {% if can_edit_claim %}
+                <div class="mt-6 flex items-center justify-between gap-3">
+                    <h4 class="text-sm font-semibold text-slate-900 dark:text-white">{{ 'case.claim.edit.positions_title'|trans }}</h4>
+                    <button type="button"
+                            data-hs-overlay="#hs-modal-claim-add"
+                            data-testid="claim-add-invoice"
+                            class="py-2 px-3 inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg bg-lex-navy text-white hover:bg-lex-navy/90 shadow-sm shrink-0 transition">
+                        {{ icon_plus('size-3.5') }}
+                        {{ 'case.claim.edit.add_invoice'|trans }}
+                    </button>
+                </div>
+            {% endif %}
         {% endif %}
+
+        {{ include('case/overview/_claim_details_block.html.twig') }}
     </div>
 </section>

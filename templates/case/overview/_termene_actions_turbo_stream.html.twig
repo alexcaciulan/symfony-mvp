@@ -28,12 +28,13 @@
     <turbo-stream action="append" target="toasts">
         <template><div data-controller="activate-tab" data-activate-tab-tab-value="{{ return_tab|default('termene') }}"></div></template>
     </turbo-stream>
-    {# The active deadline drives the top KPI card and the Detalii sidebar ring. #}
+    {# The active deadline drives the top KPI card (days left and the next alert). #}
     <turbo-stream action="replace" target="case-kpi-grid">
         <template>{{ include('case/overview/_kpi_grid.html.twig') }}</template>
     </turbo-stream>
-    <turbo-stream action="update" target="case-detalii-sidebar">
-        <template>{{ include('case/overview/_detalii_sidebar.html.twig') }}</template>
+    {# The ruling communication date set here unlocks enforcement in the hero. #}
+    <turbo-stream action="replace" target="case-hero">
+        <template>{{ include('case/overview/_hero.html.twig') }}</template>
     </turbo-stream>
     {# The communication-date dialog can carry the proof with it, so a response from here
        may have added a document and lifted the gate on the petition. Both live outside
