@@ -1387,10 +1387,10 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
         self::assertArrayHasKey('admissibility_warnings', $newData);
     }
 
-    public function testOverviewAfterWizardSubmitRendersJustCreatedBadgeOnce(): void
+    public function testOverviewAfterWizardSubmitHighlightsTheNextStepOnce(): void
     {
         // Regression for the wizard → overview UX flow: the first GET on
-        // /case/{id} after wizard submit must show the „Următorul pas" badge
+        // /case/{id} after wizard submit must highlight the next-step CTA
         // (flash bag consumed); subsequent F5 must drop it.
         $this->primeSessionForStep4(
             personType: PersonType::PJ,
@@ -1410,20 +1410,18 @@ final class CaseWizardControllerStep1To4Test extends WebTestCase
             ],
         ]);
 
-        // Follow redirect → first GET on overview. Badge must be rendered.
+        // Follow redirect → first GET on overview. The next-step CTA is highlighted once.
         $this->client->followRedirect();
         self::assertResponseIsSuccessful();
         $firstHtml = $this->client->getResponse()->getContent();
-        self::assertStringContainsString('Următorul pas', $firstHtml, 'next-step badge must appear after wizard submit');
         self::assertStringContainsString('soft-pulse-once', $firstHtml, 'CTA must carry soft-pulse-once animation class');
 
-        // Second GET on same overview → badge gone (flash bag was consumed).
+        // Second GET on same overview → highlight gone (flash bag was consumed).
         $cases = $this->em->getRepository(LegalCase::class)->findBy(['user' => $this->user]);
         self::assertCount(1, $cases);
         $this->client->request('GET', '/case/' . $cases[0]->getId());
         self::assertResponseIsSuccessful();
         $secondHtml = $this->client->getResponse()->getContent();
-        self::assertStringNotContainsString('Următorul pas', $secondHtml);
         self::assertStringNotContainsString('soft-pulse-once', $secondHtml);
     }
 

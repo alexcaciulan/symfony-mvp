@@ -1,10 +1,9 @@
-{# Hero action cluster: a single status-driven primary CTA (the next workflow action for the
-   current status), the amicable-payment closing beside it while it applies, and the actions
-   dropdown with the rarer status actions (rejection, annulment outcomes). Extracted as a partial so the same fragment is rendered
-   both by `_hero.html.twig` on initial page load and by the Turbo Stream response after a
-   transition. The outer wrapper `<div id="case-hero-actions">` is rendered here so Turbo Stream
-   `action=replace` can target it directly. #}
-{% from 'case/overview/_icons.html.twig' import icon_dots, icon_edit, icon_share, icon_copy, icon_trash, icon_check, icon_building, icon_warning %}
+{# Hero action bar at the bottom of the case header: the next step in one sentence on the
+   left, then on one line the amicable-payment closing while it applies, the single
+   status-driven primary CTA and the actions dropdown with the rarer status actions
+   (rejection, annulment outcomes). The bar is a size container so the buttons move under
+   the sentence by the width of the card, not of the viewport. #}
+{% from 'case/overview/_icons.html.twig' import icon_dots, icon_edit, icon_share, icon_copy, icon_trash, icon_check, icon_building, icon_warning, icon_arrow_right %}
 
 {# Render the primary-CTA icon by name so the keyed map below can carry a distinct glyph per status. #}
 {% macro cta_icon(name) %}
@@ -17,7 +16,8 @@
 {% endmacro %}
 
 {# Base button shape; per-status color + icon are applied below. `whitespace-nowrap` keeps the label on one line. #}
-{% set base_cta_class = 'py-2 px-3.5 inline-flex items-center gap-x-2 text-sm font-semibold rounded-lg border border-transparent transition shadow-sm whitespace-nowrap' %}
+{% set base_cta_class = 'w-full sm:w-auto py-2 px-3.5 inline-flex items-center justify-center gap-x-2 text-sm font-semibold rounded-lg border transition whitespace-nowrap' %}
+{% set outline_class = 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800' %}
 
 {# Modal-triggered primary CTAs keyed by status, each with a distinct color + icon.
    AMIABIL (send summons) and CERERE_DEPUSA (register via portal) are handled
@@ -46,24 +46,68 @@
     (case.status.value == 'CERERE_GENERATA' and has_email_filing)
     or (case.status.value == 'CERERE_DEPUSA' and case.filingChannel and case.filingChannel.value == 'EMAIL' and (case.filedAt is null or filing_late_bounce_review|default(false)))
 ) %}
+{% set has_primary = filing_link or case.status.value == 'AMIABIL' or case.status.value == 'CERERE_DEPUSA' or primary %}
 
-<div id="case-hero-actions" class="flex flex-wrap items-center gap-2 self-start">
+{# A missing communication date shown in an amber band above the header comes first:
+   the hero action steps back to an outline so only one filled button is on screen,
+   and the sentence points to the band. #}
+{% set blocked_by = null %}
+{% if case.status.value == 'SOMATIE_TRIMISA' and case.paymentNoticeCommunicationDate is null %}
+    {% set blocked_by = 'summons_blocked' %}
+{% elseif case.status.value in ['ORDONANTA_EMISA', 'IN_ANULARE'] and case.rulingCommunicationDate is null %}
+    {% set blocked_by = 'ruling_blocked' %}
+{% endif %}
+{% set cta_tone = blocked_by ? outline_class : null %}
+
+{% if blocked_by %}
+    {% set next_step_key = blocked_by %}
+{% elseif filing_link %}
+    {% set next_step_key = case.status.value == 'CERERE_GENERATA' ? 'filing_ready' : 'filing_follow' %}
+{% elseif case.status.value == 'INCHIS_SUCCES' and case.fullPaymentDate %}
+    {% set next_step_key = 'INCHIS_SUCCES_paid' %}
+{% else %}
+    {% set next_step_key = case.status.value %}
+{% endif %}
+
+<div class="@container relative border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/30 rounded-b-2xl">
+<div class="px-5 py-3 lg:px-8 flex {{ has_primary ? 'flex-col @3xl:flex-row @3xl:items-center' : 'flex-row items-center' }} gap-3 @3xl:gap-6">
+    <div class="flex items-start gap-2 min-w-0 flex-1" data-testid="hero-next-step" data-blocked="{{ blocked_by ? 'true' : 'false' }}">
+        <span class="mt-0.5 shrink-0 inline-flex items-center justify-center size-5 rounded-full {{ blocked_by ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300' }}" aria-hidden="true">
+            {{ blocked_by ? icon_warning('size-3') : (case.status.isTerminal() ? icon_check('size-3') : icon_arrow_right('size-3')) }}
+        </span>
+        <p class="text-xs leading-snug text-slate-600 dark:text-slate-300">
+            <span class="font-semibold text-slate-800 dark:text-slate-100">{{ (case.status.isTerminal() ? 'case_overview.hero.closed_label' : 'case_overview.hero.next_step_label')|trans }}</span>
+            {{ ('case_overview.hero.next_step.' ~ next_step_key)|trans({'%date%': case.fullPaymentDate ? case.fullPaymentDate|date('d.m.Y') : ''}) }}
+        </p>
+    </div>
+
+<div id="case-hero-actions" class="flex items-center justify-end gap-2 shrink-0">
+    {# On a phone the amicable payment lives in the menu, so it comes first here and the primary stays last before the menu. #}
+    {% if can_close_full_payment|default(false) %}
+        <button type="button"
+                data-hs-overlay="#hs-modal-full-payment"
+                data-testid="hero-full-payment-action"
+                class="hidden sm:inline-flex py-2 px-3.5 items-center gap-x-2 text-sm font-semibold rounded-lg border {{ outline_class }} transition whitespace-nowrap">
+            {{ icon_check('size-4') }}
+            {{ 'case_overview.cta.mark_paid'|trans }}
+        </button>
+    {% endif %}
     {% if filing_link %}
         <a href="{{ path('case_overview', {id: case.id, tab: 'depunere'}) }}#depunere-status"
            data-turbo-frame="_top"
            data-testid="hero-filing-link" data-controller="open-tab" data-open-tab-tab-value="depunere" data-action="open-tab#open"
-           class="{{ base_cta_class }} bg-lex-navy text-white hover:bg-lex-navy-dark">
+           class="flex-1 sm:flex-none {{ base_cta_class }} border-transparent shadow-sm bg-lex-navy text-white hover:bg-lex-navy-dark">
             {{ _self.cta_icon('building') }}
             {{ ('filing.panel.hero.' ~ (filing_panel_state.primaryAction ?? 'open'))|trans }}
         </a>
-    {% elseif case.status.value == 'AMIABIL' or case.status.value == 'CERERE_DEPUSA' or primary %}
-        <div class="relative">
+    {% elseif has_primary %}
+        <div class="flex-1 sm:flex-none">
             {% if case.status.value == 'AMIABIL' %}
                 <form method="post" action="{{ path('case_summons_generate', {id: case.id}) }}" data-turbo-frame="_top">
                     <input type="hidden" name="_token" value="{{ csrf_token('generate_summons_' ~ case.id) }}">
                     <button type="submit"
                             data-testid="hero-primary-cta"
-                            class="{{ base_cta_class }} bg-amber-500 text-white hover:bg-amber-600
+                            class="{{ base_cta_class }} border-transparent shadow-sm bg-amber-500 text-white hover:bg-amber-600
                                    {% if just_created|default(false) %}ring-2 ring-offset-2 ring-emerald-400 dark:ring-offset-slate-900 soft-pulse-once{% endif %}">
                         {{ _self.cta_icon('warning') }}
                         {{ 'case_overview.cta.send_summons'|trans }}
@@ -76,7 +120,7 @@
                         data-controller="goto-portal-discover"
                         data-action="goto-portal-discover#navigate"
                         data-testid="hero-primary-cta"
-                        class="{{ base_cta_class }} bg-indigo-600 text-white hover:bg-indigo-700
+                        class="{{ base_cta_class }} border-transparent shadow-sm bg-indigo-600 text-white hover:bg-indigo-700
                                {% if just_created|default(false) %}ring-2 ring-offset-2 ring-emerald-400 dark:ring-offset-slate-900 soft-pulse-once{% endif %}">
                     {{ _self.cta_icon('building') }}
                     {{ 'case_overview.cta.register_case'|trans }}
@@ -85,44 +129,26 @@
                 <button type="button"
                         data-hs-overlay="{{ primary.target }}"
                         data-testid="hero-primary-cta"
-                        class="{{ base_cta_class }} {{ primary.color }}
+                        data-tone="{{ cta_tone ? 'outline' : 'filled' }}"
+                        class="{{ base_cta_class }} {{ cta_tone ?: 'border-transparent shadow-sm ' ~ primary.color }}
                                {% if just_created|default(false) %}ring-2 ring-offset-2 ring-emerald-400 dark:ring-offset-slate-900 soft-pulse-once{% endif %}">
                     {{ _self.cta_icon(primary.icon) }}
                     {{ primary.label|trans }}
                 </button>
             {% endif %}
-            {% if just_created|default(false) %}
-                <span class="absolute -top-2 -right-2 inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-emerald-500 text-white rounded-full shadow-md">
-                    <svg class="size-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5-5 5M6 12h12"/>
-                    </svg>
-                    {{ 'case_overview.hero.next_step_badge'|trans }}
-                </span>
-            {% endif %}
         </div>
     {% endif %}
 
-    {# Closing on an amicable payment sits beside the next step on wider screens and in the menu on a phone. #}
-    {% if can_close_full_payment|default(false) %}
-        <button type="button"
-                data-hs-overlay="#hs-modal-full-payment"
-                data-testid="hero-full-payment-action"
-                class="hidden sm:inline-flex py-2 px-3 items-center gap-x-1.5 text-sm font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition whitespace-nowrap">
-            {{ icon_check('size-4') }}
-            {{ 'case_overview.cta.mark_paid'|trans }}
-        </button>
-    {% endif %}
-
-    <div class="hs-dropdown relative inline-flex">
+    <div class="hs-dropdown relative inline-flex [--strategy:absolute] [--placement:bottom-right]">
         <button id="hs-case-actions-dropdown"
                 type="button"
-                class="hs-dropdown-toggle p-2 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                class="hs-dropdown-toggle size-[38px] shrink-0 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
                 aria-haspopup="menu"
                 aria-expanded="false"
                 aria-label="{{ 'case_overview.cta.actions_menu'|trans }}">
             {{ icon_dots('size-4') }}
         </button>
-        <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-56 bg-white shadow-card rounded-xl border border-slate-200 dark:bg-slate-900 dark:border-slate-800 mt-2 p-1.5 z-40 right-0"
+        <div class="hs-dropdown-menu transition-[opacity,margin] duration hs-dropdown-open:opacity-100 opacity-0 hidden min-w-56 whitespace-nowrap bg-white shadow-card rounded-xl border border-slate-200 dark:bg-slate-900 dark:border-slate-800 mt-2 p-1.5 z-40"
              role="menu"
              aria-labelledby="hs-case-actions-dropdown">
             <span role="menuitem"
@@ -207,4 +233,6 @@
             {% endif %}
         </div>
     </div>
+</div>
+</div>
 </div>

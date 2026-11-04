@@ -1,4 +1,5 @@
-{# Hero header pentru pagina overview dosar. Reflectă mockup 04-dosar/overview.html linii 270-360. #}
+{# Case page header: parties and status on the full width, then the action bar
+   (next step on the left, actions on the right) rendered by `_hero_actions`. #}
 {% from 'case/overview/_icons.html.twig' import icon_calendar, icon_building %}
 
 {% set creditor_name = case.creditor ? case.creditor.name : ('case_overview.header.no_creditor'|trans) %}
@@ -6,50 +7,51 @@
 {% set court_label = case.court ? case.court.name : ('case_overview.header.court_undetermined'|trans) %}
 {% set pulse_status = not case.status.isTerminal() %}
 
-<section id="case-hero" class="relative bg-white dark:bg-slate-900 rounded-2xl shadow-hero overflow-hidden mb-6">
-    <div class="absolute inset-0 bg-gradient-to-br from-blue-50/40 via-transparent to-transparent dark:from-blue-950/20 pointer-events-none"></div>
-    <div class="absolute top-0 right-0 size-72 bg-gradient-to-br from-lex-navy/5 to-transparent rounded-full blur-3xl pointer-events-none"></div>
+{# No overflow-hidden on the card itself: it would clip the actions menu opening below the bar. #}
+<section id="case-hero" class="relative bg-white dark:bg-slate-900 rounded-2xl shadow-hero mb-6">
+    <div class="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none" aria-hidden="true">
+        <div class="absolute inset-0 bg-gradient-to-br from-blue-50/40 via-transparent to-transparent dark:from-blue-950/20"></div>
+        <div class="absolute top-0 right-0 size-72 bg-gradient-to-br from-lex-navy/5 to-transparent rounded-full blur-3xl"></div>
+    </div>
 
-    <div class="relative px-6 py-6 lg:px-8 lg:py-7">
-        <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-            <div class="min-w-0">
-                <div class="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
-                    <span class="font-mono">{{ case.caseNumber }}</span>
-                    <span class="size-1 rounded-full bg-slate-300 dark:bg-slate-700" aria-hidden="true"></span>
-                    <span>{{ 'case_overview.header.type_op'|trans }}</span>
-                </div>
-                <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight">
-                    {{ creditor_name }}
-                    <span class="text-slate-400 dark:text-slate-500 font-medium mx-1.5">{{ 'case_overview.header.vs'|trans }}</span>
-                    <span class="block md:inline">{{ debtor_name }}</span>
-                </h1>
-                <div class="mt-3 flex flex-wrap items-center gap-3">
-                    <span id="case-status-badge">
-                        {# LegalCase::displayStatusLabel never shows a transmitted case without a declared date as filed. #}
-                        <twig:StatusBadge status_label="{{ case.displayStatusLabel|trans }}" status_color="{{ case.status.color() }}" :pulse="pulse_status" />
-                    </span>
-                    {% if case.fullPaymentDate and case.status.value == 'INCHIS_SUCCES' %}
-                        <span class="inline-flex items-center gap-x-1 rounded-full bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300 px-2 py-0.5 text-xs font-medium" data-testid="hero-full-payment">
-                            {{ 'case_overview.header.full_payment_chip'|trans({'%date%': case.fullPaymentDate|date('d.m.Y')}) }}
-                        </span>
-                    {% endif %}
-                    {% if case.status.value == 'SOMATIE_TRIMISA' and payment_term_expired|default(false) %}
-                        <span class="inline-flex items-center gap-x-1 rounded-full bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 px-2 py-0.5 text-xs font-medium">
-                            {{ 'case_overview.header.payment_term_expired'|trans }}
-                        </span>
-                    {% endif %}
-                    <span class="inline-flex items-center gap-x-1 text-xs text-slate-500 dark:text-slate-400">
-                        {{ icon_calendar('size-3.5') }}
-                        {{ 'case_overview.header.created_on'|trans({'%date%': case.createdAt|date('d.m.Y')}) }}
-                    </span>
-                    <span class="inline-flex items-center gap-x-1 text-xs text-slate-500 dark:text-slate-400">
-                        {{ icon_building('size-3.5') }}
-                        {{ court_label }}
-                    </span>
-                </div>
+    <div class="relative px-5 pt-5 pb-4 lg:px-8 lg:pt-7 lg:pb-5">
+        <div class="min-w-0">
+            <div class="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+                <span class="font-mono">{{ case.caseNumber }}</span>
+                <span class="size-1 rounded-full bg-slate-300 dark:bg-slate-700" aria-hidden="true"></span>
+                <span>{{ 'case_overview.header.type_op'|trans }}</span>
             </div>
-
-            {{ include('case/overview/_hero_actions.html.twig') }}
+            <h1 class="text-xl md:text-2xl font-bold tracking-tight text-slate-900 dark:text-white leading-tight">
+                {{ creditor_name }}
+                <span class="text-slate-400 dark:text-slate-500 font-medium mx-1.5">{{ 'case_overview.header.vs'|trans }}</span>
+                <span>{{ debtor_name }}</span>
+            </h1>
+            <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+                <span id="case-status-badge">
+                    {# LegalCase::displayStatusLabel never shows a transmitted case without a declared date as filed. #}
+                    <twig:StatusBadge status_label="{{ case.displayStatusLabel|trans }}" status_color="{{ case.status.color() }}" :pulse="pulse_status" />
+                </span>
+                {% if case.fullPaymentDate and case.status.value == 'INCHIS_SUCCES' %}
+                    <span class="inline-flex items-center gap-x-1 rounded-full bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-300 px-2 py-0.5 text-xs font-medium" data-testid="hero-full-payment">
+                        {{ 'case_overview.header.full_payment_chip'|trans({'%date%': case.fullPaymentDate|date('d.m.Y')}) }}
+                    </span>
+                {% endif %}
+                {% if case.status.value == 'SOMATIE_TRIMISA' and payment_term_expired|default(false) %}
+                    <span class="inline-flex items-center gap-x-1 rounded-full bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 px-2 py-0.5 text-xs font-medium">
+                        {{ 'case_overview.header.payment_term_expired'|trans }}
+                    </span>
+                {% endif %}
+                <span class="inline-flex items-center gap-x-1 text-xs text-slate-500 dark:text-slate-400">
+                    {{ icon_calendar('size-3.5') }}
+                    {{ 'case_overview.header.created_on'|trans({'%date%': case.createdAt|date('d.m.Y')}) }}
+                </span>
+                <span class="inline-flex items-center gap-x-1 text-xs text-slate-500 dark:text-slate-400">
+                    {{ icon_building('size-3.5') }}
+                    {{ court_label }}
+                </span>
+            </div>
         </div>
     </div>
+
+    {{ include('case/overview/_hero_actions.html.twig') }}
 </section>

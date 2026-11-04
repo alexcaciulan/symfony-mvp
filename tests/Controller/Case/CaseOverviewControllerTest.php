@@ -346,6 +346,65 @@ final class CaseOverviewControllerTest extends WebTestCase
         }
     }
 
+    public function testHeroStatesTheNextStepForEveryStatus(): void
+    {
+        $this->client->loginUser($this->user);
+        $this->enrichCase();
+        $this->case->setPaymentNoticeCommunicationDate(new \DateTimeImmutable('-20 days'));
+        $this->case->setRulingCommunicationDate(new \DateTimeImmutable('-5 days'));
+
+        $this->em->flush();
+        // The client reboots the kernel between requests, so the status is written straight to the row.
+        $connection = $this->em->getConnection();
+
+        foreach (CaseStatus::cases() as $status) {
+            $connection->executeStatement('UPDATE legal_case SET status = ? WHERE id = ?', [$status->value, $this->case->getId()]);
+            $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+            self::assertResponseIsSuccessful($status->value);
+            $sentence = $crawler->filter('#case-hero [data-testid="hero-next-step"]');
+            self::assertCount(1, $sentence, $status->value);
+            self::assertSame('false', $sentence->attr('data-blocked'), $status->value);
+            self::assertStringNotContainsString('case_overview.', $sentence->text(), $status->value . ' has a translated sentence.');
+            self::assertStringContainsString($status->isTerminal() ? 'Dosar închis:' : 'Următorul pas:', $sentence->text(), $status->value);
+        }
+    }
+
+    public function testHeroActionStepsBackWhileTheSummonsCommunicationDateIsMissing(): void
+    {
+        $this->client->loginUser($this->user);
+        $this->enrichCase(CaseStatus::SOMATIE_TRIMISA);
+        $this->case->setPaymentNoticeCommunicationDate(null);
+        $this->em->flush();
+
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertSelectorExists('#summons-communication-alert button', 'The band carries the only filled button.');
+        self::assertSame('true', $crawler->filter('[data-testid="hero-next-step"]')->attr('data-blocked'));
+        self::assertStringContainsString('data comunicării somației', $crawler->filter('[data-testid="hero-next-step"]')->text());
+        self::assertSame('outline', $crawler->filter('#case-hero-actions [data-testid="hero-primary-cta"]')->attr('data-tone'));
+
+        $this->em->getConnection()->executeStatement('UPDATE legal_case SET payment_notice_communication_date = ? WHERE id = ?', [(new \DateTimeImmutable('-3 days'))->format('Y-m-d'), $this->case->getId()]);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertSame('false', $crawler->filter('[data-testid="hero-next-step"]')->attr('data-blocked'));
+        self::assertSame('filled', $crawler->filter('#case-hero-actions [data-testid="hero-primary-cta"]')->attr('data-tone'));
+    }
+
+    public function testHeroActionStepsBackWhileTheOrderCommunicationDateIsMissing(): void
+    {
+        $this->client->loginUser($this->user);
+        $this->enrichCase(CaseStatus::IN_ANULARE);
+        $this->case->setRulingCommunicationDate(null);
+        $this->em->flush();
+
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertSame('true', $crawler->filter('[data-testid="hero-next-step"]')->attr('data-blocked'));
+        self::assertStringContainsString('data comunicării ordonanței', $crawler->filter('[data-testid="hero-next-step"]')->text());
+        self::assertSame('outline', $crawler->filter('#case-hero-actions [data-testid="hero-primary-cta"][data-hs-overlay="#hs-modal-executare"]')->attr('data-tone'));
+    }
+
     public function testFullPaymentActionAbsentOnceRequestGenerated(): void
     {
         $this->enrichCase(CaseStatus::CERERE_GENERATA);
