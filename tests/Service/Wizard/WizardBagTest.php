@@ -191,6 +191,35 @@ final class WizardBagTest extends TestCase
         self::assertSame([], $bag->toArray()['conflictsAcknowledged']);
     }
 
+    public function testDebtorsAreStillOfferedWhenNoneAreSavedOrTheyFitTheProduct(): void
+    {
+        self::assertNull((new WizardBag())->debtorsNoLongerOfferedReason());
+
+        $offered = new WizardBag(debtors: new Step2DebtorsData([new Step2DebtorEntry(personType: PersonType::PJ, name: 'Debitor SRL', cui: '14186770')]));
+        self::assertNull($offered->debtorsNoLongerOfferedReason());
+
+        $blank = new WizardBag(debtors: new Step2DebtorsData([new Step2DebtorEntry()]));
+        self::assertNull($blank->debtorsNoLongerOfferedReason(), 'A row without a person type is not sent back.');
+    }
+
+    public function testMoreDebtorsThanTheProductAcceptsAreSentBackBeforeTheirPersonTypeIsLooked(): void
+    {
+        $entries = [];
+        for ($i = 0; $i <= Step2DebtorsData::MAX_DEBTORS; $i++) {
+            $entries[] = new Step2DebtorEntry(personType: PersonType::PF, name: 'Debitor ' . $i);
+        }
+        $bag = new WizardBag(debtors: new Step2DebtorsData($entries));
+
+        self::assertSame('wizard.step2.flash.too_many_debtors', $bag->debtorsNoLongerOfferedReason());
+    }
+
+    public function testADebtorOfAPersonTypeNoLongerOfferedIsSentBack(): void
+    {
+        $bag = new WizardBag(debtors: new Step2DebtorsData([new Step2DebtorEntry(personType: PersonType::PF, name: 'Ion Popescu')]));
+
+        self::assertSame('wizard.step2.flash.person_type_not_offered', $bag->debtorsNoLongerOfferedReason());
+    }
+
     /**
      * @return array<string, mixed>
      */
