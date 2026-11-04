@@ -6,6 +6,18 @@ Planul sintetizează patru analize (ciornă + ștergere, recalcul + card Creanț
 
 Obiectivul declarat: totul să meargă ca înainte, nimic să nu se strice, iar funcțiile noi să meargă la fel de bine. De aici decurg toate principiile din secțiunea 2.
 
+## Stare: LIVRAT (2026-11-04, ramura `feature/editare-dosar`)
+
+Toate cele 7 faze sunt implementate, verificate în browser pe Docker și comise pe ramura `feature/editare-dosar` (nu încă în `lexrecovery`, fără `make demo-sync`). Suita completă după Faza 5: 4315 teste, singura eroare fiind drift-ul cunoscut al bazei de dev (`SchemaValidateTest`, coloane din ramura executorilor). Capturile din Faza 6 sunt în `capturi/editare-dosar/`, iar documentul pentru avocat a fost actualizat cu ele și cu întrebările H, I, K, L.
+
+Abateri față de plan, acceptate pe parcurs:
+
+- Faza 1: lacăt optimist prin `CaseDraftRepository::updateIfVersion`, nu `#[ORM\Version]`; `WizardStateStore::detach()`; plafonul de ciorne verificat și la GET pasul 0; `CaseDraftListBuilder`, `CaseDraftDiscarder`, `CaseDraftPayloadCodec` ca servicii separate.
+- Faza 3: `CaseFxTrace` clasă separată; `createPrescriptionDeadlines(?notBefore)`; avertisment nou `ACCESSORY_CUTOFF_BEFORE_DUE_DATE`.
+- Faza 4: refuzul facturii altor părți nu șterge fișierul (GET-ul de stare rămâne read-only, U6 acoperă ștergerea din Documente); `DocumentReferenceNormalizer` pliază diacriticele; proprietarul al cărui dosar a trecut de amiabil între timp primește pagina redesenată blocată și un toast, nu 403; după un refuz, dialogul oferă „Încarcă altă factură”.
+- Faza 5: `removableDocument` rămâne în `Step0DocumentsController` și `renderConfirmation` în `Step4ConfirmationController` (un singur apelant fiecare); split-ul controllerelor s-a făcut într-un singur commit; 5.12 (`DocumentRemovalPlanner` pe `WizardBag`) nu s-a făcut; controllerele de pas rămân lungi (`confirmation()` și `documents()` peste 200 de linii), de subțiat separat.
+- Faza 6: scenariul „factură în valută fără curs” nu a putut fi reprodus live (BNR are curs pentru orice dată trecută); e acoperit de teste. Întrebările pentru avocat A/B' și D' rămân în secțiunea 6, formularea cu CPC art. 99 e de confirmat de avocat (întrebarea F).
+
 ---
 
 ## 1. Scop și delimitare
