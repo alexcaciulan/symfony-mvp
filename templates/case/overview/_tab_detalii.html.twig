@@ -1,4 +1,4 @@
-{# Tab Detalii orchestrator: main col-span-2 (Părți + Creanță + Court) + sticky sidebar (Termen ring + Acțiuni recomandate). #}
+{# Tab Detalii orchestrator: main col-span-2 (Părți + Creanță + Court + recovery costs + the owner's notes) + sticky sidebar (Termen ring + Acțiuni recomandate). #}
 
 <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
 
@@ -6,6 +6,10 @@
         {{ include('case/overview/_party_card.html.twig') }}
         {{ include('case/overview/_claim_composition.html.twig') }}
         {{ include('case/overview/_court_summary.html.twig') }}
+        {{ include('case/overview/_legal_costs_card.html.twig') }}
+        {% if is_granted('CASE_NOTES_EDIT', case) %}
+            {{ include('case/overview/_notes_card.html.twig') }}
+        {% endif %}
     </div>
 
     <aside id="case-detalii-sidebar" class="xl:col-span-1 space-y-6 xl:sticky xl:top-20 self-start">

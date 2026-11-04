@@ -1,0 +1,12 @@
+{# Answer of a notes save: the card redrawn with the stored text and a toast. A
+   refused save only adds the toast, so the typed text stays in the field. #}
+{% if redraw_card %}
+    <turbo-stream action="replace" target="case-notes-card">
+        <template>{{ include('case/overview/_notes_card.html.twig') }}</template>
+    </turbo-stream>
+{% endif %}
+<turbo-stream action="append" target="toasts">
+    <template>
+        {% include 'components/Toast.html.twig' with { message: toast_message, variant: toast_variant, details: [] } only %}
+    </template>
+</turbo-stream>

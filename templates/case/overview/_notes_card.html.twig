@@ -1,0 +1,29 @@
+{# Card Note interne: free text for the case owner only (discussions with the
+   client, payment promises, contacts). Editable in every status; it reaches no
+   act. Rendered only under CASE_NOTES_EDIT, so the admin never sees it. #}
+{% from 'case/overview/_icons.html.twig' import icon_edit, icon_lock %}
+<section id="case-notes-card" class="bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 p-5" data-testid="case-notes-card">
+    <form method="post" action="{{ path('case_notes_update', {id: case.id}) }}" data-turbo-frame="_top" data-testid="case-notes-form" class="space-y-3">
+        <input type="hidden" name="case_notes[_token]" value="{{ csrf_token('case_notes') }}">
+        <div class="flex items-start gap-3">
+            <span class="inline-flex items-center justify-center size-9 rounded-lg bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-800/60 text-slate-600 dark:text-slate-300 shrink-0">
+                {{ icon_edit('size-5') }}
+            </span>
+            <div class="min-w-0">
+                <h3 class="text-sm font-semibold text-slate-900 dark:text-white"><label for="case_notes_notes">{{ 'case.notes.title'|trans }}</label></h3>
+                <p class="mt-0.5 flex items-start gap-1.5 text-xs text-slate-500">
+                    {{ icon_lock('size-3.5 shrink-0 mt-px text-slate-400') }}
+                    <span>{{ 'case.notes.hint'|trans }}</span>
+                </p>
+            </div>
+        </div>
+        <textarea id="case_notes_notes" name="case_notes[notes]" rows="4" maxlength="5000"
+                  aria-label="{{ 'case.notes.label'|trans }}"
+                  placeholder="{{ 'case.notes.placeholder'|trans }}"
+                  data-testid="case-notes-textarea"
+                  class="w-full py-2 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">{{ case.notes }}</textarea>
+        <div class="flex justify-end">
+            <button type="submit" data-testid="case-notes-submit" class="py-2 px-3 inline-flex items-center text-xs font-semibold rounded-lg bg-lex-navy text-white hover:bg-lex-navy/90 transition">{{ 'case.notes.save'|trans }}</button>
+        </div>
+    </form>
+</section>

@@ -29,8 +29,10 @@ use App\Enum\PersonType;
 use App\Enum\PortalEventType;
 use App\Enum\RelationshipType;
 use App\Enum\StampDutyStatus;
+use App\Service\Case\CaseNotesService;
 use App\Tests\Support\CountyFixtureTrait;
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\HttpFoundation\Response;
@@ -52,6 +54,9 @@ final class CaseOverviewControllerTest extends WebTestCase
     private EntityManagerInterface $em;
     private User $user;
     private LegalCase $case;
+
+    /** @var list<int> */
+    private array $extraUserIds = [];
 
     protected function setUp(): void
     {
@@ -90,6 +95,9 @@ final class CaseOverviewControllerTest extends WebTestCase
         $conn->executeStatement('DELETE FROM creditor WHERE user_id = :id', ['id' => $userId]);
         $conn->executeStatement("DELETE FROM court WHERE name LIKE 'Test Court %'");
         $conn->executeStatement('DELETE FROM `user` WHERE id = :id', ['id' => $userId]);
+        foreach ($this->extraUserIds as $extraId) {
+            $conn->executeStatement('DELETE FROM `user` WHERE id = :id', ['id' => $extraId]);
+        }
 
         parent::tearDown();
     }
@@ -1556,5 +1564,135 @@ final class CaseOverviewControllerTest extends WebTestCase
         self::assertCount(1, $blocker);
         self::assertCount(1, $blocker->filter('button[data-upload-preset-type="imputernicire_avocatiala"]'));
         self::assertCount(0, $crawler->filter('#panel-documente a[href$="/zip-package/download"]'));
+    }
+
+    #[DataProvider('legalCostsEditableStatuses')]
+    public function testLegalCostsCardShowsValuesAndEditButtonWhileAllowed(CaseStatus $status): void
+    {
+        $this->enrichCase($status);
+        $this->case->setLegalCostsFixed('1500.00');
+        $this->case->setLegalCostsCurrency('RON');
+        $this->case->setLegalCostsSuccessPercent('7.50');
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $card = $crawler->filter('[data-testid="case-legal-costs-card"]');
+        self::assertCount(1, $card);
+        self::assertStringContainsString('1.500,00 RON', $card->filter('[data-testid="legal-costs-fixed"]')->text());
+        self::assertStringContainsString('7,5%', $card->filter('[data-testid="legal-costs-success"]')->text());
+        self::assertCount(1, $card->filter('[data-testid="legal-costs-edit"]'));
+        self::assertCount(0, $card->filter('[data-testid="legal-costs-locked-note"]'));
+        self::assertCount(1, $crawler->filter('[data-testid="modal-legal-costs"]'));
+        self::assertSame('1500', $crawler->filter('#legal_costs_legalCostsFixed')->attr('value'));
+    }
+
+    /** @return iterable<string, array{CaseStatus}> */
+    public static function legalCostsEditableStatuses(): iterable
+    {
+        yield 'amiable' => [CaseStatus::AMIABIL];
+        yield 'summons sent' => [CaseStatus::SOMATIE_TRIMISA];
+    }
+
+    public function testLegalCostsCardIsLockedFromPetitionGenerated(): void
+    {
+        $this->enrichCase(CaseStatus::CERERE_GENERATA);
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $card = $crawler->filter('[data-testid="case-legal-costs-card"]');
+        self::assertCount(1, $card);
+        self::assertCount(0, $card->filter('[data-testid="legal-costs-edit"]'));
+        self::assertCount(1, $card->filter('[data-testid="legal-costs-locked-note"]'));
+        self::assertCount(0, $crawler->filter('[data-testid="modal-legal-costs"]'));
+    }
+
+    public function testNotesCardIsVisibleToTheOwnerInAnyStatus(): void
+    {
+        foreach ([CaseStatus::AMIABIL, CaseStatus::DOSAR_INREGISTRAT, CaseStatus::INCHIS_SUCCES] as $status) {
+            $this->case->setStatus($status);
+            $this->case->setNotes('Clientul revine luni.');
+            $this->em->flush();
+
+            $this->client->loginUser($this->user);
+            $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+            self::assertResponseIsSuccessful($status->value);
+            self::assertCount(1, $crawler->filter('[data-testid="case-notes-card"]'), $status->value);
+            self::assertSame('Clientul revine luni.', $crawler->filter('[data-testid="case-notes-textarea"]')->text(), $status->value);
+        }
+    }
+
+    public function testNotesCardIsHiddenFromTheAdmin(): void
+    {
+        $this->enrichCase();
+        // Saved through the service, so the audit tab carries an entry with the text too.
+        static::getContainer()->get(CaseNotesService::class)->update($this->case, 'Secret profesional.', $this->user);
+        $admin = new User();
+        $admin->setEmail('overview-admin-' . uniqid() . '@test.com');
+        $admin->setPassword('x');
+        $admin->setIsVerified(true);
+        $admin->setRoles(['ROLE_ADMIN']);
+        $this->em->persist($admin);
+        $this->em->flush();
+        $this->extraUserIds[] = $admin->getId();
+
+        $this->client->loginUser($admin);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertCount(0, $crawler->filter('[data-testid="case-notes-card"]'));
+        $page = (string) $this->client->getResponse()->getContent();
+        self::assertStringContainsString('Case Notes Edited', $page, 'The audit tab says the notes changed.');
+        self::assertStringNotContainsString('Secret profesional.', $page, 'Neither the card nor the audit entry shows the text.');
+    }
+
+    public function testOutdatedPetitionShowsTheBadge(): void
+    {
+        $this->enrichCase(CaseStatus::CERERE_GENERATA);
+        $petition = $this->attachDocument(DocumentType::CERERE_OP);
+        $petition->setOutdatedAt(new \DateTimeImmutable('-1 day'));
+        $this->em->flush();
+        $this->em->clear();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        self::assertCount(1, $crawler->filter('#panel-documente [data-testid="payment-order-outdated-badge"]'));
+    }
+
+    public function testClaimDetailsDialogContainsTheAccessoryAndContractFields(): void
+    {
+        $this->enrichCase();
+        $this->case->setPenaltyType(PenaltyType::CONTRACTUAL);
+        $this->case->setContractualPenaltyRate('0.150');
+        $this->case->setContractualPenaltyCapPercent('10.00');
+        $this->case->setContractNumber('58');
+        $this->case->setContractDate(new \DateTime('2024-01-10'));
+        $this->case->setAccessoryCutoffDate(new \DateTimeImmutable('-10 days'));
+        $this->em->flush();
+
+        $this->client->loginUser($this->user);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertResponseIsSuccessful();
+        $dialog = $crawler->filter('[data-testid="modal-claim-details"]');
+        self::assertCount(1, $dialog);
+        self::assertSame('CONTRACTUAL', $dialog->filter('#claim_details_penaltyType option[selected]')->attr('value'));
+        self::assertSame('0.15', $dialog->filter('#claim_details_contractualPenaltyRate')->attr('value'));
+        self::assertSame('10', $dialog->filter('#claim_details_contractualPenaltyCapPercent')->attr('value'));
+        self::assertCount(1, $dialog->filter('#claim_details_contractualAccessoryLabel'));
+        self::assertSame((new \DateTimeImmutable('-10 days'))->format('Y-m-d'), $dialog->filter('#claim_details_accessoryCutoffDate')->attr('value'));
+        self::assertSame('58', $dialog->filter('#claim_details_contractNumber')->attr('value'));
+        self::assertSame('2024-01-10', $dialog->filter('#claim_details_contractDate')->attr('value'));
+        self::assertCount(1, $dialog->filter('#claim_details_contractObject'));
+        $contractual = $dialog->filter('[data-conditional-fields-target="conditional"]');
+        self::assertCount(1, $contractual);
+        self::assertStringNotContainsString('hidden', (string) $contractual->attr('class'), 'The contractual section is open for a contractual case.');
     }
 }

@@ -107,6 +107,9 @@ class AuditLogService
     /** Claim positions changed on an amiable case; `oldData`/`newData` hold the positions before and after. */
     public const CATEGORY_CLAIM_EDITED = 'CLAIM_EDITED';
 
+    /** The lawyer's internal notes on a case changed; `oldData`/`newData` hold the text, CNPs masked. */
+    public const CATEGORY_CASE_NOTES = 'CASE_NOTES';
+
     public function __construct(
         private EntityManagerInterface $em,
         private Security $security,

@@ -1,0 +1,26 @@
+{# The inputs of the recovery costs dialog, prefilled from the case. Refreshed in
+   place after a save so reopening the dialog shows what was saved. #}
+{% set fld = 'w-full py-2 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500' %}
+{% set lbl = 'block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5' %}
+{% set current_currency = case.legalCostsCurrency ?: 'EUR' %}
+<div class="space-y-4">
+    <p class="text-xs text-slate-500">{{ 'case.legal_costs.intro'|trans }}</p>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="sm:col-span-2">
+            <label for="legal_costs_legalCostsFixed" class="{{ lbl }}">{{ 'wizard.step3.field.legal_costs_fixed'|trans }}</label>
+            <input type="number" id="legal_costs_legalCostsFixed" name="legal_costs[legalCostsFixed]" step="0.01" min="0" inputmode="decimal" value="{{ case.legalCostsFixed is not null ? case.legalCostsFixed + 0 : '' }}" class="{{ fld }}">
+        </div>
+        <div>
+            <label for="legal_costs_legalCostsCurrency" class="{{ lbl }}">{{ 'wizard.step3.field.legal_costs_currency'|trans }}</label>
+            <select id="legal_costs_legalCostsCurrency" name="legal_costs[legalCostsCurrency]" class="{{ fld }}">
+                {% for currency in ['EUR', 'RON'] %}
+                    <option value="{{ currency }}" {{ current_currency == currency ? 'selected' : '' }}>{{ ('enum.currency.' ~ currency)|trans }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    <div>
+        <label for="legal_costs_legalCostsSuccessPercent" class="{{ lbl }}">{{ 'wizard.step3.field.legal_costs_success_percent'|trans }}</label>
+        <input type="number" id="legal_costs_legalCostsSuccessPercent" name="legal_costs[legalCostsSuccessPercent]" step="0.01" min="0" max="100" inputmode="decimal" value="{{ case.legalCostsSuccessPercent is not null ? case.legalCostsSuccessPercent + 0 : '' }}" class="{{ fld }}">
+    </div>
+</div>

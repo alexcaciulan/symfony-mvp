@@ -60,8 +60,22 @@ class CaseVoter extends Voter
      */
     public const CLAIM_EDIT = 'CASE_CLAIM_EDIT';
 
+    /**
+     * Correcting the recovery costs the payment order petition asks for. Owner only,
+     * with no admin bypass, from AMIABIL until the petition is generated: the costs
+     * appear in no act before it, so the summons does not lock them.
+     */
+    public const LEGAL_COSTS_EDIT = 'CASE_LEGAL_COSTS_EDIT';
+
+    /**
+     * Reading and writing the lawyer's internal notes on the case. Owner only, in
+     * every status, with no admin bypass: the notes may hold what the client said,
+     * and they reach no act, so a transmission in progress does not lock them.
+     */
+    public const NOTES_EDIT = 'CASE_NOTES_EDIT';
+
     /** What would change the content of a filing the platform is transmitting. */
-    private const LOCKED_BY_FILING = [self::EDIT, self::UPLOAD, self::STAMP_DUTY_MANAGE, self::DELETE, self::CLAIM_EDIT];
+    private const LOCKED_BY_FILING = [self::EDIT, self::UPLOAD, self::STAMP_DUTY_MANAGE, self::DELETE, self::CLAIM_EDIT, self::LEGAL_COSTS_EDIT];
 
     private const EDITABLE_STATUSES = [
         CaseStatus::AMIABIL,
@@ -78,7 +92,7 @@ class CaseVoter extends Voter
 
     protected function supports(string $attribute, mixed $subject): bool
     {
-        return in_array($attribute, [self::VIEW, self::EDIT, self::UPLOAD, self::TRANSITION, self::DEADLINE_MANAGE, self::STAMP_DUTY_MANAGE, self::FILING_CONTENT, self::DELETE, self::CLAIM_EDIT], true)
+        return in_array($attribute, [self::VIEW, self::EDIT, self::UPLOAD, self::TRANSITION, self::DEADLINE_MANAGE, self::STAMP_DUTY_MANAGE, self::FILING_CONTENT, self::DELETE, self::CLAIM_EDIT, self::LEGAL_COSTS_EDIT, self::NOTES_EDIT], true)
             && $subject instanceof LegalCase;
     }
 
@@ -120,6 +134,12 @@ class CaseVoter extends Voter
         // Same reasoning: the sums and the positions are the lawyer's statement.
         if ($attribute === self::CLAIM_EDIT) {
             return $this->canEditClaim($legalCase, $user);
+        }
+        if ($attribute === self::LEGAL_COSTS_EDIT) {
+            return $legalCase->getUser() === $user && $legalCase->getStatus()->allowsLegalCostsEdit();
+        }
+        if ($attribute === self::NOTES_EDIT) {
+            return $legalCase->getUser() === $user;
         }
 
         if (in_array('ROLE_ADMIN', $user->getRoles(), true)) {

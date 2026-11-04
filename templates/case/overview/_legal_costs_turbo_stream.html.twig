@@ -1,0 +1,22 @@
+{# Answer of a recovery costs save or refusal: the card redrawn, the dialog fields
+   refilled, the documents tab redrawn when a generated petition was marked
+   outdated, the dialog closed and a toast. #}
+<turbo-stream action="replace" target="case-legal-costs-card">
+    <template>{{ include('case/overview/_legal_costs_card.html.twig') }}</template>
+</turbo-stream>
+<turbo-stream action="update" target="legal-costs-fields">
+    <template>{{ include('case/overview/_legal_costs_fields.html.twig') }}</template>
+</turbo-stream>
+{% if refresh_documents %}
+    <turbo-stream action="update" target="panel-documente">
+        <template>{{ include('case/overview/_tab_documente.html.twig') }}</template>
+    </turbo-stream>
+{% endif %}
+<turbo-stream action="append" target="toasts">
+    <template><div data-controller="close-modal" data-close-modal-target-id-value="{{ close_modal_id }}"></div></template>
+</turbo-stream>
+<turbo-stream action="append" target="toasts">
+    <template>
+        {% include 'components/Toast.html.twig' with { message: toast_message, variant: toast_variant, details: toast_details|default([]) } only %}
+    </template>
+</turbo-stream>

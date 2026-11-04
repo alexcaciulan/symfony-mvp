@@ -20,7 +20,6 @@ use EasyCorp\Bundle\EasyAdminBundle\Field\DateField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\DateTimeField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\IdField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\MoneyField;
-use EasyCorp\Bundle\EasyAdminBundle\Field\TextareaField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\TextField;
 use EasyCorp\Bundle\EasyAdminBundle\Filter\ChoiceFilter;
 use EasyCorp\Bundle\EasyAdminBundle\Filter\DateTimeFilter;
@@ -96,7 +95,6 @@ class LegalCaseCrudController extends AbstractCrudController
         // enforcement limitation, so the label must not suggest it is the date the
         // order became final.
         yield DateField::new('finalRulingDate', 'Data pronunțării')->onlyOnDetail();
-        yield TextareaField::new('notes', 'Note')->onlyOnDetail();
     }
 
     public function configureFilters(Filters $filters): Filters

@@ -1,0 +1,48 @@
+{# Card Cheltuieli de recuperare: the fee the payment order petition asks for.
+   The owner corrects it from here until the petition is generated; afterwards
+   the card says why it no longer changes. #}
+{% from 'case/overview/_icons.html.twig' import icon_document, icon_lock, icon_edit %}
+{% set can_edit_legal_costs = is_granted('CASE_LEGAL_COSTS_EDIT', case) %}
+<section id="case-legal-costs-card" class="bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 p-5" data-testid="case-legal-costs-card">
+    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div class="flex items-start gap-3 min-w-0">
+            <span class="inline-flex items-center justify-center size-9 rounded-lg bg-gradient-to-br from-sky-50 to-sky-100 dark:from-sky-950/50 dark:to-sky-900/30 text-sky-600 dark:text-sky-400 shrink-0">
+                {{ icon_document('size-5') }}
+            </span>
+            <div class="min-w-0">
+                <h3 class="text-sm font-semibold text-slate-900 dark:text-white">{{ 'case.legal_costs.title'|trans }}</h3>
+                <p class="text-xs text-slate-500 mt-0.5">{{ 'wizard.step3.help.legal_costs'|trans }}</p>
+            </div>
+        </div>
+        {% if can_edit_legal_costs %}
+            <button type="button"
+                    data-hs-overlay="#hs-modal-legal-costs"
+                    data-testid="legal-costs-edit"
+                    class="self-start py-2 px-3 inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-800 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 transition shrink-0">
+                {{ icon_edit('size-3.5') }}
+                {{ 'case.legal_costs.edit'|trans }}
+            </button>
+        {% endif %}
+    </div>
+    <dl class="mt-4 grid grid-cols-2 gap-4">
+        <div>
+            <dt class="text-[10px] font-bold uppercase tracking-wider text-slate-500">{{ 'case.legal_costs.fixed'|trans }}</dt>
+            <dd class="mt-0.5 text-sm font-semibold text-slate-900 dark:text-white" data-testid="legal-costs-fixed">
+                {% if case.legalCostsFixed is not null %}{{ case.legalCostsFixed|number_format(2, ',', '.') }} {{ case.legalCostsCurrency }}{% else %}{{ 'case.legal_costs.empty'|trans }}{% endif %}
+            </dd>
+        </div>
+        <div>
+            <dt class="text-[10px] font-bold uppercase tracking-wider text-slate-500">{{ 'case.legal_costs.success'|trans }}</dt>
+            <dd class="mt-0.5 text-sm font-semibold text-slate-900 dark:text-white" data-testid="legal-costs-success">
+                {% if case.legalCostsSuccessPercent is not null %}{{ case.legalCostsSuccessPercent|percent_number }}%{% else %}{{ 'case.legal_costs.empty'|trans }}{% endif %}
+            </dd>
+            <p class="mt-0.5 text-[11px] text-slate-500" data-testid="legal-costs-success-hint">{{ 'case.legal_costs.success_hint'|trans }}</p>
+        </div>
+    </dl>
+    {% if not can_edit_legal_costs and not case.status.allowsLegalCostsEdit %}
+        <p class="mt-4 flex items-start gap-2 text-xs text-slate-500 dark:text-slate-400" data-testid="legal-costs-locked-note">
+            {{ icon_lock('size-4 shrink-0 text-slate-400 mt-px') }}
+            <span>{{ 'case.legal_costs.locked_note'|trans }}</span>
+        </p>
+    {% endif %}
+</section>

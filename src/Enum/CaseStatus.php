@@ -74,6 +74,15 @@ enum CaseStatus: string
         };
     }
 
+    /**
+     * The recovery costs appear only in the payment order petition, so they may
+     * be corrected after the summons and until the petition is generated.
+     */
+    public function allowsLegalCostsEdit(): bool
+    {
+        return self::AMIABIL === $this || self::SOMATIE_TRIMISA === $this;
+    }
+
     public function isActiveOnPortal(): bool
     {
         return match ($this) {

@@ -79,6 +79,9 @@
                     <div class="flex items-center gap-2 flex-wrap">
                         <span class="font-semibold text-sm text-slate-900 dark:text-white">{{ 'case_overview.documents.cerere_label'|trans }}</span>
                         <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300">{{ 'case_overview.documents.cerere_status_generated'|trans }}</span>
+                        {% if cerere_op_doc.outdated %}
+                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300" title="{{ 'case_overview.documents.cerere_outdated_hint'|trans({'%date%': cerere_op_doc.outdatedAt|date('d.m.Y')}) }}" data-testid="payment-order-outdated-badge">{{ 'case_overview.documents.cerere_status_outdated'|trans }}</span>
+                        {% endif %}
                     </div>
                     <div class="text-xs text-slate-500 mt-0.5">{{ 'case_overview.documents.cerere_generated_on'|trans({'%date%': cerere_op_doc.createdAt|date('d.m.Y H:i')}) }}</div>
                 </div>

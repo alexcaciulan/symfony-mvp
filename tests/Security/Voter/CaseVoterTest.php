@@ -468,4 +468,104 @@ class CaseVoterTest extends TestCase
         $this->assertSame(VoterInterface::ACCESS_DENIED, $this->voter->vote($this->createToken($admin), $case, [CaseVoter::FILING_CONTENT]));
         $this->assertSame(VoterInterface::ACCESS_DENIED, $this->voter->vote($this->createToken($other), $case, [CaseVoter::FILING_CONTENT]));
     }
+
+    #[DataProvider('legalCostsStatusProvider')]
+    public function testOwnerMayEditLegalCostsUntilThePetitionIsGenerated(CaseStatus $status, bool $granted): void
+    {
+        $owner = new User();
+        $case = $this->persistedCase($owner, $status);
+
+        self::assertSame(
+            $granted ? VoterInterface::ACCESS_GRANTED : VoterInterface::ACCESS_DENIED,
+            $this->voter->vote($this->createToken($owner), $case, [CaseVoter::LEGAL_COSTS_EDIT]),
+            $status->value,
+        );
+    }
+
+    /** @return iterable<string, array{CaseStatus, bool}> */
+    public static function legalCostsStatusProvider(): iterable
+    {
+        foreach (CaseStatus::cases() as $status) {
+            yield $status->value => [$status, in_array($status, [CaseStatus::AMIABIL, CaseStatus::SOMATIE_TRIMISA], true)];
+        }
+    }
+
+    public function testLegalCostsEditIsRefusedToOtherUsersAndToTheAdmin(): void
+    {
+        $owner = new User();
+        $other = new User();
+        $admin = new User();
+        $admin->setRoles(['ROLE_ADMIN']);
+        $case = $this->persistedCase($owner, CaseStatus::SOMATIE_TRIMISA);
+
+        self::assertSame(VoterInterface::ACCESS_DENIED, $this->voter->vote($this->createToken($other), $case, [CaseVoter::LEGAL_COSTS_EDIT]));
+        self::assertSame(VoterInterface::ACCESS_DENIED, $this->voter->vote($this->createToken($admin), $case, [CaseVoter::LEGAL_COSTS_EDIT]));
+    }
+
+    public function testFilingLockDeniesLegalCostsEdit(): void
+    {
+        $voter = new CaseVoter($this->lockQuery(true));
+        $owner = new User();
+        $case = $this->persistedCase($owner, CaseStatus::SOMATIE_TRIMISA);
+
+        self::assertSame(VoterInterface::ACCESS_DENIED, $voter->vote($this->createToken($owner), $case, [CaseVoter::LEGAL_COSTS_EDIT]));
+    }
+
+    public function testADeletedCaseRefusesLegalCostsEdit(): void
+    {
+        $owner = new User();
+        $case = $this->persistedCase($owner, CaseStatus::AMIABIL);
+        $case->markAsDeleted();
+
+        self::assertSame(VoterInterface::ACCESS_DENIED, $this->voter->vote($this->createToken($owner), $case, [CaseVoter::LEGAL_COSTS_EDIT]));
+    }
+
+    #[DataProvider('everyStatusProvider')]
+    public function testOwnerMayEditNotesInEveryStatus(CaseStatus $status): void
+    {
+        $owner = new User();
+        $case = $this->persistedCase($owner, $status);
+
+        self::assertSame(VoterInterface::ACCESS_GRANTED, $this->voter->vote($this->createToken($owner), $case, [CaseVoter::NOTES_EDIT]), $status->value);
+    }
+
+    /** @return iterable<string, array{CaseStatus}> */
+    public static function everyStatusProvider(): iterable
+    {
+        foreach (CaseStatus::cases() as $status) {
+            yield $status->value => [$status];
+        }
+    }
+
+    /** The notes may hold what the client said: no other user and no admin bypass. */
+    public function testNotesEditIsRefusedToOtherUsersAndToTheAdmin(): void
+    {
+        $owner = new User();
+        $other = new User();
+        $admin = new User();
+        $admin->setRoles(['ROLE_ADMIN']);
+        $case = $this->persistedCase($owner, CaseStatus::DOSAR_INREGISTRAT);
+
+        self::assertSame(VoterInterface::ACCESS_DENIED, $this->voter->vote($this->createToken($other), $case, [CaseVoter::NOTES_EDIT]));
+        self::assertSame(VoterInterface::ACCESS_DENIED, $this->voter->vote($this->createToken($admin), $case, [CaseVoter::NOTES_EDIT]));
+    }
+
+    public function testADeletedCaseRefusesNotesEdit(): void
+    {
+        $owner = new User();
+        $case = $this->persistedCase($owner, CaseStatus::AMIABIL);
+        $case->markAsDeleted();
+
+        self::assertSame(VoterInterface::ACCESS_DENIED, $this->voter->vote($this->createToken($owner), $case, [CaseVoter::NOTES_EDIT]));
+    }
+
+    /** The notes reach no act, so a transmission in progress leaves them open. */
+    public function testFilingLockDoesNotBlockNotes(): void
+    {
+        $voter = new CaseVoter($this->lockQuery(true));
+        $owner = new User();
+        $case = $this->persistedCase($owner, CaseStatus::CERERE_GENERATA);
+
+        self::assertSame(VoterInterface::ACCESS_GRANTED, $voter->vote($this->createToken($owner), $case, [CaseVoter::NOTES_EDIT]));
+    }
 }
