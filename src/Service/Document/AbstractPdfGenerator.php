@@ -79,8 +79,10 @@ abstract class AbstractPdfGenerator
         if ($existing !== null) {
             $existing->setFileSize(strlen($pdfContent));
             // The fresh file is built from the claim as it stands now, so a mark left
-            // by an earlier edit of the claim no longer applies.
+            // by an earlier edit of the claim no longer applies, and the act is dated
+            // by this generation.
             $existing->setOutdatedAt(null);
+            $existing->setCreatedAt(new \DateTimeImmutable());
 
             return $existing;
         }

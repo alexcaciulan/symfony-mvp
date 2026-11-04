@@ -171,6 +171,7 @@ final class PaymentNoticeGeneratorServiceTest extends KernelTestCase
         $first = $this->service->generate($this->case);
         $this->em->flush();
         $first->setOutdatedAt(new \DateTimeImmutable('-1 hour'));
+        $first->setCreatedAt(new \DateTimeImmutable('-1 day'));
         $this->em->flush();
 
         $second = $this->service->generate($this->case);
@@ -179,6 +180,7 @@ final class PaymentNoticeGeneratorServiceTest extends KernelTestCase
         self::assertSame($first->getId(), $second->getId(), 'One generated document per type.');
         self::assertNull($second->getOutdatedAt());
         self::assertFalse($second->isOutdated());
+        self::assertGreaterThan(new \DateTimeImmutable('-1 minute'), $second->getCreatedAt(), 'The act is dated by its latest generation.');
     }
 
     public function testRenderHtmlShowsContractObjectWhenSet(): void

@@ -219,6 +219,14 @@ class Document
         return $this->createdAt;
     }
 
+    /** A generated act built again is dated by its latest generation, not its first. */
+    public function setCreatedAt(\DateTimeImmutable $createdAt): static
+    {
+        $this->createdAt = $createdAt;
+
+        return $this;
+    }
+
     public function getExtractedData(): ?array
     {
         return $this->extractedData;
