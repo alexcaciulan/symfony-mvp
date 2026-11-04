@@ -64,18 +64,22 @@ final class ExpireCaseDraftsCommand extends Command
         $expired = $this->drafts->findInactiveSince($cutoff);
         $documentsWithDrafts = 0;
         foreach ($expired as $draft) {
+            // Read before the delete: a removed entity no longer carries its id.
+            $draftId = $draft->getId();
             $count = $dryRun ? count($this->discarder->documentsOf($draft)) : $this->discarder->discard($draft, null, CaseDraftDiscarder::REASON_EXPIRED);
             $documentsWithDrafts += $count;
-            $io->text(sprintf('%s draft #%d (user #%d, last activity %s, %d document(s))', $dryRun ? 'Would delete' : 'Deleted', $draft->getId(), $draft->getUser()->getId(), $draft->getLastActivityAt()->format('Y-m-d'), $count));
+            $io->text(sprintf('%s draft #%d (user #%d, last activity %s, %d document(s))', $dryRun ? 'Would delete' : 'Deleted', $draftId, $draft->getUser()->getId(), $draft->getLastActivityAt()->format('Y-m-d'), $count));
         }
 
         $io->section('Orphan uploads');
         $orphans = $this->documents->findOrphansOlderThan($cutoff);
         foreach ($orphans as $document) {
+            // Read before the delete: a removed entity no longer carries its id.
+            $line = sprintf('%s document #%d (uploaded %s)', $dryRun ? 'Would delete' : 'Deleted', $document->getId(), $document->getCreatedAt()->format('Y-m-d'));
             if (!$dryRun) {
                 $this->uploads->delete($document, null);
             }
-            $io->text(sprintf('%s document #%d (uploaded %s)', $dryRun ? 'Would delete' : 'Deleted', $document->getId(), $document->getCreatedAt()->format('Y-m-d')));
+            $io->text($line);
         }
 
         $summary = sprintf('%d draft(s) with %d document(s), %d orphan upload(s).', count($expired), $documentsWithDrafts, count($orphans));
