@@ -14,6 +14,10 @@
 <turbo-stream action="update" target="summons-communication-alert">
     <template>{{ include('case/overview/_summons_communication_alert.html.twig') }}</template>
 </turbo-stream>
+{# The claim card loses its edit actions and the notes keep working on a closed case. #}
+<turbo-stream action="update" target="panel-detalii">
+    <template>{{ include('case/overview/_tab_detalii.html.twig') }}</template>
+</turbo-stream>
 <turbo-stream action="update" target="panel-documente">
     <template>{{ include('case/overview/_tab_documente.html.twig') }}</template>
 </turbo-stream>

@@ -1054,6 +1054,9 @@ final class CaseTransitionControllerTest extends WebTestCase
             $translator->trans('case_overview.pipeline.closed_at_stage', ['%current%' => 1, '%total%' => 5, '%label%' => $translator->trans('case_overview.pipeline.stage_1_amiabil')]),
             $body,
         );
+        self::assertStringContainsString('target="panel-detalii"', $body);
+        self::assertStringContainsString('data-testid="claim-state-chip" data-state="closed"', $body);
+        self::assertStringNotContainsString('data-testid="claim-add-invoice"', $body);
     }
 
     /** Success answers in place too: a redirect would be followed by a full reload that eats the flash. */

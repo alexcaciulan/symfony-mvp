@@ -12,6 +12,7 @@
 {% set has_positions = positions is not null and positions.totalCount > 0 %}
 {% set summary = claim_change_summary|default(null) %}
 {% set locked = case.status.value != 'AMIABIL' %}
+{% set closed = case.status.isTerminal() %}
 
 {% set principal = case.amount|default(0) + 0 %}
 {% set interest = case.calculatedInterest|default(0) + 0 %}
@@ -50,9 +51,9 @@
                 {{ 'case_overview.claim.state_editable'|trans }}
             </span>
         {% elseif locked %}
-            <span class="inline-flex items-center gap-1.5 py-1 px-2 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" data-testid="claim-state-chip" data-state="locked">
+            <span class="inline-flex items-center gap-1.5 py-1 px-2 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" data-testid="claim-state-chip" data-state="{{ closed ? 'closed' : 'locked' }}">
                 {{ icon_lock('size-3.5 shrink-0') }}
-                {{ 'case_overview.claim.state_locked'|trans }}
+                {{ (closed ? 'case_overview.claim.state_closed' : 'case_overview.claim.state_locked')|trans }}
             </span>
         {% endif %}
     </header>
@@ -60,7 +61,7 @@
     {% if locked and has_positions %}
         <div class="px-5 @lg:px-6 py-2.5 bg-slate-50 dark:bg-slate-950/40 border-b border-slate-100 dark:border-slate-800 flex items-start gap-2 text-xs text-slate-600 dark:text-slate-400" data-testid="claim-locked-note">
             {{ icon_lock('size-3.5 shrink-0 mt-px text-slate-400') }}
-            <span>{{ 'case.claim.edit.locked_after_summons'|trans }}</span>
+            <span>{{ (closed ? 'case.claim.edit.locked_closed' : 'case.claim.edit.locked_after_summons')|trans }}</span>
         </div>
     {% endif %}
 
