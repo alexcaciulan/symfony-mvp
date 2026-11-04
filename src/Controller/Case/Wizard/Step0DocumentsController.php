@@ -32,6 +32,7 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\Session\SessionInterface;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
@@ -139,132 +140,13 @@ final class Step0DocumentsController extends AbstractWizardStepController
             $declaredType = DocumentType::tryFrom((string) $form->get('documentType')->getData())
                 ?? DocumentType::ALT_DOCUMENT;
 
-            $identifier = $user->getUserIdentifier();
-            $accepted = [];
-            $duplicates = [];
-            $uploadErrors = [];
-            $storedCount = 0;
-
-            // The traffic ceiling is charged before the batch is read, so an
-            // over-limit user cannot still force the server to hash 10 files.
-            $rateLimitHit = !$this->uploadRateLimiter->acceptsBatch($identifier, count($uploaded));
-
-            if (!$rateLimitHit) {
-                // Duplicates are recognised before anything is stored, against
-                // the documents of this draft only (see UploadDeduplicator for
-                // why the scope is not global).
-                $partition = $this->deduplicator->partition($uploaded, $this->documentReader->loadOwnedDocuments($bag->documentIds, $user));
-                $accepted = $partition['files'];
-                $duplicates = $partition['duplicates'];
-
-                // A file this lawyer already had read once, in another run or
-                // case, keeps that reading instead of being read again.
-                $reusable = [];
-                foreach ($accepted as $index => $file) {
-                    $hash = $partition['hashes'][$index] ?? null;
-                    $source = $hash !== null ? $this->extractionReuse->findReusable($user, $hash, $declaredType) : null;
-                    if ($source !== null) {
-                        $reusable[$index] = $source;
-                    }
-                }
-
-                // Only files that will really be stored and extracted cost
-                // extraction budget: a known file costs no LLM call.
-                $rateLimitHit = !$this->uploadRateLimiter->acceptsExtractions($identifier, count($accepted) - count($reusable));
-            }
-
-            if (!$rateLimitHit) {
-                foreach ($accepted as $index => $file) {
-                    try {
-                        $document = $this->uploadService->upload(null, $file, $declaredType, $user);
-                    } catch (\InvalidArgumentException) {
-                        $this->logger->warning('wizard.step0.upload.mime_rejected', [
-                            'userId' => $user->getId(),
-                            'filename' => $file->getClientOriginalName(),
-                        ]);
-                        $uploadErrors[] = 'wizard.step0.error.invalid_mime';
-                        continue;
-                    }
-                    $bag->documentIds[] = $document->getId();
-                    ++$storedCount;
-                    if (isset($reusable[$index])) {
-                        $this->extractionReuse->copyInto($reusable[$index], $document);
-                        continue;
-                    }
-                    $this->bus->dispatch(new ExtractDataMessage($document->getId()));
-                }
-                $this->stateStore->save($session, $bag);
-            }
+            $outcome = $this->storeBatch($bag, $session, $user, $uploaded, $declaredType);
 
             if ($isTurboStreamRequest || $isTurboFrameRequest) {
-                $request->setRequestFormat(TurboBundle::STREAM_FORMAT);
-
-                $documents = $this->documentReader->loadOwnedDocuments($bag->documentIds, $user);
-                $bag->documentIds = array_map(static fn (Document $d) => $d->getId(), $documents);
-                $this->stateStore->save($session, $bag);
-
-                // One toast per outcome, so a mixed batch reports the skipped
-                // file AND confirms the stored one, exactly like the flash bag
-                // of the non-Turbo path below.
-                $toasts = [];
-                if ($rateLimitHit) {
-                    $toasts[] = ['message' => 'rate_limit.document_upload', 'variant' => 'warning', 'params' => []];
-                } else {
-                    foreach ($uploadErrors as $uploadError) {
-                        $toasts[] = ['message' => $uploadError, 'variant' => 'error', 'params' => []];
-                    }
-                    if ($duplicates !== []) {
-                        $toasts[] = [
-                            'message' => 'wizard.step0.toast.duplicate_skipped',
-                            'variant' => 'warning',
-                            'params' => ['{files}' => implode(', ', $duplicates)],
-                        ];
-                    }
-                    if ($storedCount > 0) {
-                        $toasts[] = ['message' => 'wizard.flash.uploaded', 'variant' => 'success', 'params' => []];
-                    }
-                }
-
-                // One aggregation for the whole side card: the three previews
-                // have to agree with each other, and three passes over the same
-                // documents is three chances for them not to.
-                $preview = $this->prefill->aggregate($bag->documentIds, $bag->conflictResolutions);
-                $collected = $this->claimItemFactory->collectRows($bag->documentIds);
-                $positions = $this->documentReader->positionsPreview($collected);
-                $step0Conflicts = [...$preview->conflicts, ...$collected->conflicts];
-
-                return $this->render('case/_step0_upload_stream.html.twig', [
-                    'documents' => $documents,
-                    'creditor_preview' => $preview->creditor,
-                    'debtor_preview' => $preview->debtors->debtors[0],
-                    'claim_preview' => $preview->claim,
-                    'claim_positions_preview' => $positions,
-                    'detected_sections' => $this->detectedDataPreview->build($preview->creditor, $preview->debtors->debtors[0], $preview->claim, $step0Conflicts, $positions, $bag->conflictResolutions),
-                    'prefill_conflicts' => $step0Conflicts,
-                    'prefill_conflict_resolutions' => $bag->conflictResolutions,
-                    'prefill_conflict_documents' => $this->documentReader->conflictDocumentNames($bag->documentIds),
-                    'all_terminal' => $this->documentReader->allTerminal($documents),
-                    'consumer_debtor' => $this->documentReader->consumerDebtorName($preview),
-                    'document_types' => DocumentType::uploadableTypes(),
-                    'toasts' => $toasts,
-                ]);
+                return $this->streamResponse($request, $bag, $session, $user, $outcome);
             }
 
-            if ($rateLimitHit) {
-                $this->addFlash('warning', 'rate_limit.document_upload');
-            } else {
-                foreach ($uploadErrors as $err) {
-                    $this->addFlash('error', $err);
-                }
-                if ($duplicates !== []) {
-                    $this->addFlash('warning', $this->trans('wizard.step0.toast.duplicate_skipped', [
-                        '{files}' => implode(', ', $duplicates),
-                    ]));
-                }
-                if ($storedCount > 0) {
-                    $this->addFlash('success', 'wizard.flash.uploaded');
-                }
-            }
+            $this->flashOutcome($outcome);
 
             return $this->redirectToRoute('case_wizard_documents');
         }
@@ -273,15 +155,197 @@ final class Step0DocumentsController extends AbstractWizardStepController
         $bag->documentIds = array_map(static fn (Document $d) => $d->getId(), $documents);
         $this->stateStore->save($session, $bag);
 
+        $viewVars = [
+            'current_step' => 0,
+            'form' => $form,
+            ...$this->previewVars($bag, $documents),
+            'document_topics' => array_map(
+                static fn (Document $d) => sprintf('document/%d/extraction-status', $d->getId()),
+                $documents,
+            ),
+        ];
+
+        if ($isTurboFrameRequest) {
+            $frame = (string) $request->headers->get('Turbo-Frame');
+            if ($frame === 'step0-dynamic') {
+                return $this->render('case/_step0_dynamic_partial.html.twig', $viewVars);
+            }
+            if ($frame === 'step0-sidecard') {
+                return $this->render('case/_step0_sidecard_partial.html.twig', $viewVars);
+            }
+        }
+
+        return $this->render('case/_step0_documents_content.html.twig', $viewVars);
+    }
+
+    /**
+     * Rate-limits, deduplicates, reuses known extractions, stores and dispatches
+     * one uploaded batch.
+     *
+     * @param list<UploadedFile> $uploaded
+     *
+     * @return array{rateLimitHit: bool, duplicates: list<string>, uploadErrors: list<string>, storedCount: int}
+     */
+    private function storeBatch(WizardBag $bag, SessionInterface $session, User $user, array $uploaded, DocumentType $declaredType): array
+    {
+        $identifier = $user->getUserIdentifier();
+        $accepted = [];
+        $duplicates = [];
+        $uploadErrors = [];
+        $storedCount = 0;
+
+        // The traffic ceiling is charged before the batch is read, so an
+        // over-limit user cannot still force the server to hash 10 files.
+        $rateLimitHit = !$this->uploadRateLimiter->acceptsBatch($identifier, count($uploaded));
+
+        if (!$rateLimitHit) {
+            // Duplicates are recognised before anything is stored, against
+            // the documents of this draft only (see UploadDeduplicator for
+            // why the scope is not global).
+            $partition = $this->deduplicator->partition($uploaded, $this->documentReader->loadOwnedDocuments($bag->documentIds, $user));
+            $accepted = $partition['files'];
+            $duplicates = $partition['duplicates'];
+
+            // A file this lawyer already had read once, in another run or
+            // case, keeps that reading instead of being read again.
+            $reusable = [];
+            foreach ($accepted as $index => $file) {
+                $hash = $partition['hashes'][$index] ?? null;
+                $source = $hash !== null ? $this->extractionReuse->findReusable($user, $hash, $declaredType) : null;
+                if ($source !== null) {
+                    $reusable[$index] = $source;
+                }
+            }
+
+            // Only files that will really be stored and extracted cost
+            // extraction budget: a known file costs no LLM call.
+            $rateLimitHit = !$this->uploadRateLimiter->acceptsExtractions($identifier, count($accepted) - count($reusable));
+        }
+
+        if (!$rateLimitHit) {
+            foreach ($accepted as $index => $file) {
+                try {
+                    $document = $this->uploadService->upload(null, $file, $declaredType, $user);
+                } catch (\InvalidArgumentException) {
+                    $this->logger->warning('wizard.step0.upload.mime_rejected', [
+                        'userId' => $user->getId(),
+                        'filename' => $file->getClientOriginalName(),
+                    ]);
+                    $uploadErrors[] = 'wizard.step0.error.invalid_mime';
+                    continue;
+                }
+                $bag->documentIds[] = $document->getId();
+                ++$storedCount;
+                if (isset($reusable[$index])) {
+                    $this->extractionReuse->copyInto($reusable[$index], $document);
+                    continue;
+                }
+                $this->bus->dispatch(new ExtractDataMessage($document->getId()));
+            }
+            $this->stateStore->save($session, $bag);
+        }
+
+        return [
+            'rateLimitHit' => $rateLimitHit,
+            'duplicates' => $duplicates,
+            'uploadErrors' => $uploadErrors,
+            'storedCount' => $storedCount,
+        ];
+    }
+
+    /**
+     * @param array{rateLimitHit: bool, duplicates: list<string>, uploadErrors: list<string>, storedCount: int} $outcome
+     */
+    private function streamResponse(Request $request, WizardBag $bag, SessionInterface $session, User $user, array $outcome): Response
+    {
+        $request->setRequestFormat(TurboBundle::STREAM_FORMAT);
+
+        $documents = $this->documentReader->loadOwnedDocuments($bag->documentIds, $user);
+        $bag->documentIds = array_map(static fn (Document $d) => $d->getId(), $documents);
+        $this->stateStore->save($session, $bag);
+
+        return $this->render('case/_step0_upload_stream.html.twig', [
+            ...$this->previewVars($bag, $documents),
+            'toasts' => $this->uploadToasts($outcome),
+        ]);
+    }
+
+    /**
+     * One toast per outcome, so a mixed batch reports the skipped file AND
+     * confirms the stored one, exactly like the flash bag of the non-Turbo path.
+     *
+     * @param array{rateLimitHit: bool, duplicates: list<string>, uploadErrors: list<string>, storedCount: int} $outcome
+     *
+     * @return list<array{message: string, variant: string, params: array<string, string>}>
+     */
+    private function uploadToasts(array $outcome): array
+    {
+        $toasts = [];
+        if ($outcome['rateLimitHit']) {
+            $toasts[] = ['message' => 'rate_limit.document_upload', 'variant' => 'warning', 'params' => []];
+
+            return $toasts;
+        }
+        foreach ($outcome['uploadErrors'] as $uploadError) {
+            $toasts[] = ['message' => $uploadError, 'variant' => 'error', 'params' => []];
+        }
+        if ($outcome['duplicates'] !== []) {
+            $toasts[] = [
+                'message' => 'wizard.step0.toast.duplicate_skipped',
+                'variant' => 'warning',
+                'params' => ['{files}' => implode(', ', $outcome['duplicates'])],
+            ];
+        }
+        if ($outcome['storedCount'] > 0) {
+            $toasts[] = ['message' => 'wizard.flash.uploaded', 'variant' => 'success', 'params' => []];
+        }
+
+        return $toasts;
+    }
+
+    /**
+     * @param array{rateLimitHit: bool, duplicates: list<string>, uploadErrors: list<string>, storedCount: int} $outcome
+     */
+    private function flashOutcome(array $outcome): void
+    {
+        if ($outcome['rateLimitHit']) {
+            $this->addFlash('warning', 'rate_limit.document_upload');
+
+            return;
+        }
+        foreach ($outcome['uploadErrors'] as $err) {
+            $this->addFlash('error', $err);
+        }
+        if ($outcome['duplicates'] !== []) {
+            $this->addFlash('warning', $this->trans('wizard.step0.toast.duplicate_skipped', [
+                '{files}' => implode(', ', $outcome['duplicates']),
+            ]));
+        }
+        if ($outcome['storedCount'] > 0) {
+            $this->addFlash('success', 'wizard.flash.uploaded');
+        }
+    }
+
+    /**
+     * Variables shared by the full page, its Turbo frames and the upload stream.
+     * One aggregation feeds the whole side card: the previews have to agree
+     * with each other, and several passes over the same documents are several
+     * chances for them not to.
+     *
+     * @param list<Document> $documents
+     *
+     * @return array<string, mixed>
+     */
+    private function previewVars(WizardBag $bag, array $documents): array
+    {
         $preview = $this->prefill->aggregate($bag->documentIds, $bag->conflictResolutions);
         $collected = $this->claimItemFactory->collectRows($bag->documentIds);
         $positions = $this->documentReader->positionsPreview($collected);
         // Two documents giving one invoice different sums or due dates is said
         // here too, so the card does not show one of them as settled.
         $step0Conflicts = [...$preview->conflicts, ...$collected->conflicts];
-        $viewVars = [
-            'current_step' => 0,
-            'form' => $form,
+
+        return [
             'documents' => $documents,
             'creditor_preview' => $preview->creditor,
             'debtor_preview' => $preview->debtors->debtors[0],
@@ -300,23 +364,7 @@ final class Step0DocumentsController extends AbstractWizardStepController
             'consumer_debtor' => $this->documentReader->consumerDebtorName($preview),
             // Choices for the per-document type correction shown on each card.
             'document_types' => DocumentType::uploadableTypes(),
-            'document_topics' => array_map(
-                static fn (Document $d) => sprintf('document/%d/extraction-status', $d->getId()),
-                $documents,
-            ),
         ];
-
-        if ($isTurboFrameRequest) {
-            $frame = (string) $request->headers->get('Turbo-Frame');
-            if ($frame === 'step0-dynamic') {
-                return $this->render('case/_step0_dynamic_partial.html.twig', $viewVars);
-            }
-            if ($frame === 'step0-sidecard') {
-                return $this->render('case/_step0_sidecard_partial.html.twig', $viewVars);
-            }
-        }
-
-        return $this->render('case/_step0_documents_content.html.twig', $viewVars);
     }
 
     #[Route('/documents/status', name: 'documents_status', methods: ['GET'])]

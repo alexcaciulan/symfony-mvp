@@ -4,15 +4,21 @@ declare(strict_types=1);
 
 namespace App\Controller\Case\Wizard;
 
+use App\DTO\Calculation\AggregatedAccessoryResult;
+use App\DTO\Calculation\CurrencyConversionResult;
 use App\DTO\Calculation\InterestResult;
 use App\DTO\Calculation\PenaltyResult;
 use App\DTO\Calculation\StampDutyResult;
 use App\DTO\Court\CourtResolveResult;
+use App\DTO\Extraction\PrefillConflict;
 use App\DTO\Validation\AdmissibilityIssue;
+use App\DTO\Wizard\ClaimItemRow;
 use App\DTO\Wizard\Step1CreditorData;
 use App\DTO\Wizard\Step2DebtorsData;
 use App\DTO\Wizard\Step3ClaimData;
 use App\DTO\Wizard\Step4ConfirmationData;
+use App\DTO\Wizard\WizardPersistResult;
+use App\Entity\ClaimItem;
 use App\Entity\Court;
 use App\Entity\Document;
 use App\Entity\User;
@@ -26,6 +32,7 @@ use App\Service\Extraction\ConflictResolutionService;
 use App\Service\Extraction\PrefillFromExtractionService;
 use App\Service\Validation\OpAdmissibilityValidator;
 use App\Service\Wizard\CaseWizardPersister;
+use App\Service\Wizard\WizardBag;
 use App\Service\Wizard\WizardConflictCoordinator;
 use App\Service\Wizard\WizardCreditorResolver;
 use App\Service\Wizard\WizardDebtorResolver;
@@ -35,6 +42,7 @@ use App\Service\Wizard\WizardStateStore;
 use Symfony\Component\Form\FormInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\Session\SessionInterface;
 use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Security\Http\Attribute\CurrentUser;
@@ -85,25 +93,176 @@ final class Step4ConfirmationController extends AbstractWizardStepController
         if (($back = $this->redirectForDebtorsNoLongerOffered($bag)) !== null) {
             return $back;
         }
+        if (($missing = $this->redirectToFirstMissingStep($bag)) !== null) {
+            return $missing;
+        }
 
-        $creditorDto = $bag->creditor ?? null;
-        $debtorsDto = $bag->debtors ?? null;
-        $claimDto = $bag->claim ?? null;
+        $creditorDto = $bag->creditor;
+        $debtorsDto = $bag->debtors;
+        $claimDto = $bag->claim;
 
-        // Soft guard: an incomplete wizard state means the user navigated
-        // directly to step 4 without filling earlier steps. Redirect to the
-        // first missing step.
-        if ($creditorDto === null) {
+        if (($recheck = $this->settleLibraryParties($bag, $session, $creditorDto, $debtorsDto, $user)) !== null) {
+            return $recheck;
+        }
+        ['conflicts' => $conflicts, 'unsettled' => $unsettled] = $this->settleConflicts($bag, $session, $creditorDto, $debtorsDto, $claimDto);
+        $conflictVars = $this->conflictVars($bag, $conflicts, $unsettled);
+
+        [
+            'conversion' => $conversion,
+            'claimRows' => $claimRows,
+            'calculations' => $calculations,
+            'errors' => $errors,
+            'warnings' => $warnings,
+        ] = $this->computeFigures($bag, $user, $creditorDto, $debtorsDto, $claimDto);
+        $hasWarnings = $warnings !== [];
+        $sessionDocuments = $this->documentReader->loadOwnedDocuments($bag->documentIds, $user);
+
+        $confirmation = new Step4ConfirmationData();
+        $form = $this->createForm(Step4ConfirmationType::class, $confirmation, [
+            'validation_groups' => $hasWarnings ? ['Default', 'with_warnings'] : ['Default'],
+        ]);
+        // Preselect the auto-resolved court id; the user may override it (or pick
+        // one when resolution is ambiguous / county-unknown). On POST handleRequest
+        // replaces this with the submitted id.
+        $resolvedCourt = $calculations['court']?->court;
+        if ($resolvedCourt !== null) {
+            $form->get('court')->setData((string) $resolvedCourt->getId());
+        }
+        $form->handleRequest($request);
+
+        $preselectedCourt = $this->preselectedCourt($form, $resolvedCourt);
+        $autoFilledIndex = $this->persister->aggregateAutoFilledFields($creditorDto, $debtorsDto, $claimDto);
+        $render = fn (): Response => $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex, $sessionDocuments, $preselectedCourt, $conflictVars);
+
+        if (!$request->isMethod('POST')) {
+            return $render();
+        }
+
+        if ($this->submissionRefused($form, $unsettled, $errors, $claimDto, $conversion, $user, $caseCreationLimiter)) {
+            return $render();
+        }
+
+        ['court' => $chosenCourt, 'resolution' => $courtResolution] = $this->chooseCourt($form, $resolvedCourt);
+
+        return $this->persistCase($session, $user, $bag, $creditorDto, $debtorsDto, $claimDto, $calculations, $autoFilledIndex, $warnings, $chosenCourt, $courtResolution, $conversion, $claimRows, $conflicts);
+    }
+
+    /**
+     * Runs the checks that stop a submit, in order, flashing the reason where
+     * there is one. The limiter is consumed only once every other check passed.
+     *
+     * @param list<PrefillConflict> $unsettled
+     * @param list<AdmissibilityIssue> $errors
+     */
+    private function submissionRefused(FormInterface $form, array $unsettled, array $errors, Step3ClaimData $claimDto, ?CurrencyConversionResult $conversion, User $user, RateLimiterFactory $caseCreationLimiter): bool
+    {
+        if ($unsettled !== []) {
+            $this->addFlash('error', 'wizard.conflict.unsettled_at_confirmation');
+
+            return true;
+        }
+
+        if ($errors !== []) {
+            $this->addFlash('error', 'wizard.step4.flash.errors_blocking');
+
+            return true;
+        }
+
+        if (!$form->isValid()) {
+            return true;
+        }
+
+        // A foreign-currency claim cannot be persisted without a resolved BNR
+        // rate, otherwise the case lands in an inconsistent state (currency
+        // EUR with no conversion, which the calculator guard rejects at
+        // document time). Block with a clear message instead.
+        if ($claimDto->currency !== 'RON' && $conversion === null) {
+            $this->addFlash('error', 'wizard.step4.flash.exchange_rate_missing');
+
+            return true;
+        }
+
+        $limiter = $caseCreationLimiter->create($user->getUserIdentifier());
+        if (!$limiter->consume(1)->isAccepted()) {
+            $this->addFlash('warning', 'rate_limit.case_creation');
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{interest: ?InterestResult, penalty: ?PenaltyResult, accessoryTotal: float, stampDuty: ?StampDutyResult, court: ?CourtResolveResult} $calculations
+     * @param array{auto: list<string>, manual: list<string>} $autoFilledIndex
+     * @param list<AdmissibilityIssue> $warnings
+     * @param list<ClaimItemRow> $claimRows
+     * @param list<PrefillConflict> $conflicts
+     */
+    private function persistCase(SessionInterface $session, User $user, WizardBag $bag, Step1CreditorData $creditorDto, Step2DebtorsData $debtorsDto, Step3ClaimData $claimDto, array $calculations, array $autoFilledIndex, array $warnings, ?Court $chosenCourt, string $courtResolution, ?CurrencyConversionResult $conversion, array $claimRows, array $conflicts): Response
+    {
+        $persisted = $this->persister->persist(
+            $session,
+            $user,
+            $creditorDto,
+            $debtorsDto,
+            $claimDto,
+            $bag->documentIds,
+            $calculations,
+            $autoFilledIndex,
+            $warnings,
+            $chosenCourt,
+            $courtResolution,
+            $conversion,
+            $claimRows,
+            $this->conflictResolutions->auditEntries(
+                $conflicts,
+                $bag->conflictResolutions,
+                $this->documentReader->conflictDocumentDescriptors($bag->documentIds),
+                $this->conflicts->acknowledgements($bag, $conflicts),
+            ),
+        );
+
+        // The session forgets the run only after the transaction committed.
+        $this->stateStore->detach($session);
+
+        if ($persisted->creditorReused) {
+            $this->addFlash('info', 'wizard.step4.flash.creditor_reused');
+        }
+        $this->flashSuccessToast($persisted, $debtorsDto, $calculations);
+        // One-time hint on the overview (next-step badge and a pulse on
+        // the generate CTA), consumed by its first render.
+        $this->addFlash('case_just_created', '1');
+
+        return $this->redirectToRoute('case_overview', ['id' => $persisted->case->getId()]);
+    }
+
+    /**
+     * Soft guard: an incomplete wizard state means the user navigated directly
+     * to step 4 without filling earlier steps. Redirects to the first missing step.
+     */
+    private function redirectToFirstMissingStep(WizardBag $bag): ?Response
+    {
+        if (($bag->creditor ?? null) === null) {
             return $this->redirectToRoute('case_wizard_creditor');
         }
-        if ($debtorsDto === null) {
+        if (($bag->debtors ?? null) === null) {
             return $this->redirectToRoute('case_wizard_debtor');
         }
-        if ($claimDto === null) {
+        if (($bag->claim ?? null) === null) {
             return $this->redirectToRoute('case_wizard_claim');
         }
-        // A library company may have been edited since it was picked: the
-        // court and the summary are worked out from what the case will carry.
+
+        return null;
+    }
+
+    /**
+     * A library company may have been edited since it was picked: the court and
+     * the summary are worked out from what the case will carry. Returns the
+     * redirect to the step that has to be rechecked, if any.
+     */
+    private function settleLibraryParties(WizardBag $bag, SessionInterface $session, Step1CreditorData $creditorDto, Step2DebtorsData $debtorsDto, User $user): ?Response
+    {
         if ($this->creditorResolver->settleCreditorWithLibrary($creditorDto, $user)) {
             $bag->creditorLibraryRecheck = true;
             $this->stateStore->save($session, $bag);
@@ -122,9 +281,18 @@ final class Step4ConfirmationController extends AbstractWizardStepController
             $this->stateStore->save($session, $bag);
         }
 
-        // Everything the documents disagree about, checked once more here. A
-        // blocking conflict still open at this point was walked past rather than
-        // decided, and this is the last screen before a filing is created.
+        return null;
+    }
+
+    /**
+     * Everything the documents disagree about, checked once more here. A
+     * blocking conflict still open at this point was walked past rather than
+     * decided, and this is the last screen before a filing is created.
+     *
+     * @return array{conflicts: list<PrefillConflict>, unsettled: list<PrefillConflict>}
+     */
+    private function settleConflicts(WizardBag $bag, SessionInterface $session, Step1CreditorData $creditorDto, Step2DebtorsData $debtorsDto, Step3ClaimData $claimDto): array
+    {
         $prefill = $this->prefill->aggregate($bag->documentIds, $bag->conflictResolutions);
         $conflicts = $this->conflicts->withLibraryDebtor($bag, $prefill, array_values([
             ...$prefill->conflicts,
@@ -143,14 +311,34 @@ final class Step4ConfirmationController extends AbstractWizardStepController
         $this->conflictChoices->applyToDebtors($debtorsDto, null, $prefill->debtors, $bag->conflictResolutions);
         $this->conflictChoices->applyToClaim($claimDto, null, $prefill->claim, $bag->conflictResolutions);
         $this->stateStore->save($session, $bag);
-        $unsettled = $this->conflicts->unsettledConflicts($bag, $conflicts);
-        $conflictVars = [
+
+        return [
+            'conflicts' => $conflicts,
+            'unsettled' => $this->conflicts->unsettledConflicts($bag, $conflicts),
+        ];
+    }
+
+    /**
+     * @param list<PrefillConflict> $conflicts
+     * @param list<PrefillConflict> $unsettled
+     *
+     * @return array<string, mixed>
+     */
+    private function conflictVars(WizardBag $bag, array $conflicts, array $unsettled): array
+    {
+        return [
             'prefill_conflicts' => $conflicts,
             'prefill_conflict_resolutions' => $bag->conflictResolutions,
             'prefill_conflict_documents' => $this->documentReader->conflictDocumentNames($bag->documentIds),
             'prefill_conflicts_unsettled' => $unsettled,
         ];
+    }
 
+    /**
+     * @return array{conversion: ?CurrencyConversionResult, claimRows: list<ClaimItemRow>, calculations: array{interest: ?InterestResult, penalty: ?PenaltyResult, accessoryTotal: float, stampDuty: ?StampDutyResult, court: ?CourtResolveResult, conversion: ?CurrencyConversionResult, accessoryPerItem: ?AggregatedAccessoryResult, claimItems: list<ClaimItem>, principal: ?float}, errors: list<AdmissibilityIssue>, warnings: list<AdmissibilityIssue>}
+     */
+    private function computeFigures(WizardBag $bag, User $user, Step1CreditorData $creditorDto, Step2DebtorsData $debtorsDto, Step3ClaimData $claimDto): array
+    {
         $now = new \DateTimeImmutable();
         $conversion = $this->figures->resolveConversion($claimDto);
         $claimRows = $this->persister->resolveClaimRows($bag, $claimDto);
@@ -164,26 +352,21 @@ final class Step4ConfirmationController extends AbstractWizardStepController
             // saved case's positions can no longer be corrected.
             ...$this->accessoryChecker->issues($skeleton, $this->figures->accessoryReferenceDate($claimDto)),
         ];
-        ['errors' => $errors, 'warnings' => $warnings] = $this->figures->splitIssues($issues);
-        $hasErrors = $errors !== [];
-        $hasWarnings = $warnings !== [];
-        $sessionDocuments = $this->documentReader->loadOwnedDocuments($bag->documentIds, $user);
 
-        $confirmation = new Step4ConfirmationData();
-        $form = $this->createForm(Step4ConfirmationType::class, $confirmation, [
-            'validation_groups' => $hasWarnings ? ['Default', 'with_warnings'] : ['Default'],
-        ]);
-        // Preselect the auto-resolved court id; the user may override it (or pick
-        // one when resolution is ambiguous / county-unknown). On POST handleRequest
-        // replaces this with the submitted id.
-        $resolvedCourt = $calculations['court']?->court;
-        if ($resolvedCourt !== null) {
-            $form->get('court')->setData((string) $resolvedCourt->getId());
-        }
-        $form->handleRequest($request);
+        return [
+            'conversion' => $conversion,
+            'claimRows' => $claimRows,
+            'calculations' => $calculations,
+            ...$this->figures->splitIssues($issues),
+        ];
+    }
 
-        // Court shown in the picker on (re)render: the submitted/preselected id if
-        // it loads to an active court, else the auto-resolved one.
+    /**
+     * Court shown in the picker on (re)render: the submitted/preselected id if
+     * it loads to an active court, else the auto-resolved one.
+     */
+    private function preselectedCourt(FormInterface $form, ?Court $resolvedCourt): ?Court
+    {
         $courtIdData = $form->get('court')->getData();
         $preselectedCourt = (is_string($courtIdData) && $courtIdData !== '')
             ? $this->courts->find($courtIdData)
@@ -192,113 +375,58 @@ final class Step4ConfirmationController extends AbstractWizardStepController
             $preselectedCourt = $resolvedCourt;
         }
 
-        $autoFilledIndex = $this->persister->aggregateAutoFilledFields($creditorDto, $debtorsDto, $claimDto);
+        return $preselectedCourt;
+    }
 
-        if ($request->isMethod('POST')) {
-            if ($unsettled !== []) {
-                $this->addFlash('error', 'wizard.conflict.unsettled_at_confirmation');
-
-                return $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex, $sessionDocuments, $preselectedCourt, $conflictVars);
-            }
-
-            if ($hasErrors) {
-                $this->addFlash('error', 'wizard.step4.flash.errors_blocking');
-
-                return $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex, $sessionDocuments, $preselectedCourt, $conflictVars);
-            }
-
-            if (!$form->isValid()) {
-                return $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex, $sessionDocuments, $preselectedCourt, $conflictVars);
-            }
-
-            // A foreign-currency claim cannot be persisted without a resolved BNR
-            // rate, otherwise the case lands in an inconsistent state (currency
-            // EUR with no conversion, which the calculator guard rejects at
-            // document time). Block with a clear message instead.
-            if ($claimDto->currency !== 'RON' && $conversion === null) {
-                $this->addFlash('error', 'wizard.step4.flash.exchange_rate_missing');
-
-                return $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex, $sessionDocuments, $preselectedCourt, $conflictVars);
-            }
-
-            $limiter = $caseCreationLimiter->create($user->getUserIdentifier());
-            if (!$limiter->consume(1)->isAccepted()) {
-                $this->addFlash('warning', 'rate_limit.case_creation');
-
-                return $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex, $sessionDocuments, $preselectedCourt, $conflictVars);
-            }
-
-            // Court precedence: the submitted id (auto-resolved preselection kept,
-            // or manual override) wins when it loads to an active court; otherwise
-            // fall back to the auto-resolved court. Loading + active check guards
-            // against a tampered hidden id.
-            $selectedId = $form->get('court')->getData();
-            $selectedCourt = (is_string($selectedId) && $selectedId !== '')
-                ? $this->courts->find($selectedId)
-                : null;
-            if ($selectedCourt !== null && !$selectedCourt->isActive()) {
-                $selectedCourt = null;
-            }
-            $chosenCourt = $selectedCourt ?? $resolvedCourt;
-            $courtResolution = match (true) {
-                $chosenCourt === null => 'none',
-                $resolvedCourt !== null && $chosenCourt->getId() === $resolvedCourt->getId() => 'auto',
-                default => 'manual',
-            };
-
-            $persisted = $this->persister->persist(
-                $session,
-                $user,
-                $creditorDto,
-                $debtorsDto,
-                $claimDto,
-                $bag->documentIds,
-                $calculations,
-                $autoFilledIndex,
-                $warnings,
-                $chosenCourt,
-                $courtResolution,
-                $conversion,
-                $claimRows,
-                $this->conflictResolutions->auditEntries(
-                    $conflicts,
-                    $bag->conflictResolutions,
-                    $this->documentReader->conflictDocumentDescriptors($bag->documentIds),
-                    $this->conflicts->acknowledgements($bag, $conflicts),
-                ),
-            );
-
-            // The session forgets the run only after the transaction committed.
-            $this->stateStore->detach($session);
-
-            if ($persisted->creditorReused) {
-                $this->addFlash('info', 'wizard.step4.flash.creditor_reused');
-            }
-
-            // The overview toast names the case and gives two details: the
-            // number of debtors and the total claimed (principal, accessories
-            // when any, stamp duty). The duty falls back to the calculator's
-            // fixed amount (OUG 80/2013 art. 6 alin. 2) rather than a literal.
-            $totalAmount = (float) $persisted->case->getAmount()
-                + ($calculations['accessoryTotal'] ?? 0.0)
-                + ($calculations['stampDuty']?->amount ?? $this->stampDutyCalculator->calculate()->amount);
-
-            $this->addFlash('toast.success', [
-                'key' => 'wizard.step4.flash.success_toast',
-                'params' => ['%caseNumber%' => $persisted->case->getCaseNumber()],
-                'details' => [
-                    ['key' => 'wizard.step4.flash.detail.debtors', 'params' => ['%count%' => count($debtorsDto->debtors)]],
-                    ['key' => 'wizard.step4.flash.detail.total', 'params' => ['%total%' => number_format($totalAmount, 2, ',', '.')]],
-                ],
-            ]);
-            // One-time hint on the overview (next-step badge and a pulse on
-            // the generate CTA), consumed by its first render.
-            $this->addFlash('case_just_created', '1');
-
-            return $this->redirectToRoute('case_overview', ['id' => $persisted->case->getId()]);
+    /**
+     * Court precedence: the submitted id (auto-resolved preselection kept, or
+     * manual override) wins when it loads to an active court; otherwise fall
+     * back to the auto-resolved court. Loading + active check guards against a
+     * tampered hidden id.
+     *
+     * @return array{court: ?Court, resolution: string}
+     */
+    private function chooseCourt(FormInterface $form, ?Court $resolvedCourt): array
+    {
+        $selectedId = $form->get('court')->getData();
+        $selectedCourt = (is_string($selectedId) && $selectedId !== '')
+            ? $this->courts->find($selectedId)
+            : null;
+        if ($selectedCourt !== null && !$selectedCourt->isActive()) {
+            $selectedCourt = null;
         }
+        $chosenCourt = $selectedCourt ?? $resolvedCourt;
+        $courtResolution = match (true) {
+            $chosenCourt === null => 'none',
+            $resolvedCourt !== null && $chosenCourt->getId() === $resolvedCourt->getId() => 'auto',
+            default => 'manual',
+        };
 
-        return $this->renderConfirmation($form, $creditorDto, $debtorsDto, $claimDto, $errors, $warnings, $calculations, $autoFilledIndex, $sessionDocuments, $preselectedCourt, $conflictVars);
+        return ['court' => $chosenCourt, 'resolution' => $courtResolution];
+    }
+
+    /**
+     * The overview toast names the case and gives two details: the number of
+     * debtors and the total claimed (principal, accessories when any, stamp
+     * duty). The duty falls back to the calculator's fixed amount (OUG 80/2013
+     * art. 6 alin. 2) rather than a literal.
+     *
+     * @param array{interest: ?InterestResult, penalty: ?PenaltyResult, accessoryTotal: float, stampDuty: ?StampDutyResult, court: ?CourtResolveResult} $calculations
+     */
+    private function flashSuccessToast(WizardPersistResult $persisted, Step2DebtorsData $debtorsDto, array $calculations): void
+    {
+        $totalAmount = (float) $persisted->case->getAmount()
+            + ($calculations['accessoryTotal'] ?? 0.0)
+            + ($calculations['stampDuty']?->amount ?? $this->stampDutyCalculator->calculate()->amount);
+
+        $this->addFlash('toast.success', [
+            'key' => 'wizard.step4.flash.success_toast',
+            'params' => ['%caseNumber%' => $persisted->case->getCaseNumber()],
+            'details' => [
+                ['key' => 'wizard.step4.flash.detail.debtors', 'params' => ['%count%' => count($debtorsDto->debtors)]],
+                ['key' => 'wizard.step4.flash.detail.total', 'params' => ['%total%' => number_format($totalAmount, 2, ',', '.')]],
+            ],
+        ]);
     }
 
     /**
