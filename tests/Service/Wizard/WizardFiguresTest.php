@@ -87,7 +87,10 @@ final class WizardFiguresTest extends KernelTestCase
     public function testAnAggregatorFailureYieldsAnEmptyAggregateNotAWrongFigure(): void
     {
         $claim = $this->claim(relationshipType: RelationshipType::CIVIL);
+        // The persister builds the skeleton from the same claim data, so the
+        // relation the aggregator refuses is on the skeleton too.
         $skeleton = $this->skeletonWith([$this->row('inv-1', 1000.0, '2024-01-15')]);
+        $skeleton->setRelationshipType(RelationshipType::CIVIL);
 
         $figures = $this->figures->safeComputeForSidebar($claim, $this->debtor(), null, $skeleton);
 

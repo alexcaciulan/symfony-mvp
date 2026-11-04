@@ -18,11 +18,11 @@ use App\Entity\LegalCase;
 use App\Enum\IssueSeverity;
 use App\Enum\PenaltyType;
 use App\Enum\RelationshipType;
-use App\Service\Calculation\ClaimInterestAggregator;
 use App\Service\Calculation\ContractualPenaltyCalculator;
 use App\Service\Calculation\CurrencyConverter;
 use App\Service\Calculation\InterestCalculatorService;
 use App\Service\Calculation\StampDutyCalculator;
+use App\Service\Case\CaseAccessoryService;
 use App\Service\Court\CompetentCourtResolver;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
@@ -40,7 +40,7 @@ final class WizardFigures
         private readonly ContractualPenaltyCalculator $penaltyCalculator,
         private readonly CompetentCourtResolver $courtResolver,
         private readonly StampDutyCalculator $stampDutyCalculator,
-        private readonly ClaimInterestAggregator $accessoryAggregator,
+        private readonly CaseAccessoryService $caseAccessories,
         private readonly LoggerInterface $logger = new NullLogger(),
     ) {}
 
@@ -122,8 +122,8 @@ final class WizardFigures
         ?LegalCase $skeleton = null,
     ): array {
         $items = $skeleton?->getCountingClaimItems() ?? [];
-        if ($items !== [] && $claim->relationshipType !== null) {
-            return $this->computeFromItems($items, $claim, $primaryDebtor, $conversion);
+        if ($skeleton !== null && $items !== [] && $claim->relationshipType !== null) {
+            return $this->computeFromItems($skeleton, $items, $claim, $primaryDebtor, $conversion);
         }
 
         // Everything downstream runs on RON: convert a foreign-currency claim
@@ -208,6 +208,7 @@ final class WizardFigures
      * @return array{interest: ?InterestResult, penalty: ?PenaltyResult, accessoryTotal: float, stampDuty: ?StampDutyResult, court: ?CourtResolveResult, conversion: ?CurrencyConversionResult, accessoryPerItem: ?AggregatedAccessoryResult, claimItems: list<ClaimItem>, principal: ?float}
      */
     private function computeFromItems(
+        LegalCase $skeleton,
         array $items,
         Step3ClaimData $claim,
         ?Step2DebtorEntry $primaryDebtor,
@@ -217,22 +218,11 @@ final class WizardFigures
         $relationshipType = $claim->relationshipType ?? RelationshipType::COMERCIAL;
         $penaltyType = $claim->penaltyType ?? PenaltyType::LEGAL_PENALIZATOARE;
 
-        try {
-            $accessory = $this->accessoryAggregator->aggregate(
-                items: $items,
-                referenceDate: $now,
-                relationshipType: $relationshipType,
-                penaltyType: $penaltyType,
-                contractualDailyRate: $claim->contractualPenaltyRate,
-                contractualPenaltyCapPercent: $claim->contractualPenaltyCapPercent,
-                contractDate: $claim->contractDate,
-            );
-        } catch (\DomainException | \RuntimeException $e) {
-            // An unsupported claim type reaches here now instead of turning into
-            // a zero; the step renders placeholders rather than a wrong figure.
-            $this->logger->info('wizard.calc.items_accessory_failed', ['reason' => $e->getMessage()]);
-            $accessory = new AggregatedAccessoryResult(0.0);
-        }
+        // The skeleton carries the claim fields the case will be saved with, so
+        // the accessory is the one the case page computes after the save. An
+        // unsupported claim type yields no result rather than a wrong figure,
+        // and the step renders placeholders.
+        $accessory = $this->caseAccessories->aggregate($skeleton) ?? new AggregatedAccessoryResult(0.0);
 
         // A single position is the case as it always was, so the sidebar still
         // gets the one result it knows how to break down by period.
