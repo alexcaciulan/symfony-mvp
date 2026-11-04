@@ -8,6 +8,9 @@ use App\Enum\LegalGroundCategory;
 use App\Enum\ContractualAccessoryLabel;
 use App\Enum\PenaltyType;
 use App\Enum\RelationshipType;
+use App\Validator\Constraints\AccessoryCutoffRules;
+use App\Validator\Constraints\ContractualPenaltyCapRules;
+use App\Validator\Constraints\ContractualPenaltyRateRules;
 use Symfony\Component\Validator\Constraints as Assert;
 
 /**
@@ -61,35 +64,15 @@ class Step3ClaimData
         public ?string $description = null,
         #[Assert\NotNull(message: 'wizard.step3.error.penalty_type_required')]
         public ?PenaltyType $penaltyType = PenaltyType::LEGAL_PENALIZATOARE,
-        #[Assert\When(
-            expression: 'this.penaltyType === enum("App\\\\Enum\\\\PenaltyType::CONTRACTUAL")',
-            constraints: [
-                new Assert\NotNull(message: 'wizard.step3.error.penalty_rate_required'),
-                new Assert\Positive(message: 'wizard.step3.error.penalty_rate_positive'),
-                new Assert\LessThanOrEqual(
-                    value: 5,
-                    message: 'wizard.step3.error.penalty_rate_too_high',
-                ),
-            ],
-        )]
+        #[ContractualPenaltyRateRules]
         public ?float $contractualPenaltyRate = null,
         // Share of the sum the penalties may not exceed, as the contract states
         // it. Only read on the contractual branch.
-        #[Assert\When(
-            expression: 'this.penaltyType === enum("App\\\\Enum\\\\PenaltyType::CONTRACTUAL")',
-            constraints: [
-                new Assert\Positive(message: 'wizard.step3.error.penalty_cap_positive'),
-                new Assert\LessThanOrEqual(value: 100, message: 'wizard.step3.error.penalty_cap_too_high'),
-            ],
-        )]
+        #[ContractualPenaltyCapRules]
         public ?float $contractualPenaltyCapPercent = null,
         // Accessories computed up to this date instead of today. A future date
         // would claim interest not yet owed.
-        #[Assert\LessThanOrEqual(value: 'today', message: 'wizard.step3.error.accessory_cutoff_future')]
-        #[Assert\Expression(
-            expression: 'value === null or this.dueDate === null or value > this.dueDate',
-            message: 'wizard.step3.error.accessory_cutoff_before_due',
-        )]
+        #[AccessoryCutoffRules]
         public ?\DateTimeImmutable $accessoryCutoffDate = null,
         // Bounded to their column widths so an over-long value gets a validation
         // message rather than being silently cut at persist.
@@ -130,6 +113,7 @@ class Step3ClaimData
         public ?\DateTimeImmutable $invoiceDate = null,
         #[Assert\Length(max: 100, maxMessage: 'wizard.step3.error.contract_number_too_long')]
         public ?string $contractNumber = null,
+        #[Assert\LessThanOrEqual(value: 'today', message: 'wizard.step3.error.contract_date_not_future')]
         public ?\DateTimeImmutable $contractDate = null,
         #[Assert\PositiveOrZero(message: 'wizard.step3.error.legal_costs_fixed_positive')]
         public ?float $legalCostsFixed = null,

@@ -64,6 +64,7 @@ wizard:
             due_date_not_future: 'Scadența nu poate fi în viitor; creanța nu e încă exigibilă (CPC art. 1014).'
             invoice_date_required_fx: 'Pentru creanțe în valută, data emiterii facturii este obligatorie: conversia în RON utilizează cursul de referință BNR publicat pentru acea dată.'
             invoice_date_not_future: 'Data emiterii facturii nu poate fi în viitor.'
+            contract_date_not_future: 'Data contractului nu poate fi în viitor.'
             relationship_required: 'Selectează tipul raportului juridic.'
             penalty_type_required: 'Selectează modul de calcul al accesoriilor.'
             penalty_rate_required: 'Introdu rata zilnică a penalității contractuale.'
