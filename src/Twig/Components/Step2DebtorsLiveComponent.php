@@ -13,10 +13,10 @@ use Symfony\UX\LiveComponent\DefaultActionTrait;
 use Symfony\UX\LiveComponent\LiveCollectionTrait;
 
 /**
- * Pas 3.3 — interactive multi-debtor collection for wizard Step 2.
+ * Interactive multi-debtor collection for wizard step 2.
  *
- * Replaces the Pas 3.2 non-JS "Adaugă debitor" handler in
- * `CaseWizardController::debtor()` (`_action=add_debtor`). The component
+ * Replaces the earlier non-JS "Adaugă debitor" handler of the debtor step
+ * (`_action=add_debtor`). The component
  * uses {@see LiveCollectionTrait} which exposes ready-made `addCollectionItem`
  * and `removeCollectionItem` LiveActions wired to the form's collection field
  * names. Pre-rendered button data attributes (`data-live-action-param="addCollectionItem"`
@@ -24,10 +24,10 @@ use Symfony\UX\LiveComponent\LiveCollectionTrait;
  *
  * The component sits INSIDE the wizard page; the outer page renders the page
  * shell + nav bar. The component's `<form>` posts to `case_wizard_debtor` so
- * the wizard controller can still capture the final submission. LiveActions
+ * Step2DebtorController can still capture the final submission. LiveActions
  * mutate `$this->formValues` (the canonical live state from
- * ComponentWithFormTrait, hydrated/dehydrated automatically) — partial input
- * is preserved across add/remove unlike the Pas 3.2 server round-trip.
+ * ComponentWithFormTrait, hydrated/dehydrated automatically): partial input
+ * is preserved across add/remove, unlike the earlier server round-trip.
  *
  * Product cap is 5 entries (matches `Step2DebtorsData::$debtors` Assert\Count
  * max). Min 1 is enforced at submit-time by the same constraint; the template

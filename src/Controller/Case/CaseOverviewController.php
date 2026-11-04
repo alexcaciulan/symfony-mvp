@@ -33,7 +33,7 @@ final class CaseOverviewController extends AbstractController
         $this->denyAccessUnlessGranted(CaseVoter::VIEW, $case);
 
         // One-time „Următorul pas" badge on the „Generează cerere OP" CTA,
-        // emitted by CaseWizardController right after submit. The flash bag
+        // emitted by Step4ConfirmationController right after submit. The flash bag
         // is read-and-consume so reloading the page clears the badge.
         $justCreated = $request->getSession()->getFlashBag()->get('case_just_created') !== [];
 

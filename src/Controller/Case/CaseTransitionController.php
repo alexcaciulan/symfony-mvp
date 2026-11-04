@@ -205,7 +205,7 @@ final class CaseTransitionController extends AbstractController
 
         // LegalCase.finalRulingDate is mapped as DATE_MUTABLE — convert the
         // immutable form value to a mutable DateTime to match the Doctrine
-        // column type. Same pattern as CaseWizardController for dueDate.
+        // column type. Same pattern as CaseWizardPersister for dueDate.
         $rulingDateMutable = \DateTime::createFromImmutable($rulingDate);
         $fromStatus = $case->getStatus()->value;
 

@@ -20,7 +20,7 @@
     {{ include('case/_prefill_conflicts.html.twig', { conflicts_form_id: 'step1-creditor-form' }) }}
 
     <div data-controller="creditor-mode">
-        {# Pas 3.3 — UX Autocomplete picker for creditors from the user's library.
+        {# UX Autocomplete picker for creditors from the user's library.
            The select sits at the top of the form; manual fields below auto-hide
            (creditor-mode_controller.js) when an existing creditor is picked. #}
         <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 mb-6 shadow-soft">
@@ -283,7 +283,7 @@
         {{ form_widget(form.anafCheckedAt, { attr: { 'data-party-anaf-lookup-target': 'anafCheckedAt' }}) }}
 
         {# The creditor reaches the library on its own when the case is submitted
-           (CaseWizardController::reuseOrCreateCreditor), so there is nothing to opt into. #}
+           (WizardCreditorResolver::reuseOrCreateCreditor), so there is nothing to opt into. #}
         <p class="flex items-start gap-2 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
             <svg class="size-4 shrink-0 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             <span>{{ 'wizard.step1.library_autosave_hint'|trans }}</span>

@@ -26,7 +26,7 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 /**
  * Pas 3.0 Nivel 3 cascade test — exercises the FULL pipeline end to end:
  *
- *   HTTP upload (CaseWizardController) →
+ *   HTTP upload (Step0DocumentsController) →
  *   DocumentUploadService persists Document(legal_case=null) →
  *   bus dispatches ExtractDataMessage →
  *   InMemoryTransport collects it →

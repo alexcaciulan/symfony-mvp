@@ -18,7 +18,7 @@ class AuditLogRepository extends ServiceEntityRepository
 
     /**
      * Recent audit entries for a case (entityType = LegalCase::class FQN, entityId = id string).
-     * Matches the persistence convention used by CaseWizardController and AuditLogService
+     * Matches the persistence convention used by CaseWizardPersister and AuditLogService
      * callers — see Pas 3.2 wizard submit + Pas 2.5.4 category indexing.
      *
      * @return AuditLog[]

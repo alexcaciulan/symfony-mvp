@@ -17,7 +17,7 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
  * Pas 4.0.1 — Tests for AuditLogRepository::findByCase().
  *
  * Verifies the new finder filters by `entityType = LegalCase::class FQN` + `entityId`
- * (matching the persistence convention used by CaseWizardController/AuditLogService),
+ * (matching the persistence convention used by CaseWizardPersister/AuditLogService),
  * orders DESC by createdAt, and respects the limit.
  */
 class AuditLogRepositoryTest extends KernelTestCase
