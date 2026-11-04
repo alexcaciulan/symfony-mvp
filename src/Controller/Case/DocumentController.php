@@ -29,6 +29,8 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Route('/case')]
 final class DocumentController extends AbstractController
 {
+    private const INLINE_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png'];
+
     public function __construct(
         private readonly LegalCaseRepository $legalCaseRepository,
         private readonly DocumentRepository $documentRepository,
@@ -41,6 +43,21 @@ final class DocumentController extends AbstractController
 
     #[Route('/{caseId}/document/{documentId}/download', name: 'case_document_download', requirements: ['caseId' => '\d+', 'documentId' => '\d+'], methods: ['GET'])]
     public function download(int $caseId, int $documentId): Response
+    {
+        return $this->serveDocument($caseId, $documentId, false);
+    }
+
+    /**
+     * Opens the document in the browser tab instead of saving it. Only PDFs and
+     * images are shown inline; any other type is still sent as an attachment.
+     */
+    #[Route('/{caseId}/document/{documentId}/view', name: 'case_document_view', requirements: ['caseId' => '\d+', 'documentId' => '\d+'], methods: ['GET'])]
+    public function view(int $caseId, int $documentId): Response
+    {
+        return $this->serveDocument($caseId, $documentId, true);
+    }
+
+    private function serveDocument(int $caseId, int $documentId, bool $inline): Response
     {
         $legalCase = $this->legalCaseRepository->find($caseId);
 
@@ -64,11 +81,16 @@ final class DocumentController extends AbstractController
             return $this->redirectToRoute('case_overview', ['id' => $caseId]);
         }
 
+        $showInline = $inline && in_array($document->getMimeType(), self::INLINE_MIME_TYPES, true);
         $response = new BinaryFileResponse($filePath);
         $response->setContentDisposition(
-            ResponseHeaderBag::DISPOSITION_ATTACHMENT,
+            $showInline ? ResponseHeaderBag::DISPOSITION_INLINE : ResponseHeaderBag::DISPOSITION_ATTACHMENT,
             $document->getOriginalFilename()
         );
+        if ($showInline) {
+            $response->headers->set('Content-Type', $document->getMimeType());
+            $response->headers->set('X-Content-Type-Options', 'nosniff');
+        }
 
         return $response;
     }

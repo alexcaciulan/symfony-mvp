@@ -407,6 +407,47 @@ final class DocumentControllerTest extends WebTestCase
         );
     }
 
+    public function testViewShowsAPdfInlineInTheBrowser(): void
+    {
+        $this->client->loginUser($this->user);
+        $docId = $this->uploadDocument();
+
+        $this->client->request('GET', sprintf('/case/%d/document/%d/view', $this->case->getId(), $docId));
+
+        self::assertResponseIsSuccessful();
+        $headers = $this->client->getResponse()->headers;
+        self::assertStringStartsWith('inline', (string) $headers->get('Content-Disposition'));
+        self::assertSame('application/pdf', $headers->get('Content-Type'));
+        self::assertSame('nosniff', $headers->get('X-Content-Type-Options'));
+    }
+
+    public function testViewSendsAnAttachmentForATypeTheBrowserShouldNotRender(): void
+    {
+        $this->client->loginUser($this->user);
+        $docId = $this->uploadDocument();
+        $this->em->getConnection()->executeStatement('UPDATE document SET mime_type = ? WHERE id = ?', ['text/html', $docId]);
+
+        $this->client->request('GET', sprintf('/case/%d/document/%d/view', $this->case->getId(), $docId));
+
+        self::assertResponseIsSuccessful();
+        self::assertStringStartsWith('attachment', (string) $this->client->getResponse()->headers->get('Content-Disposition'));
+    }
+
+    public function testViewForbiddenForOtherUser(): void
+    {
+        $this->client->loginUser($this->user);
+        $docId = $this->uploadDocument();
+
+        $intruder = $this->createIntruder();
+        try {
+            $this->client->loginUser($intruder);
+            $this->client->request('GET', sprintf('/case/%d/document/%d/view', $this->case->getId(), $docId));
+            self::assertResponseStatusCodeSame(Response::HTTP_FORBIDDEN);
+        } finally {
+            $this->em->getConnection()->executeStatement('DELETE FROM `user` WHERE id = ?', [$intruder->getId()]);
+        }
+    }
+
     public function testDownloadForbiddenForOtherUser(): void
     {
         $this->client->loginUser($this->user);

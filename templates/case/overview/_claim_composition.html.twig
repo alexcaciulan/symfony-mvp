@@ -5,7 +5,7 @@
    case is amiable the owner adds, excludes and reinstates positions and edits the
    details from here. The positions come from ClaimPositionsPresenter; nothing is
    computed in this template beyond the sums already on the case. #}
-{% from 'case/overview/_icons.html.twig' import icon_money, icon_warning, icon_lock, icon_plus, icon_check, icon_edit, icon_dots, icon_document, icon_chevron_down %}
+{% from 'case/overview/_icons.html.twig' import icon_money, icon_warning, icon_lock, icon_plus, icon_check, icon_edit, icon_dots, icon_document, icon_chevron_down, icon_download %}
 
 {% set can_edit_claim = is_granted('CASE_CLAIM_EDIT', case) %}
 {% set positions = claim_positions|default(null) %}
@@ -216,7 +216,7 @@
                                                 <span class="{{ pill }} bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300" data-testid="claim-position-pill" data-kind="added"><span class="size-1.5 rounded-full bg-green-500" aria-hidden="true"></span>{{ 'case_overview.claim.pill_added'|trans }}</span>
                                             {% endif %}
                                             {% if item.sourceDocument %}
-                                                <a href="{{ path('case_document_download', {caseId: case.id, documentId: item.sourceDocument.id}) }}" title="{{ item.sourceDocument.originalFilename }}" aria-label="{{ item.sourceDocument.originalFilename }}" data-turbo="false" data-testid="claim-source-icon" class="@4xl:hidden inline-flex text-blue-700 dark:text-blue-400">{{ icon_document('size-3.5') }}</a>
+                                                <a href="{{ path('case_document_view', {caseId: case.id, documentId: item.sourceDocument.id}) }}" target="_blank" rel="noopener" title="{{ item.sourceDocument.originalFilename }}" aria-label="{{ item.sourceDocument.originalFilename }}" data-turbo="false" data-testid="claim-source-icon" class="@4xl:hidden inline-flex text-blue-700 dark:text-blue-400">{{ icon_document('size-3.5') }}</a>
                                             {% else %}
                                                 <span class="@4xl:hidden {{ meta }}" title="{{ 'case_overview.claim.source_manual_title'|trans }}" data-testid="claim-source-icon">{{ 'case_overview.claim.source_manual'|trans }}</span>
                                             {% endif %}
@@ -317,7 +317,7 @@
 
                                     <div role="cell" class="hidden @4xl:block px-2 py-3">
                                         {% if item.sourceDocument %}
-                                            <a href="{{ path('case_document_download', {caseId: case.id, documentId: item.sourceDocument.id}) }}" title="{{ item.sourceDocument.originalFilename }}" data-turbo="false" class="inline-flex items-center gap-1 text-[11px] font-medium text-blue-700 dark:text-blue-400 hover:underline whitespace-nowrap">{{ icon_document('size-3.5') }}{{ 'case_overview.claim.source_pdf'|trans }}</a>
+                                            <a href="{{ path('case_document_view', {caseId: case.id, documentId: item.sourceDocument.id}) }}" target="_blank" rel="noopener" title="{{ item.sourceDocument.originalFilename }}" data-turbo="false" class="inline-flex items-center gap-1 text-[11px] font-medium text-blue-700 dark:text-blue-400 hover:underline whitespace-nowrap">{{ icon_document('size-3.5') }}{{ 'case_overview.claim.source_pdf'|trans }}</a>
                                         {% else %}
                                             <span class="{{ meta }} whitespace-nowrap" title="{{ 'case_overview.claim.source_manual_title'|trans }}">{{ 'case_overview.claim.source_manual'|trans }}</span>
                                         {% endif %}
@@ -337,9 +337,13 @@
                                                  role="menu" aria-labelledby="claim-position-menu-{{ item.id }}">
                                                 <div class="px-2.5 pt-1 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">{{ position_label }}</div>
                                                 {% if item.sourceDocument %}
-                                                    <a href="{{ path('case_document_download', {caseId: case.id, documentId: item.sourceDocument.id}) }}" role="menuitem" data-turbo="false" title="{{ item.sourceDocument.originalFilename }}" class="{{ menu_item }} text-slate-800 dark:text-slate-200">
+                                                    <a href="{{ path('case_document_view', {caseId: case.id, documentId: item.sourceDocument.id}) }}" target="_blank" rel="noopener" role="menuitem" data-turbo="false" title="{{ item.sourceDocument.originalFilename }}" data-testid="claim-open-invoice-{{ item.id }}" class="{{ menu_item }} text-slate-800 dark:text-slate-200">
                                                         {{ icon_document('size-4 text-slate-400') }}
                                                         {{ 'case_overview.claim.menu_open_invoice'|trans }}
+                                                    </a>
+                                                    <a href="{{ path('case_document_download', {caseId: case.id, documentId: item.sourceDocument.id}) }}" role="menuitem" data-turbo="false" title="{{ item.sourceDocument.originalFilename }}" data-testid="claim-download-invoice-{{ item.id }}" class="{{ menu_item }} text-slate-800 dark:text-slate-200">
+                                                        {{ icon_download('size-4 text-slate-400') }}
+                                                        {{ 'case_overview.claim.menu_download_invoice'|trans }}
                                                     </a>
                                                 {% else %}
                                                     <div role="menuitem" aria-disabled="true" class="flex items-start gap-2.5 py-2 px-2.5 rounded-lg text-sm text-slate-400 cursor-not-allowed">

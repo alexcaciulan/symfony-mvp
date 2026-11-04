@@ -1070,6 +1070,7 @@ case_overview:
         source_manual_title: 'Introdusă manual, fără document sursă'
         menu_aria: 'Acțiuni pentru factura %position%'
         menu_open_invoice: 'Deschide factura'
+        menu_download_invoice: 'Descarcă factura'
         menu_no_source: 'Fără document sursă'
         menu_no_source_hint: 'Factura se poate încărca din tab-ul Documente.'
         menu_show_calc: 'Vezi calculul'

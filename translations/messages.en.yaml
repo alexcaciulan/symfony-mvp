@@ -1070,6 +1070,7 @@ case_overview:
         source_manual_title: 'Entered by hand, no source document'
         menu_aria: 'Actions for invoice %position%'
         menu_open_invoice: 'Open the invoice'
+        menu_download_invoice: 'Download the invoice'
         menu_no_source: 'No source document'
         menu_no_source_hint: 'The invoice can be uploaded from the Documents tab.'
         menu_show_calc: 'Show the calculation'
