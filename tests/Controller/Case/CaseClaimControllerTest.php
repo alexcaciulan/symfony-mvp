@@ -153,16 +153,38 @@ final class CaseClaimControllerTest extends WebTestCase
         self::assertCount(1, $crawler->filter('[data-testid="claim-positions-table"]'));
     }
 
-    public function testEveryRouteIsForbiddenPastTheAmiableStage(): void
+    /**
+     * The owner whose case moved on after the page was opened (the summons sent
+     * from another tab) is not met with a bare 403: the page is redrawn locked,
+     * the dialogs close and a toast says why. Without Turbo, a redirect with a flash.
+     */
+    public function testEveryRouteRedrawsThePageLockedPastTheAmiableStage(): void
     {
+        $invoiceId = $this->persistDocument(DocumentType::FACTURA)->getId();
         $this->case->setStatus(CaseStatus::SOMATIE_TRIMISA);
         $this->em->flush();
         $this->client->loginUser($this->user);
 
         foreach ($this->routes() as $route) {
             $this->client->request('POST', $route, [], [], ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html']);
-            self::assertResponseStatusCodeSame(Response::HTTP_FORBIDDEN, $route);
+            self::assertResponseIsSuccessful($route);
+            $body = (string) $this->client->getResponse()->getContent();
+            self::assertStringContainsString('target="case-claim-card"', $body, $route);
+            self::assertStringContainsString('data-testid="claim-locked-note"', $body, $route);
+            self::assertStringContainsString('data-close-modal-target-id-value="hs-modal-claim-exclude"', $body, $route);
+            self::assertStringContainsString('dosarul a trecut de etapa amiabilă', $body, $route);
         }
+
+        $this->client->request('POST', $this->routes()[0]);
+        self::assertResponseRedirects(sprintf('/case/%d', $this->case->getId()));
+        $this->client->followRedirect();
+        self::assertStringContainsString('dosarul a trecut de etapa amiabilă', (string) $this->client->getResponse()->getContent(), 'Without Turbo the reason arrives as a flash.');
+
+        $this->client->request('GET', sprintf('/case/%d/claim/invoice/%d', $this->case->getId(), $invoiceId));
+        self::assertResponseStatusCodeSame(Response::HTTP_FORBIDDEN, 'The reading endpoint keeps the plain 403: its dialog is already closed.');
+        $this->client->request('GET', sprintf('/case/%d', $this->case->getId()));
+        self::assertResponseIsSuccessful();
+        self::assertStringNotContainsString('dosarul a trecut de etapa amiabilă', (string) $this->client->getResponse()->getContent(), 'The refused poll leaves no stray flash behind.');
     }
 
     public function testEveryRouteIsForbiddenToAnotherUser(): void

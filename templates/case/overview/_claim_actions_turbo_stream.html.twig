@@ -27,11 +27,11 @@
 <turbo-stream action="update" target="claim-details-fields">
     <template>{{ include('case/overview/_claim_details_fields.html.twig') }}</template>
 </turbo-stream>
-{% if close_modal_id is defined and close_modal_id %}
+{% for modal_id in (close_modal_ids|default(close_modal_id is defined and close_modal_id ? [close_modal_id] : [])) %}
     <turbo-stream action="append" target="toasts">
-        <template><div data-controller="close-modal" data-close-modal-target-id-value="{{ close_modal_id }}"></div></template>
+        <template><div data-controller="close-modal" data-close-modal-target-id-value="{{ modal_id }}"></div></template>
     </turbo-stream>
-{% endif %}
+{% endfor %}
 <turbo-stream action="append" target="toasts">
     <template>
         {% include 'components/Toast.html.twig' with { message: toast_message, variant: toast_variant, details: toast_details|default([]) } only %}

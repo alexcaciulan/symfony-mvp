@@ -83,7 +83,10 @@ final class CaseClaimController extends AbstractController
     #[Route('/add', name: 'case_claim_add_manual', methods: ['POST'])]
     public function addManual(Request $request, int $id, #[CurrentUser] User $user): Response
     {
-        $case = $this->editableCase($id);
+        $case = $this->editableCase($request, $id);
+        if ($case instanceof Response) {
+            return $case;
+        }
         $form = $this->createForm(ClaimPositionType::class, new ClaimPositionInput());
         $form->handleRequest($request);
         if (!$form->isSubmitted() || !$form->isValid()) {
@@ -103,7 +106,10 @@ final class CaseClaimController extends AbstractController
     #[Route('/invoice/{documentId}/add', name: 'case_claim_add_from_document', requirements: ['documentId' => '\d+'], methods: ['POST'])]
     public function addFromDocument(Request $request, int $id, int $documentId, #[CurrentUser] User $user): Response
     {
-        $case = $this->editableCase($id);
+        $case = $this->editableCase($request, $id);
+        if ($case instanceof Response) {
+            return $case;
+        }
         $document = $this->ownedInvoice($case, $documentId, $user);
         $form = $this->createForm(ClaimPositionType::class, new ClaimPositionInput());
         $form->handleRequest($request);
@@ -130,7 +136,10 @@ final class CaseClaimController extends AbstractController
     #[Route('/invoice', name: 'case_claim_invoice_upload', methods: ['POST'])]
     public function uploadInvoice(Request $request, int $id, #[CurrentUser] User $user): Response
     {
-        $case = $this->editableCase($id);
+        $case = $this->editableCase($request, $id);
+        if ($case instanceof Response) {
+            return $case;
+        }
         $form = $this->createForm(ClaimInvoiceUploadType::class);
         $form->handleRequest($request);
         if (!$form->isSubmitted() || !$form->isValid()) {
@@ -177,7 +186,8 @@ final class CaseClaimController extends AbstractController
     #[Route('/invoice/{documentId}', name: 'case_claim_invoice_status', requirements: ['documentId' => '\d+'], methods: ['GET'])]
     public function invoiceStatus(int $id, int $documentId, #[CurrentUser] User $user): Response
     {
-        $case = $this->editableCase($id);
+        $case = $this->loadCase($id);
+        $this->denyAccessUnlessGranted(CaseVoter::CLAIM_EDIT, $case);
         $document = $this->ownedInvoice($case, $documentId, $user);
 
         return $this->render('case/overview/_claim_invoice_status.html.twig', [
@@ -189,7 +199,10 @@ final class CaseClaimController extends AbstractController
     #[Route('/item/{itemId}/exclude', name: 'case_claim_exclude', requirements: ['itemId' => '\d+'], methods: ['POST'])]
     public function exclude(Request $request, int $id, int $itemId, #[CurrentUser] User $user): Response
     {
-        $case = $this->editableCase($id);
+        $case = $this->editableCase($request, $id);
+        if ($case instanceof Response) {
+            return $case;
+        }
         $item = $this->ownedItem($case, $itemId);
         $form = $this->createForm(ClaimExcludeType::class);
         $form->handleRequest($request);
@@ -211,7 +224,10 @@ final class CaseClaimController extends AbstractController
     #[Route('/item/{itemId}/reinclude', name: 'case_claim_reinclude', requirements: ['itemId' => '\d+'], methods: ['POST'])]
     public function reinclude(Request $request, int $id, int $itemId, #[CurrentUser] User $user): Response
     {
-        $case = $this->editableCase($id);
+        $case = $this->editableCase($request, $id);
+        if ($case instanceof Response) {
+            return $case;
+        }
         $item = $this->ownedItem($case, $itemId);
         if (!$this->isCsrfTokenValid('claim_reinclude_' . $itemId, $request->getPayload()->getString('_token'))) {
             return $this->respondToast($request, $case, 'error', 'case.claim.edit.error.invalid_csrf');
@@ -230,7 +246,10 @@ final class CaseClaimController extends AbstractController
     #[Route('/details', name: 'case_claim_details', methods: ['POST'])]
     public function details(Request $request, int $id, #[CurrentUser] User $user): Response
     {
-        $case = $this->editableCase($id);
+        $case = $this->editableCase($request, $id);
+        if ($case instanceof Response) {
+            return $case;
+        }
         $form = $this->createForm(ClaimDetailsType::class, new ClaimDetailsInput());
         $form->handleRequest($request);
         if (!$form->isSubmitted() || !$form->isValid()) {
@@ -253,7 +272,10 @@ final class CaseClaimController extends AbstractController
     #[Route('/court/accept', name: 'case_claim_court_accept', methods: ['POST'])]
     public function acceptCourt(Request $request, int $id, #[CurrentUser] User $user): Response
     {
-        $case = $this->editableCase($id);
+        $case = $this->editableCase($request, $id);
+        if ($case instanceof Response) {
+            return $case;
+        }
         $payload = $request->getPayload();
         if (!$this->isCsrfTokenValid('claim_court_accept_' . $id, $payload->getString('_token'))) {
             return $this->respondToast($request, $case, 'error', 'case.claim.edit.error.invalid_csrf');
@@ -268,15 +290,51 @@ final class CaseClaimController extends AbstractController
         return $this->respondChange($request, $case, null, $case->getAmount(), 'case.claim.edit.flash.court_accepted', null, ['%court%' => $court->getName()]);
     }
 
-    private function editableCase(int $id): LegalCase
+    private function loadCase(int $id): LegalCase
     {
         $case = $this->cases->findWithOverviewRelations($id);
         if ($case === null) {
             throw $this->createNotFoundException();
         }
-        $this->denyAccessUnlessGranted(CaseVoter::CLAIM_EDIT, $case);
 
         return $case;
+    }
+
+    /**
+     * The case while its claim can still be edited. The owner whose case moved
+     * on after the page was opened (a summons sent from another tab) gets the
+     * page refreshed and told why, instead of a bare 403; anyone else gets the 403.
+     */
+    private function editableCase(Request $request, int $id): LegalCase|Response
+    {
+        $case = $this->loadCase($id);
+        if ($this->isGranted(CaseVoter::CLAIM_EDIT, $case)) {
+            return $case;
+        }
+        $this->denyAccessUnlessGranted(CaseVoter::VIEW, $case);
+
+        return $this->respondLocked($request, $case);
+    }
+
+    /** Every region redrawn in its locked state, the open dialog closed, and the reason as a toast. */
+    private function respondLocked(Request $request, LegalCase $case): Response
+    {
+        $message = $this->translator->trans('case.claim.edit.error.status_changed');
+        if (!$this->wantsStream($request)) {
+            $this->addFlash('error', $message);
+
+            return $this->redirectToRoute('case_overview', ['id' => $case->getId()]);
+        }
+
+        $context = $this->contextBuilder->build($case, [
+            'claim_change_summary' => ['lines' => [], 'warnings' => []],
+        ]);
+        $context['toast_variant'] = 'error';
+        $context['toast_message'] = $message;
+        $context['toast_details'] = [];
+        $context['close_modal_ids'] = [self::MODAL_ADD, self::MODAL_EXCLUDE, self::MODAL_DETAILS];
+
+        return $this->streamResponse($this->renderView('case/overview/_claim_actions_turbo_stream.html.twig', $context));
     }
 
     private function ownedItem(LegalCase $case, int $itemId): ClaimItem
