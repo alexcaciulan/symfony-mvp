@@ -136,6 +136,32 @@
     </div>
   </section>
 
+  <section>
+    <div class="flex items-baseline gap-3 mb-4 flex-wrap">
+      <h2 class="text-lg font-semibold">Vederea de dosar</h2>
+      <span class="text-xs text-slate-500 dark:text-slate-400">1 ecran · propunere pentru cardul Creanță din tabul Detalii</span>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+      <a href="04-dosar/creanta-detalii.html" class="group bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-600 hover:shadow-lg transition p-5">
+        <div class="text-xs uppercase tracking-wide font-semibold text-blue-600 dark:text-blue-400 mb-2">Tab Detalii</div>
+        <h3 class="text-base font-semibold group-hover:text-blue-600 dark:group-hover:text-blue-400">Creanță: indicatori, facturi, acțiuni</h3>
+        <p class="mt-1 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+          Același stil, altă ierarhie. Un singur rând de indicatori (principal + dobândă + taxă = cerere totală), tabelul de facturi cu 5 coloane care încape la 1280px și devine listă pe mobil, acțiunile lângă ce modifică și meniul ⋯ pe rând. Comutator de stări: amiabil sau după somație, 1, 6 sau 20 de poziții, dobândă legală sau penalitate contractuală, mobil 390px.
+        </p>
+        <div class="mt-3 flex flex-wrap gap-1.5">
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-semibold">Container queries</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-semibold">Calcul pe rând</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">Mobil 390px</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-semibold">Motivare inclusă</span>
+        </div>
+        <div class="mt-3 inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 font-medium">Deschide →</div>
+      </a>
+
+    </div>
+  </section>
+
   <section class="bg-slate-100 dark:bg-slate-900 rounded-xl p-6 text-sm">
     <h3 class="font-semibold mb-3">Reguli respectate în toate cele trei ecrane</h3>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-xs text-slate-600 dark:text-slate-400">
@@ -157,7 +183,7 @@
   <section class="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-6 text-sm">
     <h3 class="font-semibold mb-3">Ce nu este mockup-uit în v3</h3>
     <p class="text-xs text-slate-600 dark:text-slate-400 leading-relaxed max-w-3xl">
-      v3 acoperă exclusiv panoul de lucru. Restul aplicației rămâne pe v2: autentificare, wizardul de creare dosar, vederea de dosar cu cele cinci taburi și pagina de termene. Link-urile din mockup-urile v3 duc înapoi în ecranele v2 acolo unde navigarea o cere.
+      v3 acoperă panoul de lucru și cardul Creanță din tabul Detalii. Restul aplicației rămâne pe v2: autentificare, wizardul de creare dosar, celelalte carduri și taburi ale vederii de dosar și pagina de termene. Link-urile din mockup-urile v3 duc înapoi în ecranele v2 acolo unde navigarea o cere.
     </p>
     <div class="mt-3">
       <a href="../v2/index.html" class="text-xs font-semibold text-blue-700 dark:text-blue-400 hover:underline">Deschide galeria v2 →</a>

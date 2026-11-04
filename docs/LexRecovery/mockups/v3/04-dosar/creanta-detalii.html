@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="ro" class="">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Creanță în Detalii · LexRecovery v3</title>
+  <script>
+    if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    }
+  </script>
+  <!-- container-queries plugin only for the Play CDN; Tailwind v4 in the app has @container built in -->
+  <script src="https://cdn.tailwindcss.com?plugins=container-queries"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: {
+        colors: { 'lex-navy': '#1E3A5F', 'lex-navy-dark': '#162A45', 'lex-navy-light': '#2B4F7C' },
+        fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+        boxShadow: {
+          'soft': '0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 12px -2px rgba(15, 23, 42, 0.05)',
+          'card': '0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -4px rgba(15, 23, 42, 0.06)',
+          'hero': '0 1px 3px rgba(15, 23, 42, 0.05), 0 12px 40px -8px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(15, 23, 42, 0.04)',
+        },
+      }},
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    .tnum { font-variant-numeric: tabular-nums; }
+    :focus-visible { outline: 2px solid #3b82f6; outline-offset: 2px; border-radius: 6px; }
+    .nav-active { background: linear-gradient(90deg, rgba(30,58,95,0.08) 0%, rgba(30,58,95,0.02) 100%); }
+    .dark .nav-active { background: linear-gradient(90deg, rgba(96,165,250,0.12) 0%, rgba(96,165,250,0.02) 100%); }
+    .row-new { background: rgba(34,197,94,0.07); }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  </style>
+</head>
+<body class="font-sans antialiased min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+
+<!-- ============ Mockup chrome: state switcher + rationale (hidden inside the mobile iframe) ============ -->
+<div id="mock-chrome">
+  <div class="sticky top-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-slate-200 dark:border-slate-800">
+    <div class="px-4 lg:px-6 py-2.5 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs">
+      <a href="../index.html" class="font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200">← Galerie v3</a>
+      <span class="font-bold text-slate-900 dark:text-white">Propunere: Creanță în tabul Detalii</span>
+      <div class="flex items-center gap-1.5"><span class="text-slate-500">Aranjare</span>
+        <div class="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-0.5" data-group="layout">
+          <button type="button" data-v="sidebar" class="seg">Cu bară laterală (azi)</button>
+          <button type="button" data-v="full" class="seg">Fără bară laterală (propunere)</button>
+        </div></div>
+      <div class="flex items-center gap-1.5"><span class="text-slate-500">Status</span>
+        <div class="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-0.5" data-group="status">
+          <button type="button" data-v="amiabil" class="seg">Amiabil (editabil)</button>
+          <button type="button" data-v="somatie" class="seg">Somație trimisă</button>
+        </div></div>
+      <div class="flex items-center gap-1.5"><span class="text-slate-500">Poziții</span>
+        <div class="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-0.5" data-group="n">
+          <button type="button" data-v="1" class="seg">1</button>
+          <button type="button" data-v="6" class="seg">6</button>
+          <button type="button" data-v="20" class="seg">20</button>
+        </div></div>
+      <div class="flex items-center gap-1.5"><span class="text-slate-500">Accesorii</span>
+        <div class="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-0.5" data-group="acc">
+          <button type="button" data-v="legal" class="seg">Dobândă legală</button>
+          <button type="button" data-v="contract" class="seg">Penalitate contractuală</button>
+        </div></div>
+      <div class="flex items-center gap-1.5"><span class="text-slate-500">După o modificare</span>
+        <div class="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-0.5" data-group="changed">
+          <button type="button" data-v="0" class="seg">Nu</button>
+          <button type="button" data-v="1" class="seg">Da</button>
+        </div></div>
+      <div class="flex items-center gap-1.5"><span class="text-slate-500">Deschidere calcul</span>
+        <div class="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-0.5" data-group="calc">
+          <button type="button" data-v="A" class="seg" title="Rândul întreg se deschide, cu săgeată în stânga">A · rând extensibil</button>
+          <button type="button" data-v="B" class="seg" title="Coloană dedicată cu buton">B · coloană Calcul</button>
+          <button type="button" data-v="C" class="seg" title="Suma accesoriilor este butonul (recomandat)">C · suma deschide calculul</button>
+        </div></div>
+      <div class="flex items-center gap-1.5"><span class="text-slate-500">Vizualizare</span>
+        <div class="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-0.5" data-group="view">
+          <button type="button" data-v="desktop" class="seg">Desktop</button>
+          <button type="button" data-v="mobile" class="seg">Mobil 390px</button>
+        </div></div>
+      <button onclick="toggleTheme()" class="ml-auto p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Comută modul întunecat">
+        <svg class="size-4 dark:hidden text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+        <svg class="size-4 hidden dark:block text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <details id="rationale" class="mx-4 lg:mx-6 mt-4 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 rounded-xl text-sm text-blue-900 dark:text-blue-200">
+    <summary class="cursor-pointer select-none px-5 py-3 font-semibold flex items-center gap-2">
+      <svg class="size-4 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Ce se schimbă față de cardul actual și de ce (deschide)
+    </summary>
+    <div class="px-5 pb-5 grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4 text-[13px] leading-relaxed text-blue-900/90 dark:text-blue-200/90">
+      <div>
+        <h4 class="font-bold">1. Tabelul de facturi nu încape</h4>
+        <p class="mt-1">Cauza: la 1280px coloana principală are cam 600px (meniul lateral de 256px plus coloana cu Termen activ), iar tabelul are 10 coloane și <code>min-w-[880px]</code>. Propunerea are 5 coloane: <strong>Factură</strong> (număr, data emiterii, iconița documentului sursă, motivul excluderii), <strong>Scadență</strong> (cu zilele de întârziere), <strong>Rămas de plată</strong> (suma, iar Achitat și valuta apar ca subrând doar când există), <strong>Dobândă</strong> și meniul ⋯ al rândului. Starea „Confirmată” devine implicită; pilulă apare doar pentru excepții (Exclusă, Nu intră în total). Totalurile din subsol stau aliniate sub coloanele lor, nu într-o frază.</p>
+        <p class="mt-1">Cardul folosește container queries (Tailwind v4 nativ): sub 512px lățime a <em>cardului</em>, nu a ecranului, tabelul devine listă de rânduri-card. Așa nu mai contează în ce coloană stă cardul.</p>
+      </div>
+      <div>
+        <h4 class="font-bold">2. Prea multă informație suprapusă</h4>
+        <p class="mt-1">Azi suma totală apare de două ori (titlul barei și al patrulea indicator), iar bara „Compoziție creanță” repetă ce spun indicatorii. Propunerea: un singur rând de patru indicatori legați prin + și =, cu procentul în textul mic al fiecăruia, plus o bară subțire fără titlu. „Tip raport” devine etichetă în antet. Obiectul creanței, modul de calcul, contractul, data-limită și numărul somației se adună într-un bloc compact „Detaliile creanței” la baza cardului, vizibile fără să deschizi dialogul.</p>
+      </div>
+      <div>
+        <h4 class="font-bold">3. Acțiunile greu de găsit</h4>
+        <p class="mt-1">Fiecare acțiune stă lângă ce modifică. <strong>Adaugă factură</strong> (primar, navy) în antetul tabelului; <strong>Modifică detaliile</strong> (secundar, contur) în antetul blocului de detalii; <strong>Exclude / Reinclude</strong>, <strong>Deschide factura</strong> și <strong>Vezi calculul</strong> în meniul ⋯ al rândului. „Exclude” e dezactivat pe ultima poziție care intră în total, cu motivul scris. Antetul cardului spune starea: „Editabilă până la trimiterea somației” sau „Blocată după somație”; nota de blocare devine o bandă sub antet, nu un text gri lângă titlu.</p>
+      </div>
+      <div>
+        <h4 class="font-bold">4. Paragraful juridic lung</h4>
+        <p class="mt-1">Cele trei propoziții (excluse, valută, dobânda pe poziție) intră într-un „Cum se calculează” pliabil sub tabel. Propoziția despre valută apare doar când dosarul are o poziție în valută. Defalcarea pe perioade BNR (sau calculul penalităților) se deschide pe rândul poziției prin „Vezi calculul”, nu ca acordeon separat cu toate facturile. Pentru 20 de poziții: filtre Toate / În total / Excluse / Necesită atenție și primele 8 rânduri, apoi „Arată toate”.</p>
+      </div>
+      <div class="lg:col-span-2 pt-3 border-t border-blue-200/70 dark:border-blue-900/50">
+        <h4 class="font-bold">6. Cum se deschide calculul unei poziții (comutatorul „Deschidere calcul”)</h4>
+        <ul class="mt-1 list-disc list-inside space-y-0.5">
+          <li><strong>A · rând extensibil:</strong> săgeată în prima coloană, clic oriunde pe rând, suma subliniată punctat. Tiparul clasic de tabel extensibil; cel mai vizibil, dar rândul întreg devine țintă de clic lângă link-ul PDF și meniul ⋯.</li>
+          <li><strong>B · coloană Calcul:</strong> un buton cu iconiță pe fiecare rând. Foarte explicit, dar adaugă o coloană și o stivă de butoane identice.</li>
+          <li><strong>C · suma deschide calculul (recomandat):</strong> suma accesoriilor e ea însăși butonul, cu o săgeată mică în cerc chihlimbariu. Acțiunea stă exact unde apare întrebarea „de unde vine suma asta”, nu adaugă coloană, iar pe mobil arată identic. Rândul cu calculul deschis are fundal albastru discret și bară albastră în stânga; ultima coloană a calculului stă sub coloana Dobândă.</li>
+        </ul>
+        <p class="mt-1">Pe mobil, perioadele apar ca mini-rânduri stivuite (perioadă, sumă, apoi zile, rata BNR și rata aplicată), fără scroll în interiorul casetei. Motivul excluderii stă pe un singur rând, trunchiat, cu textul complet în tooltip; pilulele de excepție stau pe același rând cu numărul facturii.</p>
+      </div>
+      <div class="lg:col-span-2 pt-3 border-t border-blue-200/70 dark:border-blue-900/50">
+        <h4 class="font-bold">5. Fără bara laterală din Detalii (comutatorul „Aranjare”)</h4>
+        <p class="mt-1">Bara laterală repetă ce pagina arată deja deasupra taburilor. Inelul „Termen activ” spune același lucru ca tile-ul „Termen activ” din rândul de indicatori (zile, data expirării); singurul lucru în plus, „Următoarea alertă”, trece ca rând al doilea în tile. „Acțiuni recomandate” repetă, pe fiecare status, butonul principal din hero. Fără ea, tabul Detalii are toată lățimea: la 1280px cardul Creanță crește de la ~630px la ~960px, destul pentru coloanele Sumă facturată (cu cursul BNR), Achitat și Sursă (numele fișierului), fără scroll orizontal.</p>
+        <p class="mt-2 font-semibold">Unde ajunge fiecare acțiune recomandată (după <code>_recommended_actions.html.twig</code>):</p>
+        <ul class="mt-1 list-disc list-inside space-y-0.5">
+          <li>Generează somație (AMIABIL), Generează cerere OP (SOMAȚIE TRIMISĂ), Confirmă depunerea (CERERE GENERATĂ), Înregistrează dosar (CERERE DEPUSĂ), Confirmă emiterea ordonanței (TERMEN FIXAT), Trece la executare (DEFINITIVĂ), Închide dosar (EXECUTARE), legătura spre tabul Depunere: sunt deja butonul principal din hero (<code>_hero_actions.html.twig</code>). Nu se pierde nimic.</li>
+          <li>Trece la executare pe ORDONANȚĂ EMISĂ și ÎN ANULARE: azi există doar în bara laterală; trebuie adăugat în <code>primary_modal</code> din hero.</li>
+          <li>Marchează plată amiabilă (AMIABIL, SOMAȚIE TRIMISĂ): buton secundar, cu contur, lângă butonul principal din hero.</li>
+          <li>Acțiunile rare sau ireversibile (Marchează respinsă, Admite cererea în anulare, Cerere în anulare respinsă, Închide dosar definitiv): în meniul ⋯ „Acțiuni” din hero, lângă Închide dosar și Șterge.</li>
+          <li>Adaugă document (exista în macheta v2, nu și în aplicație): rămâne în tabul Documente, unde i se vede rezultatul.</li>
+          <li>Starea „Dosar închis: creanță achitată integral”: apare deja ca etichetă în hero (<code>full_payment_chip</code>).</li>
+        </ul>
+        <p class="mt-2"><strong>Cifre duplicate:</strong> rândul de indicatori de sus arată deja principalul, dobânda și totalul creanței. În cardul Creanță, cele patru tile-uri devin o singură linie „Cerere totală de depus = principal + dobândă + taxă timbru”. Rămâne doar ce indicatorii nu au: suma cerută instanței cu taxa de timbru inclusă și descompunerea ei. Cu bara laterală (azi) cardul păstrează tile-urile, ca termen de comparație.</p>
+      </div>
+      <div class="lg:col-span-2 pt-3 border-t border-blue-200/70 dark:border-blue-900/50">
+        <h4 class="font-bold">Ce s-ar schimba în cod la implementare</h4>
+        <ul class="mt-1 list-disc list-inside space-y-0.5">
+          <li><code>_claim_composition.html.twig</code>: rescris (antet cu stare, rând de indicatori, tabel cu 5 coloane, listă sub 512px, meniu ⋯ pe rând, defalcare pe rând, filtre, bloc Detaliile creanței).</li>
+          <li><code>_penalty_breakdown.html.twig</code>: conținutul se mută în rândul extins al poziției; acordeonul agregat dispare.</li>
+          <li><code>_claim_court_proposal.html.twig</code>, <code>_modal_claim_details.html.twig</code>, <code>_modal_claim_position.html.twig</code>, <code>_modal_claim_exclude.html.twig</code>, <code>_claim_details_fields.html.twig</code>, <code>_claim_invoice_status.html.twig</code>: neschimbate (doar declanșatoarele se mută).</li>
+          <li><code>_tab_detalii.html.twig</code>: fără grila pe 3 coloane și fără <code>_detalii_sidebar.html.twig</code> (cu <code>_active_deadline_ring.html.twig</code> și <code>_recommended_actions.html.twig</code>); Turbo Streams care reîmprospătau bara laterală țintesc hero-ul și indicatorii.</li>
+          <li><code>_hero_actions.html.twig</code>: buton secundar „Marchează plată amiabilă”, CTA pentru ORDONANȚĂ EMISĂ / ÎN ANULARE și acțiunile rare în meniul ⋯. <code>_kpi_grid.html.twig</code>: „Următoarea alertă” în tile-ul Termen activ.</li>
+          <li><code>_court_summary.html.twig</code>, <code>_legal_costs_card.html.twig</code>, <code>_notes_card.html.twig</code>: neschimbate.</li>
+          <li><code>translations/messages.{ro,en}.yaml</code>: chei noi pentru etichetele de stare, subrânduri („emisă %date%”, „%days% zile întârziere”, „din %amount% · achitat %paid%”), meniu, filtre, „Arată toate”, „Cum se calculează”, „Detaliile creanței”.</li>
+          <li>JS: meniul de rând prin <code>hs-dropdown</code> din Preline (deja folosit), extinderea rândului prin <code>hs-collapse</code>; filtrele printr-un controller Stimulus mic, fără cerere la server.</li>
+        </ul>
+      </div>
+    </div>
+  </details>
+</div>
+
+<!-- ============ Mobile frame (iframe of this same page, real 390px viewport) ============ -->
+<div id="mobile-stage" class="hidden py-8 flex justify-center">
+  <div class="rounded-[2.2rem] border-[10px] border-slate-800 dark:border-slate-700 shadow-hero overflow-hidden bg-white" style="width: 410px;">
+    <iframe id="mobile-frame" title="Previzualizare mobil 390px" style="width: 390px; height: 844px; display: block; border: 0;"></iframe>
+  </div>
+</div>
+
+<!-- ============ App shell (same widths as base.html.twig: 256px sidebar at lg, px-4 lg:px-8) ============ -->
+<div id="app" class="lg:flex">
+  <aside class="hidden lg:flex flex-col w-64 shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 min-h-screen">
+    <div class="h-16 flex items-center px-5 border-b border-slate-100 dark:border-slate-800">
+      <span class="flex items-center gap-2 text-lex-navy dark:text-white font-bold text-lg tracking-tight">
+        <span class="inline-flex items-center justify-center size-8 rounded-lg bg-gradient-to-br from-lex-navy to-lex-navy-dark text-white shadow-sm">
+          <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16l-3-3m3 3l3-3"/></svg>
+        </span>
+        LexRecovery
+      </span>
+    </div>
+    <nav class="px-3 py-4 space-y-1 text-sm">
+      <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800">Panou de lucru</a>
+      <a href="#" class="nav-active flex items-center gap-3 px-3 py-2 rounded-lg font-semibold text-slate-900 dark:text-white">Dosare</a>
+      <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800">Termene</a>
+      <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800">Debitori</a>
+      <a href="#" class="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800">Creditori</a>
+    </nav>
+  </aside>
+
+  <div class="flex-1 min-w-0 flex flex-col">
+    <header class="h-14 bg-white/85 dark:bg-slate-900/85 border-b border-slate-200 dark:border-slate-800">
+      <div class="h-full px-4 lg:px-8 flex items-center gap-3 text-xs">
+        <button type="button" class="lg:hidden p-1.5 -ml-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="Deschide meniul">
+          <svg class="size-5 text-slate-600 dark:text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <span class="text-slate-500">Dosare</span>
+        <svg class="size-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+        <span class="font-medium text-slate-700 dark:text-slate-300">LR-2026-0142</span>
+      </div>
+    </header>
+
+    <main class="flex-1 px-4 lg:px-8 py-6">
+      <!-- Context above the tabs: same blocks as overview.html.twig (_hero + _hero_actions, _kpi_grid, _pipeline) -->
+      <div id="hero-root"></div>
+
+      <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 mb-6 overflow-hidden">
+        <nav class="flex gap-1 px-2 overflow-x-auto" aria-label="Taburi dosar">
+          <span class="relative py-3.5 px-4 text-sm font-semibold text-slate-900 dark:text-white whitespace-nowrap after:absolute after:bottom-0 after:left-2 after:right-2 after:h-0.5 after:rounded-t-full after:bg-gradient-to-r after:from-lex-navy after:to-blue-500">Detalii</span>
+          <span class="py-3.5 px-4 text-sm font-medium text-slate-500 whitespace-nowrap">Documente</span>
+          <span class="py-3.5 px-4 text-sm font-medium text-slate-500 whitespace-nowrap">Termene</span>
+          <span class="py-3.5 px-4 text-sm font-medium text-slate-500 whitespace-nowrap">Depunere</span>
+          <span class="py-3.5 px-4 text-sm font-medium text-slate-500 whitespace-nowrap">Audit</span>
+        </nav>
+      </div>
+
+      <!-- Detalii tab: same grid as _tab_detalii.html.twig -->
+      <div id="detalii-grid" class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div id="detalii-main" class="xl:col-span-2 space-y-6 min-w-0">
+
+          <!-- Părți (context, unchanged, shown collapsed) -->
+          <section class="bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 px-6 py-4 flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <span class="inline-flex items-center justify-center size-7 rounded-lg bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 text-blue-600 dark:text-blue-400 shrink-0">
+                <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              </span>
+              <h3 class="text-sm font-semibold">Părți</h3>
+              <span class="text-xs text-slate-500 truncate">Hidro Nova Instal S.R.L. · Beta Construct Grup S.R.L.</span>
+            </div>
+            <span class="text-[11px] text-slate-400 shrink-0">neschimbat</span>
+          </section>
+
+          <!-- ===================== PROPOSED: Creanță card ===================== -->
+          <div id="claim-root"></div>
+
+          <!-- Instanță (context) -->
+          <section id="court-card" class="bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 p-5"></section>
+
+          <!-- Cheltuieli de recuperare (context, unchanged) -->
+          <section class="bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 px-5 py-4 flex items-center justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <span class="inline-flex items-center justify-center size-9 rounded-lg bg-gradient-to-br from-sky-50 to-sky-100 dark:from-sky-950/50 dark:to-sky-900/30 text-sky-600 dark:text-sky-400 shrink-0">
+                <svg class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              </span>
+              <div class="min-w-0"><h3 class="text-sm font-semibold">Cheltuieli de recuperare</h3><p class="text-xs text-slate-500">Onorariu fix 1.500,00 RON · 5% la succes</p></div>
+            </div>
+            <span class="text-[11px] text-slate-400 shrink-0">neschimbat</span>
+          </section>
+        </div>
+
+        <!-- Sidebar (context only) -->
+        <aside class="xl:col-span-1 space-y-6 xl:sticky xl:top-6 self-start" id="sidebar"></aside>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Row menu (one floating instance, positioned next to the clicked ⋯) -->
+<div id="row-menu" class="hidden fixed z-[70] w-60 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-card p-1.5" role="menu"></div>
+
+<!-- Exclude dialog: same copy and fields as _modal_claim_exclude.html.twig -->
+<div id="modal-exclude" class="hidden fixed inset-0 z-[80] bg-slate-900/50 flex items-start justify-center p-3 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="modal-exclude-title">
+  <form class="mt-16 w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-lg rounded-2xl" onsubmit="confirmExclude(event)">
+    <div class="px-5 py-5">
+      <h3 id="modal-exclude-title" class="text-base font-semibold">Excluzi factura <span id="exclude-label"></span> din creanță?</h3>
+      <p class="mt-2 text-sm text-slate-600 dark:text-slate-400">Factura rămâne în dosar ca exclusă și o poți reinclude. Suma, accesoriile și instanța competentă se recalculează.</p>
+      <p class="mt-2 flex items-start gap-2 text-xs text-amber-800 dark:text-amber-200">
+        <svg class="size-4 shrink-0 mt-px" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        <span>Pentru o factură plătită cu întârziere, accesoriile până la data plății nu se mai cer prin această procedură.</span>
+      </p>
+      <label for="exclude-reason" class="mt-4 block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Motiv</label>
+      <select id="exclude-reason" class="w-full py-2 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm">
+        <option>Plătită integral</option><option>Emisă greșit</option><option>Contestată</option><option>Alt motiv</option>
+      </select>
+      <input id="exclude-note" type="text" maxlength="255" placeholder="Detalii (de exemplu, data plății)" class="mt-2 w-full py-2 px-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm" aria-label="Detalii despre motiv">
+    </div>
+    <div class="flex justify-end items-center gap-x-2 py-3 px-5 border-t border-slate-100 dark:border-slate-800">
+      <button type="button" onclick="closeExclude()" class="py-2 px-3 text-sm font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800">Renunță</button>
+      <button type="submit" class="py-2 px-4 text-sm font-semibold rounded-lg bg-red-600 text-white hover:bg-red-700">Exclude</button>
+    </div>
+  </form>
+</div>
+
+<div id="toast" class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-[90] max-w-sm w-[calc(100%-2rem)] bg-slate-900 text-white text-xs rounded-lg shadow-card px-4 py-3"></div>
+
+<script>
+/* ---------------- Data ---------------- */
+const REF = '2026-10-29';           // accessory reference date
+const SUMMONS_NO = '114/2026';
+const STAMP = 200;
+const BNR = [ { from: '2026-01-01', bnr: 6.75 }, { from: '2026-07-01', bnr: 6.50 } ]; // reference rate per semester
+const MARGIN = 8;                    // professionals: reference + 8 points (OG 13/2011)
+const PEN_RATE = 0.10, PEN_CAP = 10; // contractual: % per day, cap % of the base
+
+const ALL = [
+  { no: 'HN-2026-0418', iss: '2026-07-19', due: '2026-08-18', amt: 46000.19, cur: 'RON', src: 'Factura_HN_2026_0418.pdf' },
+  { no: 'HN-2026-0352', iss: '2026-06-10', due: '2026-07-10', amt: 18450.00, cur: 'RON', paid: 6000.00, src: 'Factura_HN_2026_0352.pdf' },
+  { no: 'HN-2026-0331', iss: '2026-05-28', due: '2026-06-27', amt: 2500.00, cur: 'EUR', fx: 5.0712, src: 'Invoice_HN_0331_EUR.pdf' },
+  { no: 'HN-2026-0297', iss: '2026-05-05', due: '2026-06-04', amt: 7320.50, cur: 'RON', src: null },
+  { no: 'HN-2026-0265', iss: '2026-04-14', due: '2026-05-14', amt: 9800.00, cur: 'RON', src: 'Factura_HN_2026_0265.pdf', excl: { reason: 'Plătită integral', note: 'plata din 02.10.2026' } },
+  { no: 'HN-2026-0451', iss: '2026-08-01', due: '2026-08-31', amt: 5215.40, cur: 'RON', src: 'Factura_HN_2026_0451.pdf', added: true },
+  { no: 'HN-2026-0118', iss: '2026-02-03', due: '2026-03-05', amt: 11240.00, cur: 'RON', src: 'Factura_HN_2026_0118.pdf' },
+  { no: 'HN-2026-0142', iss: '2026-02-17', due: '2026-03-19', amt: 8600.00, cur: 'RON', src: 'Factura_HN_2026_0142.pdf' },
+  { no: 'HN-2026-0176', iss: '2026-03-02', due: '2026-04-01', amt: 14980.25, cur: 'RON', paid: 4980.25, src: 'Factura_HN_2026_0176.pdf' },
+  { no: 'HN-2026-0189', iss: '2026-03-09', due: '2026-04-08', amt: 3150.00, cur: 'RON', src: 'Factura_HN_2026_0189.pdf' },
+  { no: 'HN-2026-0203', iss: '2026-03-20', due: '2026-04-19', amt: 6720.00, cur: 'RON', src: null },
+  { no: 'HN-2026-0221', iss: '2026-03-31', due: '2026-04-30', amt: 12400.00, cur: 'RON', src: 'Factura_HN_2026_0221.pdf' },
+  { no: 'HN-2026-0244', iss: '2026-04-07', due: '2026-05-07', amt: 4300.00, cur: 'RON', src: 'Factura_HN_2026_0244.pdf', excl: { reason: 'Emisă greșit', note: 'stornată prin HN-2026-0250' } },
+  { no: 'HN-2026-0250', iss: '2026-04-08', due: '2026-05-08', amt: 4100.00, cur: 'RON', src: 'Factura_HN_2026_0250.pdf' },
+  { no: 'HN-2026-0279', iss: '2026-04-28', due: '2026-05-28', amt: 9875.60, cur: 'RON', src: 'Factura_HN_2026_0279.pdf' },
+  { no: 'HN-2026-0310', iss: '2026-05-19', due: '2026-06-18', amt: 1200.00, cur: 'USD', fxMissing: true, src: 'Invoice_HN_0310_USD.pdf' },
+  { no: 'HN-2026-0366', iss: '2026-06-16', due: '2026-07-16', amt: 31600.00, cur: 'RON', src: 'Factura_HN_2026_0366.pdf' },
+  { no: 'HN-2026-0389', iss: '2026-06-30', due: '2026-07-30', amt: 7450.00, cur: 'RON', src: 'Factura_HN_2026_0389.pdf' },
+  { no: 'HN-2026-0402', iss: '2026-07-08', due: '2026-08-07', amt: 10230.40, cur: 'RON', src: 'Factura_HN_2026_0402.pdf' },
+  { no: 'HN-2026-0430', iss: '2026-07-25', due: '2026-08-24', amt: 5980.00, cur: 'RON', src: 'Factura_HN_2026_0430.pdf' },
+];
+
+/* ---------------- State ---------------- */
+const qs = new URLSearchParams(location.search);
+const S = {
+  status: qs.get('status') || 'amiabil',
+  n: parseInt(qs.get('n') || '6', 10),
+  acc: qs.get('acc') || 'legal',
+  changed: qs.get('changed') === '1',
+  view: qs.get('view') || 'desktop',
+  layout: qs.get('layout') || 'full',
+  calc: qs.get('calc') || 'C',
+  filter: 'all', showAll: false, open: {}, exclOverride: {},
+};
+const EMBED = qs.get('embed') === '1';
+const W = 'hidden @4xl:table-cell';
+
+/* ---------------- Helpers ---------------- */
+const D = s => Date.UTC(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10));
+const days = (a, b) => Math.round((D(b) - D(a)) / 86400000);
+const dmy = s => s.slice(8, 10) + '.' + s.slice(5, 7) + '.' + s.slice(0, 4);
+const addDay = s => { const d = new Date(D(s) + 86400000); return d.toISOString().slice(0, 10); };
+const r2 = x => Math.round(x * 100) / 100;
+function fmt(n, dec = 2) {
+  const neg = n < 0; n = Math.abs(n);
+  let [i, f] = n.toFixed(dec).split('.');
+  i = i.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return (neg ? '-' : '') + i + (dec ? ',' + f : '');
+}
+const pct = x => x.toFixed(1).replace('.', ',');
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+const I = {
+  money: '<svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+  lock: '<svg class="size-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>',
+  edit: '<svg class="size-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>',
+  plus: '<svg class="size-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>',
+  dots: '<svg class="size-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/></svg>',
+  doc: '<svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>',
+  manual: '<svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-dasharray="2.5 2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M17 21H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>',
+  chev: '<svg class="size-3.5 shrink-0 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>',
+  check: '<svg class="size-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>',
+  warn: '<svg class="size-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>',
+  calc: '<svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>',
+  out: '<svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>',
+  undo: '<svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a5 5 0 015 5v2M3 10l5 5m-5-5l5-5"/></svg>',
+  info: '<svg class="size-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+};
+
+/* ---------------- Calculation (mirrors the real rules closely enough for a mockup) ---------------- */
+function legalPeriods(base, due) {
+  const out = [];
+  const bounds = [...BNR.map(b => b.from), '2027-01-01'];
+  for (let k = 0; k < BNR.length; k++) {
+    const start = due > BNR[k].from ? due : BNR[k].from;
+    const end = REF < bounds[k + 1] ? REF : bounds[k + 1];
+    const d = days(start, end);
+    if (d <= 0) continue;
+    const rate = BNR[k].bnr + MARGIN;
+    out.push({ start, end, bnr: BNR[k].bnr, rate, d, v: r2(base * rate / 100 * d / 365) });
+  }
+  return out;
+}
+function compute() {
+  const items = ALL.slice(0, S.n).map((p, idx) => {
+    const excl = (p.no in S.exclOverride) ? S.exclOverride[p.no] : (p.excl || null);
+    const ron = p.cur === 'RON' ? p.amt : (p.fxMissing ? null : r2(p.amt * p.fx));
+    const paid = p.paid || 0;
+    const rest = ron == null ? null : r2(ron - paid);
+    const counts = !excl && !p.fxMissing;
+    const late = Math.max(0, days(p.due, REF));
+    let acc = 0, periods = [], pen = null;
+    if (counts) {
+      if (S.acc === 'legal') { periods = legalPeriods(rest, p.due); acc = r2(periods.reduce((s, x) => s + x.v, 0)); }
+      else {
+        const computed = r2(rest * PEN_RATE / 100 * late), cap = r2(rest * PEN_CAP / 100);
+        pen = { first: addDay(p.due), computed, cap, capped: computed > cap, d: late, base: rest };
+        acc = Math.min(computed, cap);
+      }
+    }
+    return { ...p, idx, excl, ron, paid, rest, counts, late, acc, periods, pen };
+  });
+  // excluded and not-counting positions go last; otherwise oldest due date first
+  items.sort((a, b) => (a.counts === b.counts ? (a.due < b.due ? -1 : 1) : (a.counts ? -1 : 1)));
+  const counting = items.filter(i => i.counts);
+  const principal = r2(counting.reduce((s, i) => s + i.rest, 0));
+  const accessory = r2(counting.reduce((s, i) => s + i.acc, 0));
+  return { items, counting, principal, accessory, total: r2(principal + accessory + STAMP) };
+}
+
+/* ---------------- Render ---------------- */
+const editable = () => S.status === 'amiabil';
+const accName = () => S.acc === 'legal' ? 'Dobândă' : 'Penalități';
+const accLong = () => S.acc === 'legal' ? 'Dobândă' : 'Penalități de întârziere';
+
+function pill(kind, text) {
+  const c = {
+    excluded: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300', dotE: 'bg-slate-400',
+    pending: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300', dotP: 'bg-amber-500',
+    added: 'bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300', dotA: 'bg-green-500',
+  };
+  const map = { excluded: ['excluded', 'dotE'], pending: ['pending', 'dotP'], added: ['added', 'dotA'] }[kind];
+  return `<span class="inline-flex items-center gap-1 py-0.5 px-1.5 rounded-full text-[10px] font-semibold whitespace-nowrap ${c[map[0]]}"><span class="size-1.5 rounded-full ${c[map[1]]}" aria-hidden="true"></span>${text}</span>`;
+}
+
+/* ---------------- Table cells ---------------- */
+const META = 'text-[11px] text-slate-400 dark:text-slate-500';
+const isNew = i => S.changed && editable() && i.added && S.n > 1;
+
+function exceptionPill(i) {
+  if (i.excl) return pill('excluded', 'Exclusă');
+  if (i.fxMissing) return pill('pending', 'Nu intră în total');
+  if (isNew(i)) return pill('added', 'Adăugată acum');
+  return '';
+}
+// second line under the invoice number: the exclusion reason (one line, full text in the tooltip) or the issue date
+function invoiceMeta(i, list) {
+  if (i.excl) {
+    const r = esc(i.excl.reason) + (i.excl.note ? ': ' + esc(i.excl.note) : '');
+    return `<div class="${META} truncate max-w-[15rem]" title="${r} (emisă ${dmy(i.iss)})">${r}</div>`;
+  }
+  if (list) return `<div class="${META} tnum whitespace-nowrap" title="emisă ${dmy(i.iss)}">scadență ${dmy(i.due)}${i.counts ? ` · ${i.late} zile întârziere` : ''}</div>`;
+  return `<div class="${META} whitespace-nowrap">emisă ${dmy(i.iss)}</div>`;
+}
+function invoiceCell(i, icon, list) {
+  return `<div class="flex items-start gap-2 min-w-0">${icon ? `<span class="@4xl:hidden">${srcIcon(i)}</span>` : ''}<div class="min-w-0">
+    <div class="flex items-center gap-1.5 whitespace-nowrap"><span class="font-semibold ${list ? 'text-sm' : ''} ${i.excl ? 'text-slate-500 dark:text-slate-400' : 'text-slate-900 dark:text-white'}">${i.no}</span>${exceptionPill(i)}</div>
+    ${invoiceMeta(i, list)}${list && i.excl ? `<div class="${META} tnum">scadență ${dmy(i.due)}</div>` : ''}</div></div>`;
+}
+
+function srcIcon(i) {
+  if (i.src) return `<a href="#" onclick="event.stopPropagation();toast('Se descarcă ${esc(i.src)}.');return false" title="Document sursă: ${esc(i.src)}" aria-label="Deschide documentul sursă ${esc(i.src)}" class="mt-px inline-flex items-center justify-center size-6 rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 shrink-0">${I.doc}</a>`;
+  return `<span title="Introdusă manual, fără document sursă" aria-label="Introdusă manual, fără document sursă" class="mt-px inline-flex items-center justify-center size-6 rounded-md text-slate-400 bg-slate-50 dark:bg-slate-800 shrink-0">${I.manual}</span>`;
+}
+
+// "Rămas de plată": the amount still owed in lei; the compact table and the list add one meta line
+function restCell(i, withMeta) {
+  let main, meta = '';
+  if (i.fxMissing) { main = `<span class="text-slate-400" title="Fără curs BNR pentru ${i.cur} la ${dmy(i.iss)}">necalculat</span>`; meta = `${fmt(i.amt)} ${i.cur} · fără curs`; }
+  else if (i.excl) { main = `<span class="line-through decoration-slate-300 text-slate-400">${fmt(i.ron)}</span>`; meta = 'nu intră în total'; }
+  else {
+    main = `<span class="font-semibold text-slate-900 dark:text-white">${fmt(i.rest)}</span>`;
+    if (i.cur !== 'RON') meta = `${fmt(i.amt)} ${i.cur} · ${fmt(i.fx, 4)}`;
+    else if (i.paid) meta = `achitat ${fmt(i.paid)}`;
+  }
+  return `<div class="tnum whitespace-nowrap">${main}</div>${meta ? `<div class="${META} tnum whitespace-nowrap ${withMeta ? '' : (i.excl ? '' : '@4xl:hidden')}">${meta}</div>` : ''}`;
+}
+function invoicedCell(i) {
+  const main = `<div class="tnum whitespace-nowrap ${i.excl ? 'line-through decoration-slate-300 text-slate-400' : 'text-slate-700 dark:text-slate-300'}">${fmt(i.amt)}${i.cur === 'RON' ? '' : ` <span class="text-[10px] font-semibold text-slate-500">${i.cur}</span>`}</div>`;
+  if (i.fxMissing) return main + `<div class="text-[11px] font-medium text-amber-600 dark:text-amber-400 whitespace-nowrap">fără curs BNR</div>`;
+  if (i.cur !== 'RON') return main + `<div class="${META} tnum whitespace-nowrap">curs BNR ${fmt(i.fx, 4)}</div>`;
+  return main;
+}
+function sourceCell(i) {
+  if (!i.src) return `<span class="${META} whitespace-nowrap">Manual</span>`;
+  return `<a href="#" onclick="event.stopPropagation();toast('Se descarcă ${esc(i.src)}.');return false" title="${esc(i.src)}" class="inline-flex items-center gap-1 text-[11px] font-medium text-blue-700 dark:text-blue-400 hover:underline whitespace-nowrap">${I.doc.replace('size-4', 'size-3.5')}PDF</a>`;
+}
+
+function accMeta(i) {
+  if (S.acc === 'legal') return i.periods.length > 1 ? `${i.periods.length} perioade BNR` : `${fmt(i.periods[0] ? i.periods[0].rate : 0)}% pe an`;
+  return i.pen.capped ? `plafonat la ${PEN_CAP}%` : `${fmt(PEN_RATE)}% pe zi`;
+}
+const chevDown = open => `<svg class="size-3 transition-transform ${open ? 'rotate-180' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>`;
+const toggleJs = no => `event.stopPropagation();S.open['${no}']=!S.open['${no}'];render()`;
+function rowToggle(ev, no) { if (ev.target.closest('a,button')) return; S.open[no] = !S.open[no]; render(); }
+
+// The accessory amount; how its breakdown opens depends on the variant chosen in the switcher
+function accCell(i) {
+  if (!i.counts) return `<div class="tnum text-slate-400">0,00</div>`;
+  const open = !!S.open[i.no];
+  const label = `${open ? 'Ascunde' : 'Vezi'} calculul pentru ${i.no}`;
+  if (S.calc === 'C') {
+    return `<button type="button" onclick="${toggleJs(i.no)}" aria-expanded="${open}" aria-label="${label}" class="group/acc -mr-1.5 -my-0.5 inline-flex flex-col items-end rounded-md px-1.5 py-0.5 hover:bg-amber-50 dark:hover:bg-amber-950/30 ${open ? 'bg-amber-50 dark:bg-amber-950/30' : ''}">
+      <span class="inline-flex items-center gap-1 tnum font-semibold text-amber-600 dark:text-amber-400">+${fmt(i.acc)}<span class="inline-flex items-center justify-center size-4 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300 group-hover/acc:bg-amber-200">${chevDown(open)}</span></span>
+      <span class="${META} whitespace-nowrap pr-5">${accMeta(i)}</span></button>`;
+  }
+  const amt = S.calc === 'A'
+    ? `<span class="tnum font-semibold text-amber-600 dark:text-amber-400 underline decoration-dotted decoration-amber-400 underline-offset-4">+${fmt(i.acc)}</span>`
+    : `<span class="tnum font-semibold text-amber-600 dark:text-amber-400">+${fmt(i.acc)}</span>`;
+  return `<div class="whitespace-nowrap">${amt}</div><div class="${META} whitespace-nowrap">${accMeta(i)}</div>`;
+}
+function chevronCell(i) {
+  if (!i.counts) return '';
+  const open = !!S.open[i.no];
+  return `<button type="button" onclick="${toggleJs(i.no)}" aria-expanded="${open}" aria-label="${open ? 'Ascunde' : 'Vezi'} calculul pentru ${i.no}" class="inline-flex items-center justify-center size-6 rounded-md ${open ? 'text-blue-700 bg-blue-100 dark:bg-blue-900/50 dark:text-blue-300' : 'text-slate-400 group-hover/row:text-slate-700 group-hover/row:bg-slate-100 dark:group-hover/row:bg-slate-800'}"><svg class="size-3.5 transition-transform ${open ? 'rotate-90' : ''}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg></button>`;
+}
+function calcBtnCell(i) {
+  if (!i.counts) return '';
+  const open = !!S.open[i.no];
+  return `<button type="button" onclick="${toggleJs(i.no)}" aria-expanded="${open}" aria-label="${open ? 'Ascunde' : 'Vezi'} calculul pentru ${i.no}" title="Calculul pe perioade" class="inline-flex items-center justify-center size-7 rounded-lg ring-1 ${open ? 'bg-blue-50 text-blue-700 ring-blue-300 dark:bg-blue-950/50 dark:text-blue-300 dark:ring-blue-800' : 'text-slate-500 ring-slate-200 hover:text-blue-700 hover:ring-blue-300 hover:bg-blue-50 dark:ring-slate-700 dark:hover:bg-blue-950/40'}">${I.calc}</button>`;
+}
+
+/* ---------------- Breakdown (desktop table, aligned on the accessory column) ---------------- */
+function breakdownHead(i) {
+  const range = S.acc === 'legal' ? `de la scadență (${dmy(i.due)}) la ${dmy(REF)}` : `din ${dmy(i.pen.first)} până la ${dmy(REF)}`;
+  return `<div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 mb-2">
+    <div class="text-xs font-semibold text-slate-800 dark:text-slate-100">${S.acc === 'legal' ? 'Calculul dobânzii' : 'Calculul penalităților'} · ${i.no}</div>
+    <div class="${META}">bază ${fmt(i.rest)} RON · ${range} · ${S.acc === 'legal' ? 'OG 13/2011, BNR + 8 pp' : 'clauza penală art. 7.2'}</div></div>`;
+}
+function breakdownTable(i) {
+  const th = 'py-1.5 px-2 font-semibold text-right';
+  const lastPad = S.calc === 'C' ? 'pr-7' : '';
+  if (S.acc === 'legal') {
+    const rows = i.periods.map(p => `<tr><td class="py-1.5 pl-0 pr-2 whitespace-nowrap text-slate-700 dark:text-slate-300">${dmy(p.start)} → ${dmy(p.end)}</td><td class="py-1.5 px-2 text-right">${p.d}</td><td class="py-1.5 px-2 text-right">${fmt(p.bnr)}%</td><td class="py-1.5 px-2 text-right">${fmt(p.rate)}%</td><td class="py-1.5 px-2 ${lastPad} text-right font-semibold text-slate-800 dark:text-slate-100">${fmt(p.v)}</td></tr>`).join('');
+    const tot = i.periods.reduce((s, p) => s + p.d, 0);
+    return `<table class="w-full text-xs tnum"><thead class="text-[10px] uppercase tracking-wide text-slate-400 border-b border-slate-200 dark:border-slate-700"><tr><th class="py-1.5 pl-0 pr-2 font-semibold text-left">Perioadă</th><th class="${th}">Zile</th><th class="${th}">Rata BNR</th><th class="${th}">Rată aplicată</th><th class="${th} ${lastPad}">Dobândă</th></tr></thead>
+      <tbody class="divide-y divide-slate-200/60 dark:divide-slate-800 text-slate-600 dark:text-slate-400">${rows}</tbody>
+      <tfoot class="border-t border-slate-300 dark:border-slate-600"><tr class="font-semibold text-slate-900 dark:text-white"><td class="py-2 pl-0 pr-2">Total dobândă acumulată</td><td class="py-2 px-2 text-right">${tot}</td><td></td><td></td><td class="py-2 px-2 ${lastPad} text-right text-amber-600 dark:text-amber-400">${fmt(i.acc)}</td></tr></tfoot></table>`;
+  }
+  const p = i.pen;
+  return `<table class="w-full text-xs tnum"><thead class="text-[10px] uppercase tracking-wide text-slate-400 border-b border-slate-200 dark:border-slate-700"><tr><th class="py-1.5 pl-0 pr-2 font-semibold text-left">Perioadă</th><th class="${th}">Zile</th><th class="${th}">Rată pe zi</th><th class="${th}">Calculat</th><th class="${th} ${lastPad}">Penalități</th></tr></thead>
+    <tbody class="text-slate-600 dark:text-slate-400"><tr><td class="py-1.5 pl-0 pr-2 whitespace-nowrap text-slate-700 dark:text-slate-300">${dmy(p.first)} → ${dmy(REF)}</td><td class="py-1.5 px-2 text-right">${p.d}</td><td class="py-1.5 px-2 text-right">${fmt(PEN_RATE)}%</td><td class="py-1.5 px-2 text-right ${p.capped ? 'line-through decoration-slate-400 text-slate-400' : ''}">${fmt(p.computed)}</td><td class="py-1.5 px-2 ${lastPad} text-right font-semibold text-slate-800 dark:text-slate-100">${fmt(i.acc)}</td></tr></tbody>
+    <tfoot class="border-t border-slate-300 dark:border-slate-600"><tr class="font-semibold text-slate-900 dark:text-white"><td colspan="4" class="py-2 pl-0 pr-2">${p.capped ? `Se cere plafonul din contract: ${PEN_CAP}% din ${fmt(p.base)}` : 'Total penalități'}</td><td class="py-2 px-2 ${lastPad} text-right text-amber-600 dark:text-amber-400">${fmt(i.acc)}</td></tr></tfoot></table>
+    <p class="mt-1.5 ${META}">Penalitățile = suma poziției × rata pe zi din contract × zilele de întârziere, din ziua următoare scadenței până la data calculului (inclusiv).</p>`;
+}
+// Mobile: one stacked mini-row per period, no inner scroll
+function breakdownStack(i) {
+  let rows;
+  if (S.acc === 'legal') rows = i.periods.map(p => `<li class="py-2 flex items-start justify-between gap-3"><div class="min-w-0"><div class="tnum text-slate-700 dark:text-slate-300">${dmy(p.start)} → ${dmy(p.end)}</div><div class="${META} tnum">${p.d} zile · BNR ${fmt(p.bnr)}% · aplicată ${fmt(p.rate)}%</div></div><div class="tnum font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">${fmt(p.v)}</div></li>`).join('');
+  else { const p = i.pen; rows = `<li class="py-2 flex items-start justify-between gap-3"><div class="min-w-0"><div class="tnum text-slate-700 dark:text-slate-300">${dmy(p.first)} → ${dmy(REF)}</div><div class="${META} tnum">${p.d} zile × ${fmt(PEN_RATE)}% pe zi = <span class="${p.capped ? 'line-through' : ''}">${fmt(p.computed)}</span></div>${p.capped ? `<div class="text-[11px] font-medium text-slate-600 dark:text-slate-300">Se cere plafonul: ${PEN_CAP}% din ${fmt(p.base)}</div>` : ''}</div><div class="tnum font-semibold text-slate-800 dark:text-slate-100 whitespace-nowrap">${fmt(i.acc)}</div></li>`; }
+  const tot = S.acc === 'legal' ? `${i.periods.reduce((s, p) => s + p.d, 0)} zile` : '';
+  return `<div class="mt-3 -mx-3 px-3 py-3 bg-blue-50/50 dark:bg-blue-950/20 border-l-[3px] border-blue-500 text-xs">
+    <div class="font-semibold text-slate-800 dark:text-slate-100">${S.acc === 'legal' ? 'Calculul dobânzii' : 'Calculul penalităților'}</div>
+    <div class="${META}">bază ${fmt(i.rest)} RON · până la ${dmy(REF)}</div>
+    <ul class="mt-1 divide-y divide-slate-200/70 dark:divide-slate-800">${rows}</ul>
+    <div class="pt-2 border-t border-slate-300 dark:border-slate-600 flex items-baseline justify-between font-semibold"><span>Total <span class="font-normal ${META}">${tot}</span></span><span class="tnum text-amber-600 dark:text-amber-400">${fmt(i.acc)}</span></div></div>`;
+}
+
+function menuBtn(i) {
+  return `<button type="button" onclick="openMenu(event,'${i.no}')" aria-haspopup="menu" aria-label="Acțiuni pentru factura ${i.no}" class="inline-flex items-center justify-center size-7 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200">${I.dots}</button>`;
+}
+
+function render() {
+  const C = compute();
+  const ed = editable();
+  const many = S.n > 6;
+  const nExcl = C.items.filter(i => i.excl).length;
+  const nPend = C.items.filter(i => i.fxMissing).length;
+  const hasFx = C.items.some(i => i.cur !== 'RON');
+  const base = C.principal + C.accessory;
+  const pP = base ? C.principal / base * 100 : 0, pA = base ? C.accessory / base * 100 : 0;
+  const oldest = C.counting.reduce((m, i) => (!m || i.due < m) ? i.due : m, null);
+  const single = C.counting.length === 1 ? C.counting[0] : null;
+
+  // --- filtering + truncation
+  let rows = C.items;
+  if (S.filter === 'in') rows = rows.filter(i => i.counts);
+  if (S.filter === 'excl') rows = rows.filter(i => i.excl);
+  if (S.filter === 'att') rows = rows.filter(i => i.fxMissing);
+  const LIMIT = 8;
+  const truncated = many && !S.showAll && rows.length > LIMIT;
+  const shown = truncated ? rows.slice(0, LIMIT) : rows;
+
+  // --- header
+  const stateBadge = ed
+    ? `<span class="inline-flex items-center gap-1.5 py-1 px-2 rounded-lg text-[11px] font-semibold bg-blue-50 text-blue-700 ring-1 ring-blue-200/70 dark:bg-blue-950/40 dark:text-blue-300 dark:ring-blue-900/50">${I.edit}Editabilă până la trimiterea somației</span>`
+    : `<span class="inline-flex items-center gap-1.5 py-1 px-2 rounded-lg text-[11px] font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">${I.lock}Blocată după somație</span>`;
+
+  // --- banners after a change
+  let banners = '';
+  if (ed && S.changed) {
+    const lines = S.n > 1
+      ? [`Principal: din ${fmt(C.principal - 5215.40)} în ${fmt(C.principal)}`, `Accesorii la ${dmy(REF)}: din ${fmt(C.accessory - (C.items.find(i => i.added) || { acc: 0 }).acc)} în ${fmt(C.accessory)}`]
+      : ['Numărul sau obiectul contractului au fost actualizate.'];
+    lines.push(`Accesoriile rămân calculate la ${dmy(REF)} (la somație se recalculează la data ei).`);
+    banners += `<div class="rounded-xl border border-green-200 dark:border-green-900/50 bg-green-50 dark:bg-green-950/30 p-4" role="status">
+      <div class="flex items-start justify-between gap-3"><div class="flex items-center gap-2 text-sm font-semibold text-green-800 dark:text-green-300">${I.check}Ce s-a schimbat</div>
+      <button type="button" onclick="S.changed=false;sync()" aria-label="Închide" class="p-1 -m-1 rounded-md text-green-700 hover:bg-green-100 dark:hover:bg-green-900/40"><svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg></button></div>
+      <ul class="mt-2 space-y-1 text-sm text-green-900 dark:text-green-200 tnum">${lines.map(l => `<li>${l}</li>`).join('')}</ul>
+      <ul class="mt-2 text-sm text-amber-900 dark:text-amber-200"><li class="flex items-start gap-1.5"><span class="text-amber-600 mt-0.5">${I.warn}</span><span>Somația generată anterior nu mai corespunde creanței și este marcată ca depășită. Generează una nouă înainte de a o trimite.</span></li></ul></div>`;
+    if (C.total > 200000) {
+      banners += `<div class="rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 p-4" role="alert"><div class="flex items-start gap-2.5"><span class="text-amber-600 dark:text-amber-400 mt-0.5">${I.warn}</span>
+        <div class="text-sm text-amber-900 dark:text-amber-200 flex-1"><p class="font-semibold">Instanța competentă se schimbă</p><p class="mt-0.5">După modificarea creanței, regulile de competență indică Tribunalul București. Instanța actuală rămâne Judecătoria Sectorului 3 București până confirmi schimbarea.</p>
+        <div class="mt-3 flex flex-wrap gap-2"><button type="button" onclick="toast('Se păstrează instanța actuală.')" class="py-1.5 px-3 text-xs font-semibold rounded-lg border border-amber-300 bg-white text-slate-800 hover:bg-amber-100 dark:bg-slate-900 dark:border-amber-800 dark:text-slate-200">Păstrează instanța actuală</button><button type="button" onclick="toast('Instanța se schimbă după confirmare (formularul existent).')" class="py-1.5 px-3 text-xs font-semibold rounded-lg bg-amber-600 text-white hover:bg-amber-700">Schimbă instanța</button></div></div></div></div>`;
+    }
+  }
+
+  // --- KPI strip
+  const op = s => `<span class="hidden @xl:flex absolute -left-[13px] top-1/2 -translate-y-1/2 size-5 items-center justify-center rounded-full bg-white dark:bg-slate-900 ring-1 ring-slate-200 dark:ring-slate-700 text-[11px] font-bold text-slate-500 z-10" aria-hidden="true">${s}</span>`;
+  const accHint = S.acc === 'legal'
+    ? (single ? `${pct(pA)}% · ${single.late} zile · ${fmt(single.periods[single.periods.length - 1].rate)}%` : `${pct(pA)}% · OG 13/2011, pe fiecare factură`)
+    : `${pct(pA)}% · ${fmt(PEN_RATE)}% pe zi, plafonat la ${PEN_CAP}% din sumă`;
+  const prHint = single ? `${pct(pP)}% · scadență ${dmy(single.due)}` : `${pct(pP)}% · ${C.counting.length} facturi, prima scadență ${oldest ? dmy(oldest) : ''}`;
+  const kpis = `
+    <dl class="grid grid-cols-2 @xl:grid-cols-4 gap-2.5 @xl:gap-3">
+      <div class="relative rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200/70 dark:border-slate-800 p-3">
+        <dt class="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-slate-500"><span class="size-2 rounded-sm bg-blue-500" aria-hidden="true"></span>Sumă principală</dt>
+        <dd class="mt-1 text-base font-bold tnum text-slate-900 dark:text-white">${fmt(C.principal)}</dd>
+        <dd class="text-[11px] text-slate-500 leading-snug">${prHint}</dd>
+      </div>
+      <div class="relative rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200/70 dark:border-slate-800 p-3">${op('+')}
+        <dt class="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-slate-500"><span class="size-2 rounded-sm bg-amber-500" aria-hidden="true"></span>${accLong()}</dt>
+        <dd class="mt-1 text-base font-bold tnum text-amber-600 dark:text-amber-400">+${fmt(C.accessory)}</dd>
+        <dd class="text-[11px] text-slate-500 leading-snug">${accHint}</dd>
+      </div>
+      <div class="relative rounded-xl bg-slate-50 dark:bg-slate-950/50 border border-slate-200/70 dark:border-slate-800 p-3">${op('+')}
+        <dt class="flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide text-slate-500"><span class="size-2 rounded-sm bg-slate-400" aria-hidden="true"></span>Taxă timbru</dt>
+        <dd class="mt-1 text-base font-bold tnum text-slate-900 dark:text-white">${fmt(STAMP)}</dd>
+        <dd class="text-[11px] text-slate-500 leading-snug">OUG 80/2013</dd>
+      </div>
+      <div class="relative rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/50 p-3">${op('=')}
+        <dt class="text-[10px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">Cerere totală</dt>
+        <dd class="mt-1 text-lg font-bold tnum text-blue-700 dark:text-blue-300 leading-6 whitespace-nowrap">${fmt(C.total)}</dd>
+        <dd class="text-[11px] text-blue-700/80 dark:text-blue-300/80 leading-snug">RON · de depus la instanță</dd>
+      </div>
+    </dl>
+    <div class="mt-3 flex h-1.5 rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800" role="img" aria-label="Principal ${pct(pP)}%, ${accLong()} ${pct(pA)}%">
+      <div class="bg-gradient-to-r from-blue-500 to-blue-600" style="width:${pP.toFixed(1)}%"></div>
+      <div class="bg-gradient-to-r from-amber-400 to-amber-500" style="width:${pA.toFixed(1)}%"></div>
+    </div>`;
+
+  // --- thin summary (full layout): only what the KPI row above the tabs lacks
+  const summaryLine = `
+    <div class="flex flex-wrap items-baseline gap-x-1.5 gap-y-1 rounded-xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200/70 dark:border-slate-800 px-4 py-3 text-sm" data-testid="claim-summary-line">
+      <span class="text-[10px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300 mr-1">Cerere totală de depus</span>
+      <span class="text-lg font-bold tnum text-blue-700 dark:text-blue-300">${fmt(C.total)} <span class="text-xs font-medium text-blue-500/80">RON</span></span>
+      <span class="text-slate-400">=</span>
+      <span class="tnum text-slate-600 dark:text-slate-300"><span class="inline-block size-2 rounded-sm bg-blue-500 mr-1" aria-hidden="true"></span>principal ${fmt(C.principal)}</span>
+      <span class="text-slate-400">+</span>
+      <span class="tnum text-slate-600 dark:text-slate-300"><span class="inline-block size-2 rounded-sm bg-amber-500 mr-1" aria-hidden="true"></span>${accLong().toLowerCase()} ${fmt(C.accessory)}</span>
+      <span class="text-slate-400">+</span>
+      <span class="tnum text-slate-600 dark:text-slate-300"><span class="inline-block size-2 rounded-sm bg-slate-400 mr-1" aria-hidden="true"></span><span title="OUG 80/2013">taxă timbru ${fmt(STAMP)}</span></span>
+    </div>`;
+
+  // --- positions header
+  const counts = `${C.items.length} ${C.items.length === 1 ? 'poziție' : 'poziții'}${nExcl ? ` · ${nExcl} ${nExcl === 1 ? 'exclusă' : 'excluse'}` : ''}${nPend ? ` · ${nPend} nu intră în total` : ''}`;
+  const addBtn = ed ? `<button type="button" onclick="toast('Se deschide dialogul existent „Adaugă factură” (din document sau manual).')" class="py-2 px-3 inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg bg-lex-navy text-white hover:bg-lex-navy/90 shadow-sm shrink-0">${I.plus}Adaugă factură</button>` : '';
+  const chip = (k, label, n) => `<button type="button" onclick="S.filter='${k}';S.showAll=false;render()" aria-pressed="${S.filter === k}" class="py-1 px-2.5 rounded-md text-[11px] font-semibold whitespace-nowrap ${S.filter === k ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm ring-1 ring-slate-200 dark:ring-slate-600' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}">${label} <span class="tnum font-medium ${S.filter === k ? 'text-slate-500' : 'text-slate-400'}">${n}</span></button>`;
+  const filters = many ? `<div class="mt-3 flex flex-wrap items-center justify-between gap-2"><div class="inline-flex flex-wrap gap-0.5 rounded-lg bg-slate-100 dark:bg-slate-800/70 p-0.5" role="group" aria-label="Filtrează pozițiile">${chip('all', 'Toate', C.items.length)}${chip('in', 'În total', C.counting.length)}${nExcl ? chip('excl', 'Excluse', nExcl) : ''}${nPend ? chip('att', 'Necesită atenție', nPend) : ''}</div><span class="${META}">ordonate după scadență</span></div>` : '';
+
+  // --- desktop table (compact 512-895px card width, wide from 896px; list below 512px)
+  const A = S.calc === 'A', B = S.calc === 'B';
+  const TH = 'py-2.5 px-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap';
+  const thead = `<thead class="bg-slate-50 dark:bg-slate-950/40 border-b border-slate-200 dark:border-slate-800"><tr>
+      ${A ? `<th scope="col" class="w-8 pl-2 pr-0"><span class="sr-only">Calcul</span></th>` : ''}
+      <th scope="col" class="${TH} text-left ${A ? 'pl-1' : 'pl-4'}">Factură</th>
+      <th scope="col" class="${TH} text-left">Scadență</th>
+      <th scope="col" class="${W} ${TH} text-right">Sumă facturată</th>
+      <th scope="col" class="${W} ${TH} text-right">Achitat</th>
+      <th scope="col" class="${TH} text-right">Rămas de plată</th>
+      <th scope="col" class="${TH} text-right">${accName()}</th>
+      ${B ? `<th scope="col" class="${TH} text-center w-12">Calcul</th>` : ''}
+      <th scope="col" class="${W} ${TH} text-left">Sursă</th>
+      <th scope="col" class="w-10 pr-2"><span class="sr-only">Acțiuni</span></th></tr></thead>`;
+  const ACCENT = 'shadow-[inset_3px_0_0_#3b82f6]';
+  // columns up to and including the accessory one, wide and compact, so the breakdown's last column sits under it
+  const leadWide = (A ? 1 : 0) + 6, leadCompact = (A ? 1 : 0) + 4;
+  const tailWide = (B ? 1 : 0) + 2, tailCompact = (B ? 1 : 0) + 1;
+  const trows = shown.map(i => {
+    const open = S.open[i.no] && i.counts;
+    const clickable = A && i.counts;
+    const tint = open ? 'bg-blue-50/50 dark:bg-blue-950/20' : (isNew(i) ? 'row-new' : '');
+    const first = open ? ACCENT : '';
+    const row = `<tr class="group/row align-top ${tint} ${clickable ? 'cursor-pointer' : ''} ${open ? '' : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'}" ${clickable ? `onclick="rowToggle(event,'${i.no}')"` : ''}>
+      ${A ? `<td class="pl-2 pr-0 py-3 w-8 ${first}">${chevronCell(i)}</td>` : ''}
+      <td class="py-3 px-2 ${A ? 'pl-1' : 'pl-4 ' + first}">${invoiceCell(i, true)}</td>
+      <td class="py-3 px-2 whitespace-nowrap"><div class="tnum text-slate-700 dark:text-slate-300">${dmy(i.due)}</div><div class="${META} tnum">${i.counts ? `${i.late} zile întârziere` : '&nbsp;'}</div></td>
+      <td class="${W} py-3 px-2 text-right">${invoicedCell(i)}</td>
+      <td class="${W} py-3 px-2 text-right tnum whitespace-nowrap">${i.paid ? `<span class="text-slate-700 dark:text-slate-300">${fmt(i.paid)}</span>` : '<span class="text-slate-300 dark:text-slate-600">0,00</span>'}</td>
+      <td class="py-3 px-2 text-right">${restCell(i, false)}</td>
+      <td class="py-3 px-2 text-right">${accCell(i)}</td>
+      ${B ? `<td class="py-2.5 px-2 text-center">${calcBtnCell(i)}</td>` : ''}
+      <td class="${W} py-3 px-2">${sourceCell(i)}</td>
+      <td class="py-2.5 pr-2 pl-0 text-right">${menuBtn(i)}</td></tr>`;
+    if (!open) return row;
+    const inner = `<div class="pb-3 pt-1">${breakdownHead(i)}${breakdownTable(i)}</div>`;
+    return row + `<tr class="bg-blue-50/50 dark:bg-blue-950/20">
+      <td colspan="${leadWide}" class="${W} ${ACCENT} ${A ? 'pl-9' : 'pl-4'} pr-0">${inner}</td>
+      <td colspan="${leadCompact}" class="@4xl:hidden ${ACCENT} ${A ? 'pl-9' : 'pl-4'} pr-0">${inner}</td>
+      <td colspan="${tailWide}" class="${W}"></td><td colspan="${tailCompact}" class="@4xl:hidden"></td></tr>`;
+  }).join('');
+  const paidTotal = C.counting.reduce((t, i) => t + i.paid, 0);
+  const tfoot = `<tfoot class="border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40">
+      <tr>${A ? '<td></td>' : ''}<td colspan="2" class="py-3 px-2 ${A ? 'pl-1' : 'pl-4'} text-xs font-semibold text-slate-900 dark:text-white whitespace-nowrap">Total în creanță <span class="font-normal ${META}">· ${C.counting.length} din ${C.items.length} poziții</span></td>
+      <td class="${W}"></td>
+      <td class="${W} py-3 px-2 text-right text-xs font-semibold tnum text-slate-600 dark:text-slate-300 whitespace-nowrap">${fmt(paidTotal)}</td>
+      <td class="py-3 px-2 text-right text-sm font-bold tnum text-slate-900 dark:text-white whitespace-nowrap">${fmt(C.principal)}</td>
+      <td class="py-3 px-2 text-right text-sm font-bold tnum text-amber-600 dark:text-amber-400 whitespace-nowrap">${S.calc === 'C' ? '<span class="pr-5">' : '<span>'}+${fmt(C.accessory)}</span></td>
+      ${B ? '<td></td>' : ''}<td class="${W}"></td><td></td></tr></tfoot>`;
+  const table = `<table class="hidden @lg:table w-full text-xs" data-testid="claim-positions-table">${thead}<tbody class="divide-y divide-slate-100 dark:divide-slate-800">${trows}</tbody>${tfoot}</table>`;
+
+  // --- narrow list (below 512px card width)
+  const litems = shown.map(i => {
+    const open = S.open[i.no] && i.counts;
+    const clickable = A && i.counts;
+    return `<li class="px-3 py-3 text-xs ${isNew(i) ? 'row-new' : ''} ${open ? 'bg-blue-50/30 dark:bg-blue-950/10' : ''} ${clickable ? 'cursor-pointer' : ''}" ${clickable ? `onclick="rowToggle(event,'${i.no}')"` : ''}>
+      <div class="flex items-start gap-2">${A ? `<span class="-ml-1">${chevronCell(i) || '<span class="inline-block size-6"></span>'}</span>` : srcIcon(i)}<div class="flex-1 min-w-0">
+        <div class="flex items-start justify-between gap-2"><div class="min-w-0">${invoiceCell(i, false, true)}</div><span class="-mt-1 -mr-1">${menuBtn(i)}</span></div>
+        <div class="mt-2.5 flex items-start justify-between gap-3">
+          <div><div class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">Rămas de plată</div><div class="text-sm">${restCell(i, true)}</div></div>
+          <div class="text-right"><div class="text-[10px] font-semibold uppercase tracking-wider text-slate-500">${accName()}</div><div class="text-sm flex items-start justify-end gap-2"><div>${accCell(i)}</div>${B ? calcBtnCell(i) : ''}</div></div>
+        </div>
+      </div></div>
+      ${open ? breakdownStack(i) : ''}</li>`;
+  }).join('');
+  const list = `<div class="@lg:hidden"><ul class="divide-y divide-slate-100 dark:divide-slate-800">${litems}</ul>
+      <div class="px-3 py-3 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 flex items-baseline justify-between gap-2 text-xs"><span class="font-semibold">Total <span class="font-normal ${META}">· ${C.counting.length} din ${C.items.length}</span></span><span class="text-right tnum"><span class="font-bold">${fmt(C.principal)}</span> <span class="font-bold text-amber-600 dark:text-amber-400">+${fmt(C.accessory)}</span></span></div></div>`;
+
+  const more = truncated ? `<button type="button" onclick="S.showAll=true;render()" class="w-full inline-flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-blue-700 dark:text-blue-400 hover:bg-blue-50/60 dark:hover:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800">Arată toate cele ${rows.length} poziții <span class="font-normal text-slate-400">(încă ${rows.length - LIMIT})</span>${chevDown(false)}</button>` : '';
+
+  // --- how it is calculated (replaces the long grey paragraph)
+  const how = `<details class="group mt-3 text-xs">
+      <summary class="cursor-pointer select-none inline-flex items-center gap-1.5 font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"><span class="text-slate-400">${I.info}</span>Cum se calculează</summary>
+      <ul class="mt-2 ml-1 space-y-1 text-[11px] leading-relaxed text-slate-500 list-disc list-inside">
+        <li>Pozițiile excluse rămân în dosar, dar nu intră în total.</li>
+        ${hasFx ? '<li>Facturile în valută sunt convertite la cursul BNR din data emiterii.</li>' : ''}
+        <li>${S.acc === 'legal' ? 'Dobânda se calculează separat pentru fiecare poziție, de la scadența ei (C. civ. art. 1535), la data somației (înainte de somație, la data creării dosarului).' : 'Penalitățile se calculează separat pentru fiecare poziție, din ziua următoare scadenței ei, cu rata zilnică din contract, la data somației (înainte de somație, la data creării dosarului).'}</li>
+        <li>${S.calc === 'A' ? 'Calculul fiecărei poziții se deschide cu un clic pe rând (săgeata din stânga).' : S.calc === 'B' ? 'Calculul fiecărei poziții se deschide din coloana Calcul.' : 'Calculul fiecărei poziții se deschide cu un clic pe suma accesoriilor ei.'} Și din meniul ⋯, „Vezi calculul”.</li>
+      </ul></details>`;
+
+  // --- details block
+  const dl = (k, v, wide) => `<div class="${wide ? '@lg:col-span-2' : ''} min-w-0"><dt class="text-[10px] font-medium uppercase tracking-wide text-slate-500">${k}</dt><dd class="mt-0.5 text-sm text-slate-800 dark:text-slate-200">${v}</dd></div>`;
+  const details = `
+    <div class="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800">
+      <div class="flex items-center justify-between gap-3 mb-3">
+        <h4 class="text-sm font-semibold text-slate-900 dark:text-white">Detaliile creanței</h4>
+        ${ed ? `<button type="button" onclick="toast('Se deschide dialogul existent „Modifică detaliile creanței”.')" class="py-1.5 px-2.5 inline-flex items-center gap-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-800 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 shrink-0">${I.edit}Modifică detaliile</button>` : ''}
+      </div>
+      <dl class="grid grid-cols-1 @lg:grid-cols-2 gap-x-6 gap-y-3">
+        ${dl('Obiectul creanței', 'Contravaloarea lucrărilor de instalații sanitare și termice executate și recepționate, neachitată la scadență.', true)}
+        ${dl('Mod de calcul accesorii', S.acc === 'legal' ? 'Dobândă legală penalizatoare (OG 13/2011)' : `Penalitate contractuală: ${fmt(PEN_RATE)}% pe zi, plafon ${PEN_CAP}% din sumă`)}
+        ${dl('Accesorii calculate până la', ed ? `${dmy(REF)} <span class="text-slate-500 text-xs">(se recalculează la data somației)</span>` : `${dmy(REF)} <span class="text-slate-500 text-xs">(data somației)</span>`)}
+        ${dl('Contract', 'nr. 58 din 10.01.2025 · Execuție lucrări de instalații')}
+        ${dl('Numărul somației', SUMMONS_NO)}
+        ${S.acc === 'contract' ? dl('Denumirea accesoriilor în contract', 'Penalități de întârziere') + dl('Clauza penală', 'art. 7.2: „Pentru întârzierea la plată, beneficiarul datorează penalități de 0,10% pe zi din suma neachitată, fără a depăși 10% din aceasta.”', true) : ''}
+      </dl>
+    </div>`;
+
+  document.getElementById('claim-root').innerHTML = `
+  <section id="case-claim-card" class="@container bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800" data-testid="case-claim-card">
+    <header class="px-5 @lg:px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <span class="inline-flex items-center justify-center size-7 rounded-lg bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/50 dark:to-green-900/30 text-green-600 dark:text-green-400 shrink-0">${I.money}</span>
+        <h3 class="text-sm font-semibold text-slate-900 dark:text-white">Creanță</h3>
+        <span class="py-0.5 px-1.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[11px] font-medium text-slate-600 dark:text-slate-300">Comercial</span>
+      </div>
+      ${stateBadge}
+    </header>
+    ${ed ? '' : `<div class="px-5 @lg:px-6 py-2.5 bg-slate-50 dark:bg-slate-950/40 border-b border-slate-100 dark:border-slate-800 flex items-start gap-2 text-xs text-slate-600 dark:text-slate-400" data-testid="claim-locked-note"><span class="text-slate-400 mt-px">${I.lock}</span><span>Facturile nu se mai pot modifica după trimiterea somației. Pentru o factură nouă, deschide un dosar nou.</span></div>`}
+    <div class="px-5 @lg:px-6 py-5">
+      ${banners ? `<div class="space-y-3 mb-5">${banners}</div>` : ''}
+      ${S.layout === 'full' ? summaryLine : kpis}
+      <div class="mt-6">
+        <div class="flex items-center justify-between gap-3">
+          <div class="min-w-0"><h4 class="text-sm font-semibold text-slate-900 dark:text-white">Facturile din creanță</h4><p class="text-[11px] text-slate-500 mt-0.5">${counts}</p></div>
+          ${addBtn}
+        </div>
+        ${filters}
+        <div class="mt-3 -mx-5 @lg:mx-0 border-y @lg:border border-slate-200 dark:border-slate-800 @lg:rounded-lg overflow-hidden">${table}${list}${more}</div>
+        ${how}
+      </div>
+      ${details}
+    </div>
+  </section>`;
+
+  renderContext(C);
+}
+
+function renderContext(C) {
+  const ed = editable();
+  const full = S.layout === 'full';
+  const tribunal = !ed && C.total > 200000;
+  const ring = ed
+    ? { label: 'Prescripție', sub: 'Dreptul la acțiune · 3 ani', n: '948', exp: '04.06.2029', next: 'cu 90 de zile înainte' }
+    : { label: 'Răspuns somație', sub: 'Termen debitor · 15 zile', n: '7', exp: '13.11.2026', next: 'cu 2 zile înainte' };
+  const statusPill = ed
+    ? `<span class="inline-flex items-center gap-x-1.5 py-1 px-2.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300"><span class="size-2 rounded-full bg-blue-500"></span>AMIABIL</span>`
+    : `<span class="inline-flex items-center gap-x-1.5 py-1 px-2.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300"><span class="size-2 rounded-full bg-amber-500"></span>SOMAȚIE TRIMISĂ</span>`;
+  const cta = ed
+    ? `<button type="button" onclick="toast('Generează și trimite somația (formularul existent din hero).')" class="py-2 px-3.5 inline-flex items-center gap-x-2 text-sm font-semibold rounded-lg bg-amber-500 text-white hover:bg-amber-600 shadow-sm whitespace-nowrap">${I.warn}Trimite somație</button>`
+    : `<button type="button" onclick="toast('Se deschide dialogul existent „Generează cerere OP”.')" class="py-2 px-3.5 inline-flex items-center gap-x-2 text-sm font-semibold rounded-lg bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 shadow-sm whitespace-nowrap">${I.doc}Generează cerere OP</button>`;
+  const paid = full ? `<button type="button" onclick="toast('Se deschide dialogul existent de plată integrală.')" class="py-2 px-3 inline-flex items-center gap-x-1.5 text-sm font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 whitespace-nowrap">${I.check}Marchează plată amiabilă</button>` : '';
+  const more = `<button type="button" onclick="openHeroMenu(event)" aria-haspopup="menu" aria-label="Acțiuni" class="p-2 inline-flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">${I.dots}</button>`;
+  const steps = ['Amiabil', 'Somație trimisă', 'Cerere generată', 'Cerere depusă', 'Termen fixat', 'Ordonanță emisă', 'Definitivă'];
+  const cur = ed ? 0 : 1;
+  const kpiCell = (label, value, hint, extra = '') => `<div class="bg-white dark:bg-slate-900 px-5 py-4 lg:px-6 relative">${extra}<div class="text-xs font-medium uppercase tracking-wide ${label[1]}">${label[0]}</div><div class="mt-1.5 text-2xl font-bold tnum ${value[1]}">${value[0]}</div><div class="mt-1 text-xs text-slate-500">${hint}</div></div>`;
+  const oldest = C.counting.reduce((m, i) => (!m || i.due < m) ? i.due : m, null);
+  const single = C.counting.length === 1 ? C.counting[0] : null;
+  document.getElementById('hero-root').innerHTML = `
+    <section class="relative bg-white dark:bg-slate-900 rounded-2xl shadow-hero overflow-hidden mb-6">
+      <div class="absolute inset-0 bg-gradient-to-br from-blue-50/40 via-transparent to-transparent dark:from-blue-950/20 pointer-events-none"></div>
+      <div class="relative px-5 py-5 lg:px-8 lg:py-6 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-slate-500 mb-1.5"><span class="font-mono">LR-2026-0142</span><span class="size-1 rounded-full bg-slate-300"></span><span>Ordonanță de plată</span></div>
+          <h1 class="text-xl md:text-2xl font-bold tracking-tight leading-tight">Hidro Nova Instal S.R.L. <span class="text-slate-400 font-medium mx-1">vs</span> <span class="block md:inline">Beta Construct Grup S.R.L.</span></h1>
+          <div class="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">${statusPill}<span>Creat 29.10.2026</span><span>${tribunal ? 'Tribunalul București' : 'Judecătoria Sectorului 3 București'}</span></div>
+        </div>
+        <div class="flex flex-wrap lg:flex-nowrap items-center gap-2 self-start shrink-0">${cta}${paid}${more}</div>
+      </div>
+    </section>
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-px bg-slate-100 dark:bg-slate-800 rounded-2xl overflow-hidden shadow-soft border border-slate-200 dark:border-slate-800 mb-6">
+      ${kpiCell(['Sumă principală', 'text-slate-500'], [fmt(C.principal) + '<span class="text-base font-medium text-slate-400 ml-1">RON</span>', 'text-slate-900 dark:text-white'], single ? `scadență ${dmy(single.due)}` : `${C.counting.length} facturi · prima scadență ${oldest ? dmy(oldest) : ''}`)}
+      ${kpiCell([accLong(), 'text-slate-500'], ['+ ' + fmt(C.accessory), 'text-amber-600 dark:text-amber-400'], S.acc === 'legal' ? (single ? `${single.late} zile · BNR + 8 pp` : 'pe fiecare factură · BNR + 8 pp') : `${fmt(PEN_RATE)}% pe zi, plafonat la ${PEN_CAP}% din sumă`)}
+      ${kpiCell(['Total creanță', 'text-blue-600 dark:text-blue-400'], [fmt(C.principal + C.accessory), 'text-blue-700 dark:text-blue-300'], `+ taxă timbru ${fmt(STAMP)} RON`, '<div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-500 to-blue-600"></div>')}
+      ${kpiCell(['Termen activ', 'text-amber-700 dark:text-amber-400'], [ring.n + ' <span class="text-base font-medium">zile</span>', 'text-amber-700 dark:text-amber-300'], `${ring.label} · expiră ${ring.exp}` + (full ? `<br>următoarea alertă ${ring.next}` : ''), '<div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber-500 to-red-500"></div>')}
+    </section>
+    <section class="bg-white dark:bg-slate-900 rounded-2xl shadow-soft border border-slate-200 dark:border-slate-800 px-5 py-3 mb-6 overflow-x-auto">
+      <ol class="flex items-center gap-2 text-[11px] whitespace-nowrap">${steps.map((t, k) => `<li class="flex items-center gap-2"><span class="inline-flex items-center gap-1.5 py-1 px-2 rounded-full font-semibold ${k < cur ? 'bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300' : k === cur ? 'bg-lex-navy text-white' : 'text-slate-400'}">${t}</span>${k < steps.length - 1 ? '<span class="w-4 h-px bg-slate-200 dark:bg-slate-700"></span>' : ''}</li>`).join('')}</ol>
+    </section>`;
+
+  document.getElementById('detalii-grid').className = full ? 'grid grid-cols-1 gap-6' : 'grid grid-cols-1 xl:grid-cols-3 gap-6';
+  document.getElementById('detalii-main').className = full ? 'space-y-6 min-w-0' : 'xl:col-span-2 space-y-6 min-w-0';
+  const sb = document.getElementById('sidebar');
+  sb.classList.toggle('hidden', full);
+
+  const proposal = ed && S.changed && C.total > 200000;
+  document.getElementById('court-card').innerHTML = `<div class="flex flex-wrap items-center gap-4">
+    <span class="inline-flex items-center justify-center size-11 rounded-xl bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-950/50 dark:to-indigo-900/30 text-indigo-600 dark:text-indigo-400 shrink-0"><svg class="size-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg></span>
+    <div class="flex-1 min-w-0"><div class="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 mb-0.5">INSTANȚĂ COMPETENTĂ</div>
+      <div class="font-semibold">${tribunal ? 'Tribunalul București' : 'Judecătoria Sectorului 3 București'}</div>
+      ${proposal ? `<div class="mt-1 flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-300"><span class="mt-px">${I.warn}</span><span>Regulile de competență indică acum Tribunalul București. Vezi propunerea din cardul Creanță.</span></div>` : '<div class="text-xs text-slate-500 mt-0.5">neschimbat</div>'}
+    </div>
+    <div class="text-right"><div class="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-0.5">Nr. dosar</div><div class="text-sm font-medium text-slate-400 italic">(încă nedepus)</div></div></div>`;
+
+  if (full) { sb.innerHTML = ''; return; }
+  const actions = ed
+    ? [['Generează somație', 'Pas 1 obligatoriu (CPC art. 1015): termen 15 zile către debitor', true], ['Marchează plată amiabilă', 'Achitat înainte de instanță']]
+    : [['Generează cerere OP', 'Pachet ZIP cu cerere + opis + somație', true], ['Marchează plată amiabilă', 'Achitat înainte de instanță']];
+  sb.innerHTML = `
+    <section class="bg-gradient-to-br from-amber-50 via-amber-50 to-orange-50 dark:from-amber-950/30 dark:via-amber-950/20 dark:to-orange-950/30 border border-amber-200 dark:border-amber-900/50 rounded-2xl shadow-card p-5">
+      <div class="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 mb-0.5">TERMEN ACTIV</div>
+      <div class="text-xs text-amber-800/80 dark:text-amber-300/80 mb-3">${ring.label} · ${ring.sub}</div>
+      <div class="flex items-center gap-4">
+        <div class="size-16 rounded-full ring-[6px] ring-amber-300/60 dark:ring-amber-700/50 flex flex-col items-center justify-center shrink-0"><div class="text-lg font-bold tnum text-amber-900 dark:text-amber-100 leading-none">${ring.n}</div><div class="text-[9px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">zile</div></div>
+        <div class="text-xs space-y-1"><div><span class="text-amber-800/70 dark:text-amber-300/70">Expiră</span> <span class="font-semibold text-amber-900 dark:text-amber-100 tnum">${ring.exp}</span></div><div><span class="text-amber-800/70 dark:text-amber-300/70">Următoarea alertă</span> <span class="font-semibold text-amber-900 dark:text-amber-100">${ring.next}</span></div></div>
+      </div>
+    </section>
+    <section class="bg-white dark:bg-slate-900 rounded-2xl shadow-card border border-slate-200 dark:border-slate-800 overflow-hidden">
+      <header class="px-5 py-4 bg-gradient-to-br from-lex-navy via-lex-navy to-lex-navy-dark text-white"><h3 class="text-sm font-semibold">Acțiuni recomandate</h3><p class="mt-0.5 text-[11px] text-blue-100/80">Pe baza statusului curent</p></header>
+      <div class="p-3 space-y-1">${actions.map(a => a[2]
+        ? `<div class="px-3 py-2.5 flex items-center gap-3 rounded-lg bg-gradient-to-r from-blue-50 to-blue-50/50 dark:from-blue-950/40 dark:to-blue-950/20 border border-blue-200/60 dark:border-blue-900/40"><div class="size-9 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white flex items-center justify-center shrink-0">${I.doc}</div><div class="min-w-0"><div class="text-sm font-bold text-blue-900 dark:text-blue-100">${a[0]}</div><div class="text-[11px] text-blue-700/80 dark:text-blue-300/80">${a[1]}</div></div></div>`
+        : `<div class="px-3 py-2.5 flex items-center gap-3 rounded-lg"><div class="size-9 rounded-lg bg-green-100 dark:bg-green-950/40 text-green-600 flex items-center justify-center shrink-0">${I.check}</div><div class="min-w-0"><div class="text-sm font-medium">${a[0]}</div><div class="text-[11px] text-slate-500">${a[1]}</div></div></div>`).join('')}
+      </div>
+    </section>
+    <p class="text-[11px] text-slate-400 px-1">Așa arată azi: inelul repetă tile-ul „Termen activ”, iar acțiunea principală repetă butonul din hero.</p>`;
+}
+
+function openHeroMenu(ev) {
+  const ed = editable();
+  const it = (label, cls = '') => `<button type="button" role="menuitem" onclick="toast('${label}: acțiunea existentă.');closeMenu()" class="w-full flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm text-left hover:bg-slate-50 dark:hover:bg-slate-800 ${cls}">${label}</button>`;
+  const h = (S.layout === 'full' ? '' : it('Marchează plată amiabilă')) + it('Editează detalii') + it('Partajează cu colaborator') + it('Duplică dosar') + '<hr class="my-1 border-slate-100 dark:border-slate-800">' + it('Șterge dosarul', 'text-red-600 dark:text-red-400 font-medium');
+  showMenu(ev, 'hero', h);
+}
+
+/* ---------------- Row menu ---------------- */
+let menuFor = null;
+function openMenu(ev, no) {
+  ev.stopPropagation();
+  const m = document.getElementById('row-menu');
+  if (menuFor === no && !m.classList.contains('hidden')) { closeMenu(); return; }
+  const C = compute(); const i = C.items.find(x => x.no === no);
+  const ed = editable();
+  const item = (icon, label, fn, cls = '', disabled = false, hint = '') => disabled
+    ? `<div class="flex items-start gap-2.5 py-2 px-2.5 rounded-lg text-sm text-slate-400 cursor-not-allowed" aria-disabled="true"><span class="mt-0.5">${icon}</span><span><span class="block">${label}</span>${hint ? `<span class="block text-[11px] leading-snug">${hint}</span>` : ''}</span></div>`
+    : `<button type="button" role="menuitem" onclick="${fn}" class="w-full flex items-center gap-2.5 py-2 px-2.5 rounded-lg text-sm text-left hover:bg-slate-50 dark:hover:bg-slate-800 ${cls}"><span class="opacity-80">${icon}</span>${label}</button>`;
+  let h = `<div class="px-2.5 pt-1 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500">${no}</div>`;
+  h += i.src ? item(I.doc, 'Deschide factura', `toast('Se descarcă ${esc(i.src)}.');closeMenu()`) : item(I.manual, 'Fără document sursă', '', '', true, 'Încarcă factura din tabul Documente');
+  h += i.counts ? item(I.calc, S.open[no] ? 'Ascunde calculul' : 'Vezi calculul', `S.open['${no}']=!S.open['${no}'];closeMenu();render()`) : '';
+  if (ed) {
+    h += '<hr class="my-1 border-slate-100 dark:border-slate-800">';
+    const lastCounting = C.counting.length === 1 && i.counts;
+    if (i.excl) h += item(I.undo, 'Reinclude în creanță', `reinclude('${no}')`, 'text-blue-700 dark:text-blue-400 font-medium');
+    else if (i.counts) h += item(I.out, 'Exclude din creanță', `openExclude('${no}')`, 'text-red-600 dark:text-red-400 font-medium', lastCounting, lastCounting ? 'Singura factură care intră în creanță nu poate fi exclusă.' : '');
+  }
+  showMenu(ev, no, h);
+}
+function showMenu(ev, key, h) {
+  ev.stopPropagation();
+  const m = document.getElementById('row-menu');
+  if (menuFor === key && !m.classList.contains('hidden')) { closeMenu(); return; }
+  menuFor = key;
+  m.innerHTML = h;
+  m.classList.remove('hidden');
+  const r = ev.currentTarget.getBoundingClientRect();
+  const mw = m.offsetWidth, mh = m.offsetHeight;
+  let left = Math.min(r.right - mw, window.innerWidth - mw - 8); left = Math.max(8, left);
+  let top = r.bottom + 4; if (top + mh > window.innerHeight - 8) top = Math.max(8, r.top - mh - 4);
+  m.style.left = left + 'px'; m.style.top = top + 'px';
+}
+function closeMenu() { document.getElementById('row-menu').classList.add('hidden'); menuFor = null; }
+document.addEventListener('click', e => { if (!e.target.closest('#row-menu')) closeMenu(); });
+window.addEventListener('scroll', closeMenu, true);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeMenu(); closeExclude(); } });
+
+let excluding = null;
+function openExclude(no) { closeMenu(); excluding = no; document.getElementById('exclude-label').textContent = no; document.getElementById('modal-exclude').classList.remove('hidden'); document.getElementById('exclude-reason').focus(); }
+function closeExclude() { document.getElementById('modal-exclude').classList.add('hidden'); excluding = null; }
+function confirmExclude(e) { e.preventDefault(); S.exclOverride[excluding] = { reason: document.getElementById('exclude-reason').value, note: document.getElementById('exclude-note').value.trim() }; delete S.open[excluding]; closeExclude(); render(); toast('Factura a fost exclusă. Suma, accesoriile și instanța s-au recalculat.'); }
+function reinclude(no) { closeMenu(); S.exclOverride[no] = null; render(); toast(`Factura ${no} a fost reinclusă în creanță.`); }
+
+let tt;
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.remove('hidden'); clearTimeout(tt); tt = setTimeout(() => t.classList.add('hidden'), 2600); }
+
+/* ---------------- Switcher ---------------- */
+function params() { return `calc=${S.calc}&layout=${S.layout}&status=${S.status}&n=${S.n}&acc=${S.acc}&changed=${S.changed ? 1 : 0}`; }
+function sync() {
+  document.querySelectorAll('[data-group]').forEach(g => {
+    const k = g.dataset.group; const cur = String(k === 'changed' ? (S.changed ? 1 : 0) : S[k]);
+    g.querySelectorAll('button').forEach(b => {
+      const on = b.dataset.v === cur;
+      b.className = 'px-2.5 py-1 rounded-md font-semibold ' + (on ? 'bg-lex-navy text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800');
+      b.setAttribute('aria-pressed', on);
+      if (k === 'changed') b.disabled = S.status !== 'amiabil';
+    });
+    if (k === 'changed') g.classList.toggle('opacity-40', S.status !== 'amiabil');
+  });
+  history.replaceState(null, '', '?' + params() + '&view=' + S.view);
+  const mobile = S.view === 'mobile';
+  document.getElementById('app').classList.toggle('hidden', mobile);
+  document.getElementById('mobile-stage').classList.toggle('hidden', !mobile);
+  if (mobile) { const f = document.getElementById('mobile-frame'); const src = location.pathname + '?embed=1&' + params(); if (f.getAttribute('src') !== src) f.setAttribute('src', src); }
+  render();
+}
+document.querySelectorAll('[data-group] button').forEach(b => b.addEventListener('click', () => {
+  const k = b.closest('[data-group]').dataset.group, v = b.dataset.v;
+  if (k === 'n') { S.n = +v; S.filter = 'all'; S.showAll = false; S.open = {}; }
+  else if (k === 'changed') S.changed = v === '1';
+  else S[k] = v;
+  if (k === 'status' && v !== 'amiabil') S.changed = false;
+  sync();
+}));
+
+function toggleTheme() { const isDark = document.documentElement.classList.toggle('dark'); localStorage.setItem('theme', isDark ? 'dark' : 'light'); }
+
+if (EMBED) { document.getElementById('mock-chrome').remove(); S.view = 'desktop'; render(); }
+else sync();
+</script>
+</body>
+</html>
