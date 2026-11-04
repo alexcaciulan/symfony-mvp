@@ -9,6 +9,7 @@ use App\DTO\Wizard\ClaimItemRow;
 use App\DTO\Wizard\Step1CreditorData;
 use App\DTO\Wizard\Step2DebtorsData;
 use App\DTO\Wizard\Step3ClaimData;
+use App\Form\Wizard\Step2DebtorEntryType;
 
 /**
  * The cross-step state of one wizard run.
@@ -119,6 +120,32 @@ final class WizardBag
             conflictResolutions: $resolutions,
             conflictsAcknowledged: $acknowledged,
         );
+    }
+
+    /**
+     * Why the saved debtors can no longer be taken as they are, as a flash
+     * key, or null when they can. A run saved before a person type or the
+     * second debtor was hidden can still hold them; it is sent back to the
+     * debtor step rather than converted silently, so the lawyer re-enters the
+     * party with the data the product accepts, or removes the extra debtor.
+     */
+    public function debtorsNoLongerOfferedReason(): ?string
+    {
+        $debtors = $this->debtors;
+        if (!$debtors instanceof Step2DebtorsData) {
+            return null;
+        }
+        if (count($debtors->debtors) > Step2DebtorsData::MAX_DEBTORS) {
+            return 'wizard.step2.flash.too_many_debtors';
+        }
+        foreach ($debtors->debtors as $entry) {
+            if ($entry->personType !== null
+                && !in_array($entry->personType, Step2DebtorEntryType::OFFERED_PERSON_TYPES, true)) {
+                return 'wizard.step2.flash.person_type_not_offered';
+            }
+        }
+
+        return null;
     }
 
     /**
