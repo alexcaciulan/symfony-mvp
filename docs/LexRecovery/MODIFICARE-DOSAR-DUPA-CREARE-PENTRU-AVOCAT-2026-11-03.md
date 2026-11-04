@@ -17,7 +17,7 @@ Toate modificarile sunt permise **doar cat timp dosarul e in "Amiabil"**, adica 
 ## Ce ai acum in aplicatie
 
 | Nr. | Ce s-a construit | Ce rezolva |
-|-----|--------------------------------------------------|--------------------------------------------------------------|
+|--------|--------------------------------------|------------------------------------------------------|
 | 1 | **Ciorna salvata automat.** Fiecare pas completat in wizard ramane salvat. Daca inchizi aplicatia sau pleci la o sedinta, la intoarcere continui de unde ai ramas, chiar de pe alt calculator. Dosarele neterminate apar intr-o banda separata pe prima pagina si in lista de dosare, cu "Continua" si "Renunta". Documentele deja citite nu se citesc din nou. Ciornele neatinse 30 de zile se sterg singure. | Munca din wizard nu se mai pierde. |
 | 2 | **Stergerea dosarului in "Amiabil".** Din meniul dosarului, cu confirmare si motiv optional. Dosarul dispare din liste, din agenda de termene si din biblioteci. Istoricul modificarilor se pastreaza pentru evidenta ta. | Ai gresit complet dosarul (alt creditor, alt debitor, alte documente). |
 | 3 | **Adaugarea sau excluderea de facturi direct din pagina dosarului, in "Amiabil".** Pe cardul Creanta ai lista facturilor cu "Adauga factura" (dintr-un document incarcat, pe care aplicatia il citeste si iti precompleteaza datele, sau scris de mana) si "Exclude" / "Reinclude" pe fiecare factura, cu motivul excluderii. Tot acolo poti corecta textele creantei (obiectul, referinta contractului, clauza penala, numarul somatiei). Dupa fiecare actiune aplicatia recalculeaza suma, dobanda sau penalitatile si termenele de prescriptie, iti arata ce instanta ar rezulta (fara sa o schimbe fara confirmarea ta) si ce s-a schimbat. Nu treci din nou prin wizard. | Ai uitat o factura, o factura s-a platit intre timp sau ai de corectat un text. |
@@ -92,7 +92,7 @@ Capturile sunt facute pe un dosar de test, cu date fictive.
 ## Scenarii
 
 | Nr. | Situatia | Ce se intampla in aplicatie |
-|-----|------------------------------------------------|--------------------------------------------------------------------------|
+|--------|------------------------------------|--------------------------------------------------------|
 | S1 | Ai uitat o factura. Somatia nu a fost inca generata. | Pe cardul Creanta apesi "Adauga factura", incarci factura sau completezi datele, confirmi. Aplicatia recalculeaza suma, dobanda sau penalitatile, instanta competenta (cu confirmarea ta) si termenele de prescriptie si pastreaza istoricul modificarii. |
 | S2 | Ai uitat o factura. Somatia a plecat deja. | Blocat pentru moment. Vezi intrebarea A. |
 | S3 | O factura s-a platit integral intre timp. Somatia nu a plecat. | Daca s-a platit la timp, o excluzi cu motivul "Platita integral": suma si dobanda se recalculeaza, factura ramane vizibila ca exclusa si o poti reinclude. Daca s-a platit cu intarziere, ai dreptul la accesorii de la scadenta pana la plata (penalitatile din contract sau, intre profesionisti, dobanda legala penalizatoare), deci excluderea le-ar pierde; aplicatia te avertizeaza in dialogul de excludere. Vezi intrebarea G. |
@@ -130,5 +130,11 @@ Capturile sunt facute pe un dosar de test, cu date fictive.
 **L. Dobanda inainte de somatie.** In pagina dosarului, dobanda e calculata pana la data crearii dosarului si se recalculeaza la data somatiei. Preferi sa o vezi estimata pana la zi?
 
 **M. Aceeasi factura in doua dosare.** Daca aceeasi factura apare in doua dosare ale tale (de exemplu la doi debitori raspunzatori), vrei un avertisment sau aplicatia trebuie sa refuze?
+
+**N. Clauza penala descoperita dupa creare.** Ti s-a intamplat sa descoperi clauza penala din contract (sau sa renunti la ea) dupa ce ai creat dosarul pe dobanda legala? Cat de des se schimba modul de calcul al accesoriilor, rata sau plafonul inainte de somatie? Daca se intampla, le-am face modificabile din acelasi dialog cu detaliile creantei, doar in "Amiabil".
+
+**O. Onorariul din cererea de ordonanta.** Cheltuielile de recuperare (onorariul fix sau de succes) le stii de la crearea dosarului sau se stabilesc pana la depunere? Ar trebui sa poata fi corectate si dupa somatie, pana la generarea cererii? Nu intra in somatie, apar doar in cerere.
+
+**P. Note interne pe dosar.** Ai nevoie de un loc in dosar pentru note care nu apar in niciun act (discutii cu clientul, promisiuni de plata, contactul contabilului debitorului)?
 
 **E. Alte situatii.** Ai intalnit si alte cazuri in care ai avut nevoie sa modifici un dosar dupa ce l-ai creat (alt reprezentant al creditorului, alt cont bancar, alt termen de plata contractual, debitor intrat in insolventa)? Spune-ne ce s-a intamplat concret, ca sa vedem daca intra in aceasta propunere sau ramane pentru mai tarziu.
