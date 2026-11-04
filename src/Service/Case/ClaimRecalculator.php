@@ -62,6 +62,7 @@ final class ClaimRecalculator
         private readonly ClaimTotalsService $totalsService,
         private readonly CaseAccessoryService $accessoryService,
         private readonly CaseFxTrace $fxTrace,
+        private readonly CaseStampDuty $stampDuty,
         private readonly DeadlineService $deadlineService,
         private readonly LegalDeadlineRepository $deadlineRepository,
         private readonly CompetentCourtResolver $courtResolver,
@@ -117,6 +118,7 @@ final class ClaimRecalculator
             || ($totals->countedCount === 0 && $totals->needsManualFxCount > 0);
         $fxChange = $keepStoredScalars ? null : $this->fxTrace->refresh($case);
         $accessoryChange = $this->refreshAccessory($case, $totals->itemCount > 0 && $totals->countedCount === 0 && $totals->needsManualFxCount === 0);
+        $this->stampDuty->refresh($case);
         $referenceDate = $this->accessoryService->referenceDate($case);
 
         // The deadline lookups read the database, so the positions as they

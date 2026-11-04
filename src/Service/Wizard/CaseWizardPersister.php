@@ -22,6 +22,8 @@ use App\Entity\User;
 use App\Repository\CreditorRepository;
 use App\Repository\DocumentRepository;
 use App\Service\AuditLogService;
+use App\Service\Case\CaseFxTrace;
+use App\Service\Case\CaseStampDuty;
 use App\Service\Case\ClaimItemFactory;
 use App\Service\Case\ClaimTotalsService;
 use App\Service\Case\LegalCaseClaimFieldsMapper;
@@ -45,6 +47,8 @@ final class CaseWizardPersister
         private readonly LegalCaseClaimFieldsMapper $claimFields,
         private readonly ClaimItemFactory $claimItemFactory,
         private readonly ClaimTotalsService $claimTotals,
+        private readonly CaseFxTrace $fxTrace,
+        private readonly CaseStampDuty $stampDuty,
         private readonly CreditorRepository $creditors,
         private readonly DocumentRepository $documents,
         private readonly WizardStateStore $stateStore,
@@ -54,7 +58,7 @@ final class CaseWizardPersister
 
     /**
      * @param list<int> $documentIds
-     * @param array{interest: ?InterestResult, penalty: ?PenaltyResult, accessoryTotal: float, stampDuty: ?StampDutyResult, court: ?CourtResolveResult} $calculations
+     * @param array{interest: ?InterestResult, penalty: ?PenaltyResult, accessoryTotal: float, stampDuty: ?StampDutyResult, court: ?CourtResolveResult} $calculations the sidebar figures; the duty is written by {@see CaseStampDuty}, the key stays for the caller's toast
      * @param array{auto: list<string>, manual: list<string>} $autoFilledIndex
      * @param list<AdmissibilityIssue> $warnings
      * @param list<ClaimItemRow> $claimRows
@@ -121,9 +125,7 @@ final class CaseWizardPersister
             if (($calculations['accessoryTotal'] ?? 0.0) > 0.0) {
                 $case->setCalculatedInterest(sprintf('%.2f', $calculations['accessoryTotal']));
             }
-            if ($calculations['stampDuty'] !== null) {
-                $case->setStampDuty(sprintf('%.2f', $calculations['stampDuty']->amount));
-            }
+            $this->stampDuty->refresh($case);
             if ($court !== null) {
                 $case->setCourt($court);
             }
@@ -140,11 +142,18 @@ final class CaseWizardPersister
                 $case->addDebtor($link);
             }
 
-            // The positions are the claim; the case scalars are their total,
-            // written here and nowhere else.
+            // The positions are the claim; the case scalars are their total and
+            // the exchange trace follows the positions, by the same rule the
+            // case page applies when the claim is edited later.
             if ($claimRows !== []) {
                 $this->claimItemFactory->materialize($case, $claimRows);
-                $this->claimTotals->recalculate($case);
+                $totals = $this->claimTotals->recalculate($case);
+                // Same guard as the recalculator: when every position still waits
+                // for a manual rate, the step 3 scalars (trace included) are the
+                // only figures anyone has.
+                if ($totals->countedCount > 0 || $totals->needsManualFxCount === 0) {
+                    $this->fxTrace->refresh($case);
+                }
             }
 
             $this->em->persist($case);

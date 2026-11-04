@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Tests\Service\Wizard;
 
+use App\DTO\Calculation\CurrencyConversionResult;
+use App\DTO\Wizard\ClaimItemRow;
 use App\DTO\Wizard\Step1CreditorData;
 use App\DTO\Wizard\Step2DebtorEntry;
 use App\DTO\Wizard\Step2DebtorsData;
 use App\DTO\Wizard\Step3ClaimData;
+use App\DTO\Wizard\WizardPersistResult;
 use App\Entity\AuditLog;
 use App\Entity\Creditor;
 use App\Entity\User;
@@ -16,6 +19,8 @@ use App\Enum\RelationshipType;
 use App\Repository\CreditorRepository;
 use App\Repository\DocumentRepository;
 use App\Service\AuditLogService;
+use App\Service\Case\CaseFxTrace;
+use App\Service\Case\CaseStampDuty;
 use App\Service\Case\ClaimItemFactory;
 use App\Service\Case\ClaimTotalsService;
 use App\Service\Case\LegalCaseClaimFieldsMapper;
@@ -85,6 +90,8 @@ final class CaseWizardPersisterTest extends KernelTestCase
             $container->get(LegalCaseClaimFieldsMapper::class),
             $container->get(ClaimItemFactory::class),
             $container->get(ClaimTotalsService::class),
+            $container->get(CaseFxTrace::class),
+            $container->get(CaseStampDuty::class),
             $container->get(CreditorRepository::class),
             $documents,
             $container->get(WizardStateStore::class),
@@ -247,6 +254,90 @@ final class CaseWizardPersisterTest extends KernelTestCase
         self::assertContains('claim.amount', $index['manual']);
         self::assertNotContains('creditor.name', $index['manual']);
         self::assertNotContains('creditor.autoFilled', $index['manual']);
+    }
+
+    /** The exchange trace follows the positions, by the rule the case page applies after an edit. */
+    public function testOneForeignPositionWritesTheExchangeTraceOfThatPosition(): void
+    {
+        $case = $this->persistWithRows([$this->foreignRow('eur-1', 1000.0, 5000.0)], $this->claim())->case;
+
+        self::assertSame('5000.00', $case->getAmount());
+        self::assertSame('RON', $case->getCurrency());
+        self::assertSame('1000.00', $case->getOriginalAmount());
+        self::assertSame('EUR', $case->getOriginalCurrency());
+        self::assertEqualsWithDelta(5.0, (float) $case->getExchangeRate(), 0.00001);
+        self::assertSame('2024-01-10', $case->getExchangeRateDate()?->format('Y-m-d'));
+        self::assertSame('200.00', $case->getStampDuty());
+    }
+
+    public function testSeveralForeignPositionsLeaveNoCaseLevelTrace(): void
+    {
+        $case = $this->persistWithRows([
+            $this->foreignRow('eur-1', 1000.0, 5000.0),
+            $this->foreignRow('eur-2', 200.0, 1000.0),
+        ], $this->claim())->case;
+
+        self::assertSame('6000.00', $case->getAmount());
+        self::assertNull($case->getOriginalAmount());
+        self::assertNull($case->getOriginalCurrency());
+        self::assertNull($case->getExchangeRate());
+        self::assertNull($case->getExchangeRateDate());
+    }
+
+    /** With every position still waiting for a manual rate, the step 3 figures are the only ones anyone has. */
+    public function testPositionsWaitingForAManualRateKeepTheStepThreeTrace(): void
+    {
+        $claim = $this->claim();
+        $claim->currency = 'EUR';
+        $conversion = new CurrencyConversionResult(originalAmount: 1000.0, originalCurrency: 'EUR', ronAmount: 4970.0, rate: 4.97, rateDate: new \DateTimeImmutable('2023-12-15'), identity: false);
+        $row = $this->foreignRow('eur-1', 1000.0, 5000.0);
+        $row->amountRon = null;
+        $row->exchangeRate = null;
+        $row->exchangeRateDate = null;
+        $row->needsManualFx = true;
+
+        $case = $this->persistWithRows([$row], $claim, $conversion)->case;
+
+        self::assertSame('4970.00', $case->getAmount());
+        self::assertSame('1000.00', $case->getOriginalAmount());
+        self::assertSame('EUR', $case->getOriginalCurrency());
+        self::assertSame('4.9700', $case->getExchangeRate());
+    }
+
+    private function foreignRow(string $key, float $amount, float $amountRon): ClaimItemRow
+    {
+        return new ClaimItemRow(
+            dedupKey: $key,
+            amount: $amount,
+            currency: 'EUR',
+            documentNumber: strtoupper($key),
+            documentDate: new \DateTimeImmutable('2024-01-10'),
+            dueDate: new \DateTimeImmutable('2024-02-10'),
+            amountRon: $amountRon,
+            exchangeRate: $amountRon / $amount,
+            exchangeRateDate: new \DateTimeImmutable('2024-01-10'),
+            confirmed: true,
+        );
+    }
+
+    /** @param list<ClaimItemRow> $rows */
+    private function persistWithRows(array $rows, Step3ClaimData $claim, ?CurrencyConversionResult $conversion = null): WizardPersistResult
+    {
+        return $this->persister->persist(
+            $this->session(),
+            $this->user,
+            $this->newCreditor(),
+            $this->debtors(),
+            $claim,
+            [],
+            $this->calculations(),
+            ['auto' => [], 'manual' => []],
+            [],
+            null,
+            'none',
+            $conversion,
+            $rows,
+        );
     }
 
     private function session(): Session
