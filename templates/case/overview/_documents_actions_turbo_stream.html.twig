@@ -20,6 +20,10 @@
     <turbo-stream action="update" target="summons-communication-alert">
         <template>{{ include('case/overview/_summons_communication_alert.html.twig') }}</template>
     </turbo-stream>
+    {# The proof also decides whether the hero action is the next step or waits for it. #}
+    <turbo-stream action="replace" target="case-hero">
+        <template>{{ include('case/overview/_hero.html.twig') }}</template>
+    </turbo-stream>
     {# The same upload lifts the gate on the petition. The dialog carrying that gate
        lives at page level, outside every region above, so without this replace the
        lawyer attaches the proof and still faces a disabled "Generează" button until he

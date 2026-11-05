@@ -382,6 +382,7 @@ final class CasePortalControllerTest extends WebTestCase
         $body = (string) $this->client->getResponse()->getContent();
         // Full-region update: hero + pipeline + tabs + portal panel + toast.
         self::assertStringContainsString('target="case-hero"', $body);
+        self::assertStringContainsString('target="portal-ruling-proposal"', $body);
         self::assertStringContainsString('target="panel-portal"', $body);
         self::assertStringContainsString('target="toasts"', $body);
 
@@ -529,6 +530,7 @@ final class CasePortalControllerTest extends WebTestCase
         );
         $body = (string) $this->client->getResponse()->getContent();
         self::assertStringContainsString('target="case-hero"', $body);
+        self::assertStringContainsString('target="portal-ruling-proposal"', $body);
         self::assertStringContainsString('target="toasts"', $body);
     }
 

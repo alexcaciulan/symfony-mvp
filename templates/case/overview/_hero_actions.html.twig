@@ -1,8 +1,5 @@
-{# Hero action bar at the bottom of the case header: the next step in one sentence on the
-   left, then on one line the amicable-payment closing while it applies, the single
-   status-driven primary CTA and the actions dropdown with the rarer status actions
-   (rejection, annulment outcomes). The bar is a size container so the buttons move under
-   the sentence by the width of the card, not of the viewport. #}
+{# Bottom action bar of the case header: next-step sentence, then amicable payment, primary CTA
+   and the ⋯ menu. A size container, so the buttons wrap by the card width, not the viewport. #}
 {% from 'case/overview/_icons.html.twig' import icon_dots, icon_edit, icon_share, icon_copy, icon_trash, icon_check, icon_building, icon_warning, icon_arrow_right %}
 
 {# Render the primary-CTA icon by name so the keyed map below can carry a distinct glyph per status. #}
@@ -48,14 +45,25 @@
 ) %}
 {% set has_primary = filing_link or case.status.value == 'AMIABIL' or case.status.value == 'CERERE_DEPUSA' or primary %}
 
-{# A missing communication date shown in an amber band above the header comes first:
-   the hero action steps back to an outline so only one filled button is on screen,
-   and the sentence points to the band. #}
+{# A band above with a filled button comes first: the hero CTA steps back to an outline.
+   Each test mirrors the visibility test of its band template. #}
 {% set blocked_by = null %}
 {% if case.status.value == 'SOMATIE_TRIMISA' and case.paymentNoticeCommunicationDate is null %}
     {% set blocked_by = 'summons_blocked' %}
+{# Counted like the band does: the petition cannot be generated without the proof. #}
+{% elseif case.status.value == 'SOMATIE_TRIMISA' and case.documents|filter(d => d.documentType and d.documentType.value == 'dovada_comunicare')|length == 0 %}
+    {% set blocked_by = 'proof_blocked' %}
 {% elseif case.status.value in ['ORDONANTA_EMISA', 'IN_ANULARE'] and case.rulingCommunicationDate is null %}
     {% set blocked_by = 'ruling_blocked' %}
+{% elseif portal_ruling_proposal|default(null) %}
+    {% set blocked_by = 'portal_ruling_blocked' %}
+{% elseif not case.status.isTerminal() and case.courtCaseNumber is null and case.portalProposedNumber %}
+    {% set blocked_by = 'portal_number_blocked' %}
+{% elseif not case.status.isTerminal() and case.courtCaseNumber and case.hasReachedCourt() and case.stampDutyStatus.value in ['NEACHITATA', 'AMANATA_REGULARIZARE'] %}
+    {% set blocked_by = 'stamp_duty_blocked' %}
+{% elseif case.status.value == 'DEFINITIVA' and case.annulmentRulingCommunicationDate is null and case.hasPassedThroughAnnulment() %}
+    {# Not a precondition of enforcement, so the sentence names it without "first". #}
+    {% set blocked_by = 'annulment_date_pending' %}
 {% endif %}
 {% set cta_tone = blocked_by ? outline_class : null %}
 
@@ -96,7 +104,8 @@
         <a href="{{ path('case_overview', {id: case.id, tab: 'depunere'}) }}#depunere-status"
            data-turbo-frame="_top"
            data-testid="hero-filing-link" data-controller="open-tab" data-open-tab-tab-value="depunere" data-action="open-tab#open"
-           class="flex-1 sm:flex-none {{ base_cta_class }} border-transparent shadow-sm bg-lex-navy text-white hover:bg-lex-navy-dark">
+           data-tone="{{ cta_tone ? 'outline' : 'filled' }}"
+           class="flex-1 sm:flex-none {{ base_cta_class }} {{ cta_tone ?: 'border-transparent shadow-sm bg-lex-navy text-white hover:bg-lex-navy-dark' }}">
             {{ _self.cta_icon('building') }}
             {{ ('filing.panel.hero.' ~ (filing_panel_state.primaryAction ?? 'open'))|trans }}
         </a>
@@ -107,7 +116,8 @@
                     <input type="hidden" name="_token" value="{{ csrf_token('generate_summons_' ~ case.id) }}">
                     <button type="submit"
                             data-testid="hero-primary-cta"
-                            class="{{ base_cta_class }} border-transparent shadow-sm bg-amber-500 text-white hover:bg-amber-600
+                            data-tone="{{ cta_tone ? 'outline' : 'filled' }}"
+                            class="{{ base_cta_class }} {{ cta_tone ?: 'border-transparent shadow-sm bg-amber-500 text-white hover:bg-amber-600' }}
                                    {% if just_created|default(false) %}ring-2 ring-offset-2 ring-emerald-400 dark:ring-offset-slate-900 soft-pulse-once{% endif %}">
                         {{ _self.cta_icon('warning') }}
                         {{ 'case_overview.cta.send_summons'|trans }}
@@ -120,7 +130,8 @@
                         data-controller="goto-portal-discover"
                         data-action="goto-portal-discover#navigate"
                         data-testid="hero-primary-cta"
-                        class="{{ base_cta_class }} border-transparent shadow-sm bg-indigo-600 text-white hover:bg-indigo-700
+                        data-tone="{{ cta_tone ? 'outline' : 'filled' }}"
+                        class="{{ base_cta_class }} {{ cta_tone ?: 'border-transparent shadow-sm bg-indigo-600 text-white hover:bg-indigo-700' }}
                                {% if just_created|default(false) %}ring-2 ring-offset-2 ring-emerald-400 dark:ring-offset-slate-900 soft-pulse-once{% endif %}">
                     {{ _self.cta_icon('building') }}
                     {{ 'case_overview.cta.register_case'|trans }}

@@ -6,6 +6,10 @@
     <turbo-stream action="update" target="portal-case-alert">
         <template>{{ include('case/overview/_portal_case_alert.html.twig') }}</template>
     </turbo-stream>
+    {# A check can find a ruling; the hero points to this band, so it must appear with it. #}
+    <turbo-stream action="update" target="portal-ruling-proposal">
+        <template>{{ include('case/overview/_portal_ruling_proposal.html.twig') }}</template>
+    </turbo-stream>
     <turbo-stream action="replace" target="case-hero">
         <template>{{ include('case/overview/_hero.html.twig') }}</template>
     </turbo-stream>

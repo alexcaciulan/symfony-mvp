@@ -49,10 +49,19 @@
             <div class="text-sm font-semibold text-amber-900 dark:text-amber-200">{{ 'case_overview.summons.alert_attach_proof'|trans }}</div>
             <div class="text-xs text-amber-800 dark:text-amber-300/80 mt-0.5">{{ 'case_overview.summons.alert_attach_proof_hint'|trans }}</div>
         </div>
-        <button type="button"
-                data-hs-overlay="#hs-modal-c4-summons"
-                class="shrink-0 text-xs font-medium text-amber-800/80 dark:text-amber-300/70 underline-offset-2 hover:underline">
-            {{ 'case_overview.summons.alert_attach_proof_remind'|trans }}
-        </button>
+        <div class="flex flex-col items-end gap-1 shrink-0">
+            <button type="button"
+                    data-hs-overlay="#hs-modal-upload-document"
+                    data-upload-preset-type="dovada_comunicare"
+                    data-testid="summons-alert-upload-proof"
+                    class="py-1.5 px-3 inline-flex items-center text-xs font-semibold rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition">
+                {{ 'case_overview.summons.alert_attach_proof_cta'|trans }}
+            </button>
+            <button type="button"
+                    data-hs-overlay="#hs-modal-c4-summons"
+                    class="text-xs font-medium text-amber-800/80 dark:text-amber-300/70 underline-offset-2 hover:underline">
+                {{ 'case_overview.summons.alert_attach_proof_remind'|trans }}
+            </button>
+        </div>
     </div>
 {% endif %}

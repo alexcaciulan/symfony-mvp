@@ -227,6 +227,7 @@ final class DocumentControllerTest extends WebTestCase
         $body = (string) $this->client->getResponse()->getContent();
         self::assertStringContainsString('target="panel-documente"', $body);
         self::assertStringContainsString('target="case-tabs-nav"', $body);
+        self::assertStringContainsString('target="case-hero"', $body, 'The proof can release the hero action.');
         self::assertStringContainsString('close-modal', $body);
         self::assertStringContainsString('target="toasts"', $body);
     }

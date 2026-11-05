@@ -333,12 +333,13 @@ final class CaseOverviewControllerTest extends WebTestCase
         $this->client->loginUser($this->user);
         $this->enrichCase();
 
+        // The client reboots the kernel between requests, so the status is written straight to the row.
         foreach ([CaseStatus::AMIABIL, CaseStatus::SOMATIE_TRIMISA] as $status) {
-            $this->case->setStatus($status);
-            $this->em->flush();
+            $this->em->getConnection()->executeStatement('UPDATE legal_case SET status = ? WHERE id = ?', [$status->value, $this->case->getId()]);
             $this->client->request('GET', '/case/' . $this->case->getId());
 
             self::assertResponseIsSuccessful();
+            self::assertSelectorTextContains('#case-status-badge', $status === CaseStatus::AMIABIL ? 'Amiabil' : 'Somație trimisă', 'The status really changed.');
             self::assertSelectorExists('#case-hero-actions [data-testid="hero-full-payment-action"][data-hs-overlay="#hs-modal-full-payment"]', $status->value);
             self::assertSelectorExists('#case-hero-actions [data-testid="hero-menu-full-payment"][data-hs-overlay="#hs-modal-full-payment"]', $status->value);
             self::assertSelectorExists('#hs-modal-full-payment form[action$="/transition/full-payment"]', $status->value);
@@ -352,8 +353,7 @@ final class CaseOverviewControllerTest extends WebTestCase
         $this->enrichCase();
         $this->case->setPaymentNoticeCommunicationDate(new \DateTimeImmutable('-20 days'));
         $this->case->setRulingCommunicationDate(new \DateTimeImmutable('-5 days'));
-
-        $this->em->flush();
+        $this->attachDocument(DocumentType::DOVADA_COMUNICARE);
         // The client reboots the kernel between requests, so the status is written straight to the row.
         $connection = $this->em->getConnection();
 
@@ -387,8 +387,21 @@ final class CaseOverviewControllerTest extends WebTestCase
         $this->em->getConnection()->executeStatement('UPDATE legal_case SET payment_notice_communication_date = ? WHERE id = ?', [(new \DateTimeImmutable('-3 days'))->format('Y-m-d'), $this->case->getId()]);
         $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
 
+        self::assertSame('true', $crawler->filter('[data-testid="hero-next-step"]')->attr('data-blocked'), 'The proof is still missing.');
+        self::assertStringContainsString('dovada comunicării somației', $crawler->filter('[data-testid="hero-next-step"]')->text());
+        self::assertSame('outline', $crawler->filter('#case-hero-actions [data-testid="hero-primary-cta"]')->attr('data-tone'));
+        self::assertSelectorExists('#summons-communication-alert [data-testid="summons-alert-upload-proof"][data-upload-preset-type="dovada_comunicare"]', 'The band now carries the filled button.');
+
+        // The request rebooted the kernel: reload the case and the user into the live entity manager.
+        $this->em = static::getContainer()->get(EntityManagerInterface::class);
+        $this->case = $this->em->find(LegalCase::class, $this->case->getId());
+        $this->user = $this->em->find(User::class, $this->user->getId());
+        $this->attachDocument(DocumentType::DOVADA_COMUNICARE);
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
         self::assertSame('false', $crawler->filter('[data-testid="hero-next-step"]')->attr('data-blocked'));
         self::assertSame('filled', $crawler->filter('#case-hero-actions [data-testid="hero-primary-cta"]')->attr('data-tone'));
+        self::assertSelectorTextNotContains('#summons-communication-alert', 'Atașează dovada');
     }
 
     public function testHeroActionStepsBackWhileTheOrderCommunicationDateIsMissing(): void
@@ -403,6 +416,22 @@ final class CaseOverviewControllerTest extends WebTestCase
         self::assertSame('true', $crawler->filter('[data-testid="hero-next-step"]')->attr('data-blocked'));
         self::assertStringContainsString('data comunicării ordonanței', $crawler->filter('[data-testid="hero-next-step"]')->text());
         self::assertSame('outline', $crawler->filter('#case-hero-actions [data-testid="hero-primary-cta"][data-hs-overlay="#hs-modal-executare"]')->attr('data-tone'));
+    }
+
+    public function testHeroActionStepsBackWhileTheStampDutyBandAsksForPayment(): void
+    {
+        $this->client->loginUser($this->user);
+        $this->enrichCase(CaseStatus::TERMEN_FIXAT);
+        $this->case->setCourtCaseNumber('1234/211/2026');
+        $this->case->setStampDutyStatus(StampDutyStatus::NEACHITATA);
+        $this->em->flush();
+
+        $crawler = $this->client->request('GET', '/case/' . $this->case->getId());
+
+        self::assertSelectorTextContains('#portal-case-alert', 'Taxa de timbru nu este achitată');
+        self::assertSame('true', $crawler->filter('[data-testid="hero-next-step"]')->attr('data-blocked'));
+        self::assertStringContainsString('Taxa de timbru, din banda de mai sus', $crawler->filter('[data-testid="hero-next-step"]')->text());
+        self::assertSame('outline', $crawler->filter('#case-hero-actions [data-testid="hero-primary-cta"][data-hs-overlay="#hs-modal-issue-ruling"]')->attr('data-tone'));
     }
 
     public function testFullPaymentActionAbsentOnceRequestGenerated(): void
