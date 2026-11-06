@@ -7,16 +7,14 @@
    screen stop being one.
 
    It posts to the route the case page posts to, with the same form name and the same
-   token, and adds only the agenda context and the active filter, so the answer is
+   token, and adds only the agenda context, so the answer is
    this page rather than the case markup. The action is written by
    `agenda-dialog_controller` from the row that was pressed, because one dialog
    serves every row.
 
    The id is the one the case page uses for the same act, on purpose: the two never
    coexist in a document, and the answer that dismisses the dialog there dismisses it
-   here with no mapping in between.
-
-   @var filter_fields map active filter as hidden inputs #}
+   here with no mapping in between. #}
 
 {% from 'deadlines/_icons.html.twig' import calendar %}
 
@@ -26,12 +24,9 @@
      tabindex="-1"
      aria-labelledby="hs-modal-agenda-summons-date-title">
     <div class="hs-overlay-open:mt-7 hs-overlay-open:opacity-100 hs-overlay-open:duration-500 mt-0 opacity-0 ease-out transition-all sm:max-w-lg sm:w-full m-3 sm:mx-auto">
-        <form method="post" enctype="multipart/form-data" class="flex flex-col bg-white border border-slate-200 shadow-lg rounded-2xl pointer-events-auto dark:bg-slate-900 dark:border-slate-800">
+        <form id="deadline-summons-form" method="post" enctype="multipart/form-data" class="flex flex-col bg-white border border-slate-200 shadow-lg rounded-2xl pointer-events-auto dark:bg-slate-900 dark:border-slate-800">
             <input type="hidden" name="payment_notice_communication_date[_token]" value="{{ csrf_token('payment_notice_communication_date') }}">
             <input type="hidden" name="_context" value="agenda">
-            {% for name, value in filter_fields %}
-                <input type="hidden" name="{{ name }}" value="{{ value }}">
-            {% endfor %}
 
             <div class="flex justify-between items-center py-4 px-5 border-b border-slate-100 dark:border-slate-800">
                 <div class="flex items-center gap-3">

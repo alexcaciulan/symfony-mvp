@@ -1,59 +1,57 @@
 {# The answer to a deadline action fired from the global agenda.
 
    The routes are shared with the deadlines tab of a case, and the stream that tab
-   receives targets `deadline-card-{id}`, `panel-termene`, `case-tabs-nav`,
-   `case-kpi-grid` and `case-hero`, none of which exist here. Sent to this
-   page it would swap nothing at all and leave the row exactly as it was.
+   receives targets markup that does not exist here. Sent to this page it would swap
+   nothing and leave the row exactly as it was.
 
-   The two regions are rebuilt whole rather than patched row by row, and the
-   navigation badge follows them. Closing one term moves the counters, the count and
-   the "oldest arrear" hint of its section, whether that section still renders, the
-   rail, the blockage zone and the badge; a single-row swap would leave all of those
-   describing an agenda the lawyer can no longer see, and on a triage screen a stale
-   number is worse than a larger answer.
+   The regions are rebuilt whole rather than patched row by row. Closing one term moves
+   the verdict, the boxes, the count of its group, whether that group still renders and
+   the badge; a single-row swap would leave those describing an agenda the lawyer can no
+   longer see, and on a triage screen a stale number is worse than a larger answer.
 
-   @var view           App\Service\Deadline\DeadlinePageView rebuilt under the same filter
+   @var view           App\Service\Deadline\DeadlinePageView rebuilt under the same selection
    @var toast_variant  string 'success' | 'error' | 'warning'
    @var toast_key      string translation key of the message
    @var close_modal_id string|null dialog the action was fired from, sent on success
-                                   only, so a rejected submission keeps what was typed
-   @var extra_toast_key string|null second message some acts carry next to their own
-                                    outcome, always a warning (billing, mostly)
-   @var toast_details  list<string>|null translated lines listed under the message #}
+                                   only, so a rejected submission keeps what was typed #}
+
+<turbo-stream action="replace" target="deadline-verdict">
+    <template><div id="deadline-verdict" class="min-w-0">{{ include('deadlines/_verdict_region.html.twig', { view: view }, with_context = false) }}</div></template>
+</turbo-stream>
 
 <turbo-stream action="replace" target="deadline-riskbar">
     <template><div id="deadline-riskbar">{{ include('deadlines/_riskbar_region.html.twig', { view: view }, with_context = false) }}</div></template>
 </turbo-stream>
 
 <turbo-stream action="replace" target="deadline-agenda">
-    <template><div id="deadline-agenda" class="space-y-5">{{ include('deadlines/_agenda_region.html.twig', { view: view }, with_context = false) }}</div></template>
+    <template><div id="deadline-agenda" tabindex="-1" class="outline-none">{{ include('deadlines/_agenda_region.html.twig', { view: view }, with_context = false) }}</div></template>
 </turbo-stream>
 
-{# The navigation badge counts the same arrears as the "Restante" pill, so closing a
+{# The navigation badge counts the same arrears as the overdue group, so closing a
    term has to move both. Addressed by class rather than by id because the sidebar and
    the mobile navigation each render one, and a badge left at the old number on the
    very screen that just changed it is the kind of stale count the triage is read to
-   avoid. The count is the unfiltered one, like the pill. #}
+   avoid. The count is the unfiltered one. #}
 <turbo-stream action="replace" targets=".deadline-nav-badge">
     <template>{{ include('_deadline_nav_badge.html.twig', { count: view.counters.overdue }, with_context = false) }}</template>
 </turbo-stream>
 
 <turbo-stream action="append" target="toasts">
     <template>
-        {% include 'components/Toast.html.twig' with { message: toast_key|trans, variant: toast_variant, details: toast_details|default([]) } only %}
+        {% include 'components/Toast.html.twig' with { message: toast_key|trans, variant: toast_variant, details: [] } only %}
     </template>
 </turbo-stream>
-
-{% if extra_toast_key|default(null) %}
-    <turbo-stream action="append" target="toasts">
-        <template>
-            {% include 'components/Toast.html.twig' with { message: extra_toast_key|trans, variant: 'warning', details: [] } only %}
-        </template>
-    </turbo-stream>
-{% endif %}
 
 {% if close_modal_id|default(null) %}
     <turbo-stream action="append" target="toasts">
         <template><div data-controller="close-modal" data-close-modal-target-id-value="{{ close_modal_id }}"></div></template>
+    </turbo-stream>
+{% endif %}
+
+{# A panel over a row that just changed would describe the past. A rejected action keeps
+   it open, like the dialogs. #}
+{% if toast_variant != 'error' %}
+    <turbo-stream action="append" target="deadline-panel-dismiss">
+        <template><span data-deadline-panel-target="dismiss"></span></template>
     </turbo-stream>
 {% endif %}

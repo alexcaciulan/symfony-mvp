@@ -1,0 +1,191 @@
+{# What stays out of the row: the side panel of one term, loaded on demand into the page
+   frame. The frame targets the page, so a form posted from here answers with the same
+   streams as the row, and the close it offers is the very button of the row.
+
+   @var row      App\Service\Deadline\DeadlineRowView
+   @var filter   App\Service\Deadline\DeadlineAgendaFilter
+   @var siblings list<App\Entity\LegalDeadline> open limitation terms the row stands for #}
+
+{% from 'deadlines/_dates.html.twig' import weekday_numeric %}
+{% from 'deadlines/_icons.html.twig' import close_x %}
+
+{% set item = row.item %}
+{% set deadline = row.deadline() %}
+{% set legal_case = row.legalCase() %}
+{% set type = deadline.type.value %}
+{% set days = item.daysRemaining %}
+{% set closed = deadline.completed %}
+{% set consumed = row.isConsequenceConsumed() and not closed %}
+{% set unblocked = type == 'RASPUNS_SOMATIE' and days < 0 %}
+{% set debtor = legal_case.primaryDebtor %}
+{% set case_number = legal_case.courtCaseNumber ?: legal_case.caseNumber %}
+{% set description = deadline.description|default('')|trim %}
+{% set title = type == 'OTHER' and description is not empty ? description : deadline.type.label()|trans %}
+{% set closable = row.action.close and not legal_case.status.isTerminal() %}
+
+{% set days_text = '' %}
+{% if closed %}
+    {% set days_text = '' %}
+{% elseif days < 0 %}
+    {% set days_text = (unblocked ? 'deadlines.row.expired_by' : 'deadlines.row.overdue_by')|trans({ '%count%': days|abs }) %}
+{% elseif days == 0 %}
+    {% set days_text = 'deadlines.row.due_today'|trans %}
+{% else %}
+    {% set days_text = 'deadlines.row.due_in'|trans({ '%count%': days }) %}
+{% endif %}
+
+<turbo-frame id="deadline-panel-frame" target="_top" class="contents">
+    <header class="flex items-start gap-3 px-5 pt-5 pb-4 border-b border-slate-100 dark:border-slate-800">
+        <div class="min-w-0 flex-1">
+            <p class="text-xs font-medium text-slate-500 dark:text-slate-400">
+                {{ ('deadlines.type_short.' ~ type)|trans }}
+                {% if item.isIrreversible() and not closed %}<span aria-hidden="true">·</span> {{ 'deadlines.row.fatal'|trans }}{% endif %}
+                {% if row.isEstimated() and not closed %}<span aria-hidden="true">·</span> {{ item.estimateNote.markKey|trans(item.estimateNote.parameters) }}{% endif %}
+            </p>
+            <h2 class="mt-1 text-lg font-semibold tracking-tight text-slate-900 dark:text-white">{{ title }}</h2>
+        </div>
+        <button type="button" data-action="deadline-panel#close" aria-label="{{ 'deadlines.panel.close'|trans }}" class="size-8 inline-flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">{{ close_x('size-5') }}</button>
+    </header>
+
+    <div class="flex-1 overflow-y-auto px-5 pb-6" data-testid="deadline-panel">
+        <dl class="mt-3 divide-y divide-slate-100 dark:divide-slate-800">
+            {{ _self.fact('deadlines.panel.due_on'|trans, weekday_numeric(deadline.deadlineDate), days_text, not unblocked and days <= 0 ? 'font-medium text-red-600 dark:text-red-400' : '') }}
+            <div class="flex gap-3 py-1.5">
+                <dt class="w-28 shrink-0 text-[13px] text-slate-500 dark:text-slate-400">{{ 'deadlines.panel.case'|trans }}</dt>
+                <dd class="min-w-0 text-sm text-slate-900 dark:text-slate-100">
+                    <a href="{{ path('case_overview', { id: legal_case.id }) }}" class="font-mono text-[13px] text-blue-700 dark:text-blue-400 hover:underline">{{ case_number }}</a>
+                    {% if not legal_case.courtCaseNumber %}<span class="text-slate-500 dark:text-slate-400">({{ 'deadlines.row.internal_number'|trans }})</span>{% endif %}
+                    <span class="text-slate-500 dark:text-slate-400">· {{ legal_case.status.label()|trans }}</span>
+                </dd>
+            </div>
+            {% if debtor %}
+                <div class="flex gap-3 py-1.5">
+                    <dt class="w-28 shrink-0 text-[13px] text-slate-500 dark:text-slate-400">{{ 'deadlines.panel.debtor'|trans }}</dt>
+                    <dd class="min-w-0 text-sm text-slate-900 dark:text-slate-100">{{ debtor.name }}{% if debtor.cui %} <span class="text-slate-500 dark:text-slate-400">· CUI {{ debtor.cui }}</span>{% endif %}</dd>
+                </div>
+            {% endif %}
+            {{ _self.fact('deadlines.panel.court'|trans, legal_case.court ? legal_case.court.name : 'deadlines.row.no_court'|trans, '') }}
+            {% if legal_case.amount %}
+                {{ _self.fact('deadlines.panel.principal'|trans, legal_case.amount|number_format(0, ',', '.') ~ ' ' ~ legal_case.currency, '') }}
+            {% endif %}
+            {% if closed and deadline.completedAt %}
+                {{ _self.fact('deadlines.panel.completed_on'|trans, deadline.completedAt|date('d.m.Y'), deadline.completedBy ? '' : 'deadlines.panel.closed_by_app'|trans) }}
+            {% endif %}
+        </dl>
+
+        {% if consumed %}
+            <p class="mt-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 px-3 py-2.5 text-[13px] text-slate-700 dark:text-slate-300">{{ 'deadlines.panel.consumed'|trans }}</p>
+        {% endif %}
+        {% if unblocked and not closed %}
+            <p class="mt-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 px-3 py-2.5 text-[13px] text-slate-700 dark:text-slate-300">{{ 'deadlines.panel.debtor_term_expired'|trans }}</p>
+        {% endif %}
+
+        {% if row.nextStep %}
+            {{ _self.section('deadlines.panel.next_step'|trans, row.nextStep.sentenceKey|trans) }}
+        {% endif %}
+        {% if type == 'PRESCRIPTIE' and legal_case.status.value == 'AMIABIL' and row.nextStep %}
+            <p class="mt-1.5 text-sm leading-relaxed text-slate-700 dark:text-slate-300">{{ 'deadlines.next_step.sentence.summons_interrupts'|trans }}</p>
+        {% endif %}
+
+        {{ _self.section((item.isIrreversible() ? 'deadlines.panel.consequence' : 'deadlines.panel.meaning')|trans, ('deadlines.panel_type.' ~ type ~ '.consequence')|trans) }}
+        {{ _self.section('deadlines.panel.computation'|trans, ('deadlines.panel_type.' ~ type ~ '.computation')|trans) }}
+        {% if type not in ['JUDECATA', 'OTHER'] %}
+            {{ _self.section('deadlines.panel.basis'|trans, ('deadlines.panel_type.' ~ type ~ '.basis')|trans) }}
+        {% endif %}
+        {% if type != 'OTHER' and (type != 'PRESCRIPTIE' or closed) and description is not empty and deadline.type.label()|trans|lower not in description|lower %}
+            {{ _self.section('deadlines.panel.description'|trans, description) }}
+        {% endif %}
+        {% if not closed and days == 0 and type in ['TIMBRARE', 'DEPUNERE_CERERE', 'CERERE_IN_ANULARE'] %}
+            {{ _self.section('deadlines.section.today_note_title'|trans, 'deadlines.section.today_note'|trans) }}
+        {% endif %}
+
+        {% if siblings is not empty %}
+            <section class="pt-5">
+                <h4 class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ 'deadlines.panel.covered_terms'|trans({ '%count%': siblings|length }) }}</h4>
+                <ul class="mt-1.5 divide-y divide-slate-100 dark:divide-slate-800 text-[13px] text-slate-700 dark:text-slate-300">
+                    {% for sibling in siblings %}
+                        <li class="flex justify-between gap-3 py-1"><span>{{ sibling.description }}</span><span class="shrink-0 text-slate-500 dark:text-slate-400 tnum">{{ sibling.deadlineDate|date('d.m.Y') }}</span></li>
+                    {% endfor %}
+                </ul>
+            </section>
+        {% endif %}
+
+        {% if row.isEstimated() and not closed %}
+            {% set note = item.estimateNote %}
+            {{ _self.section(note.markKey|trans(note.parameters), note.noteKey|trans(note.parameters)) }}
+        {% endif %}
+
+        {% if not closed %}
+            <section class="pt-5">
+                <h4 class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ 'deadlines.panel.alerts'|trans }}</h4>
+                {% if deadline_alerts_muted(deadline) %}
+                    <p class="mt-1.5 text-sm text-slate-700 dark:text-slate-300">{{ 'case_overview.deadlines.alerts_muted'|trans }}</p>
+                {% else %}
+                    <ul class="mt-1.5 divide-y divide-slate-100 dark:divide-slate-800 text-[13px] text-slate-700 dark:text-slate-300">
+                        {% for tier in deadline_alert_ladder(deadline) %}
+                            <li class="flex justify-between gap-3 py-1">
+                                <span>{{ 'deadlines.panel.alert_tier'|trans({ '%count%': tier.days }) }}</span>
+                                <span class="text-slate-500 dark:text-slate-400">{{ (tier.sent ? 'deadlines.panel.alert_sent' : 'deadlines.panel.alert_pending')|trans }}</span>
+                            </li>
+                        {% endfor %}
+                        <li class="flex justify-between gap-3 py-1">
+                            <span>{{ 'deadlines.panel.alert_after_expiry'|trans }}</span>
+                            <span class="text-slate-500 dark:text-slate-400">{{ (deadline.alertSentExpired ? 'deadlines.panel.alert_sent' : 'deadlines.panel.alert_pending')|trans }}</span>
+                        </li>
+                    </ul>
+                    <p class="mt-1.5 text-xs text-slate-500 dark:text-slate-400">{{ 'deadlines.panel.alerts_daily'|trans }}</p>
+                {% endif %}
+            </section>
+        {% endif %}
+    </div>
+
+    <footer class="px-5 py-3.5 border-t border-slate-100 dark:border-slate-800">
+        <div class="flex flex-wrap items-center gap-2">
+            {% if row.nextStep and row.nextStep.code == 'communication_date' %}
+                <a href="{{ path('case_overview', { id: legal_case.id }) }}"
+                   class="inline-flex items-center justify-center h-9 px-4 rounded-lg text-[13px] font-semibold whitespace-nowrap transition no-underline border border-transparent bg-lex-navy hover:bg-lex-navy-dark text-white dark:ring-1 dark:ring-white/10"
+                   data-action="agenda-dialog#openDialog"
+                   data-agenda-dialog-dialog-param="hs-modal-set-summons-communication-date"
+                   data-agenda-dialog-action-param="{{ path('case_deadline_summons_communication_date', { caseId: legal_case.id }) }}">{{ 'deadlines.blockage.SUMMONS_COMMUNICATION_MISSING.action'|trans }}</a>
+            {% endif %}
+            {# Where the next act is not the close, the way into the case leads. #}
+            {% set open_leads = row.action.open.routeParameters.tab is defined or unblocked or not closable %}
+            {% if open_leads %}
+                {{ include('deadlines/_row_action.html.twig', {
+                    button: row.action.open,
+                    case_id: legal_case.id,
+                    variant: 'full',
+                    tone: 'filled',
+                }, with_context = false) }}
+            {% endif %}
+            {% if closable %}
+                {{ include('deadlines/_row_action.html.twig', {
+                    button: row.action.close,
+                    case_id: legal_case.id,
+                    variant: 'full',
+                    tone: open_leads ? 'outline' : 'filled',
+                    filter_fields: filter.hiddenFields(),
+                    confirmation: row.closeConfirmation,
+                }, with_context = false) }}
+            {% endif %}
+            {% if not open_leads or row.action.open.routeParameters.tab is defined %}
+                <a href="{{ path('case_overview', { id: legal_case.id }) }}" class="ml-auto self-center text-[13px] font-medium text-blue-700 dark:text-blue-400 hover:underline">{{ 'deadlines.action.open_case'|trans }}</a>
+            {% endif %}
+        </div>
+        <p class="mt-2.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">{{ 'deadlines.panel.disclaimer'|trans }}</p>
+    </footer>
+</turbo-frame>
+
+{% macro fact(label, value, suffix, suffix_class) %}
+    <div class="flex gap-3 py-1.5">
+        <dt class="w-28 shrink-0 text-[13px] text-slate-500 dark:text-slate-400">{{ label }}</dt>
+        <dd class="min-w-0 text-sm text-slate-900 dark:text-slate-100">{{ value }}{% if suffix %} <span class="{{ suffix_class|default('text-slate-500 dark:text-slate-400') }}">({{ suffix }})</span>{% endif %}</dd>
+    </div>
+{% endmacro %}
+
+{% macro section(title, body) %}
+    <section class="pt-5">
+        <h4 class="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">{{ title }}</h4>
+        <div class="mt-1.5 text-sm leading-relaxed text-slate-700 dark:text-slate-300">{{ body }}</div>
+    </section>
+{% endmacro %}

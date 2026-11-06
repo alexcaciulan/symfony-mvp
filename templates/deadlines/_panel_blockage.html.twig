@@ -1,0 +1,62 @@
+{# The side panel of a blocked case. There is no term to hang it on, which is why the
+   route is keyed by the case: the row exists because the term does not.
+
+   @var row    App\Service\Deadline\DeadlineBlockageView
+   @var filter App\Service\Deadline\DeadlineAgendaFilter #}
+
+{% from 'deadlines/_icons.html.twig' import close_x %}
+
+{% set legal_case = row.legalCase() %}
+{% set reason = row.reason() %}
+{% set debtor = legal_case.primaryDebtor %}
+{% set case_number = legal_case.courtCaseNumber ?: legal_case.caseNumber %}
+{% set dt = 'w-28 shrink-0 text-[13px] text-slate-500 dark:text-slate-400' %}
+{% set dd = 'min-w-0 text-sm text-slate-900 dark:text-slate-100' %}
+{% set h4 = 'text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400' %}
+{% set body = 'mt-1.5 text-sm leading-relaxed text-slate-700 dark:text-slate-300' %}
+
+<turbo-frame id="deadline-panel-frame" target="_top" class="contents">
+    <header class="flex items-start gap-3 px-5 pt-5 pb-4 border-b border-slate-100 dark:border-slate-800">
+        <div class="min-w-0 flex-1">
+            <p class="text-xs font-medium text-slate-500 dark:text-slate-400">
+                {{ 'deadlines.tab.blocked'|trans }}
+                {% if reason.concernsFatalTerm() %}<span aria-hidden="true">·</span> {{ 'deadlines.row.fatal'|trans }}{% endif %}
+            </p>
+            <h2 class="mt-1 text-lg font-semibold tracking-tight text-slate-900 dark:text-white">{{ reason.label()|trans }}</h2>
+        </div>
+        <button type="button" data-action="deadline-panel#close" aria-label="{{ 'deadlines.panel.close'|trans }}" class="size-8 inline-flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">{{ close_x('size-5') }}</button>
+    </header>
+
+    <div class="flex-1 overflow-y-auto px-5 pb-6" data-testid="deadline-panel">
+        <dl class="mt-3 divide-y divide-slate-100 dark:divide-slate-800">
+            <div class="flex gap-3 py-1.5"><dt class="{{ dt }}">{{ 'deadlines.panel.state'|trans }}</dt><dd class="{{ dd }}">{{ reason.stateLabel()|trans }}</dd></div>
+            <div class="flex gap-3 py-1.5"><dt class="{{ dt }}">{{ 'deadlines.panel.case'|trans }}</dt><dd class="{{ dd }}"><a href="{{ path('case_overview', { id: legal_case.id }) }}" class="font-mono text-[13px] text-blue-700 dark:text-blue-400 hover:underline">{{ case_number }}</a> <span class="text-slate-500 dark:text-slate-400">· {{ legal_case.status.label()|trans }}</span></dd></div>
+            {% if debtor %}
+                <div class="flex gap-3 py-1.5"><dt class="{{ dt }}">{{ 'deadlines.panel.debtor'|trans }}</dt><dd class="{{ dd }}">{{ debtor.name }}{% if debtor.cui %} <span class="text-slate-500 dark:text-slate-400">· CUI {{ debtor.cui }}</span>{% endif %}</dd></div>
+            {% endif %}
+            <div class="flex gap-3 py-1.5"><dt class="{{ dt }}">{{ 'deadlines.panel.court'|trans }}</dt><dd class="{{ dd }}">{{ legal_case.court ? legal_case.court.name : 'deadlines.row.no_court'|trans }}</dd></div>
+            {% if legal_case.amount %}
+                <div class="flex gap-3 py-1.5"><dt class="{{ dt }}">{{ 'deadlines.panel.principal'|trans }}</dt><dd class="{{ dd }}">{{ legal_case.amount|number_format(0, ',', '.') }} {{ legal_case.currency }}</dd></div>
+            {% endif %}
+        </dl>
+
+        <section class="pt-5"><h4 class="{{ h4 }}">{{ 'deadlines.panel.missing'|trans }}</h4><div class="{{ body }}">{{ reason.missingDeadlineLabel()|trans }}</div></section>
+        <section class="pt-5"><h4 class="{{ h4 }}">{{ 'deadlines.panel.situation'|trans }}</h4><div class="{{ body }}">{{ reason.causeLabel()|trans }}</div></section>
+        <section class="pt-5"><h4 class="{{ h4 }}">{{ 'deadlines.panel.until_completed'|trans }}</h4><div class="{{ body }}">{{ reason.consequenceLabel()|trans }}</div></section>
+        <section class="pt-5"><h4 class="{{ h4 }}">{{ 'deadlines.panel.basis'|trans }}</h4><div class="{{ body }}">{{ reason.legalBasisLabel()|trans }}</div></section>
+    </div>
+
+    <footer class="px-5 py-3.5 border-t border-slate-100 dark:border-slate-800">
+        <div class="flex flex-wrap items-center gap-2">
+            {{ include('deadlines/_row_action.html.twig', {
+                button: row.action,
+                case_id: legal_case.id,
+                variant: 'full',
+                tone: 'filled',
+                filter_fields: filter.hiddenFields(),
+            }, with_context = false) }}
+            <a href="{{ path('case_overview', { id: legal_case.id }) }}" class="ml-auto self-center text-[13px] font-medium text-blue-700 dark:text-blue-400 hover:underline">{{ 'deadlines.action.open_case'|trans }}</a>
+        </div>
+        <p class="mt-2.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">{{ 'deadlines.panel.disclaimer'|trans }}</p>
+    </footer>
+</turbo-frame>

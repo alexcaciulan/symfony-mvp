@@ -1,0 +1,7 @@
+{# The single bubble of the page, positioned by `tooltip_controller`. Icon-only buttons
+   have no visible text, so this and their aria-label are the only source of it. #}
+<div role="tooltip" aria-hidden="true" data-tooltip-target="bubble"
+     class="hidden fixed z-[75] pointer-events-none max-w-[260px] rounded-lg bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 px-2.5 py-1.5 text-xs shadow-lg">
+    <div data-tooltip-target="title" class="font-semibold"></div>
+    <div data-tooltip-target="note" class="hidden mt-0.5 font-normal opacity-80"></div>
+</div>

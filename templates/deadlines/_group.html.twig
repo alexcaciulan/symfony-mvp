@@ -1,57 +1,56 @@
-{# One time bucket of the agenda. The header stays sticky under the topbar so the
-   lawyer always knows which day the rows below belong to.
+{# One time bucket of the first tab: a band with the name and the count, then the rows.
+   The band stays under the topbar while scrolling, so the lawyer always knows which group
+   the rows below belong to. The later group folds when it holds more than ten rows, the
+   only one that can push the urgent ones off the first screen. It uses <details>, so the
+   disclosure works without JavaScript.
 
-   The 30-day bucket is collapsed when it holds more than ten rows: it is the only
-   one that can push the urgent sections off the first screen. It uses <details>,
-   so the disclosure works without JavaScript and announces its state on its own.
+   @var group       App\Service\Deadline\DeadlineGroupView
+   @var heading     string already translated
+   @var hint        string optional short note next to the heading
+   @var info        string optional legal note behind an icon
+   @var dot         string optional colour class of the dot
+   @var collapsible bool
+   @var filter      App\Service\Deadline\DeadlineAgendaFilter #}
 
-   @var group    App\Service\Deadline\DeadlineGroupView
-   @var heading  string  already translated
-   @var hint     string  optional short note next to the heading
-   @var note     string  optional paragraph under the heading
-   @var accent   string  left border of the whole section
-   @var icon_key string  'fatal' | 'unlock' | none
-   @var filter_fields map active filter, passed down to the forms of every row #}
+{% from 'deadlines/_icons.html.twig' import chevron, info as info_icon %}
 
-{% from 'deadlines/_icons.html.twig' import octagon, chevron, unlock %}
+{% set band = 'flex items-center gap-2 px-5 sm:px-6 py-2 bg-slate-50 dark:bg-slate-800 border-y border-slate-100 dark:border-slate-800 text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400' %}
+{% set soft = 'normal-case tracking-normal font-normal text-slate-400 dark:text-slate-500' %}
 
-{% set collapsible = collapsible|default(false) %}
-{% set card_class = 'rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-soft' ~ (accent|default('') ? ' border-l-2 ' ~ accent : '') %}
+{% set title %}
+    {% if dot|default('') %}<span class="size-1.5 rounded-full {{ dot }}" aria-hidden="true"></span>{% endif %}
+    <span>{{ heading }}</span>
+    <span class="tnum font-medium text-slate-400 dark:text-slate-500">{{ group.count() }}</span>
+    {% if hint|default('') %}<span class="{{ soft }}">{{ hint }}</span>{% endif %}
+    {% if info|default('') %}
+        <button type="button" class="inline-flex items-center justify-center size-4 rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                data-tip="{{ 'deadlines.section.today_note_title'|trans }}" data-tip-note="{{ info }}" aria-label="{{ 'deadlines.section.today_note_title'|trans }}: {{ info }}">{{ info_icon('size-4') }}</button>
+    {% endif %}
+{% endset %}
 
-{% if collapsible %}
-    <details class="group {{ card_class }} overflow-hidden">
-        <summary class="px-4 py-3 flex items-center gap-2 cursor-pointer list-none [&::-webkit-details-marker]:hidden border-b border-slate-100 dark:border-slate-800">
-            <h2 class="text-sm font-semibold flex-1">{{ heading }} <span class="tnum text-slate-500 dark:text-slate-400">{{ 'deadlines.section.count'|trans({ '%count%': group.count() }) }}</span></h2>
-            <span class="inline-flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-slate-300">
+{% set rows %}
+    <ul class="divide-y divide-slate-100 dark:divide-slate-800">
+        {% for row in group.rows %}
+            {{ include('deadlines/_row.html.twig', { row: row, filter: filter }, with_context = false) }}
+        {% endfor %}
+    </ul>
+{% endset %}
+
+{% if collapsible|default(false) %}
+    <details class="group" data-group="{{ group.key }}"{% if filter.fatalOnly %} open{% endif %}>
+        <summary class="{{ band }} sticky top-14 z-[15] cursor-pointer list-none [&::-webkit-details-marker]:hidden">
+            <h2 class="contents">{{ title|raw }}</h2>
+            <span class="ml-auto inline-flex items-center gap-1 normal-case tracking-normal font-medium">
                 <span class="group-open:hidden">{{ 'deadlines.section.show'|trans }}</span>
                 <span class="hidden group-open:inline">{{ 'deadlines.section.hide'|trans }}</span>
                 {{ chevron('size-4 transition-transform group-open:rotate-180') }}
             </span>
         </summary>
-        <div class="divide-y divide-slate-100 dark:divide-slate-800">
-            {% for row in group.rows %}
-                {{ include('deadlines/_row.html.twig', { row: row, filter_fields: filter_fields|default({}) }, with_context = false) }}
-            {% endfor %}
-        </div>
+        {{ rows|raw }}
     </details>
 {% else %}
-    <section class="{{ card_class }}">
-        <header class="rounded-t-2xl sticky top-14 z-10 px-4 py-3 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-slate-100 dark:border-slate-800">
-            <div class="flex items-center gap-2">
-                {% if icon_key|default('') == 'fatal' %}
-                    <span class="text-red-600 dark:text-red-400 shrink-0">{{ octagon('size-4') }}</span>
-                {% elseif icon_key|default('') == 'unlock' %}
-                    <span class="text-emerald-600 dark:text-emerald-400 shrink-0">{{ unlock('size-4') }}</span>
-                {% endif %}
-                <h2 class="text-sm font-semibold">{{ heading }} <span class="tnum text-slate-500 dark:text-slate-400">{{ 'deadlines.section.count'|trans({ '%count%': group.count() }) }}</span></h2>
-                {% if hint|default('') %}<span class="text-xs text-slate-500 dark:text-slate-400">{{ hint }}</span>{% endif %}
-            </div>
-            {% if note|default('') %}<p class="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{{ note }}</p>{% endif %}
-        </header>
-        <div class="divide-y divide-slate-100 dark:divide-slate-800 rounded-b-2xl overflow-hidden">
-            {% for row in group.rows %}
-                {{ include('deadlines/_row.html.twig', { row: row, filter_fields: filter_fields|default({}) }, with_context = false) }}
-            {% endfor %}
-        </div>
+    <section data-group="{{ group.key }}">
+        <h2 class="{{ band }} sticky top-14 z-[15]">{{ title|raw }}</h2>
+        {{ rows|raw }}
     </section>
 {% endif %}

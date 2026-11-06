@@ -69,6 +69,7 @@ final class DeadlineBlockageActionResolver
                 $blockage,
                 'case_deadline_enforcement_registration_number',
                 ['caseId' => $case->getId()],
+                caseTab: 'termene',
             ),
         };
     }
@@ -79,6 +80,7 @@ final class DeadlineBlockageActionResolver
         string $route,
         array $routeParameters,
         ?string $agendaDialogId = null,
+        ?string $caseTab = null,
     ): DeadlineActionButton {
         return new DeadlineActionButton(
             label: $blockage->reason->actionLabel(),
@@ -86,6 +88,7 @@ final class DeadlineBlockageActionResolver
             routeParameters: $routeParameters,
             method: 'POST',
             agendaDialogId: $agendaDialogId,
+            caseTab: $caseTab,
         );
     }
 }

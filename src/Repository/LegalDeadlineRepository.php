@@ -243,8 +243,7 @@ class LegalDeadlineRepository extends ServiceEntityRepository
      * case, minus the terms of the debtor.
      *
      * Deliberately a delegation rather than a query of its own. The dashboard KPI, the
-     * sidebar badge and the "Restante" pill of the agenda are the same number shown in
-     * three places, and the dashboard card links straight to the agenda, so a second
+     * sidebar badge and the agenda box are the same number shown in three places, and the dashboard card links straight to the agenda, so a second
      * SQL statement restating the rule would be free to drift from it. The definition
      * therefore lives once, in {@see self::countAgendaBuckets()}.
      */
@@ -320,23 +319,21 @@ class LegalDeadlineRepository extends ServiceEntityRepository
     }
 
     /**
-     * The agenda risk bar in a single aggregate SELECT, so the page does not fire
-     * one COUNT per pill. All three buckets share the same base filter as
-     * {@see self::findAgendaForUser()}: open deadline, live case, non-terminal status.
+     * The numbers of the agenda in a single aggregate SELECT. All of them share the base
+     * of {@see self::agendaQueryBuilder()}, so they count the rows the page lists.
      *
      * - overdue: date strictly before today, minus the terms of the debtor, for the
-     *   reason spelled out on {@see self::findOverdueForUser()}; the pill and the
-     *   sidebar badge must count exactly what the red section lists
+     *   reason spelled out on {@see self::findOverdueForUser()}; the box and the sidebar
+     *   badge must count exactly what the red section lists
      * - today: date exactly today
-     * - fatal30: date between today and today+30 days AND a type whose miss is
-     *   irreversible, read from {@see DeadlineConsequenceResolver::irreversibleTypes()}
-     *   so the bar follows the legal mapping without restating it here
+     * - week: after today, up to the end of the week group
+     * - todo: everything inside the agenda window, debtor terms included
      *
-     * Deliberately not filtered: the pills describe the whole open agenda even while
-     * one of them is pressed. A counter that shrank to the selection it produced
-     * would stop being a measure of the risk and start being a measure of the click.
+     * Deliberately not filtered: the numbers describe the whole open agenda whatever is
+     * selected, because a counter that shrank to the selection would measure the click
+     * instead of the risk.
      *
-     * @return array{overdue: int, today: int, fatal30: int}
+     * @return array{overdue: int, today: int, week: int, todo: int}
      */
     public function countAgendaBuckets(User $user): array
     {
@@ -346,11 +343,12 @@ class LegalDeadlineRepository extends ServiceEntityRepository
             ->select(
                 'SUM(CASE WHEN d.deadlineDate < :today AND d.type NOT IN (:unsanctionedTypes) THEN 1 ELSE 0 END) AS overdue',
                 'SUM(CASE WHEN d.deadlineDate = :today THEN 1 ELSE 0 END) AS today',
-                'SUM(CASE WHEN d.deadlineDate >= :today AND d.deadlineDate <= :horizon AND d.type IN (:fatalTypes) THEN 1 ELSE 0 END) AS fatal30',
+                'SUM(CASE WHEN d.deadlineDate > :today AND d.deadlineDate <= :weekEnd THEN 1 ELSE 0 END) AS week',
+                'SUM(CASE WHEN d.deadlineDate <= :horizon THEN 1 ELSE 0 END) AS todo',
             )
             ->setParameter('today', $today, Types::DATE_IMMUTABLE)
+            ->setParameter('weekEnd', self::weekGroupEnd($today), Types::DATE_IMMUTABLE)
             ->setParameter('horizon', $today->modify('+30 days'), Types::DATE_IMMUTABLE)
-            ->setParameter('fatalTypes', $this->consequenceResolver->irreversibleTypes())
             ->setParameter('unsanctionedTypes', $this->consequenceResolver->unsanctionedTypes())
             ->getQuery()
             ->getSingleResult();
@@ -358,32 +356,66 @@ class LegalDeadlineRepository extends ServiceEntityRepository
         return [
             'overdue' => (int) $row['overdue'],
             'today' => (int) $row['today'],
-            'fatal30' => (int) $row['fatal30'],
+            'week' => (int) $row['week'],
+            'todo' => (int) $row['todo'],
         ];
     }
 
     /**
-     * Prescription deadlines further out than the agenda horizon (today+30 days).
-     * They never show up in the agenda body, yet missing one extinguishes the right
-     * itself (NCC art. 2517, CPC art. 705 para. 1), so the page keeps them in view.
-     *
-     * Only the to-one associations are fetch joined: a collection join combined with
-     * the row limit would make the LIMIT apply to the multiplied rows. The debtors,
-     * which the rail names on every row, are loaded right after in one extra query
-     * by {@see self::warmDebtors()}.
-     *
-     * @return LegalDeadline[] ascending by deadline date
+     * Last day of the "this week" group. Never before tomorrow: on a Sunday the week ends
+     * today, and a term due on Monday must not fall into the group that folds.
      */
-    public function findLongHorizonPrescriptionsForUser(User $user, int $limit = 5, ?DeadlineAgendaFilter $filter = null): array
+    public static function weekGroupEnd(\DateTimeImmutable $today): \DateTimeImmutable
     {
-        $deadlines = $this->agendaQueryBuilder($user, $filter)
+        $sunday = $today->modify('+' . (7 - (int) $today->format('N')) . ' days');
+        $tomorrow = $today->modify('+1 day');
+
+        return max($sunday, $tomorrow);
+    }
+
+    /** @return array{count: int, next: ?\DateTimeImmutable} */
+    public function summarizeLongHorizonPrescriptions(User $user): array
+    {
+        $row = $this->longHorizonQueryBuilder($user)
+            ->select('COUNT(d.id) AS total', 'MIN(d.deadlineDate) AS nextDate')
+            ->getQuery()
+            ->getSingleResult();
+
+        return [
+            'count' => (int) $row['total'],
+            'next' => $row['nextDate'] !== null ? new \DateTimeImmutable((string) $row['nextDate']) : null,
+        ];
+    }
+
+    /** @return array{count: int, last: ?\DateTimeImmutable} */
+    public function summarizeCompleted(User $user): array
+    {
+        $row = $this->scopedQueryBuilder($user)
+            ->select('COUNT(d.id) AS total', 'MAX(d.completedAt) AS lastClosed')
+            ->andWhere('d.completed = true')
+            ->getQuery()
+            ->getSingleResult();
+
+        return [
+            'count' => (int) $row['total'],
+            'last' => $row['lastClosed'] !== null ? new \DateTimeImmutable((string) $row['lastClosed']) : null,
+        ];
+    }
+
+    /**
+     * Closed terms, the most recently closed first. Rows closed before the closing date
+     * was stored have none, and MySQL puts them last.
+     *
+     * @return LegalDeadline[]
+     */
+    public function findCompletedForUser(User $user, int $limit): array
+    {
+        $deadlines = $this->scopedQueryBuilder($user)
             ->addSelect('lc', 'court')
             ->leftJoin('lc.court', 'court')
-            ->andWhere('d.type IN (:prescriptionTypes)')
-            ->andWhere('d.deadlineDate > :horizon')
-            ->setParameter('prescriptionTypes', self::PRESCRIPTION_TYPES)
-            ->setParameter('horizon', $this->today()->modify('+30 days'), Types::DATE_IMMUTABLE)
-            ->orderBy('d.deadlineDate', 'ASC')
+            ->andWhere('d.completed = true')
+            ->orderBy('d.completedAt', 'DESC')
+            ->addOrderBy('d.id', 'DESC')
             ->setMaxResults($limit)
             ->getQuery()
             ->getResult();
@@ -391,6 +423,97 @@ class LegalDeadlineRepository extends ServiceEntityRepository
         $this->warmDebtors($deadlines);
 
         return $deadlines;
+    }
+
+    /**
+     * How many open limitation terms each case has on each side of today and when the
+     * last of them falls: a row stands for the terms of its side, so it can say how many
+     * due dates it covers.
+     *
+     * @param list<int> $caseIds
+     *
+     * @return array<int, array{passed?: array{count: int, last: \DateTimeImmutable}, running?: array{count: int, last: \DateTimeImmutable}}>
+     */
+    public function summarizeOpenPrescriptionsByCase(array $caseIds): array
+    {
+        if ($caseIds === []) {
+            return [];
+        }
+
+        $rows = $this->createQueryBuilder('d')
+            ->select('IDENTITY(d.legalCase) AS caseId', 'd.deadlineDate AS dueDate')
+            ->where('d.legalCase IN (:cases)')
+            ->andWhere('d.type = :type')
+            ->andWhere('d.completed = false')
+            ->orderBy('d.deadlineDate', 'ASC')
+            ->setParameter('cases', $caseIds)
+            ->setParameter('type', DeadlineType::PRESCRIPTIE)
+            ->getQuery()
+            ->getArrayResult();
+
+        $today = $this->today();
+        $summary = [];
+        foreach ($rows as $row) {
+            $due = \DateTimeImmutable::createFromInterface($row['dueDate']);
+            $side = $due < $today ? 'passed' : 'running';
+            $count = $summary[(int) $row['caseId']][$side]['count'] ?? 0;
+            $summary[(int) $row['caseId']][$side] = ['count' => $count + 1, 'last' => $due];
+        }
+
+        return $summary;
+    }
+
+    /**
+     * The open limitation terms a row stands for, nearest first, for the list inside the
+     * panel: those of the same case on the same side of today.
+     *
+     * @return LegalDeadline[]
+     */
+    public function findPrescriptionsMergedWith(LegalDeadline $lead): array
+    {
+        $today = $this->today();
+
+        return $this->createQueryBuilder('d')
+            ->where('d.legalCase = :case')
+            ->andWhere('d.type = :type')
+            ->andWhere('d.completed = false')
+            ->andWhere($lead->getDeadlineDate() < $today ? 'd.deadlineDate < :today' : 'd.deadlineDate >= :today')
+            ->setParameter('case', $lead->getLegalCase())
+            ->setParameter('type', DeadlineType::PRESCRIPTIE)
+            ->setParameter('today', $today, Types::DATE_IMMUTABLE)
+            ->orderBy('d.deadlineDate', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * Prescription deadlines further out than the agenda horizon (today+30 days). They
+     * never show up in the agenda body, yet missing one extinguishes the right itself
+     * (NCC art. 2517, CPC art. 705 para. 1), so the page keeps them in a tab of their own.
+     *
+     * @return LegalDeadline[] ascending by deadline date
+     */
+    public function findLongHorizonPrescriptionsForUser(User $user): array
+    {
+        $deadlines = $this->longHorizonQueryBuilder($user)
+            ->addSelect('lc', 'court')
+            ->leftJoin('lc.court', 'court')
+            ->orderBy('d.deadlineDate', 'ASC')
+            ->getQuery()
+            ->getResult();
+
+        $this->warmDebtors($deadlines);
+
+        return $deadlines;
+    }
+
+    private function longHorizonQueryBuilder(User $user): QueryBuilder
+    {
+        return $this->agendaQueryBuilder($user)
+            ->andWhere('d.type IN (:prescriptionTypes)')
+            ->andWhere('d.deadlineDate > :horizon')
+            ->setParameter('prescriptionTypes', self::PRESCRIPTION_TYPES)
+            ->setParameter('horizon', $this->today()->modify('+30 days'), Types::DATE_IMMUTABLE);
     }
 
     /**
@@ -437,84 +560,58 @@ class LegalDeadlineRepository extends ServiceEntityRepository
     }
 
     /**
-     * Base filter shared by every agenda query: the deadline is still open, it
-     * belongs to the user, the case is not soft-deleted and the case is not in a
-     * terminal status (a closed case must never inflate the agenda).
+     * Base filter of every agenda query: the deadline is still open and belongs to the
+     * user's live, non-terminal case.
      *
-     * Passing no filter leaves the query exactly as the unfiltered page and the
-     * counters need it, which is what the aggregate SELECT relies on.
+     * A case has one limitation term per due date, and the page merges them into at most
+     * two rows: one for the terms that ran out and one for those still running, each led
+     * by its earliest term. A term that can still be saved never hides under one that is
+     * gone. Applying that here rather than after the fetch is what keeps the lists, the
+     * boxes, the navigation badge and the overdue card of the dashboard on the same number.
+     * The dashboard's upcoming list and KPI count every term on purpose: they are not a
+     * reading of this agenda.
+     *
+     * Passing no filter leaves the query as the counters need it. The fatal selection
+     * keeps the irreversible types, past due ones included.
      */
     private function agendaQueryBuilder(User $user, ?DeadlineAgendaFilter $filter = null): QueryBuilder
+    {
+        $qb = $this->scopedQueryBuilder($user)
+            ->andWhere('d.completed = false')
+            ->andWhere('d.type <> :mergedType OR NOT EXISTS (
+                SELECT earlier.id FROM ' . LegalDeadline::class . ' earlier
+                WHERE earlier.legalCase = d.legalCase
+                  AND earlier.type = :mergedType
+                  AND earlier.completed = false
+                  AND (earlier.deadlineDate < d.deadlineDate OR (earlier.deadlineDate = d.deadlineDate AND earlier.id < d.id))
+                  AND (d.deadlineDate < :mergeToday OR earlier.deadlineDate >= :mergeToday)
+            )')
+            ->setParameter('mergedType', DeadlineType::PRESCRIPTIE)
+            ->setParameter('mergeToday', $this->today(), Types::DATE_IMMUTABLE);
+
+        if ($filter !== null && $filter->fatalOnly) {
+            $qb->andWhere('d.type IN (:fatalTypes)')
+                ->setParameter('fatalTypes', $this->consequenceResolver->irreversibleTypes());
+        }
+
+        return $qb;
+    }
+
+    /** The account boundary: the user's live cases, never a closed or deleted one. */
+    private function scopedQueryBuilder(User $user): QueryBuilder
     {
         $terminal = array_filter(
             CaseStatus::cases(),
             static fn (CaseStatus $s): bool => $s->isTerminal(),
         );
 
-        $qb = $this->createQueryBuilder('d')
+        return $this->createQueryBuilder('d')
             ->join('d.legalCase', 'lc')
             ->where('lc.user = :user')
             ->andWhere('lc.deletedAt IS NULL')
             ->andWhere('lc.status NOT IN (:terminal)')
             ->setParameter('user', $user)
             ->setParameter('terminal', $terminal);
-
-        // The agenda is what is still open. Closed terms come back only when the
-        // lawyer asks for them, to check what was done rather than what is due.
-        if ($filter === null || !$filter->showCompleted) {
-            $qb->andWhere('d.completed = false');
-        }
-
-        if ($filter !== null) {
-            $this->applyPillFilter($qb, $filter);
-        }
-
-        return $qb;
-    }
-
-    /**
-     * Narrows the query to the union of the selected triage pills, each of them
-     * spelled with the same definition the counters use, so a pill can never list
-     * something other than what it counts.
-     *
-     * The blockage pill has no condition here on purpose: it selects cases whose
-     * deadline does not exist yet. Selected on its own it therefore leaves the agenda
-     * with nothing to list, which is stated as an impossible condition rather than by
-     * silently returning every row.
-     */
-    private function applyPillFilter(QueryBuilder $qb, DeadlineAgendaFilter $filter): void
-    {
-        if (!$filter->hasPills()) {
-            return;
-        }
-
-        $conditions = [];
-        foreach ($filter->deadlinePills() as $pill) {
-            $conditions[] = match ($pill) {
-                DeadlineAgendaFilter::PILL_OVERDUE => 'd.deadlineDate < :pillToday AND d.type NOT IN (:pillUnsanctionedTypes)',
-                DeadlineAgendaFilter::PILL_TODAY => 'd.deadlineDate = :pillToday',
-                DeadlineAgendaFilter::PILL_FATAL30 => 'd.deadlineDate >= :pillToday AND d.deadlineDate <= :pillHorizon AND d.type IN (:pillFatalTypes)',
-            };
-        }
-
-        if ($conditions === []) {
-            $qb->andWhere('1 = 0');
-
-            return;
-        }
-
-        $qb->andWhere('(' . implode(') OR (', $conditions) . ')')
-            ->setParameter('pillToday', $this->today(), Types::DATE_IMMUTABLE);
-
-        if ($filter->has(DeadlineAgendaFilter::PILL_OVERDUE)) {
-            $qb->setParameter('pillUnsanctionedTypes', $this->consequenceResolver->unsanctionedTypes());
-        }
-
-        if ($filter->has(DeadlineAgendaFilter::PILL_FATAL30)) {
-            $qb
-                ->setParameter('pillHorizon', $this->today()->modify('+30 days'), Types::DATE_IMMUTABLE)
-                ->setParameter('pillFatalTypes', $this->consequenceResolver->irreversibleTypes());
-        }
     }
 
     /**

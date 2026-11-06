@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Entity\LegalCase;
+use App\Entity\LegalDeadline;
 use App\Entity\User;
+use App\Enum\DeadlineType;
 use App\Form\Deadline\AgendaAddDeadlineType;
 use App\Repository\LegalCaseRepository;
+use App\Repository\LegalDeadlineRepository;
 use App\Security\Voter\CaseVoter;
 use App\Service\Deadline\AgendaResponseFactory;
 use App\Service\Deadline\DeadlineAgendaFilter;
@@ -35,6 +38,7 @@ final class DeadlinesController extends AbstractController
         private readonly DeadlineService $deadlineService,
         private readonly AgendaResponseFactory $agendaResponses,
         private readonly LegalCaseRepository $legalCaseRepository,
+        private readonly LegalDeadlineRepository $deadlineRepository,
     ) {}
 
     #[Route('/termene', name: 'app_deadlines', methods: ['GET'])]
@@ -50,6 +54,57 @@ final class DeadlinesController extends AbstractController
             'add_cases' => $this->legalCaseRepository->findActiveByUser($user),
             'add_modal_id' => self::ADD_MODAL_ID,
         ]);
+    }
+
+    /**
+     * The side panel of one term, loaded into the page frame. Reading it asks the same
+     * voter as reading the case, and the closes it offers post to the existing routes. A
+     * plain visit has no frame to fill, so it lands on the agenda.
+     */
+    #[Route('/termene/{id}/detalii', name: 'app_deadlines_panel', requirements: ['id' => '\d+'], methods: ['GET'])]
+    public function panel(int $id, Request $request): Response
+    {
+        $filter = DeadlineAgendaFilter::fromRequest($request);
+        if (!$request->headers->has('Turbo-Frame')) {
+            return $this->redirectToRoute('app_deadlines', $filter->queryParameters());
+        }
+
+        $deadline = $this->deadlineRepository->find($id);
+        if (!$deadline instanceof LegalDeadline || $deadline->getLegalCase()->getDeletedAt() !== null) {
+            throw $this->createNotFoundException();
+        }
+        $this->denyAccessUnlessGranted(CaseVoter::VIEW, $deadline->getLegalCase());
+
+        $row = $this->pageViewBuilder->buildRow($deadline);
+
+        return $this->render('deadlines/_panel.html.twig', [
+            'row' => $row,
+            'filter' => $filter,
+            'siblings' => $deadline->getType() === DeadlineType::PRESCRIPTIE && !$deadline->isCompleted()
+                ? $this->deadlineRepository->findPrescriptionsMergedWith($deadline)
+                : [],
+        ]);
+    }
+
+    /** The panel of a blocked case. Gone as soon as the blockage is resolved. */
+    #[Route('/termene/dosar/{id}/completare', name: 'app_deadlines_blockage_panel', requirements: ['id' => '\d+'], methods: ['GET'])]
+    public function blockagePanel(int $id, Request $request): Response
+    {
+        $filter = DeadlineAgendaFilter::fromRequest($request);
+        if (!$request->headers->has('Turbo-Frame')) {
+            return $this->redirectToRoute('app_deadlines', $filter->queryParameters());
+        }
+
+        /** @var User $user */
+        $user = $this->getUser();
+
+        // The finder is scoped to the user, so a foreign case is simply not found.
+        $row = $this->pageViewBuilder->buildBlockageRow($user, $id);
+        if ($row === null) {
+            throw $this->createNotFoundException();
+        }
+
+        return $this->render('deadlines/_panel_blockage.html.twig', ['row' => $row, 'filter' => $filter]);
     }
 
     /**

@@ -12,18 +12,16 @@ namespace App\Service\Deadline;
 final readonly class DeadlineAgendaGroup
 {
     public const KEY_OVERDUE = 'overdue';
+    public const KEY_TODAY = 'today';
 
     /**
-     * Past-due terms of the debtor. They sit right under the arrears because they
-     * read the same way on a calendar and the opposite way in law: their expiry is
-     * the event that opens the filing of the request (CPC art. 1015-1017).
+     * Past-due terms of the debtor. They read as late on a calendar and the opposite way
+     * in law: their expiry is the event that opens the filing of the request (CPC art.
+     * 1015-1017), so they sit apart from the arrears.
      */
     public const KEY_UNBLOCKED = 'unblocked';
-
-    public const KEY_TODAY = 'today';
-    public const KEY_TOMORROW = 'tomorrow';
-    public const KEY_REST_OF_WEEK = 'restOfWeek';
-    public const KEY_NEXT_30 = 'next30';
+    public const KEY_WEEK = 'week';
+    public const KEY_LATER = 'later';
 
     /** @param list<DeadlineAgendaItem> $items */
     public function __construct(

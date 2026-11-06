@@ -1,19 +1,12 @@
 {# The global deadlines agenda: what has to be done today, across every case.
 
-   The page is server rendered from `view`, which already carries every row with the
-   buttons resolved for it, so nothing here decides anything legal. The selection the
-   page was built under travels in the query string, so a filtered agenda survives a
-   refresh and can be handed to a colleague as a link.
+   The page is server rendered from `view`, which already carries every row with its
+   controls resolved, so nothing here decides anything legal. The selection travels in the
+   query string, so a tab survives a refresh and can be handed to a colleague as a link.
 
-   Zones, top to bottom: heading, risk bar, blocked cases (collapsed), the agenda
-   grouped by time bucket, and a rail with the limitation periods falling beyond the
-   window. The note about email alerts sits under the agenda, where it is read once,
-   instead of competing with the rail every day.
-
-   The two ids below are the targets an action fired from a row replaces, so the page
-   updates in place instead of throwing the lawyer into the case the deadline belongs
-   to. The dialogs sit outside both regions but under the same controller, so acting
-   never destroys the dialog that asked the question.
+   The three ids below are the targets an action fired from a row replaces, so the page
+   updates in place. The dialogs and the side panel sit outside them but under the same
+   controllers, so acting never destroys what asked the question.
 
    @var view         App\Service\Deadline\DeadlinePageView
    @var add_cases    list<App\Entity\LegalCase> choices of the add dialog
@@ -30,36 +23,43 @@
 {% from 'deadlines/_icons.html.twig' import plus %}
 
 <div class="space-y-5"
-     data-controller="agenda-dialog"
-     data-agenda-dialog-confirm-modal-id-value="hs-modal-agenda-confirm-close">
+     data-controller="agenda-dialog deadline-panel tooltip deadline-page"
+     data-agenda-dialog-confirm-modal-id-value="hs-modal-agenda-confirm-close"
+     data-deadline-page-selection-failed-value="{{ 'deadlines.selection_load_failed'|trans }}"
+     data-deadline-page-action-failed-value="{{ 'deadlines.action_no_answer'|trans }}">
 
-    <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
-        <div>
-            <h1 class="text-2xl md:text-3xl font-bold tracking-tight">{{ 'deadlines.heading'|trans }}</h1>
-            <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">{{ 'deadlines.window'|trans({ '%date%': view.windowEnd|date('d.m.Y') }) }}</p>
+    {# Tabs, the fatal switch and "show more" load here, so the selection changes without a
+       page load and still lands in the address bar. Every other link leaves for the top. #}
+    <turbo-frame id="deadline-page" target="_top" data-turbo-action="advance"
+                 data-deadline-page-target="frame"
+                 class="block space-y-5 transition-opacity aria-busy:opacity-60">
+        <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+            <div id="deadline-verdict" class="min-w-0">{{ include('deadlines/_verdict_region.html.twig', { view: view }, with_context = false) }}</div>
+
+            {# Offered only when there is a case to attach a reminder to: an empty select
+               would promise something the account cannot do yet. #}
+            {% if add_cases|length > 0 %}
+                <button type="button"
+                        class="self-start shrink-0 inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                        data-agenda-action="add-deadline"
+                        data-hs-overlay="#{{ add_modal_id }}">
+                    {{ plus('size-4 text-slate-400') }}
+                    {{ 'deadlines.add.open'|trans }}
+                </button>
+            {% endif %}
         </div>
 
-        {# Offered only when there is a case to attach a reminder to: an empty select
-           would promise something the account cannot do yet. #}
-        {% if add_cases|length > 0 %}
-            <button type="button"
-                    class="self-start inline-flex items-center gap-1.5 py-1.5 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-                    data-agenda-action="add-deadline"
-                    data-hs-overlay="#{{ add_modal_id }}">
-                {{ plus('size-4 text-slate-400') }}
-                {{ 'deadlines.add.open'|trans }}
-            </button>
-        {% endif %}
-    </div>
+        <div id="deadline-riskbar">{{ include('deadlines/_riskbar_region.html.twig', { view: view }, with_context = false) }}</div>
 
-    <div id="deadline-riskbar">{{ include('deadlines/_riskbar_region.html.twig', { view: view }, with_context = false) }}</div>
-
-    <div id="deadline-agenda" class="space-y-5">{{ include('deadlines/_agenda_region.html.twig', { view: view }, with_context = false) }}</div>
+        <div id="deadline-agenda" tabindex="-1" class="outline-none">{{ include('deadlines/_agenda_region.html.twig', { view: view }, with_context = false) }}</div>
+    </turbo-frame>
 
     {{ include('deadlines/_dialogs.html.twig', {
-        view: view,
         add_cases: add_cases,
         add_modal_id: add_modal_id,
     }, with_context = false) }}
+
+    {{ include('deadlines/_panel_shell.html.twig', {}, with_context = false) }}
+    {{ include('deadlines/_tooltip.html.twig', {}, with_context = false) }}
 </div>
 {% endblock %}

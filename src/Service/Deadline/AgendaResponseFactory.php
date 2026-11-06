@@ -51,7 +51,7 @@ final class AgendaResponseFactory
     }
 
     /**
-     * The three regions of the agenda an action can change, rebuilt from scratch plus
+     * The regions of the agenda an action can change, rebuilt from scratch plus
      * a toast.
      *
      * Rebuilding beats swapping the single row that was acted on: closing a term also
@@ -64,15 +64,6 @@ final class AgendaResponseFactory
      * only on success: a rejected submission keeps its dialog open with what the
      * lawyer typed still in it.
      *
-     * `$extraToastKey` is a second, always-warning message some acts carry next to
-     * their own outcome, such as the invoice raised when a case is activated beyond
-     * the plan. It is billing the lawyer is told about on the case page, so it must
-     * not go missing because the same act was fired from here.
-     *
-     * `$toastDetails` are translated lines listed under the message, such as what
-     * keeps an act from being performed.
-     *
-     * @param list<string> $toastDetails
      */
     public function stream(
         Request $request,
@@ -80,8 +71,6 @@ final class AgendaResponseFactory
         string $toastVariant,
         string $toastKey,
         ?string $closeModalId = null,
-        ?string $extraToastKey = null,
-        array $toastDetails = [],
     ): Response {
         $view = $this->pageViewBuilder->build($user, DeadlineAgendaFilter::fromRequest($request));
 
@@ -91,8 +80,6 @@ final class AgendaResponseFactory
                 'toast_variant' => $toastVariant,
                 'toast_key' => $toastKey,
                 'close_modal_id' => $closeModalId,
-                'extra_toast_key' => $extraToastKey,
-                'toast_details' => $toastDetails,
             ]),
             Response::HTTP_OK,
             ['Content-Type' => self::TURBO_STREAM_MIME . '; charset=utf-8'],

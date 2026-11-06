@@ -6,23 +6,29 @@ namespace App\Service\Deadline;
 
 /**
  * Everything the deadlines page renders, assembled once by
- * {@see DeadlinePageViewBuilder}. The controller passes it to the template as is.
+ * {@see DeadlinePageViewBuilder}. Only the active tab carries rows; the counters always
+ * describe the whole account.
  */
 final readonly class DeadlinePageView
 {
     /**
-     * @param list<DeadlineGroupView> $groups         the six time buckets, in render order
-     * @param array{overdue: int, today: int, fatal30: int, blocked: int} $counters risk bar
-     * @param list<DeadlineBlockageView> $blockages   cases whose fatal term cannot be computed
-     * @param list<DeadlineRowView>   $longHorizonPrescriptions rail, beyond the agenda window
-     * @param \DateTimeImmutable      $windowEnd      last day the agenda covers, stated on screen
-     * @param DeadlineAgendaFilter    $filter         selection the page was built under
+     * @param list<DeadlineGroupView>    $groups        the time buckets of the first tab, in render order
+     * @param array{overdue: int, today: int, week: int, todo: int, blocked: int, prescriptions: int, completed: int} $counters
+     * @param list<DeadlineBlockageView> $blockages     rows of the blocked cases tab
+     * @param list<DeadlineRowView>      $prescriptions rows of the limitation tab
+     * @param list<DeadlineRowView>      $completed     rows of the closed terms tab
+     * @param \DateTimeImmutable         $windowEnd     last day the agenda covers, stated on screen
+     * @param DeadlineAgendaFilter       $filter        selection the page was built under
      */
     public function __construct(
         public array $groups,
         public array $counters,
         public array $blockages,
-        public array $longHorizonPrescriptions,
+        public array $prescriptions,
+        public array $completed,
+        public bool $hasMoreCompleted,
+        public ?\DateTimeImmutable $nextPrescription,
+        public ?\DateTimeImmutable $lastCompleted,
         public \DateTimeImmutable $windowEnd,
         public DeadlineAgendaFilter $filter,
     ) {}
@@ -37,7 +43,7 @@ final readonly class DeadlinePageView
         return $this->windowEnd->modify('-' . DeadlineAgendaService::HORIZON_DAYS . ' days');
     }
 
-    /** Whether the agenda window holds nothing at all, blockages aside. */
+    /** Whether the first tab lists nothing under the current selection. */
     public function isAgendaEmpty(): bool
     {
         foreach ($this->groups as $group) {
@@ -50,15 +56,15 @@ final readonly class DeadlinePageView
     }
 
     /**
-     * Whether the account has nothing at all to watch, which is a different screen
-     * from an empty window. A selection is excluded on purpose: an empty result under
-     * a pill says something about the pill, never about the account.
+     * Whether the account has nothing to watch at all. Read from the counters, because
+     * only the active tab carries rows and an account holding only closed terms must
+     * still reach them.
      */
     public function isNothingTracked(): bool
     {
-        return !$this->filter->hasPills()
-            && $this->isAgendaEmpty()
-            && $this->blockages === []
-            && $this->longHorizonPrescriptions === [];
+        return $this->counters['todo'] === 0
+            && $this->counters['blocked'] === 0
+            && $this->counters['prescriptions'] === 0
+            && $this->counters['completed'] === 0;
     }
 }

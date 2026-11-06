@@ -63,6 +63,69 @@ final class RetiredDeadlineKeysAreGoneTest extends KernelTestCase
         yield 'fixed 7-day chip' => ['case_overview.deadlines.alert_7_'];
         yield 'fixed 3-day chip' => ['case_overview.deadlines.alert_3_'];
         yield 'fixed 1-day chip' => ['case_overview.deadlines.alert_1_'];
+
+        // The counters over the former page and the pills that filtered it, replaced by
+        // the four boxes, which are the navigation between the tabs.
+        yield 'pill counters' => ['deadlines.counter.'];
+        yield 'pill counter hints' => ['deadlines.counter_hint'];
+        yield 'pill counter labels' => ['deadlines.counter_aria'];
+        yield 'filter clear' => ['deadlines.filter.clear'];
+        yield 'filter counters note' => ['deadlines.filter.counters_note'];
+        yield 'filter show completed' => ['deadlines.filter.show_completed'];
+
+        // The side rail of limitation terms, now a tab of its own.
+        yield 'limitation rail' => ['deadlines.rail'];
+
+        // The former time buckets.
+        yield 'bucket count' => ['deadlines.section.count'];
+        yield 'bucket tomorrow' => ['deadlines.section.tomorrow'];
+        yield 'bucket rest of week' => ['deadlines.section.rest_of_week'];
+        yield 'bucket next 30 days' => ['deadlines.section.next30'];
+
+        // The clean register banner, replaced by the sentence on top of the page.
+        yield 'clean banner heading' => ['deadlines.clean.heading'];
+        yield 'clean banner body' => ['deadlines.clean.body'];
+        yield 'window line' => ['deadlines.window'];
+
+        // The collapsible blockage zone, replaced by a tab.
+        yield 'blockage zone heading' => ['deadlines.blockages.heading'];
+        yield 'blockage zone disclosure' => ['deadlines.blockages.open'];
+
+        // The buttons that generated a document straight from a row. One click spent a
+        // subscription slot, so a row now only suggests the act.
+        yield 'send summons button' => ['deadlines.action.send_summons'];
+        yield 'payment order button' => ['deadlines.action.generate_payment_order'];
+        yield 'filing button' => ['deadlines.action.confirm_filing'];
+
+        // What a row used to print and the panel now states.
+        yield 'principal on the row' => ['deadlines.row.principal'];
+        yield 'unblocks filing on the row' => ['deadlines.row.unblocks_filing'];
+        yield 'badge label' => ['deadlines.row.badge_aria'];
+    }
+
+    /**
+     * The emails go out at seven and also after the term has passed, and the former copy
+     * promised one on the day the term expires, which no job sends. A key-level test
+     * cannot see a sentence changed inside a key that stayed.
+     *
+     * @param 'ro'|'en' $locale
+     */
+    #[DataProvider('localeProvider')]
+    public function testTheAlertCopyNoLongerPromisesAnEmailOnTheDayOfExpiry(string $locale): void
+    {
+        foreach (['deadlines.empty.alerts_note'] as $key) {
+            $text = $this->translator->trans($key, [], null, $locale);
+
+            self::assertStringNotContainsString('în ziua expirării', $text, $key);
+            self::assertStringNotContainsString('on the day', $text, $key);
+        }
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function localeProvider(): iterable
+    {
+        yield 'ro' => ['ro'];
+        yield 'en' => ['en'];
     }
 
     #[DataProvider('retiredPrefixProvider')]

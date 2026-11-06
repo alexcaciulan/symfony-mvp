@@ -9,20 +9,16 @@
    rather than a close button reached by a selector, so opening and closing always go
    through the same element and never toggle a dialog back open.
 
-   @var view       App\Service\Deadline\DeadlinePageView
    @var add_cases  list<App\Entity\LegalCase>
    @var add_modal_id string #}
 
-{% set filter_fields = view.filter.hiddenFields() %}
-
 {{ include('deadlines/_modal_confirm_close.html.twig', {}, with_context = false) }}
-{{ include('deadlines/_modal_summons_communication_date.html.twig', { filter_fields: filter_fields }, with_context = false) }}
+{{ include('deadlines/_modal_summons_communication_date.html.twig', {}, with_context = false) }}
 
 {% if add_cases|length > 0 %}
     {{ include('deadlines/_modal_add_deadline.html.twig', {
         modal_id: add_modal_id,
         cases: add_cases,
-        filter_fields: filter_fields,
     }, with_context = false) }}
 {% endif %}
 

@@ -1,0 +1,14 @@
+{# The single kind of mark a row carries: a dot and a word, never a badge. The hint spells
+   it out in the page tooltip and for assistive technology; on a phone the panel states it.
+
+   @var label  string already translated
+   @var hint   string already translated, may be empty
+   @var dot    string colour class of the dot
+   @var testid string
+   @var long   bool long marks give way to the debtor name on narrow rows #}
+<span data-testid="{{ testid }}"
+      {% if hint %}data-tip="{{ label }}" data-tip-note="{{ hint }}"{% endif %}
+      class="{{ long|default(false) ? 'min-w-0' : 'shrink-0' }} inline-flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 {{ hint ? 'pointer-events-auto relative z-10 cursor-help' : '' }}">
+    <span class="size-1.5 shrink-0 rounded-full {{ dot }}" aria-hidden="true"></span><span class="truncate">{{ label }}</span>
+    {%- if hint %}<span class="sr-only">{{ hint }}</span>{% endif -%}
+</span>

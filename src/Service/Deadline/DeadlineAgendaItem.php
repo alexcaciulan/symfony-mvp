@@ -27,6 +27,8 @@ final readonly class DeadlineAgendaItem
          * renders it.
          */
         public DeadlineEstimateNote $estimateNote,
+        /** Open limitation terms this row stands for; 1 on every other type. */
+        public int $coveredTerms = 1,
     ) {}
 
     public function severityRank(): int

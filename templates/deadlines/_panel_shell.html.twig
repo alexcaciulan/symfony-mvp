@@ -1,0 +1,25 @@
+{% from 'deadlines/_icons.html.twig' import close_x %}
+
+{# The side panel. Not a Preline overlay on purpose: Preline closes the previous overlay
+   when another opens, and the confirmation dialog has to open over this one and leave it
+   in place on "Renunță". The content comes on demand into the frame; it targets the page,
+   so forms inside it answer with the same streams as the row. #}
+<div data-deadline-panel-target="root" class="hidden fixed inset-0 z-[70]">
+    <div class="absolute inset-0 bg-slate-900/30" data-action="click->deadline-panel#close"></div>
+    <aside role="dialog" aria-modal="true" aria-label="{{ 'deadlines.panel.aria_label'|trans }}" tabindex="-1"
+           data-deadline-panel-target="aside"
+           class="absolute inset-y-0 right-0 w-full sm:w-[460px] bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 shadow-lg flex flex-col">
+        <turbo-frame id="deadline-panel-frame" target="_top" data-deadline-panel-target="frame" class="contents"></turbo-frame>
+        {# Copied into the frame while it loads and when it fails: on a phone the panel covers
+           the backdrop, so the close button cannot depend on the answer. #}
+        {% for state, key in { loading: 'deadlines.panel.loading', failed: 'deadlines.panel.failed' } %}
+            <template data-deadline-panel-target="{{ state }}">
+                <header class="flex items-start justify-end px-5 pt-5 pb-4 border-b border-slate-100 dark:border-slate-800">
+                    <button type="button" data-action="deadline-panel#close" aria-label="{{ 'deadlines.panel.close'|trans }}" class="size-8 inline-flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800">{{ close_x('size-5') }}</button>
+                </header>
+                <p class="px-5 py-6 text-sm text-slate-600 dark:text-slate-400">{{ key|trans }}</p>
+            </template>
+        {% endfor %}
+    </aside>
+</div>
+<div id="deadline-panel-dismiss" class="hidden"></div>

@@ -12,6 +12,7 @@ use App\Enum\DeadlineType;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
@@ -143,9 +144,9 @@ final class DeadlineAgendaActionsTest extends WebTestCase
         $this->em->flush();
 
         $this->client->loginUser($user);
-        $this->post($deadline, ['_context' => 'agenda', 'f' => 'overdue,today'], turbo: false);
+        $this->post($deadline, ['_context' => 'agenda', 'fatal' => '1'], turbo: false);
 
-        self::assertResponseRedirects('/termene?f=overdue,today');
+        self::assertResponseRedirects('/termene?fatal=1');
     }
 
     /**
@@ -157,12 +158,12 @@ final class DeadlineAgendaActionsTest extends WebTestCase
     {
         $user = $this->makeUser();
         $case = $this->makeCase($user, CaseStatus::CERERE_DEPUSA);
-        $overdue = $this->makeDeadline($case, '-2 days', DeadlineType::OTHER);
+        $stampDuty = $this->makeDeadline($case, '+2 days', DeadlineType::TIMBRARE);
         $future = $this->makeDeadline($case, '+10 days', DeadlineType::JUDECATA);
         $this->em->flush();
 
         $this->client->loginUser($user);
-        $this->post($overdue, ['_context' => 'agenda', 'f' => 'overdue'], turbo: true);
+        $this->post($stampDuty, ['_context' => 'agenda', 'fatal' => '1'], turbo: true);
 
         $body = (string) $this->client->getResponse()->getContent();
         self::assertResponseIsSuccessful();
@@ -229,15 +230,16 @@ final class DeadlineAgendaActionsTest extends WebTestCase
         $this->client->loginUser($user);
         $translator = static::getContainer()->get('translator');
 
-        $before = $this->client->request('GET', '/termene');
+        self::assertCount(0, $this->client->request('GET', '/termene')->filter('[id^="deadline-row-"]'), 'No term exists while the service is under way.');
+
+        $before = $this->client->request('GET', '/termene?tab=de-completat');
         self::assertResponseIsSuccessful();
-        self::assertCount(0, $before->filter('[id^="deadline-row-"]'), 'No term exists while the service is under way.');
-        self::assertCount(1, $before->filter('details'), 'The case is carried by the blockage zone instead.');
+        self::assertCount(1, $this->blockageRows($before), 'The case is carried by the blocked tab instead.');
         self::assertStringContainsString(
             $translator->trans('deadlines.blockage.SUMMONS_COMMUNICATION_MISSING.state'),
-            $before->filter('details')->text(),
+            $this->blockageRows($before)->text(),
         );
-        self::assertSame('1', trim($before->filter('[data-counter="blocked"] strong')->text()));
+        self::assertSame('1', trim($before->filter('[data-counter="blocked"]')->text()));
 
         $this->client->request('POST', '/case/' . $case->getId() . '/summons-communication-date', [
             'payment_notice_communication_date' => [
@@ -258,10 +260,12 @@ final class DeadlineAgendaActionsTest extends WebTestCase
         $after = $this->client->request('GET', '/termene');
         self::assertResponseIsSuccessful();
         self::assertCount(1, $after->filter('#deadline-row-' . $term->getId()));
-        self::assertSame('1', trim($after->filter('[data-counter="blocked"] strong')->text()), 'One case, one row: the reason moved on, the count did not grow.');
+        self::assertSame('1', trim($after->filter('[data-counter="blocked"]')->text()), 'One case, one row: the reason moved on, the count did not grow.');
+
+        $blocked = $this->client->request('GET', '/termene?tab=de-completat');
         self::assertStringContainsString(
             $translator->trans('deadlines.blockage.SUMMONS_PROOF_MISSING.state'),
-            $after->filter('details')->text(),
+            $this->blockageRows($blocked)->text(),
             'With the date in, what the case waits on is the proof.',
         );
     }
@@ -302,10 +306,10 @@ final class DeadlineAgendaActionsTest extends WebTestCase
             );
             self::assertResponseRedirects();
 
-            $after = $this->client->request('GET', '/termene');
+            $after = $this->client->request('GET', '/termene?tab=de-completat');
             self::assertResponseIsSuccessful();
-            self::assertSame('0', trim($after->filter('[data-counter="blocked"] strong')->text()));
-            self::assertCount(0, $after->filter('details'), 'Date and proof together leave nothing blocked.');
+            self::assertSame('0', trim($after->filter('[data-counter="blocked"]')->text()));
+            self::assertCount(0, $this->blockageRows($after), 'Date and proof together leave nothing blocked.');
         } finally {
             @unlink($proofPath);
             $uploadsDir = static::getContainer()->getParameter('app.uploads_dir');
@@ -341,12 +345,12 @@ final class DeadlineAgendaActionsTest extends WebTestCase
         $this->client->loginUser($user);
         $translator = static::getContainer()->get('translator');
 
-        $before = $this->client->request('GET', '/termene');
+        $before = $this->client->request('GET', '/termene?tab=de-completat');
         self::assertResponseIsSuccessful();
-        self::assertSame('1', trim($before->filter('[data-counter="blocked"] strong')->text()));
+        self::assertSame('1', trim($before->filter('[data-counter="blocked"]')->text()));
         self::assertStringContainsString(
             $translator->trans('deadlines.blockage.SUMMONS_PROOF_MISSING.state'),
-            $before->filter('details')->text(),
+            $this->blockageRows($before)->text(),
         );
         // A link into the case, not a form: the act is a file upload, which no agenda
         // dialog collects. The route behind the button is pinned in
@@ -354,7 +358,7 @@ final class DeadlineAgendaActionsTest extends WebTestCase
         // somewhere the lawyer can act rather than posting an empty payload.
         self::assertSame(
             '/case/' . $case->getId(),
-            $before->filter('details a')->last()->attr('href'),
+            $this->blockageRows($before)->filter('a[data-row-slot="case"]')->attr('href'),
         );
 
         $token = $this->token('document_upload');
@@ -369,10 +373,11 @@ final class DeadlineAgendaActionsTest extends WebTestCase
                 ['document_upload' => ['file' => new UploadedFile($proofPath, 'DovadaComunicare.pdf', 'application/pdf', null, true)]],
             );
 
+            self::assertCount(0, $this->blockageRows($this->client->request('GET', '/termene?tab=de-completat')), 'With the proof in, the case waits on nothing.');
+
             $after = $this->client->request('GET', '/termene');
             self::assertResponseIsSuccessful();
-            self::assertSame('0', trim($after->filter('[data-counter="blocked"] strong')->text()));
-            self::assertCount(0, $after->filter('details'), 'With the proof in, the case waits on nothing.');
+            self::assertSame('0', trim($after->filter('[data-counter="blocked"]')->text()));
             self::assertCount(1, $after->filter('#deadline-row-' . $term->getId()), 'The fifteen days keep running: the proof unblocks the filing, it does not end the term.');
         } finally {
             @unlink($proofPath);
@@ -447,32 +452,29 @@ final class DeadlineAgendaActionsTest extends WebTestCase
     }
 
     /**
-     * The pills are the filter, and the filter is in the URL: a pasted link has to
-     * rebuild the same agenda. Filtering is done in SQL, so a row outside the
-     * selection is absent from the markup rather than hidden in it.
+     * The selection is in the URL: a pasted link has to rebuild the same agenda. It is
+     * applied in SQL, so a row outside it is absent from the markup rather than hidden.
      */
     public function testTheSelectionTravelsInTheUrlAndIsAppliedServerSide(): void
     {
         $user = $this->makeUser();
         $case = $this->makeCase($user, CaseStatus::CERERE_DEPUSA);
-        $overdue = $this->makeDeadline($case, '-3 days', DeadlineType::OTHER);
-        $future = $this->makeDeadline($case, '+9 days', DeadlineType::JUDECATA);
+        $fatal = $this->makeDeadline($case, '+3 days', DeadlineType::TIMBRARE);
+        $hearing = $this->makeDeadline($case, '+9 days', DeadlineType::JUDECATA);
         $this->em->flush();
 
         $this->client->loginUser($user);
-        $crawler = $this->client->request('GET', '/termene?f=overdue');
+        $crawler = $this->client->request('GET', '/termene?fatal=1');
 
         self::assertResponseIsSuccessful();
-        self::assertCount(1, $crawler->filter('#deadline-row-' . $overdue->getId()));
-        self::assertCount(0, $crawler->filter('#deadline-row-' . $future->getId()));
-        self::assertSame('true', $crawler->filter('[data-counter="overdue"]')->attr('aria-pressed'));
-        self::assertSame('false', $crawler->filter('[data-counter="today"]')->attr('aria-pressed'));
+        self::assertCount(1, $crawler->filter('#deadline-row-' . $fatal->getId()));
+        self::assertCount(0, $crawler->filter('#deadline-row-' . $hearing->getId()));
+        self::assertSame('true', $crawler->filter('[data-testid="agenda-fatal-toggle"]')->attr('aria-pressed'));
     }
 
     /**
-     * The counters describe the whole open agenda even while a pill is pressed: a
-     * number that shrank to the selection it produced would measure the click rather
-     * than the risk.
+     * The counters describe the whole open agenda even under the fatal selection: a number
+     * that shrank to the selection it produced would measure the click, not the risk.
      */
     public function testTheCountersDoNotFollowTheSelection(): void
     {
@@ -483,17 +485,16 @@ final class DeadlineAgendaActionsTest extends WebTestCase
         $this->em->flush();
 
         $this->client->loginUser($user);
-        $crawler = $this->client->request('GET', '/termene?f=overdue');
+        $crawler = $this->client->request('GET', '/termene?fatal=1');
 
         self::assertResponseIsSuccessful();
-        self::assertSame('1', trim($crawler->filter('[data-counter="overdue"] strong')->text()));
-        self::assertSame('1', trim($crawler->filter('[data-counter="today"] strong')->text()));
+        self::assertSame('2', trim($crawler->filter('[data-counter="todo"]')->text()));
     }
 
     /**
-     * An empty result under a selection says something about the selection, never
-     * about the account, so it must not borrow either the "clean register" line or
-     * the state that lists what the application will start watching.
+     * An empty result under a selection says something about the selection, never about
+     * the account, so it must not borrow either the state that says nothing is due or the
+     * one that lists what the application will start watching.
      */
     public function testAnEmptySelectionSaysSoAndOffersTheWayOut(): void
     {
@@ -503,13 +504,14 @@ final class DeadlineAgendaActionsTest extends WebTestCase
         $this->em->flush();
 
         $this->client->loginUser($user);
-        $crawler = $this->client->request('GET', '/termene?f=overdue');
+        $crawler = $this->client->request('GET', '/termene?fatal=1');
 
         self::assertResponseIsSuccessful();
         self::assertCount(1, $crawler->filter('[data-state="filter-empty"]'));
-        self::assertCount(0, $crawler->filter('[data-state="clean"]'));
+        self::assertCount(1, $crawler->filter('[data-state="filter-empty"] a[href="/termene"]'));
+        self::assertCount(0, $crawler->filter('[data-state="agenda-empty"]'));
         self::assertCount(0, $crawler->filter('[data-state="no-deadlines"]'));
-        self::assertCount(1, $crawler->filter('[data-counter="overdue"]'), 'The pills stay reachable.');
+        self::assertCount(1, $crawler->filter('[data-tab="de-facut"]'), 'The boxes stay reachable.');
     }
 
     /**
@@ -528,7 +530,7 @@ final class DeadlineAgendaActionsTest extends WebTestCase
 
         self::assertCount(0, $this->client->request('GET', '/termene')->filter('#deadline-row-' . $closed->getId()));
 
-        $crawler = $this->client->request('GET', '/termene?completed=1');
+        $crawler = $this->client->request('GET', '/termene?tab=finalizate');
         $row = $crawler->filter('#deadline-row-' . $closed->getId());
 
         self::assertResponseIsSuccessful();
@@ -545,17 +547,18 @@ final class DeadlineAgendaActionsTest extends WebTestCase
     {
         $user = $this->makeUser();
         $case = $this->makeCase($user, CaseStatus::CERERE_DEPUSA);
-        $this->makeDeadline($case, '-3 days', DeadlineType::OTHER);
+        $this->makeDeadline($case, '+3 days', DeadlineType::TIMBRARE);
         $this->em->flush();
 
         $this->client->loginUser($user);
-        $crawler = $this->client->request('GET', '/termene?f=overdue&completed=1');
+        $crawler = $this->client->request('GET', '/termene?fatal=1');
         $form = $crawler->filter('article[id^="deadline-row-"] form');
 
         self::assertResponseIsSuccessful();
         self::assertSame('agenda', $form->filter('input[name="_context"]')->attr('value'));
-        self::assertSame('overdue', $form->filter('input[name="f"]')->attr('value'));
-        self::assertSame('1', $form->filter('input[name="completed"]')->attr('value'));
+        self::assertSame('1', $form->filter('input[name="fatal"]')->attr('value'));
+        self::assertCount(0, $form->filter('input[name="tab"]'), 'The default tab stays out of the form, as out of the URL.');
+        self::assertCount(0, $form->filter('input[name="f"]'), 'The former parameters are read, never written.');
     }
 
     /** A manual reminder added without leaving the agenda, on the case that was chosen. */
@@ -614,6 +617,11 @@ final class DeadlineAgendaActionsTest extends WebTestCase
 
         self::assertResponseRedirects();
         self::assertStringContainsString('/login', (string) $this->client->getResponse()->headers->get('Location'));
+    }
+
+    private function blockageRows(Crawler $crawler): Crawler
+    {
+        return $crawler->filter('[data-testid="blockage-row"]');
     }
 
     /** @param array<string, string> $extra */

@@ -37,6 +37,8 @@ final readonly class DeadlineActionButton
          * link into the case, which is also what happens with no JavaScript.
          */
         public ?string $agendaDialogId = null,
+        /** Tab of the case the fallback link opens, when the act does not live on the default one. */
+        public ?string $caseTab = null,
     ) {}
 
     public function isPost(): bool

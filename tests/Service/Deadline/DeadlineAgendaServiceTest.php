@@ -12,6 +12,7 @@ use App\Enum\DeadlineCertainty;
 use App\Enum\DeadlineConsequence;
 use App\Enum\DeadlineType;
 use App\Repository\LegalDeadlineRepository;
+use App\Service\Deadline\DeadlineAgendaFilter;
 use App\Service\Deadline\DeadlineAgendaGroup;
 use App\Service\Deadline\DeadlineAgendaItem;
 use App\Service\Deadline\DeadlineAgendaService;
@@ -144,11 +145,10 @@ class DeadlineAgendaServiceTest extends KernelTestCase
         self::assertSame(
             [
                 DeadlineAgendaGroup::KEY_OVERDUE,
-                DeadlineAgendaGroup::KEY_UNBLOCKED,
                 DeadlineAgendaGroup::KEY_TODAY,
-                DeadlineAgendaGroup::KEY_TOMORROW,
-                DeadlineAgendaGroup::KEY_REST_OF_WEEK,
-                DeadlineAgendaGroup::KEY_NEXT_30,
+                DeadlineAgendaGroup::KEY_UNBLOCKED,
+                DeadlineAgendaGroup::KEY_WEEK,
+                DeadlineAgendaGroup::KEY_LATER,
             ],
             array_map(static fn (DeadlineAgendaGroup $g): string => $g->key, $groups),
         );
@@ -161,8 +161,8 @@ class DeadlineAgendaServiceTest extends KernelTestCase
 
     public function testGroupsDeadlinesByCalendarBucket(): void
     {
-        // Wednesday reference: tomorrow is Thursday, the rest of the week runs
-        // through Sunday, everything later falls into the 30-day remainder.
+        // Wednesday reference: tomorrow folds into the week, which runs through Sunday;
+        // everything later falls into the remainder of the window.
         $today = $this->deadline($this->wednesday);
         $tomorrow = $this->deadline($this->wednesday->modify('+1 day'));
         $friday = $this->deadline($this->wednesday->modify('+2 days'));
@@ -175,21 +175,160 @@ class DeadlineAgendaServiceTest extends KernelTestCase
 
         self::assertSame([], $byGroup[DeadlineAgendaGroup::KEY_OVERDUE]);
         self::assertSame([$today->getId()], $byGroup[DeadlineAgendaGroup::KEY_TODAY]);
-        self::assertSame([$tomorrow->getId()], $byGroup[DeadlineAgendaGroup::KEY_TOMORROW]);
-        self::assertSame([$friday->getId(), $sunday->getId()], $byGroup[DeadlineAgendaGroup::KEY_REST_OF_WEEK]);
-        self::assertSame([$monday->getId(), $lastDay->getId()], $byGroup[DeadlineAgendaGroup::KEY_NEXT_30]);
+        self::assertSame([$tomorrow->getId(), $friday->getId(), $sunday->getId()], $byGroup[DeadlineAgendaGroup::KEY_WEEK]);
+        self::assertSame([$monday->getId(), $lastDay->getId()], $byGroup[DeadlineAgendaGroup::KEY_LATER]);
     }
 
-    public function testOnSundayTheRestOfTheWeekGroupStaysEmpty(): void
+    /**
+     * On a Sunday the week ends today, and tomorrow would otherwise land in the group that
+     * folds. Tomorrow is the one day that must never be behind a disclosure.
+     */
+    public function testOnSundayTomorrowStaysInTheWeekAndTheDayAfterGoesLater(): void
     {
         $sunday = $this->wednesday->modify('+4 days');
-        $this->deadline($sunday);
+        $today = $this->deadline($sunday);
+        $monday = $this->deadline($sunday->modify('+1 day'));
         $inTwoDays = $this->deadline($sunday->modify('+2 days'));
 
         $byGroup = $this->idsByGroup($this->service($sunday)->buildAgenda($this->user));
 
-        self::assertSame([], $byGroup[DeadlineAgendaGroup::KEY_REST_OF_WEEK]);
-        self::assertSame([$inTwoDays->getId()], $byGroup[DeadlineAgendaGroup::KEY_NEXT_30]);
+        self::assertSame([$today->getId()], $byGroup[DeadlineAgendaGroup::KEY_TODAY]);
+        self::assertSame([$monday->getId()], $byGroup[DeadlineAgendaGroup::KEY_WEEK]);
+        self::assertSame([$inTwoDays->getId()], $byGroup[DeadlineAgendaGroup::KEY_LATER]);
+    }
+
+    public function testOnSaturdayTheWeekIsJustSunday(): void
+    {
+        $saturday = $this->wednesday->modify('+3 days');
+        $sunday = $this->deadline($saturday->modify('+1 day'));
+        $monday = $this->deadline($saturday->modify('+2 days'));
+
+        $byGroup = $this->idsByGroup($this->service($saturday)->buildAgenda($this->user));
+
+        self::assertSame([$sunday->getId()], $byGroup[DeadlineAgendaGroup::KEY_WEEK]);
+        self::assertSame([$monday->getId()], $byGroup[DeadlineAgendaGroup::KEY_LATER]);
+    }
+
+    public function testTheWeekGroupKeepsTheGravestTermFirst(): void
+    {
+        $hearing = $this->deadline($this->wednesday->modify('+1 day'), DeadlineType::JUDECATA);
+        $stampDuty = $this->deadline($this->wednesday->modify('+3 days'), DeadlineType::TIMBRARE);
+
+        $byGroup = $this->idsByGroup($this->service($this->wednesday)->buildAgenda($this->user));
+
+        self::assertSame([$stampDuty->getId(), $hearing->getId()], $byGroup[DeadlineAgendaGroup::KEY_WEEK]);
+    }
+
+    /** A filter removes rows, it never moves one into another day. */
+    public function testTheFatalSelectionKeepsTheRowsInTheirOwnBuckets(): void
+    {
+        $overdue = $this->deadline($this->wednesday->modify('-2 days'), DeadlineType::TIMBRARE);
+        $this->deadline($this->wednesday->modify('-2 days'), DeadlineType::OTHER);
+        $week = $this->deadline($this->wednesday->modify('+2 days'), DeadlineType::TIMBRARE);
+        $this->deadline($this->wednesday->modify('+2 days'), DeadlineType::JUDECATA);
+        $this->deadline($this->wednesday->modify('-1 day'), DeadlineType::RASPUNS_SOMATIE);
+
+        $filter = DeadlineAgendaFilter::of(DeadlineAgendaFilter::TAB_TODO, true);
+        $byGroup = $this->idsByGroup($this->service($this->wednesday)->buildAgenda($this->user, $filter));
+
+        self::assertSame([$overdue->getId()], $byGroup[DeadlineAgendaGroup::KEY_OVERDUE]);
+        self::assertSame([], $byGroup[DeadlineAgendaGroup::KEY_UNBLOCKED]);
+        self::assertSame([$week->getId()], $byGroup[DeadlineAgendaGroup::KEY_WEEK]);
+    }
+
+    /** A row covering several due dates says how many and how far the last one is. */
+    public function testAMergedRowCarriesTheSpanOfItsTerms(): void
+    {
+        $row = $this->deadline($this->wednesday->modify('+2 days'), DeadlineType::PRESCRIPTIE);
+        $this->deadline($this->wednesday->modify('+90 days'), DeadlineType::PRESCRIPTIE);
+        $this->deadline($this->wednesday->modify('+300 days'), DeadlineType::PRESCRIPTIE);
+
+        $items = $this->itemsOf($this->service($this->wednesday)->buildAgenda($this->user));
+
+        self::assertCount(1, $items);
+        self::assertSame($row->getId(), $items[0]->deadline->getId());
+        self::assertSame(3, $items[0]->coveredTerms);
+        self::assertSame(2, $items[0]->daysRemaining);
+    }
+
+    public function testASingleLimitationTermCoversItselfOnly(): void
+    {
+        $this->deadline($this->wednesday->modify('+2 days'), DeadlineType::PRESCRIPTIE);
+
+        $items = $this->itemsOf($this->service($this->wednesday)->buildAgenda($this->user));
+
+        self::assertSame(1, $items[0]->coveredTerms);
+    }
+
+    public function testAnotherTypeNeverCarriesASpan(): void
+    {
+        $this->deadline($this->wednesday->modify('+2 days'), DeadlineType::PRESCRIPTIE_EXECUTARE);
+        $this->deadline($this->wednesday->modify('+3 days'), DeadlineType::PRESCRIPTIE_EXECUTARE);
+
+        foreach ($this->itemsOf($this->service($this->wednesday)->buildAgenda($this->user)) as $item) {
+            self::assertSame(1, $item->coveredTerms);
+        }
+    }
+
+    /**
+     * Mixed: one term has run out and a later one is alive. They get a row each, so the
+     * term that can still be saved is dated, counted and grouped on its own.
+     */
+    public function testATermThatRanOutDoesNotHideOneStillRunning(): void
+    {
+        $passed = $this->deadline($this->wednesday->modify('-5 days'), DeadlineType::PRESCRIPTIE);
+        $this->deadline($this->wednesday->modify('-20 days'), DeadlineType::PRESCRIPTIE);
+        $running = $this->deadline($this->wednesday->modify('+2 days'), DeadlineType::PRESCRIPTIE);
+        $this->deadline($this->wednesday->modify('+40 days'), DeadlineType::PRESCRIPTIE);
+
+        $items = $this->itemsOf($this->service($this->wednesday)->buildAgenda($this->user));
+
+        self::assertCount(2, $items);
+        $byDays = [];
+        foreach ($items as $item) {
+            $byDays[$item->daysRemaining] = $item;
+        }
+
+        self::assertNotSame($passed->getId(), $byDays[-20]->deadline->getId());
+        self::assertSame(2, $byDays[-20]->coveredTerms);
+        self::assertTrue($byDays[-20]->isConsequenceConsumed());
+        self::assertSame($running->getId(), $byDays[2]->deadline->getId());
+        self::assertSame(2, $byDays[2]->coveredTerms);
+        self::assertFalse($byDays[2]->isConsequenceConsumed());
+    }
+
+    public function testAMergedRowIsConsumedOnceEveryTermHasRunOut(): void
+    {
+        $this->deadline($this->wednesday->modify('-20 days'), DeadlineType::PRESCRIPTIE);
+        $this->deadline($this->wednesday->modify('-5 days'), DeadlineType::PRESCRIPTIE);
+
+        $items = $this->itemsOf($this->service($this->wednesday)->buildAgenda($this->user));
+
+        self::assertCount(1, $items);
+        self::assertTrue($items[0]->isConsequenceConsumed());
+    }
+
+    public function testTheLongHorizonListCarriesTheSpanToo(): void
+    {
+        $this->deadline($this->wednesday->modify('+40 days'), DeadlineType::PRESCRIPTIE);
+        $this->deadline($this->wednesday->modify('+60 days'), DeadlineType::PRESCRIPTIE);
+
+        $items = $this->service($this->wednesday)->buildLongHorizonPrescriptions($this->user);
+
+        self::assertCount(1, $items);
+        self::assertSame(2, $items[0]->coveredTerms);
+    }
+
+    public function testAClosedTermIsShapedWithoutASpan(): void
+    {
+        $closed = $this->deadline($this->wednesday->modify('+2 days'), DeadlineType::PRESCRIPTIE);
+        $closed->setCompleted(true);
+        $this->deadline($this->wednesday->modify('+3 days'), DeadlineType::PRESCRIPTIE);
+        $this->em->flush();
+
+        $item = $this->service($this->wednesday)->buildItem($closed);
+
+        self::assertSame(1, $item->coveredTerms);
     }
 
     public function testDeadlineDatedTodayIsNotOverdueWhileYesterdayIs(): void
@@ -292,7 +431,7 @@ class DeadlineAgendaServiceTest extends KernelTestCase
 
         self::assertSame(
             [$graverButLater->getId(), $earlier->getId(), $later->getId()],
-            $byGroup[DeadlineAgendaGroup::KEY_NEXT_30],
+            $byGroup[DeadlineAgendaGroup::KEY_LATER],
         );
     }
 

@@ -10,8 +10,10 @@ use App\Entity\User;
 use App\Enum\CaseStatus;
 use App\Enum\DeadlineType;
 use Doctrine\ORM\EntityManagerInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
@@ -20,11 +22,11 @@ use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
  *
  * The claim the page rests on is that an action answers with the agenda as a fresh
  * load of it would render, not with a patch of the row that was pressed. That is why
- * the answer replaces two whole regions: closing one term moves the counters, the
- * count and the "oldest arrear" hint of its section, whether that section renders at
- * all, the rail and the blockage zone. Here that claim is checked against an actual
- * fresh load rather than against a list of targets, because a stream that swapped the
- * right regions with stale content would pass every other test in the suite.
+ * the answer replaces whole regions: closing one term moves the sentence on top, the
+ * boxes, the count of its group, and whether that group renders at all. Here that claim
+ * is checked against an actual fresh load rather than against a list of targets, because
+ * a stream that swapped the right regions with stale content would pass every other test
+ * in the suite.
  */
 final class DeadlineAgendaResponseTest extends WebTestCase
 {
@@ -38,6 +40,9 @@ final class DeadlineAgendaResponseTest extends WebTestCase
         'case-hero',
         'ruling-communication-alert',
     ];
+
+    /** The regions a stream replaces. They all have to equal a fresh load. */
+    private const REGIONS = ['deadline-verdict', 'deadline-riskbar', 'deadline-agenda'];
 
     private KernelBrowser $client;
     private EntityManagerInterface $em;
@@ -90,7 +95,7 @@ final class DeadlineAgendaResponseTest extends WebTestCase
         }
         self::assertStringNotContainsString('deadline-card-', $body);
 
-        foreach (['deadline-riskbar', 'deadline-agenda', 'toasts'] as $target) {
+        foreach (['deadline-verdict', 'deadline-riskbar', 'deadline-agenda', 'toasts'] as $target) {
             self::assertStringContainsString('target="' . $target . '"', $body);
         }
     }
@@ -115,7 +120,7 @@ final class DeadlineAgendaResponseTest extends WebTestCase
 
         $fresh = $this->freshPage('/termene');
 
-        foreach (['deadline-riskbar', 'deadline-agenda'] as $region) {
+        foreach (self::REGIONS as $region) {
             self::assertSame(
                 $this->normalize($this->regionOf($fresh, $region)),
                 $this->normalize($this->streamedRegion($streamed, $region)),
@@ -125,34 +130,43 @@ final class DeadlineAgendaResponseTest extends WebTestCase
     }
 
     /**
-     * The counters are part of what an action moves, which is the whole reason the
-     * risk bar is replaced rather than left alone. Closing the only fatal term inside
-     * the window has to take its counter down in the same response.
+     * The counters are part of what an action moves, which is the whole reason the boxes
+     * are replaced rather than left alone. Closing a term has to take the number down in
+     * the same response, and the sentence over the boxes with it.
      */
-    public function testClosingTheOnlyFatalTermTakesItsCounterDownInTheSameAnswer(): void
+    public function testClosingATermTakesItsCounterDownInTheSameAnswer(): void
     {
         $user = $this->makeUser();
         $case = $this->makeCase($user, CaseStatus::CERERE_DEPUSA);
-        $fatal = $this->makeDeadline($case, '+4 days', DeadlineType::TIMBRARE);
-        $this->makeDeadline($case, '+6 days', DeadlineType::JUDECATA);
+        $fatal = $this->makeDeadline($case, 'today', DeadlineType::TIMBRARE);
+        $this->makeDeadline($case, '+20 days', DeadlineType::JUDECATA);
         $this->em->flush();
 
         $this->client->loginUser($user);
-        self::assertSame('1', $this->counterOn('/termene', 'fatal30'));
+        self::assertSame('2', $this->counterOn('/termene', 'todo'));
 
         $streamed = $this->close($fatal);
 
-        self::assertMatchesRegularExpression(
-            '#data-counter="fatal30".*?<strong[^>]*>\s*0\s*</strong>#s',
-            $this->streamedRegion($streamed, 'deadline-riskbar'),
+        $boxes = new Crawler($this->streamedRegion($streamed, 'deadline-riskbar'));
+        self::assertSame(
+            '1',
+            trim($boxes->filter('[data-counter="todo"]')->text()),
             'The counter must describe the agenda the answer carries, not the one before it.',
         );
-        self::assertSame('0', $this->counterOn('/termene', 'fatal30'), 'And a reload agrees.');
+        self::assertSame('1', trim($boxes->filter('[data-counter="completed"]')->text()));
+
+        $verdict = new Crawler($this->streamedRegion($streamed, 'deadline-verdict'));
+        self::assertStringNotContainsString(
+            static::getContainer()->get('translator')->trans('deadlines.verdict.today_first', ['%count%' => 1]),
+            $verdict->filter('[data-testid="agenda-verdict"]')->text(),
+        );
+
+        self::assertSame('1', $this->counterOn('/termene', 'todo'), 'And a reload agrees.');
     }
 
     /**
-     * The navigation badge counts the same arrears as the "Restante" pill, so an
-     * action that moves one has to move the other in the same answer. Left out of the
+     * The navigation badge counts the same arrears as the page, so an action that moves
+     * one has to move the other in the same answer. Left out of the
      * stream the badge would keep claiming an arrear the lawyer had just closed, on
      * the very screen that closed it, until the next full navigation.
      *
@@ -193,29 +207,257 @@ final class DeadlineAgendaResponseTest extends WebTestCase
     }
 
     /**
-     * Under a selection, the answer is that same selection. A stream rebuilt without
-     * the filter would quietly undo the triage the lawyer set up, which on a screen
-     * whose purpose is triage is worse than not answering at all.
+     * Under a selection, the answer is that same selection. A stream rebuilt without it
+     * would quietly undo the triage the lawyer set up, which on a screen whose purpose is
+     * triage is worse than not answering at all.
      */
     public function testTheAnswerUnderASelectionIsThatSameSelection(): void
     {
         $user = $this->makeUser();
         $case = $this->makeCase($user, CaseStatus::CERERE_DEPUSA);
-        $overdue = $this->makeDeadline($case, '-2 days', DeadlineType::OTHER);
-        $this->makeDeadline($case, '-3 days', DeadlineType::OTHER);
-        $fatal = $this->makeDeadline($case, '+4 days', DeadlineType::TIMBRARE);
+        $closing = $this->makeDeadline($case, '+2 days', DeadlineType::TIMBRARE);
+        $this->makeDeadline($case, '+3 days', DeadlineType::TIMBRARE);
+        $hearing = $this->makeDeadline($case, '+4 days', DeadlineType::JUDECATA);
         $this->em->flush();
 
         $this->client->loginUser($user);
-        $streamed = $this->close($overdue, ['f' => 'overdue']);
+        $streamed = $this->close($closing, ['fatal' => '1']);
         $region = $this->streamedRegion($streamed, 'deadline-agenda');
 
-        self::assertStringNotContainsString('deadline-row-' . $fatal->getId(), $region);
-        self::assertStringNotContainsString('deadline-row-' . $overdue->getId(), $region, 'The closed row leaves the list.');
+        self::assertStringNotContainsString('deadline-row-' . $hearing->getId(), $region);
+        self::assertStringNotContainsString('deadline-row-' . $closing->getId(), $region, 'The closed row leaves the list.');
         self::assertSame(
-            $this->normalize($this->regionOf($this->freshPage('/termene?f=overdue'), 'deadline-agenda')),
+            $this->normalize($this->regionOf($this->freshPage('/termene?fatal=1'), 'deadline-agenda')),
             $this->normalize($region),
         );
+    }
+
+    /**
+     * The answer to an action is the tab it was fired from, wherever that was: a panel or
+     * a dialog can be open over any of them. It is compared with a fresh load of the very
+     * URL the lawyer is on, so a stream that fell back to the first tab cannot pass.
+     *
+     * @return iterable<string, array{array<string, string>, string}>
+     */
+    public static function selectionProvider(): iterable
+    {
+        yield 'first tab' => [[], '/termene'];
+        yield 'fatal switch' => [['fatal' => '1'], '/termene?fatal=1'];
+        yield 'blocked tab' => [['tab' => 'de-completat'], '/termene?tab=de-completat'];
+        yield 'limitation tab' => [['tab' => 'prescriptii'], '/termene?tab=prescriptii'];
+        yield 'closed tab' => [['tab' => 'finalizate'], '/termene?tab=finalizate'];
+    }
+
+    /** @param array<string, string> $selection */
+    #[DataProvider('selectionProvider')]
+    public function testClosingATermKeepsTheSelectionOnScreen(array $selection, string $url): void
+    {
+        [$user, $target] = $this->selectionFixture(DeadlineType::TIMBRARE);
+
+        $this->client->loginUser($user);
+        $streamed = $this->close($target, $selection);
+
+        $this->assertSameAsAFreshLoad($streamed, $url);
+    }
+
+    /** @param array<string, string> $selection */
+    #[DataProvider('selectionProvider')]
+    public function testWaivingTheAnnulmentKeepsTheSelectionOnScreen(array $selection, string $url): void
+    {
+        [$user, $target] = $this->selectionFixture(DeadlineType::CERERE_IN_ANULARE);
+
+        $this->client->loginUser($user);
+        $this->client->request(
+            'POST',
+            sprintf('/case/%d/deadline/%d/no-annulment-request', $target->getLegalCase()->getId(), $target->getId()),
+            ['_token' => $this->token('no_annulment_request_' . $target->getId()), '_context' => 'agenda'] + $selection,
+            [],
+            ['HTTP_ACCEPT' => self::TURBO_ACCEPT],
+        );
+
+        self::assertResponseIsSuccessful();
+        $this->assertSameAsAFreshLoad((string) $this->client->getResponse()->getContent(), $url);
+    }
+
+    /** @param array<string, string> $selection */
+    #[DataProvider('selectionProvider')]
+    public function testRecordingTheCommunicationDateKeepsTheSelectionOnScreen(array $selection, string $url): void
+    {
+        [$user, , $blockedCase] = $this->selectionFixture(DeadlineType::TIMBRARE);
+
+        $this->client->loginUser($user);
+        $this->client->request(
+            'POST',
+            '/case/' . $blockedCase->getId() . '/summons-communication-date',
+            [
+                'payment_notice_communication_date' => [
+                    'paymentNoticeCommunicationDate' => (new \DateTimeImmutable('-2 days'))->format('Y-m-d'),
+                    'paymentNoticeCommunicationMethod' => 'EXECUTOR',
+                    '_token' => $this->token('payment_notice_communication_date'),
+                ],
+                '_context' => 'agenda',
+            ] + $selection,
+            [],
+            ['HTTP_ACCEPT' => self::TURBO_ACCEPT],
+        );
+
+        self::assertResponseIsSuccessful();
+        $this->assertSameAsAFreshLoad((string) $this->client->getResponse()->getContent(), $url);
+    }
+
+    /** @param array<string, string> $selection */
+    #[DataProvider('selectionProvider')]
+    public function testAddingAReminderKeepsTheSelectionOnScreen(array $selection, string $url): void
+    {
+        [$user, $target] = $this->selectionFixture(DeadlineType::TIMBRARE);
+
+        $this->client->loginUser($user);
+        $this->client->request(
+            'POST',
+            '/termene/termen-nou',
+            [
+                'agenda_add_deadline' => [
+                    'legalCase' => (string) $target->getLegalCase()->getId(),
+                    'deadlineDate' => (new \DateTimeImmutable('+8 days'))->format('Y-m-d'),
+                    '_token' => $this->token('agenda_add_deadline'),
+                ],
+                '_context' => 'agenda',
+            ] + $selection,
+            [],
+            ['HTTP_ACCEPT' => self::TURBO_ACCEPT],
+        );
+
+        self::assertResponseIsSuccessful();
+        $this->assertSameAsAFreshLoad((string) $this->client->getResponse()->getContent(), $url);
+    }
+
+    /** @param array<string, string> $selection */
+    #[DataProvider('selectionProvider')]
+    public function testWithoutTurboTheRedirectKeepsTheSelection(array $selection, string $url): void
+    {
+        [$user, $target] = $this->selectionFixture(DeadlineType::TIMBRARE);
+
+        $this->client->loginUser($user);
+        $this->client->request(
+            'POST',
+            sprintf('/case/%d/deadline/%d/complete', $target->getLegalCase()->getId(), $target->getId()),
+            ['_token' => $this->token('complete_deadline_' . $target->getId()), '_context' => 'agenda'] + $selection,
+        );
+
+        self::assertResponseRedirects($url);
+    }
+
+    /** @param array<string, string> $selection */
+    #[DataProvider('selectionProvider')]
+    public function testARejectedTokenKeepsTheSelection(array $selection, string $url): void
+    {
+        [$user, $target] = $this->selectionFixture(DeadlineType::TIMBRARE);
+
+        $this->client->loginUser($user);
+        $this->client->request(
+            'POST',
+            sprintf('/case/%d/deadline/%d/complete', $target->getLegalCase()->getId(), $target->getId()),
+            ['_token' => 'not-the-token', '_context' => 'agenda'] + $selection,
+            [],
+            ['HTTP_ACCEPT' => self::TURBO_ACCEPT],
+        );
+
+        self::assertResponseRedirects($url);
+        self::assertFalse($this->deadlinesOf($target->getLegalCase())[0]->isCompleted());
+    }
+
+    /** A page left open over the change posts the former field; the answer is its new name. */
+    public function testAFormLeftOpenOverTheChangeLandsOnTheNewParameter(): void
+    {
+        [$user, $target] = $this->selectionFixture(DeadlineType::TIMBRARE);
+
+        $this->client->loginUser($user);
+        $this->client->request(
+            'POST',
+            sprintf('/case/%d/deadline/%d/complete', $target->getLegalCase()->getId(), $target->getId()),
+            ['_token' => $this->token('complete_deadline_' . $target->getId()), '_context' => 'agenda', 'f' => 'fatal30'],
+        );
+
+        self::assertResponseRedirects('/termene?fatal=1');
+    }
+
+    /** A panel over a row that just changed would describe the past, so a success closes it. */
+    public function testASuccessfulActionDismissesThePanel(): void
+    {
+        [$user, $target] = $this->selectionFixture(DeadlineType::TIMBRARE);
+
+        $this->client->loginUser($user);
+        $stream = $this->close($target);
+
+        self::assertStringContainsString('target="deadline-panel-dismiss"', $stream);
+        self::assertStringContainsString('data-deadline-panel-target="dismiss"', $stream);
+    }
+
+    /** A rejection keeps the panel, like the dialog: what asked the question stays. */
+    public function testARejectedActionLeavesThePanelOpen(): void
+    {
+        $user = $this->makeUser();
+        $case = $this->makeCase($user);
+        $this->em->flush();
+
+        $this->client->loginUser($user);
+        $this->client->request(
+            'POST',
+            '/termene/termen-nou',
+            [
+                'agenda_add_deadline' => [
+                    'legalCase' => (string) $case->getId(),
+                    'deadlineDate' => '',
+                    '_token' => $this->token('agenda_add_deadline'),
+                ],
+            ],
+            [],
+            ['HTTP_ACCEPT' => self::TURBO_ACCEPT],
+        );
+
+        self::assertResponseIsSuccessful();
+        self::assertStringNotContainsString(
+            'deadline-panel-dismiss',
+            (string) $this->client->getResponse()->getContent(),
+        );
+    }
+
+    /**
+     * Every tab has something to show, so a stream that fell back to another tab differs.
+     *
+     * @return array{User, LegalDeadline, LegalCase}
+     */
+    private function selectionFixture(DeadlineType $targetType): array
+    {
+        $user = $this->makeUser();
+        $case = $this->makeCase($user, CaseStatus::CERERE_DEPUSA);
+        $target = $this->makeDeadline($case, '+3 days', $targetType);
+        $this->makeDeadline($case, '+4 days', DeadlineType::JUDECATA);
+
+        $closed = $this->makeDeadline($case, '-9 days', DeadlineType::OTHER);
+        $closed->setCompleted(true);
+
+        $limitation = $this->makeCase($user);
+        $this->makeDeadline($limitation, '+200 days', DeadlineType::PRESCRIPTIE);
+
+        $blocked = $this->makeCase($user, CaseStatus::SOMATIE_TRIMISA);
+        $blocked->setPaymentNoticeDate(new \DateTime('-6 days'));
+        $this->em->flush();
+
+        return [$user, $target, $blocked];
+    }
+
+    private function assertSameAsAFreshLoad(string $stream, string $url): void
+    {
+        $fresh = $this->freshPage($url);
+
+        foreach (self::REGIONS as $region) {
+            self::assertSame(
+                $this->normalize($this->regionOf($fresh, $region)),
+                $this->normalize($this->streamedRegion($stream, $region)),
+                sprintf('The streamed %s must equal a fresh load of %s.', $region, $url),
+            );
+        }
     }
 
     // ===== adding from the global page ====================================
@@ -440,7 +682,7 @@ final class DeadlineAgendaResponseTest extends WebTestCase
 
     private function counterOn(string $url, string $counter): string
     {
-        return trim($this->client->request('GET', $url)->filter('[data-counter="' . $counter . '"] strong')->text());
+        return trim($this->client->request('GET', $url)->filter('[data-counter="' . $counter . '"]')->text());
     }
 
     /** @return LegalDeadline[] */

@@ -16,19 +16,13 @@ use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 /**
- * The triage selection as it arrives over HTTP: what a pasted link rebuilds.
+ * The fatal switch and the query string as they arrive over HTTP: what a pasted link
+ * rebuilds.
  *
- * The repository tests already pin which rows each pill selects. What is pinned here
- * is the layer above them, the one a colleague actually touches: that the query
- * string is the whole state, that it is applied before the markup is built rather
- * than hidden in the browser afterwards, and that a query string nobody meant to
- * write still produces a page.
- *
- * On the combination rule the page deliberately does the opposite of an intersection.
- * Two pills are a UNION. An intersection would be empty by construction on the pair a
- * lawyer is most likely to press, since no deadline is both past due and falling
- * today, so "overdue + today" would answer "nothing to do" on a morning with work in
- * both. The pills widen the triage; the way to narrow it is to press fewer.
+ * The repository tests already pin which rows the switch selects. What is pinned here is
+ * the layer above them, the one a colleague actually touches: that the query string is the
+ * whole state, that it is applied before the markup is built rather than hidden in the
+ * browser afterwards, and that a query string nobody meant to write still produces a page.
  */
 final class DeadlineAgendaFilterHttpTest extends WebTestCase
 {
@@ -81,212 +75,116 @@ final class DeadlineAgendaFilterHttpTest extends WebTestCase
         parent::tearDown();
     }
 
-    // ===== each pill narrows to what its counter counts ===================
+    // ===== the fatal switch ===============================================
 
-    public function testEachPillKeepsOnlyItsOwnRows(): void
+    /** The fatal selection keeps a late irreversible term: that is the one to see first. */
+    public function testTheFatalSwitchKeepsTheIrreversibleRowsOfEveryBucket(): void
     {
-        $overdue = $this->makeDeadline('-4 days', DeadlineType::OTHER);
-        $today = $this->makeDeadline('today', DeadlineType::JUDECATA);
-        $fatal = $this->makeDeadline('+9 days', DeadlineType::TIMBRARE);
-        $this->em->flush();
-
-        self::assertSame([$overdue->getId()], $this->rowsOn('/termene?f=overdue'));
-        self::assertSame([$today->getId()], $this->rowsOn('/termene?f=today'));
-        self::assertSame([$fatal->getId()], $this->rowsOn('/termene?f=fatal30'));
-
-        self::assertSame(
-            [$overdue->getId(), $today->getId(), $fatal->getId()],
-            $this->rowsOn('/termene'),
-            'No selection is the whole window, which is what the pills narrow from.',
-        );
-    }
-
-    /**
-     * The pressed pill is stated on the pill itself, not only in the URL: without it
-     * the lawyer reads a short agenda with no way to tell it apart from a quiet day.
-     */
-    public function testTheSelectionIsVisibleOnThePillsAndReleasableInOneClick(): void
-    {
+        $late = $this->makeDeadline('-4 days', DeadlineType::TIMBRARE);
         $this->makeDeadline('-4 days', DeadlineType::OTHER);
-        $this->em->flush();
-
-        $crawler = $this->client->request('GET', '/termene?f=overdue');
-        $translator = static::getContainer()->get('translator');
-
-        self::assertResponseIsSuccessful();
-        self::assertSame('true', $crawler->filter('[data-counter="overdue"]')->attr('aria-pressed'));
-        self::assertSame('false', $crawler->filter('[data-counter="fatal30"]')->attr('aria-pressed'));
-        self::assertStringContainsString($translator->trans('deadlines.filter.clear'), $crawler->text());
-        self::assertStringContainsString($translator->trans('deadlines.filter.counters_note'), $crawler->text());
-    }
-
-    // ===== several pills are a union ======================================
-
-    /**
-     * The rule, on the pair that shows why it has to be a union: nothing is both past
-     * due and due today, so read as an intersection this selection would answer "no
-     * deadlines" while both rows are outstanding.
-     */
-    public function testTwoPillsWidenTheSelectionInsteadOfIntersectingIt(): void
-    {
-        $overdue = $this->makeDeadline('-4 days', DeadlineType::OTHER);
-        $today = $this->makeDeadline('today', DeadlineType::JUDECATA);
-        $this->makeDeadline('+9 days', DeadlineType::TIMBRARE);
-        $this->em->flush();
-
-        $rows = $this->rowsOn('/termene?f=overdue,today');
-
-        self::assertSame([$overdue->getId(), $today->getId()], $rows);
-        self::assertCount(2, $rows, 'An intersection of these two pills is empty by construction.');
-    }
-
-    /** Three pills widen further, and the row outside all of them stays out. */
-    public function testEveryPillPressedIsStillASelectionAndNotTheWholeWindow(): void
-    {
-        $overdue = $this->makeDeadline('-4 days', DeadlineType::OTHER);
-        $today = $this->makeDeadline('today', DeadlineType::JUDECATA);
-        $fatal = $this->makeDeadline('+9 days', DeadlineType::TIMBRARE);
-        $outside = $this->makeDeadline('+20 days', DeadlineType::JUDECATA);
-        $this->em->flush();
-
-        $rows = $this->rowsOn('/termene?f=overdue,today,fatal30');
-
-        self::assertSame([$overdue->getId(), $today->getId(), $fatal->getId()], $rows);
-        self::assertNotContains($outside->getId(), $rows, 'A hearing three weeks out is none of the three.');
-    }
-
-    /**
-     * The order the pills were pressed in is not part of the selection: two lawyers
-     * pressing the same two pills in the opposite order must be looking at the same
-     * agenda, and a link pasted between them must open it.
-     */
-    public function testTheOrderOfThePillsInTheUrlDoesNotChangeTheResult(): void
-    {
-        $overdue = $this->makeDeadline('-4 days', DeadlineType::OTHER);
-        $today = $this->makeDeadline('today', DeadlineType::JUDECATA);
-        $this->em->flush();
-
-        self::assertSame(
-            [$overdue->getId(), $today->getId()],
-            $this->rowsOn('/termene?f=today,overdue'),
-        );
-    }
-
-    /**
-     * The blockage pill counts cases whose deadline does not exist yet, so it has no
-     * row to match. Pressed alone it says so instead of quietly falling through to
-     * every row, and it is what keeps the blockage zone on screen.
-     */
-    public function testTheBlockagePillEmptiesTheListAndKeepsTheBlockageZone(): void
-    {
-        $this->makeDeadline('-4 days', DeadlineType::OTHER);
-        $blocked = new LegalCase();
-        $blocked->setUser($this->em->getRepository(User::class)->find($this->user->getId()));
-        $blocked->setStatus(CaseStatus::SOMATIE_TRIMISA);
-        $blocked->setAmount('2000.00');
-        $this->em->persist($blocked);
-        $this->em->flush();
-
-        $crawler = $this->client->request('GET', '/termene?f=blocked');
-        $heading = static::getContainer()->get('translator')->trans('deadlines.blockages.heading');
-
-        self::assertResponseIsSuccessful();
-        self::assertSame([], $this->rowIdsIn($crawler));
-        self::assertCount(1, $crawler->filter('[data-state="filter-empty"]'));
-        self::assertStringContainsString($heading, $crawler->text());
-    }
-
-    /** Combined with a deadline pill it still contributes no rows of its own. */
-    public function testTheBlockagePillAddsNoRowsToAnotherPill(): void
-    {
-        $overdue = $this->makeDeadline('-4 days', DeadlineType::OTHER);
+        $today = $this->makeDeadline('today', DeadlineType::CERERE_IN_ANULARE);
         $this->makeDeadline('today', DeadlineType::JUDECATA);
         $this->em->flush();
 
-        self::assertSame([$overdue->getId()], $this->rowsOn('/termene?f=overdue,blocked'));
+        self::assertSame([$late->getId(), $today->getId()], $this->rowsOn('/termene?fatal=1'));
+        self::assertCount(4, $this->rowsOn('/termene'), 'Without the switch the whole window shows.');
     }
 
-    // ===== showing closed terms widens, it does not select =================
-
-    public function testShowingClosedTermsAddsToTheListRatherThanFilteringIt(): void
-    {
-        $open = $this->makeDeadline('-4 days', DeadlineType::OTHER);
-        $closed = $this->makeDeadline('-5 days', DeadlineType::OTHER);
-        $closed->setCompleted(true);
-        $this->em->flush();
-
-        self::assertSame([$open->getId()], $this->rowsOn('/termene'));
-        self::assertSame(
-            [$closed->getId(), $open->getId()],
-            $this->rowsOn('/termene?completed=1'),
-            'Both, oldest first: the open list is widened, not replaced.',
-        );
-    }
-
-    public function testShowingClosedTermsComposesWithAPillOverHttp(): void
+    /**
+     * The switch states its position, and pressing it leads to the opposite one: without
+     * that the lawyer reads a short agenda with no way to tell it from a quiet day.
+     */
+    public function testTheSwitchStatesItsPositionAndLeadsToTheOpposite(): void
     {
         $this->makeDeadline('-4 days', DeadlineType::OTHER);
-        $closedToday = $this->makeDeadline('today', DeadlineType::JUDECATA);
-        $closedToday->setCompleted(true);
         $this->em->flush();
 
-        self::assertSame([$closedToday->getId()], $this->rowsOn('/termene?f=today&completed=1'));
+        $off = $this->client->request('GET', '/termene')->filter('[data-testid="agenda-fatal-toggle"]');
+        self::assertResponseIsSuccessful();
+        self::assertSame('false', $off->attr('aria-pressed'));
+        self::assertSame('/termene?fatal=1', $off->attr('href'));
+
+        $on = $this->client->request('GET', '/termene?fatal=1')->filter('[data-testid="agenda-fatal-toggle"]');
+        self::assertResponseIsSuccessful();
+        self::assertSame('true', $on->attr('aria-pressed'));
+        self::assertSame('/termene', $on->attr('href'));
+    }
+
+    public function testTheFatalMarkFollowsTheType(): void
+    {
+        $annulment = $this->makeDeadline('+3 days', DeadlineType::CERERE_IN_ANULARE);
+        $filing = $this->makeDeadline('+3 days', DeadlineType::DEPUNERE_CERERE);
+        $hearing = $this->makeDeadline('+3 days', DeadlineType::JUDECATA);
+        $this->em->flush();
+
+        $crawler = $this->client->request('GET', '/termene');
+
+        self::assertCount(1, $crawler->filter('#deadline-row-' . $annulment->getId() . ' [data-testid="row-fatal"]'));
+        self::assertCount(1, $crawler->filter('#deadline-row-' . $filing->getId() . ' [data-testid="row-fatal"]'));
+        self::assertCount(0, $crawler->filter('#deadline-row-' . $hearing->getId() . ' [data-testid="row-fatal"]'));
+        self::assertSame('1', $crawler->filter('#deadline-row-' . $annulment->getId())->attr('data-fatal'));
+        self::assertSame('0', $crawler->filter('#deadline-row-' . $hearing->getId())->attr('data-fatal'));
+    }
+
+    /** With nothing on the tab there is nothing to narrow, so no switch is offered. */
+    public function testTheSwitchDisappearsWhenTheTabIsEmpty(): void
+    {
+        $this->makeDeadline('+200 days', DeadlineType::PRESCRIPTIE);
+        $this->em->flush();
+
+        self::assertCount(0, $this->client->request('GET', '/termene')->filter('[data-testid="agenda-fatal-toggle"]'));
+    }
+
+    /** A filter value that is on and one that is not, as a hand-edited URL may carry them. */
+    public function testOnlyTheValuesThePageRecognisesTurnTheSwitchOn(): void
+    {
+        $fatal = $this->makeDeadline('-4 days', DeadlineType::TIMBRARE);
+        $other = $this->makeDeadline('-4 days', DeadlineType::OTHER);
+        $this->em->flush();
+
+        foreach (['1', 'true', 'on', 'yes', 'TRUE'] as $value) {
+            self::assertSame([$fatal->getId()], $this->rowsOn('/termene?fatal=' . $value), $value);
+        }
+
+        foreach (['0', 'false', 'off', 'banana', ''] as $value) {
+            self::assertSame([$fatal->getId(), $other->getId()], $this->rowsOn('/termene?fatal=' . $value), $value);
+        }
     }
 
     // ===== a query string nobody meant to write ============================
 
     /**
-     * Unknown pills are dropped rather than answered with an error page. The query
-     * string is hand editable and travels in links, so a stale or mistyped value has
-     * to degrade into the nearest agenda that does exist, and never into a 500.
+     * An unknown tab degrades into the first one rather than into an error page. The
+     * query string is hand editable and travels in links, so a stale or mistyped value
+     * has to land on the nearest page that does exist, and never on a 500.
      */
-    public function testAnUnknownPillIsIgnoredAndTheKnownOnesStillApply(): void
+    public function testAnUnknownTabFallsBackToTheFirstOne(): void
     {
         $overdue = $this->makeDeadline('-4 days', DeadlineType::OTHER);
-        $this->makeDeadline('today', DeadlineType::JUDECATA);
         $this->em->flush();
 
-        self::assertSame([$overdue->getId()], $this->rowsOn('/termene?f=overdue,inexistent'));
-    }
-
-    /** A pill misspelled on its own leaves no selection at all, so the window is whole. */
-    public function testAQueryStringOfOnlyUnknownPillsFallsBackToTheWholeWindow(): void
-    {
-        $overdue = $this->makeDeadline('-4 days', DeadlineType::OTHER);
-        $today = $this->makeDeadline('today', DeadlineType::JUDECATA);
-        $this->em->flush();
-
-        $crawler = $this->client->request('GET', '/termene?f=nonsense');
+        $crawler = $this->client->request('GET', '/termene?tab=nonsense');
 
         self::assertResponseIsSuccessful();
-        self::assertSame([$overdue->getId(), $today->getId()], $this->rowIdsIn($crawler));
-        self::assertSame('false', $crawler->filter('[data-counter="overdue"]')->attr('aria-pressed'));
+        self::assertSame([$overdue->getId()], $this->rowIdsIn($crawler));
+        self::assertSame('page', $crawler->filter('[data-tab="de-facut"]')->attr('aria-current'));
         self::assertCount(0, $crawler->filter('[data-state="filter-empty"]'), 'Nothing was selected, so nothing is empty.');
     }
 
-    /**
-     * The values are matched exactly, so a pill in the wrong case is an unknown pill
-     * rather than a near miss quietly accepted. Pinned because the alternative,
-     * normalising the input, would make two different URLs mean the same agenda while
-     * only one of them is ever generated.
-     */
-    public function testThePillNamesAreMatchedExactly(): void
+    /** Tab names are matched exactly: two URLs must not mean the same page. */
+    public function testTheTabNamesAreMatchedExactly(): void
     {
-        $overdue = $this->makeDeadline('-4 days', DeadlineType::OTHER);
-        $today = $this->makeDeadline('today', DeadlineType::JUDECATA);
         $this->em->flush();
 
-        self::assertSame(
-            [$overdue->getId(), $today->getId()],
-            $this->rowsOn('/termene?f=OVERDUE'),
-            'An uppercase pill selects nothing, so the whole window shows.',
-        );
+        $crawler = $this->client->request('GET', '/termene?tab=DE-COMPLETAT');
+
+        self::assertResponseIsSuccessful();
+        self::assertCount(1, $crawler->filter('[data-tab-panel="de-facut"]'));
     }
 
     /**
-     * The malformed shapes that still resolve to an agenda: empty, all separators,
-     * padded values, a pill named twice, an empty flag, and parameters the page has
-     * never heard of. None of them may reach an error page.
+     * The malformed shapes that still resolve to a page: empty values, separators,
+     * parameters the page has never heard of. None of them may reach an error page.
      */
     public function testMalformedButReadableQueryStringsStillRenderTheAgenda(): void
     {
@@ -295,74 +193,36 @@ final class DeadlineAgendaFilterHttpTest extends WebTestCase
         $this->em->flush();
         $whole = [$overdue->getId(), $today->getId()];
 
-        self::assertSame($whole, $this->rowsOn('/termene?f='));
-        self::assertSame($whole, $this->rowsOn('/termene?f=,,,'));
-        self::assertSame($whole, $this->rowsOn('/termene?completed='));
-        self::assertSame($whole, $this->rowsOn('/termene?sort=asc&page=9'));
-
-        // Padded and repeated values resolve to the selection they name.
-        self::assertSame([$overdue->getId()], $this->rowsOn('/termene?f=%20overdue%20'));
-        self::assertSame([$overdue->getId()], $this->rowsOn('/termene?f=overdue,overdue'));
-    }
-
-    /**
-     * A value nobody recognises falls back to the default agenda. It holds for the
-     * pills, where an unknown name is dropped and the rest of the selection applies,
-     * and equally for the flag that shows the closed terms, where anything other than
-     * what the page itself emits means "off".
-     *
-     * The agenda is the screen a lawyer opens to find out what is late. A URL that was
-     * hand-edited, truncated by a mail client or pasted with a stray character has to
-     * degrade to the whole agenda, never to an error page in place of it.
-     */
-    public function testAnUnreadableFlagFallsBackToTheDefaultAgendaInsteadOfFailing(): void
-    {
-        $overdue = $this->makeDeadline('-4 days', DeadlineType::OTHER);
-        $this->em->flush();
-
-        foreach (['/termene?completed=maybe', '/termene?completed=banana', '/termene?completed=0'] as $url) {
-            self::assertSame([$overdue->getId()], $this->rowsOn($url), $url . ' must render the default agenda.');
+        foreach (['?tab=', '?fatal=', '?page=', '?f=', '?f=,,,', '?completed=', '?sort=asc&page=9', '?page=abc', '?tab=%00'] as $query) {
+            self::assertSame($whole, $this->rowsOn('/termene' . $query), $query);
         }
     }
 
-    /**
-     * A parameter sent with the wrong SHAPE is a different matter: an array where a
-     * string is expected is not a selection the page can degrade to, it is a
-     * malformed request, and the request layer refuses it before the page is built.
-     *
-     * What matters for a page whose whole state lives in the URL is that this stays a
-     * rejection of the request: a 4xx the client can read as its own mistake, never a
-     * 5xx that reads as a failure of the agenda.
-     */
-    public function testParametersOfTheWrongShapeAreRefusedAsClientErrorsNotCrashes(): void
+    /** A page outside the range still renders the closed tab: it is clamped, not refused. */
+    public function testAPageOutOfRangeOnTheClosedTabStillRenders(): void
     {
-        $this->makeDeadline('-4 days', DeadlineType::OTHER);
+        $closed = $this->makeDeadline('-4 days', DeadlineType::OTHER);
+        $closed->setCompleted(true);
         $this->em->flush();
 
-        foreach (['/termene?f[]=overdue', '/termene?completed[]=1'] as $url) {
-            $this->client->request('GET', $url);
-
-            $status = $this->client->getResponse()->getStatusCode();
-            self::assertTrue(
-                $this->client->getResponse()->isClientError(),
-                sprintf('%s must answer 4xx, got %d.', $url, $status),
-            );
+        foreach (['-3', '0', '999999', 'abc'] as $page) {
+            self::assertSame([$closed->getId()], $this->rowsOn('/termene?tab=finalizate&page=' . $page), $page);
         }
     }
 
     /**
      * The selection is applied in SQL, so a row outside it is absent from the markup
      * rather than present and hidden. A filter that only hid rows would leave them in
-     * the page for anything reading it, and would make the counters and the section
-     * headers describe a set the lawyer cannot see.
+     * the page for anything reading it, and would make the group bands describe a set
+     * the lawyer cannot see.
      */
     public function testTheRowsOutsideTheSelectionAreAbsentFromTheMarkupNotHidden(): void
     {
-        $this->makeDeadline('-4 days', DeadlineType::OTHER);
-        $excluded = $this->makeDeadline('+9 days', DeadlineType::TIMBRARE);
+        $this->makeDeadline('-4 days', DeadlineType::TIMBRARE);
+        $excluded = $this->makeDeadline('+9 days', DeadlineType::JUDECATA);
         $this->em->flush();
 
-        $this->client->request('GET', '/termene?f=overdue');
+        $this->client->request('GET', '/termene?fatal=1');
         $body = (string) $this->client->getResponse()->getContent();
 
         self::assertStringNotContainsString('deadline-row-' . $excluded->getId(), $body);

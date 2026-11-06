@@ -1,22 +1,63 @@
-{# The top region of the agenda: either the four triage pills, or the single line
-   that confirms an empty window.
+{# The four boxes, which are also the navigation between the tabs. They are plain links:
+   the selection lives in the query string, so a tab survives a refresh, can be sent to a
+   colleague and works with no JavaScript. `data-turbo-frame="deadline-page"` because a Turbo visit on
+   this page ends in a second, full load (the importmap nonce differs on every response).
 
-   It is a region of its own because an action fired from a row changes it: closing a
-   term moves a counter. The page wraps it in `id="deadline-riskbar"`, which is what
-   the agenda Turbo Stream replaces.
-
-   Under an active selection the bar always renders, even on a result of zero: the
-   pills are the only way back out of a filter, and the "clean register" line would
-   be a lie about the account when it is only true about the selection.
+   The numbers never follow the selection: they describe the whole account on every tab.
 
    @var view App\Service\Deadline\DeadlinePageView #}
 
+{% from 'deadlines/_dates.html.twig' import day_month_year %}
+
+{% set counters = view.counters %}
 {% set filter = view.filter %}
 
-{% if view.isNothingTracked() %}
-    {# Nothing to count and nothing to filter: the state below carries the page. #}
-{% elseif filter.isActive() or not view.isAgendaEmpty() or view.blockages|length > 0 %}
-    {{ include('deadlines/_risk_bar.html.twig', { counters: view.counters, filter: filter }, with_context = false) }}
-{% else %}
-    {{ include('deadlines/_clean_banner.html.twig', {}, with_context = false) }}
+{% if not view.isNothingTracked() %}
+    {% set boxes = [
+        { tab: 'de-facut', counter: 'todo', label: 'deadlines.tab.todo' },
+        { tab: 'de-completat', counter: 'blocked', label: 'deadlines.tab.blocked' },
+        { tab: 'prescriptii', counter: 'prescriptions', label: 'deadlines.tab.prescriptions' },
+        { tab: 'finalizate', counter: 'completed', label: 'deadlines.tab.completed' },
+    ] %}
+    <nav aria-label="{{ 'deadlines.heading'|trans }}" class="grid grid-cols-4 gap-1.5 sm:gap-3">
+        {% for box in boxes %}
+            {% set active = filter.isTab(box.tab) %}
+            <a href="{{ path('app_deadlines', box.tab == 'de-facut' ? {} : { tab: box.tab }) }}"
+               data-tab="{{ box.tab }}"
+               data-turbo-frame="deadline-page"
+               {% if active %}aria-current="page"{% endif %}
+               class="block min-w-0 rounded-xl border bg-white dark:bg-slate-900 px-1.5 py-2 sm:px-5 sm:py-3.5 no-underline transition {{ active ? 'border-lex-navy ring-1 ring-lex-navy dark:border-blue-400 dark:ring-blue-400' : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700' }}">
+                <span class="block text-[11px] sm:text-[13px] leading-tight font-medium text-slate-600 dark:text-slate-400">{{ box.label|trans }}</span>
+                <span data-counter="{{ box.counter }}" class="mt-0.5 sm:mt-1 block text-xl sm:text-[26px] leading-6 sm:leading-8 font-semibold tracking-tight tnum {{ active ? 'text-lex-navy dark:text-blue-300' : 'text-slate-900 dark:text-slate-100' }}">{{ counters[box.counter] }}</span>
+                <span class="mt-1 hidden sm:block text-xs text-slate-500 dark:text-slate-400 truncate">
+                    {%- if box.tab == 'de-facut' -%}
+                        {%- if counters.overdue > 0 -%}
+                            <span class="text-red-600 dark:text-red-400 font-medium">{{ 'deadlines.tab_hint.overdue'|trans({ '%count%': counters.overdue }) }}</span>
+                        {%- endif -%}
+                        {%- if counters.overdue > 0 and counters.today > 0 %} · {% endif -%}
+                        {%- if counters.today > 0 -%}
+                            {{ 'deadlines.tab_hint.today'|trans({ '%count%': counters.today }) }}
+                        {%- endif -%}
+                        {%- if counters.overdue == 0 and counters.today == 0 -%}
+                            {{ (counters.todo > 0 ? 'deadlines.tab_hint.in_window' : 'deadlines.tab_hint.none_in_window')|trans }}
+                        {%- endif -%}
+                    {%- elseif box.tab == 'de-completat' -%}
+                        {{ (counters.blocked > 0 ? 'deadlines.tab_hint.blocked' : 'deadlines.tab_hint.none_blocked')|trans({ '%count%': counters.blocked }) }}
+                    {%- elseif box.tab == 'prescriptii' -%}
+                        {%- if view.nextPrescription -%}
+                            {{ 'deadlines.tab_hint.next'|trans({ '%date%': day_month_year(view.nextPrescription) }) }}
+                        {%- else -%}
+                            {{ 'deadlines.tab_hint.none_prescriptions'|trans }}
+                        {%- endif -%}
+                    {%- else -%}
+                        {%- if view.lastCompleted -%}
+                            {{ 'deadlines.tab_hint.last'|trans({ '%date%': day_month_year(view.lastCompleted) }) }}
+                        {%- else -%}
+                            {{ 'deadlines.tab_hint.none_completed'|trans }}
+                        {%- endif -%}
+                    {%- endif -%}
+                </span>
+            </a>
+        {% endfor %}
+    </nav>
 {% endif %}

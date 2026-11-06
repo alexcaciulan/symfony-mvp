@@ -18,6 +18,8 @@ final readonly class DeadlineRowView
         public DeadlineRowAction $action,
         /** What the lawyer must read before closing this row; null when the miss is reversible. */
         public ?DeadlineCloseConfirmation $closeConfirmation = null,
+        /** The suggestion of the row; null where the term suggests nothing. */
+        public ?DeadlineNextStep $nextStep = null,
     ) {}
 
     public function deadline(): LegalDeadline

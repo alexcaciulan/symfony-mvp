@@ -1,0 +1,14 @@
+{# Romanian dates, built from translation keys: the page has no intl date filter.
+   Each macro prints a single line with no surrounding space. #}
+
+{% macro day_month(date) %}{{- date|date('j') }} {{ ('deadlines.month_short.' ~ date|date('n'))|trans -}}{% endmacro %}
+
+{% macro day_month_year(date) %}{{- date|date('j') }} {{ ('deadlines.month_short.' ~ date|date('n'))|trans }} {{ date|date('Y') -}}{% endmacro %}
+
+{% macro day_month_long(date) %}{{- date|date('j') }} {{ ('deadlines.month.' ~ date|date('n'))|trans -}}{% endmacro %}
+
+{% macro long(date) %}{{- date|date('j') }} {{ ('deadlines.month.' ~ date|date('n'))|trans }} {{ date|date('Y') -}}{% endmacro %}
+
+{% macro weekday_long(date) %}{{- ('deadlines.weekday.' ~ date|date('N'))|trans }}, {{ date|date('j') }} {{ ('deadlines.month.' ~ date|date('n'))|trans }} {{ date|date('Y') -}}{% endmacro %}
+
+{% macro weekday_numeric(date) %}{{- ('deadlines.weekday.' ~ date|date('N'))|trans }}, {{ date|date('d.m.Y') -}}{% endmacro %}

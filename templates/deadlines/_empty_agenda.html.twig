@@ -1,14 +1,24 @@
-{# The agenda body when the window holds nothing. Kept as a card rather than a bare
-   sentence, so the column still reads as the place where the work appears.
+{# The first tab when the window holds nothing. It says where the next term is, because
+   "nothing" alone cannot be told apart from a page that failed.
 
-   @var window_end \DateTimeImmutable #}
+   @var window_end        \DateTimeImmutable
+   @var next_prescription \DateTimeImmutable|null #}
 
-{% from 'deadlines/_icons.html.twig' import document %}
+{% from 'deadlines/_dates.html.twig' import day_month_long, long %}
+{% from 'deadlines/_icons.html.twig' import check %}
 
-<div data-state="agenda-empty" class="rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/40 px-6 py-10 text-center">
-    <div class="inline-flex items-center justify-center size-11 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-400 mb-3">
-        {{ document('size-5') }}
-    </div>
-    <h2 class="text-base font-semibold">{{ 'deadlines.clean.agenda_heading'|trans({ '%date%': window_end|date('d.m.Y') }) }}</h2>
-    <p class="mt-1 text-sm text-slate-600 dark:text-slate-400 max-w-md mx-auto">{{ 'deadlines.clean.agenda_body'|trans({ '%date%': window_end|date('d.m.Y') }) }}</p>
+<div data-state="agenda-empty" class="px-6 py-14 text-center">
+    <span class="mx-auto mb-3 inline-flex items-center justify-center size-10 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">{{ check('size-5') }}</span>
+    <h2 class="text-base font-semibold text-slate-900 dark:text-white">{{ 'deadlines.clean.agenda_heading'|trans({ '%date%': day_month_long(window_end) }) }}</h2>
+    <p class="mt-1 text-sm text-slate-600 dark:text-slate-400 max-w-md mx-auto">
+        {% if next_prescription %}
+            {{ 'deadlines.clean.agenda_body_next'|trans({ '%date%': long(next_prescription) }) }}
+        {% else %}
+            {{ 'deadlines.clean.agenda_body'|trans }}
+        {% endif %}
+    </p>
+    {% if next_prescription %}
+        <a href="{{ path('app_deadlines', { tab: 'prescriptii' }) }}" data-turbo-frame="deadline-page"
+           class="mt-3 inline-block text-sm font-medium text-blue-700 dark:text-blue-400 hover:underline">{{ 'deadlines.clean.see_prescriptions'|trans }}</a>
+    {% endif %}
 </div>

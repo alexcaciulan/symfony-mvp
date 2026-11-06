@@ -1,0 +1,8 @@
+{# A tab with nothing to list. Each states what the tab would hold, so the lawyer can tell
+   an empty tab from a page that failed to load.
+
+   @var key string 'blocked' | 'prescriptions' | 'completed' #}
+<div data-state="tab-empty" class="px-6 py-12 text-center">
+    <h2 class="text-base font-semibold text-slate-900 dark:text-white">{{ ('deadlines.empty_tab.' ~ key ~ '.heading')|trans }}</h2>
+    <p class="mt-1 text-sm text-slate-600 dark:text-slate-400 max-w-md mx-auto">{{ ('deadlines.empty_tab.' ~ key ~ '.body')|trans }}</p>
+</div>

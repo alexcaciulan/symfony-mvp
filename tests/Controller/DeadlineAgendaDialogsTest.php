@@ -169,9 +169,9 @@ final class DeadlineAgendaDialogsTest extends WebTestCase
 
     /**
      * The dialog that collects the communication date stays available on the agenda
-     * page, wired to the route that records it. No deadline row opens it any more: the
-     * summons-answer term is not created until that date exists, so a row asking for it
-     * cannot occur. What surfaces the case is the blockage zone.
+     * page, wired to the route that records it. A summons-answer row never opens it: the
+     * term is not created until that date exists, so a row asking for it cannot occur.
+     * What surfaces the case is the blocked tab, and the panel of a limitation term.
      */
     public function testTheAgendaKeepsTheDialogThatCollectsTheCommunicationDate(): void
     {
@@ -186,7 +186,7 @@ final class DeadlineAgendaDialogsTest extends WebTestCase
         self::assertResponseIsSuccessful();
         self::assertCount(
             0,
-            $crawler->filter('#deadline-row-' . $deadline->getId() . ' a[data-action]'),
+            $crawler->filter('#deadline-row-' . $deadline->getId() . ' a[data-action="agenda-dialog#openDialog"]'),
             'A summons-answer row never asks for a date it must already have.',
         );
 
@@ -194,6 +194,29 @@ final class DeadlineAgendaDialogsTest extends WebTestCase
         self::assertCount(1, $dialog);
         self::assertCount(1, $dialog->filter('input[name="payment_notice_communication_date[paymentNoticeCommunicationDate]"]'));
         self::assertSame('agenda', $dialog->filter('input[name="_context"]')->attr('value'));
+    }
+
+    /** Opened on another tab, the dialog posts back the tab it was opened on. */
+    public function testTheDialogsCarryTheActiveTab(): void
+    {
+        $user = $this->makeUser();
+        $this->makeCase($user, CaseStatus::SOMATIE_TRIMISA);
+        $this->em->flush();
+
+        $this->client->loginUser($user);
+        $crawler = $this->client->request('GET', '/termene?tab=de-completat');
+
+        self::assertResponseIsSuccessful();
+        self::assertSame(
+            'de-completat',
+            $crawler->filter('#deadline-agenda input[form="deadline-summons-form"][name="tab"]')->attr('value'),
+        );
+        self::assertSame(
+            'de-completat',
+            $crawler->filter('#deadline-agenda input[form="deadline-add-form"][name="tab"]')->attr('value'),
+        );
+        self::assertCount(1, $crawler->filter('form#deadline-summons-form'));
+        self::assertCount(1, $crawler->filter('form#deadline-add-form'));
     }
 
     /**
@@ -353,6 +376,10 @@ final class DeadlineAgendaDialogsTest extends WebTestCase
         self::assertCount(1, $crawler->filter('#hs-modal-agenda-confirm-close'));
         self::assertCount(0, $crawler->filter('#deadline-agenda #hs-modal-agenda-confirm-close'));
         self::assertCount(0, $crawler->filter('#deadline-riskbar #hs-modal-agenda-confirm-close'));
+        self::assertCount(0, $crawler->filter('#deadline-verdict #hs-modal-agenda-confirm-close'));
+        self::assertCount(1, $crawler->filter('#deadline-panel-dismiss'));
+        self::assertCount(0, $crawler->filter('#deadline-agenda #deadline-panel-dismiss'), 'The panel outlives the answer that closes it.');
+        self::assertCount(0, $crawler->filter('#deadline-agenda turbo-frame#deadline-panel-frame'));
     }
 
     /**

@@ -154,7 +154,7 @@ class LegalDeadlineAgendaTest extends KernelTestCase
         self::assertSame([], $this->agenda());
         self::assertSame([], $this->repo->findOverdueForUser($this->user));
         self::assertSame(
-            ['overdue' => 0, 'today' => 0, 'fatal30' => 0],
+            ['overdue' => 0, 'today' => 0, 'week' => 0, 'todo' => 0],
             $this->repo->countAgendaBuckets($this->user),
         );
     }
@@ -170,7 +170,7 @@ class LegalDeadlineAgendaTest extends KernelTestCase
         self::assertSame([], $this->agenda());
         self::assertSame([], $this->repo->findOverdueForUser($this->user));
         self::assertSame(
-            ['overdue' => 0, 'today' => 0, 'fatal30' => 0],
+            ['overdue' => 0, 'today' => 0, 'week' => 0, 'todo' => 0],
             $this->repo->countAgendaBuckets($this->user),
         );
     }
@@ -186,7 +186,7 @@ class LegalDeadlineAgendaTest extends KernelTestCase
         self::assertSame([], $this->agenda());
         self::assertSame([], $this->repo->findOverdueForUser($this->user));
         self::assertSame(
-            ['overdue' => 0, 'today' => 0, 'fatal30' => 0],
+            ['overdue' => 0, 'today' => 0, 'week' => 0, 'todo' => 0],
             $this->repo->countAgendaBuckets($this->user),
         );
     }
@@ -206,7 +206,7 @@ class LegalDeadlineAgendaTest extends KernelTestCase
         self::assertSame([], $this->repo->findOverdueForUser($this->user));
         self::assertSame([], $this->repo->findLongHorizonPrescriptionsForUser($this->user));
         self::assertSame(
-            ['overdue' => 0, 'today' => 1, 'fatal30' => 0],
+            ['overdue' => 0, 'today' => 1, 'week' => 0, 'todo' => 1],
             $this->repo->countAgendaBuckets($this->user),
         );
 
@@ -249,40 +249,52 @@ class LegalDeadlineAgendaTest extends KernelTestCase
             $agenda,
             static fn (LegalDeadline $d): bool => $d->getDeadlineDate()->format('Y-m-d') === $today->format('Y-m-d'),
         ));
-        $manualFatal30 = \count(array_filter(
+        $weekEnd = LegalDeadlineRepository::weekGroupEnd($today)->format('Y-m-d');
+        $manualWeek = \count(array_filter(
             $agenda,
-            static fn (LegalDeadline $d): bool => \in_array($d->getType(), [
-                DeadlineType::TIMBRARE,
-                DeadlineType::CERERE_IN_ANULARE,
-                DeadlineType::PRESCRIPTIE,
-                DeadlineType::PRESCRIPTIE_EXECUTARE,
-            ], true),
+            static fn (LegalDeadline $d): bool => $d->getDeadlineDate()->format('Y-m-d') > $today->format('Y-m-d')
+                && $d->getDeadlineDate()->format('Y-m-d') <= $weekEnd,
         ));
 
         self::assertSame(\count($this->repo->findOverdueForUser($this->user)), $buckets['overdue']);
         self::assertSame($manualToday, $buckets['today']);
-        self::assertSame($manualFatal30, $buckets['fatal30']);
-        self::assertSame(['overdue' => 2, 'today' => 2, 'fatal30' => 3], $buckets);
+        self::assertSame($manualWeek, $buckets['week']);
+        self::assertSame(\count($agenda) + $buckets['overdue'], $buckets['todo']);
+        self::assertSame(2, $buckets['overdue']);
+        self::assertSame(2, $buckets['today']);
+        self::assertSame(6, $buckets['todo']);
     }
 
-    public function testFatal30CountsOnlyTheIrreversibleTypesInsideTheHorizon(): void
+    /**
+     * "todo" is the first tab: everything inside the window, the expired terms of the
+     * debtor included. They are not arrears, yet the tab lists them in a group of their
+     * own, so a box leaving them out would state a number the list contradicts.
+     */
+    public function testTheFirstTabCountsTheExpiredTermsOfTheDebtorButTheArrearsDoNot(): void
     {
         $case = $this->createCase();
-        // DEPUNERE_CERERE is fatal too: filing past the six months of NCC art. 2540
-        // cancels the interruption produced by the summons, so the claim is met with
-        // prescription.
-        foreach ([DeadlineType::TIMBRARE, DeadlineType::CERERE_IN_ANULARE, DeadlineType::PRESCRIPTIE, DeadlineType::PRESCRIPTIE_EXECUTARE, DeadlineType::DEPUNERE_CERERE] as $fatal) {
-            $this->createDeadline($case, '+7 days', $fatal);
-        }
-        foreach ([DeadlineType::JUDECATA, DeadlineType::RASPUNS_SOMATIE, DeadlineType::OTHER] as $harmless) {
-            $this->createDeadline($case, '+7 days', $harmless);
-        }
-        // Fatal, but outside the horizon on either side.
-        $this->createDeadline($case, '-1 day', DeadlineType::TIMBRARE);
-        $this->createDeadline($case, '+31 days', DeadlineType::PRESCRIPTIE);
+        $this->createDeadline($case, '-6 days', DeadlineType::RASPUNS_SOMATIE);
+        $this->createDeadline($case, '-2 days', DeadlineType::TIMBRARE);
+        $this->createDeadline($case, '+30 days', DeadlineType::OTHER);
+        $this->createDeadline($case, '+31 days', DeadlineType::OTHER);
         $this->em->flush();
 
-        self::assertSame(5, $this->repo->countAgendaBuckets($this->user)['fatal30']);
+        $buckets = $this->repo->countAgendaBuckets($this->user);
+
+        self::assertSame(1, $buckets['overdue']);
+        self::assertSame(3, $buckets['todo']);
+    }
+
+    /** The week number starts tomorrow, so a term due today is not counted twice. */
+    public function testTheWeekCounterLeavesOutToday(): void
+    {
+        $case = $this->createCase();
+        $this->createDeadline($case, 'today');
+        $this->createDeadline($case, '+1 day');
+        $this->em->flush();
+
+        self::assertSame(1, $this->repo->countAgendaBuckets($this->user)['today']);
+        self::assertSame(1, $this->repo->countAgendaBuckets($this->user)['week']);
     }
 
     public function testOverdueListHoldsOnlyPastDatesOrderedAscending(): void
@@ -300,7 +312,7 @@ class LegalDeadlineAgendaTest extends KernelTestCase
     /**
      * The expiry of the debtor's own term (CPC art. 1015 para. 1) is what opens the
      * filing of the request, not a delay of the lawyer, so it must not reach the red
-     * section nor the number the sidebar badge and the "Overdue" pill both read.
+     * section nor the number the sidebar badge and the verdict both read.
      */
     public function testExpiredDebtorTermIsNeitherOverdueNorCountedAsSuch(): void
     {
@@ -406,21 +418,22 @@ class LegalDeadlineAgendaTest extends KernelTestCase
         self::assertCount(2, $result[0]->getLegalCase()->getDebtors());
     }
 
-    public function testLongHorizonPrescriptionsAreLimitedOrderedAndTypeFiltered(): void
+    /**
+     * One case per term: the terms of one case collapse on the nearest of them, so a term
+     * inside the window would take the farther ones of the same case out of this list.
+     */
+    public function testLongHorizonPrescriptionsAreOrderedAndTypeFiltered(): void
     {
-        $case = $this->createCase();
-        $near = $this->createDeadline($case, '+20 days', DeadlineType::PRESCRIPTIE);
-        $this->createDeadline($case, '+90 days', DeadlineType::TIMBRARE);
-        $far1 = $this->createDeadline($case, '+60 days', DeadlineType::PRESCRIPTIE);
-        $far2 = $this->createDeadline($case, '+40 days', DeadlineType::PRESCRIPTIE_EXECUTARE);
-        $far3 = $this->createDeadline($case, '+400 days', DeadlineType::PRESCRIPTIE);
+        $near = $this->createDeadline($this->createCase(), '+20 days', DeadlineType::PRESCRIPTIE);
+        $this->createDeadline($this->createCase(), '+90 days', DeadlineType::TIMBRARE);
+        $far1 = $this->createDeadline($this->createCase(), '+60 days', DeadlineType::PRESCRIPTIE);
+        $far2 = $this->createDeadline($this->createCase(), '+40 days', DeadlineType::PRESCRIPTIE_EXECUTARE);
+        $far3 = $this->createDeadline($this->createCase(), '+400 days', DeadlineType::PRESCRIPTIE);
         $this->em->flush();
 
         $result = $this->repo->findLongHorizonPrescriptionsForUser($this->user);
         self::assertSame([$far2->getId(), $far1->getId(), $far3->getId()], $this->idsOf($result));
         self::assertNotContains($near->getId(), $this->idsOf($result));
-
-        self::assertSame([$far2->getId(), $far1->getId()], $this->idsOf($this->repo->findLongHorizonPrescriptionsForUser($this->user, 2)));
     }
 
     public function testLongHorizonPrescriptionsIgnoreClosedDeletedAndCompletedRows(): void

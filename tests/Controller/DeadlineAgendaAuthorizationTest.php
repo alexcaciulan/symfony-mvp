@@ -183,12 +183,12 @@ final class DeadlineAgendaAuthorizationTest extends WebTestCase
         $this->client->request(
             'POST',
             $this->completeUrl($deadline),
-            ['_token' => 'not-the-token', '_context' => 'agenda', 'f' => 'fatal30'],
+            ['_token' => 'not-the-token', '_context' => 'agenda', 'fatal' => '1'],
             [],
             ['HTTP_ACCEPT' => self::TURBO_ACCEPT],
         );
 
-        self::assertResponseRedirects('/termene?f=fatal30');
+        self::assertResponseRedirects('/termene?fatal=1');
     }
 
     /**
@@ -257,8 +257,8 @@ final class DeadlineAgendaAuthorizationTest extends WebTestCase
      * the agenda describe work that no longer exists. What must never happen is the
      * platform pretending the consequence did not occur, and nothing here does: the
      * closing is written to the audit trail under the same action as any other, the
-     * date and the type are unchanged, and the row comes back on request, dimmed and
-     * with its "the consequence may already have occurred" marking intact.
+     * date and the type are unchanged, and the panel of the closed term keeps stating
+     * how far past its date it was and what missing it costs.
      */
     public function testAConsumedFatalTermPostedByHandIsClosedAndRecorded(): void
     {
@@ -293,16 +293,13 @@ final class DeadlineAgendaAuthorizationTest extends WebTestCase
     }
 
     /**
-     * And what the closing did not do: the date stands, the type stands, and the row
-     * comes back on request still carrying the sanction it was under. Closing is
-     * bookkeeping, not absolution.
+     * And what the closing did not do: the date stands, the type stands, and the closed
+     * term still states the sanction it was under. Closing is bookkeeping, not absolution.
      *
-     * Which of the two markings the second line gets is a decision, so it is written
-     * down rather than left to whichever branch happens to come first: on a closed row
-     * "finalizat" replaces "consecința s-a putut produce". The row keeps one short
-     * marking, and the pair that stays visible, the badge naming the sanction and the
-     * "overdue by N days" text, already says the fatal term was missed. Flipping the
-     * precedence would print a row that reads as unresolved work.
+     * The closed row stays short on purpose: "finalizat" replaces the marking that the
+     * consequence may have occurred, because the same row with that marking would read as
+     * unresolved work. What the marking said moves to the panel, which still prints how
+     * far past its date the term was and what missing it costs.
      */
     public function testClosingAConsumedFatalTermChangesNothingAboutTheConsequence(): void
     {
@@ -329,21 +326,26 @@ final class DeadlineAgendaAuthorizationTest extends WebTestCase
         );
 
         $translator = static::getContainer()->get('translator');
-        $row = $this->client->request('GET', '/termene?completed=1')->filter('#deadline-row-' . $deadline->getId());
+        $row = $this->client->request('GET', '/termene?tab=finalizate')->filter('#deadline-row-' . $deadline->getId());
         self::assertCount(1, $row);
 
         $text = $row->text();
         self::assertStringContainsString($translator->trans('deadlines.row.completed'), $text);
         self::assertStringNotContainsString($translator->trans('deadlines.row.consequence_consumed'), $text);
+        self::assertSame('0', $row->attr('data-consumed'));
+
+        $panel = $this->client
+            ->request('GET', '/termene/' . $deadline->getId() . '/detalii', [], [], ['HTTP_TURBO_FRAME' => 'deadline-panel-frame'])
+            ->filter('[data-testid="deadline-panel"]');
         self::assertStringContainsString(
-            $translator->trans('enum.deadline_consequence.CASE_ANNULMENT'),
-            $text,
-            'The badge still names the sanction the term carried.',
+            $translator->trans('deadlines.panel_type.TIMBRARE.consequence'),
+            $panel->text(),
+            'The panel still names the sanction the term carried.',
         );
         self::assertStringContainsString(
-            $translator->trans('deadlines.row.overdue_by', ['%count%' => 3]),
-            $text,
-            'And the line still says the term was missed, by how much.',
+            $translator->trans('deadlines.panel.completed_on'),
+            $panel->text(),
+            'And it dates the closing, instead of counting days on a term no longer running.',
         );
     }
 

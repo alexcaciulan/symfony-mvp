@@ -18,7 +18,6 @@ use App\Service\Case\AccessoryComputabilityChecker;
 use App\Service\Case\CaseAccessoryService;
 use App\Service\Case\CaseWorkflowService;
 use App\Service\Case\OverviewContextBuilder;
-use App\Service\Deadline\AgendaResponseFactory;
 use App\Service\Document\PaymentNoticeGeneratorService;
 use App\Service\Validation\OpAdmissibilityValidator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -29,12 +28,7 @@ use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Contracts\Translation\TranslatorInterface;
 
-/**
- * Generating the summons. The route also serves the global agenda, where a limitation
- * row on a case still in the amiable stage offers this act as its primary button.
- * Which of the two is acting is told by the `_context` field the agenda posts; without
- * it every answer is the one the case page has always received.
- */
+/** Generating the summons, from the case page only: the act consumes a subscription slot. */
 final class CaseSummonsController extends AbstractController
 {
     private const C4_MODAL_ID = 'hs-modal-c4-summons';
@@ -46,7 +40,6 @@ final class CaseSummonsController extends AbstractController
         private readonly AuditLogService $auditLogService,
         private readonly SubscriptionService $subscriptionService,
         private readonly OverviewContextBuilder $contextBuilder,
-        private readonly AgendaResponseFactory $agendaResponses,
         private readonly EntityManagerInterface $em,
         private readonly CaseAccessoryService $caseAccessories,
         private readonly AccessoryComputabilityChecker $accessoryChecker,
@@ -178,24 +171,6 @@ final class CaseSummonsController extends AbstractController
             fn (AdmissibilityIssue $issue): string => $this->translator->trans($issue->messageKey, $issue->params),
             $toastIssues,
         );
-
-        if ($this->agendaResponses->isAgendaRequest($request)) {
-            if ($this->agendaResponses->wantsTurboStream($request)) {
-                $user = $this->getUser();
-                if (!$user instanceof User) {
-                    throw $this->createAccessDeniedException();
-                }
-
-                return $this->agendaResponses->stream($request, $user, $toastVariant, $toastKey, null, $extraToastKey, $toastDetails);
-            }
-
-            $this->flashToast($toastVariant, $toastKey, $toastIssues);
-            if ($extraToastKey !== null) {
-                $this->addFlash('warning', $extraToastKey);
-            }
-
-            return $this->agendaResponses->redirect($request);
-        }
 
         if (str_contains((string) $request->headers->get('Accept', ''), 'text/vnd.turbo-stream.html')) {
             $context = $updateRegions ? $this->contextBuilder->build($case) : ['case' => $case];

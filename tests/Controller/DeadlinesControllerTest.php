@@ -13,6 +13,7 @@ use App\Service\Deadline\DeadlineService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\DomCrawler\Crawler;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 
 /**
@@ -72,9 +73,10 @@ final class DeadlinesControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains(
-            'h1',
+            '#deadline-verdict p',
             static::getContainer()->get('translator')->trans('deadlines.heading'),
         );
+        self::assertSelectorExists('h1[data-testid="agenda-verdict"]');
     }
 
     /**
@@ -154,7 +156,12 @@ final class DeadlinesControllerTest extends WebTestCase
         $fatalRow = $crawler->filter('#deadline-row-' . $fatal->getId());
         self::assertCount(1, $fatalRow);
         self::assertCount(0, $fatalRow->filter('form'), 'A consumed fatal term must not be closeable.');
-        self::assertStringContainsString($translator->trans('deadlines.action.open_case'), $fatalRow->text());
+        self::assertSame(
+            $translator->trans('deadlines.action.open_case'),
+            $fatalRow->filter('[data-row-slot="case"]')->attr('aria-label'),
+        );
+        self::assertCount(0, $fatalRow->filter('[data-row-slot="close"]'));
+        self::assertSame('1', $fatalRow->attr('data-consumed'));
         self::assertStringContainsString($translator->trans('deadlines.row.consequence_consumed'), $fatalRow->text());
 
         $harmlessRow = $crawler->filter('#deadline-row-' . $harmless->getId());
@@ -162,36 +169,6 @@ final class DeadlinesControllerTest extends WebTestCase
             1,
             $harmlessRow->filter(sprintf('form[action="/case/%d/deadline/%d/complete"]', $case->getId(), $harmless->getId())),
         );
-    }
-
-    /**
-     * The blockage zone justifies the page, but it is not what the lawyer reads every
-     * morning: expanded it pushes the agenda below the fold. It is a native <details>,
-     * so the collapsed state lives on the element itself and is announced without any
-     * ARIA attribute of ours, which would go stale the moment the zone is opened.
-     */
-    public function testBlockageZoneIsRenderedCollapsed(): void
-    {
-        $user = $this->makeUser($this->prefix . '@test.com');
-        $this->makeCase($user, CaseStatus::ORDONANTA_EMISA);
-        $this->em->flush();
-
-        $this->client->loginUser($user);
-        $crawler = $this->client->request('GET', '/termene');
-
-        self::assertResponseIsSuccessful();
-
-        $zone = $crawler->filter('details');
-        self::assertCount(1, $zone);
-        self::assertNull($zone->attr('open'), 'The blockage zone must render collapsed.');
-        self::assertNull(
-            $zone->filter('summary')->attr('aria-expanded'),
-            'A native disclosure carries its own state; a hardcoded aria-expanded would lie once opened.',
-        );
-
-        $translator = static::getContainer()->get('translator');
-        self::assertStringContainsString($translator->trans('deadlines.blockages.heading'), $zone->filter('summary')->text());
-        self::assertStringContainsString($translator->trans('deadlines.blockages.open'), $zone->filter('summary')->text());
     }
 
     /**
@@ -209,27 +186,28 @@ final class DeadlinesControllerTest extends WebTestCase
         $this->em->flush();
 
         $this->client->loginUser($user);
-        $crawler = $this->client->request('GET', '/termene');
+        $crawler = $this->client->request('GET', '/termene?tab=de-completat');
 
         self::assertResponseIsSuccessful();
 
         $translator = static::getContainer()->get('translator');
-        $zone = $crawler->filter('details');
+        $row = $crawler->filter('[data-testid="blockage-row"]');
 
+        self::assertCount(1, $row);
         self::assertStringContainsString(
             $translator->trans('deadlines.blockage.SUMMONS_COMMUNICATION_MISSING.state'),
-            $zone->text(),
+            $row->text(),
         );
-        self::assertStringContainsString(
+        self::assertSame(
             $translator->trans('deadlines.blockage.SUMMONS_COMMUNICATION_MISSING.action'),
-            $zone->text(),
+            $row->filter('[data-row-slot="case"]')->attr('aria-label'),
         );
         self::assertCount(
             0,
-            $crawler->filter('[id^="deadline-row-"]'),
+            $this->client->request('GET', '/termene')->filter('[id^="deadline-row-"]'),
             'No agenda row is born from a summons whose service is not recorded.',
         );
-        self::assertSame('1', trim($crawler->filter('[data-counter="blocked"] strong')->text()));
+        self::assertSame('1', trim($crawler->filter('[data-counter="blocked"]')->text()));
     }
 
     /**
@@ -246,11 +224,11 @@ final class DeadlinesControllerTest extends WebTestCase
         $this->em->flush();
 
         $this->client->loginUser($user);
-        $crawler = $this->client->request('GET', '/termene');
+        $crawler = $this->client->request('GET', '/termene?tab=de-completat');
 
         self::assertResponseIsSuccessful();
 
-        $link = $crawler->filter('details a[data-action]');
+        $link = $crawler->filter('[data-testid="blockage-row"] a[data-row-slot="case"]');
         self::assertCount(1, $link);
         self::assertSame('agenda-dialog#openDialog', $link->attr('data-action'));
         self::assertSame('hs-modal-set-summons-communication-date', $link->attr('data-agenda-dialog-dialog-param'));
@@ -274,16 +252,19 @@ final class DeadlinesControllerTest extends WebTestCase
         $this->em->flush();
 
         $this->client->loginUser($user);
-        $crawler = $this->client->request('GET', '/termene');
+        $crawler = $this->client->request('GET', '/termene?tab=de-completat');
 
         self::assertResponseIsSuccessful();
 
-        $zone = $crawler->filter('details');
-        self::assertCount(0, $zone->filter('form'));
-        self::assertCount(0, $zone->filter('a[data-action]'));
-        self::assertStringContainsString(
+        $row = $crawler->filter('[data-testid="blockage-row"]');
+        self::assertCount(0, $row->filter('form'));
+
+        $link = $row->filter('a[data-row-slot="case"]');
+        self::assertNull($link->attr('data-action'));
+        self::assertSame('/case/' . $case->getId(), $link->attr('href'));
+        self::assertSame(
             static::getContainer()->get('translator')->trans('deadlines.blockage.RULING_COMMUNICATION_MISSING.action'),
-            $zone->text(),
+            $link->attr('aria-label'),
         );
     }
 
@@ -302,8 +283,12 @@ final class DeadlinesControllerTest extends WebTestCase
         $crawler = $this->client->request('GET', '/termene');
 
         self::assertResponseIsSuccessful();
-        self::assertSame('1', trim($crawler->filter('[data-counter="overdue"] strong')->text()));
-        self::assertSame('1', trim($crawler->filter('[data-counter="today"] strong')->text()));
+        self::assertSame('2', trim($crawler->filter('[data-counter="todo"]')->text()));
+
+        $translator = static::getContainer()->get('translator');
+        $verdict = $crawler->filter('[data-testid="agenda-verdict"]')->text();
+        self::assertStringContainsString($translator->trans('deadlines.verdict.overdue', ['%count%' => 1]), $verdict);
+        self::assertStringContainsString($translator->trans('deadlines.verdict.today', ['%count%' => 1]), $verdict);
     }
 
     /**
@@ -327,11 +312,17 @@ final class DeadlinesControllerTest extends WebTestCase
 
         $translator = static::getContainer()->get('translator');
         self::assertCount(1, $crawler->filter('#deadline-row-' . $summonsAnswer->getId()));
-        self::assertSame('0', trim($crawler->filter('[data-counter="overdue"] strong')->text()));
-
-        $headings = $crawler->filter('h2')->each(static fn ($node): string => $node->text());
-        self::assertStringContainsString($translator->trans('deadlines.section.unblocked'), implode(' | ', $headings));
-        self::assertStringNotContainsString($translator->trans('deadlines.section.overdue'), implode(' | ', $headings));
+        self::assertSame('1', trim($crawler->filter('[data-counter="todo"]')->text()), 'The first tab still lists it.');
+        self::assertStringContainsString(
+            $translator->trans('deadlines.section.unblocked'),
+            $crawler->filter('[data-group="unblocked"]')->text(),
+        );
+        self::assertCount(0, $crawler->filter('[data-group="overdue"]'));
+        self::assertStringNotContainsString(
+            $translator->trans('deadlines.verdict.overdue', ['%count%' => 1]),
+            $crawler->filter('[data-testid="agenda-verdict"]')->text(),
+            'Its expiry is not a delay of the lawyer, so the sentence must not read as one.',
+        );
     }
 
     /**
@@ -360,16 +351,20 @@ final class DeadlinesControllerTest extends WebTestCase
         $holdsUntil = static::getContainer()->get(DeadlineService::class)
             ->filingInterruptionTermEnd($communicatedOn)->end;
         $params = ['%date%' => $holdsUntil->format('d.m.Y')];
-        $marker = $crawler->filter('#deadline-row-' . $limitation->getId() . ' span[title]')->last();
+        $marker = $crawler->filter('#deadline-row-' . $limitation->getId() . ' [data-testid="row-date-note"] .truncate');
 
         self::assertSame(
             $translator->trans('deadlines.row.estimate.prescription_interrupted.mark', $params),
             trim($marker->text()),
         );
         self::assertStringContainsString($holdsUntil->format('d.m.Y'), trim($marker->text()));
-        self::assertSame(
+
+        // The full sentence stays out of the row and is stated by the panel.
+        $panel = $this->client->request('GET', '/termene/' . $limitation->getId() . '/detalii', [], [], ['HTTP_TURBO_FRAME' => 'deadline-panel-frame']);
+        self::assertResponseIsSuccessful();
+        self::assertStringContainsString(
             $translator->trans('deadlines.row.estimate.prescription_interrupted.note', $params),
-            $marker->attr('title'),
+            $panel->filter('[data-testid="deadline-panel"]')->text(),
         );
     }
 
@@ -392,7 +387,7 @@ final class DeadlinesControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
 
         $translator = static::getContainer()->get('translator');
-        $marker = $crawler->filter('#deadline-row-' . $limitation->getId() . ' span[title]')->last();
+        $marker = $crawler->filter('#deadline-row-' . $limitation->getId() . ' [data-testid="row-date-note"] .truncate');
 
         self::assertSame(
             $translator->trans('deadlines.row.estimate.prescription_interrupted_by_filing.mark'),
@@ -444,13 +439,12 @@ final class DeadlinesControllerTest extends WebTestCase
         $crawler = $this->client->request('GET', '/termene');
 
         self::assertResponseIsSuccessful();
-        self::assertSame('1', trim($crawler->filter('[data-counter="blocked"] strong')->text()));
+        self::assertSame('1', trim($crawler->filter('[data-counter="blocked"]')->text()));
     }
 
     /**
-     * An account with nothing tracked shows neither the risk bar nor the blockage
-     * zone: four counters on zero read as a broken screen. What it shows instead is
-     * which terms the application will watch.
+     * An account with nothing tracked shows no boxes: four counters on zero read as a
+     * broken screen. What it shows instead is which terms the application will watch.
      */
     public function testAccountWithoutAnyDeadlineShowsWhatWillBeTracked(): void
     {
@@ -462,15 +456,22 @@ final class DeadlinesControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertCount(1, $crawler->filter('[data-state="no-deadlines"]'));
-        self::assertCount(0, $crawler->filter('[data-counter="overdue"]'));
+        self::assertCount(0, $crawler->filter('[data-counter]'));
+        self::assertCount(0, $crawler->filter('[data-tab]'));
+
+        $translator = static::getContainer()->get('translator');
+        self::assertSame(
+            $translator->trans('deadlines.verdict.nothing_tracked'),
+            trim($crawler->filter('[data-testid="agenda-verdict"]')->text()),
+        );
     }
 
     /**
-     * Cases exist and the limitation periods are still tracked, but nothing falls
-     * inside the window: the bar collapses onto the line that confirms the zero, and
-     * the rail keeps showing that the tracking goes on.
+     * Cases exist and the limitation periods are still tracked, but nothing falls inside
+     * the window. The sentence confirms the zero, the boxes stay, and the empty state says
+     * where the next term is, because "nothing" alone reads like a page that failed.
      */
-    public function testEmptyWindowWithLimitationPeriodsShowsTheCleanRegisterState(): void
+    public function testEmptyWindowWithLimitationPeriodsPointsToTheNextOne(): void
     {
         $user = $this->makeUser($this->prefix . '@test.com');
         $case = $this->makeCase($user);
@@ -481,14 +482,37 @@ final class DeadlinesControllerTest extends WebTestCase
         $crawler = $this->client->request('GET', '/termene');
 
         self::assertResponseIsSuccessful();
-        self::assertCount(1, $crawler->filter('[data-state="clean"]'));
+
+        $translator = static::getContainer()->get('translator');
         self::assertCount(1, $crawler->filter('[data-state="agenda-empty"]'));
-        self::assertCount(0, $crawler->filter('[data-counter="overdue"]'));
+        self::assertCount(1, $crawler->filter('[data-state="agenda-empty"] a[href="/termene?tab=prescriptii"]'));
+        self::assertSame('0', trim($crawler->filter('[data-counter="todo"]')->text()));
+        self::assertSame('1', trim($crawler->filter('[data-counter="prescriptions"]')->text()));
+        self::assertSame(
+            $translator->trans('deadlines.verdict.nothing'),
+            trim($crawler->filter('[data-testid="agenda-verdict"]')->text()),
+        );
+    }
+
+    /** No limitation term on the account: nothing to point to, and no link pretending otherwise. */
+    public function testEmptyWindowWithoutLimitationPeriodsOffersNoLinkToThem(): void
+    {
+        $user = $this->makeUser($this->prefix . '@test.com');
+        $case = $this->makeCase($user);
+        $closed = $this->makeDeadline($case, '-2 days', DeadlineType::OTHER);
+        $closed->setCompleted(true);
+        $this->em->flush();
+
+        $this->client->loginUser($user);
+        $crawler = $this->client->request('GET', '/termene');
+
+        self::assertCount(1, $crawler->filter('[data-state="agenda-empty"]'));
+        self::assertCount(0, $crawler->filter('[data-state="agenda-empty"] a'));
     }
 
     /**
-     * A row carries the buttons the resolver chose for it. A stamping term is done
-     * on the spot, so its single button is the close, posting to the route the case
+     * A row carries the controls the resolver chose for it. A stamping term can be
+     * closed from here, so its second control is a form, posting to the route the case
      * page has always used.
      */
     public function testRowRendersTheResolvedActionAsAFormOnTheExistingRoute(): void
@@ -510,9 +534,9 @@ final class DeadlinesControllerTest extends WebTestCase
     }
 
     /**
-     * A hearing is attended at the court and its hour only lives on the portal, so
-     * the primary button is a link there and the close stays a second, outlined
-     * control. Both have to survive the trip to the page.
+     * A hearing is attended at the court and its hour only lives on the portal, so the
+     * first control is a link there and the close stays the second one. Both have to
+     * survive the trip to the page.
      */
     public function testHearingRowLinksToThePortalTabAndKeepsTheCloseButton(): void
     {
@@ -533,44 +557,46 @@ final class DeadlinesControllerTest extends WebTestCase
     }
 
     /**
-     * Every time bucket builds its own header, with the weekday and the date spelled
-     * out. They are only exercised when a bucket actually holds something, so the
-     * page is asked to render one row in each of them at once.
+     * Every time bucket builds its own band, in render order. They are only exercised
+     * when a bucket actually holds something, so the page is asked to render a row in
+     * each of them at once. Tomorrow is a day of the week group on any day of the week,
+     * Sunday included.
      */
-    public function testEveryTimeBucketRendersItsHeader(): void
+    public function testEveryTimeBucketRendersItsBandInOrder(): void
     {
         $user = $this->makeUser($this->prefix . '@test.com');
         $case = $this->makeCase($user);
 
         $dates = ['-2 days', 'today', '+1 day', '+20 days'];
-        // Only up to Friday is there still a "rest of the week" left to fill.
-        if ((int) (new \DateTimeImmutable('today'))->format('N') <= 5) {
-            $dates[] = 'sunday this week';
-        }
         foreach ($dates as $date) {
             $this->makeDeadline($case, $date, DeadlineType::OTHER);
         }
+        $debtorCase = $this->makeCase($user, CaseStatus::SOMATIE_TRIMISA);
+        $debtorCase->setPaymentNoticeCommunicationDate(new \DateTimeImmutable('-20 days'));
+        $this->makeDeadline($debtorCase, '-4 days', DeadlineType::RASPUNS_SOMATIE);
         $this->em->flush();
 
         $this->client->loginUser($user);
         $crawler = $this->client->request('GET', '/termene');
 
         self::assertResponseIsSuccessful();
-        self::assertCount(\count($dates), $crawler->filter('article[id^="deadline-row-"]'));
-        // One heading per bucket: with no blockage and no rail on this account, the
-        // group headers are the only h2 on the page.
-        self::assertCount(\count($dates), $crawler->filter('h2'));
+        self::assertCount(\count($dates) + 1, $crawler->filter('article[id^="deadline-row-"]'));
+        self::assertSame(
+            ['overdue', 'today', 'unblocked', 'week', 'later'],
+            $crawler->filter('[data-group]')->each(static fn (Crawler $group): string => (string) $group->attr('data-group')),
+        );
     }
 
     /**
-     * The 30-day bucket is the only one that can grow long enough to push the urgent
-     * sections off the first screen, so past ten rows it folds into a disclosure.
+     * The later bucket is the only one that can grow long enough to push the urgent
+     * sections off the first screen, so past ten rows it folds into a disclosure. It is
+     * the threshold that matters: ten rows stay open.
      */
-    public function testTheThirtyDayBucketFoldsWhenItGrowsLong(): void
+    public function testTheLaterBucketFoldsAboveTenRows(): void
     {
         $user = $this->makeUser($this->prefix . '@test.com');
         $case = $this->makeCase($user);
-        for ($i = 0; $i < 11; ++$i) {
+        for ($i = 0; $i < 10; ++$i) {
             $this->makeDeadline($case, '+20 days', DeadlineType::OTHER);
         }
         $this->em->flush();
@@ -578,9 +604,22 @@ final class DeadlinesControllerTest extends WebTestCase
         $this->client->loginUser($user);
         $crawler = $this->client->request('GET', '/termene');
 
+        self::assertCount(0, $crawler->filter('details[data-group="later"]'), 'Ten rows are not long.');
+        self::assertCount(1, $crawler->filter('section[data-group="later"]'));
+
+        $this->makeDeadline(
+            $this->em->getRepository(LegalCase::class)->find($case->getId()),
+            '+20 days',
+            DeadlineType::OTHER,
+        );
+        $this->em->flush();
+
+        $crawler = $this->client->request('GET', '/termene');
+
         self::assertResponseIsSuccessful();
         self::assertCount(11, $crawler->filter('article[id^="deadline-row-"]'));
-        self::assertCount(1, $crawler->filter('details summary'));
+        self::assertCount(1, $crawler->filter('details[data-group="later"] summary'));
+        self::assertNull($crawler->filter('details[data-group="later"]')->attr('open'));
     }
 
     private function makeUser(string $email): User

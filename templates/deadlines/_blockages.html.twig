@@ -1,80 +1,68 @@
 {# Cases whose next step is stuck: most often a fatal deadline that cannot be computed
    because the fact its term runs from has no date recorded, once a filing held back for
    want of a piece the procedure imposes. The agenda can only list terms that exist; this
-   zone is what is missing from it, which is why the page needs it at all.
+   tab is what is missing from it.
 
-   Collapsed by default: it justifies the page, but it is not what the lawyer reads
-   every morning, and expanded it pushed the agenda below the fold. The header stays
-   visible, so a blockage never becomes invisible.
+   Where an agenda row prints a date, this row prints the state the case is in: there is
+   no date to print, and the whole point is that the application refuses to invent one.
+   The row opens the panel, which states what is missing, why and at what cost.
 
-   Where an agenda row prints a date, this row prints the state the case is in. There
-   is no date to print, and the whole point of the zone is that the application refuses
-   to invent one.
+   @var blockages list<App\Service\Deadline\DeadlineBlockageView>
+   @var filter    App\Service\Deadline\DeadlineAgendaFilter #}
 
-   The button posts to the route that records the missing date, through the shared
-   action template: the agenda collects the communication date of the summons in its
-   own dialog, and every other act stays a link into the case, which is also what a
-   browser running no scripts gets. Authorization and audit stay on the existing
-   routes.
+{% from 'deadlines/_icons.html.twig' import chevron_right %}
 
-   @var blockages     list<App\Service\Deadline\DeadlineBlockageView>
-   @var filter_fields map active filter, carried by the forms of the row #}
+<ul class="divide-y divide-slate-100 dark:divide-slate-800">
+    {% for row in blockages %}
+        {% set legal_case = row.legalCase() %}
+        {% set reason = row.reason() %}
+        {% set debtor = legal_case.primaryDebtor %}
+        {% set case_number = legal_case.courtCaseNumber ?: legal_case.caseNumber %}
+        {% set kind = reason.kind() %}
+        <li data-testid="blockage-row" data-blockage-reason="{{ reason.value }}" class="relative flex items-center gap-3 lg:grid lg:gap-x-5 lg:grid-cols-[6.5rem_7.5rem_minmax(0,1fr)_11.5rem] 2xl:grid-cols-[6.5rem_7.5rem_minmax(0,1fr)_6.5rem_11.5rem] min-[105rem]:grid-cols-[6.5rem_7.5rem_minmax(0,1fr)_13rem_6.5rem_11.5rem] px-5 sm:px-6 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+            <a href="{{ path('case_overview', { id: legal_case.id }) }}"
+               class="absolute inset-0"
+               data-action="deadline-panel#open"
+               data-deadline-panel-url-param="{{ path('app_deadlines_blockage_panel', { id: legal_case.id } + filter.queryParameters()) }}"
+               aria-label="{{ 'deadlines.row.details_aria'|trans({ '%type%': reason.label()|trans, '%debtor%': debtor ? debtor.name : case_number, '%case%': case_number }) }}"></a>
 
-{% from 'deadlines/_icons.html.twig' import triangle, chevron %}
-
-<details class="group rounded-2xl border border-slate-200 dark:border-slate-800 border-l-2 border-l-amber-400 bg-white dark:bg-slate-900 shadow-soft overflow-hidden">
-    <summary class="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex items-start gap-3 cursor-pointer list-none [&::-webkit-details-marker]:hidden">
-        <span class="mt-0.5 inline-flex items-center justify-center size-6 rounded-lg bg-amber-100 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 shrink-0">
-            {{ triangle('size-3.5') }}
-        </span>
-        <div class="flex-1 min-w-0">
-            <h2 class="text-sm font-semibold">
-                {{ 'deadlines.blockages.heading'|trans }}
-                <span class="ml-1 tnum text-amber-700 dark:text-amber-400">{{ 'deadlines.blockages.count'|trans({ '%count%': blockages|length }) }}</span>
-            </h2>
-            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{{ 'deadlines.blockages.description'|trans }}</p>
-        </div>
-        <span class="shrink-0 inline-flex items-center gap-1.5 py-1 px-2 rounded-lg text-xs font-semibold text-lex-navy dark:text-blue-400">
-            <span class="group-open:hidden">{{ 'deadlines.blockages.open'|trans }}</span>
-            <span class="hidden group-open:inline">{{ 'deadlines.blockages.close'|trans }}</span>
-            {{ chevron('size-4 transition-transform group-open:rotate-180') }}
-        </span>
-    </summary>
-
-    <div class="divide-y divide-slate-100 dark:divide-slate-800">
-        {% for row in blockages %}
-            {% set legal_case = row.legalCase() %}
-            {% set reason = row.reason() %}
-            {% set debtor = legal_case.primaryDebtor %}
-            <div class="px-4 py-3 flex flex-col lg:flex-row lg:items-center gap-3">
-                <div class="flex-1 min-w-0">
-                    <div class="flex flex-wrap items-center gap-1.5 text-sm font-semibold">
-                        <a href="{{ path('case_overview', { id: legal_case.id }) }}" class="hover:underline {{ legal_case.courtCaseNumber ? 'font-mono' : '' }}">{{ legal_case.courtCaseNumber ?: legal_case.caseNumber }}</a>
-                        {% if not legal_case.courtCaseNumber %}<span class="text-slate-500 dark:text-slate-400 font-normal">{{ 'deadlines.row.internal_number'|trans }}</span>{% endif %}
-                        {% if debtor %}
-                            <span class="text-slate-500 dark:text-slate-400 font-normal" aria-hidden="true">·</span><span class="font-semibold">{{ debtor.name }}</span>
-                        {% endif %}
-                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ring-1 bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/50">
-                            {{ reason.stateLabel()|trans }}
-                        </span>
-                    </div>
-                    <div class="mt-0.5 text-xs text-slate-600 dark:text-slate-400">
-                        {{ 'deadlines.blockages.missing'|trans }}
-                        <strong class="font-semibold text-slate-800 dark:text-slate-200">{{ reason.missingDeadlineLabel()|trans }}</strong>
-                        ({{ reason.legalBasisLabel()|trans }}). {{ reason.causeLabel()|trans }}
-                    </div>
-                    <div class="mt-0.5 text-xs text-amber-700 dark:text-amber-400">{{ reason.consequenceLabel()|trans }}</div>
+            <div class="hidden lg:block pointer-events-none text-[10px] leading-[13px] font-bold uppercase tracking-[.08em] text-slate-500 dark:text-slate-400">{{ ('deadlines.blockage_kind.' ~ kind ~ '.label')|trans }}</div>
+            <div class="w-[5.25rem] sm:w-28 lg:w-auto shrink-0 pointer-events-none text-[13px] leading-4 font-semibold text-slate-700 dark:text-slate-300">{{ reason.stateLabel()|trans }}</div>
+            <div class="min-w-0 flex-1 pointer-events-none">
+                <div class="flex flex-wrap sm:flex-nowrap items-center gap-x-2.5 gap-y-0.5 min-w-0">
+                    <span class="sm:truncate text-sm leading-5 font-semibold text-slate-900 dark:text-slate-100">{{ debtor ? debtor.name : case_number }}</span>
+                    {% if reason.concernsFatalTerm() %}
+                        {{ include('deadlines/_row_mark.html.twig', {
+                            label: 'deadlines.row.fatal'|trans,
+                            hint: reason.consequenceLabel()|trans,
+                            dot: 'bg-amber-500',
+                            testid: 'row-fatal',
+                        }, with_context = false) }}
+                    {% endif %}
                 </div>
-                <div class="shrink-0 self-start lg:self-auto flex">
-                    {{ include('deadlines/_row_action.html.twig', {
-                        button: row.action,
-                        case_id: legal_case.id,
-                        style: 'primary',
-                        icon: false,
-                        filter_fields: filter_fields|default({}),
-                    }, with_context = false) }}
+                <div class="mt-0.5 sm:truncate text-[13px] leading-5 text-slate-500 dark:text-slate-400">
+                    {{ reason.label()|trans }} <span aria-hidden="true">·</span>
+                    <span class="font-mono text-xs whitespace-nowrap">{{ case_number }}</span>
                 </div>
             </div>
-        {% endfor %}
-    </div>
-</details>
+            <div class="hidden min-[105rem]:block min-w-0 pointer-events-none truncate text-[13px] text-slate-500 dark:text-slate-400">{{ legal_case.court ? legal_case.court.name : 'deadlines.row.no_court'|trans }}</div>
+            <div class="hidden 2xl:block pointer-events-none text-right text-[13px] tnum text-slate-700 dark:text-slate-300">
+                {%- if legal_case.amount %}{{ legal_case.amount|number_format(0, ',', '.') }} {{ legal_case.currency }}{% endif -%}
+            </div>
+            <div class="hidden sm:flex items-center justify-end gap-2 lg:justify-self-end w-[11.5rem] shrink-0">
+                {{ include('deadlines/_row_action.html.twig', {
+                    button: row.action,
+                    case_id: legal_case.id,
+                    variant: 'short',
+                    tone: 'outline',
+                    glyph: { date: 'calendar', piece: 'upload', number: 'hash' }[kind],
+                    short_label: ('deadlines.blockage_kind.' ~ kind ~ '.action')|trans,
+                    slot: 'case',
+                    filter_fields: filter.hiddenFields(),
+                }, with_context = false) }}
+                <span class="size-9" aria-hidden="true"></span>
+            </div>
+            {{ chevron_right('size-4 text-slate-400 shrink-0 sm:hidden pointer-events-none') }}
+        </li>
+    {% endfor %}
+</ul>

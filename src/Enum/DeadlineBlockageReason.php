@@ -78,6 +78,33 @@ enum DeadlineBlockageReason: string
         return $this->key('label');
     }
 
+    /** What has to be supplied, which sets the column label and the short button of the row. */
+    public function kind(): string
+    {
+        return match ($this) {
+            self::SUMMONS_PROOF_MISSING => 'piece',
+            self::ENFORCEMENT_REGISTRATION_NUMBER_MISSING => 'number',
+            default => 'date',
+        };
+    }
+
+    /**
+     * Whether the missing act concerns a term whose miss cannot be undone. While the fact
+     * has no date the application creates no term and sends no alert, yet the real term
+     * may already be running, so these rows carry the same mark as a fatal term.
+     */
+    public function concernsFatalTerm(): bool
+    {
+        return match ($this) {
+            self::SUMMONS_COMMUNICATION_MISSING,
+            self::RULING_COMMUNICATION_MISSING,
+            self::STAMP_DUTY_NOTICE_MISSING,
+            self::ANNULMENT_RULING_COMMUNICATION_MISSING,
+            self::EXECUTION_ANCHOR_MISSING => true,
+            default => false,
+        };
+    }
+
     /**
      * The state the case is in, in two or three words, printed where a term would
      * print its date. These rows have no date to print, and inventing one is exactly

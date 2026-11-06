@@ -38,44 +38,22 @@
    transmission, the tab stays the next step until the lawyer declares the filing date
    or while a late bounce waits for review. #}
 {% set filing_panel_state = filing_panel|default(null) %}
-{% set has_email_filing = filing_package|default(null) or filing_submission|default(null) %}
-{% set filing_link = filing_panel_state and filing_tab_visible|default(false) and (
-    (case.status.value == 'CERERE_GENERATA' and has_email_filing)
-    or (case.status.value == 'CERERE_DEPUSA' and case.filingChannel and case.filingChannel.value == 'EMAIL' and (case.filedAt is null or filing_late_bounce_review|default(false)))
+{% set next_step = case_next_step(
+    case,
+    filing_panel_state is not null and filing_tab_visible|default(false),
+    filing_package|default(null) is not null or filing_submission|default(null) is not null,
+    filing_late_bounce_review|default(false),
+    portal_ruling_proposal|default(null) is not null
 ) %}
+{% set filing_link = next_step.filingLink %}
 {% set has_primary = filing_link or case.status.value == 'AMIABIL' or case.status.value == 'CERERE_DEPUSA' or primary %}
 
 {# A band above with a filled button comes first: the hero CTA steps back to an outline.
    Each test mirrors the visibility test of its band template. #}
-{% set blocked_by = null %}
-{% if case.status.value == 'SOMATIE_TRIMISA' and case.paymentNoticeCommunicationDate is null %}
-    {% set blocked_by = 'summons_blocked' %}
-{# Counted like the band does: the petition cannot be generated without the proof. #}
-{% elseif case.status.value == 'SOMATIE_TRIMISA' and case.documents|filter(d => d.documentType and d.documentType.value == 'dovada_comunicare')|length == 0 %}
-    {% set blocked_by = 'proof_blocked' %}
-{% elseif case.status.value in ['ORDONANTA_EMISA', 'IN_ANULARE'] and case.rulingCommunicationDate is null %}
-    {% set blocked_by = 'ruling_blocked' %}
-{% elseif portal_ruling_proposal|default(null) %}
-    {% set blocked_by = 'portal_ruling_blocked' %}
-{% elseif not case.status.isTerminal() and case.courtCaseNumber is null and case.portalProposedNumber %}
-    {% set blocked_by = 'portal_number_blocked' %}
-{% elseif not case.status.isTerminal() and case.courtCaseNumber and case.hasReachedCourt() and case.stampDutyStatus.value in ['NEACHITATA', 'AMANATA_REGULARIZARE'] %}
-    {% set blocked_by = 'stamp_duty_blocked' %}
-{% elseif case.status.value == 'DEFINITIVA' and case.annulmentRulingCommunicationDate is null and case.hasPassedThroughAnnulment() %}
-    {# Not a precondition of enforcement, so the sentence names it without "first". #}
-    {% set blocked_by = 'annulment_date_pending' %}
-{% endif %}
+{% set blocked_by = next_step.blockedBy %}
 {% set cta_tone = blocked_by ? outline_class : null %}
 
-{% if blocked_by %}
-    {% set next_step_key = blocked_by %}
-{% elseif filing_link %}
-    {% set next_step_key = case.status.value == 'CERERE_GENERATA' ? 'filing_ready' : 'filing_follow' %}
-{% elseif case.status.value == 'INCHIS_SUCCES' and case.fullPaymentDate %}
-    {% set next_step_key = 'INCHIS_SUCCES_paid' %}
-{% else %}
-    {% set next_step_key = case.status.value %}
-{% endif %}
+{% set next_step_key = next_step.sentenceKey %}
 
 <div class="@container relative border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/30 rounded-b-2xl">
 <div class="px-5 py-3 lg:px-8 flex {{ has_primary ? 'flex-col @3xl:flex-row @3xl:items-center' : 'flex-row items-center' }} gap-3 @3xl:gap-6">

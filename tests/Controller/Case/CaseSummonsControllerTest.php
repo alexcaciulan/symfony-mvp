@@ -388,15 +388,11 @@ final class CaseSummonsControllerTest extends WebTestCase
     }
 
     /**
-     * The same route is the primary button of a limitation row on the global agenda,
-     * where a case still in the amiable stage has the summons as the act that
-     * interrupts the period. The stream the case page receives targets `case-hero`,
-     * `panel-documente` and the rest of the case regions, none of which exist there:
-     * sent to the agenda it would swap nothing and the lawyer would see no sign that
-     * the summons had been generated, while the case had in fact moved on and a
-     * subscription slot had been spent.
+     * Nothing on the agenda generates a summons: one click there spent a subscription
+     * slot. A form still posting the agenda context, from a page left open over the
+     * change, gets the answer of the case page like any other post.
      */
-    public function testGenerateSummonsFromTheAgendaAnswersWithTheAgendaRegions(): void
+    public function testAPostCarryingTheAgendaContextIsAnsweredAsTheCasePage(): void
     {
         $this->client->loginUser($this->user);
         $token = $this->csrfTokenFromOverview($this->case->getId());
@@ -410,71 +406,7 @@ final class CaseSummonsControllerTest extends WebTestCase
         );
 
         self::assertResponseIsSuccessful();
-        self::assertStringContainsString(
-            'text/vnd.turbo-stream.html',
-            (string) $this->client->getResponse()->headers->get('Content-Type'),
-        );
-
-        $body = (string) $this->client->getResponse()->getContent();
-        self::assertStringContainsString('target="deadline-agenda"', $body);
-        self::assertStringContainsString('target="deadline-riskbar"', $body);
-        self::assertStringContainsString('target="toasts"', $body);
-        self::assertStringNotContainsString('case-hero', $body);
-        self::assertStringNotContainsString('panel-documente', $body);
-        self::assertStringNotContainsString(self::C4_MODAL_ID, $body, 'The memento modal does not exist on the agenda.');
-
-        $this->em->clear();
-        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
-        self::assertSame(CaseStatus::SOMATIE_TRIMISA, $refreshed->getStatus(), 'The act itself still runs on the shared route.');
-    }
-
-    /**
-     * A client without Turbo has to land back on the agenda it acted from, with the
-     * same selection. Redirecting into the case would throw the lawyer out of the
-     * triage screen, which is the one thing the agenda context exists to prevent.
-     */
-    public function testGenerateSummonsFromTheAgendaWithoutTurboLandsBackOnTheFilteredAgenda(): void
-    {
-        $this->client->loginUser($this->user);
-        $token = $this->csrfTokenFromOverview($this->case->getId());
-
-        $this->client->request('POST', '/case/' . $this->case->getId() . '/summons/generate', [
-            '_token' => $token,
-            '_context' => 'agenda',
-            'f' => 'overdue',
-        ]);
-
-        self::assertResponseRedirects('/termene?f=overdue');
-
-        $this->em->clear();
-        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
-        self::assertSame(CaseStatus::SOMATIE_TRIMISA, $refreshed->getStatus());
-    }
-
-    /**
-     * A rejected submission fired from the agenda answers the agenda too, or the
-     * lawyer would be told nothing about why the summons was not generated.
-     */
-    public function testARejectedSummonsFromTheAgendaStillAnswersTheAgenda(): void
-    {
-        $this->client->loginUser($this->user);
-
-        $this->client->request(
-            'POST',
-            '/case/' . $this->case->getId() . '/summons/generate',
-            ['_token' => 'invalid-token', '_context' => 'agenda'],
-            [],
-            ['HTTP_ACCEPT' => 'text/vnd.turbo-stream.html, text/html, application/xhtml+xml'],
-        );
-
-        self::assertResponseIsSuccessful();
-        $body = (string) $this->client->getResponse()->getContent();
-        self::assertStringContainsString('target="deadline-agenda"', $body);
-        self::assertStringNotContainsString('panel-documente', $body);
-
-        $this->em->clear();
-        $refreshed = $this->em->getRepository(LegalCase::class)->find($this->case->getId());
-        self::assertSame(CaseStatus::AMIABIL, $refreshed->getStatus(), 'Status must remain AMIABIL on CSRF failure.');
+        self::assertStringNotContainsString('target="deadline-agenda"', (string) $this->client->getResponse()->getContent());
     }
 
     public function testGenerateSummonsBlockedWhenDebtorMissing(): void

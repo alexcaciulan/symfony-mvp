@@ -108,6 +108,23 @@ final class DeadlineBlockageActionResolverTest extends TestCase
         }
     }
 
+    /**
+     * The registration number is recorded on the Termene tab of the case, so the link
+     * into the case has to land there and not on the default tab.
+     */
+    public function testOnlyTheBailiffNumberLeadsToATabOfItsOwn(): void
+    {
+        foreach (DeadlineBlockageReason::cases() as $reason) {
+            $button = $this->resolver->resolve(new DeadlineBlockage(new LegalCase(), $reason));
+
+            self::assertSame(
+                $reason === DeadlineBlockageReason::ENFORCEMENT_REGISTRATION_NUMBER_MISSING ? 'termene' : null,
+                $button->caseTab,
+                $reason->value,
+            );
+        }
+    }
+
     /** A reason added to the enum without a line above would silently go untested. */
     public function testEveryReasonIsPinnedByTheMappingAbove(): void
     {

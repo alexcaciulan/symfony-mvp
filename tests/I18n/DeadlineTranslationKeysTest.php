@@ -197,14 +197,17 @@ final class DeadlineTranslationKeysTest extends TestCase
     }
 
     /**
-     * Whether something in src/ or templates/ can produce this key. Three shapes, which
-     * are the three the codebase actually uses:
+     * Whether something in src/ or templates/ can produce this key. Four shapes, which
+     * are the four the codebase actually uses:
      *
      * 1. the key written out in full;
      * 2. a concatenation prefix, a literal ending in `.` or `_` that the key extends
      *    (`'deadlines.blockage.' . $this->value . '.'`, `'deadlines.weekday.' ~ n`);
      * 3. a concatenation suffix, the key without its last segment written out as a
-     *    literal while the last segment is appended separately (`$base . '.mark'`).
+     *    literal while the last segment is appended separately (`$base . '.mark'`);
+     * 4. a constant holding the key up to its last dot, with the last segment appended as
+     *    a literal (`self::OWN . 'summons_blocked'`). Both halves are required, so a whole
+     *    family does not pass on the strength of the prefix alone.
      */
     private static function isReachable(string $key, string $source): bool
     {
@@ -221,7 +224,29 @@ final class DeadlineTranslationKeysTest extends TestCase
         $segments = explode('.', $key);
         $leaf = array_pop($segments);
 
-        return str_contains($source, implode('.', $segments)) && str_contains($source, "'." . $leaf . "'");
+        if (str_contains($source, implode('.', $segments)) && str_contains($source, "'." . $leaf . "'")) {
+            return true;
+        }
+
+        return \in_array(implode('.', $segments) . '.', self::constantPrefixes($source), true)
+            && preg_match('/self::[A-Z_]+\s*\.\s*\'' . preg_quote($leaf, '/') . '\'/', $source) === 1;
+    }
+
+    /**
+     * Every constant whose value ends where a computed segment begins.
+     *
+     * @return list<string>
+     */
+    private static function constantPrefixes(string $source): array
+    {
+        static $prefixes = null;
+        if ($prefixes !== null) {
+            return $prefixes;
+        }
+
+        preg_match_all('/const\s+[A-Z_]+\s*=\s*\'([a-z0-9_]+(?:\.[a-z0-9_]+)*\.)\';/', $source, $matches);
+
+        return $prefixes = array_values(array_unique($matches[1]));
     }
 
     /**

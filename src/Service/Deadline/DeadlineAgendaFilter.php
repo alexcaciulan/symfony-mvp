@@ -7,180 +7,150 @@ namespace App\Service\Deadline;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
- * What the agenda page is currently narrowed to. The four triage pills are the
- * filter: pressing one keeps only the rows it counts, pressing several keeps the
- * union of them, pressing it again releases it.
+ * What the agenda page is showing: one tab, and on the first tab optionally only the
+ * terms whose miss cannot be undone.
  *
- * The state travels in the query string, so a filtered agenda survives a refresh
- * and can be pasted to a colleague, and it is applied in SQL, never in the browser:
- * a filter that hides rows client side would still let the counters, the section
- * headers and the pagination describe a set the lawyer cannot see.
+ * The state travels in the query string, so a selection survives a refresh and can be
+ * pasted to a colleague, and it is applied in SQL, never in the browser: rows hidden on
+ * the client would leave the numbers describing a set the lawyer cannot see.
  *
- * The object is immutable; {@see self::toggled()} returns the next state, which is
- * exactly what a link needs to point at.
+ * Bookmarks of the former page still resolve: `completed` leads to the closed terms,
+ * `f=blocked` to the blocked cases, a selection with `fatal30` to the fatal terms and
+ * any other `f` to the first tab. An explicit valid tab wins over all of them.
  */
 final readonly class DeadlineAgendaFilter
 {
-    /** Past due, minus the terms of the debtor, which are not a delay of the lawyer. */
-    public const PILL_OVERDUE = 'overdue';
+    public const TAB_TODO = 'de-facut';
+    public const TAB_BLOCKED = 'de-completat';
+    public const TAB_PRESCRIPTIONS = 'prescriptii';
+    public const TAB_COMPLETED = 'finalizate';
 
-    /** Falling exactly today, the term running until the end of the day. */
-    public const PILL_TODAY = 'today';
+    public const QUERY_TAB = 'tab';
+    public const QUERY_FATAL = 'fatal';
+    public const QUERY_PAGE = 'page';
 
-    /** Irreversible types inside the agenda window. */
-    public const PILL_FATAL30 = 'fatal30';
+    private const LEGACY_PILLS = 'f';
+    private const LEGACY_COMPLETED = 'completed';
 
-    /** Cases whose fatal term cannot be computed. Selects CASES, not deadlines. */
-    public const PILL_BLOCKED = 'blocked';
+    private const TABS = [self::TAB_TODO, self::TAB_BLOCKED, self::TAB_PRESCRIPTIONS, self::TAB_COMPLETED];
 
-    public const QUERY_PILLS = 'f';
-    public const QUERY_COMPLETED = 'completed';
-
-    /** Canonical order, so the same selection always produces the same URL. */
-    private const PILLS = [
-        self::PILL_OVERDUE,
-        self::PILL_TODAY,
-        self::PILL_FATAL30,
-        self::PILL_BLOCKED,
-    ];
-
-    /**
-     * The pills that select deadlines. The blockage pill is deliberately not one of
-     * them: a blocked case has no deadline to match, so it is answered by showing or
-     * hiding the blockage zone instead.
-     */
-    private const DEADLINE_PILLS = [
-        self::PILL_OVERDUE,
-        self::PILL_TODAY,
-        self::PILL_FATAL30,
-    ];
-
-    /** @param list<string> $pills in canonical order, deduplicated, known values only */
-    private function __construct(
-        public array $pills,
-        public bool $showCompleted,
-    ) {}
-
-    /** The default agenda: everything inside the window, closed terms left out. */
-    public static function none(): self
-    {
-        return new self([], false);
-    }
-
-    /** Query values that turn the closed terms on; anything else leaves them out. */
+    /** Query values that turn a flag on; anything else leaves it off. */
     private const TRUE_VALUES = ['1', 'true', 'on', 'yes'];
 
+    private const MAX_PAGE = 20;
+
+    private function __construct(
+        public string $tab,
+        public bool $fatalOnly,
+        public int $page,
+    ) {}
+
+    /** The default page: the first tab, every term of the window. */
+    public static function none(): self
+    {
+        return new self(self::TAB_TODO, false, 1);
+    }
+
     /**
-     * Reads the filter off the request. A GET carries it in the query string; a POST
-     * carries it in hidden fields of the acting form, so the answer to an action
-     * keeps the agenda the lawyer was looking at.
+     * Reads the selection off the request. A GET carries it in the query string; a POST
+     * carries it in hidden fields of the acting form, so the answer to an action keeps
+     * the page the lawyer was looking at.
      *
-     * Every value is read as a string and matched against what the page itself emits.
-     * A hand-edited or truncated URL therefore falls back to the default agenda,
-     * instead of taking down the one screen the lawyer opens to see what is late.
+     * Every value is read as a string and matched against what the page itself emits, so
+     * an unknown or truncated value falls back to the default page. A parameter sent as an
+     * array is a malformed request and is answered as one.
      */
     public static function fromRequest(Request $request): self
     {
         $bag = $request->isMethod('POST') ? $request->getPayload() : $request->query;
 
-        return self::fromValues(
-            $bag->getString(self::QUERY_PILLS),
-            \in_array(strtolower(trim($bag->getString(self::QUERY_COMPLETED))), self::TRUE_VALUES, true),
-        );
-    }
+        $tab = trim($bag->getString(self::QUERY_TAB));
+        $fatal = self::isTrue($bag->getString(self::QUERY_FATAL));
+        $page = (int) trim($bag->getString(self::QUERY_PAGE));
 
-    public static function fromValues(string $pills, bool $showCompleted): self
-    {
-        $requested = array_map(trim(...), explode(',', $pills));
+        $legacyCompleted = self::isTrue($bag->getString(self::LEGACY_COMPLETED));
+        $legacyPills = array_values(array_filter(array_map(trim(...), explode(',', $bag->getString(self::LEGACY_PILLS)))));
 
-        return new self(
-            array_values(array_filter(self::PILLS, static fn (string $pill): bool => \in_array($pill, $requested, true))),
-            $showCompleted,
-        );
-    }
-
-    public function has(string $pill): bool
-    {
-        return \in_array($pill, $this->pills, true);
-    }
-
-    /** Whether any pill narrows the rows. Showing closed terms widens, so it is not one. */
-    public function hasPills(): bool
-    {
-        return $this->pills !== [];
-    }
-
-    /** Whether the page is on anything other than its default state. */
-    public function isActive(): bool
-    {
-        return $this->hasPills() || $this->showCompleted;
-    }
-
-    /**
-     * The selected pills that translate into a condition on a deadline.
-     *
-     * @return list<string>
-     */
-    public function deadlinePills(): array
-    {
-        return array_values(array_filter(
-            $this->pills,
-            static fn (string $pill): bool => \in_array($pill, self::DEADLINE_PILLS, true),
-        ));
-    }
-
-    /** Blockages show when nothing is filtered, or when their own pill is pressed. */
-    public function includesBlockages(): bool
-    {
-        return !$this->hasPills() || $this->has(self::PILL_BLOCKED);
-    }
-
-    /** The state reached by pressing $pill: selected pills release, released ones select. */
-    public function toggled(string $pill): self
-    {
-        if (!\in_array($pill, self::PILLS, true)) {
-            return $this;
+        if (!\in_array($tab, self::TABS, true)) {
+            $tab = match (true) {
+                $legacyCompleted => self::TAB_COMPLETED,
+                $legacyPills === ['blocked'] => self::TAB_BLOCKED,
+                default => self::TAB_TODO,
+            };
+            $fatal = $fatal || ($tab === self::TAB_TODO && \in_array('fatal30', $legacyPills, true));
         }
 
-        $pills = $this->has($pill)
-            ? array_values(array_filter($this->pills, static fn (string $current): bool => $current !== $pill))
-            : array_values(array_filter(self::PILLS, fn (string $current): bool => $current === $pill || $this->has($current)));
-
-        return new self($pills, $this->showCompleted);
+        return self::of($tab, $fatal, $page);
     }
 
-    public function toggledCompleted(): self
+    public static function of(string $tab, bool $fatalOnly = false, int $page = 1): self
     {
-        return new self($this->pills, !$this->showCompleted);
+        $tab = \in_array($tab, self::TABS, true) ? $tab : self::TAB_TODO;
+
+        return new self(
+            $tab,
+            $fatalOnly && $tab === self::TAB_TODO,
+            $tab === self::TAB_COMPLETED ? max(1, min($page, self::MAX_PAGE)) : 1,
+        );
+    }
+
+    public function isTab(string $tab): bool
+    {
+        return $this->tab === $tab;
+    }
+
+    /** The state reached by pressing the fatal switch. */
+    public function toggledFatal(): self
+    {
+        return self::of($this->tab, !$this->fatalOnly, $this->page);
+    }
+
+    /** Whether a further page exists at all: past the cap the link would lead back here. */
+    public function canGrow(): bool
+    {
+        return $this->page < self::MAX_PAGE;
+    }
+
+    public function withNextPage(): self
+    {
+        return self::of($this->tab, $this->fatalOnly, $this->page + 1);
     }
 
     /**
-     * The filter as route parameters, for a link back to the page. Empty values are
-     * dropped so the default agenda keeps a bare `/termene` URL.
+     * The selection as route parameters, for a link back to the page. Default values are
+     * dropped so the default page keeps a bare `/termene` URL.
      *
      * @return array<string, string>
      */
     public function queryParameters(): array
     {
         $parameters = [];
-        if ($this->hasPills()) {
-            $parameters[self::QUERY_PILLS] = implode(',', $this->pills);
+        if ($this->tab !== self::TAB_TODO) {
+            $parameters[self::QUERY_TAB] = $this->tab;
         }
-        if ($this->showCompleted) {
-            $parameters[self::QUERY_COMPLETED] = '1';
+        if ($this->fatalOnly) {
+            $parameters[self::QUERY_FATAL] = '1';
+        }
+        if ($this->page > 1) {
+            $parameters[self::QUERY_PAGE] = (string) $this->page;
         }
 
         return $parameters;
     }
 
     /**
-     * The same values as hidden inputs of an acting form, so an action posted from a
-     * filtered agenda answers with that same filtered agenda.
+     * The same values as hidden inputs of an acting form, so an action answers with the
+     * page it was pressed on.
      *
      * @return array<string, string>
      */
     public function hiddenFields(): array
     {
         return $this->queryParameters();
+    }
+
+    private static function isTrue(string $value): bool
+    {
+        return \in_array(strtolower(trim($value)), self::TRUE_VALUES, true);
     }
 }
