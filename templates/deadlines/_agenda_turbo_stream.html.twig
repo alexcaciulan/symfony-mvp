@@ -5,7 +5,7 @@
    nothing and leave the row exactly as it was.
 
    The regions are rebuilt whole rather than patched row by row. Closing one term moves
-   the verdict, the boxes, the count of its group, whether that group still renders and
+   the boxes, the count of its group, whether that group still renders and
    the badge; a single-row swap would leave those describing an agenda the lawyer can no
    longer see, and on a triage screen a stale number is worse than a larger answer.
 
@@ -14,10 +14,6 @@
    @var toast_key      string translation key of the message
    @var close_modal_id string|null dialog the action was fired from, sent on success
                                    only, so a rejected submission keeps what was typed #}
-
-<turbo-stream action="replace" target="deadline-verdict">
-    <template><div id="deadline-verdict" class="min-w-0">{{ include('deadlines/_verdict_region.html.twig', { view: view }, with_context = false) }}</div></template>
-</turbo-stream>
 
 <turbo-stream action="replace" target="deadline-riskbar">
     <template><div id="deadline-riskbar">{{ include('deadlines/_riskbar_region.html.twig', { view: view }, with_context = false) }}</div></template>

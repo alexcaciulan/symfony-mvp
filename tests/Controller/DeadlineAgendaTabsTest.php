@@ -135,7 +135,7 @@ final class DeadlineAgendaTabsTest extends WebTestCase
         self::assertCount(1, $frame);
         self::assertSame('_top', $frame->attr('target'));
         self::assertSame('advance', $frame->attr('data-turbo-action'));
-        self::assertCount(1, $frame->filter('#deadline-verdict'));
+        self::assertCount(1, $frame->filter('[data-testid="agenda-heading"]'));
         self::assertCount(4, $frame->filter('a[data-tab][data-turbo-frame="deadline-page"]'));
         self::assertCount(1, $frame->filter('[data-testid="agenda-fatal-toggle"][data-turbo-frame="deadline-page"]'));
         self::assertCount(0, $crawler->filter('#deadline-agenda a[data-turbo="false"], #deadline-riskbar a[data-turbo="false"]'));
@@ -239,10 +239,6 @@ final class DeadlineAgendaTabsTest extends WebTestCase
         self::assertSame('1', trim($crawler->filter('.deadline-nav-badge span')->first()->text()));
         self::assertCount(1, $crawler->filter('[data-group="overdue"] article'));
         self::assertStringContainsString(
-            static::getContainer()->get('translator')->trans('deadlines.verdict.overdue', ['%count%' => 1]),
-            $crawler->filter('[data-testid="agenda-verdict"]')->text(),
-        );
-        self::assertStringContainsString(
             static::getContainer()->get('translator')->trans('deadlines.row.covered_terms', ['%count%' => 2]),
             $crawler->filter('#deadline-row-' . $row->getId())->text(),
         );
@@ -287,105 +283,6 @@ final class DeadlineAgendaTabsTest extends WebTestCase
         self::assertSame('1', $crawler->filter('#deadline-row-' . $passed->getId())->attr('data-consumed'));
         self::assertSame('0', $crawler->filter('#deadline-row-' . $running->getId())->attr('data-consumed'));
         self::assertCount(1, $crawler->filter('[data-group="today"] #deadline-row-' . $running->getId()));
-    }
-
-    // ===== the verdict =====================================================
-
-    public function testTheVerdictReportsNothingWhenTheWindowIsEmpty(): void
-    {
-        $user = $this->makeUser();
-        $this->makeDeadline($this->makeCase($user), '+200 days', DeadlineType::PRESCRIPTIE);
-        $this->em->flush();
-
-        $this->assertVerdict($user, $this->trans('deadlines.verdict.nothing'));
-    }
-
-    public function testTheVerdictSingular(): void
-    {
-        $user = $this->makeUser();
-        $this->makeDeadline($this->makeCase($user), '-3 days', DeadlineType::OTHER);
-        $this->em->flush();
-
-        $this->assertVerdict($user, $this->trans('deadlines.verdict.overdue', 1) . '.');
-    }
-
-    public function testTheVerdictPlural(): void
-    {
-        $user = $this->makeUser();
-        $case = $this->makeCase($user);
-        $this->makeDeadline($case, '-3 days', DeadlineType::OTHER);
-        $this->makeDeadline($case, '-2 days', DeadlineType::OTHER);
-        $this->em->flush();
-
-        $this->assertVerdict($user, $this->trans('deadlines.verdict.overdue', 2) . '.');
-    }
-
-    public function testTheVerdictTakesTheLongFormWhenItOpensTheSentence(): void
-    {
-        $user = $this->makeUser();
-        $this->makeDeadline($this->makeCase($user), 'today', DeadlineType::OTHER);
-        $this->em->flush();
-
-        $this->assertVerdict($user, $this->trans('deadlines.verdict.today_first', 1) . '.');
-    }
-
-    public function testTheVerdictWithOnlyTheWeek(): void
-    {
-        $user = $this->makeUser();
-        $this->makeDeadline($this->makeCase($user), '+1 day', DeadlineType::OTHER);
-        $this->em->flush();
-
-        $this->assertVerdict($user, $this->trans('deadlines.verdict.week_first', 1) . '.');
-    }
-
-    public function testTheVerdictJoinsItsPartsLikeASentence(): void
-    {
-        $user = $this->makeUser();
-        $case = $this->makeCase($user);
-        $this->makeDeadline($case, '-3 days', DeadlineType::OTHER);
-        $this->makeDeadline($case, 'today', DeadlineType::OTHER);
-        $this->makeDeadline($case, 'today', DeadlineType::JUDECATA);
-        $this->makeDeadline($case, '+1 day', DeadlineType::OTHER);
-        $this->em->flush();
-
-        $this->assertVerdict($user, sprintf(
-            '%s, %s %s %s.',
-            $this->trans('deadlines.verdict.overdue', 1),
-            $this->trans('deadlines.verdict.today', 2),
-            $this->trans('deadlines.verdict.and'),
-            $this->trans('deadlines.verdict.week', 1),
-        ));
-    }
-
-    public function testTheVerdictFallsBackToTheWindow(): void
-    {
-        $user = $this->makeUser();
-        $this->makeDeadline($this->makeCase($user), '+20 days', DeadlineType::OTHER);
-        $this->em->flush();
-
-        $this->assertVerdict($user, $this->trans('deadlines.verdict.later', 1));
-    }
-
-    /** A debtor term past its date is not late work: the sentence falls back to the window. */
-    public function testTheVerdictDoesNotCallAnExpiredDebtorTermLate(): void
-    {
-        $user = $this->makeUser();
-        $this->makeDeadline($this->makeCase($user), '-3 days', DeadlineType::RASPUNS_SOMATIE);
-        $this->em->flush();
-
-        $this->assertVerdict($user, $this->trans('deadlines.verdict.later', 1));
-    }
-
-    public function testTheVerdictIsTheSameOnEveryTab(): void
-    {
-        $user = $this->seedEveryTab();
-        $this->client->loginUser($user);
-
-        $reference = $this->verdictOf($this->client->request('GET', '/termene'));
-
-        foreach (['/termene?fatal=1', '/termene?tab=de-completat', '/termene?tab=prescriptii', '/termene?tab=finalizate'] as $url) {
-            self::assertSame($reference, $this->verdictOf($this->client->request('GET', $url)), $url);
-        }
     }
 
     // ===== legacy URLs =====================================================
@@ -859,20 +756,6 @@ final class DeadlineAgendaTabsTest extends WebTestCase
 
             return (string) $row->filter('[data-testid="row-next-step"]')->attr('data-next-step');
         }, $caseIds);
-    }
-
-    private function verdictOf(Crawler $crawler): string
-    {
-        return trim($crawler->filter('[data-testid="agenda-verdict"]')->text());
-    }
-
-    private function assertVerdict(User $user, string $expected): void
-    {
-        $this->client->loginUser($user);
-        $crawler = $this->client->request('GET', '/termene');
-
-        self::assertResponseIsSuccessful();
-        self::assertSame($expected, $this->verdictOf($crawler));
     }
 
     private function trans(string $key, ?int $count = null): string

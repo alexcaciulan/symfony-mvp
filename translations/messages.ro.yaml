@@ -3686,16 +3686,6 @@ deadlines:
                 note: 'Cererea introdusă la instanță întrerupe ea însăși prescripția (NCC art. 2537 pct. 2), deci întreruperea nu mai depinde de cele 6 luni de la comunicarea somației. Întreruperea se socotește neîntâmplată doar dacă cererea este respinsă, anulată sau perimată (NCC art. 2539 alin. 2). Data de pe rând rămâne scadența plus 3 ani, calculată fără întrerupere.'
         internal_number: 'nr. intern'
         no_court: 'instanță nedepusă'
-    verdict:
-        overdue: '{1}1 termen depășit|]1,19]%count% termene depășite|[101,119]%count% termene depășite|[201,219]%count% termene depășite|[301,319]%count% termene depășite|[20,Inf[%count% de termene depășite'
-        today: '{1}1 scadent azi|]1,19]%count% scadente azi|[101,119]%count% scadente azi|[201,219]%count% scadente azi|[301,319]%count% scadente azi|[20,Inf[%count% de scadente azi'
-        today_first: '{1}1 termen scadent azi|]1,19]%count% termene scadente azi|[101,119]%count% termene scadente azi|[201,219]%count% termene scadente azi|[301,319]%count% termene scadente azi|[20,Inf[%count% de termene scadente azi'
-        week: '%count% în această săptămână'
-        week_first: '{1}1 termen în această săptămână|]1,19]%count% termene în această săptămână|[101,119]%count% termene în această săptămână|[201,219]%count% termene în această săptămână|[301,319]%count% termene în această săptămână|[20,Inf[%count% de termene în această săptămână'
-        and: 'și'
-        later: '{1}1 termen în agendă, niciunul scadent săptămâna aceasta.|]1,19]%count% termene în agendă, niciunul scadent săptămâna aceasta.|[101,119]%count% termene în agendă, niciunul scadent săptămâna aceasta.|[201,219]%count% termene în agendă, niciunul scadent săptămâna aceasta.|[301,319]%count% termene în agendă, niciunul scadent săptămâna aceasta.|[20,Inf[%count% de termene în agendă, niciunul scadent săptămâna aceasta.'
-        nothing: 'Nimic de făcut în următoarele 30 de zile.'
-        nothing_tracked: 'Nu există încă termene de urmărit.'
     tab:
         todo: 'De făcut'
         blocked: 'De completat'

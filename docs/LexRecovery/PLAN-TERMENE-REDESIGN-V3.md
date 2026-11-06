@@ -67,3 +67,7 @@ Filele, filtrul Fatal și „Arată mai multe” se încarcă în `turbo-frame#d
 ## Actualizare: comasarea prescripțiilor, după review
 
 Un dosar are cel mult două rânduri de prescripție: unul pentru scadențele trecute și unul pentru cele încă în curs, fiecare condus de cea mai veche scadență din grupul lui. Regula anterioară (un singur rând, cea mai veche scadență deschisă) putea ascunde un termen viu sub unul trecut, în afara numărătorilor Azi și Această săptămână. Înlocuiește regula de „consumat” pe rând comasat. Eticheta Fatal apare pe cinci motive din De completat, inclusiv lipsa datei comunicării somației.
+
+## Actualizare: fără verdict în antet
+
+Fraza mare de sus („6 termene depășite.”) a fost scoasă la cererea proprietarului, deoarece repeta caseta De făcut. A fost scoasă și eticheta cu data, deci deasupra casetelor rămâne doar Adaugă termen.

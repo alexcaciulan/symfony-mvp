@@ -154,7 +154,7 @@ class LegalDeadlineAgendaTest extends KernelTestCase
         self::assertSame([], $this->agenda());
         self::assertSame([], $this->repo->findOverdueForUser($this->user));
         self::assertSame(
-            ['overdue' => 0, 'today' => 0, 'week' => 0, 'todo' => 0],
+            ['overdue' => 0, 'today' => 0, 'todo' => 0],
             $this->repo->countAgendaBuckets($this->user),
         );
     }
@@ -170,7 +170,7 @@ class LegalDeadlineAgendaTest extends KernelTestCase
         self::assertSame([], $this->agenda());
         self::assertSame([], $this->repo->findOverdueForUser($this->user));
         self::assertSame(
-            ['overdue' => 0, 'today' => 0, 'week' => 0, 'todo' => 0],
+            ['overdue' => 0, 'today' => 0, 'todo' => 0],
             $this->repo->countAgendaBuckets($this->user),
         );
     }
@@ -186,7 +186,7 @@ class LegalDeadlineAgendaTest extends KernelTestCase
         self::assertSame([], $this->agenda());
         self::assertSame([], $this->repo->findOverdueForUser($this->user));
         self::assertSame(
-            ['overdue' => 0, 'today' => 0, 'week' => 0, 'todo' => 0],
+            ['overdue' => 0, 'today' => 0, 'todo' => 0],
             $this->repo->countAgendaBuckets($this->user),
         );
     }
@@ -206,7 +206,7 @@ class LegalDeadlineAgendaTest extends KernelTestCase
         self::assertSame([], $this->repo->findOverdueForUser($this->user));
         self::assertSame([], $this->repo->findLongHorizonPrescriptionsForUser($this->user));
         self::assertSame(
-            ['overdue' => 0, 'today' => 1, 'week' => 0, 'todo' => 1],
+            ['overdue' => 0, 'today' => 1, 'todo' => 1],
             $this->repo->countAgendaBuckets($this->user),
         );
 
@@ -249,16 +249,9 @@ class LegalDeadlineAgendaTest extends KernelTestCase
             $agenda,
             static fn (LegalDeadline $d): bool => $d->getDeadlineDate()->format('Y-m-d') === $today->format('Y-m-d'),
         ));
-        $weekEnd = LegalDeadlineRepository::weekGroupEnd($today)->format('Y-m-d');
-        $manualWeek = \count(array_filter(
-            $agenda,
-            static fn (LegalDeadline $d): bool => $d->getDeadlineDate()->format('Y-m-d') > $today->format('Y-m-d')
-                && $d->getDeadlineDate()->format('Y-m-d') <= $weekEnd,
-        ));
 
         self::assertSame(\count($this->repo->findOverdueForUser($this->user)), $buckets['overdue']);
         self::assertSame($manualToday, $buckets['today']);
-        self::assertSame($manualWeek, $buckets['week']);
         self::assertSame(\count($agenda) + $buckets['overdue'], $buckets['todo']);
         self::assertSame(2, $buckets['overdue']);
         self::assertSame(2, $buckets['today']);
@@ -285,18 +278,6 @@ class LegalDeadlineAgendaTest extends KernelTestCase
         self::assertSame(3, $buckets['todo']);
     }
 
-    /** The week number starts tomorrow, so a term due today is not counted twice. */
-    public function testTheWeekCounterLeavesOutToday(): void
-    {
-        $case = $this->createCase();
-        $this->createDeadline($case, 'today');
-        $this->createDeadline($case, '+1 day');
-        $this->em->flush();
-
-        self::assertSame(1, $this->repo->countAgendaBuckets($this->user)['today']);
-        self::assertSame(1, $this->repo->countAgendaBuckets($this->user)['week']);
-    }
-
     public function testOverdueListHoldsOnlyPastDatesOrderedAscending(): void
     {
         $case = $this->createCase();
@@ -312,7 +293,7 @@ class LegalDeadlineAgendaTest extends KernelTestCase
     /**
      * The expiry of the debtor's own term (CPC art. 1015 para. 1) is what opens the
      * filing of the request, not a delay of the lawyer, so it must not reach the red
-     * section nor the number the sidebar badge and the verdict both read.
+     * section nor the number the sidebar badge reads.
      */
     public function testExpiredDebtorTermIsNeitherOverdueNorCountedAsSuch(): void
     {

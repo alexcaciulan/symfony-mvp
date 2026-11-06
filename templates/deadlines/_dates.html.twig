@@ -9,6 +9,4 @@
 
 {% macro long(date) %}{{- date|date('j') }} {{ ('deadlines.month.' ~ date|date('n'))|trans }} {{ date|date('Y') -}}{% endmacro %}
 
-{% macro weekday_long(date) %}{{- ('deadlines.weekday.' ~ date|date('N'))|trans }}, {{ date|date('j') }} {{ ('deadlines.month.' ~ date|date('n'))|trans }} {{ date|date('Y') -}}{% endmacro %}
-
 {% macro weekday_numeric(date) %}{{- ('deadlines.weekday.' ~ date|date('N'))|trans }}, {{ date|date('d.m.Y') -}}{% endmacro %}

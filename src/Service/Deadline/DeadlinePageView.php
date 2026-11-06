@@ -13,7 +13,7 @@ final readonly class DeadlinePageView
 {
     /**
      * @param list<DeadlineGroupView>    $groups        the time buckets of the first tab, in render order
-     * @param array{overdue: int, today: int, week: int, todo: int, blocked: int, prescriptions: int, completed: int} $counters
+     * @param array{overdue: int, today: int, todo: int, blocked: int, prescriptions: int, completed: int} $counters
      * @param list<DeadlineBlockageView> $blockages     rows of the blocked cases tab
      * @param list<DeadlineRowView>      $prescriptions rows of the limitation tab
      * @param list<DeadlineRowView>      $completed     rows of the closed terms tab
@@ -32,16 +32,6 @@ final readonly class DeadlinePageView
         public \DateTimeImmutable $windowEnd,
         public DeadlineAgendaFilter $filter,
     ) {}
-
-    /**
-     * The day the page was built for, derived from the window it covers rather than
-     * read again from a clock, so every date printed on the page belongs to the same
-     * moment as the rows.
-     */
-    public function today(): \DateTimeImmutable
-    {
-        return $this->windowEnd->modify('-' . DeadlineAgendaService::HORIZON_DAYS . ' days');
-    }
 
     /** Whether the first tab lists nothing under the current selection. */
     public function isAgendaEmpty(): bool

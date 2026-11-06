@@ -376,7 +376,6 @@ final class DeadlineAgendaDialogsTest extends WebTestCase
         self::assertCount(1, $crawler->filter('#hs-modal-agenda-confirm-close'));
         self::assertCount(0, $crawler->filter('#deadline-agenda #hs-modal-agenda-confirm-close'));
         self::assertCount(0, $crawler->filter('#deadline-riskbar #hs-modal-agenda-confirm-close'));
-        self::assertCount(0, $crawler->filter('#deadline-verdict #hs-modal-agenda-confirm-close'));
         self::assertCount(1, $crawler->filter('#deadline-panel-dismiss'));
         self::assertCount(0, $crawler->filter('#deadline-agenda #deadline-panel-dismiss'), 'The panel outlives the answer that closes it.');
         self::assertCount(0, $crawler->filter('#deadline-agenda turbo-frame#deadline-panel-frame'));

@@ -4,7 +4,7 @@
    controls resolved, so nothing here decides anything legal. The selection travels in the
    query string, so a tab survives a refresh and can be handed to a colleague as a link.
 
-   The three ids below are the targets an action fired from a row replaces, so the page
+   The two ids below are the targets an action fired from a row replaces, so the page
    updates in place. The dialogs and the side panel sit outside them but under the same
    controllers, so acting never destroys what asked the question.
 
@@ -33,21 +33,21 @@
     <turbo-frame id="deadline-page" target="_top" data-turbo-action="advance"
                  data-deadline-page-target="frame"
                  class="block space-y-5 transition-opacity aria-busy:opacity-60">
-        <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-            <div id="deadline-verdict" class="min-w-0">{{ include('deadlines/_verdict_region.html.twig', { view: view }, with_context = false) }}</div>
+        <h1 data-testid="agenda-heading" class="sr-only">{{ 'deadlines.heading'|trans }}</h1>
 
-            {# Offered only when there is a case to attach a reminder to: an empty select
-               would promise something the account cannot do yet. #}
-            {% if add_cases|length > 0 %}
+        {# Offered only when there is a case to attach a reminder to: an empty select
+           would promise something the account cannot do yet. #}
+        {% if add_cases|length > 0 %}
+            <div class="flex justify-end">
                 <button type="button"
-                        class="self-start shrink-0 inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                        class="shrink-0 inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
                         data-agenda-action="add-deadline"
                         data-hs-overlay="#{{ add_modal_id }}">
                     {{ plus('size-4 text-slate-400') }}
                     {{ 'deadlines.add.open'|trans }}
                 </button>
-            {% endif %}
-        </div>
+            </div>
+        {% endif %}
 
         <div id="deadline-riskbar">{{ include('deadlines/_riskbar_region.html.twig', { view: view }, with_context = false) }}</div>
 

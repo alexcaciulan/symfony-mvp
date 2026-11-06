@@ -42,7 +42,7 @@ final class DeadlineAgendaResponseTest extends WebTestCase
     ];
 
     /** The regions a stream replaces. They all have to equal a fresh load. */
-    private const REGIONS = ['deadline-verdict', 'deadline-riskbar', 'deadline-agenda'];
+    private const REGIONS = ['deadline-riskbar', 'deadline-agenda'];
 
     private KernelBrowser $client;
     private EntityManagerInterface $em;
@@ -95,7 +95,7 @@ final class DeadlineAgendaResponseTest extends WebTestCase
         }
         self::assertStringNotContainsString('deadline-card-', $body);
 
-        foreach (['deadline-verdict', 'deadline-riskbar', 'deadline-agenda', 'toasts'] as $target) {
+        foreach (['deadline-riskbar', 'deadline-agenda', 'toasts'] as $target) {
             self::assertStringContainsString('target="' . $target . '"', $body);
         }
     }
@@ -154,12 +154,6 @@ final class DeadlineAgendaResponseTest extends WebTestCase
             'The counter must describe the agenda the answer carries, not the one before it.',
         );
         self::assertSame('1', trim($boxes->filter('[data-counter="completed"]')->text()));
-
-        $verdict = new Crawler($this->streamedRegion($streamed, 'deadline-verdict'));
-        self::assertStringNotContainsString(
-            static::getContainer()->get('translator')->trans('deadlines.verdict.today_first', ['%count%' => 1]),
-            $verdict->filter('[data-testid="agenda-verdict"]')->text(),
-        );
 
         self::assertSame('1', $this->counterOn('/termene', 'todo'), 'And a reload agrees.');
     }

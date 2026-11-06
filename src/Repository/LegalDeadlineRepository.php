@@ -326,14 +326,13 @@ class LegalDeadlineRepository extends ServiceEntityRepository
      *   reason spelled out on {@see self::findOverdueForUser()}; the box and the sidebar
      *   badge must count exactly what the red section lists
      * - today: date exactly today
-     * - week: after today, up to the end of the week group
      * - todo: everything inside the agenda window, debtor terms included
      *
      * Deliberately not filtered: the numbers describe the whole open agenda whatever is
      * selected, because a counter that shrank to the selection would measure the click
      * instead of the risk.
      *
-     * @return array{overdue: int, today: int, week: int, todo: int}
+     * @return array{overdue: int, today: int, todo: int}
      */
     public function countAgendaBuckets(User $user): array
     {
@@ -343,11 +342,9 @@ class LegalDeadlineRepository extends ServiceEntityRepository
             ->select(
                 'SUM(CASE WHEN d.deadlineDate < :today AND d.type NOT IN (:unsanctionedTypes) THEN 1 ELSE 0 END) AS overdue',
                 'SUM(CASE WHEN d.deadlineDate = :today THEN 1 ELSE 0 END) AS today',
-                'SUM(CASE WHEN d.deadlineDate > :today AND d.deadlineDate <= :weekEnd THEN 1 ELSE 0 END) AS week',
                 'SUM(CASE WHEN d.deadlineDate <= :horizon THEN 1 ELSE 0 END) AS todo',
             )
             ->setParameter('today', $today, Types::DATE_IMMUTABLE)
-            ->setParameter('weekEnd', self::weekGroupEnd($today), Types::DATE_IMMUTABLE)
             ->setParameter('horizon', $today->modify('+30 days'), Types::DATE_IMMUTABLE)
             ->setParameter('unsanctionedTypes', $this->consequenceResolver->unsanctionedTypes())
             ->getQuery()
@@ -356,7 +353,6 @@ class LegalDeadlineRepository extends ServiceEntityRepository
         return [
             'overdue' => (int) $row['overdue'],
             'today' => (int) $row['today'],
-            'week' => (int) $row['week'],
             'todo' => (int) $row['todo'],
         ];
     }

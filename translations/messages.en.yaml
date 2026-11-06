@@ -3689,16 +3689,6 @@ deadlines:
                 note: 'A request filed in court interrupts the limitation period on its own (NCC art. 2537 pt. 2), so the interruption no longer depends on the six months from the communication of the summons. It is deemed never to have happened only if the request is dismissed, annulled or lapses (NCC art. 2539 para. 2). The date on the row is still the due date plus 3 years, computed without any interruption.'
         internal_number: 'internal no.'
         no_court: 'not filed with a court'
-    verdict:
-        overdue: '{1}1 overdue term|]1,Inf[%count% overdue terms'
-        today: '%count% due today'
-        today_first: '{1}1 term due today|]1,Inf[%count% terms due today'
-        week: '%count% this week'
-        week_first: '{1}1 term this week|]1,Inf[%count% terms this week'
-        and: 'and'
-        later: '{1}1 term in the agenda, none due this week.|]1,Inf[%count% terms in the agenda, none due this week.'
-        nothing: 'Nothing to do in the next 30 days.'
-        nothing_tracked: 'No deadlines to track yet.'
     tab:
         todo: 'To do'
         blocked: 'To complete'

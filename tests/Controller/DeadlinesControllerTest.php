@@ -73,10 +73,9 @@ final class DeadlinesControllerTest extends WebTestCase
 
         self::assertResponseIsSuccessful();
         self::assertSelectorTextContains(
-            '#deadline-verdict p',
+            'h1[data-testid="agenda-heading"]',
             static::getContainer()->get('translator')->trans('deadlines.heading'),
         );
-        self::assertSelectorExists('h1[data-testid="agenda-verdict"]');
     }
 
     /**
@@ -286,9 +285,9 @@ final class DeadlinesControllerTest extends WebTestCase
         self::assertSame('2', trim($crawler->filter('[data-counter="todo"]')->text()));
 
         $translator = static::getContainer()->get('translator');
-        $verdict = $crawler->filter('[data-testid="agenda-verdict"]')->text();
-        self::assertStringContainsString($translator->trans('deadlines.verdict.overdue', ['%count%' => 1]), $verdict);
-        self::assertStringContainsString($translator->trans('deadlines.verdict.today', ['%count%' => 1]), $verdict);
+        $hint = $crawler->filter('[data-tab="de-facut"]')->text();
+        self::assertStringContainsString($translator->trans('deadlines.tab_hint.overdue', ['%count%' => 1]), $hint);
+        self::assertStringContainsString($translator->trans('deadlines.tab_hint.today', ['%count%' => 1]), $hint);
     }
 
     /**
@@ -319,9 +318,9 @@ final class DeadlinesControllerTest extends WebTestCase
         );
         self::assertCount(0, $crawler->filter('[data-group="overdue"]'));
         self::assertStringNotContainsString(
-            $translator->trans('deadlines.verdict.overdue', ['%count%' => 1]),
-            $crawler->filter('[data-testid="agenda-verdict"]')->text(),
-            'Its expiry is not a delay of the lawyer, so the sentence must not read as one.',
+            $translator->trans('deadlines.tab_hint.overdue', ['%count%' => 1]),
+            $crawler->filter('[data-tab="de-facut"]')->text(),
+            'Its expiry is not a delay of the lawyer, so the box must not read as one.',
         );
     }
 
@@ -458,12 +457,6 @@ final class DeadlinesControllerTest extends WebTestCase
         self::assertCount(1, $crawler->filter('[data-state="no-deadlines"]'));
         self::assertCount(0, $crawler->filter('[data-counter]'));
         self::assertCount(0, $crawler->filter('[data-tab]'));
-
-        $translator = static::getContainer()->get('translator');
-        self::assertSame(
-            $translator->trans('deadlines.verdict.nothing_tracked'),
-            trim($crawler->filter('[data-testid="agenda-verdict"]')->text()),
-        );
     }
 
     /**
@@ -488,10 +481,6 @@ final class DeadlinesControllerTest extends WebTestCase
         self::assertCount(1, $crawler->filter('[data-state="agenda-empty"] a[href="/termene?tab=prescriptii"]'));
         self::assertSame('0', trim($crawler->filter('[data-counter="todo"]')->text()));
         self::assertSame('1', trim($crawler->filter('[data-counter="prescriptions"]')->text()));
-        self::assertSame(
-            $translator->trans('deadlines.verdict.nothing'),
-            trim($crawler->filter('[data-testid="agenda-verdict"]')->text()),
-        );
     }
 
     /** No limitation term on the account: nothing to point to, and no link pretending otherwise. */
